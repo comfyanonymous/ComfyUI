@@ -1,0 +1,5 @@
+__pycache__/
+*.py[cod]
+output/
+models/checkpoints
+models/vae

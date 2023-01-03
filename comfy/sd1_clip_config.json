@@ -1,0 +1,25 @@
+{
+  "_name_or_path": "openai/clip-vit-large-patch14",
+  "architectures": [
+    "CLIPTextModel"
+  ],
+  "attention_dropout": 0.0,
+  "bos_token_id": 0,
+  "dropout": 0.0,
+  "eos_token_id": 2,
+  "hidden_act": "quick_gelu",
+  "hidden_size": 768,
+  "initializer_factor": 1.0,
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "layer_norm_eps": 1e-05,
+  "max_position_embeddings": 77,
+  "model_type": "clip_text_model",
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "pad_token_id": 1,
+  "projection_dim": 768,
+  "torch_dtype": "float32",
+  "transformers_version": "4.24.0",
+  "vocab_size": 49408
+}
