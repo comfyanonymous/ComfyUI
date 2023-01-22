@@ -58,6 +58,10 @@ class VAEEncode:
     FUNCTION = "encode"
 
     def encode(self, vae, pixels):
+        x = (pixels.shape[1] // 64) * 64
+        y = (pixels.shape[2] // 64) * 64
+        if pixels.shape[1] != x or pixels.shape[2] != y:
+            pixels = pixels[:,:x,:y,:]
         return (vae.encode(pixels), )
 
 class CheckpointLoader:
@@ -205,6 +209,24 @@ class SaveImage:
             img.save(f"output/ComfyUI_{self.counter:05}_.png", pnginfo=metadata, optimize=True)
             self.counter += 1
 
+class LoadImage:
+    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"image": (os.listdir(s.input_dir), )},
+                }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "load_image"
+    def load_image(self, image):
+        image_path = os.path.join(self.input_dir, image)
+        image = Image.open(image_path).convert("RGB")
+        image = np.array(image).astype(np.float32) / 255.0
+        image = torch.from_numpy(image[None])[None,]
+        return image
+
+
 
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
@@ -216,6 +238,7 @@ NODE_CLASS_MAPPINGS = {
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
+    "LoadImage": LoadImage
 }
 
 
