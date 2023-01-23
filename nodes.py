@@ -3,6 +3,7 @@ import torch
 import os
 import sys
 import json
+import hashlib
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -225,6 +226,14 @@ class LoadImage:
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image[None])[None,]
         return image
+
+    @classmethod
+    def IS_CHANGED(s, image):
+        image_path = os.path.join(s.input_dir, image)
+        m = hashlib.sha256()
+        with open(image_path, 'rb') as f:
+            m.update(f.read())
+        return m.digest().hex()
 
 
 
