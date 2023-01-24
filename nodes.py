@@ -28,7 +28,7 @@ def filter_files_extensions(files, extensions):
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", ), "clip": ("CLIP", )}}
+        return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
