@@ -180,15 +180,12 @@ class KSampler:
 class SaveImage:
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-        try:
-            self.counter = int(max(filter(lambda a: 'ComfyUI_' in a, os.listdir(self.output_dir))).split('_')[1]) + 1
-        except:
-            self.counter = 1
 
     @classmethod
     def INPUT_TYPES(s):
         return {"required": 
-                    {"images": ("IMAGE", )},
+                    {"images": ("IMAGE", ),
+                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -197,7 +194,19 @@ class SaveImage:
 
     OUTPUT_NODE = True
 
-    def save_images(self, images, prompt=None, extra_pnginfo=None):
+    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        def map_filename(filename):
+            prefix_len = len(filename_prefix)
+            prefix = filename[:prefix_len + 1]
+            try:
+                digits = int(filename[prefix_len + 1:].split('_')[0])
+            except:
+                digits = 0
+            return (digits, prefix)
+        try:
+            counter = max(filter(lambda a: a[1][:-1] == filename_prefix and a[1][-1] == "_", map(map_filename, os.listdir(self.output_dir))))[0] + 1
+        except ValueError:
+            counter = 1
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(i.astype(np.uint8))
@@ -207,8 +216,8 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-            img.save(f"output/ComfyUI_{self.counter:05}_.png", pnginfo=metadata, optimize=True)
-            self.counter += 1
+            img.save(f"output/{filename_prefix}_{counter:05}_.png", pnginfo=metadata, optimize=True)
+            counter += 1
 
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
