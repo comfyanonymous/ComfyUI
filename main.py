@@ -294,7 +294,12 @@ class PromptServer(BaseHTTPRequestHandler):
                 out[x] = info
             self.wfile.write(json.dumps(out).encode('utf-8'))
         elif self.path[1:] in os.listdir(self.server.server_dir):
-            self._set_headers()
+            if self.path[1:].endswith('.css'):
+                self._set_headers(ct='text/css')
+            elif self.path[1:].endswith('.js'):
+                self._set_headers(ct='text/javascript')
+            else:
+                self._set_headers()
             with open(os.path.join(self.server.server_dir, self.path[1:]), "rb") as f:
                 self.wfile.write(f.read())
         else:
