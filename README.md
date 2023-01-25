@@ -49,6 +49,10 @@ Dragging a generated png on the webpage or loading one will give you the full wo
 
 You can use () to change emphasis of a word or phrase like: (good code:1.2) or (bad code:0.8). The default emphasis for () is 1.1. To use () characters in your actual prompt escape them like \\( or \\).
 
+### Colab Notebook
+
+To run it on colab you can use my colab notebook here: [Colab Notebook](notebooks/comfyui_colab.ipynb)
+
 ### Fedora
 
 To get python 3.10 on fedora:
