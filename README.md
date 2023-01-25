@@ -51,7 +51,7 @@ You can use () to change emphasis of a word or phrase like: (good code:1.2) or (
 
 ### Colab Notebook
 
-To run it on colab you can use my colab notebook here: [Colab Notebook](notebooks/comfyui_colab.ipynb)
+To run it on colab you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
 
 ### Fedora
 
