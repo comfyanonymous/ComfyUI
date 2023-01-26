@@ -9,7 +9,7 @@ class CFGDenoiser(torch.nn.Module):
         self.inner_model = model
 
     def forward(self, x, sigma, uncond, cond, cond_scale):
-        if len(uncond[0]) == len(cond[0]) and x.shape[0] * x.shape[2] * x.shape[3] <= (96 * 96): #TODO check memory instead
+        if len(uncond[0]) == len(cond[0]) and x.shape[0] * x.shape[2] * x.shape[3] < (96 * 96): #TODO check memory instead
             x_in = torch.cat([x] * 2)
             sigma_in = torch.cat([sigma] * 2)
             cond_in = torch.cat([uncond, cond])
@@ -19,6 +19,61 @@ class CFGDenoiser(torch.nn.Module):
             uncond = self.inner_model(x, sigma, cond=uncond)
         return uncond + (cond - uncond) * cond_scale
 
+class CFGDenoiserComplex(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.inner_model = model
+    def forward(self, x, sigma, uncond, cond, cond_scale):
+        def calc_cond(cond, x_in, sigma):
+            out_cond = torch.zeros_like(x_in)
+            out_count = torch.ones_like(x_in)/100000.0
+            sigma_cmp = sigma[0]
+
+            for x in cond:
+                area = (x_in.shape[2], x_in.shape[3], 0, 0)
+                strength = 1.0
+                min_sigma = 0.0
+                max_sigma = 999.0
+                if 'area' in x[1]:
+                    area = x[1]['area']
+                if 'strength' in x[1]:
+                    strength = x[1]['strength']
+                if 'min_sigma' in x[1]:
+                    min_sigma = x[1]['min_sigma']
+                if 'max_sigma' in x[1]:
+                    max_sigma = x[1]['max_sigma']
+                if sigma_cmp < min_sigma or sigma_cmp > max_sigma:
+                    continue
+                input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
+                mult = torch.ones_like(input_x) * strength
+
+                rr = 8
+                if area[2] != 0:
+                    for t in range(rr):
+                        mult[:,:,area[2]+t:area[2]+1+t,:] *= ((1.0/rr) * (t + 1))
+                if (area[0] + area[2]) < x_in.shape[2]:
+                    for t in range(rr):
+                        mult[:,:,area[0] + area[2] - 1 - t:area[0] + area[2] - t,:] *= ((1.0/rr) * (t + 1))
+                if area[3] != 0:
+                    for t in range(rr):
+                        mult[:,:,:,area[3]+t:area[3]+1+t] *= ((1.0/rr) * (t + 1))
+                if (area[1] + area[3]) < x_in.shape[3]:
+                    for t in range(rr):
+                        mult[:,:,:,area[1] + area[3] - 1 - t:area[1] + area[3] - t] *= ((1.0/rr) * (t + 1))
+
+                out_cond[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] += self.inner_model(input_x, sigma, cond=x[0]) * mult
+                out_count[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] += mult
+                del input_x
+                del mult
+
+            out_cond /= out_count
+            del out_count
+            return out_cond
+
+        cond = calc_cond(cond, x, sigma)
+        uncond = calc_cond(uncond, x, sigma)
+
+        return uncond + (cond - uncond) * cond_scale
 
 def simple_scheduler(model, steps):
     sigs = []
@@ -28,6 +83,35 @@ def simple_scheduler(model, steps):
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
+def create_cond_with_same_area_if_none(conds, c):
+    if 'area' not in c[1]:
+        return
+
+    c_area = c[1]['area']
+    smallest = None
+    for x in conds:
+        if 'area' in x[1]:
+            a = x[1]['area']
+            if c_area[2] >= a[2] and c_area[3] >= a[3]:
+                if a[0] + a[2] >= c_area[0] + c_area[2]:
+                    if a[1] + a[3] >= c_area[1] + c_area[3]:
+                        if smallest is None:
+                            smallest = x
+                        elif 'area' not in smallest[1]:
+                            smallest = x
+                        else:
+                            if smallest[1]['area'][0] * smallest[1]['area'][1] > a[0] * a[1]:
+                                smallest = x
+        else:
+            if smallest is None:
+                smallest = x
+    if smallest is None:
+        return
+    if 'area' in smallest[1]:
+        if smallest[1]['area'] == c_area:
+            return
+    n = c[1].copy()
+    conds += [[smallest[0], n]]
 
 class KSampler:
     SCHEDULERS = ["karras", "normal", "simple"]
@@ -41,7 +125,7 @@ class KSampler:
             self.model_wrap = k_diffusion.external.CompVisVDenoiser(self.model, quantize=True)
         else:
             self.model_wrap = k_diffusion.external.CompVisDenoiser(self.model, quantize=True)
-        self.model_k = CFGDenoiser(self.model_wrap)
+        self.model_k = CFGDenoiserComplex(self.model_wrap)
         self.device = device
         if scheduler not in self.SCHEDULERS:
             scheduler = self.SCHEDULERS[0]
@@ -94,10 +178,17 @@ class KSampler:
         if start_step is not None:
             sigmas = sigmas[start_step:]
 
-
         noise *= sigmas[0]
         if latent_image is not None:
             noise += latent_image
+
+        positive = positive[:]
+        negative = negative[:]
+        #make sure each cond area has an opposite one with the same area
+        for c in positive:
+            create_cond_with_same_area_if_none(negative, c)
+        for c in negative:
+            create_cond_with_same_area_if_none(positive, c)
 
         if self.model.model.diffusion_model.dtype == torch.float16:
             precision_scope = torch.autocast

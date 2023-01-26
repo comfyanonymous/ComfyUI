@@ -4,6 +4,7 @@ import os
 import sys
 import json
 import hashlib
+import copy
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -33,7 +34,39 @@ class CLIPTextEncode:
     FUNCTION = "encode"
 
     def encode(self, clip, text):
-        return (clip.encode(text), )
+        return ([[clip.encode(text), {}]], )
+
+class ConditioningCombine:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", )}}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "combine"
+
+    def combine(self, conditioning_1, conditioning_2):
+        return (conditioning_1 + conditioning_2, )
+
+class ConditioningSetArea:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "width": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
+                              "height": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    def append(self, conditioning, width, height, x, y, strength, min_sigma=0.0, max_sigma=99.0):
+        c = copy.deepcopy(conditioning)
+        for t in c:
+            t[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
+            t[1]['strength'] = strength
+            t[1]['min_sigma'] = min_sigma
+            t[1]['max_sigma'] = max_sigma
+        return (c, )
 
 class VAEDecode:
     def __init__(self, device="cpu"):
@@ -172,14 +205,21 @@ class KSampler:
         noise = noise.to(self.device)
         latent_image = latent_image.to(self.device)
 
-        if positive.shape[0] < noise.shape[0]:
-            positive = torch.cat([positive] * noise.shape[0])
+        positive_copy = []
+        negative_copy = []
 
-        if negative.shape[0] < noise.shape[0]:
-            negative = torch.cat([negative] * noise.shape[0])
-
-        positive = positive.to(self.device)
-        negative = negative.to(self.device)
+        for p in positive:
+            t = p[0]
+            if t.shape[0] < noise.shape[0]:
+                t = torch.cat([t] * noise.shape[0])
+            t = t.to(self.device)
+            positive_copy += [[t] + p[1:]]
+        for n in negative:
+            t = n[0]
+            if t.shape[0] < noise.shape[0]:
+                t = torch.cat([t] * noise.shape[0])
+            t = t.to(self.device)
+            negative_copy += [[t] + n[1:]]
 
         if sampler_name in comfy.samplers.KSampler.SAMPLERS:
             sampler = comfy.samplers.KSampler(model, steps=steps, device=self.device, sampler=sampler_name, scheduler=scheduler, denoise=denoise)
@@ -187,7 +227,7 @@ class KSampler:
             #other samplers
             pass
 
-        samples = sampler.sample(noise, positive, negative, cfg=cfg, latent_image=latent_image)
+        samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image)
         samples = samples.cpu()
         model = model.cpu()
         return (samples, )
@@ -272,7 +312,9 @@ NODE_CLASS_MAPPINGS = {
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
-    "LoadImage": LoadImage
+    "LoadImage": LoadImage,
+    "ConditioningCombine": ConditioningCombine,
+    "ConditioningSetArea": ConditioningSetArea,
 }
 
 
