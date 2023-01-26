@@ -291,6 +291,9 @@ class PromptServer(BaseHTTPRequestHandler):
                 info['output'] = obj_class.RETURN_TYPES
                 info['name'] = x #TODO
                 info['description'] = ''
+                info['category'] = 'sd'
+                if hasattr(obj_class, 'CATEGORY'):
+                    info['category'] = obj_class.CATEGORY
                 out[x] = info
             self.wfile.write(json.dumps(out).encode('utf-8'))
         elif self.path[1:] in os.listdir(self.server.server_dir):

@@ -237,7 +237,7 @@ function onObjectInfo(json) {
         MyNode.__json_data = json[key]
 
         LiteGraph.registerNodeType(key, MyNode);
-        MyNode.category = "sd"; //TODO: proper categories
+        MyNode.category = json[key]['category'];
     };
 
     afterLoadGraph();
