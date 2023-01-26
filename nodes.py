@@ -33,6 +33,8 @@ class CLIPTextEncode:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
+    CATEGORY = "conditioning"
+
     def encode(self, clip, text):
         return ([[clip.encode(text), {}]], )
 
@@ -42,6 +44,8 @@ class ConditioningCombine:
         return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", )}}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "combine"
+
+    CATEGORY = "conditioning"
 
     def combine(self, conditioning_1, conditioning_2):
         return (conditioning_1 + conditioning_2, )
@@ -58,6 +62,8 @@ class ConditioningSetArea:
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
+
+    CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength, min_sigma=0.0, max_sigma=99.0):
         c = copy.deepcopy(conditioning)
@@ -78,6 +84,8 @@ class VAEDecode:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
+    CATEGORY = "latent"
+
     def decode(self, vae, samples):
         return (vae.decode(samples), )
 
@@ -90,6 +98,8 @@ class VAEEncode:
         return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", )}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
+
+    CATEGORY = "latent"
 
     def encode(self, vae, pixels):
         x = (pixels.shape[1] // 64) * 64
@@ -110,6 +120,8 @@ class CheckpointLoader:
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
+    CATEGORY = "loaders"
+
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = os.path.join(self.config_dir, config_name)
         ckpt_path = os.path.join(self.ckpt_dir, ckpt_name)
@@ -123,6 +135,8 @@ class VAELoader:
         return {"required": { "vae_name": (filter_files_extensions(os.listdir(s.vae_dir), supported_ckpt_extensions), )}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
+
+    CATEGORY = "loaders"
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
@@ -141,6 +155,8 @@ class EmptyLatentImage:
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
+
+    CATEGORY = "latent"
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 4, height // 8, width // 8])
@@ -199,6 +215,8 @@ class KSampler:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "sample"
 
+    CATEGORY = "sampling"
+
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
         noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=torch.manual_seed(seed), device="cpu")
         model = model.to(self.device)
@@ -250,6 +268,8 @@ class SaveImage:
 
     OUTPUT_NODE = True
 
+    CATEGORY = "image"
+
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         def map_filename(filename):
             prefix_len = len(filename_prefix)
@@ -282,6 +302,8 @@ class LoadImage:
         return {"required":
                     {"image": (os.listdir(s.input_dir), )},
                 }
+
+    CATEGORY = "image"
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "load_image"
