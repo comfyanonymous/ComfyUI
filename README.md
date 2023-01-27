@@ -20,11 +20,23 @@ At the time of writing this pytorch has issues with python versions higher than 
 ### AMD
 AMD users can install rocm and pytorch with pip if you don't have it already installed:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.2"```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.2```
 
 ### NVIDIA
 
-Nvidia users should install Xformers.
+Nvidia users should install torch using this command:
+
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117```
+
+Nvidia users should also install Xformers for a speed boost but can still run the software without it.
+
+#### Troubleshooting
+
+If you get the "Torch not compiled with CUDA enabled" error, uninstall torch with:
+
+```pip uninstall torch```
+
+And install it again with the command above.
 
 ### Dependencies
 
