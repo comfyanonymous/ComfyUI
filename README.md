@@ -64,6 +64,9 @@ Then you can:
 
 This will let you use: pip3.10 to install all the dependencies.
 
+## Support and dev channel
+
+[Matrix room: #comfyui:matrix.org](https://app.element.io/#/room/%23comfyui%3Amatrix.org) (it's like discord but open source).
 
 # QA
 
