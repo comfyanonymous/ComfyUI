@@ -220,7 +220,7 @@ def validate_inputs(prompt, item):
 
             if isinstance(type_input, list):
                 if val not in type_input:
-                    return (False, "Value not in list. {}, {}".format(class_type, x))
+                    return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
     return (True, "")
 
 def validate_prompt(prompt):
@@ -234,6 +234,7 @@ def validate_prompt(prompt):
         return (False, "Prompt has no outputs")
 
     good_outputs = set()
+    errors = []
     for o in outputs:
         valid = False
         reason = ""
@@ -250,9 +251,11 @@ def validate_prompt(prompt):
         else:
             print("Failed to validate prompt for output {} {}".format(o, reason))
             print("output will be ignored")
+            errors += [(o, reason)]
 
     if len(good_outputs) == 0:
-        return (False, "Prompt has no properly connected outputs")
+        errors_list = "\n".join(map(lambda a: "{}".format(a[1]), errors))
+        return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
 
     return (True, "")
 
