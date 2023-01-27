@@ -175,6 +175,8 @@ class LatentUpscale:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
 
+    CATEGORY = "latent"
+
     def upscale(self, samples, upscale_method, width, height, crop):
         if crop == "center":
             old_width = samples.shape[3]
