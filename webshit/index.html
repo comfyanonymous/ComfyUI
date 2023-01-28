@@ -218,7 +218,7 @@ function onObjectInfo(json) {
                                 for (let w in n.widgets) {
                                     let wid = n.widgets[w];
                                     if (Object.hasOwn(wid, 'input_div')) {
-                                        wid.input_div.hidden = true;
+                                        wid.input_div.style.left = -8000;
                                     }
                                 }
                             }
