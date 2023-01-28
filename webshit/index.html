@@ -8,7 +8,7 @@
 .modal {
     display: none; /* Hidden by default */
     position: fixed; /* Stay in place */
-    z-index: 1; /* Sit on top */
+    z-index: 100; /* Sit on top */
     left: 50%; /* Center the modal horizontally */
     top: 50%; /* Center the modal vertically */
     transform: translate(-50%, -50%); /* Use this to center the modal */
@@ -45,7 +45,7 @@
     margin-bottom: 20px; /* Add some margin between the text and the close button*/
 }
 </style>
-<div id="myModal" class="modal">
+<div id="myErrorModal" class="modal">
   <div class="modal-content">
     <p id="modal-text"></p>
     <span class="close">CLOSE</span>
@@ -314,30 +314,24 @@ function graphToPrompt() {
     return output;
 }
 
-function showModal(text) {
-    var modal = document.getElementById("myModal");
-    var modalText = document.getElementById("modal-text");
-    modalText.innerHTML = text;
-    modal.style.display = "block";
-}
-
 function closeModal() {
-    var modal = document.getElementById("myModal");
+    var modal = document.getElementById("myErrorModal");
     modal.style.display = "none";
 }
 
-var closeBtn = document.getElementsByClassName("close")[0];
-    closeBtn.onclick = closeModal;
-    window.onclick = function(event) {
-    if (event.target == modal) {
-        closeModal();
-    }
+function showModal(text) {
+    var modal = document.getElementById("myErrorModal");
+    var modalText = document.getElementById("modal-text");
+    modalText.innerHTML = text;
+    modal.style.display = "block";
+    var closeBtn = modal.getElementsByClassName("close")[0];
+    closeBtn.onclick = function(event) {closeModal();}
 }
 
 
 function promptPosted(data)
 {
-    if (data.status == 400) {
+    if (data.status != 200) {
         data.text().then(dt => showModal(dt));
         return;
     }
