@@ -40,7 +40,7 @@ And install it again with the command above.
 
 ### Dependencies
 
-Install the dependencies:
+Install the dependencies by opening your terminal inside the ComfyUI folder and:
 
 ```pip install -r requirements.txt```
 
@@ -50,6 +50,11 @@ Install the dependencies:
 
 ```python main.py```
 
+### For AMD 6700, 6600 and maybe others
+
+Try running it with this command if you have issues:
+
+```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
 
 # Notes
 
