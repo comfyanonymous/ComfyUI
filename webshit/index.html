@@ -212,6 +212,17 @@ function onObjectInfo(json) {
                         ccc.parentNode.appendChild(w.input_div);
 
                         w = this.addCustomWidget(w);
+                        canvas.onDrawBackground = function() {
+                            for (let n in graph._nodes) {
+                                n = graph._nodes[n];
+                                for (let w in n.widgets) {
+                                    let wid = n.widgets[w];
+                                    if (Object.hasOwn(wid, 'input_div')) {
+                                        wid.input_div.hidden = true;
+                                    }
+                                }
+                            }
+                        }
                         // w = this.addWidget("text", x, "", function(v){}, { multiline:true } );
                         console.log(w, this);
                         this._widgets += [w]
