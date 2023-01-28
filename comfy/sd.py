@@ -32,6 +32,9 @@ def load_model_from_config(config, ckpt, verbose=False, load_state_dict_to=[]):
             y = x.replace("cond_stage_model.transformer.", "cond_stage_model.transformer.text_model.")
             sd[y] = sd.pop(x)
 
+    if 'cond_stage_model.transformer.text_model.embeddings.position_ids' in sd:
+        sd['cond_stage_model.transformer.text_model.embeddings.position_ids'] = sd['cond_stage_model.transformer.text_model.embeddings.position_ids'].round()
+
     for x in load_state_dict_to:
         x.load_state_dict(sd, strict=False)
 
