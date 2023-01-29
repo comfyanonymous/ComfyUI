@@ -3,3 +3,4 @@ __pycache__/
 output/
 models/checkpoints
 models/vae
+models/embeddings

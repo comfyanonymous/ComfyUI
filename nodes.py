@@ -127,7 +127,8 @@ class CheckpointLoader:
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = os.path.join(self.config_dir, config_name)
         ckpt_path = os.path.join(self.ckpt_dir, ckpt_name)
-        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True)
+        embedding_directory = os.path.join(self.models_dir, "embeddings")
+        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=embedding_directory)
 
 class VAELoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
