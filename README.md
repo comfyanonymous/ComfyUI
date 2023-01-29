@@ -66,14 +66,6 @@ Dragging a generated png on the webpage or loading one will give you the full wo
 
 You can use () to change emphasis of a word or phrase like: (good code:1.2) or (bad code:0.8). The default emphasis for () is 1.1. To use () characters in your actual prompt escape them like \\( or \\).
 
-## How to increase generation speed?
-
-The fp16 model configs in the CheckpointLoader can be used to load them in fp16 mode, depending on your GPU this will increase your gen speed by a significant amount.
-
-You can also set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models.
-
-```--dont-upcast-attention```
-
 ### Colab Notebook
 
 To run it on colab you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
@@ -88,6 +80,14 @@ Then you can:
 ```python3.10 -m ensurepip```
 
 This will let you use: pip3.10 to install all the dependencies.
+
+## How to increase generation speed?
+
+The fp16 model configs in the CheckpointLoader can be used to load them in fp16 mode, depending on your GPU this will increase your gen speed by a significant amount.
+
+You can also set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models.
+
+```--dont-upcast-attention```
 
 ## Support and dev channel
 
