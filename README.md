@@ -4,7 +4,7 @@ A powerful and modular stable diffusion GUI.
 -----------
 ![ComfyUI Screenshot](comfyui_screenshot.png)
 
-This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface.
+This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples you can check out: [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 
 # Installing
