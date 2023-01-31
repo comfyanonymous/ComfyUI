@@ -168,15 +168,24 @@ class KSampler:
             self.sigmas = sigmas[-(steps + 1):]
 
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None):
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False):
         sigmas = self.sigmas
         sigma_min = self.sigma_min
 
-        if last_step is not None:
+        if last_step is not None and last_step < (len(sigmas) - 1):
             sigma_min = sigmas[last_step]
             sigmas = sigmas[:last_step + 1]
+            if force_full_denoise:
+                sigmas[-1] = 0
+
         if start_step is not None:
-            sigmas = sigmas[start_step:]
+            if start_step < (len(sigmas) - 1):
+                sigmas = sigmas[start_step:]
+            else:
+                if latent_image is not None:
+                    return latent_image
+                else:
+                    return torch.zeros_like(noise)
 
         noise *= sigmas[0]
         if latent_image is not None:
