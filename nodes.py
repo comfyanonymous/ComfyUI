@@ -210,7 +210,6 @@ class LatentRotate:
     CATEGORY = "latent"
 
     def rotate(self, samples, rotation):
-        s = samples.clone()
         rotate_by = 0
         if rotation.startswith("90"):
             rotate_by = 1
@@ -220,6 +219,27 @@ class LatentRotate:
             rotate_by = 3
 
         s = torch.rot90(samples, k=rotate_by, dims=[3, 2])
+        return (s,)
+
+class LatentFlip:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "flip_method": (["x-axis: vertically", "y-axis: horizontally"],),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "flip"
+
+    CATEGORY = "latent"
+
+    def flip(self, samples, flip_method):
+        if flip_method.startswith("x"):
+            s = torch.flip(samples, dims=[2])
+        elif flip_method.startswith("y"):
+            s = torch.flip(samples, dims=[3])
+        else:
+            s = samples
+
         return (s,)
 def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     if disable_noise:
@@ -409,6 +429,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
     "LatentRotate": LatentRotate,
+    "LatentFlip": LatentFlip,
 }
 
 
