@@ -139,7 +139,7 @@ function onObjectInfo(json) {
                     if (step_val == undefined) step_val = 1;
                     w = this.addWidget("number", x, default_val, function(v){let s = this.options.step / 10;this.value = Math.round( v / s ) * s;}, { min: min_val, max: max_val, step: 10.0 * step_val} );
                     this._widgets += [w]
-                    if (x == "seed") {
+                    if (x == "seed" || x == "noise_seed") {
                         w1 = this.addWidget("toggle", "Random seed after every gen", true, function(v){}, { on: "enabled", off:"disabled"} );
                         w1.to_randomize = w;
                         this._widgets += [w1]
@@ -432,7 +432,7 @@ function prompt_file_load(file)
                 offset += 12 + length;
             }
             console.log(txt_chunks);
-            console.log(JSON.parse(txt_chunks["prompt"]));
+            // console.log(JSON.parse(txt_chunks["prompt"]));
             loadGraphData(graph, JSON.parse(txt_chunks["workflow"]));
         };
         reader.readAsArrayBuffer(file);
