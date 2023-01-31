@@ -241,6 +241,27 @@ class LatentFlip:
             s = samples
 
         return (s,)
+
+class LatentComposite:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples_to": ("LATENT",),
+                              "samples_from": ("LATENT",),
+                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "composite"
+
+    CATEGORY = "latent"
+
+    def composite(self, samples_to, samples_from, x, y, composite_method="normal"):
+        x =  x // 8
+        y = y // 8
+        s = samples_to.clone()
+        s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x]
+        return (s,)
+
 def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -428,6 +449,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
+    "LatentComposite": LatentComposite,
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
 }
