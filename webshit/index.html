@@ -367,9 +367,15 @@ function promptPosted(data)
     canvas.draw(true, true);
 }
 
-function postPrompt() {
+function postPrompt(number) {
     let prompt = graphToPrompt();
     let full_data = {prompt: prompt, extra_data: {extra_pnginfo: {workflow: graph.serialize()}}};
+    if (number == -1) {
+        full_data.front = true;
+    } else
+    if (number != 0) {
+        full_data.number = number;
+    }
 
     fetch('/prompt', {
     method: 'POST',
@@ -529,11 +535,14 @@ document.addEventListener('paste', e=>{
 
 <span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center;">
 <span id="queuesize">Queue size: X</span><br>
-<button style="font-size: 20px;" id="queuebutton" onclick="postPrompt()">Queue Prompt</button><br>
-<br>
+<button style="font-size: 20px;" id="queuebutton" onclick="postPrompt(0)">Queue Prompt</button><br>
+<span style="left: 0%;position: absolute;">
+<button style="font-size: 10px;" id="queuebutton" onclick="postPrompt(-1)">Queue Front</button><br>
+</span>
 <br>
 <button style="font-size: 20px;" onclick="saveGraph()">Save</button><br>
-<button style="font-size: 20px;" onclick="loadGraph()">Load</button><br>
+<button style="font-size: 20px;" onclick="loadGraph()">Load</button>
+<br>
 <button style="font-size: 20px;" onclick="clearGraph()">Clear</button><br>
 <button style="font-size: 20px;" onclick="loadTxt2Img()">Load Default</button><br>
 </span>
