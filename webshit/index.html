@@ -3,7 +3,7 @@
 	<link rel="stylesheet" type="text/css" href="litegraph.css">
 	<script type="text/javascript" src="litegraph.core.js"></script>
 </head>
-<body style='width:100%; height:100%'>
+<body style='width:100%; height:100%; overflow: hidden;'>
 <style>
 .modal {
     display: none; /* Hidden by default */
@@ -172,11 +172,11 @@ function onObjectInfo(json) {
                                 var show_text = canvas.ds.scale > 0.5;
                                 // this.input_div.style.top = `${y}px`;
                                 let t = ctx.getTransform();
-                                let margin = 15;
+                                let margin = 10;
                                 let x_div = t.a * margin * 2 + t.e;
                                 let y_div = t.d * (y + H) + t.f;
-                                let width_div = (widget_width - margin * 2) * t.a;
-                                let height_div = (this.parent.size[1] - (y + H))* t.d;
+                                let width_div = (widget_width - margin * 2 - 3) * t.a;
+                                let height_div = (this.parent.size[1] - (y + H) - 3)* t.d;
                                 this.input_div.style.left = `${x_div}px`;
                                 this.input_div.style.top = `${y_div}px`;
                                 this.input_div.style.width = width_div;
@@ -200,6 +200,8 @@ function onObjectInfo(json) {
                         w.input_div.contentEditable = true;
                         w.input_div.style.backgroundColor = "#FFFFFF";
                         w.input_div.style.overflow = 'hidden';
+                        w.input_div.style.overflowY = 'auto';
+                        w.input_div.style.padding = 2;
                         w.input_div.innerText = default_val;
                         document.addEventListener('click', function(event) {
                             if (!w.input_div.contains(event.target)) {
@@ -219,6 +221,7 @@ function onObjectInfo(json) {
                                     let wid = n.widgets[w];
                                     if (Object.hasOwn(wid, 'input_div')) {
                                         wid.input_div.style.left = -8000;
+                                        wid.input_div.style.position = 'absolute';
                                     }
                                 }
                             }
@@ -533,7 +536,7 @@ document.addEventListener('paste', e=>{
 
 </script>
 
-<span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center;">
+<span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;">
 <span id="queuesize">Queue size: X</span><br>
 <button style="font-size: 20px;" id="queuebutton" onclick="postPrompt(0)">Queue Prompt</button><br>
 <span style="left: 0%;position: absolute;">
