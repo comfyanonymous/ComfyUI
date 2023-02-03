@@ -306,7 +306,7 @@ function graphToPrompt() {
                     // console.log(c_nodes, z);
                     if (c_nodes) {
                         for (let zz in c_nodes) {
-                            if (c_nodes[zz].id == n.id) {
+                            if (c_nodes[zz].id == n.id && parent_node.outputs[z].links.includes(n.inputs[y].link)) {
                                 input_[n.inputs[y].name] = [String(parent_node.id), parseInt(z)];
                                 break;
                             }
