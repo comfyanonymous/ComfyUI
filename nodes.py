@@ -289,6 +289,7 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
     else:
         noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=torch.manual_seed(seed), device="cpu")
 
+    real_model = None
     try:
         real_model = model.patch_model()
         real_model.to(device)
@@ -322,7 +323,8 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
         real_model.cpu()
         model.unpatch_model()
     except Exception as e:
-        real_model.cpu()
+        if real_model is not None:
+            real_model.cpu()
         model.unpatch_model()
         raise e
 
