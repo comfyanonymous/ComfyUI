@@ -47,7 +47,7 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 After this you should have everything installed and can proceed to running ComfyUI.
 
 
-#### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
+### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
 You don't. If you have another UI installed and working with it's own python venv you can use that venv to run ComfyUI. You can open up your favorite terminal and activate it:
 
