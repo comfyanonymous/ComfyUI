@@ -445,6 +445,10 @@ def run(prompt_queue, address='', port=8188):
 if __name__ == "__main__":
     q = PromptQueue()
     threading.Thread(target=prompt_worker, daemon=True, args=(q,)).start()
-    run(q, address='127.0.0.1', port=8188)
+    if '--listen' in sys.argv:
+        address = '0.0.0.0'
+    else:
+        address = '127.0.0.1'
+    run(q, address=address, port=8188)
 
 
