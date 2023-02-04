@@ -89,9 +89,9 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
     is_changed_old = ''
     is_changed = ''
     if hasattr(class_def, 'IS_CHANGED'):
+        if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
+            is_changed_old = old_prompt[unique_id]['is_changed']
         if 'is_changed' not in prompt[unique_id]:
-            if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
-                is_changed_old = old_prompt[unique_id]['is_changed']
             input_data_all = get_input_data(inputs, class_def)
             is_changed = class_def.IS_CHANGED(**input_data_all)
             prompt[unique_id]['is_changed'] = is_changed
