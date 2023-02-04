@@ -283,6 +283,47 @@ class LatentComposite:
         s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x]
         return (s,)
 
+class LatentCrop:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "crop"
+
+    CATEGORY = "latent"
+
+    def crop(self, samples, width, height, x, y):
+        x =  x // 8
+        y = y // 8
+
+        #enfonce minimum size of 64
+        if x > (samples.shape[3] - 8):
+            x = samples.shape[3] - 8
+        if y > (samples.shape[2] - 8):
+            y = samples.shape[2] - 8
+
+        new_height = height // 8
+        new_width = width // 8
+        to_x = new_width + x
+        to_y = new_height + y
+        def enforce_image_dim(d, to_d, max_d):
+            if to_d > max_d:
+                leftover = (to_d - max_d) % 8
+                to_d = max_d
+                d -= leftover
+            return (d, to_d)
+
+        #make sure size is always multiple of 64
+        x, to_x = enforce_image_dim(x, to_x, samples.shape[3])
+        y, to_y = enforce_image_dim(y, to_y, samples.shape[2])
+        s = samples[:,:,y:to_y, x:to_x]
+        return (s,)
+
 def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -483,6 +524,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentComposite": LatentComposite,
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
+    "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
 }
 
