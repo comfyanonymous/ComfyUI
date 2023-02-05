@@ -153,8 +153,8 @@ def model_lora_keys(model, key_map={}):
                 key_map[lora_key] = (k, 0)
         k = "model.transformer.resblocks.{}.attn.in_proj_weight".format(b)
         if k in sdk:
-            key_map[text_model_lora_key.format(b, "self_attn_k_proj")] = (k, 0)
-            key_map[text_model_lora_key.format(b, "self_attn_q_proj")] = (k, 1)
+            key_map[text_model_lora_key.format(b, "self_attn_q_proj")] = (k, 0)
+            key_map[text_model_lora_key.format(b, "self_attn_k_proj")] = (k, 1)
             key_map[text_model_lora_key.format(b, "self_attn_v_proj")] = (k, 2)
 
     return key_map
