@@ -8,15 +8,26 @@ class SD2ClipModel(sd1_clip.SD1ClipModel):
         super().__init__(device=device, freeze=freeze, textmodel_json_config=textmodel_json_config)
         self.empty_tokens = [[49406] + [49407] + [0] * 75]
         if layer == "last":
-            layer_idx = -1
+            pass
         elif layer == "penultimate":
-            layer_idx = -2
+            layer_idx = -1
+            self.clip_layer(layer_idx)
         elif self.layer == "hidden":
             assert layer_idx is not None
             assert abs(layer_idx) < 24
+            self.clip_layer(layer_idx)
         else:
             raise NotImplementedError()
-        self.clip_layer(layer_idx)
+
+    def clip_layer(self, layer_idx):
+        if layer_idx < 0:
+            layer_idx -= 1 #The real last layer of SD2.x clip is the penultimate one. The last one might contain garbage.
+        if abs(layer_idx) >= 24:
+            self.layer = "hidden"
+            self.layer_idx = -2
+        else:
+            self.layer = "hidden"
+            self.layer_idx = layer_idx
 
 class SD2Tokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, tokenizer_path=None):

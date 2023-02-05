@@ -274,8 +274,14 @@ class CLIP:
         n.tokenizer = self.tokenizer
         return n
 
+    def load_from_state_dict(self, sd):
+        self.cond_stage_model.transformer.load_state_dict(sd, strict=False)
+
     def add_patches(self, patches, strength=1.0):
         return self.patcher.add_patches(patches, strength)
+
+    def clip_layer(self, layer_idx):
+        return self.cond_stage_model.clip_layer(layer_idx)
 
     def encode(self, text):
         tokens = self.tokenizer.tokenize_with_weights(text)
@@ -317,6 +323,16 @@ class VAE:
         samples = samples.cpu()
         return samples
 
+def load_clip(ckpt_path, embedding_directory=None):
+    clip_data = load_torch_file(ckpt_path)
+    config = {}
+    if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
+        config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+    else:
+        config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+    clip = CLIP(config=config, embedding_directory=embedding_directory)
+    clip.load_from_state_dict(clip_data)
+    return clip
 
 def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):
     config = OmegaConf.load(config_path)

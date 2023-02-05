@@ -17,7 +17,7 @@ import comfy.samplers
 import comfy.sd
 
 supported_ckpt_extensions = ['.ckpt']
-supported_pt_extensions = ['.ckpt', '.pt']
+supported_pt_extensions = ['.ckpt', '.pt', '.bin']
 try:
     import safetensors.torch
     supported_ckpt_extensions += ['.safetensors']
@@ -114,6 +114,7 @@ class CheckpointLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
     config_dir = os.path.join(models_dir, "configs")
     ckpt_dir = os.path.join(models_dir, "checkpoints")
+    embedding_directory = os.path.join(models_dir, "embeddings")
 
     @classmethod
     def INPUT_TYPES(s):
@@ -127,8 +128,7 @@ class CheckpointLoader:
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = os.path.join(self.config_dir, config_name)
         ckpt_path = os.path.join(self.ckpt_dir, ckpt_name)
-        embedding_directory = os.path.join(self.models_dir, "embeddings")
-        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=embedding_directory)
+        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=self.embedding_directory)
 
 class LoraLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
@@ -167,6 +167,25 @@ class VAELoader:
         vae_path = os.path.join(self.vae_dir, vae_name)
         vae = comfy.sd.VAE(ckpt_path=vae_path)
         return (vae,)
+
+class CLIPLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    clip_dir = os.path.join(models_dir, "clip")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_name": (filter_files_extensions(os.listdir(s.clip_dir), supported_pt_extensions), ),
+                              "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
+                             }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "load_clip"
+
+    CATEGORY = "loaders"
+
+    def load_clip(self, clip_name, stop_at_clip_layer):
+        clip_path = os.path.join(self.clip_dir, clip_name)
+        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
+        clip.clip_layer(stop_at_clip_layer)
+        return (clip,)
 
 class EmptyLatentImage:
     def __init__(self, device="cpu"):
@@ -549,6 +568,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
+    "CLIPLoader": CLIPLoader,
 }
 
 
