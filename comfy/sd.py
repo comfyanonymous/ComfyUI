@@ -252,18 +252,15 @@ class CLIP:
         else:
             params = {}
 
-        tokenizer_params = {}
-
         if self.target_clip == "ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder":
             clip = sd2_clip.SD2ClipModel
             tokenizer = sd2_clip.SD2Tokenizer
         elif self.target_clip == "ldm.modules.encoders.modules.FrozenCLIPEmbedder":
             clip = sd1_clip.SD1ClipModel
             tokenizer = sd1_clip.SD1Tokenizer
-            tokenizer_params['embedding_directory'] = embedding_directory
 
         self.cond_stage_model = clip(**(params))
-        self.tokenizer = tokenizer(**(tokenizer_params))
+        self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model)
 
     def clone(self):
