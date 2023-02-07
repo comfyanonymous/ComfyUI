@@ -534,7 +534,7 @@ document.addEventListener('paste', e=>{
     }
 });
 
-function deleteQueueElement(delete_id) {
+function deleteQueueElement(delete_id, then) {
     fetch('/queue', {
     method: 'POST',
     headers: {
@@ -544,6 +544,7 @@ function deleteQueueElement(delete_id) {
     })
     .then(data => {
         console.log(data);
+        then();
     })
     .catch(error => console.error(error))
 }
@@ -586,8 +587,7 @@ function loadQueue() {
                 button.style.fontSize = "10px";
                 button.delete_id = id;
                 button.onclick = function(event) {
-                    deleteQueueElement(event.target.delete_id);
-                    loadQueue();
+                    deleteQueueElement(event.target.delete_id, loadQueue);
                 };
                 append_to_element.appendChild(button);
             }
