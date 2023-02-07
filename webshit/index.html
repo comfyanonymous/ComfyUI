@@ -368,6 +368,7 @@ function promptPosted(data)
     }
 
     canvas.draw(true, true);
+    loadQueueIfVisible();
 }
 
 function postPrompt(number) {
@@ -533,15 +534,145 @@ document.addEventListener('paste', e=>{
     }
 });
 
+function deleteQueueElement(delete_id) {
+    fetch('/queue', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({"delete":[delete_id]})
+    })
+    .then(data => {
+        console.log(data);
+    })
+    .catch(error => console.error(error))
+}
+
+
+function loadQueue() {
+    fetch('/queue')
+    .then(response => response.json())
+    .then(data => {
+        var queue_div = document.getElementById("queuebutton-content");
+        queue_div.style.display = 'block';
+        var see_queue_button = document.getElementById("seequeuebutton");
+        let old_w = see_queue_button.style.width;
+        see_queue_button.innerHTML = "Close";
+
+        let runningcontents = document.getElementById("runningcontents");
+        runningcontents.innerHTML = '';
+        let queuecontents = document.getElementById("queuecontents");
+        queuecontents.innerHTML = '';
+        function append_to_list(list_element, append_to_element, append_delete) {
+            let number = list_element[0];
+            let id = list_element[1];
+            let prompt = list_element[2];
+            let workflow = list_element[3].extra_pnginfo.workflow;
+            let a = document.createElement("a");
+            a.innerHTML = number + ": ";
+            append_to_element.appendChild(a);
+            let button = document.createElement("button");
+            button.innerHTML = "Load";
+            button.style.fontSize = "10px";
+            button.workflow = workflow;
+            button.onclick = function(event) {
+                loadGraphData(graph, event.target.workflow);
+            };
+
+            append_to_element.appendChild(button);
+            if (append_delete) {
+                let button = document.createElement("button");
+                button.innerHTML = "Delete";
+                button.style.fontSize = "10px";
+                button.delete_id = id;
+                button.onclick = function(event) {
+                    deleteQueueElement(event.target.delete_id);
+                    loadQueue();
+                };
+                append_to_element.appendChild(button);
+            }
+            append_to_element.appendChild(document.createElement("br"));
+        }
+        for (let x in data.queue_running) {
+            append_to_list(data.queue_running[x], runningcontents, false);
+        }
+
+        data.queue_pending.sort((a, b) => a[0] - b[0]);
+        for (let x in data.queue_pending) {
+            append_to_list(data.queue_pending[x], queuecontents, true);
+        }
+    }).catch((response) => {console.log(response)});
+}
+
+function loadQueueIfVisible()
+{
+    var queue_div = document.getElementById("queuebutton-content");
+    if (queue_div.style.display == 'block') {
+        loadQueue();
+    }
+}
+
+function seeQueue() {
+    var queue_div = document.getElementById("queuebutton-content");
+    if (queue_div.style.display == 'block') {
+        queue_div.style.display = 'none';
+        var see_queue_button = document.getElementById("seequeuebutton");
+        see_queue_button.innerHTML = "See Queue"
+    } else {
+        loadQueue();
+    }
+}
+
+function closeQueue() {
+    var queue_div = document.getElementById("queuebutton-content");
+    queue_div.style.display = 'none';
+}
+
+function clearQueue() {
+    fetch('/queue', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({"clear":true})
+    }).then(data => {
+        loadQueue();
+    })
+    .catch(error => console.error(error));
+}
+
 
 </script>
 
-<span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;">
+<span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;width:170px;">
 <span id="queuesize">Queue size: X</span><br>
-<button style="font-size: 20px;" id="queuebutton" onclick="postPrompt(0)">Queue Prompt</button><br>
-<span style="left: 0%;position: absolute;">
-<button style="font-size: 10px;" id="queuebutton" onclick="postPrompt(-1)">Queue Front</button><br>
+<button style="font-size: 20px;width: 100%;" id="queuebutton" onclick="postPrompt(0)">Queue Prompt</button><br>
+<span style="left: 0%;">
+<button style="font-size: 10px;" id="queuebutton" onclick="postPrompt(-1)">Queue Front</button>
+<button style="font-size: 10px; width: 50%;" id="seequeuebutton" onclick="seeQueue()">See Queue</button>
+<br>
 </span>
+  <div id="queuebutton-content" style="background-color: #e1e1e1;min-width: 160px;display: none;z-index: 101;">
+    <span style="width:100%;padding: 3px;display:inline-block;">Running:</span>
+    <div id="runningcontents" style="background-color: #d0d0d0; padding: 5px;">
+        <a>1</a>
+        <button style="font-size: 10px;">Load</button>
+        <br>
+    </div>
+    <span style="left: 0%;padding: 3px;display:inline-block;">Queued:</span>
+    <div id="queuecontents" style="overflow-y: scroll;height: 100px;background-color: #d0d0d0;padding: 5px;">
+        <a>1</a>
+        <button style="font-size: 10px;">Load</button>
+        <button style="font-size: 10px;">Delete</button>
+        <br>
+    <br>
+    </div>
+  <span style="padding: 5px;display:inline-block;">
+  <button style="font-size: 12px;" onclick="clearQueue()">Clear Queue</button>
+  <button style="font-size: 12px;" onclick="loadQueue()">Refresh</button>
+  </span>
+  </div>
+
 <br>
 <button style="font-size: 20px;" onclick="saveGraph()">Save</button><br>
 <button style="font-size: 20px;" onclick="loadGraph()">Load</button>
