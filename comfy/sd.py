@@ -2,6 +2,7 @@ import torch
 
 import sd1_clip
 import sd2_clip
+import model_management
 from ldm.util import instantiate_from_config
 from ldm.models.autoencoder import AutoencoderKL
 from omegaconf import OmegaConf
@@ -304,6 +305,7 @@ class VAE:
         self.device = device
 
     def decode(self, samples):
+        model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         samples = samples.to(self.device)
         pixel_samples = self.first_stage_model.decode(1. / self.scale_factor * samples)
@@ -313,6 +315,7 @@ class VAE:
         return pixel_samples
 
     def encode(self, pixel_samples):
+        model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
         samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
