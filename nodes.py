@@ -40,6 +40,23 @@ class CLIPTextEncode:
     def encode(self, clip, text):
         return ([[clip.encode(text), {}]], )
 
+class ConditioningCombineWeighted:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", ),
+                              "conditioning_1_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1}),
+                              "conditioning_2_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "combineWeighted"
+
+    CATEGORY = "conditioning"
+
+    def combineWeighted(self, conditioning_1, conditioning_2, conditioning_1_strength, conditioning_2_strength):
+        output = conditioning_1
+        output[0][0] = (conditioning_1[0][0] * conditioning_1_strength + conditioning_2[0][0] * conditioning_2_strength)/(conditioning_1_strength + conditioning_2_strength)
+        return (output, )
+
 class ConditioningCombine:
     @classmethod
     def INPUT_TYPES(s):
@@ -561,6 +578,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadImage": LoadImage,
     "ImageScale": ImageScale,
     "ConditioningCombine": ConditioningCombine,
+    "ConditioningCombineWeighted": ConditioningCombineWeighted,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
     "LatentComposite": LatentComposite,
