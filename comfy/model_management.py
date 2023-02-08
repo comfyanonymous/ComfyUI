@@ -7,6 +7,7 @@ NORMAL_VRAM = 3
 accelerate_enabled = False
 vram_state = NORMAL_VRAM
 
+total_vram = 0
 total_vram_available_mb = -1
 
 import sys
@@ -17,6 +18,12 @@ if "--lowvram" in sys.argv:
 if "--novram" in sys.argv:
     set_vram_to = NO_VRAM
 
+try:
+    import torch
+    total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
+except:
+    pass
+
 if set_vram_to != NORMAL_VRAM:
     try:
         import accelerate
@@ -26,12 +33,8 @@ if set_vram_to != NORMAL_VRAM:
         import traceback
         print(traceback.format_exc())
         print("ERROR: COULD NOT ENABLE LOW VRAM MODE.")
-    try:
-        import torch
-        total_vram_available_mb = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
-    except:
-        pass
-    total_vram_available_mb = (total_vram_available_mb - 1024) // 2
+
+    total_vram_available_mb = (total_vram - 1024) // 2
     total_vram_available_mb = int(max(256, total_vram_available_mb))
 
 
@@ -81,6 +84,26 @@ def load_model_gpu(model):
             device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
         elif vram_state == LOW_VRAM:
             device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(total_vram_available_mb), "cpu": "16GiB"})
+        print(device_map, "{}MiB".format(total_vram_available_mb))
         accelerate.dispatch_model(real_model, device_map=device_map, main_device="cuda")
         model_accelerated = True
     return current_loaded_model
+
+
+def get_free_memory():
+    dev = torch.cuda.current_device()
+    stats = torch.cuda.memory_stats(dev)
+    mem_active = stats['active_bytes.all.current']
+    mem_reserved = stats['reserved_bytes.all.current']
+    mem_free_cuda, _ = torch.cuda.mem_get_info(dev)
+    mem_free_torch = mem_reserved - mem_active
+    return mem_free_cuda + mem_free_torch
+
+def maximum_batch_area():
+    global vram_state
+    if vram_state == NO_VRAM:
+        return 0
+
+    memory_free = get_free_memory() / (1024 * 1024)
+    area = ((memory_free - 1024) * 0.9) / (0.6)
+    return int(max(area, 0))
