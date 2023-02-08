@@ -449,6 +449,14 @@ if __name__ == "__main__":
         address = '0.0.0.0'
     else:
         address = '127.0.0.1'
-    run(q, address=address, port=8188)
+
+    port = 8188
+    try:
+        p_index = sys.argv.index('--port')
+        port = int(sys.argv[p_index + 1])
+    except:
+        pass
+
+    run(q, address=address, port=port)
 
 
