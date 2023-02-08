@@ -84,7 +84,7 @@ def load_model_gpu(model):
             device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
         elif vram_state == LOW_VRAM:
             device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(total_vram_available_mb), "cpu": "16GiB"})
-        print(device_map, "{}MiB".format(total_vram_available_mb))
+
         accelerate.dispatch_model(real_model, device_map=device_map, main_device="cuda")
         model_accelerated = True
     return current_loaded_model
