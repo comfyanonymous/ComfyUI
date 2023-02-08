@@ -10,7 +10,7 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
-sys.path.append(os.path.join(sys.path[0], "comfy"))
+sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
 
 
 import comfy.samplers
