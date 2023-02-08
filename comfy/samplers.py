@@ -86,15 +86,21 @@ class CFGDenoiserComplex(torch.nn.Module):
             while len(to_run) > 0:
                 first = to_run[0]
                 first_shape = first[0][0].shape
-                to_batch = []
+                to_batch_temp = []
                 for x in range(len(to_run)):
                     if to_run[x][0][0].shape == first_shape:
                         if to_run[x][0][2].shape == first[0][2].shape:
-                            to_batch += [x]
-                            if (len(to_batch) * first_shape[0] * first_shape[2] * first_shape[3] >= max_total_area):
-                                break
+                            to_batch_temp += [x]
 
-                to_batch.reverse()
+                to_batch_temp.reverse()
+                to_batch = to_batch_temp[:1]
+
+                for i in range(1, len(to_batch_temp) + 1):
+                    batch_amount = to_batch_temp[:len(to_batch_temp)//i]
+                    if (len(batch_amount) * first_shape[0] * first_shape[2] * first_shape[3] < max_total_area):
+                        to_batch = batch_amount
+                        break
+
                 input_x = []
                 mult = []
                 c = []
