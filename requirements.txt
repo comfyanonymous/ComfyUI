@@ -8,3 +8,5 @@ transformers
 safetensors
 pytorch_lightning
 
+accelerate
+

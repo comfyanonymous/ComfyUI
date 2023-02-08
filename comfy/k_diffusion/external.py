@@ -66,7 +66,7 @@ class DiscreteSchedule(nn.Module):
     def sigma_to_t(self, sigma, quantize=None):
         quantize = self.quantize if quantize is None else quantize
         log_sigma = sigma.log()
-        dists = log_sigma - self.log_sigmas[:, None]
+        dists = log_sigma.to(self.log_sigmas.device) - self.log_sigmas[:, None]
         if quantize:
             return dists.abs().argmin(dim=0).view(sigma.shape)
         low_idx = dists.ge(0).cumsum(dim=0).argmax(dim=0).clamp(max=self.log_sigmas.shape[0] - 2)
