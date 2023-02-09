@@ -30,8 +30,8 @@ def recursive_search(directory):
     result = []
     for root, subdir, file in os.walk(directory, followlinks=True):
         for filepath in file:
-            #we remove the first character to remove the path separator.
-            result.append(os.path.join(root, filepath).replace(directory,'')[1:]) 
+            #we os.path,join directory with a blank string to generate a path separator at the end.
+            result.append(os.path.join(root, filepath).replace(os.path.join(directory,''),'')) 
     return result
 
 def filter_files_extensions(files, extensions):
