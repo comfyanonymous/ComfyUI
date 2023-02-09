@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Fully supports SD1.x and SD2.x
 - Asynchronous Queue system
-- Many optimizations: Only re executes the parts of the workflow that changes between executions.
+- Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram.
 - Can load both ckpt and safetensors models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
