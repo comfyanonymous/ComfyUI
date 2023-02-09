@@ -16,6 +16,10 @@ except:
     XFORMERS_IS_AVAILBLE = False
     print("No module 'xformers'. Proceeding without it.")
 
+try:
+    OOM_EXCEPTION = torch.cuda.OutOfMemoryError
+except:
+    OOM_EXCEPTION = Exception
 
 def get_timestep_embedding(timesteps, embedding_dim):
     """
@@ -229,7 +233,7 @@ class AttnBlock(nn.Module):
                     r1[:, :, i:end] = torch.bmm(v, s2)
                     del s2
                 break
-            except torch.cuda.OutOfMemoryError as e:
+            except OOM_EXCEPTION as e:
                 if first_op_done == False:
                     steps *= 2
                     if steps > 128:
