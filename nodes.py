@@ -493,6 +493,9 @@ class SaveImage:
             counter = max(filter(lambda a: a[1][:-1] == filename_prefix and a[1][-1] == "_", map(map_filename, os.listdir(self.output_dir))))[0] + 1
         except ValueError:
             counter = 1
+        except FileNotFoundError:
+            os.mkdir(self.output_dir)
+            counter = 1
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(i.astype(np.uint8))
