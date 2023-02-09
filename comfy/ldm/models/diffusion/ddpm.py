@@ -1331,7 +1331,13 @@ class DiffusionWrapper(torch.nn.Module):
                 cc = torch.cat(c_crossattn, 1)
             else:
                 cc = c_crossattn
-            out = self.diffusion_model(x, t, context=cc)
+            if hasattr(self, "scripted_diffusion_model"):
+                # TorchScript changes names of the arguments
+                # with argument cc defined as context=cc scripted model will produce
+                # an error: RuntimeError: forward() is missing value for argument 'argument_3'.
+                out = self.scripted_diffusion_model(x, t, cc)
+            else:
+                out = self.diffusion_model(x, t, context=cc)
         elif self.conditioning_key == 'hybrid':
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
