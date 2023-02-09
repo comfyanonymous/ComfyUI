@@ -217,7 +217,7 @@ class SD1Tokenizer:
 
         tokens = []
         for t in parsed_weights:
-            to_tokenize = unescape_important(t[0]).split(' ')
+            to_tokenize = unescape_important(t[0]).replace("\n", " ").split(' ')
             for word in to_tokenize:
                 temp_tokens = []
                 embedding_identifier = "embedding:"
