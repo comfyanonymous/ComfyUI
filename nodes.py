@@ -502,7 +502,7 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-            img.save(f"output/{filename_prefix}_{counter:05}_.png", pnginfo=metadata, optimize=True)
+            img.save(os.path.join(self.output_dir, f"{filename_prefix}_{counter:05}_.png"), pnginfo=metadata, optimize=True)
             counter += 1
 
 class LoadImage:
