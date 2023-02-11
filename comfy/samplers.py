@@ -1,5 +1,6 @@
 from .k_diffusion import sampling as k_diffusion_sampling
 from .k_diffusion import external as k_diffusion_external
+from .extra_samplers import uni_pc
 import torch
 import contextlib
 import model_management
@@ -20,12 +21,8 @@ class CFGDenoiser(torch.nn.Module):
             uncond = self.inner_model(x, sigma, cond=uncond)
         return uncond + (cond - uncond) * cond_scale
 
-class CFGDenoiserComplex(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.inner_model = model
-    def forward(self, x, sigma, uncond, cond, cond_scale):
-        def get_area_and_mult(cond, x_in, sigma):
+def sampling_function(model_function, x, sigma, uncond, cond, cond_scale):
+        def get_area_and_mult(cond, x_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
             min_sigma = 0.0
@@ -34,12 +31,7 @@ class CFGDenoiserComplex(torch.nn.Module):
                 area = cond[1]['area']
             if 'strength' in cond[1]:
                 strength = cond[1]['strength']
-            if 'min_sigma' in cond[1]:
-                min_sigma = cond[1]['min_sigma']
-            if 'max_sigma' in cond[1]:
-                max_sigma = cond[1]['max_sigma']
-            if sigma < min_sigma or sigma > max_sigma:
-                return None
+
             input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
             mult = torch.ones_like(input_x) * strength
 
@@ -58,26 +50,25 @@ class CFGDenoiserComplex(torch.nn.Module):
                     mult[:,:,:,area[1] + area[3] - 1 - t:area[1] + area[3] - t] *= ((1.0/rr) * (t + 1))
             return (input_x, mult, cond[0], area)
 
-        def calc_cond_uncond_batch(cond, uncond, x_in, sigma, max_total_area):
+        def calc_cond_uncond_batch(model_function, cond, uncond, x_in, sigma, max_total_area):
             out_cond = torch.zeros_like(x_in)
             out_count = torch.ones_like(x_in)/100000.0
 
             out_uncond = torch.zeros_like(x_in)
             out_uncond_count = torch.ones_like(x_in)/100000.0
 
-            sigma_cmp = sigma[0]
             COND = 0
             UNCOND = 1
 
             to_run = []
             for x in cond:
-                p = get_area_and_mult(x, x_in, sigma_cmp)
+                p = get_area_and_mult(x, x_in)
                 if p is None:
                     continue
 
                 to_run += [(p, COND)]
             for x in uncond:
-                p = get_area_and_mult(x, x_in, sigma_cmp)
+                p = get_area_and_mult(x, x_in)
                 if p is None:
                     continue
 
@@ -120,7 +111,7 @@ class CFGDenoiserComplex(torch.nn.Module):
                 c = torch.cat(c)
                 sigma_ = torch.cat([sigma] * batch_chunks)
 
-                output = self.inner_model(input_x, sigma_, cond=c).chunk(batch_chunks)
+                output = model_function(input_x, sigma_, cond=c).chunk(batch_chunks)
                 del input_x
 
                 for o in range(batch_chunks):
@@ -141,8 +132,15 @@ class CFGDenoiserComplex(torch.nn.Module):
 
 
         max_total_area = model_management.maximum_batch_area()
-        cond, uncond = calc_cond_uncond_batch(cond, uncond, x, sigma, max_total_area)
+        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, sigma, max_total_area)
         return uncond + (cond - uncond) * cond_scale
+
+class CFGDenoiserComplex(torch.nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.inner_model = model
+    def forward(self, x, sigma, uncond, cond, cond_scale):
+        return sampling_function(self.inner_model, x, sigma, uncond, cond, cond_scale)
 
 def simple_scheduler(model, steps):
     sigs = []
@@ -186,7 +184,7 @@ class KSampler:
     SCHEDULERS = ["karras", "normal", "simple"]
     SAMPLERS = ["sample_euler", "sample_euler_ancestral", "sample_heun", "sample_dpm_2", "sample_dpm_2_ancestral",
                 "sample_lms", "sample_dpm_fast", "sample_dpm_adaptive", "sample_dpmpp_2s_ancestral", "sample_dpmpp_sde",
-                "sample_dpmpp_2m"]
+                "sample_dpmpp_2m", "uni_pc"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None):
         self.model = model
@@ -256,10 +254,6 @@ class KSampler:
                 else:
                     return torch.zeros_like(noise)
 
-        noise *= sigmas[0]
-        if latent_image is not None:
-            noise += latent_image
-
         positive = positive[:]
         negative = negative[:]
         #make sure each cond area has an opposite one with the same area
@@ -274,10 +268,16 @@ class KSampler:
             precision_scope = contextlib.nullcontext
 
         with precision_scope(self.device):
-            if self.sampler == "sample_dpm_fast":
-                samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
-            elif self.sampler == "sample_dpm_adaptive":
-                samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+            if self.sampler == "uni_pc":
+                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
             else:
-                samples = getattr(k_diffusion_sampling, self.sampler)(self.model_k, noise, sigmas, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+                noise *= sigmas[0]
+                if latent_image is not None:
+                    noise += latent_image
+                if self.sampler == "sample_dpm_fast":
+                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+                elif self.sampler == "sample_dpm_adaptive":
+                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+                else:
+                    samples = getattr(k_diffusion_sampling, self.sampler)(self.model_k, noise, sigmas, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
         return samples.to(torch.float32)
