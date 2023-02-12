@@ -21,6 +21,9 @@ model_kinds = {
 }
 
 
+all_models = {}
+
+
 def recursive_search(directory):
     result = []
     for root, subdir, file in os.walk(directory, followlinks=True):
@@ -60,3 +63,9 @@ def find_model_file(kind, basename):
 config = {}
 with open("config.yml", "r") as f:
     config = yaml.safe_load(f)["config"]
+
+
+print("Scanning for models...")
+for kind in model_kinds.keys():
+    all_models[kind] = get_model_files(kind)
+print("Done.")

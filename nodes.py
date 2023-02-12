@@ -107,8 +107,8 @@ class CheckpointLoader:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "config_name": ("COMBO", { "choices": shared.get_model_files("configs") }),
-                              "ckpt_name": ("COMBO", { "choices": shared.get_model_files("checkpoints") })}}
+        return {"required": { "config_name": ("COMBO", { "choices": shared.all_models["configs"] }),
+                              "ckpt_name": ("COMBO", { "choices": shared.all_models["checkpoints"] })}}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -124,7 +124,7 @@ class LoraLoader:
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
-                              "lora_name": ("COMBO", { "choices": shared.get_model_files("loras") }),
+                              "lora_name": ("COMBO", { "choices": shared.all_models["loras"] }),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                               }}
@@ -141,7 +141,7 @@ class LoraLoader:
 class VAELoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": ("COMBO", { "choices": shared.get_model_files("vae") })}}
+        return {"required": { "vae_name": ("COMBO", { "choices": shared.all_models["vae"] })}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -156,7 +156,7 @@ class VAELoader:
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": ("COMBO", { "choices": shared.get_model_files("clip") }),
+        return {"required": { "clip_name": ("COMBO", { "choices": shared.all_models["clip"] }),
                               "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
                              }}
     RETURN_TYPES = ("CLIP",)
