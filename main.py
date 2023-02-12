@@ -7,6 +7,16 @@ import heapq
 import traceback
 import asyncio
 
+try:
+    import aiohttp
+    from aiohttp import web
+except ImportError:
+    print("Module 'aiohttp' not installed. Please install it via:")
+    print("pip install aiohttp")
+    print("or")
+    print("pip install -r requirements.txt")
+    sys.exit()
+
 if __name__ == "__main__":
     if '--help' in sys.argv:
         print("Valid Command line Arguments:")
@@ -345,9 +355,6 @@ class PromptQueue:
                     self.socket_handler.queue_updated(self)
                     return True
         return False
-
-import aiohttp
-from aiohttp import web
 
 def get_queue_info(prompt_queue):
     prompt_info = {}
