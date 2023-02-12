@@ -7,6 +7,6 @@ open-clip-torch
 transformers
 safetensors
 pytorch_lightning
-
+aiohttp
 accelerate
 
