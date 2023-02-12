@@ -27,6 +27,7 @@ if '--dont-upcast-attention' in sys.argv:
 import torch
 
 import nodes
+import shared
 
 def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -230,6 +231,9 @@ def validate_inputs(prompt, item):
             if type_input == "STRING":
                 val = str(val)
                 inputs[x] = val
+            if type_input == "REGION":
+                val = {"x": val["x"], "y": val["y"], "width": val["width"], "height": val["height"]}
+                inputs[x] = val
 
             if len(info) > 1:
                 if "min" in info[1] and val < info[1]["min"]:
@@ -378,6 +382,9 @@ class PromptServer(BaseHTTPRequestHandler):
                     info['category'] = obj_class.CATEGORY
                 out[x] = info
             self.wfile.write(json.dumps(out).encode('utf-8'))
+        elif self.path == "/config":
+            self._set_headers(ct='application/json')
+            self.wfile.write(json.dumps(shared.config).encode('utf-8'))
         elif self.path[1:] in os.listdir(self.server.server_dir):
             if self.path[1:].endswith('.css'):
                 self._set_headers(ct='text/css')

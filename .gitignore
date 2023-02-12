@@ -4,3 +4,4 @@ output/
 models/checkpoints
 models/vae
 models/embeddings
+models/loras

@@ -9916,6 +9916,9 @@ LGraphNode.prototype.executeAction = function(action)
 					var range = w.options.max - w.options.min;
 					var nvalue = Math.clamp((x - 15) / (widget_width - 30), 0, 1);
 					w.value = w.options.min + (w.options.max - w.options.min) * nvalue;
+                    if (w.options.step) {
+                        w.value = Math.round( w.value / w.options.step ) * w.options.step;
+                    }
 					if (w.callback) {
 						setTimeout(function() {
 							inner_value_change(w, w.value);
@@ -9927,7 +9930,12 @@ LGraphNode.prototype.executeAction = function(action)
 				case "combo":
 					var old_value = w.value;
 					if (event.type == LiteGraph.pointerevents_method+"move" && w.type == "number") {
-						w.value += event.deltaX * 0.1 * (w.options.step || 1);
+                        if (w.options.step) {
+                            w.value += Math.ceil( Math.abs( event.deltaX * 0.01 / w.options.step ) ) * w.options.step * Math.sign(event.deltaX);
+                        }
+                        else {
+                            w.value += event.deltaX * 0.1;
+                        }
 						if ( w.options.min != null && w.value < w.options.min ) {
 							w.value = w.options.min;
 						}
@@ -9946,7 +9954,12 @@ LGraphNode.prototype.executeAction = function(action)
 
 						var delta = x < 40 ? -1 : x > widget_width - 40 ? 1 : 0;
 						if (w.type == "number") {
-							w.value += delta * 0.1 * (w.options.step || 1);
+                            if (w.options.step) {
+                                w.value += w.options.step * Math.sign(delta);
+                            }
+                            else {
+                                w.value += delta * 0.1;
+                            }
 							if ( w.options.min != null && w.value < w.options.min ) {
 								w.value = w.options.min;
 							}
