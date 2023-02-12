@@ -127,8 +127,8 @@ class CheckpointLoader:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "config_name": (filter_files_extensions(recursive_search(s.config_dir), '.yaml'), ),
-                              "ckpt_name": (filter_files_extensions(recursive_search(s.ckpt_dir), supported_ckpt_extensions), )}}
+        return {"required": { "config_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.config_dir), '.yaml') }),
+                              "ckpt_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.ckpt_dir), supported_ckpt_extensions) })}}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -146,7 +146,7 @@ class LoraLoader:
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
-                              "lora_name": (filter_files_extensions(recursive_search(s.lora_dir), supported_pt_extensions), ),
+                              "lora_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.lora_dir), supported_pt_extensions) }),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                               }}
@@ -165,7 +165,7 @@ class VAELoader:
     vae_dir = os.path.join(models_dir, "vae")
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (filter_files_extensions(recursive_search(s.vae_dir), supported_pt_extensions), )}}
+        return {"required": { "vae_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.vae_dir), supported_pt_extensions) })}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -182,7 +182,7 @@ class CLIPLoader:
     clip_dir = os.path.join(models_dir, "clip")
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (filter_files_extensions(recursive_search(s.clip_dir), supported_pt_extensions), ),
+        return {"required": { "clip_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.clip_dir), supported_pt_extensions) }),
                               "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -237,10 +237,10 @@ class LatentUpscale:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
+        return {"required": { "samples": ("LATENT",), "upscale_method": ("COMBO", { "choices" : s.upscale_methods }),
                               "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
                               "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "crop": (s.crop_methods,)}}
+                              "crop": ("COMBO", { "choices": s.crop_methods })}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
 
@@ -277,7 +277,7 @@ class LatentFlip:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "flip_method": (["x-axis: vertically", "y-axis: horizontally"],),
+                              "flip_method": ("COMBO", { "choices": ["x-axis: vertically", "y-axis: horizontally"] }),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "flip"
@@ -409,8 +409,8 @@ class KSampler:
                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
-                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
-                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
+                    "sampler_name": ("COMBO", { "choices": comfy.samplers.KSampler.SAMPLERS }),
+                    "scheduler": ("COMBO", { "choices": comfy.samplers.KSampler.SCHEDULERS }),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
@@ -433,18 +433,18 @@ class KSamplerAdvanced:
     def INPUT_TYPES(s):
         return {"required":
                     {"model": ("MODEL",),
-                    "add_noise": (["enable", "disable"], ),
+                    "add_noise": ("COMBO", { "choices": ["enable", "disable"] }),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
-                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
-                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
+                    "sampler_name": ("COMBO", {"choices": comfy.samplers.KSampler.SAMPLERS}),
+                    "scheduler": ("COMBO", {"choices": comfy.samplers.KSampler.SCHEDULERS}),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
-                    "return_with_leftover_noise": (["disable", "enable"], ),
+                    "return_with_leftover_noise": ("COMBO", { "choices": ["disable", "enable"] }),
                     }}
 
     RETURN_TYPES = ("LATENT",)
@@ -513,7 +513,7 @@ class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"image": (os.listdir(s.input_dir), )},
+                    {"image": ("COMBO", { "choices": os.listdir(s.input_dir) })},
                 }
 
     CATEGORY = "image"
@@ -541,10 +541,10 @@ class ImageScale:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
+        return {"required": { "image": ("IMAGE",), "upscale_method": ("COMBO", { "choices": s.upscale_methods}),
                               "width": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
                               "height": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
-                              "crop": (s.crop_methods,)}}
+                              "crop": ("COMBO", {"choices": s.crop_methods})}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 

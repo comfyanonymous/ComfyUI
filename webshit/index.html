@@ -53,6 +53,7 @@
 </div>
 
 <canvas id='mycanvas' width='1000' height='1000' style='width: 100%; height: 100%;'></canvas>
+<script type="text/javascript" src="widgets.js"></script>
 <script>
 var graph = new LGraph();
 
@@ -105,8 +106,8 @@ function afterLoadGraph()
     }
 
     setInterval(saveGraph, 1000);
-    
 }
+
 
 function onObjectInfo(json) {
     for (let key in json) {
@@ -120,126 +121,18 @@ function onObjectInfo(json) {
             min_width = 1;
             for (let x in inp) {
                 let default_val = min_val = max_val = step_val = multiline = undefined;
+                let opts = {};
                 if (inp[x].length > 1) {
-                    default_val = inp[x][1]['default'];
-                    min_val = inp[x][1]['min'];
-                    max_val = inp[x][1]['max'];
-                    step_val = inp[x][1]['step'];
-                    multiline = inp[x][1]['multiline'];
+                    opts = inp[x][1];
                 }
 
                 let type = inp[x][0];
+                let widgetClass = COMFY_WIDGETS[type];
                 if (Array.isArray(type)) {
                     w = this.addWidget("combo", x, type[0], function(v){}, { values: type } );
                     this._widgets += [w]
-                } else if (type == "INT") {
-                    if (default_val == undefined) default_val = 0;
-                    if (min_val == undefined) min_val = 0;
-                    if (max_val == undefined) max_val = 2048;
-                    if (step_val == undefined) step_val = 1;
-                    w = this.addWidget("number", x, default_val, function(v){let s = this.options.step / 10;this.value = Math.round( v / s ) * s;}, { min: min_val, max: max_val, step: 10.0 * step_val} );
-                    this._widgets += [w]
-                    if (x == "seed" || x == "noise_seed") {
-                        w1 = this.addWidget("toggle", "Random seed after every gen", true, function(v){}, { on: "enabled", off:"disabled"} );
-                        w1.to_randomize = w;
-                        this._widgets += [w1]
-                    }
-                } else if (type == "FLOAT") {
-                    if (default_val == undefined) default_val = 0;
-                    if (min_val == undefined) min_val = 0;
-                    if (max_val == undefined) max_val = 2048;
-                    if (step_val == undefined) step_val = 0.5;
-
-                    // if (min_val == 0.0 && max_val == 1.0) {
-                    //     w = this.slider = this.addWidget("slider", x, default_val, function(v){}, { min: min_val, max: max_val} );
-                    // } else {
-                        w = this.addWidget("number", x, default_val, function(v){}, { min: min_val, max: max_val, step: 10.0 * step_val} );
-                    // }
-                    this._widgets += [w]
-                } else if (type == "STRING") {
-                    if (default_val == undefined) default_val = "";
-                    if (multiline == undefined) multiline = false;
-
-                    if (multiline) {
-                        var w = {
-                            type: "customtext",
-                            name: x,
-                            get value() { return this.input_div.innerText;},
-                            set value(x) { this.input_div.innerText = x;},
-                            callback: function(v){console.log(v);},
-                            options: {},
-                            draw: function(ctx, node, widget_width, y, H){
-                                var show_text = canvas.ds.scale > 0.5;
-                                // this.input_div.style.top = `${y}px`;
-                                let t = ctx.getTransform();
-                                let margin = 10;
-                                let x_div = t.a * margin * 2 + t.e;
-                                let y_div = t.d * (y + H) + t.f;
-                                let width_div = (widget_width - margin * 2 - 3) * t.a;
-                                let height_div = (this.parent.size[1] - (y + H) - 3)* t.d;
-                                this.input_div.style.left = `${x_div}px`;
-                                this.input_div.style.top = `${y_div}px`;
-                                this.input_div.style.width = width_div;
-                                this.input_div.style.height = height_div;
-                                this.input_div.style.position = 'absolute';
-                                this.input_div.style.zIndex = 1;
-                                this.input_div.style.fontSize = t.d * 10.0;
-
-                                if (show_text) {
-                                    this.input_div.hidden = false;
-                                } else {
-                                    this.input_div.hidden = true;
-                                }
-
-                                ctx.save();
-                                // ctx.fillText(String(this.value).substr(0,30), 0, y + H * 0.7);
-                                ctx.restore();
-                            },
-                        };
-                        w.input_div = document.createElement('div');
-                        w.input_div.contentEditable = true;
-                        w.input_div.style.backgroundColor = "#FFFFFF";
-                        w.input_div.style.overflow = 'hidden';
-                        w.input_div.style.overflowY = 'auto';
-                        w.input_div.style.padding = 2;
-                        w.input_div.innerText = default_val;
-                        document.addEventListener('click', function(event) {
-                            if (!w.input_div.contains(event.target)) {
-                                w.input_div.blur();
-                            }
-                            });
-                        w.parent = this;
-                        min_height = Math.max(min_height, 200);
-                        min_width = Math.max(min_width, 400);
-                        ccc.parentNode.appendChild(w.input_div);
-
-                        w = this.addCustomWidget(w);
-                        canvas.onDrawBackground = function() {
-                            for (let n in graph._nodes) {
-                                n = graph._nodes[n];
-                                for (let w in n.widgets) {
-                                    let wid = n.widgets[w];
-                                    if (Object.hasOwn(wid, 'input_div')) {
-                                        wid.input_div.style.left = -8000;
-                                        wid.input_div.style.position = 'absolute';
-                                    }
-                                }
-                            }
-                        }
-                        // w = this.addWidget("text", x, "", function(v){}, { multiline:true } );
-                        console.log(w, this);
-                        this._widgets += [w]
-                        this.onRemoved = function() {
-                                    for (let y in this.widgets) {
-                                        if (this.widgets[y].input_div) {
-                                            this.widgets[y].input_div.remove();
-                                        }
-                                    }
-                                }
-                    } else {
-                        w = this.addWidget("text", x, default_val, function(v){}, { multiline:false } );
-                        this._widgets += [w];
-                    }
+                } else if (widgetClass) {
+                    new widgetClass(opts).addWidget(this, x);
                 } else {
                     this.addInput(x, type);
                 }
