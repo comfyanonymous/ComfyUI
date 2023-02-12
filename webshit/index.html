@@ -54,6 +54,7 @@
 
 <canvas id='mycanvas' width='1000' height='1000' style='width: 100%; height: 100%;'></canvas>
 <script type="text/javascript" src="widgets.js"></script>
+<script type="text/javascript" src="nodes.js"></script>
 <script>
 var graph = new LGraph();
 
@@ -109,6 +110,22 @@ function afterLoadGraph()
 }
 
 
+function onConfig(json) {
+    if (json['alignToGrid']) {
+        graph.config.align_to_grid = json['alignToGrid'];
+        canvas.align_to_grid = json['alignToGrid'];
+    }
+    if (json['gridSize']) {
+        LiteGraph.CANVAS_GRID_SIZE = json['gridSize'];
+    }
+}
+
+
+fetch("config", {cache: "no-store"})
+  .then(response => response.json())
+  .then(json => onConfig(json));
+
+
 function onObjectInfo(json) {
     for (let key in json) {
         function MyNode()
@@ -128,10 +145,7 @@ function onObjectInfo(json) {
 
                 let type = inp[x][0];
                 let widgetClass = COMFY_WIDGETS[type];
-                if (Array.isArray(type)) {
-                    w = this.addWidget("combo", x, type[0], function(v){}, { values: type } );
-                    this._widgets += [w]
-                } else if (widgetClass) {
+                if (widgetClass) {
                     new widgetClass(opts).addWidget(this, x);
                 } else {
                     this.addInput(x, type);
@@ -152,6 +166,13 @@ function onObjectInfo(json) {
         MyNode.title = json[key]['name'];
         MyNode.class_type_comfy = json[key]['name'];
         MyNode.__json_data = json[key]
+
+        let props = COMFY_NODES[json[key]['name']];
+        if (props) {
+          for (const prop in props) {
+            MyNode.prototype[prop] = props[prop];
+          }
+        }
 
         LiteGraph.registerNodeType(key, MyNode);
         MyNode.category = json[key]['category'];

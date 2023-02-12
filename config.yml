@@ -1,0 +1,10 @@
+config:
+  alignToGrid: True
+  gridSize: 20
+  paths:
+    configs: []
+    checkpoints: []
+    vae: []
+    clip: []
+    embeddings: []
+    loras: []

@@ -244,7 +244,7 @@ def load_lora_for_models(model, clip, lora_path, strength_model, strength_clip):
 
 
 class CLIP:
-    def __init__(self, config={}, embedding_directory=None, no_init=False):
+    def __init__(self, config={}, embedding_directories=None, no_init=False):
         if no_init:
             return
         self.target_clip = config["target"]
@@ -261,7 +261,7 @@ class CLIP:
             tokenizer = sd1_clip.SD1Tokenizer
 
         self.cond_stage_model = clip(**(params))
-        self.tokenizer = tokenizer(embedding_directory=embedding_directory)
+        self.tokenizer = tokenizer(embedding_directories=embedding_directories)
         self.patcher = ModelPatcher(self.cond_stage_model)
 
     def clone(self):
@@ -323,18 +323,18 @@ class VAE:
         samples = samples.cpu()
         return samples
 
-def load_clip(ckpt_path, embedding_directory=None):
+def load_clip(ckpt_path, embedding_directories=None):
     clip_data = load_torch_file(ckpt_path)
     config = {}
     if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
         config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
     else:
         config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
-    clip = CLIP(config=config, embedding_directory=embedding_directory)
+    clip = CLIP(config=config, embedding_directories=embedding_directories)
     clip.load_from_state_dict(clip_data)
     return clip
 
-def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):
+def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directories=None):
     config = OmegaConf.load(config_path)
     model_config_params = config['model']['params']
     clip_config = model_config_params['cond_stage_config']
@@ -355,7 +355,7 @@ def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, e
         load_state_dict_to = [w]
 
     if output_clip:
-        clip = CLIP(config=clip_config, embedding_directory=embedding_directory)
+        clip = CLIP(config=clip_config, embedding_directories=embedding_directories)
         w.cond_stage_model = clip.cond_stage_model
         load_state_dict_to = [w]
 

@@ -2,6 +2,7 @@ import os
 
 from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig
 import torch
+import shared
 
 class ClipTokenWeightEncoder:
     def encode_token_weights(self, token_weight_pairs):
@@ -167,8 +168,8 @@ def unescape_important(text):
     text = text.replace("\0\2", "(")
     return text
 
-def load_embed(embedding_name, embedding_directory):
-    embed_path = os.path.join(embedding_directory, embedding_name)
+def load_embed(embedding_name, embedding_directories):
+    embed_path = shared.find_model_file("embeddings", embedding_name)
     if not os.path.isfile(embed_path):
         extensions = ['.safetensors', '.pt', '.bin']
         valid_file = None
@@ -195,7 +196,7 @@ def load_embed(embedding_name, embedding_directory):
     return next(iter(values))
 
 class SD1Tokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directories=None):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = CLIPTokenizer.from_pretrained(tokenizer_path)
@@ -208,7 +209,7 @@ class SD1Tokenizer:
         self.pad_with_end = pad_with_end
         vocab = self.tokenizer.get_vocab()
         self.inv_vocab = {v: k for k, v in vocab.items()}
-        self.embedding_directory = embedding_directory
+        self.embedding_directories = embedding_directories
         self.max_word_length = 8
 
     def tokenize_with_weights(self, text):
@@ -221,9 +222,9 @@ class SD1Tokenizer:
             for word in to_tokenize:
                 temp_tokens = []
                 embedding_identifier = "embedding:"
-                if word.startswith(embedding_identifier) and self.embedding_directory is not None:
+                if word.startswith(embedding_identifier) and self.embedding_directories is not None:
                     embedding_name = word[len(embedding_identifier):].strip('\n')
-                    embed = load_embed(embedding_name, self.embedding_directory)
+                    embed = load_embed(embedding_name, self.embedding_directories)
                     if embed is not None:
                         if len(embed.shape) == 1:
                             temp_tokens += [(embed, t[1])]

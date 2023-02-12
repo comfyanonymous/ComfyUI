@@ -16,26 +16,7 @@ sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
 import comfy.samplers
 import comfy.sd
 import model_management
-
-supported_ckpt_extensions = ['.ckpt']
-supported_pt_extensions = ['.ckpt', '.pt', '.bin']
-try:
-    import safetensors.torch
-    supported_ckpt_extensions += ['.safetensors']
-    supported_pt_extensions += ['.safetensors']
-except:
-    print("Could not import safetensors, safetensors support disabled.")
-
-def recursive_search(directory):  
-    result = []
-    for root, subdir, file in os.walk(directory, followlinks=True):
-        for filepath in file:
-            #we os.path,join directory with a blank string to generate a path separator at the end.
-            result.append(os.path.join(root, filepath).replace(os.path.join(directory,''),'')) 
-    return result
-
-def filter_files_extensions(files, extensions):
-    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
+import shared
 
 class CLIPTextEncode:
     @classmethod
@@ -65,10 +46,8 @@ class ConditioningSetArea:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
-                              "width": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                              "latent": ("LATENT", ),
+                              "region": ("REGION", ),
                               "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
@@ -76,7 +55,11 @@ class ConditioningSetArea:
 
     CATEGORY = "conditioning"
 
-    def append(self, conditioning, width, height, x, y, strength, min_sigma=0.0, max_sigma=99.0):
+    def append(self, conditioning, latent, region, strength, min_sigma=0.0, max_sigma=99.0):
+        width = region["width"]
+        height = region["height"]
+        x = region["x"]
+        y = region["y"]
         c = copy.deepcopy(conditioning)
         for t in c:
             t[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
@@ -120,33 +103,28 @@ class VAEEncode:
         return (vae.encode(pixels), )
 
 class CheckpointLoader:
-    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-    config_dir = os.path.join(models_dir, "configs")
-    ckpt_dir = os.path.join(models_dir, "checkpoints")
-    embedding_directory = os.path.join(models_dir, "embeddings")
+    embedding_directories = shared.get_model_paths("embeddings")
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "config_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.config_dir), '.yaml') }),
-                              "ckpt_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.ckpt_dir), supported_ckpt_extensions) })}}
+        return {"required": { "config_name": ("COMBO", { "choices": shared.get_model_files("configs") }),
+                              "ckpt_name": ("COMBO", { "choices": shared.get_model_files("checkpoints") })}}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "loaders"
 
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
-        config_path = os.path.join(self.config_dir, config_name)
-        ckpt_path = os.path.join(self.ckpt_dir, ckpt_name)
-        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=self.embedding_directory)
+        config_path = shared.find_model_file("configs", config_name)
+        ckpt_path = shared.find_model_file("checkpoints", ckpt_name)
+        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directories=self.embedding_directories)
 
 class LoraLoader:
-    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-    lora_dir = os.path.join(models_dir, "loras")
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
-                              "lora_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.lora_dir), supported_pt_extensions) }),
+                              "lora_name": ("COMBO", { "choices": shared.get_model_files("loras") }),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                               }}
@@ -156,16 +134,14 @@ class LoraLoader:
     CATEGORY = "loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
-        lora_path = os.path.join(self.lora_dir, lora_name)
+        lora_path = shared.find_model_file("loras", lora_name)
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora_path, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
 class VAELoader:
-    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-    vae_dir = os.path.join(models_dir, "vae")
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.vae_dir), supported_pt_extensions) })}}
+        return {"required": { "vae_name": ("COMBO", { "choices": shared.get_model_files("vae") })}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -173,16 +149,14 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        vae_path = os.path.join(self.vae_dir, vae_name)
+        vae_path = shared.find_model_file("vae", vae_name)
         vae = comfy.sd.VAE(ckpt_path=vae_path)
         return (vae,)
 
 class CLIPLoader:
-    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-    clip_dir = os.path.join(models_dir, "clip")
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": ("COMBO", { "choices": filter_files_extensions(recursive_search(s.clip_dir), supported_pt_extensions) }),
+        return {"required": { "clip_name": ("COMBO", { "choices": shared.get_model_files("clip") }),
                               "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -191,8 +165,8 @@ class CLIPLoader:
     CATEGORY = "loaders"
 
     def load_clip(self, clip_name, stop_at_clip_layer):
-        clip_path = os.path.join(self.clip_dir, clip_name)
-        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
+        clip_path = shared.find_model_file("clip", clip_name)
+        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directories=CheckpointLoader.embedding_directories)
         clip.clip_layer(stop_at_clip_layer)
         return (clip,)
 
@@ -215,21 +189,21 @@ class EmptyLatentImage:
         return (latent, )
 
 def common_upscale(samples, width, height, upscale_method, crop):
-        if crop == "center":
-            old_width = samples.shape[3]
-            old_height = samples.shape[2]
-            old_aspect = old_width / old_height
-            new_aspect = width / height
-            x = 0
-            y = 0
-            if old_aspect > new_aspect:
-                x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
-            elif old_aspect < new_aspect:
-                y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
-            s = samples[:,:,y:old_height-y,x:old_width-x]
-        else:
-            s = samples
-        return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+    if crop == "center":
+        old_width = samples.shape[3]
+        old_height = samples.shape[2]
+        old_aspect = old_width / old_height
+        new_aspect = width / height
+        x = 0
+        y = 0
+        if old_aspect > new_aspect:
+            x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
+        elif old_aspect < new_aspect:
+            y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
+        s = samples[:,:,y:old_height-y,x:old_width-x]
+    else:
+        s = samples
+    return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
 
 class LatentUpscale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
