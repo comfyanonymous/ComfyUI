@@ -1,6 +1,9 @@
 config:
   alignToGrid: True
   gridSize: 20
+  textArea:
+    fontFamily: monospace
+    fontSize: 14px
   paths:
     configs: []
     checkpoints: []

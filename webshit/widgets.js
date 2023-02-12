@@ -8,7 +8,7 @@ class BaseWidget {
 
 
 class IntWidget extends BaseWidget {
-  constructor(opts) {
+  constructor(opts, config) {
     super();
     this.default_val = opts['default'] || 0;
     this.min_val = opts['min'] || 0;
@@ -34,7 +34,7 @@ COMFY_WIDGETS["INT"] = IntWidget;
 
 
 class FloatWidget extends BaseWidget {
-  constructor(opts) {
+  constructor(opts, config) {
     super();
     this.default_val = opts['default'] || 0;
     this.min_val = opts['min'] || 0;
@@ -55,10 +55,12 @@ COMFY_WIDGETS["FLOAT"] = FloatWidget;
 
 
 class StringWidget extends BaseWidget {
-  constructor(opts) {
+  constructor(opts, config) {
     super();
     this.default_val = opts['default'] || "";
     this.multiline = opts['multiline'] || false;
+    this.fontFamily = config["textArea"]["fontFamily"];
+    this.fontSize = config["textArea"]["fontSize"] || 10.0;
   }
 
   addWidget(node, x) {
@@ -85,7 +87,7 @@ class StringWidget extends BaseWidget {
           this.input_div.style.height = height_div;
           this.input_div.style.position = 'absolute';
           this.input_div.style.zIndex = 1;
-          this.input_div.style.fontSize = t.d * 10.0;
+          this.input_div.style.fontSize = t.d * this.fontSize;
 
           if (show_text) {
             this.input_div.hidden = false;
@@ -104,6 +106,9 @@ class StringWidget extends BaseWidget {
       w.input_div.style.overflow = 'hidden';
       w.input_div.style.overflowY = 'auto';
       w.input_div.style.padding = 2;
+      if (this.fontFamily) {
+          w.input_div.style.fontFamily = this.fontFamily;
+      }
       w.input_div.innerText = this.default_val;
       document.addEventListener('click', function(event) {
         if (!w.input_div.contains(event.target)) {
@@ -149,7 +154,7 @@ COMFY_WIDGETS["STRING"] = StringWidget;
 
 
 class ComboWidget extends BaseWidget {
-  constructor(opts) {
+  constructor(opts, config) {
     super();
     this.choices = opts['choices'] || [];
   }
@@ -163,7 +168,7 @@ COMFY_WIDGETS["COMBO"] = ComboWidget;
 
 
 class RegionWidget extends BaseWidget {
-  constructor(opts) {
+  constructor(opts, config) {
     super();
   }
 

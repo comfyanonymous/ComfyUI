@@ -121,12 +121,7 @@ function onConfig(json) {
 }
 
 
-fetch("config", {cache: "no-store"})
-  .then(response => response.json())
-  .then(json => onConfig(json));
-
-
-function onObjectInfo(json) {
+function onObjectInfo(json, config) {
     for (let key in json) {
         function MyNode()
         {
@@ -137,7 +132,6 @@ function onObjectInfo(json) {
             min_height = 1;
             min_width = 1;
             for (let x in inp) {
-                let default_val = min_val = max_val = step_val = multiline = undefined;
                 let opts = {};
                 if (inp[x].length > 1) {
                     opts = inp[x][1];
@@ -146,7 +140,7 @@ function onObjectInfo(json) {
                 let type = inp[x][0];
                 let widgetClass = COMFY_WIDGETS[type];
                 if (widgetClass) {
-                    new widgetClass(opts).addWidget(this, x);
+                    new widgetClass(opts, config).addWidget(this, x);
                 } else {
                     this.addInput(x, type);
                 }
@@ -182,10 +176,17 @@ function onObjectInfo(json) {
     // loadGraphData(graph, JSON.parse(base_txt2img_graph));
 }
 
-fetch("object_info", {cache: "no-store"})
-  .then(response => response.json())
-  .then(json => onObjectInfo(json));
-
+let pConfig = fetch("config", {cache: "no-store"});
+let pObjectInfo = fetch("object_info", {cache: "no-store"});
+Promise.all([pConfig, pObjectInfo])
+    .then(results => Promise.all(results.map(r => r.json())))
+    .then(results => {
+        config = results[0];
+        objectInfo = results[1];
+        onConfig(config);
+        console.log(objectInfo);
+        onObjectInfo(objectInfo, config);
+    });
 
 //register in the system
 graph.start();
