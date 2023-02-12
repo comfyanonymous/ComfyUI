@@ -12,7 +12,7 @@ except:
 
 
 model_kinds = {
-    "configs": [".yml"],
+    "configs": [".yml", ".yaml"],
     "checkpoints": supported_ckpt_extensions,
     "vae": supported_pt_extensions,
     "clip": supported_pt_extensions,
