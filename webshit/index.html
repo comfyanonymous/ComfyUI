@@ -3,6 +3,20 @@
 	<link rel="stylesheet" type="text/css" href="litegraph.css">
 	<script type="text/javascript" src="litegraph.core.js"></script>
 </head>
+<style>
+.customtext_input {
+    background-color: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #202020;
+    }
+    .customtext_input {
+        background-color: #202020;
+        color: white;
+    }
+}
+</style>
 <body style='width:100%; height:100%; overflow: hidden;'>
 <style>
 .modal {
@@ -198,7 +212,7 @@ function onObjectInfo(json) {
                         };
                         w.input_div = document.createElement('div');
                         w.input_div.contentEditable = true;
-                        w.input_div.style.backgroundColor = "#FFFFFF";
+                        w.input_div.className = "customtext_input";
                         w.input_div.style.overflow = 'hidden';
                         w.input_div.style.overflowY = 'auto';
                         w.input_div.style.padding = 2;
