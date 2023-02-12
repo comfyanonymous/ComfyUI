@@ -6744,7 +6744,6 @@ LGraphNode.prototype.executeAction = function(action)
                 this.node_dragged.pos[0] = Math.round(this.node_dragged.pos[0]);
                 this.node_dragged.pos[1] = Math.round(this.node_dragged.pos[1]);
                 if (this.graph.config.align_to_grid || this.align_to_grid ) {
-                    console.warn("AAA")
                     this.node_dragged.alignToGrid();
                 }
 				if( this.onNodeMoved )
@@ -9955,7 +9954,6 @@ LGraphNode.prototype.executeAction = function(action)
 
 						var delta = x < 40 ? -1 : x > widget_width - 40 ? 1 : 0;
 						if (w.type == "number") {
-                            console.log(w);
                             if (w.options.step) {
                                 w.value += w.options.step * Math.sign(delta);
                             }

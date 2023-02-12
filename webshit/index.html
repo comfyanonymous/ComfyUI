@@ -556,6 +556,10 @@ function clearQueue() {
     .catch(error => console.error(error));
 }
 
+function lockCanvas(cb) {
+    canvas.allow_dragnodes = !cb.checked;
+}
+
 
 </script>
 
@@ -594,6 +598,7 @@ function clearQueue() {
 <br>
 <button style="font-size: 20px;" onclick="clearGraph()">Clear</button><br>
 <button style="font-size: 20px;" onclick="loadTxt2Img()">Load Default</button><br>
+<input type="checkbox" id="lockcanvas" name="lockcanvas" value="false" onclick="lockCanvas(this)">Lock Canvas</input>
 </span>
 </body>
 </html>
