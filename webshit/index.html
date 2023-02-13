@@ -480,9 +480,19 @@ document.addEventListener('drop', (event) => {
     prompt_file_load(file);
 });
 
+
 (() => {
     function updateStatus(data) {
         document.getElementById("queuesize").innerHTML = "Queue size: " + (data ? data.exec_info.queue_remaining : "ERR");
+    }
+
+    //fix for colab and other things that don't support websockets.
+    function manually_fetch_queue() {
+        fetch('/prompt')
+            .then(response => response.json())
+            .then(data => {
+                updateStatus(data.exec_info.queue_remaining);
+            }).catch((response) => {updateStatus(null)});
     }
 
     let ws;
@@ -501,14 +511,16 @@ document.addEventListener('drop', (event) => {
 
         ws.addEventListener("error", () => {
             if(ws) ws.close();
+            manually_fetch_queue();
         });
 
         ws.addEventListener("close", () => {
             setTimeout(() => {
                 ws = null;
                 createSocket(true);
-            }, 1000);
+            }, 300);
             if(opened) {
+                updateStatus(null);
                 showModal("Reconnecting...");
             }
         });
