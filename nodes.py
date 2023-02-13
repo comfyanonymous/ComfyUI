@@ -607,9 +607,9 @@ def load_custom_nodes():
             if getattr(custom_nodes, "NODE_CLASS_MAPPINGS") is not None:
                 NODE_CLASS_MAPPINGS.update(custom_nodes.NODE_CLASS_MAPPINGS)
             else:
-                print(f"Skip {possible_module} node due to the lack of NODE_CLASS_MAPPINGS.")
+                print(f"Skip {possible_module} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
         except ImportError as e:
-            print(f"Cannot import {possible_module} node.")
+            print(f"Cannot import {possible_module} module for custom nodes.")
             print(e)
 
 load_custom_nodes()
