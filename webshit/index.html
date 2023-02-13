@@ -490,7 +490,7 @@ document.addEventListener('drop', (event) => {
         if(ws) return;
 
         let opened = false;
-        ws = new WebSocket(`ws://${location.host}/ws`);   
+        ws = new WebSocket(`ws${window.location.protocol === "https"? "s" : ""}://${location.host}/ws`);   
 
         ws.addEventListener("open", () => {
             opened = true;
