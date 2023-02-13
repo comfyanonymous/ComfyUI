@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
 import comfy.samplers
 import comfy.sd
 import model_management
+from importlib import import_module
 
 supported_ckpt_extensions = ['.ckpt']
 supported_pt_extensions = ['.ckpt', '.pt', '.bin']
@@ -597,4 +598,18 @@ NODE_CLASS_MAPPINGS = {
     "CLIPLoader": CLIPLoader,
 }
 
+def load_custom_nodes():
+    possible_modules = os.listdir("custom_nodes")
+    possible_modules.remove("put_custom_nodes_here")
+    for possible_module in possible_modules:
+        try:
+            custom_nodes = import_module(possible_module, "custom_nodes")
+            if getattr(custom_nodes, "NODE_CLASS_MAPPINGS") is not None:
+                NODE_CLASS_MAPPINGS.update(custom_nodes.NODE_CLASS_MAPPINGS)
+            else:
+                NODE_CLASS_MAPPINGS[possible_module] = custom_nodes
+        except ImportError as e:
+            print(f"Cannot import {possible_module} node.")
+            print(e)
 
+load_custom_nodes()
