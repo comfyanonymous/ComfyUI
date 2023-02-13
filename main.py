@@ -409,6 +409,7 @@ class PromptServer():
         self.socket_handler = socket_handler
         self.number = 0
         self.app = web.Application()
+        self.web_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "webshit")
         routes = web.RouteTableDef()
 
         @routes.get('/ws')
@@ -417,7 +418,7 @@ class PromptServer():
         
         @routes.get("/")
         async def get_root(request):
-            return aiohttp.web.HTTPFound('/index.html')
+            return web.FileResponse(os.path.join(self.web_root, "index.html"))
         
         @routes.get("/prompt")
         async def get_prompt(request):
@@ -494,7 +495,7 @@ class PromptServer():
 
         self.app.add_routes(routes)
         self.app.add_routes([
-            web.static('/', os.path.join(os.path.dirname(os.path.realpath(__file__)), "webshit")),
+            web.static('/', self.web_root),
         ])
 
 async def start_server(server, address, port):
