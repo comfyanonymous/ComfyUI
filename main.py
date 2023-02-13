@@ -532,9 +532,5 @@ if __name__ == "__main__":
     except:
         pass
 
-    try:
-        loop.run_until_complete(run(q, socket_handler, address=address, port=port))
-    except KeyboardInterrupt:
-        pass
-
+    loop.run_until_complete(run(q, socket_handler, address=address, port=port))
 
