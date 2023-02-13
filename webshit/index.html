@@ -491,7 +491,7 @@ document.addEventListener('drop', (event) => {
         fetch('/prompt')
             .then(response => response.json())
             .then(data => {
-                updateStatus(data.exec_info.queue_remaining);
+                updateStatus(data);
             }).catch((response) => {updateStatus(null)});
     }
 
