@@ -598,12 +598,19 @@ NODE_CLASS_MAPPINGS = {
     "CLIPLoader": CLIPLoader,
 }
 
+CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
 def load_custom_nodes():
-    possible_modules = os.listdir("custom_nodes")
-    possible_modules.remove("put_custom_nodes_here")
+    possible_modules = os.listdir(CUSTOM_NODE_PATH)
+    try:
+        possible_modules.remove("example.py")
+        possible_modules.remove("example_folder")
+    except ValueError: pass
+
     for possible_module in possible_modules:
+        module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
+        if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
         try:
-            custom_nodes = import_module(possible_module, "custom_nodes")
+            custom_nodes = import_module(possible_module, CUSTOM_NODE_PATH)
             if getattr(custom_nodes, "NODE_CLASS_MAPPINGS") is not None:
                 NODE_CLASS_MAPPINGS.update(custom_nodes.NODE_CLASS_MAPPINGS)
             else:
