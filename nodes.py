@@ -11,12 +11,13 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
 sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
+sys.dont_write_bytecode = True #No __pycache_ plz
 
 
 import comfy.samplers
 import comfy.sd
 import model_management
-from importlib import import_module
+import importlib
 
 supported_ckpt_extensions = ['.ckpt']
 supported_pt_extensions = ['.ckpt', '.pt', '.bin']
@@ -605,14 +606,19 @@ def load_custom_nodes():
         possible_modules.remove("example.py")
         possible_modules.remove("example_folder")
     except ValueError: pass
-
     for possible_module in possible_modules:
         module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
         if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+        
         try:
-            custom_nodes = import_module(os.path.join(possible_module, CUSTOM_NODE_PATH))
-            if getattr(custom_nodes, "NODE_CLASS_MAPPINGS") is not None:
-                NODE_CLASS_MAPPINGS.update(custom_nodes.NODE_CLASS_MAPPINGS)
+            if os.path.isfile(module_path):
+                module_spec = importlib.util.spec_from_file_location(os.path.basename(module_path), module_path)
+            else:
+                module_spec = importlib.util.spec_from_file_location(module_path, "main.py")
+            module = importlib.util.module_from_spec(module_spec)
+            module_spec.loader.exec_module(module)
+            if getattr(module, "NODE_CLASS_MAPPINGS") is not None:
+                NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
             else:
                 print(f"Skip {possible_module} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
         except ImportError as e:
