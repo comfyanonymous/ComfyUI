@@ -139,8 +139,17 @@ class CFGDenoiserComplex(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.inner_model = model
-    def forward(self, x, sigma, uncond, cond, cond_scale):
-        return sampling_function(self.inner_model, x, sigma, uncond, cond, cond_scale)
+    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask):
+        if denoise_mask is not None:
+            latent_mask = 1. - denoise_mask
+            x = x * denoise_mask + (self.latent_image + self.noise * sigma) * latent_mask
+        out = sampling_function(self.inner_model, x, sigma, uncond, cond, cond_scale)
+        if denoise_mask is not None:
+            out *= denoise_mask
+
+        if denoise_mask is not None:
+            out += self.latent_image * latent_mask
+        return out
 
 def simple_scheduler(model, steps):
     sigs = []
@@ -200,8 +209,8 @@ class KSampler:
             sampler = self.SAMPLERS[0]
         self.scheduler = scheduler
         self.sampler = sampler
-        self.sigma_min=float(self.model_wrap.sigmas[0])
-        self.sigma_max=float(self.model_wrap.sigmas[-1])
+        self.sigma_min=float(self.model_wrap.sigma_min)
+        self.sigma_max=float(self.model_wrap.sigma_max)
         self.set_steps(steps, denoise)
 
     def _calculate_sigmas(self, steps):
@@ -235,7 +244,7 @@ class KSampler:
             self.sigmas = sigmas[-(steps + 1):]
 
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False):
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None):
         sigmas = self.sigmas
         sigma_min = self.sigma_min
 
@@ -267,17 +276,28 @@ class KSampler:
         else:
             precision_scope = contextlib.nullcontext
 
+        latent_mask = None
+        if denoise_mask is not None:
+            latent_mask = (torch.ones_like(denoise_mask) - denoise_mask)
+
+        extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg}
         with precision_scope(self.device):
             if self.sampler == "uni_pc":
-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, extra_args=extra_args, noise_mask=denoise_mask)
             else:
-                noise *= sigmas[0]
+                extra_args["denoise_mask"] = denoise_mask
+                self.model_k.latent_image = latent_image
+                self.model_k.noise = noise
+
+                noise = noise * sigmas[0]
+
                 if latent_image is not None:
                     noise += latent_image
                 if self.sampler == "sample_dpm_fast":
-                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
                 elif self.sampler == "sample_dpm_adaptive":
-                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
                 else:
-                    samples = getattr(k_diffusion_sampling, self.sampler)(self.model_k, noise, sigmas, extra_args={"cond":positive, "uncond":negative, "cond_scale": cfg})
+                    samples = getattr(k_diffusion_sampling, self.sampler)(self.model_k, noise, sigmas, extra_args=extra_args)
+
         return samples.to(torch.float32)
