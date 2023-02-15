@@ -610,7 +610,7 @@ def load_custom_nodes():
         module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
         if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
         try:
-            custom_nodes = import_module(possible_module, CUSTOM_NODE_PATH)
+            custom_nodes = import_module(os.path.join(possible_module, CUSTOM_NODE_PATH))
             if getattr(custom_nodes, "NODE_CLASS_MAPPINGS") is not None:
                 NODE_CLASS_MAPPINGS.update(custom_nodes.NODE_CLASS_MAPPINGS)
             else:
