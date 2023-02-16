@@ -331,6 +331,7 @@ class ControlNet:
         self.control_model = control_model
         self.cond_hint_original = None
         self.cond_hint = None
+        self.strength = 1.0
 
     def get_control(self, x_noisy, t, cond_txt):
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
@@ -340,10 +341,13 @@ class ControlNet:
             self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").to(x_noisy.device)
             print("set cond_hint", self.cond_hint.shape)
         control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
+        for x in control:
+            x *= self.strength
         return control
 
-    def set_cond_hint(self, cond_hint):
+    def set_cond_hint(self, cond_hint, strength=1.0):
         self.cond_hint_original = cond_hint
+        self.strength = strength
         return self
 
     def cleanup(self):
@@ -354,6 +358,7 @@ class ControlNet:
     def copy(self):
         c = ControlNet(self.control_model)
         c.cond_hint_original = self.cond_hint_original
+        c.strength = self.strength
         return c
 
 def load_controlnet(ckpt_path):

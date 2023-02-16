@@ -234,19 +234,23 @@ class ControlNetLoader:
 class ControlNetApply:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"conditioning": ("CONDITIONING", ), "control_net": ("CONTROL_NET", ), "image": ("IMAGE", )}}
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "control_net": ("CONTROL_NET", ),
+                             "image": ("IMAGE", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01})
+                             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_controlnet"
 
     CATEGORY = "conditioning"
 
-    def apply_controlnet(self, conditioning, control_net, image):
+    def apply_controlnet(self, conditioning, control_net, image, strength):
         c = []
         control_hint = image.movedim(-1,1)
         print(control_hint.shape)
         for t in conditioning:
             n = [t[0], t[1].copy()]
-            n[1]['control'] = control_net.copy().set_cond_hint(control_hint)
+            n[1]['control'] = control_net.copy().set_cond_hint(control_hint, strength)
             c.append(n)
         return (c, )
 
