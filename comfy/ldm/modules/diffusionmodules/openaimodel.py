@@ -753,7 +753,7 @@ class UNetModel(nn.Module):
         self.middle_block.apply(convert_module_to_f32)
         self.output_blocks.apply(convert_module_to_f32)
 
-    def forward(self, x, timesteps=None, context=None, y=None,**kwargs):
+    def forward(self, x, timesteps=None, context=None, y=None, control=None, **kwargs):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -778,8 +778,14 @@ class UNetModel(nn.Module):
             h = module(h, emb, context)
             hs.append(h)
         h = self.middle_block(h, emb, context)
+        if control is not None:
+            h += control.pop()
+
         for module in self.output_blocks:
-            h = th.cat([h, hs.pop()], dim=1)
+            hsp = hs.pop()
+            if control is not None:
+                hsp += control.pop()
+            h = th.cat([h, hsp], dim=1)
             h = module(h, emb, context)
         h = h.type(x.dtype)
         if self.predict_codebook_ids:

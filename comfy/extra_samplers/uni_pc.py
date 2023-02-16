@@ -856,13 +856,13 @@ def sample_unipc(model, noise, image, sigmas, sampling_function, extra_args=None
 
         device = noise.device
 
-        if model.inner_model.parameterization == "v":
+        if model.parameterization == "v":
             model_type = "v"
         else:
             model_type = "noise"
 
         model_fn = model_wrapper(
-            model.inner_model.apply_model,
+            model.inner_model.inner_model.apply_model,
             sampling_function,
             ns,
             model_type=model_type,
