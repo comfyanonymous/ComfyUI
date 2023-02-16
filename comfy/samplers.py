@@ -330,8 +330,7 @@ class KSampler:
                     if ck == "mask":
                         cond_concat.append(denoise_mask[:,:1])
                     elif ck == "masked_image":
-                        blank_image = blank_inpaint_image_like(latent_image)
-                        cond_concat.append(latent_image * (1.0 - denoise_mask) + denoise_mask * blank_image)
+                        cond_concat.append(latent_image) #NOTE: the latent_image should be masked by the mask in pixel space
                 else:
                     if ck == "mask":
                         cond_concat.append(torch.ones_like(noise)[:,:1])
