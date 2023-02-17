@@ -670,7 +670,7 @@ class LoadImageMask:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"image": (os.listdir(s.input_dir), ),
+                    {"image": (sorted(os.listdir(s.input_dir)), ),
                     "channel": (["alpha", "red", "green", "blue"], ),}
                 }
 
