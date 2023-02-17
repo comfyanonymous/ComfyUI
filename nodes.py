@@ -850,6 +850,10 @@ NODE_CLASS_MAPPINGS = {
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
     "CannyPreprocessor": CannyPreprocessor,
+    "HEDPreprocessor": HEDPreprocessor,
+    "MIDASPreprocessor": MIDASPreprocessor,
+    "MLSDPreprocessor": MLSDPreprocessor,
+    "OpenPosePreprocessor": OpenPosePreprocessor,
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader
 }
