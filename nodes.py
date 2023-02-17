@@ -5,6 +5,7 @@ import sys
 import json
 import hashlib
 import copy
+import traceback
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -751,29 +752,28 @@ NODE_CLASS_MAPPINGS = {
 CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
 def load_custom_nodes():
     possible_modules = os.listdir(CUSTOM_NODE_PATH)
-    try:
-        #Comment out these two lines if you want to test
-        possible_modules.remove("example.py")
-        possible_modules.remove("example_folder")
+    if "__pycache__" in possible_modules:
         possible_modules.remove("__pycache__")
-    except ValueError: pass
+
     for possible_module in possible_modules:
         module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
         if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-        
+
+        module_name = "custom_node_module.{}".format(possible_module)
         try:
             if os.path.isfile(module_path):
-                module_spec = importlib.util.spec_from_file_location(os.path.basename(module_path), module_path)
+                module_spec = importlib.util.spec_from_file_location(module_name, module_path)
             else:
-                module_spec = importlib.util.spec_from_file_location(module_path, "main.py")
+                module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
             module = importlib.util.module_from_spec(module_spec)
+            sys.modules[module_name] = module
             module_spec.loader.exec_module(module)
-            if getattr(module, "NODE_CLASS_MAPPINGS") is not None:
+            if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
                 NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
             else:
                 print(f"Skip {possible_module} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
-        except ImportError as e:
-            print(f"Cannot import {possible_module} module for custom nodes.")
-            print(e)
+        except Exception as e:
+            print(traceback.format_exc())
+            print(f"Cannot import {possible_module} module for custom nodes:", e)
 
 load_custom_nodes()
