@@ -9,4 +9,10 @@ safetensors
 pytorch_lightning
 aiohttp
 accelerate
-
+opencv-contrib-python==4.3.0.36
+numpy=1.23.1
+timm==0.6.12
+torchvision=0.13.1
+scipy
+matplotlib
+skimage

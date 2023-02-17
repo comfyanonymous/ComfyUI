@@ -222,7 +222,7 @@ class CannyPreprocessor:
         return {"required": { "image": ("IMAGE", ) ,
                               "low_threshold": ("INT", {"default": 100, "min": 0, "max": 255, "step": 1}),
                               "high_threshold": ("INT", {"default": 100, "min": 0, "max": 255, "step": 1}),
-                              "l2gradient": (["disable", "enable"])
+                              "l2gradient": (["disable", "enable"], )
                               }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "detect_edge"
@@ -290,7 +290,7 @@ class OpenPosePreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ),
-                              "detect_hand": (["disable", "enable"])
+                              "detect_hand": (["disable", "enable"],)
                               }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "estimate_pose"
