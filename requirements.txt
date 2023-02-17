@@ -17,3 +17,4 @@ torchvision==0.13.1
 scipy
 matplotlib
 scikit-image
+basicsr
