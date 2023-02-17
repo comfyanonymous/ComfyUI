@@ -176,14 +176,6 @@ function onObjectInfo(json) {
                     if (multiline == undefined) multiline = false;
                     if (dynamic_prompt == undefined) dynamic_prompt = false;
 
-                    if (dynamic_prompt)
-                    {
-                        w1 = this.addWidget("number", "seed", 0, function(v){let s = this.options.step / 10;this.value = Math.round( v / s ) * s;}, { min: min_val, max: max_val, step: 10.0 * step_val} );
-                        w2 = this.addWidget("toggle", "Random seed after every gen", true, function(v){}, { on: "enabled", off:"disabled"} );
-                        w2.to_randomize = w1;
-                        this._widgets += [w1, w2];
-                    }
-
                     if (multiline) {
                         var w = {
                             type: "customtext",
@@ -312,16 +304,6 @@ graph.onNodeRemoved = function(n) {
     }
 }
 
-// from https://stackoverflow.com/a/47593316
-function rng_mulberry32(a) {
-    return function() {
-      var t = a += 0x6D2B79F5;
-      t = Math.imul(t ^ t >>> 15, t | 1);
-      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-      return ((t ^ t >>> 14) >>> 0) / 4294967296;
-    }
-}
-
 function graphToPrompt() {
     let s = graph.serialize();
     let output = {};
@@ -337,9 +319,6 @@ function graphToPrompt() {
             // find widgets declared as supporting dynamic prompting
             var supportedWidgets = n.widgets.filter(e => e.dynamic_prompt === true);
             if (supportedWidgets.length > 0) {
-                // find the seed widget to use for this node
-                var seed = n.widgets.filter(e => e.name === "seed")[0].value;
-                var rng = rng_mulberry32(seed);
 
                 // resolve dynamic prompts for all widgets supporting it in this node
                 for (let i in supportedWidgets)
@@ -359,7 +338,7 @@ function graphToPrompt() {
                         const optionsString = prompt.substring(startIndex + 1, endIndex);
                         const options = optionsString.split('|');
 
-                        const randomIndex = Math.floor(rng() * (options.length));
+                        const randomIndex = Math.floor(Math.random() * options.length);
                         const randomOption = options[randomIndex];
 
                         prompt = prompt.substring(0, startIndex) + randomOption + prompt.substring(endIndex + 1);
