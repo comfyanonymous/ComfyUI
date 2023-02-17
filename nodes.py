@@ -11,7 +11,6 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
 sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
-sys.dont_write_bytecode = True #No __pycache__ plz
 
 
 import comfy.samplers
@@ -606,6 +605,7 @@ def load_custom_nodes():
         #Comment out these two lines if you want to test
         possible_modules.remove("example.py")
         possible_modules.remove("example_folder")
+        possible_modules.remove("__pycache__")
     except ValueError: pass
     for possible_module in possible_modules:
         module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
