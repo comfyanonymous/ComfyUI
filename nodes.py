@@ -15,11 +15,13 @@ sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
 
 import comfy.samplers
 import comfy.sd
+import comfy.utils
+
 import model_management
 import importlib
 
-supported_ckpt_extensions = ['.ckpt']
-supported_pt_extensions = ['.ckpt', '.pt', '.bin']
+supported_ckpt_extensions = ['.ckpt', '.pth']
+supported_pt_extensions = ['.ckpt', '.pt', '.bin', '.pth']
 try:
     import safetensors.torch
     supported_ckpt_extensions += ['.safetensors']
@@ -78,12 +80,14 @@ class ConditioningSetArea:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength, min_sigma=0.0, max_sigma=99.0):
-        c = copy.deepcopy(conditioning)
-        for t in c:
-            t[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
-            t[1]['strength'] = strength
-            t[1]['min_sigma'] = min_sigma
-            t[1]['max_sigma'] = max_sigma
+        c = []
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
+            n[1]['strength'] = strength
+            n[1]['min_sigma'] = min_sigma
+            n[1]['max_sigma'] = max_sigma
+            c.append(n)
         return (c, )
 
 class VAEDecode:
@@ -99,7 +103,7 @@ class VAEDecode:
     CATEGORY = "latent"
 
     def decode(self, vae, samples):
-        return (vae.decode(samples), )
+        return (vae.decode(samples["samples"]), )
 
 class VAEEncode:
     def __init__(self, device="cpu"):
@@ -118,7 +122,39 @@ class VAEEncode:
         y = (pixels.shape[2] // 64) * 64
         if pixels.shape[1] != x or pixels.shape[2] != y:
             pixels = pixels[:,:x,:y,:]
-        return (vae.encode(pixels), )
+        t = vae.encode(pixels[:,:,:,:3])
+
+        return ({"samples":t}, )
+
+class VAEEncodeForInpaint:
+    def __init__(self, device="cpu"):
+        self.device = device
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", ), "mask": ("MASK", )}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "encode"
+
+    CATEGORY = "latent/inpaint"
+
+    def encode(self, vae, pixels, mask):
+        x = (pixels.shape[1] // 64) * 64
+        y = (pixels.shape[2] // 64) * 64
+        if pixels.shape[1] != x or pixels.shape[2] != y:
+            pixels = pixels[:,:x,:y,:]
+            mask = mask[:x,:y]
+
+        #shave off a few pixels to keep things seamless
+        kernel_tensor = torch.ones((1, 1, 6, 6))
+        mask_erosion = torch.clamp(torch.nn.functional.conv2d((1.0 - mask.round())[None], kernel_tensor, padding=3), 0, 1)
+        for i in range(3):
+            pixels[:,:,:,i] -= 0.5
+            pixels[:,:,:,i] *= mask_erosion[0][:x,:y].round()
+            pixels[:,:,:,i] += 0.5
+        t = vae.encode(pixels)
+
+        return ({"samples":t, "noise_mask": mask}, )
 
 class CheckpointLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
@@ -178,6 +214,48 @@ class VAELoader:
         vae = comfy.sd.VAE(ckpt_path=vae_path)
         return (vae,)
 
+class ControlNetLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    controlnet_dir = os.path.join(models_dir, "controlnet")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "control_net_name": (filter_files_extensions(recursive_search(s.controlnet_dir), supported_pt_extensions), )}}
+
+    RETURN_TYPES = ("CONTROL_NET",)
+    FUNCTION = "load_controlnet"
+
+    CATEGORY = "loaders"
+
+    def load_controlnet(self, control_net_name):
+        controlnet_path = os.path.join(self.controlnet_dir, control_net_name)
+        controlnet = comfy.sd.load_controlnet(controlnet_path)
+        return (controlnet,)
+
+
+class ControlNetApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "control_net": ("CONTROL_NET", ),
+                             "image": ("IMAGE", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "apply_controlnet"
+
+    CATEGORY = "conditioning"
+
+    def apply_controlnet(self, conditioning, control_net, image, strength):
+        c = []
+        control_hint = image.movedim(-1,1)
+        print(control_hint.shape)
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            n[1]['control'] = control_net.copy().set_cond_hint(control_hint, strength)
+            c.append(n)
+        return (c, )
+
+
 class CLIPLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
     clip_dir = os.path.join(models_dir, "clip")
@@ -213,24 +291,9 @@ class EmptyLatentImage:
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 4, height // 8, width // 8])
-        return (latent, )
+        return ({"samples":latent}, )
 
-def common_upscale(samples, width, height, upscale_method, crop):
-        if crop == "center":
-            old_width = samples.shape[3]
-            old_height = samples.shape[2]
-            old_aspect = old_width / old_height
-            new_aspect = width / height
-            x = 0
-            y = 0
-            if old_aspect > new_aspect:
-                x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
-            elif old_aspect < new_aspect:
-                y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
-            s = samples[:,:,y:old_height-y,x:old_width-x]
-        else:
-            s = samples
-        return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+
 
 class LatentUpscale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -248,7 +311,8 @@ class LatentUpscale:
     CATEGORY = "latent"
 
     def upscale(self, samples, upscale_method, width, height, crop):
-        s = common_upscale(samples, width // 8, height // 8, upscale_method, crop)
+        s = samples.copy()
+        s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
 class LatentRotate:
@@ -263,6 +327,7 @@ class LatentRotate:
     CATEGORY = "latent"
 
     def rotate(self, samples, rotation):
+        s = samples.copy()
         rotate_by = 0
         if rotation.startswith("90"):
             rotate_by = 1
@@ -271,7 +336,7 @@ class LatentRotate:
         elif rotation.startswith("270"):
             rotate_by = 3
 
-        s = torch.rot90(samples, k=rotate_by, dims=[3, 2])
+        s["samples"] = torch.rot90(samples["samples"], k=rotate_by, dims=[3, 2])
         return (s,)
 
 class LatentFlip:
@@ -286,12 +351,11 @@ class LatentFlip:
     CATEGORY = "latent"
 
     def flip(self, samples, flip_method):
+        s = samples.copy()
         if flip_method.startswith("x"):
-            s = torch.flip(samples, dims=[2])
+            s["samples"] = torch.flip(samples["samples"], dims=[2])
         elif flip_method.startswith("y"):
-            s = torch.flip(samples, dims=[3])
-        else:
-            s = samples
+            s["samples"] = torch.flip(samples["samples"], dims=[3])
 
         return (s,)
 
@@ -313,12 +377,15 @@ class LatentComposite:
         x =  x // 8
         y = y // 8
         feather = feather // 8
-        s = samples_to.clone()
+        samples_out = samples_to.copy()
+        s = samples_to["samples"].clone()
+        samples_to = samples_to["samples"]
+        samples_from = samples_from["samples"]
         if feather == 0:
             s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x]
         else:
-            s_from = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x]
-            mask = torch.ones_like(s_from)
+            samples_from = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x]
+            mask = torch.ones_like(samples_from)
             for t in range(feather):
                 if y != 0:
                     mask[:,:,t:1+t,:] *= ((1.0/feather) * (t + 1))
@@ -331,7 +398,8 @@ class LatentComposite:
                     mask[:,:,:,mask.shape[3]- 1 - t: mask.shape[3]- t] *= ((1.0/feather) * (t + 1))
             rev_mask = torch.ones_like(mask) - mask
             s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x] * mask + s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] * rev_mask
-        return (s,)
+        samples_out["samples"] = s
+        return (samples_out,)
 
 class LatentCrop:
     @classmethod
@@ -348,6 +416,8 @@ class LatentCrop:
     CATEGORY = "latent"
 
     def crop(self, samples, width, height, x, y):
+        s = samples.copy()
+        samples = samples['samples']
         x =  x // 8
         y = y // 8
 
@@ -371,14 +441,42 @@ class LatentCrop:
         #make sure size is always multiple of 64
         x, to_x = enforce_image_dim(x, to_x, samples.shape[3])
         y, to_y = enforce_image_dim(y, to_y, samples.shape[2])
-        s = samples[:,:,y:to_y, x:to_x]
+        s['samples'] = samples[:,:,y:to_y, x:to_x]
         return (s,)
 
-def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+class SetLatentNoiseMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "mask": ("MASK",),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "set_mask"
+
+    CATEGORY = "latent/inpaint"
+
+    def set_mask(self, samples, mask):
+        s = samples.copy()
+        s["noise_mask"] = mask
+        return (s,)
+
+
+def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+    latent_image = latent["samples"]
+    noise_mask = None
+
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
         noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=torch.manual_seed(seed), device="cpu")
+
+    if "noise_mask" in latent:
+        noise_mask = latent['noise_mask']
+        noise_mask = torch.nn.functional.interpolate(noise_mask[None,None,], size=(noise.shape[2], noise.shape[3]), mode="bilinear")
+        noise_mask = noise_mask.round()
+        noise_mask = torch.cat([noise_mask] * noise.shape[1], dim=1)
+        noise_mask = torch.cat([noise_mask] * noise.shape[0])
+        noise_mask = noise_mask.to(device)
 
     real_model = None
     if device != "cpu":
@@ -393,18 +491,25 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
     positive_copy = []
     negative_copy = []
 
+    control_nets = []
     for p in positive:
         t = p[0]
         if t.shape[0] < noise.shape[0]:
             t = torch.cat([t] * noise.shape[0])
         t = t.to(device)
+        if 'control' in p[1]:
+            control_nets += [p[1]['control']]
         positive_copy += [[t] + p[1:]]
     for n in negative:
         t = n[0]
         if t.shape[0] < noise.shape[0]:
             t = torch.cat([t] * noise.shape[0])
         t = t.to(device)
+        if 'control' in p[1]:
+            control_nets += [p[1]['control']]
         negative_copy += [[t] + n[1:]]
+
+    model_management.load_controlnet_gpu(list(map(lambda a: a.control_model, control_nets)))
 
     if sampler_name in comfy.samplers.KSampler.SAMPLERS:
         sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise)
@@ -412,10 +517,14 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
         #other samplers
         pass
 
-    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise)
+    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
     samples = samples.cpu()
+    for c in control_nets:
+        c.cleanup()
 
-    return (samples, )
+    out = latent.copy()
+    out["samples"] = samples
+    return (out, )
 
 class KSampler:
     def __init__(self, device="cuda"):
@@ -532,7 +641,7 @@ class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"image": (os.listdir(s.input_dir), )},
+                    {"image": (sorted(os.listdir(s.input_dir)), )},
                 }
 
     CATEGORY = "image"
@@ -541,13 +650,49 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = os.path.join(self.input_dir, image)
-        image = Image.open(image_path).convert("RGB")
+        i = Image.open(image_path)
+        image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
-        image = torch.from_numpy(image[None])[None,]
-        return image
+        image = torch.from_numpy(image)[None,]
+        return (image,)
 
     @classmethod
     def IS_CHANGED(s, image):
+        image_path = os.path.join(s.input_dir, image)
+        m = hashlib.sha256()
+        with open(image_path, 'rb') as f:
+            m.update(f.read())
+        return m.digest().hex()
+
+class LoadImageMask:
+    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"image": (os.listdir(s.input_dir), ),
+                    "channel": (["alpha", "red", "green", "blue"], ),}
+                }
+
+    CATEGORY = "image"
+
+    RETURN_TYPES = ("MASK",)
+    FUNCTION = "load_image"
+    def load_image(self, image, channel):
+        image_path = os.path.join(self.input_dir, image)
+        i = Image.open(image_path)
+        mask = None
+        c = channel[0].upper()
+        if c in i.getbands():
+            mask = np.array(i.getchannel(c)).astype(np.float32) / 255.0
+            mask = torch.from_numpy(mask)
+            if c == 'A':
+                mask = 1. - mask
+        else:
+            mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+        return (mask,)
+
+    @classmethod
+    def IS_CHANGED(s, image, channel):
         image_path = os.path.join(s.input_dir, image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
@@ -571,7 +716,7 @@ class ImageScale:
 
     def upscale(self, image, upscale_method, width, height, crop):
         samples = image.movedim(-1,1)
-        s = common_upscale(samples, width, height, upscale_method, crop)
+        s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
         s = s.movedim(1,-1)
         return (s,)
 
@@ -581,21 +726,26 @@ NODE_CLASS_MAPPINGS = {
     "CLIPTextEncode": CLIPTextEncode,
     "VAEDecode": VAEDecode,
     "VAEEncode": VAEEncode,
+    "VAEEncodeForInpaint": VAEEncodeForInpaint,
     "VAELoader": VAELoader,
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
     "LoadImage": LoadImage,
+    "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
+    "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
+    "ControlNetApply": ControlNetApply,
+    "ControlNetLoader": ControlNetLoader,
 }
 
 CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
