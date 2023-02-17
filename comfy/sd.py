@@ -349,7 +349,9 @@ class ControlNet:
             precision_scope = contextlib.nullcontext
 
         with precision_scope(self.device):
+            self.control_model = model_management.load_if_low_vram(self.control_model)
             control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
+            self.control_model = model_management.unload_if_low_vram(self.control_model)
         out = []
         autocast_enabled = torch.is_autocast_enabled()
         for x in control:
