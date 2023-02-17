@@ -7,6 +7,10 @@ import heapq
 import traceback
 import asyncio
 
+if os.name == "nt":
+    import logging
+    logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
+
 try:
     import aiohttp
     from aiohttp import web
