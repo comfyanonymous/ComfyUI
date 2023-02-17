@@ -9,7 +9,6 @@ import copy
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
-import torchvision.transforms as transforms
 
 sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
 
@@ -232,8 +231,8 @@ class CannyPreprocessor:
 
     def detect_edge(self, image, low_threshold, high_threshold, l2gradient):
         apply_canny = canny.CannyDetector()
-        transform = transforms.ToTensor()
-        image = transform(apply_canny(image.numpy(), low_threshold, high_threshold, l2gradient == "enable"))
+        image = apply_canny(image.numpy(), low_threshold, high_threshold, l2gradient == "enable")
+        image = torch.from_numpy(image)
         return (image,)
 
 class HEDPreprocessor:
@@ -247,8 +246,7 @@ class HEDPreprocessor:
 
     def detect_edge(self, image):
         apply_hed = hed.HEDdetector()
-        transform = transforms.ToTensor()
-        image = transform(apply_hed(image.numpy()))
+        image = torch.from_numpy(apply_hed(image.numpy()))
         return (image,)
 
 class MIDASPreprocessor:
@@ -265,8 +263,8 @@ class MIDASPreprocessor:
 
     def estimate_depth(self, image, a, bg_threshold):
         model_midas = midas.MidasDetector()
-        transform = transforms.ToTensor()
-        image = transform(model_midas(image.numpy(), a, bg_threshold))
+        image = model_midas(image.numpy(), a, bg_threshold)
+        image = torch.from_numpy(image)
         return (image,)
 
 class MLSDPreprocessor:
@@ -284,8 +282,8 @@ class MLSDPreprocessor:
 
     def detect_edge(self, image, score_threshold, dist_threshold):
         model_mlsd = mlsd.MLSDdetector()
-        transform = transforms.ToTensor()
-        image = transform(model_mlsd(image.numpy(), score_threshold, dist_threshold))
+        image = model_mlsd(image.numpy(), score_threshold, dist_threshold)
+        image = torch.from_numpy(image)
         return (image,)
 
 class OpenPosePreprocessor:
@@ -301,9 +299,25 @@ class OpenPosePreprocessor:
 
     def estimate_pose(self, image, detect_hand):
         model_openpose = openpose.OpenposeDetector()
-        transform = transforms.ToTensor()
-        image = transform(model_openpose(image.numpy(), detect_hand == "enable"))
+        image = model_openpose(image.numpy(), detect_hand == "enable")
+        image = torch.from_numpy(image)
         return (image,)
+
+class UniformerPreprocessor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE", )
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "semantic_segmentate"
+
+    CATEGORY = "preprocessor"
+
+    def semantic_segmentate(self, image):
+        model_uniformer = uniformer.UniformerDetector()
+        image = torch.from_numpy(model_uniformer(image.numpy()))
+        return (image,)
+    
 
 class ControlNetLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
