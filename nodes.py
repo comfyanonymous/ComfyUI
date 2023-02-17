@@ -9,6 +9,7 @@ import copy
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
+import torchvision.transforms as transforms
 
 sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
 
@@ -16,9 +17,11 @@ sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
 import comfy.samplers
 import comfy.sd
 import comfy.utils
+from comfy.annotator import canny, hed, midas, mlsd, openpose, uniformer
 
 import model_management
 import importlib
+
 
 supported_ckpt_extensions = ['.ckpt', '.pth']
 supported_pt_extensions = ['.ckpt', '.pt', '.bin', '.pth']
@@ -213,6 +216,94 @@ class VAELoader:
         vae_path = os.path.join(self.vae_dir, vae_name)
         vae = comfy.sd.VAE(ckpt_path=vae_path)
         return (vae,)
+
+class CannyPreprocessor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE", ) ,
+                              "low_threshold": ("INT", {"default": 100, "min": 0, "max": 255, "step": 1}),
+                              "high_threshold": ("INT", {"default": 100, "min": 0, "max": 255, "step": 1}),
+                              "l2gradient": (["disable", "enable"])
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "detect_edge"
+
+    CATEGORY = "preprocessor"
+
+    def detect_edge(self, image, low_threshold, high_threshold, l2gradient):
+        apply_canny = canny.CannyDetector()
+        transform = transforms.ToTensor()
+        image = transform(apply_canny(image.numpy(), low_threshold, high_threshold, l2gradient == "enable"))
+        return (image,)
+
+class HEDPreprocessor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",) }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "detect_edge"
+
+    CATEGORY = "preprocessor"
+
+    def detect_edge(self, image):
+        apply_hed = hed.HEDdetector()
+        transform = transforms.ToTensor()
+        image = transform(apply_hed(image.numpy()))
+        return (image,)
+
+class MIDASPreprocessor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE", ) ,
+                              "a": ("FLOAT", {"default": np.pi * 2.0, "min": 0.0, "max": np.pi * 5.0, "step": 0.1}),
+                              "bg_threshold": ("FLOAT", {"default": 0.1, "min": 0, "max": 1, "step": 0.1})
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "estimate_depth"
+
+    CATEGORY = "preprocessor"
+
+    def estimate_depth(self, image, a, bg_threshold):
+        model_midas = midas.MidasDetector()
+        transform = transforms.ToTensor()
+        image = transform(model_midas(image.numpy(), a, bg_threshold))
+        return (image,)
+
+class MLSDPreprocessor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",) ,
+                              #Idk what should be the max value here since idk much about ML
+                              "score_threshold": ("FLOAT", {"default": np.pi * 2.0, "min": 0.0, "max": np.pi * 2.0, "step": 0.1}), 
+                              "dist_threshold": ("FLOAT", {"default": 0.1, "min": 0, "max": 1, "step": 0.1})
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "detect_edge"
+
+    CATEGORY = "preprocessor"
+
+    def detect_edge(self, image, score_threshold, dist_threshold):
+        model_mlsd = mlsd.MLSDdetector()
+        transform = transforms.ToTensor()
+        image = transform(model_mlsd(image.numpy(), score_threshold, dist_threshold))
+        return (image,)
+
+class OpenPosePreprocessor:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE", ),
+                              "detect_hand": (["disable", "enable"])
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "estimate_pose"
+
+    CATEGORY = "preprocessor"
+
+    def estimate_pose(self, image, detect_hand):
+        model_openpose = openpose.OpenposeDetector()
+        transform = transforms.ToTensor()
+        image = transform(model_openpose(image.numpy(), detect_hand == "enable"))
+        return (image,)
 
 class ControlNetLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
@@ -744,8 +835,9 @@ NODE_CLASS_MAPPINGS = {
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
+    "CannyPreprocessor": CannyPreprocessor,
     "ControlNetApply": ControlNetApply,
-    "ControlNetLoader": ControlNetLoader,
+    "ControlNetLoader": ControlNetLoader
 }
 
 CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")

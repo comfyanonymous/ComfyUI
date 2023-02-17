@@ -1,6 +1,7 @@
 torch
 torchdiffeq
 torchsde
+torchvision
 omegaconf
 einops
 open-clip-torch
