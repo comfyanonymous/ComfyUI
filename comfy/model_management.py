@@ -102,6 +102,12 @@ def load_model_gpu(model):
 
 def load_controlnet_gpu(models):
     global current_gpu_controlnets
+    global vram_state
+
+    if vram_state == LOW_VRAM or vram_state == NO_VRAM:
+        #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
+        return
+
     for m in current_gpu_controlnets:
         if m not in models:
             m.cpu()
@@ -109,6 +115,19 @@ def load_controlnet_gpu(models):
     current_gpu_controlnets = []
     for m in models:
         current_gpu_controlnets.append(m.cuda())
+
+
+def load_if_low_vram(model):
+    global vram_state
+    if vram_state == LOW_VRAM or vram_state == NO_VRAM:
+        return model.cuda()
+    return model
+
+def unload_if_low_vram(model):
+    global vram_state
+    if vram_state == LOW_VRAM or vram_state == NO_VRAM:
+        return model.cpu()
+    return model
 
 
 def get_free_memory():
