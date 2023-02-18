@@ -20,6 +20,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Saving/Loading workflows as Json files.
 - Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
 - [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
+- [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
+- [ControlNet](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
 - Starts up very fast.
 - Works fully offline: will never download anything.
 
