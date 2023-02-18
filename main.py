@@ -29,6 +29,7 @@ if __name__ == "__main__":
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
         print()
+        print("\t--highvram\t\t\tBy default models will be unloaded to CPU memory after being used.\n\t\t\t\t\tThis option keeps them in GPU memory.\n")
         print("\t--normalvram\t\t\tUsed to force normal vram use if lowvram gets automatically enabled.")
         print("\t--lowvram\t\t\tSplit the unet in parts to use less vram.")
         print("\t--novram\t\t\tWhen lowvram isn't enough.")
