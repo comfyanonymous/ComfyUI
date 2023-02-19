@@ -418,10 +418,6 @@ function promptPosted(data)
                     wid.to_randomize.value = Math.floor(Math.random() * 1125899906842624);
                 }
             }
-
-            // restore initial values replaced by dynamic prompting
-            if (wid.dynamic_prompt && wid.dynamic_prompt === true)
-                wid.value = wid.value_initial;
         }
     }
 
@@ -451,6 +447,16 @@ function postPrompt(number) {
 
     // console.log(JSON.stringify(prompt));
     // console.log(JSON.stringify(graph.serialize()));
+
+    // restore initial values replaced by dynamic prompting
+    for (let x in graph._nodes_by_id) {
+        let n = graph._nodes_by_id[x];
+        for (let w in n.widgets) {
+            let wid = n.widgets[w];
+            if (wid.dynamic_prompt && wid.dynamic_prompt === true)
+                wid.value = wid.value_initial;
+        }
+    }
 }
 
 
