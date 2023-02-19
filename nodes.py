@@ -753,7 +753,9 @@ def load_custom_nodes():
     possible_modules = os.listdir(CUSTOM_NODE_PATH)
     if "__pycache__" in possible_modules:
         possible_modules.remove("__pycache__")
-
+    if ".ipynb_checkpoints" in possible_modules:
+        possible_modules.remove(".ipynb_checkpoints")
+        
     for possible_module in possible_modules:
         module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
         if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue

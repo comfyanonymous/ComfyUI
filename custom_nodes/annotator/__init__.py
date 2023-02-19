@@ -1,4 +1,4 @@
-from custom_node_module.annotator import canny, hed, midas, mlsd, openpose, uniformer 
+from annotator import canny, hed, midas, mlsd, openpose, uniformer 
 from annotator.util import HWC3
 import torch
 import numpy as np
@@ -116,7 +116,7 @@ class UniformerPreprocessor:
         image = img_np_to_tensor(HWC3(image))
         return (image,)
 
-NODE_CLASS_MAPPING = {
+NODE_CLASS_MAPPINGS = {
     "CannyPreprocessor": CannyPreprocessor,
     "HEDPreprocessor": HEDPreprocessor,
     "DepthPreprocessor": MIDASPreprocessor,
