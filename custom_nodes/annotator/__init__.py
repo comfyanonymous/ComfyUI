@@ -1,5 +1,5 @@
-from annotator import canny, hed, midas, mlsd, openpose, uniformer 
-from annotator.util import HWC3
+from . import canny, hed, midas, mlsd, openpose, uniformer 
+from .util import HWC3
 import torch
 import numpy as np
 
