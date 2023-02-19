@@ -186,7 +186,10 @@ def load_embed(embedding_name, embedding_directory):
         import safetensors.torch
         embed = safetensors.torch.load_file(embed_path, device="cpu")
     else:
-        embed = torch.load(embed_path, weights_only=True, map_location="cpu")
+        if 'weights_only' in torch.load.__code__.co_varnames:
+            embed = torch.load(embed_path, weights_only=True, map_location="cpu")
+        else:
+            embed = torch.load(embed_path, map_location="cpu")
     if 'string_to_param' in embed:
         values = embed['string_to_param'].values()
     else:
