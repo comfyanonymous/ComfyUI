@@ -330,7 +330,7 @@ function graphToPrompt() {
                     widget.value_initial = widget.input_div.innerText;
 
                     // resolve the string
-                    var prompt = widget.input_div.textContent;
+                    var prompt = widget.input_div.innerText;
                     while (prompt.includes('{') && prompt.includes('}')) {
                         const startIndex = prompt.indexOf('{');
                         const endIndex = prompt.indexOf('}');
