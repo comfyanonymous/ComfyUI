@@ -32,7 +32,7 @@ class CannyEdgePreproces:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "detect_edge"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def detect_edge(self, image, low_threshold, high_threshold, l2gradient):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_canny2image.py
@@ -46,7 +46,7 @@ class HEDPreproces:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "detect_boundary"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def detect_boundary(self, image):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_hed2image.py
@@ -60,7 +60,7 @@ class ScribblePreprocess:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "transform_scribble"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def transform_scribble(self, image):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_scribble2image.py
@@ -76,7 +76,7 @@ class FakeScribblePreprocess:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "transform_scribble"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def transform_scribble(self, image):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_fake_scribble2image.py
@@ -87,7 +87,7 @@ class FakeScribblePreprocess:
         np_detected_map[np_detected_map < 255] = 0
         return (img_np_to_tensor(np_detected_map),)
 
-class MIDASDepthPreprocess:
+class MIDASDepthMapPreprocess:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ) ,
@@ -97,14 +97,14 @@ class MIDASDepthPreprocess:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "estimate_depth"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def estimate_depth(self, image, a, bg_threshold):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_depth2image.py
         depth_map_np, normal_map_np = common_annotator_call(midas.MidasDetector(), image, a, bg_threshold)
         return (img_np_to_tensor(depth_map_np),)
 
-class MIDASNormalPreprocess:
+class MIDASNormalMapPreprocess:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ) ,
@@ -114,7 +114,7 @@ class MIDASNormalPreprocess:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "estimate_normal"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def estimate_normal(self, image, a, bg_threshold):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_depth2image.py
@@ -132,7 +132,7 @@ class MLSDPreprocess:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "detect_edge"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def detect_edge(self, image, score_threshold, dist_threshold):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_hough2image.py
@@ -148,7 +148,7 @@ class OpenposePreprocess:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "estimate_pose"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def estimate_pose(self, image, detect_hand):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_pose2image.py
@@ -163,7 +163,7 @@ class UniformerPreprocess:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "semantic_segmentate"
 
-    CATEGORY = "preprocessor"
+    CATEGORY = "preprocessors"
 
     def semantic_segmentate(self, image):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_seg2image.py
@@ -177,8 +177,8 @@ NODE_CLASS_MAPPINGS = {
     "ScribblePreprocess": ScribblePreprocess,
     "FakeScribblePreprocess": FakeScribblePreprocess,
     "OpenposePreprocess": OpenposePreprocess,
-    "MiDaS-DepthPreprocess": MIDASDepthPreprocess,
-    "MiDaS-NormalPreprocess": MIDASNormalPreprocess,
+    "MiDaS-DepthMapPreprocess": MIDASDepthMapPreprocess,
+    "MiDaS-NormalMapPreprocess": MIDASNormalMapPreprocess,
     "SemSegPreprocess": UniformerPreprocess
 }
 
