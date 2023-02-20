@@ -152,7 +152,7 @@ class OpenposePreprocessor:
 
     def estimate_pose(self, image, detect_hand):
         #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_pose2image.py
-        np_detected_map = common_annotator_call(openpose.OpenposeDetector(), image, detect_hand == "enable")
+        np_detected_map, pose_info = common_annotator_call(openpose.OpenposeDetector(), image, detect_hand == "enable")
         return (img_np_to_tensor(np_detected_map),)
 
 class UniformerPreprocessor:
