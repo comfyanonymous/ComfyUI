@@ -21,7 +21,7 @@ def common_annotator_call(annotator_callback, tensor_image, *args):
         call_result = HWC3(call_result)
     return call_result
 
-class CannyEdgePreproces:
+class CannyEdgePreprocesor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ) ,
@@ -39,7 +39,7 @@ class CannyEdgePreproces:
         np_detected_map = common_annotator_call(canny.CannyDetector(), image, low_threshold, high_threshold, l2gradient == "enable")
         return (img_np_to_tensor(np_detected_map),)
 
-class HEDPreproces:
+class HEDPreprocesor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",) }}
@@ -53,7 +53,7 @@ class HEDPreproces:
         np_detected_map = common_annotator_call(hed.HEDdetector(), image)
         return (img_np_to_tensor(np_detected_map),)
 
-class ScribblePreprocess:
+class ScribblePreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",) }}
@@ -69,7 +69,7 @@ class ScribblePreprocess:
         np_detected_map[np.min(np_img, axis=2) < 127] = 255
         return (img_np_to_tensor(np_detected_map),)
 
-class FakeScribblePreprocess:
+class FakeScribblePreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",) }}
@@ -87,7 +87,7 @@ class FakeScribblePreprocess:
         np_detected_map[np_detected_map < 255] = 0
         return (img_np_to_tensor(np_detected_map),)
 
-class MIDASDepthMapPreprocess:
+class MIDASDepthMapPreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ) ,
@@ -104,7 +104,7 @@ class MIDASDepthMapPreprocess:
         depth_map_np, normal_map_np = common_annotator_call(midas.MidasDetector(), image, a, bg_threshold)
         return (img_np_to_tensor(depth_map_np),)
 
-class MIDASNormalMapPreprocess:
+class MIDASNormalMapPreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ) ,
@@ -121,7 +121,7 @@ class MIDASNormalMapPreprocess:
         depth_map_np, normal_map_np = common_annotator_call(midas.MidasDetector(), image, a, bg_threshold)
         return (img_np_to_tensor(normal_map_np),)
 
-class MLSDPreprocess:
+class MLSDPreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",) ,
@@ -139,7 +139,7 @@ class MLSDPreprocess:
         np_detected_map = common_annotator_call(mlsd.MLSDdetector(), image, score_threshold, dist_threshold)
         return (img_np_to_tensor(np_detected_map),)
 
-class OpenposePreprocess:
+class OpenposePreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ),
@@ -155,7 +155,7 @@ class OpenposePreprocess:
         np_detected_map = common_annotator_call(openpose.OpenposeDetector(), image, detect_hand == "enable")
         return (img_np_to_tensor(np_detected_map),)
 
-class UniformerPreprocess:
+class UniformerPreprocessor:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", )
@@ -171,14 +171,14 @@ class UniformerPreprocess:
         return (img_np_to_tensor(np_detected_map),)
 
 NODE_CLASS_MAPPINGS = {
-    "CannyEdgePreproces": CannyEdgePreproces,
-    "M-LSDPreprocess": MLSDPreprocess,
-    "HEDPreproces": HEDPreproces,
-    "ScribblePreprocess": ScribblePreprocess,
-    "FakeScribblePreprocess": FakeScribblePreprocess,
-    "OpenposePreprocess": OpenposePreprocess,
-    "MiDaS-DepthMapPreprocess": MIDASDepthMapPreprocess,
-    "MiDaS-NormalMapPreprocess": MIDASNormalMapPreprocess,
-    "SemSegPreprocess": UniformerPreprocess
+    "CannyEdgePreprocesor": CannyEdgePreprocesor,
+    "M-LSDPreprocessor": MLSDPreprocessor,
+    "HEDPreprocesor": HEDPreprocesor,
+    "ScribblePreprocessor": ScribblePreprocessor,
+    "FakeScribblePreprocessor": FakeScribblePreprocessor,
+    "OpenposePreprocessor": OpenposePreprocessor,
+    "MiDaS-DepthMapPreprocessor": MIDASDepthMapPreprocessor,
+    "MiDaS-NormalMapPreprocessor": MIDASNormalMapPreprocessor,
+    "SemSegPreprocessor": UniformerPreprocessor
 }
 
