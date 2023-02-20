@@ -2,6 +2,7 @@ from . import canny, hed, midas, mlsd, openpose, uniformer
 from .util import HWC3
 import torch
 import numpy as np
+import cv2
 
 def img_np_to_tensor(img_np):
     return torch.from_numpy(img_np.astype(np.float32) / 255.0)[None,]
@@ -11,8 +12,16 @@ def img_tensor_to_np(img_tensor):
     return img_tensor.squeeze(0).numpy().astype(np.uint8)
     #Thanks ChatGPT
 
+def common_annotator_call(annotator_callback, tensor_image, *args):
+    call_result = annotator_callback(img_tensor_to_np(tensor_image), *args)
+    if type(call_result) is tuple:
+        for i in range(len(call_result)):
+            call_result[i] = HWC3(call_result[i])
+    else:
+        call_result = HWC3(call_result)
+    return call_result
 
-class CannyPreprocessor:
+class CannyEdgePreproces:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ) ,
@@ -26,27 +35,59 @@ class CannyPreprocessor:
     CATEGORY = "preprocessor"
 
     def detect_edge(self, image, low_threshold, high_threshold, l2gradient):
-        apply_canny = canny.CannyDetector()
-        image = apply_canny(img_tensor_to_np(image), low_threshold, high_threshold, l2gradient == "enable")
-        image = img_np_to_tensor(HWC3(image))
-        return (image,)
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_canny2image.py
+        np_detected_map = common_annotator_call(canny.CannyDetector(), image, low_threshold, high_threshold, l2gradient == "enable")
+        return (img_np_to_tensor(np_detected_map),)
 
-class HEDPreprocessor:
+class HEDPreproces:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",) }}
     RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "detect_edge"
+    FUNCTION = "detect_boundary"
 
     CATEGORY = "preprocessor"
 
-    def detect_edge(self, image):
-        apply_hed = hed.HEDdetector()
-        image = apply_hed(img_tensor_to_np(image))
-        image = img_np_to_tensor(HWC3(image))
-        return (image,)
+    def detect_boundary(self, image):
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_hed2image.py
+        np_detected_map = common_annotator_call(hed.HEDdetector(), image)
+        return (img_np_to_tensor(np_detected_map),)
 
-class MIDASPreprocessor:
+class ScribblePreprocess:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",) }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "transform_scribble"
+
+    CATEGORY = "preprocessor"
+
+    def transform_scribble(self, image):
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_scribble2image.py
+        np_img = img_tensor_to_np(image)
+        np_detected_map = np.zeros_like(np_img, dtype=np.uint8)
+        np_detected_map[np.min(np_img, axis=2) < 127] = 255
+        return (img_np_to_tensor(np_detected_map),)
+
+class FakeScribblePreprocess:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",) }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "transform_scribble"
+
+    CATEGORY = "preprocessor"
+
+    def transform_scribble(self, image):
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_fake_scribble2image.py
+        np_detected_map = common_annotator_call(hed.HEDdetector(), image)
+        np_detected_map = hed.nms(np_detected_map, 127, 3.0)
+        np_detected_map = cv2.GaussianBlur(np_detected_map, (0, 0), 3.0)
+        np_detected_map[np_detected_map > 4] = 255
+        np_detected_map[np_detected_map < 255] = 0
+        return (img_np_to_tensor(np_detected_map),)
+
+class MIDASDepthPreprocess:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ) ,
@@ -59,12 +100,28 @@ class MIDASPreprocessor:
     CATEGORY = "preprocessor"
 
     def estimate_depth(self, image, a, bg_threshold):
-        model_midas = midas.MidasDetector()
-        image, _ = model_midas(img_tensor_to_np(image), a, bg_threshold)
-        image = img_np_to_tensor(HWC3(image))
-        return (image,)
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_depth2image.py
+        depth_map_np, normal_map_np = common_annotator_call(midas.MidasDetector(), image, a, bg_threshold)
+        return (img_np_to_tensor(depth_map_np),)
 
-class MLSDPreprocessor:
+class MIDASNormalPreprocess:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE", ) ,
+                              "a": ("FLOAT", {"default": np.pi * 2.0, "min": 0.0, "max": np.pi * 5.0, "step": 0.1}),
+                              "bg_threshold": ("FLOAT", {"default": 0.1, "min": 0, "max": 1, "step": 0.1})
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "estimate_normal"
+
+    CATEGORY = "preprocessor"
+
+    def estimate_normal(self, image, a, bg_threshold):
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_depth2image.py
+        depth_map_np, normal_map_np = common_annotator_call(midas.MidasDetector(), image, a, bg_threshold)
+        return (img_np_to_tensor(normal_map_np),)
+
+class MLSDPreprocess:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",) ,
@@ -78,12 +135,11 @@ class MLSDPreprocessor:
     CATEGORY = "preprocessor"
 
     def detect_edge(self, image, score_threshold, dist_threshold):
-        model_mlsd = mlsd.MLSDdetector()
-        image = model_mlsd(img_tensor_to_np(image), score_threshold, dist_threshold)
-        image = img_np_to_tensor(HWC3(image))
-        return (image,)
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_hough2image.py
+        np_detected_map = common_annotator_call(mlsd.MLSDdetector(), image, score_threshold, dist_threshold)
+        return (img_np_to_tensor(np_detected_map),)
 
-class OpenPosePreprocessor:
+class OpenposePreprocess:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", ),
@@ -95,12 +151,11 @@ class OpenPosePreprocessor:
     CATEGORY = "preprocessor"
 
     def estimate_pose(self, image, detect_hand):
-        model_openpose = openpose.OpenposeDetector()
-        image, _ = model_openpose(img_tensor_to_np(image), detect_hand == "enable")
-        image = img_np_to_tensor(HWC3(image))
-        return (image,)
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_pose2image.py
+        np_detected_map = common_annotator_call(openpose.OpenposeDetector(), image, detect_hand == "enable")
+        return (img_np_to_tensor(np_detected_map),)
 
-class UniformerPreprocessor:
+class UniformerPreprocess:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE", )
@@ -111,15 +166,18 @@ class UniformerPreprocessor:
     CATEGORY = "preprocessor"
 
     def semantic_segmentate(self, image):
-        model_uniformer = uniformer.UniformerDetector()
-        image = model_uniformer(img_np_to_tensor(image))
-        image = img_np_to_tensor(HWC3(image))
-        return (image,)
+        #Ref: https://github.com/lllyasviel/ControlNet/blob/main/gradio_seg2image.py
+        np_detected_map = common_annotator_call(uniformer.UniformerDetector(), image)
+        return (img_np_to_tensor(np_detected_map),)
 
 NODE_CLASS_MAPPINGS = {
-    "CannyPreprocessor": CannyPreprocessor,
-    "HEDPreprocessor": HEDPreprocessor,
-    "DepthPreprocessor": MIDASPreprocessor,
-    "MLSDPreprocessor": MLSDPreprocessor,
-    "OpenPosePreprocessor": OpenPosePreprocessor,
+    "CannyEdgePreproces": CannyEdgePreproces,
+    "M-LSDPreprocess": MLSDPreprocess,
+    "HEDPreproces": HEDPreproces,
+    "ScribblePreprocess": ScribblePreprocess,
+    "FakeScribblePreprocess": FakeScribblePreprocess,
+    "OpenposePreprocess": OpenposePreprocess,
+    "MiDaS-DepthPreprocess": MIDASDepthPreprocess,
+    "MiDaS-NormalPreprocess": MIDASNormalPreprocess,
+    "SemSegPreprocess": UniformerPreprocess
 }
