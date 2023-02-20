@@ -181,3 +181,4 @@ NODE_CLASS_MAPPINGS = {
     "MiDaS-NormalPreprocess": MIDASNormalPreprocess,
     "SemSegPreprocess": UniformerPreprocess
 }
+
