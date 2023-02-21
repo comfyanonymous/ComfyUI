@@ -331,9 +331,9 @@ function graphToPrompt() {
 
                     // resolve the string
                     var prompt = widget.input_div.innerText;
-                    while (prompt.includes('{') && prompt.includes('}')) {
-                        const startIndex = prompt.indexOf('{');
-                        const endIndex = prompt.indexOf('}');
+                    while (prompt.replace("\\{", "").includes('{') && prompt.replace("\\}", "").includes('}')) {
+                        const startIndex = prompt.replace("\\{", "00").indexOf('{');
+                        const endIndex = prompt.replace("\\}", "00").indexOf('}');
 
                         const optionsString = prompt.substring(startIndex + 1, endIndex);
                         const options = optionsString.split('|');
@@ -344,7 +344,7 @@ function graphToPrompt() {
                         prompt = prompt.substring(0, startIndex) + randomOption + prompt.substring(endIndex + 1);
                     }
 
-                    widget.value = prompt;
+                    widget.value = prompt.replace("\\{", "{").replace("\\}", "}");
                 }
             }
         }
