@@ -344,13 +344,17 @@ function graphToPrompt() {
                         prompt = prompt.substring(0, startIndex) + randomOption + prompt.substring(endIndex + 1);
                     }
 
-                    widget.value = prompt.replace("\\{", "{").replace("\\}", "}");
+                    widget.value = prompt;
                 }
             }
         }
 
         for (let y in n.widgets) {
-            input_[n.widgets[y].name] = n.widgets[y].value;
+            if (n.widgets[y].dynamic_prompt && n.widgets[y].dynamic_prompt === true) {
+                input_[n.widgets[y].name] = n.widgets[y].value.replace("\\{", "{").replace("\\}", "}");
+            } else {
+                input_[n.widgets[y].name] = n.widgets[y].value;
+            }
         }
         for (let y in n.inputs) {
             let parent_node = n.getInputNode(y);
