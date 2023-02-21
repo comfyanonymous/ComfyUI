@@ -759,7 +759,7 @@ def load_custom_nodes():
         module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
         if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
 
-        module_name = "custom_node_module.{}".format(possible_module)
+        module_name = possible_module
         try:
             if os.path.isfile(module_path):
                 module_spec = importlib.util.spec_from_file_location(module_name, module_path)
