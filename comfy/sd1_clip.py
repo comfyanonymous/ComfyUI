@@ -178,7 +178,6 @@ def load_embed(embedding_name, embedding_directory):
                 valid_file = t
                 break
         if valid_file is None:
-            print("warning, embedding {} does not exist, ignoring".format(embed_path))
             return None
         else:
             embed_path = valid_file
@@ -187,7 +186,10 @@ def load_embed(embedding_name, embedding_directory):
         import safetensors.torch
         embed = safetensors.torch.load_file(embed_path, device="cpu")
     else:
-        embed = torch.load(embed_path, weights_only=True, map_location="cpu")
+        if 'weights_only' in torch.load.__code__.co_varnames:
+            embed = torch.load(embed_path, weights_only=True, map_location="cpu")
+        else:
+            embed = torch.load(embed_path, map_location="cpu")
     if 'string_to_param' in embed:
         values = embed['string_to_param'].values()
     else:
@@ -218,18 +220,28 @@ class SD1Tokenizer:
         tokens = []
         for t in parsed_weights:
             to_tokenize = unescape_important(t[0]).replace("\n", " ").split(' ')
-            for word in to_tokenize:
+            while len(to_tokenize) > 0:
+                word = to_tokenize.pop(0)
                 temp_tokens = []
                 embedding_identifier = "embedding:"
                 if word.startswith(embedding_identifier) and self.embedding_directory is not None:
                     embedding_name = word[len(embedding_identifier):].strip('\n')
                     embed = load_embed(embedding_name, self.embedding_directory)
+                    if embed is None:
+                        stripped = embedding_name.strip(',')
+                        if len(stripped) < len(embedding_name):
+                            embed = load_embed(stripped, self.embedding_directory)
+                            if embed is not None:
+                                to_tokenize.insert(0, embedding_name[len(stripped):])
+
                     if embed is not None:
                         if len(embed.shape) == 1:
                             temp_tokens += [(embed, t[1])]
                         else:
                             for x in range(embed.shape[0]):
                                 temp_tokens += [(embed[x], t[1])]
+                    else:
+                        print("warning, embedding:{} does not exist, ignoring".format(embedding_name))
                 elif len(word) > 0:
                     tt = self.tokenizer(word)["input_ids"][1:-1]
                     for x in tt:
