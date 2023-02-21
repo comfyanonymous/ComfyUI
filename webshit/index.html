@@ -2,6 +2,7 @@
 <head>
 	<link rel="stylesheet" type="text/css" href="litegraph.css">
 	<script type="text/javascript" src="litegraph.core.js"></script>
+	<script type="text/javascript" src="socket.io.min.js"></script>
 </head>
 <style>
 .customtext_input {
@@ -26,7 +27,7 @@
     left: 50%; /* Center the modal horizontally */
     top: 50%; /* Center the modal vertically */
     transform: translate(-50%, -50%); /* Use this to center the modal */
-    width: 50%; /* Set a width for the modal */
+    min-width: 50%; /* Set a width for the modal */
     height: auto; /* Set a height for the modal */
     padding: 30px;
     background-color: #ff0000; /* Modal background */
@@ -58,6 +59,18 @@
     white-space: pre-line; /* This will respect line breaks */
     margin-bottom: 20px; /* Add some margin between the text and the close button*/
 }
+
+#modal-text img {
+    max-width: calc(100vw - 96px - 36px);
+    max-height: calc(100vh - 96px - 36px);
+}
+
+#images img {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+    cursor: pointer;
+}
 </style>
 <div id="myErrorModal" class="modal">
   <div class="modal-content">
@@ -65,7 +78,6 @@
     <span class="close">CLOSE</span>
   </div>
 </div>
-
 <canvas id='mycanvas' width='1000' height='1000' style='width: 100%; height: 100%;'></canvas>
 <script>
 
@@ -75,6 +87,7 @@ var canvas = new LGraphCanvas("#mycanvas", graph);
 
 const ccc = document.getElementById("mycanvas");
 const ctx = ccc.getContext("2d");
+let images = {}
 
 // Resize the canvas to match the size of the canvas element
 function resizeCanvas() {
@@ -132,6 +145,7 @@ function onObjectInfo(json) {
             this._widgets = []
             min_height = 1;
             min_width = 1;
+
             for (let x in inp) {
                 let default_val = min_val = max_val = step_val = multiline = dynamic_prompt = undefined;
                 if (inp[x].length > 1) {
@@ -261,6 +275,48 @@ function onObjectInfo(json) {
                 } else {
                     this.addInput(x, type);
                 }
+
+                
+                if(key === "SaveImage") {
+                    MyNode.prototype.onDrawBackground = function(ctx) {
+                        if(this.id + "" in images) {
+                            const src = images[this.id + ""][0];
+                            if(this.src !== src) {
+                                this.img = null;
+                                this.src = src;
+                                const img = new Image();
+                                img.src = src;
+                                img.onload = () => {
+                                    graph.setDirtyCanvas(true);
+                                    this.img = img;
+                                    if(this.size[1] < 100) {
+                                        this.size[1] = 250;
+                                    }
+                                }
+                            }
+                            if(this.img) {
+                                let w = this.img.naturalWidth;
+                                let h = this.img.naturalHeight;
+                                let dw = this.size[0];
+                                let dh = this.size[1];
+
+                                const scaleX = dw / w;
+                                const scaleY = dh / h;
+                                const scale = Math.min(scaleX, scaleY, 1);
+
+                                w *= scale;
+                                h *= scale;
+
+                                let x = (dw - w) / 2;
+                                let y = (dh - h) / 2;
+
+                                ctx.drawImage(this.img, x, y, w, h);
+                            }
+                        } else {
+                            this.size[1] = 58
+                        }
+                    };
+                }
             }
 
             out = j['output'];
@@ -388,18 +444,18 @@ function graphToPrompt() {
 
 function closeModal() {
     var modal = document.getElementById("myErrorModal");
-    modal.style.display = "none";
+    modal.setAttribute("style", "");
 }
 
 function showModal(text) {
     var modal = document.getElementById("myErrorModal");
     var modalText = document.getElementById("modal-text");
     modalText.innerHTML = text;
-    modal.style.display = "block";
+    modal.setAttribute("style", "display: block");
     var closeBtn = modal.getElementsByClassName("close")[0];
     closeBtn.onclick = function(event) {closeModal();}
+    return modal
 }
-
 
 function promptPosted(data)
 {
@@ -431,7 +487,7 @@ function promptPosted(data)
 
 function postPrompt(number) {
     let prompt = graphToPrompt();
-    let full_data = {prompt: prompt, extra_data: {extra_pnginfo: {workflow: graph.serialize()}}};
+    let full_data = {client_id: clientId, prompt: prompt, extra_data: {extra_pnginfo: {workflow: graph.serialize()}}};
     if (number == -1) {
         full_data.front = true;
     } else
@@ -534,64 +590,105 @@ document.addEventListener('drop', (event) => {
     prompt_file_load(file);
 });
 
+let runningNodeId = null;
+let progress = null;
+let clientId = null;
+const orig = LGraphCanvas.prototype.drawNodeShape;
+LGraphCanvas.prototype.drawNodeShape = function(node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
+    const res = orig.apply(this, arguments);
+
+    if(node.id + "" === runningNodeId) { 
+        const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        if( shape == LiteGraph.BOX_SHAPE )
+            ctx.rect(-6,-6 + LiteGraph.NODE_TITLE_HEIGHT, 12 + size[0]+1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT );
+        else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed) )
+            ctx.roundRect(-6,-6 - LiteGraph.NODE_TITLE_HEIGHT, 12 +size[0]+1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT , this.round_radius * 2);
+        else if (shape == LiteGraph.CARD_SHAPE)
+            ctx.roundRect(-6,-6 + LiteGraph.NODE_TITLE_HEIGHT, 12 +size[0]+1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT , this.round_radius * 2, 2);
+        else if (shape == LiteGraph.CIRCLE_SHAPE)
+            ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI*2);
+        ctx.strokeStyle = "#0f0"
+        ctx.stroke();
+        ctx.strokeStyle = fgcolor;
+        ctx.globalAlpha = 1;
+
+        if(progress) {
+            ctx.fillStyle = "green";
+            ctx.fillRect(0, 0, size[0] * (progress.value / progress.max), 6);
+            ctx.fillStyle = bgcolor;
+        }
+    }
+    
+    return res;
+}
+
+function updateNodeProgress(v) {
+    progress = v;
+    graph.setDirtyCanvas(true, false);
+}
+
+function setRunningNode(id) {
+    progress = null;
+    runningNodeId = id;
+    graph.setDirtyCanvas(true, false);
+}
 
 (() => {
     function updateStatus(data) {
         document.getElementById("queuesize").innerHTML = "Queue size: " + (data ? data.exec_info.queue_remaining : "ERR");
     }
 
-    //fix for colab and other things that don't support websockets.
-    function manually_fetch_queue() {
-        fetch('/prompt')
-            .then(response => response.json())
-            .then(data => {
-                updateStatus(data);
-            }).catch((response) => {updateStatus(null)});
-    }
-
-    let ws;
     function createSocket(isReconnect) {
-        if(ws) return;
-
         let opened = false;
-        ws = new WebSocket(`ws${window.location.protocol === "https:"? "s" : ""}://${location.host}/ws`);
+        const ws = io();
 
-        ws.addEventListener("open", () => {
-            opened = true;
-            if(isReconnect) {
+        ws.on("connect", () => {
+            clientId = ws.id;
+
+            if(opened) {
                 closeModal();
+            } else {
+                opened = true;
             }
         });
 
-        ws.addEventListener("error", () => {
-            if(ws) ws.close();
-            manually_fetch_queue();
-        });
-
-        ws.addEventListener("close", () => {
-            setTimeout(() => {
-                ws = null;
-                createSocket(true);
-            }, 300);
+        ws.on("disconnect", () => {
             if(opened) {
                 updateStatus(null);
                 showModal("Reconnecting...");
             }
         });
 
-        ws.addEventListener("message", (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                switch(msg.type) {
-                    case "status":
-                        updateStatus(msg.status)
-                        break;
-                    default:
-                        throw new Error("Unknown message type")
+        ws.on("status", (data) => {
+            updateStatus(data);
+        });
+
+        ws.on("progress", (data) => {
+            updateNodeProgress(data);
+        });
+
+        ws.on("execute", (data) => {
+            setRunningNode(data.node);
+        });
+
+        ws.on("image", (data) => {
+            images[data.id] = data.images;
+
+            const container = document.getElementById("images");
+            container.replaceChildren(...Object.values(images).map(src => {
+                const img = document.createElement("img");
+                img.src = src;
+                img.onclick = () => {
+                    const modal = showModal();
+                    const modalText = document.getElementById("modal-text");
+                    modalText.innerHTML = `<img src="${img.src}"/>`
+                    modal.setAttribute("style", modal.getAttribute("style") + "; background: #202020")
                 }
-            } catch (error) {
-                console.warn("Unhandled message:", event.data)
-            }
+                return img;
+            }))
         });
     }
     createSocket();
@@ -766,7 +863,7 @@ function clearQueue() {
 
 </script>
 
-<span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;width:170px;">
+<span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;width:170px; transform: translateY(-50%);">
 <span id="queuesize">Queue size: X</span><br>
 <button style="font-size: 20px;width: 100%;" id="queuebutton" onclick="postPrompt(0)">Queue Prompt</button><br>
 <span style="left: 0%;">
@@ -801,6 +898,7 @@ function clearQueue() {
 <br>
 <button style="font-size: 20px;" onclick="clearGraph()">Clear</button><br>
 <button style="font-size: 20px;" onclick="loadTxt2Img()">Load Default</button><br>
+<div id="images"></div>
 </span>
 </body>
 </html>

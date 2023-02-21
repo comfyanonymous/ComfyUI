@@ -9,4 +9,4 @@ safetensors
 pytorch_lightning
 aiohttp
 accelerate
-
+python-socketio

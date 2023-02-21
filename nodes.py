@@ -605,7 +605,7 @@ class SaveImage:
         return {"required": 
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "server": "SERVER", "unique_id": "UNIQUE_ID"},
                 }
 
     RETURN_TYPES = ()
@@ -615,7 +615,7 @@ class SaveImage:
 
     CATEGORY = "image"
 
-    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None, server=None, unique_id=None):
         def map_filename(filename):
             prefix_len = len(filename_prefix)
             prefix = filename[:prefix_len + 1]
@@ -631,6 +631,8 @@ class SaveImage:
         except FileNotFoundError:
             os.mkdir(self.output_dir)
             counter = 1
+
+        paths = list()
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(i.astype(np.uint8))
@@ -640,8 +642,12 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-            img.save(os.path.join(self.output_dir, f"{filename_prefix}_{counter:05}_.png"), pnginfo=metadata, optimize=True)
+            file = f"{filename_prefix}_{counter:05}_.png"
+            img.save(os.path.join(self.output_dir, file), pnginfo=metadata, optimize=True)
+            paths.append(f"/view/{file}")
             counter += 1
+        if server is not None:
+            server.send_sync("image", {"images": paths, "id": unique_id})
 
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
