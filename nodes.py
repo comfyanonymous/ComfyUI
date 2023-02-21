@@ -252,7 +252,10 @@ class ControlNetApply:
         print(control_hint.shape)
         for t in conditioning:
             n = [t[0], t[1].copy()]
-            n[1]['control'] = control_net.copy().set_cond_hint(control_hint, strength)
+            c_net = control_net.copy().set_cond_hint(control_hint, strength)
+            if 'control' in t[1]:
+                c_net.set_previous_controlnet(t[1]['control'])
+            n[1]['control'] = c_net
             c.append(n)
         return (c, )
 
@@ -510,7 +513,10 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
             control_nets += [p[1]['control']]
         negative_copy += [[t] + n[1:]]
 
-    model_management.load_controlnet_gpu(list(map(lambda a: a.control_model, control_nets)))
+    control_net_models = []
+    for x in control_nets:
+        control_net_models += x.get_control_models()
+    model_management.load_controlnet_gpu(control_net_models)
 
     if sampler_name in comfy.samplers.KSampler.SAMPLERS:
         sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise)
