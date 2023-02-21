@@ -313,7 +313,7 @@ class KSampler:
     SCHEDULERS = ["karras", "normal", "simple"]
     SAMPLERS = ["sample_euler", "sample_euler_ancestral", "sample_heun", "sample_dpm_2", "sample_dpm_2_ancestral",
                 "sample_lms", "sample_dpm_fast", "sample_dpm_adaptive", "sample_dpmpp_2s_ancestral", "sample_dpmpp_sde",
-                "sample_dpmpp_2m", "uni_pc"]
+                "sample_dpmpp_2m", "uni_pc", "uni_pc_bh2"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None):
         self.model = model
@@ -420,6 +420,8 @@ class KSampler:
         with precision_scope(self.device):
             if self.sampler == "uni_pc":
                 samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, extra_args=extra_args, noise_mask=denoise_mask)
+            elif self.sampler == "uni_pc_bh2":
+                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
             else:
                 extra_args["denoise_mask"] = denoise_mask
                 self.model_k.latent_image = latent_image
