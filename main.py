@@ -152,7 +152,6 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         to_delete = True
 
     if to_delete:
-        print("deleted", unique_id)
         d = outputs.pop(unique_id)
         del d
     return to_delete
