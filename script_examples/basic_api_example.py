@@ -30,7 +30,6 @@ prompt_text = """
                 "6",
                 0
             ],
-            "Random seed after every gen": true,
             "sampler_name": "sample_euler",
             "scheduler": "normal",
             "seed": 8566257,
