@@ -43,6 +43,12 @@ if '--dont-upcast-attention' in sys.argv:
 import torch
 import nodes
 
+def config(key, default=None):
+    with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.json"), "r", encoding="utf8") as file:
+        config = json.load(file)
+        config_item = config.get(key) if config.get(key) != "" else default
+    return config_item
+
 def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
