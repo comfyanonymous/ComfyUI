@@ -14,7 +14,7 @@ class UniformerDetector:
         if not os.path.exists(modelpath):
             from basicsr.utils.download_util import load_file_from_url
             load_file_from_url(checkpoint_file, model_dir=annotator_ckpts_path)
-        config_file = os.path.join(os.path.dirname(annotator_ckpts_path), "uniformer", "exp", "upernet_global_small", "config.py")
+        config_file = os.path.join(os.path.dirname(annotator_ckpts_path).replace("models", "custom_nodes/annotator"), "uniformer", "exp", "upernet_global_small", "config.py")
         self.model = init_segmentor(config_file, modelpath).cuda()
 
     def __call__(self, img):
