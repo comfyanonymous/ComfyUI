@@ -46,7 +46,7 @@ import nodes
 def config(key, default=None):
     with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "config.json"), "r", encoding="utf8") as file:
         config = json.load(file)
-        config_item = config.get(key) if config.get(key) != "" else default
+        config_item = config.get(key) if config.get(key) else default
     return config_item
 
 def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
