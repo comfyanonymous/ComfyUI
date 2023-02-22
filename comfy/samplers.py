@@ -334,6 +334,7 @@ class KSampler:
         self.sigma_min=float(self.model_wrap.sigma_min)
         self.sigma_max=float(self.model_wrap.sigma_max)
         self.set_steps(steps, denoise)
+        self.denoise = denoise
 
     def _calculate_sigmas(self, steps):
         sigmas = None
@@ -417,11 +418,16 @@ class KSampler:
                         cond_concat.append(blank_inpaint_image_like(noise))
             extra_args["cond_concat"] = cond_concat
 
+        if sigmas[0] != self.sigmas[0] or (self.denoise is not None and self.denoise < 1.0):
+            max_denoise = False
+        else:
+            max_denoise = True
+
         with precision_scope(self.device):
             if self.sampler == "uni_pc":
-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, extra_args=extra_args, noise_mask=denoise_mask)
+                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
             elif self.sampler == "uni_pc_bh2":
-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
+                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
             else:
                 extra_args["denoise_mask"] = denoise_mask
                 self.model_k.latent_image = latent_image
