@@ -833,7 +833,7 @@ def expand_dims(v, dims):
 
 
 
-def sample_unipc(model, noise, image, sigmas, sampling_function, extra_args=None, callback=None, disable=None, noise_mask=None, variant='bh1'):
+def sample_unipc(model, noise, image, sigmas, sampling_function, max_denoise, extra_args=None, callback=None, disable=None, noise_mask=None, variant='bh1'):
         to_zero = False
         if sigmas[-1] == 0:
             timesteps = torch.nn.functional.interpolate(sigmas[None,None,:-1], size=(len(sigmas),), mode='linear')[0][0]
@@ -847,7 +847,12 @@ def sample_unipc(model, noise, image, sigmas, sampling_function, extra_args=None
         ns = NoiseScheduleVP('discrete', alphas_cumprod=model.inner_model.alphas_cumprod)
 
         if image is not None:
-            img = image * ns.marginal_alpha(timesteps[0]) + noise * ns.marginal_std(timesteps[0])
+            img = image * ns.marginal_alpha(timesteps[0])
+            if max_denoise:
+                noise_mult = 1.0
+            else:
+                noise_mult = ns.marginal_std(timesteps[0])
+            img += noise * noise_mult
         else:
             img = noise
 
