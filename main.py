@@ -35,7 +35,7 @@ if __name__ == "__main__":
 import torch
 import nodes
 
-def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}, server=None, unique_id=None):
+def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     for x in inputs:
@@ -57,10 +57,6 @@ def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}, serv
             if h[x] == "EXTRA_PNGINFO":
                 if "extra_pnginfo" in extra_data:
                     input_data_all[x] = extra_data['extra_pnginfo']
-            if h[x] == "SERVER":
-                input_data_all[x] = server
-            if h[x] == "UNIQUE_ID":
-                input_data_all[x] = unique_id
     return input_data_all
 
 def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
@@ -84,10 +80,12 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
 
     input_data_all = get_input_data(inputs, class_def, outputs, prompt, extra_data, server, unique_id)
     if server.client_id is not None:
-        server.send_sync("execute", { "node": unique_id }, server.client_id)
+        server.send_sync("executing", { "node": unique_id }, server.client_id)
     obj = class_def()
 
     outputs[unique_id] = getattr(obj, obj.FUNCTION)(**input_data_all)
+    if "ui" in outputs[unique_id] and server.client_id is not None:
+        server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
     return executed + [unique_id]
 
 def recursive_will_execute(prompt, outputs, current_item):
@@ -195,7 +193,6 @@ class PromptExecutor:
                                 valid = False
                             if valid:
                                 executed += recursive_execute(self.server, prompt, self.outputs, x, extra_data)
-
             except Exception as e:
                 print(traceback.format_exc())
                 to_delete = []
@@ -212,10 +209,9 @@ class PromptExecutor:
                 executed = set(executed)
                 for x in executed:
                     self.old_prompt[x] = copy.deepcopy(prompt[x])
-
             finally:
                 if self.server.client_id is not None:
-                    self.server.send_sync("execute", { "node": None }, self.server.client_id)
+                    self.server.send_sync("executing", { "node": None }, self.server.client_id)
 
         torch.cuda.empty_cache()
 
@@ -307,7 +303,7 @@ def prompt_worker(q, server):
     while True:
         item, item_id = q.get()
         e.execute(item[-2], item[-1])
-        q.task_done(item_id)
+        q.task_done(item_id, e.outputs)
 
 class PromptQueue:
     def __init__(self, server):
@@ -317,6 +313,7 @@ class PromptQueue:
         self.task_counter = 0
         self.queue = []
         self.currently_running = {}
+        self.history = {}
         server.prompt_queue = self
 
     def put(self, item):
@@ -336,9 +333,12 @@ class PromptQueue:
             self.server.queue_updated()
             return (item, i)
 
-    def task_done(self, item_id):
+    def task_done(self, item_id, outputs):
         with self.mutex:
-            self.currently_running.pop(item_id)
+            self.history[item_id] = { "prompt": self.currently_running.pop(item_id), "outputs": {} }
+            for o in outputs:
+                if "ui" in outputs[o]:
+                    self.history[item_id]["outputs"][o] = outputs[o]["ui"]
             self.server.queue_updated()
 
     def get_current_queue(self):

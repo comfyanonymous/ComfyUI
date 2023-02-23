@@ -77,6 +77,10 @@ class PromptServer():
                 out[x] = info
             return web.json_response(out)
         
+        @routes.get("/history")
+        async def get_history(request):
+            return web.json_response(self.prompt_queue.history)
+        
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
@@ -131,6 +135,19 @@ class PromptServer():
                 for id_to_delete in to_delete:
                     delete_func = lambda a: a[1] == int(id_to_delete)
                     self.prompt_queue.delete_queue_item(delete_func)
+                    
+            return web.Response(status=200)
+        
+        @routes.post("/history")
+        async def post_history(request):
+            json_data =  await request.json()
+            if "clear" in json_data:
+                if json_data["clear"]:
+                    self.prompt_queue.history = {}
+            if "delete" in json_data:
+                to_delete = json_data['delete']
+                for id_to_delete in to_delete:
+                    self.prompt_queue.history.pop(id_to_delete, None)
                     
             return web.Response(status=200)
     
