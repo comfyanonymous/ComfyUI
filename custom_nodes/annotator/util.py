@@ -3,7 +3,7 @@ import cv2
 import os
 
 
-annotator_ckpts_path = os.path.join(os.path.dirname(__file__), "../../models/annotators")
+annotator_ckpts_path = os.path.join(os.path.dirname(__file__), "ckpts")
 
 
 def HWC3(x):
