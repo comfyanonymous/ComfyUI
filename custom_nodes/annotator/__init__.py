@@ -14,12 +14,15 @@ def img_tensor_to_np(img_tensor):
 
 def common_annotator_call(annotator_callback, tensor_image, *args):
     call_result = annotator_callback(img_tensor_to_np(tensor_image), *args)
-    if type(call_result) is tuple:
-        for i in range(len(call_result)):
-            call_result[i] = HWC3(call_result[i])
-    else:
-        call_result = HWC3(call_result)
-    return call_result
+    if type(annotator_callback) is openpose.OpenposeDetector:
+        return (HWC3(call_result[0]),call_result[1])
+    # if type(call_result) is tuple:
+    #     for i in range(len(call_result)):
+    #         call_result[i] = HWC3(call_result[i])
+    # else:
+    #     call_result = HWC3(call_result)
+    return HWC3(call_result)
+
 
 class CannyEdgePreprocesor:
     @classmethod
