@@ -78,7 +78,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
             if input_unique_id not in outputs:
                 executed += recursive_execute(server, prompt, outputs, input_unique_id, extra_data)
 
-    input_data_all = get_input_data(inputs, class_def, outputs, prompt, extra_data, server, unique_id)
+    input_data_all = get_input_data(inputs, class_def, outputs, prompt, extra_data)
     if server.client_id is not None:
         server.send_sync("executing", { "node": unique_id }, server.client_id)
     obj = class_def()
