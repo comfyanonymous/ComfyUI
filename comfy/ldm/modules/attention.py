@@ -343,7 +343,7 @@ class CrossAttentionDoggettx(nn.Module):
 
         return self.to_out(r2)
 
-class OriginalCrossAttention(nn.Module):
+class CrossAttention(nn.Module):
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.):
         super().__init__()
         inner_dim = dim_head * heads
@@ -395,14 +395,13 @@ class OriginalCrossAttention(nn.Module):
         return self.to_out(out)
 
 import sys
-if "--use-split-cross-attention" in sys.argv:
-    print("Using split optimization for cross attention")
-    class CrossAttention(CrossAttentionDoggettx):
-        pass
-else:
-    print("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
-    class CrossAttention(CrossAttentionBirchSan):
-        pass
+if XFORMERS_IS_AVAILBLE == False:
+    if "--use-split-cross-attention" in sys.argv:
+        print("Using split optimization for cross attention")
+        CrossAttention = CrossAttentionDoggettx
+    else:
+        print("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
+        CrossAttention = CrossAttentionBirchSan
 
 class MemoryEfficientCrossAttention(nn.Module):
     # https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223

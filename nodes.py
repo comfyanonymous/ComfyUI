@@ -232,6 +232,24 @@ class ControlNetLoader:
         controlnet = comfy.sd.load_controlnet(controlnet_path)
         return (controlnet,)
 
+class DiffControlNetLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    controlnet_dir = os.path.join(models_dir, "controlnet")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "control_net_name": (filter_files_extensions(recursive_search(s.controlnet_dir), supported_pt_extensions), )}}
+
+    RETURN_TYPES = ("CONTROL_NET",)
+    FUNCTION = "load_controlnet"
+
+    CATEGORY = "loaders"
+
+    def load_controlnet(self, model, control_net_name):
+        controlnet_path = os.path.join(self.controlnet_dir, control_net_name)
+        controlnet = comfy.sd.load_controlnet(controlnet_path, model)
+        return (controlnet,)
+
 
 class ControlNetApply:
     @classmethod
@@ -733,6 +751,22 @@ class ImageScale:
         s = s.movedim(1,-1)
         return (s,)
 
+class ImageInvert:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",)}}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "invert"
+
+    CATEGORY = "image"
+
+    def invert(self, image):
+        s = 1.0 - image
+        return (s,)
+
+
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoader": CheckpointLoader,
@@ -747,6 +781,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
+    "ImageInvert": ImageInvert,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
@@ -759,6 +794,7 @@ NODE_CLASS_MAPPINGS = {
     "CLIPLoader": CLIPLoader,
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
+    "DiffControlNetLoader": DiffControlNetLoader,
 }
 
 CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")

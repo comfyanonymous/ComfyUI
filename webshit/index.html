@@ -406,10 +406,12 @@ function graphToPrompt() {
         }
 
         for (let y in n.widgets) {
-            if (n.widgets[y].dynamic_prompt && n.widgets[y].dynamic_prompt === true) {
-                input_[n.widgets[y].name] = n.widgets[y].value.replace("\\{", "{").replace("\\}", "}");
-            } else {
-                input_[n.widgets[y].name] = n.widgets[y].value;
+            if (!Object.hasOwn(n.widgets[y], 'to_randomize')) { //don't include "Random seed after every gen" in prompt.
+                if (n.widgets[y].dynamic_prompt && n.widgets[y].dynamic_prompt === true) {
+                    input_[n.widgets[y].name] = n.widgets[y].value.replace("\\{", "{").replace("\\}", "}");
+                } else {
+                    input_[n.widgets[y].name] = n.widgets[y].value;
+                }
             }
         }
         for (let y in n.inputs) {
