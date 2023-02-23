@@ -335,10 +335,11 @@ class PromptQueue:
 
     def task_done(self, item_id, outputs):
         with self.mutex:
-            self.history[item_id] = { "prompt": self.currently_running.pop(item_id), "outputs": {} }
+            prompt = self.currently_running.pop(item_id)
+            self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
                 if "ui" in outputs[o]:
-                    self.history[item_id]["outputs"][o] = outputs[o]["ui"]
+                    self.history[prompt[1]]["outputs"][o] = outputs[o]["ui"]
             self.server.queue_updated()
 
     def get_current_queue(self):

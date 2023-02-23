@@ -790,7 +790,7 @@ function loadItems(type) {
                 button.style.fontSize = "10px";
                 button.delete_id = id;
                 button.onclick = function(event) {
-                    deleteQueueElement(type, event.target.delete_id, loadItems);
+                    deleteQueueElement(type, event.target.delete_id, () => loadItems(type));
                 };
                 append_to_element.appendChild(button);
             }
@@ -807,11 +807,11 @@ function loadItems(type) {
         if(type === "queue") {
             items = data.queue_pending;
         } else {
-            items = Object.values(data).map(d => d.prompt);
+            items = Object.values(data);
         }
         items.sort((a, b) => a[0] - b[0]);
-        for (let i in items) {
-            append_to_list(items[i], queuecontents, true, type === "queue"? null : data[i].outputs);
+        for (let i of items) {
+            append_to_list(type === "queue" ? i : i.prompt, queuecontents, true, i.outputs);
         }
     }).catch((response) => {console.log(response)});
 }
@@ -891,7 +891,7 @@ function clearItems(type) {
     <br>
     </div>
   <span style="padding: 5px;display:inline-block;">
-  <button style="font-size: 12px;" onclick="clearQueue()">Clear Queue</button>
+  <button style="font-size: 12px;" onclick="clearItems('queue')">Clear Queue</button>
   <button style="font-size: 12px;" onclick="loadQueue()">Refresh</button>
   </span>
   </div>
@@ -901,7 +901,7 @@ function clearItems(type) {
     <div id="historycontents" style="overflow-y: scroll;height: 100px;background-color: #d0d0d0;padding: 5px;">
     </div>
     <span style="padding: 5px;display:inline-block;">
-  <button style="font-size: 12px;" onclick="clearHistory()">Clear History</button>
+  <button style="font-size: 12px;" onclick="clearItems('history')">Clear History</button>
   <button style="font-size: 12px;" onclick="loadHistory()">Refresh</button>
     </span>
   </div>
