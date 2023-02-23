@@ -727,6 +727,22 @@ class ImageScale:
         s = s.movedim(1,-1)
         return (s,)
 
+class ImageInvert:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",)}}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "invert"
+
+    CATEGORY = "image"
+
+    def invert(self, image):
+        s = 1.0 - image
+        return (s,)
+
+
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoader": CheckpointLoader,
@@ -741,6 +757,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
+    "ImageInvert": ImageInvert,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
