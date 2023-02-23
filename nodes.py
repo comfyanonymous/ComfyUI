@@ -623,7 +623,7 @@ class SaveImage:
         return {"required": 
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "server": "SERVER", "unique_id": "UNIQUE_ID"},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
     RETURN_TYPES = ()
@@ -633,7 +633,7 @@ class SaveImage:
 
     CATEGORY = "image"
 
-    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None, server=None, unique_id=None):
+    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         def map_filename(filename):
             prefix_len = len(filename_prefix)
             prefix = filename[:prefix_len + 1]
@@ -662,10 +662,9 @@ class SaveImage:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
             file = f"{filename_prefix}_{counter:05}_.png"
             img.save(os.path.join(self.output_dir, file), pnginfo=metadata, optimize=True)
-            paths.append(f"/view/{file}")
+            paths.append(file)
             counter += 1
-        if server is not None:
-            server.send_sync("image", {"images": paths, "id": unique_id})
+        return { "ui": { "images": paths } }
 
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")

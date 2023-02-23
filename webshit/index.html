@@ -27,7 +27,7 @@
     left: 50%; /* Center the modal horizontally */
     top: 50%; /* Center the modal vertically */
     transform: translate(-50%, -50%); /* Use this to center the modal */
-    min-width: 50%; /* Set a width for the modal */
+    width: 50%; /* Set a width for the modal */
     height: auto; /* Set a height for the modal */
     padding: 30px;
     background-color: #ff0000; /* Modal background */
@@ -59,18 +59,6 @@
     white-space: pre-line; /* This will respect line breaks */
     margin-bottom: 20px; /* Add some margin between the text and the close button*/
 }
-
-#modal-text img {
-    max-width: calc(100vw - 96px - 36px);
-    max-height: calc(100vh - 96px - 36px);
-}
-
-#images img {
-    width: 100%;
-    max-height: 300px;
-    object-fit: contain;
-    cursor: pointer;
-}
 </style>
 <div id="myErrorModal" class="modal">
   <div class="modal-content">
@@ -78,6 +66,7 @@
     <span class="close">CLOSE</span>
   </div>
 </div>
+
 <canvas id='mycanvas' width='1000' height='1000' style='width: 100%; height: 100%;'></canvas>
 <script>
 
@@ -87,7 +76,7 @@ var canvas = new LGraphCanvas("#mycanvas", graph);
 
 const ccc = document.getElementById("mycanvas");
 const ctx = ccc.getContext("2d");
-let images = {}
+let nodeOutputs = {}
 
 // Resize the canvas to match the size of the canvas element
 function resizeCanvas() {
@@ -276,47 +265,43 @@ function onObjectInfo(json) {
                     this.addInput(x, type);
                 }
 
-                
-                if(key === "SaveImage") {
-                    MyNode.prototype.onDrawBackground = function(ctx) {
-                        if(this.id + "" in images) {
-                            const src = images[this.id + ""][0];
-                            if(this.src !== src) {
-                                this.img = null;
-                                this.src = src;
-                                const img = new Image();
-                                img.src = src;
-                                img.onload = () => {
-                                    graph.setDirtyCanvas(true);
-                                    this.img = img;
-                                    if(this.size[1] < 100) {
-                                        this.size[1] = 250;
-                                    }
+                MyNode.prototype.onDrawBackground = function(ctx) {
+                    const output = nodeOutputs[this.id + ""];
+                    if(output && output.images) {
+                        const src = output.images[0];
+                        if(this.src !== src) {
+                            this.img = null;
+                            this.src = src;
+                            const img = new Image();
+                            img.src = "/view/" + src;
+                            img.onload = () => {
+                                graph.setDirtyCanvas(true);
+                                this.img = img;
+                                if(this.size[1] < 100) {
+                                    this.size[1] = 250;
                                 }
                             }
-                            if(this.img) {
-                                let w = this.img.naturalWidth;
-                                let h = this.img.naturalHeight;
-                                let dw = this.size[0];
-                                let dh = this.size[1];
-
-                                const scaleX = dw / w;
-                                const scaleY = dh / h;
-                                const scale = Math.min(scaleX, scaleY, 1);
-
-                                w *= scale;
-                                h *= scale;
-
-                                let x = (dw - w) / 2;
-                                let y = (dh - h) / 2;
-
-                                ctx.drawImage(this.img, x, y, w, h);
-                            }
-                        } else {
-                            this.size[1] = 58
                         }
-                    };
-                }
+                        if(this.img) {
+                            let w = this.img.naturalWidth;
+                            let h = this.img.naturalHeight;
+                            let dw = this.size[0];
+                            let dh = this.size[1];
+
+                            const scaleX = dw / w;
+                            const scaleY = dh / h;
+                            const scale = Math.min(scaleX, scaleY, 1);
+
+                            w *= scale;
+                            h *= scale;
+
+                            let x = (dw - w) / 2;
+                            let y = (dh - h) / 2;
+
+                            ctx.drawImage(this.img, x, y, w, h);
+                        }
+                    }
+                };
             }
 
             out = j['output'];
@@ -446,17 +431,16 @@ function graphToPrompt() {
 
 function closeModal() {
     var modal = document.getElementById("myErrorModal");
-    modal.setAttribute("style", "");
+    modal.style.display = "none";
 }
 
 function showModal(text) {
     var modal = document.getElementById("myErrorModal");
     var modalText = document.getElementById("modal-text");
     modalText.innerHTML = text;
-    modal.setAttribute("style", "display: block");
+    modal.style.display = "block";
     var closeBtn = modal.getElementsByClassName("close")[0];
     closeBtn.onclick = function(event) {closeModal();}
-    return modal
 }
 
 function promptPosted(data)
@@ -672,25 +656,12 @@ function setRunningNode(id) {
             updateNodeProgress(data);
         });
 
-        ws.on("execute", (data) => {
+        ws.on("executing", (data) => {
             setRunningNode(data.node);
         });
 
-        ws.on("image", (data) => {
-            images[data.id] = data.images;
-
-            const container = document.getElementById("images");
-            container.replaceChildren(...Object.values(images).map(src => {
-                const img = document.createElement("img");
-                img.src = src;
-                img.onclick = () => {
-                    const modal = showModal();
-                    const modalText = document.getElementById("modal-text");
-                    modalText.innerHTML = `<img src="${img.src}"/>`
-                    modal.setAttribute("style", modal.getAttribute("style") + "; background: #202020")
-                }
-                return img;
-            }))
+        ws.on("executed", (data) => {
+            nodeOutputs[data.node] = data.output;
         });
     }
     createSocket();
@@ -755,8 +726,8 @@ document.addEventListener('paste', e=>{
     }
 });
 
-function deleteQueueElement(delete_id, then) {
-    fetch('/queue', {
+function deleteQueueElement(type, delete_id, then) {
+    fetch('/' + type, {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json'
@@ -770,22 +741,30 @@ function deleteQueueElement(delete_id, then) {
     .catch(error => console.error(error))
 }
 
-
 function loadQueue() {
-    fetch('/queue')
+    loadItems("queue")
+}
+function loadHistory() {
+    loadItems("history")
+}
+function loadItems(type) {
+    fetch('/' + type)
     .then(response => response.json())
     .then(data => {
-        var queue_div = document.getElementById("queuebutton-content");
+        var queue_div = document.getElementById(type + "button-content");
         queue_div.style.display = 'block';
-        var see_queue_button = document.getElementById("seequeuebutton");
+        var see_queue_button = document.getElementById("see" + type + "button");
         let old_w = see_queue_button.style.width;
         see_queue_button.innerHTML = "Close";
 
-        let runningcontents = document.getElementById("runningcontents");
-        runningcontents.innerHTML = '';
-        let queuecontents = document.getElementById("queuecontents");
+        let runningcontents;
+        if(type === "queue") {
+            runningcontents = document.getElementById("runningcontents");
+            runningcontents.innerHTML = '';
+        }
+        let queuecontents = document.getElementById(type + "contents");
         queuecontents.innerHTML = '';
-        function append_to_list(list_element, append_to_element, append_delete) {
+        function append_to_list(list_element, append_to_element, append_delete, state) {
             let number = list_element[0];
             let id = list_element[1];
             let prompt = list_element[2];
@@ -799,6 +778,9 @@ function loadQueue() {
             button.workflow = workflow;
             button.onclick = function(event) {
                 loadGraphData(graph, event.target.workflow);
+                if(state) {
+                    nodeOutputs = state;
+                }
             };
 
             append_to_element.appendChild(button);
@@ -808,19 +790,28 @@ function loadQueue() {
                 button.style.fontSize = "10px";
                 button.delete_id = id;
                 button.onclick = function(event) {
-                    deleteQueueElement(event.target.delete_id, loadQueue);
+                    deleteQueueElement(type, event.target.delete_id, loadItems);
                 };
                 append_to_element.appendChild(button);
             }
             append_to_element.appendChild(document.createElement("br"));
         }
-        for (let x in data.queue_running) {
-            append_to_list(data.queue_running[x], runningcontents, false);
+
+        if(runningcontents) {
+            for (let x in data.queue_running) {
+                append_to_list(data.queue_running[x], runningcontents, false);
+            }
         }
 
-        data.queue_pending.sort((a, b) => a[0] - b[0]);
-        for (let x in data.queue_pending) {
-            append_to_list(data.queue_pending[x], queuecontents, true);
+        let items;
+        if(type === "queue") {
+            items = data.queue_pending;
+        } else {
+            items = Object.values(data).map(d => d.prompt);
+        }
+        items.sort((a, b) => a[0] - b[0]);
+        for (let i in items) {
+            append_to_list(items[i], queuecontents, true, type === "queue"? null : data[i].outputs);
         }
     }).catch((response) => {console.log(response)});
 }
@@ -833,31 +824,41 @@ function loadQueueIfVisible()
     }
 }
 
-function seeQueue() {
-    var queue_div = document.getElementById("queuebutton-content");
+function seeItems(type) {
+    var queue_div = document.getElementById(type + "button-content");
     if (queue_div.style.display == 'block') {
-        queue_div.style.display = 'none';
-        var see_queue_button = document.getElementById("seequeuebutton");
-        see_queue_button.innerHTML = "See Queue"
+        closeItems(type)
     } else {
-        loadQueue();
+        loadItems(type);
     }
 }
 
-function closeQueue() {
-    var queue_div = document.getElementById("queuebutton-content");
-    queue_div.style.display = 'none';
+function seeQueue() {
+    closeItems("history")
+    seeItems("queue")
 }
 
-function clearQueue() {
-    fetch('/queue', {
+function seeHistory() {
+    closeItems("queue")
+    seeItems("history")
+}
+
+function closeItems(type) {
+    var queue_div = document.getElementById(type + "button-content");
+    queue_div.style.display = 'none';
+    var see_queue_button = document.getElementById("see" + type + "button");
+    see_queue_button.innerHTML = "See " + type[0].toUpperCase() + type.substr(1)
+}
+
+function clearItems(type) {
+    fetch('/' + type, {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json'
     },
     body: JSON.stringify({"clear":true})
     }).then(data => {
-        loadQueue();
+        loadItems(type);
     })
     .catch(error => console.error(error));
 }
@@ -871,6 +872,7 @@ function clearQueue() {
 <span style="left: 0%;">
 <button style="font-size: 10px;" id="queuebutton" onclick="postPrompt(-1)">Queue Front</button>
 <button style="font-size: 10px; width: 50%;" id="seequeuebutton" onclick="seeQueue()">See Queue</button>
+<button style="font-size: 10px; width: 50%;" id="seehistorybutton" onclick="seeHistory()">See History</button>
 <br>
 </span>
   <div id="queuebutton-content" style="background-color: #e1e1e1;min-width: 160px;display: none;z-index: 101;">
@@ -894,13 +896,21 @@ function clearQueue() {
   </span>
   </div>
 
+  <div id="historybutton-content" style="background-color: #e1e1e1;min-width: 160px;display: none;z-index: 101;">
+    <span style="width:100%;padding: 3px;display:inline-block;">History:</span>
+    <div id="historycontents" style="overflow-y: scroll;height: 100px;background-color: #d0d0d0;padding: 5px;">
+    </div>
+    <span style="padding: 5px;display:inline-block;">
+  <button style="font-size: 12px;" onclick="clearHistory()">Clear History</button>
+  <button style="font-size: 12px;" onclick="loadHistory()">Refresh</button>
+    </span>
+  </div>
 <br>
 <button style="font-size: 20px;" onclick="saveGraph()">Save</button><br>
 <button style="font-size: 20px;" onclick="loadGraph()">Load</button>
 <br>
 <button style="font-size: 20px;" onclick="clearGraph()">Clear</button><br>
 <button style="font-size: 20px;" onclick="loadTxt2Img()">Load Default</button><br>
-<div id="images"></div>
 </span>
 </body>
 </html>
