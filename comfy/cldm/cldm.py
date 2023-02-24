@@ -1,7 +1,6 @@
 #taken from: https://github.com/lllyasviel/ControlNet
 #and modified
 
-import einops
 import torch
 import torch as th
 import torch.nn as nn
@@ -13,8 +12,6 @@ from ldm.modules.diffusionmodules.util import (
     timestep_embedding,
 )
 
-from einops import rearrange, repeat
-from torchvision.utils import make_grid
 from ldm.modules.attention import SpatialTransformer
 from ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample, AttentionBlock
 from ldm.models.diffusion.ddpm import LatentDiffusion
