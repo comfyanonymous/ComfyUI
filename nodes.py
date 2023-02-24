@@ -106,6 +106,21 @@ class VAEDecode:
     def decode(self, vae, samples):
         return (vae.decode(samples["samples"]), )
 
+class VAEDecodeTiled:
+    def __init__(self, device="cpu"):
+        self.device = device
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "decode"
+
+    CATEGORY = "_for_testing"
+
+    def decode(self, vae, samples):
+        return (vae.decode_tiled(samples["samples"]), )
+
 class VAEEncode:
     def __init__(self, device="cpu"):
         self.device = device
@@ -789,6 +804,7 @@ NODE_CLASS_MAPPINGS = {
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
+    "VAEDecodeTiled": VAEDecodeTiled,
 }
 
 CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
