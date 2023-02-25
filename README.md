@@ -50,6 +50,8 @@ Nvidia users should install torch using this command:
 
 Nvidia users should also install Xformers for a speed boost but can still run the software without it.
 
+```pip install xformers```
+
 #### Troubleshooting
 
 If you get the "Torch not compiled with CUDA enabled" error, uninstall torch with:
