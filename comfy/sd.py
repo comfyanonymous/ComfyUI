@@ -388,18 +388,28 @@ class ControlNet:
             self.control_model = model_management.load_if_low_vram(self.control_model)
             control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
             self.control_model = model_management.unload_if_low_vram(self.control_model)
-        out = []
+        out = {'input':[], 'middle':[], 'output': []}
         autocast_enabled = torch.is_autocast_enabled()
 
         for i in range(len(control)):
+            if i == (len(control) - 1):
+                key = 'middle'
+                index = 0
+            else:
+                key = 'output'
+                index = i
             x = control[i]
             x *= self.strength
             if x.dtype != output_dtype and not autocast_enabled:
                 x = x.to(output_dtype)
 
-            if control_prev is not None:
-                x += control_prev[i]
-            out.append(x)
+            if control_prev is not None and key in control_prev:
+                prev = control_prev[key][index]
+                if prev is not None:
+                    x += prev
+            out[key].append(x)
+        if control_prev is not None and 'input' in control_prev:
+            out['input'] = control_prev['input']
         return out
 
     def set_cond_hint(self, cond_hint, strength=1.0):
