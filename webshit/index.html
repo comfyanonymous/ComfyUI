@@ -668,7 +668,6 @@ function setRunningNode(id) {
         ws.addEventListener("message", (event) => {
             try {
                 const msg = JSON.parse(event.data);
-                console.log(msg.type, msg.data);
                 switch(msg.type) {
                     case "status":
                         if(msg.data.sid) {
