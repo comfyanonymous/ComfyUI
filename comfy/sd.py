@@ -535,6 +535,7 @@ class T2IAdapter:
         output_dtype = x_noisy.dtype
         out = {'input':[]}
 
+        autocast_enabled = torch.is_autocast_enabled()
         for i in range(len(self.control_input)):
             key = 'input'
             x = self.control_input[i] * self.strength
