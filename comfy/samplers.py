@@ -167,7 +167,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 timestep_ = torch.cat([timestep] * batch_chunks)
 
                 if control is not None:
-                    c['control'] = control.get_control(input_x, timestep_, c['c_crossattn'])
+                    c['control'] = control.get_control(input_x, timestep_, c['c_crossattn'], len(cond_or_uncond))
 
                 output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
                 del input_x
