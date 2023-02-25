@@ -265,39 +265,41 @@ function onObjectInfo(json) {
                 }
 
                 MyNode.prototype.onDrawBackground = function(ctx) {
-                    const output = nodeOutputs[this.id + ""];
-                    if(output && output.images) {
-                        const src = output.images[0];
-                        if(this.src !== src) {
-                            this.img = null;
-                            this.src = src;
-                            const img = new Image();
-                            img.src = "/view/" + src;
-                            img.onload = () => {
-                                graph.setDirtyCanvas(true);
-                                this.img = img;
-                                if(this.size[1] < 100) {
-                                    this.size[1] = 250;
+                    if(!this.flags.collapsed) {
+                        const output = nodeOutputs[this.id + ""];
+                        if(output && output.images) {
+                            const src = output.images[0];
+                            if(this.src !== src) {
+                                this.img = null;
+                                this.src = src;
+                                const img = new Image();
+                                img.src = "/view/" + src;
+                                img.onload = () => {
+                                    graph.setDirtyCanvas(true);
+                                    this.img = img;
+                                    if(this.size[1] < 100) {
+                                        this.size[1] = 250;
+                                    }
                                 }
                             }
-                        }
-                        if(this.img) {
-                            let w = this.img.naturalWidth;
-                            let h = this.img.naturalHeight;
-                            let dw = this.size[0];
-                            let dh = this.size[1];
+                            if(this.img) {
+                                let w = this.img.naturalWidth;
+                                let h = this.img.naturalHeight;
+                                let dw = this.size[0];
+                                let dh = this.size[1];
 
-                            const scaleX = dw / w;
-                            const scaleY = dh / h;
-                            const scale = Math.min(scaleX, scaleY, 1);
+                                const scaleX = dw / w;
+                                const scaleY = dh / h;
+                                const scale = Math.min(scaleX, scaleY, 1);
 
-                            w *= scale;
-                            h *= scale;
+                                w *= scale;
+                                h *= scale;
 
-                            let x = (dw - w) / 2;
-                            let y = (dh - h) / 2;
+                                let x = (dw - w) / 2;
+                                let y = (dh - h) / 2;
 
-                            ctx.drawImage(this.img, x, y, w, h);
+                                ctx.drawImage(this.img, x, y, w, h);
+                            }
                         }
                     }
                 };
