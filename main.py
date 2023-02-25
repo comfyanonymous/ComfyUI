@@ -371,6 +371,18 @@ class PromptQueue:
                     return True
         return False
 
+    def get_history(self):
+        with self.mutex:
+            return copy.deepcopy(self.history)
+
+    def wipe_history(self):
+        with self.mutex:
+            self.history = {}
+
+    def delete_history_item(self, id_to_delete):
+        with self.mutex:
+            self.history.pop(id_to_delete, None)
+
 async def run(server, address='', port=8188):
     await asyncio.gather(server.start(address, port), server.publish_loop())
 
