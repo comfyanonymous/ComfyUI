@@ -8,6 +8,7 @@ from ldm.util import instantiate_from_config
 from ldm.models.autoencoder import AutoencoderKL
 from omegaconf import OmegaConf
 from .cldm import cldm
+from .t2i_adapter import adapter
 
 from . import utils
 
@@ -318,6 +319,37 @@ class VAE:
         pixel_samples = pixel_samples.cpu().movedim(1,-1)
         return pixel_samples
 
+    def decode_tiled(self, samples):
+        tile_x = tile_y = 64
+        overlap = 8
+        model_management.unload_model()
+        output = torch.empty((samples.shape[0], 3, samples.shape[2] * 8, samples.shape[3] * 8), device="cpu")
+        self.first_stage_model = self.first_stage_model.to(self.device)
+        for b in range(samples.shape[0]):
+            s = samples[b:b+1]
+            out = torch.zeros((s.shape[0], 3, s.shape[2] * 8, s.shape[3] * 8), device="cpu")
+            out_div = torch.zeros((s.shape[0], 3, s.shape[2] * 8, s.shape[3] * 8), device="cpu")
+            for y in range(0, s.shape[2], tile_y - overlap):
+                for x in range(0, s.shape[3], tile_x - overlap):
+                    s_in = s[:,:,y:y+tile_y,x:x+tile_x]
+
+                    pixel_samples = self.first_stage_model.decode(1. / self.scale_factor * s_in.to(self.device))
+                    pixel_samples = torch.clamp((pixel_samples + 1.0) / 2.0, min=0.0, max=1.0)
+                    ps = pixel_samples.cpu()
+                    mask = torch.ones_like(ps)
+                    feather = overlap * 8
+                    for t in range(feather):
+                            mask[:,:,t:1+t,:] *= ((1.0/feather) * (t + 1))
+                            mask[:,:,mask.shape[2] -1 -t: mask.shape[2]-t,:] *= ((1.0/feather) * (t + 1))
+                            mask[:,:,:,t:1+t] *= ((1.0/feather) * (t + 1))
+                            mask[:,:,:,mask.shape[3]- 1 - t: mask.shape[3]- t] *= ((1.0/feather) * (t + 1))
+                    out[:,:,y*8:(y+tile_y)*8,x*8:(x+tile_x)*8] += ps * mask
+                    out_div[:,:,y*8:(y+tile_y)*8,x*8:(x+tile_x)*8] += mask
+
+            output[b:b+1] = out/out_div
+        self.first_stage_model = self.first_stage_model.cpu()
+        return output.movedim(1,-1)
+
     def encode(self, pixel_samples):
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
@@ -357,18 +389,28 @@ class ControlNet:
             self.control_model = model_management.load_if_low_vram(self.control_model)
             control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
             self.control_model = model_management.unload_if_low_vram(self.control_model)
-        out = []
+        out = {'middle':[], 'output': []}
         autocast_enabled = torch.is_autocast_enabled()
 
         for i in range(len(control)):
+            if i == (len(control) - 1):
+                key = 'middle'
+                index = 0
+            else:
+                key = 'output'
+                index = i
             x = control[i]
             x *= self.strength
             if x.dtype != output_dtype and not autocast_enabled:
                 x = x.to(output_dtype)
 
-            if control_prev is not None:
-                x += control_prev[i]
-            out.append(x)
+            if control_prev is not None and key in control_prev:
+                prev = control_prev[key][index]
+                if prev is not None:
+                    x += prev
+            out[key].append(x)
+        if control_prev is not None and 'input' in control_prev:
+            out['input'] = control_prev['input']
         return out
 
     def set_cond_hint(self, cond_hint, strength=1.0):
@@ -463,6 +505,95 @@ def load_controlnet(ckpt_path, model=None):
     control = ControlNet(control_model)
     return control
 
+class T2IAdapter:
+    def __init__(self, t2i_model, channels_in, device="cuda"):
+        self.t2i_model = t2i_model
+        self.channels_in = channels_in
+        self.strength = 1.0
+        self.device = device
+        self.previous_controlnet = None
+        self.control_input = None
+        self.cond_hint_original = None
+        self.cond_hint = None
+
+    def get_control(self, x_noisy, t, cond_txt):
+        control_prev = None
+        if self.previous_controlnet is not None:
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond_txt)
+
+        if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
+            if self.cond_hint is not None:
+                del self.cond_hint
+            self.cond_hint = None
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").float().to(self.device)
+            if self.channels_in == 1 and self.cond_hint.shape[1] > 1:
+                self.cond_hint = torch.mean(self.cond_hint, 1, keepdim=True)
+            self.t2i_model.to(self.device)
+            self.control_input = self.t2i_model(self.cond_hint)
+            self.t2i_model.cpu()
+
+        output_dtype = x_noisy.dtype
+        out = {'input':[]}
+
+        for i in range(len(self.control_input)):
+            key = 'input'
+            x = self.control_input[i] * self.strength
+            if x.dtype != output_dtype and not autocast_enabled:
+                x = x.to(output_dtype)
+
+            if control_prev is not None and key in control_prev:
+                index = len(control_prev[key]) - i * 3 - 3
+                prev = control_prev[key][index]
+                if prev is not None:
+                    x += prev
+            out[key].insert(0, None)
+            out[key].insert(0, None)
+            out[key].insert(0, x)
+
+        if control_prev is not None and 'input' in control_prev:
+            for i in range(len(out['input'])):
+                if out['input'][i] is None:
+                    out['input'][i] = control_prev['input'][i]
+        if control_prev is not None and 'middle' in control_prev:
+            out['middle'] = control_prev['middle']
+        if control_prev is not None and 'output' in control_prev:
+            out['output'] = control_prev['output']
+        return out
+
+    def set_cond_hint(self, cond_hint, strength=1.0):
+        self.cond_hint_original = cond_hint
+        self.strength = strength
+        return self
+
+    def set_previous_controlnet(self, controlnet):
+        self.previous_controlnet = controlnet
+        return self
+
+    def copy(self):
+        c = T2IAdapter(self.t2i_model, self.channels_in)
+        c.cond_hint_original = self.cond_hint_original
+        c.strength = self.strength
+        return c
+
+    def cleanup(self):
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.cleanup()
+        if self.cond_hint is not None:
+            del self.cond_hint
+            self.cond_hint = None
+
+    def get_control_models(self):
+        out = []
+        if self.previous_controlnet is not None:
+            out += self.previous_controlnet.get_control_models()
+        return out
+
+def load_t2i_adapter(ckpt_path, model=None):
+    t2i_data = load_torch_file(ckpt_path)
+    cin = t2i_data['conv_in.weight'].shape[1]
+    model_ad = adapter.Adapter(cin=cin, channels=[320, 640, 1280, 1280][:4], nums_rb=2, ksize=1, sk=True, use_conv=False)
+    model_ad.load_state_dict(t2i_data)
+    return T2IAdapter(model_ad, cin // 64)
 
 def load_clip(ckpt_path, embedding_directory=None):
     clip_data = load_torch_file(ckpt_path)
