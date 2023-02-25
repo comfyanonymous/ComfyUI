@@ -264,6 +264,15 @@ function onObjectInfo(json) {
                     this.addInput(x, type);
                 }
 
+                MyNode.prototype.getExtraMenuOptions = function(graph, options) {
+                    if(this.img) {
+                        options.unshift({
+                            content: "Open Image",
+                            callback: () => window.open(this.img.src, "_blank")
+                        });
+                    }
+                }
+
                 MyNode.prototype.onDrawBackground = function(ctx) {
                     if(!this.flags.collapsed) {
                         const output = nodeOutputs[this.id + ""];
@@ -287,6 +296,10 @@ function onObjectInfo(json) {
                                 let h = this.img.naturalHeight;
                                 let dw = this.size[0];
                                 let dh = this.size[1];
+                                
+                                if(this.type === "SaveImage") {
+                                    dh -= 55;
+                                }
 
                                 const scaleX = dw / w;
                                 const scaleY = dh / h;
@@ -297,6 +310,10 @@ function onObjectInfo(json) {
 
                                 let x = (dw - w) / 2;
                                 let y = (dh - h) / 2;
+
+                                if(this.type === "SaveImage") {
+                                    y += 55;
+                                }
 
                                 ctx.drawImage(this.img, x, y, w, h);
                             }
