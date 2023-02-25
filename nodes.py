@@ -292,6 +292,22 @@ class ControlNetApply:
             c.append(n)
         return (c, )
 
+class T2IAdapterLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    t2i_adapter_dir = os.path.join(models_dir, "t2i_adapter")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "t2i_adapter_name": (filter_files_extensions(recursive_search(s.t2i_adapter_dir), supported_pt_extensions), )}}
+
+    RETURN_TYPES = ("CONTROL_NET",)
+    FUNCTION = "load_t2i_adapter"
+
+    CATEGORY = "loaders"
+
+    def load_t2i_adapter(self, t2i_adapter_name):
+        t2i_path = os.path.join(self.t2i_adapter_dir, t2i_adapter_name)
+        t2i_adapter = comfy.sd.load_t2i_adapter(t2i_path)
+        return (t2i_adapter,)
 
 class CLIPLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
@@ -804,6 +820,7 @@ NODE_CLASS_MAPPINGS = {
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
+    "T2IAdapterLoader": T2IAdapterLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
 }
 

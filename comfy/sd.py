@@ -8,6 +8,7 @@ from ldm.util import instantiate_from_config
 from ldm.models.autoencoder import AutoencoderKL
 from omegaconf import OmegaConf
 from .cldm import cldm
+from .t2i_adapter import adapter
 
 from . import utils
 
@@ -388,7 +389,7 @@ class ControlNet:
             self.control_model = model_management.load_if_low_vram(self.control_model)
             control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
             self.control_model = model_management.unload_if_low_vram(self.control_model)
-        out = {'input':[], 'middle':[], 'output': []}
+        out = {'middle':[], 'output': []}
         autocast_enabled = torch.is_autocast_enabled()
 
         for i in range(len(control)):
@@ -504,6 +505,95 @@ def load_controlnet(ckpt_path, model=None):
     control = ControlNet(control_model)
     return control
 
+class T2IAdapter:
+    def __init__(self, t2i_model, channels_in, device="cuda"):
+        self.t2i_model = t2i_model
+        self.channels_in = channels_in
+        self.strength = 1.0
+        self.device = device
+        self.previous_controlnet = None
+        self.control_input = None
+        self.cond_hint_original = None
+        self.cond_hint = None
+
+    def get_control(self, x_noisy, t, cond_txt):
+        control_prev = None
+        if self.previous_controlnet is not None:
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond_txt)
+
+        if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
+            if self.cond_hint is not None:
+                del self.cond_hint
+            self.cond_hint = None
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").float().to(self.device)
+            if self.channels_in == 1 and self.cond_hint.shape[1] > 1:
+                self.cond_hint = torch.mean(self.cond_hint, 1, keepdim=True)
+            self.t2i_model.to(self.device)
+            self.control_input = self.t2i_model(self.cond_hint)
+            self.t2i_model.cpu()
+
+        output_dtype = x_noisy.dtype
+        out = {'input':[]}
+
+        for i in range(len(self.control_input)):
+            key = 'input'
+            x = self.control_input[i] * self.strength
+            if x.dtype != output_dtype and not autocast_enabled:
+                x = x.to(output_dtype)
+
+            if control_prev is not None and key in control_prev:
+                index = len(control_prev[key]) - i * 3 - 3
+                prev = control_prev[key][index]
+                if prev is not None:
+                    x += prev
+            out[key].insert(0, None)
+            out[key].insert(0, None)
+            out[key].insert(0, x)
+
+        if control_prev is not None and 'input' in control_prev:
+            for i in range(len(out['input'])):
+                if out['input'][i] is None:
+                    out['input'][i] = control_prev['input'][i]
+        if control_prev is not None and 'middle' in control_prev:
+            out['middle'] = control_prev['middle']
+        if control_prev is not None and 'output' in control_prev:
+            out['output'] = control_prev['output']
+        return out
+
+    def set_cond_hint(self, cond_hint, strength=1.0):
+        self.cond_hint_original = cond_hint
+        self.strength = strength
+        return self
+
+    def set_previous_controlnet(self, controlnet):
+        self.previous_controlnet = controlnet
+        return self
+
+    def copy(self):
+        c = T2IAdapter(self.t2i_model, self.channels_in)
+        c.cond_hint_original = self.cond_hint_original
+        c.strength = self.strength
+        return c
+
+    def cleanup(self):
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.cleanup()
+        if self.cond_hint is not None:
+            del self.cond_hint
+            self.cond_hint = None
+
+    def get_control_models(self):
+        out = []
+        if self.previous_controlnet is not None:
+            out += self.previous_controlnet.get_control_models()
+        return out
+
+def load_t2i_adapter(ckpt_path, model=None):
+    t2i_data = load_torch_file(ckpt_path)
+    cin = t2i_data['conv_in.weight'].shape[1]
+    model_ad = adapter.Adapter(cin=cin, channels=[320, 640, 1280, 1280][:4], nums_rb=2, ksize=1, sk=True, use_conv=False)
+    model_ad.load_state_dict(t2i_data)
+    return T2IAdapter(model_ad, cin // 64)
 
 def load_clip(ckpt_path, embedding_directory=None):
     clip_data = load_torch_file(ckpt_path)
