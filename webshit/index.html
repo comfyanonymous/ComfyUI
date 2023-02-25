@@ -2,7 +2,6 @@
 <head>
 	<link rel="stylesheet" type="text/css" href="litegraph.css">
 	<script type="text/javascript" src="litegraph.core.js"></script>
-	<script type="text/javascript" src="socket.io.min.js"></script>
 </head>
 <style>
 .customtext_input {
@@ -627,45 +626,76 @@ function setRunningNode(id) {
         document.getElementById("queuesize").innerHTML = "Queue size: " + (data ? data.exec_info.queue_remaining : "ERR");
     }
 
+    //fix for colab and other things that don't support websockets.
+    function manually_fetch_queue() {
+        fetch('/prompt')
+            .then(response => response.json())
+            .then(data => {
+                updateStatus(data);
+            }).catch((response) => {updateStatus(null)});
+    }
+
+    let ws;
     function createSocket(isReconnect) {
+        if(ws) return;
+
         let opened = false;
-        const ws = io();
+        ws = new WebSocket(`ws${window.location.protocol === "https:"? "s" : ""}://${location.host}/ws`);
 
-        ws.on("connect", () => {
-            clientId = ws.id;
-
-            if(opened) {
+        ws.addEventListener("open", () => {
+            opened = true;
+            if(isReconnect) {
                 closeModal();
-            } else {
-                opened = true;
             }
         });
 
-        ws.on("disconnect", () => {
+        ws.addEventListener("error", () => {
+            if(ws) ws.close();
+            manually_fetch_queue();
+        });
+
+        ws.addEventListener("close", () => {
+            setTimeout(() => {
+                ws = null;
+                createSocket(true);
+            }, 300);
             if(opened) {
                 updateStatus(null);
                 showModal("Reconnecting...");
             }
         });
 
-        ws.on("status", (data) => {
-            updateStatus(data);
-        });
-
-        ws.on("progress", (data) => {
-            updateNodeProgress(data);
-        });
-
-        ws.on("executing", (data) => {
-            setRunningNode(data.node);
-        });
-
-        ws.on("executed", (data) => {
-            nodeOutputs[data.node] = data.output;
+        ws.addEventListener("message", (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                console.log(msg.type, msg.data);
+                switch(msg.type) {
+                    case "status":
+                        if(msg.data.sid) {
+                            clientId = msg.data.sid;
+                        }
+                        updateStatus(msg.data.status);
+                        break;
+                    case "progress":
+                        updateNodeProgress(msg.data)
+                        break;
+                    case "executing":
+                        setRunningNode(msg.data.node);
+                        break;
+                    case "executed":
+                         nodeOutputs[msg.data.node] = msg.data.output;
+                        break;
+                    default:
+                        throw new Error("Unknown message type")
+                }
+            } catch (error) {
+                console.warn("Unhandled message:", event.data)
+            }
         });
     }
     createSocket();
 })();
+
 
 function clearGraph() {
     graph.clear();
