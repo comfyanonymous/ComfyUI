@@ -58,6 +58,13 @@
     white-space: pre-line; /* This will respect line breaks */
     margin-bottom: 20px; /* Add some margin between the text and the close button*/
 }
+
+@media only screen and (max-height: 850px) {
+    #menu {
+        margin-top: -70px;
+    }
+}
+
 </style>
 <div id="myErrorModal" class="modal">
   <div class="modal-content">
@@ -914,7 +921,7 @@ function clearItems(type) {
 
 </script>
 
-<span style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;width:170px; transform: translateY(-50%);">
+<span id="menu" style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;width:170px">
 <span id="queuesize">Queue size: X</span><br>
 <button style="font-size: 20px;width: 100%;" id="queuebutton" onclick="postPrompt(0)">Queue Prompt</button><br>
 <span style="left: 0%;">
