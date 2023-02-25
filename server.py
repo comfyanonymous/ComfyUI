@@ -3,6 +3,8 @@ import sys
 import asyncio
 import nodes
 import main
+import uuid
+import json
 
 try:
     import aiohttp
@@ -14,16 +16,6 @@ except ImportError:
     print("pip install -r requirements.txt")
     sys.exit()
 
-try:
-    import socketio
-except ImportError:
-    print("Module 'python-socketio' not installed. Please install it via:")
-    print("pip install python-socketio")
-    print("or")
-    print("pip install -r requirements.txt")
-    sys.exit()
-
-
 class PromptServer():
     def __init__(self, loop):
         self.prompt_queue = None
@@ -31,15 +23,26 @@ class PromptServer():
         self.messages = asyncio.Queue()
         self.number = 0
         self.app = web.Application()
-        self.sio = socketio.AsyncServer()
-        self.sio.attach(self.app)
+        self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "webshit")
         routes = web.RouteTableDef()
 
-        @self.sio.event
-        async def connect(sid, environ):
-            await self.sio.emit("status", self.get_queue_info(), sid)
+        @routes.get('/ws')
+        async def websocket_handler(request):
+            ws = web.WebSocketResponse()
+            await ws.prepare(request)
+            sid = uuid.uuid4().hex
+            self.sockets[sid] = ws
+            try:
+                # Send initial state to the new client
+                await self.send("status", { "status": self.get_queue_info(), 'sid': sid }, sid)
+                async for msg in ws:
+                    if msg.type == aiohttp.WSMsgType.ERROR:
+                        print('ws connection closed with exception %s' % ws.exception())
+            finally:
+                self.sockets.pop(sid)
+            return ws
 
         @routes.get("/")
         async def get_root(request):
@@ -164,14 +167,23 @@ class PromptServer():
         return prompt_info
 
     async def send(self, event, data, sid=None):
-        await self.sio.emit(event, data, to=sid)
+        message = {"type": event, "data": data}
+       
+        if isinstance(message, str) == False:
+            message = json.dumps(message)
+
+        if sid is None:
+            for ws in self.sockets.values():
+                await ws.send_str(message)
+        elif sid in self.sockets:
+            await self.sockets[sid].send_str(message)
 
     def send_sync(self, event, data, sid=None):
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
     
     def queue_updated(self):
-        self.send_sync("status", self.get_queue_info())
+        self.send_sync("status", { "status": self.get_queue_info() })
 
     async def publish_loop(self):
         while True:
