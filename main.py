@@ -383,8 +383,8 @@ class PromptQueue:
         with self.mutex:
             self.history.pop(id_to_delete, None)
 
-async def run(server, address='', port=8188):
-    await asyncio.gather(server.start(address, port), server.publish_loop())
+async def run(server, address='', port=8188, verbose=True):
+    await asyncio.gather(server.start(address, port, verbose), server.publish_loop())
 
 def hijack_progress(server):
     from tqdm.auto import tqdm
@@ -410,6 +410,10 @@ if __name__ == "__main__":
     else:
         address = '127.0.0.1'
 
+    dont_print = False
+    if '--dont-print-server' in sys.argv:
+        dont_print = True
+
     port = 8188
     try:
         p_index = sys.argv.index('--port')
@@ -419,9 +423,9 @@ if __name__ == "__main__":
 
     if os.name == "nt":
         try:
-            loop.run_until_complete(run(server, address=address, port=port))
+            loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print))
         except KeyboardInterrupt:
             pass
     else:
-        loop.run_until_complete(run(server, address=address, port=port))
+        loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print))
 

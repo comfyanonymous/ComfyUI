@@ -190,7 +190,7 @@ class PromptServer():
             msg = await self.messages.get()
             await self.send(*msg)
 
-    async def start(self, address, port):
+    async def start(self, address, port, verbose=True):
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, address, port)
@@ -198,5 +198,6 @@ class PromptServer():
 
         if address == '':
             address = '0.0.0.0'
-        print("Starting server\n")
-        print("To see the GUI go to: http://{}:{}".format(address, port))
+        if verbose:
+            print("Starting server\n")
+            print("To see the GUI go to: http://{}:{}".format(address, port))
