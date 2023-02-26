@@ -393,7 +393,7 @@ class ControlNet:
     def get_control(self, x_noisy, t, cond_txt, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
-            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond_txt)
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond_txt, batched_number)
 
         output_dtype = x_noisy.dtype
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
@@ -541,7 +541,7 @@ class T2IAdapter:
     def get_control(self, x_noisy, t, cond_txt, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
-            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond_txt)
+            control_prev = self.previous_controlnet.get_control(x_noisy, t, cond_txt, batched_number)
 
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
