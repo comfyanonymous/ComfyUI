@@ -875,8 +875,9 @@ def sample_unipc(model, noise, image, sigmas, sampling_function, max_denoise, ex
             model_kwargs=extra_args,
         )
 
+        order = min(3, len(timesteps) - 1)
         uni_pc = UniPC(model_fn, ns, predict_x0=True, thresholding=False, noise_mask=noise_mask, masked_image=image, noise=noise, variant=variant)
-        x = uni_pc.sample(img, timesteps=timesteps, skip_type="time_uniform", method="multistep", order=3, lower_order_final=True)
+        x = uni_pc.sample(img, timesteps=timesteps, skip_type="time_uniform", method="multistep", order=order, lower_order_final=True)
         if not to_zero:
             x /= ns.marginal_alpha(timesteps[-1])
         return x
