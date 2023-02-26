@@ -318,7 +318,6 @@ function onObjectInfo(json) {
                                 const canvas = graph.list_of_graphcanvas[0];
                                 const mouse = canvas.graph_mouse;
                                 if(!canvas.pointer_is_down && this.pointerDown) {
-                                    console.log("up", ...mouse, "from", ...this.pointerDown.pos)
                                     if(mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
                                         this.imageIndex = this.pointerDown.index;
                                     }
