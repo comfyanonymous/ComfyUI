@@ -1,0 +1,9 @@
+{
+  "ckpt_path": "",
+  "ckpt_cfg_path": "",
+  "lora_path": "",
+  "vae_path": "",
+  "controlnet_path": "",
+  "clip_path": "",
+  "ti_path": ""
+}
