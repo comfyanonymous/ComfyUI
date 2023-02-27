@@ -30,7 +30,7 @@ prompt_text = """
                 "6",
                 0
             ],
-            "sampler_name": "sample_euler",
+            "sampler_name": "euler",
             "scheduler": "normal",
             "seed": 8566257,
             "steps": 20

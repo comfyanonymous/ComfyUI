@@ -321,9 +321,9 @@ def apply_control_net_to_equal_area(conds, uncond):
 
 class KSampler:
     SCHEDULERS = ["karras", "normal", "simple", "ddim_uniform"]
-    SAMPLERS = ["sample_euler", "sample_euler_ancestral", "sample_heun", "sample_dpm_2", "sample_dpm_2_ancestral",
-                "sample_lms", "sample_dpm_fast", "sample_dpm_adaptive", "sample_dpmpp_2s_ancestral", "sample_dpmpp_sde",
-                "sample_dpmpp_2m", "ddim", "uni_pc", "uni_pc_bh2"]
+    SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
+                "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde",
+                "dpmpp_2m", "ddim", "uni_pc", "uni_pc_bh2"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None):
         self.model = model
@@ -350,7 +350,7 @@ class KSampler:
         sigmas = None
 
         discard_penultimate_sigma = False
-        if self.sampler in ['sample_dpm_2', 'sample_dpm_2_ancestral']:
+        if self.sampler in ['dpm_2', 'dpm_2_ancestral']:
             steps += 1
             discard_penultimate_sigma = True
 
@@ -476,11 +476,11 @@ class KSampler:
 
                 if latent_image is not None:
                     noise += latent_image
-                if self.sampler == "sample_dpm_fast":
+                if self.sampler == "dpm_fast":
                     samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
-                elif self.sampler == "sample_dpm_adaptive":
+                elif self.sampler == "dpm_adaptive":
                     samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
                 else:
-                    samples = getattr(k_diffusion_sampling, self.sampler)(self.model_k, noise, sigmas, extra_args=extra_args)
+                    samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args)
 
         return samples.to(torch.float32)
