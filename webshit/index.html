@@ -203,8 +203,8 @@ function onObjectInfo(json) {
                             type: "customtext",
                             name: x,
                             dynamic_prompt: dynamic_prompt,
-                            get value() { return this.input_div.innerText;},
-                            set value(x) { this.input_div.innerText = x;},
+                            get value() { return this.input_div.value;},
+                            set value(x) { this.input_div.value = x;},
                             callback: function(v){console.log(v);},
                             options: {},
                             draw: function(ctx, node, widget_width, y, H){
@@ -235,13 +235,15 @@ function onObjectInfo(json) {
                                 ctx.restore();
                             },
                         };
-                        w.input_div = document.createElement('div');
+                        w.input_div = document.createElement('textarea');
                         w.input_div.contentEditable = true;
                         w.input_div.className = "customtext_input";
                         w.input_div.style.overflow = 'hidden';
                         w.input_div.style.overflowY = 'auto';
                         w.input_div.style.padding = 2;
-                        w.input_div.innerText = default_val;
+                        w.input_div.style.resize = 'none';
+                        w.input_div.style.border = 'none';
+                        w.input_div.value = default_val;
                         document.addEventListener('click', function(event) {
                             if (!w.input_div.contains(event.target)) {
                                 w.input_div.blur();
@@ -536,10 +538,10 @@ function graphToPrompt() {
 
                     // store the unresolved prompt to restore it after sending the resolved prompt to the backend
                     // use of .innerText which keep \n symbols in order to not break multilines support
-                    widget.value_initial = widget.input_div.innerText;
+                    widget.value_initial = widget.input_div.value;
 
                     // resolve the string
-                    var prompt = widget.input_div.innerText;
+                    var prompt = widget.input_div.value;
                     while (prompt.replace("\\{", "").includes('{') && prompt.replace("\\}", "").includes('}')) {
                         const startIndex = prompt.replace("\\{", "00").indexOf('{');
                         const endIndex = prompt.replace("\\}", "00").indexOf('}');
