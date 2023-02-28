@@ -5,6 +5,7 @@ import json
 import threading
 import heapq
 import traceback
+import gc
 
 import torch
 import nodes
@@ -187,7 +188,10 @@ class PromptExecutor:
                 if self.server.client_id is not None:
                     self.server.send_sync("executing", { "node": None }, self.server.client_id)
 
+        gc.collect()
         torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
 
 def validate_inputs(prompt, item):
     unique_id = item
