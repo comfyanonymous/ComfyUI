@@ -2,7 +2,7 @@ import os
 import sys
 import asyncio
 import nodes
-import main
+import execution
 import uuid
 import json
 
@@ -111,7 +111,7 @@ class PromptServer():
 
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
-                valid = main.validate_prompt(prompt)
+                valid = execution.validate_prompt(prompt)
                 extra_data = {}
                 if "extra_data" in json_data:
                     extra_data = json_data["extra_data"]
