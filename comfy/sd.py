@@ -222,8 +222,11 @@ class ModelPatcher:
         return self.model
     def unpatch_model(self):
         model_sd = self.model.state_dict()
-        for k in self.backup:
+        keys = list(self.backup.keys())
+        for k in keys:
             model_sd[k][:] = self.backup[k]
+            del self.backup[k]
+
         self.backup = {}
 
 def load_lora_for_models(model, clip, lora_path, strength_model, strength_clip):
