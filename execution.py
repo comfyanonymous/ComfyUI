@@ -189,8 +189,10 @@ class PromptExecutor:
                     self.server.send_sync("executing", { "node": None }, self.server.client_id)
 
         gc.collect()
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        if torch.cuda.is_available():
+            if torch.version.cuda: #This seems to make things worse on ROCm so I only do it for cuda
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
 
 
 def validate_inputs(prompt, item):
