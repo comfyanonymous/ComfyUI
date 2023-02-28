@@ -25,7 +25,7 @@ try:
         if total_vram <= 4096:
             print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
             set_vram_to = LOW_VRAM
-        elif total_vram > total_ram * 1.2 and total_vram > 14336:
+        elif total_vram > total_ram * 1.1 and total_vram > 14336:
             print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
             vram_state = HIGH_VRAM
 except:
