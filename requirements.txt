@@ -9,3 +9,5 @@ safetensors
 pytorch_lightning
 aiohttp
 accelerate
+realesrgan
+gfpgan
