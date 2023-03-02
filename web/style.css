@@ -1,0 +1,81 @@
+body {
+	width: 100vw;
+	height: 100vh;
+	margin: 0;
+	overflow: hidden;
+}
+
+#graph-canvas {
+	width: 100%;
+	height: 100%;
+}
+
+.comfy-multiline-input {
+	background-color: #ffffff;
+	overflow: hidden;
+	overflow-y: auto;
+	padding: 2px;
+	resize: none;
+	border: none;
+}
+
+.comfy-modal {
+	display: none; /* Hidden by default */
+	position: fixed; /* Stay in place */
+	z-index: 100; /* Sit on top */
+	padding: 30px 30px 10px 30px;
+	background-color: #ff0000; /* Modal background */
+	box-shadow: 0px 0px 20px #888888;
+	border-radius: 10px;
+	text-align: center;
+	top: 50%;
+	left: 50%;
+	max-width: 80vw;
+	max-height: 80vh;
+	transform: translate(-50%, -50%);
+	overflow: hidden;
+}
+
+.comfy-modal-content {
+	display: flex;
+	flex-direction: column;
+}
+
+.comfy-modal p {
+	overflow: auto;
+	white-space: pre-line; /* This will respect line breaks */
+	margin-bottom: 20px; /* Add some margin between the text and the close button*/
+}
+
+.comfy-modal button {
+	cursor: pointer;
+	color: #aaaaaa;
+	border: none;
+	background-color: transparent;
+	font-size: 24px;
+	font-weight: bold;
+	width: 100%;
+}
+
+.comfy-modal button:hover,
+.comfy-modal button:focus {
+	color: #000;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		background-color: #202020;
+	}
+	.comfy-multiline-input {
+		background-color: #202020;
+		color: white;
+	}
+}
+
+@media only screen and (max-height: 850px) {
+	#menu {
+		margin-top: -70px;
+	}
+}
