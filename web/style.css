@@ -64,6 +64,38 @@ body {
 	cursor: pointer;
 }
 
+.comfy-menu {
+	width: 200px;
+	font-size: 15px;
+	position: absolute;
+	top: 50%;
+	right: 0%;
+	background-color: white;
+	text-align: center;
+	z-index: 100;
+	width: 170px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.comfy-menu-btns {
+	margin-bottom: 10px;
+}
+
+.comfy-menu-btn-sm {
+	font-size: 10px;
+	width: 50%;
+}
+
+.comfy-menu-btn-lg, .comfy-menu-btn-queue {
+	font-size: 20px;
+}
+
+.comfy-menu-btn-queue {
+	width: 100%;
+}
+
 @media (prefers-color-scheme: dark) {
 	body {
 		background-color: #202020;

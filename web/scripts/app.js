@@ -1,74 +1,8 @@
 import { ComfyWidgets } from "./widgets.js";
+import { ComfyUI } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-
-class ComfyDialog {
-	constructor() {
-		this.element = document.createElement("div");
-		this.element.classList.add("comfy-modal");
-
-		const content = document.createElement("div");
-		content.classList.add("comfy-modal-content");
-		this.textElement = document.createElement("p");
-		content.append(this.textElement);
-
-		const closeBtn = document.createElement("button");
-		closeBtn.type = "button";
-		closeBtn.textContent = "CLOSE";
-		content.append(closeBtn);
-		closeBtn.onclick = () => this.close();
-
-		this.element.append(content);
-		document.body.append(this.element);
-	}
-
-	close() {
-		this.element.style.display = "none";
-	}
-
-	show(html) {
-		this.textElement.innerHTML = html;
-		this.element.style.display = "flex";
-	}
-}
-
-class ComfyQueue {
-	constructor() {
-		this.element = document.createElement("div");
-	}
-
-	async update() {
-		if (this.element.style.display !== "none") {
-			await this.load();
-		}
-	}
-
-	async show() {
-		this.element.style.display = "block";
-		await this.load();
-	}
-
-	async load() {
-		const queue = await api.getQueue();
-	}
-
-	hide() {
-		this.element.style.display = "none";
-	}
-}
-
-
-class ComfyUI {
-	constructor(app) {
-		this.app = app;
-		this.menuContainer = document.createElement("div");
-		this.menuContainer.classList.add("comfy-menu");
-		document.body.append(this.menuContainer);
-
-		this.dialog = new ComfyDialog();
-		this.queue = new ComfyQueue();
-	}
-}
+import { getPngMetadata } from "./pnginfo.js";
 
 class ComfyApp {
 	constructor() {
@@ -360,6 +294,103 @@ class ComfyApp {
 		};
 	}
 
+	#addDropHandler() {
+		// Get prompt from dropped PNG or json
+		document.addEventListener("drop", async (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			const file = event.dataTransfer.files[0];
+
+			if (file.type === "image/png") {
+				const pngInfo = await getPngMetadata(file);
+				if (pngInfo && pngInfo.workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.workflow));
+				}
+			} else if (file.type === "application/json" || file.name.endsWith(".json")) {
+				const reader = new FileReader();
+				reader.onload = () => {
+					this.loadGraphData(JSON.parse(reader.result));
+				};
+				reader.readAsText(file);
+			}
+
+			prompt_file_load(file);
+		});
+	}
+
+	#addDrawNodeProgressHandler() {
+		const orig = LGraphCanvas.prototype.drawNodeShape;
+		const self = this;
+		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
+			const res = orig.apply(this, arguments);
+
+			if (node.id + "" === self.runningNodeId) {
+				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+				ctx.lineWidth = 1;
+				ctx.globalAlpha = 0.8;
+				ctx.beginPath();
+				if (shape == LiteGraph.BOX_SHAPE)
+					ctx.rect(-6, -6 + LiteGraph.NODE_TITLE_HEIGHT, 12 + size[0] + 1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT);
+				else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
+					ctx.roundRect(
+						-6,
+						-6 - LiteGraph.NODE_TITLE_HEIGHT,
+						12 + size[0] + 1,
+						12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
+						this.round_radius * 2
+					);
+				else if (shape == LiteGraph.CARD_SHAPE)
+					ctx.roundRect(
+						-6,
+						-6 + LiteGraph.NODE_TITLE_HEIGHT,
+						12 + size[0] + 1,
+						12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
+						this.round_radius * 2,
+						2
+					);
+				else if (shape == LiteGraph.CIRCLE_SHAPE)
+					ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
+				ctx.strokeStyle = "#0f0";
+				ctx.stroke();
+				ctx.strokeStyle = fgcolor;
+				ctx.globalAlpha = 1;
+
+				if (self.progress) {
+					ctx.fillStyle = "green";
+					ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
+					ctx.fillStyle = bgcolor;
+				}
+			}
+
+			return res;
+		};
+	}
+
+	#addApiUpdateHandlers() {
+		api.addEventListener("status", (status) => {
+			console.log(status);
+		});
+
+		api.addEventListener("reconnecting", () => {});
+
+		api.addEventListener("reconnected", () => {});
+
+		api.addEventListener("progress", ({ detail }) => {
+			this.progress = detail;
+			this.graph.setDirtyCanvas(true, false);
+		});
+
+		api.addEventListener("executing", ({ detail }) => {
+			this.progress = null;
+			this.runningNodeId = detail;
+			this.graph.setDirtyCanvas(true, false);
+		});
+
+		api.addEventListener("executed", (e) => {});
+
+		api.init();
+	}
+
 	/**
 	 * Set up the app on the page
 	 */
@@ -406,6 +437,9 @@ class ComfyApp {
 		// Save current workflow automatically
 		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
 
+		this.#addDrawNodeProgressHandler();
+		this.#addApiUpdateHandlers();
+		this.#addDropHandler();
 		await this.#invokeExtensionsAsync("setup");
 	}
 
@@ -560,6 +594,8 @@ class ComfyApp {
 				}
 			}
 		}
+
+		// TODO: check dynamic prompts here
 
 		this.canvas.draw(true, true);
 		await this.ui.queue.update();

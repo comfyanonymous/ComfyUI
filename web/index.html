@@ -1,476 +1,214 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-	<link rel="stylesheet" type="text/css" href="lib/litegraph.css">
-	<link rel="stylesheet" type="text/css" href="style.css">
-	<script type="text/javascript" src="lib/litegraph.core.js"></script>
+	<head>
+		<link rel="stylesheet" type="text/css" href="lib/litegraph.css" />
+		<link rel="stylesheet" type="text/css" href="style.css" />
+		<script type="text/javascript" src="lib/litegraph.core.js"></script>
 
-    <script type="module">
-        import { app } from "/scripts/app.js";
-        await app.setup();
-        window.app = app;
-        window.graph = app.graph;
-    </script>
-</head>
-<body>
-<script>
-return;
+		<script type="module">
+			import { app } from "/scripts/app.js";
+			await app.setup();
+			window.app = app;
+			window.graph = app.graph;
+		</script>
+	</head>
+	<body>
+		<script>
+			return;
 
-function postPrompt(number) {
-    let prompt = graphToPrompt();
-    let full_data = {client_id: clientId, prompt: prompt, extra_data: {extra_pnginfo: {workflow: graph.serialize()}}};
-    if (number == -1) {
-        full_data.front = true;
-    } else
-    if (number != 0) {
-        full_data.number = number;
-    }
+			let runningNodeId = null;
+			let progress = null;
+			let clientId = null;
 
-    fetch('/prompt', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(full_data)
-    })
-    .then(data => promptPosted(data))
-    .catch(error => console.error(error))
+			function clearGraph() {
+				graph.clear();
+			}
 
-    // console.log(JSON.stringify(prompt));
-    // console.log(JSON.stringify(graph.serialize()));
+			function loadTxt2Img() {
+				loadGraphData(graph, default_graph);
+			}
 
-    // restore initial values replaced by dynamic prompting
-    for (let x in graph._nodes_by_id) {
-        let n = graph._nodes_by_id[x];
-        for (let w in n.widgets) {
-            let wid = n.widgets[w];
-            if (wid.dynamic_prompt && wid.dynamic_prompt === true)
-                wid.value = wid.value_initial;
-        }
-    }
-}
+			function saveGraph() {
+				var json = JSON.stringify(graph.serialize()); // convert the data to a JSON string
+				var blob = new Blob([json], { type: "application/json" });
+				var url = URL.createObjectURL(blob);
+				var a = document.createElement("a");
+				a.style = "display: none";
+				a.href = url;
+				a.download = "workflow.json";
+				document.body.appendChild(a);
+				a.click();
+				setTimeout(function () {
+					document.body.removeChild(a);
+					window.URL.revokeObjectURL(url);
+				}, 0);
+			}
 
-function prompt_file_load(file)
-{
-    if (file.type === 'image/png') {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            // Get the PNG data as a Uint8Array
-            const pngData = new Uint8Array(event.target.result);
-            const dataView = new DataView(pngData.buffer);
+			var input = document.createElement("input");
+			input.setAttribute("type", "file");
+			input.setAttribute("accept", ".json,image/png");
+			input.style.display = "none";
+			document.body.appendChild(input);
 
-            // Check that the PNG signature is present
-            if (dataView.getUint32(0) !== 0x89504e47) {
-                console.error('Not a valid PNG file');
-                return;
-            }
+			input.addEventListener("change", function () {
+				var file = input.files[0];
+				prompt_file_load(file);
+			});
 
-            // Start searching for chunks after the PNG signature
-            let offset = 8;
-            let txt_chunks = {}
-            // Loop through the chunks in the PNG file
-            while (offset < pngData.length) {
-                // Get the length of the chunk
-                const length = dataView.getUint32(offset);
-                // Get the chunk type
-                const type = String.fromCharCode(...pngData.slice(offset + 4, offset + 8));
-                if (type === 'tEXt') {
-                    // Get the keyword
-                    let keyword_end = offset + 8;
-                    while (pngData[keyword_end] !== 0) {
-                        keyword_end++;
-                    }
-                    const keyword = String.fromCharCode(...pngData.slice(offset + 8, keyword_end));
-                    // Get the text
-                    const text = String.fromCharCode(...pngData.slice(keyword_end + 1, offset + 8 + length));
-                    txt_chunks[keyword] = text;
-                }
+			function loadGraph() {
+				input.click();
+			}
 
-                // Get the next chunk
-                offset += 12 + length;
-            }
-            console.log(txt_chunks);
-            // console.log(JSON.parse(txt_chunks["prompt"]));
-            loadGraphData(graph, JSON.parse(txt_chunks["workflow"]));
-        };
-        reader.readAsArrayBuffer(file);
-    } else if (file.type === "application/json" || file.name.endsWith(".json")) {
-        var reader = new FileReader();
-        reader.onload = function() {
-            console.log(reader.result);
-            var jsonData = JSON.parse(reader.result);
-            loadGraphData(graph, jsonData);
-        };
-        reader.readAsText(file);
-    }
-}
+			document.addEventListener("paste", (e) => {
+				let data = (e.clipboardData || window.clipboardData).getData("text/plain");
+				console.log(data);
 
-// Get prompt from dropped PNG or json
-document.addEventListener('drop', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const file = event.dataTransfer.files[0];
-    console.log(file.type);
-    prompt_file_load(file);
-});
+				try {
+					data = data.slice(data.indexOf("{"));
+					j = JSON.parse(data);
+				} catch (err) {
+					data = data.slice(data.indexOf("workflow\n"));
+					data = data.slice(data.indexOf("{"));
+					j = JSON.parse(data);
+				}
 
-let runningNodeId = null;
-let progress = null;
-let clientId = null;
-const orig = LGraphCanvas.prototype.drawNodeShape;
-LGraphCanvas.prototype.drawNodeShape = function(node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
-    const res = orig.apply(this, arguments);
+				if (Object.hasOwn(j, "version") && Object.hasOwn(j, "nodes") && Object.hasOwn(j, "extra")) {
+					loadGraphData(graph, j);
+				}
+			});
 
-    if(node.id + "" === runningNodeId) { 
-        const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
-        ctx.lineWidth = 1;
-        ctx.globalAlpha = 0.8;
-        ctx.beginPath();
-        if( shape == LiteGraph.BOX_SHAPE )
-            ctx.rect(-6,-6 + LiteGraph.NODE_TITLE_HEIGHT, 12 + size[0]+1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT );
-        else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed) )
-            ctx.roundRect(-6,-6 - LiteGraph.NODE_TITLE_HEIGHT, 12 +size[0]+1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT , this.round_radius * 2);
-        else if (shape == LiteGraph.CARD_SHAPE)
-            ctx.roundRect(-6,-6 + LiteGraph.NODE_TITLE_HEIGHT, 12 +size[0]+1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT , this.round_radius * 2, 2);
-        else if (shape == LiteGraph.CIRCLE_SHAPE)
-            ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI*2);
-        ctx.strokeStyle = "#0f0"
-        ctx.stroke();
-        ctx.strokeStyle = fgcolor;
-        ctx.globalAlpha = 1;
+			function deleteQueueElement(type, delete_id, then) {
+				fetch("/" + type, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ delete: [delete_id] }),
+				})
+					.then((data) => {
+						console.log(data);
+						then();
+					})
+					.catch((error) => console.error(error));
+			}
 
-        if(progress) {
-            ctx.fillStyle = "green";
-            ctx.fillRect(0, 0, size[0] * (progress.value / progress.max), 6);
-            ctx.fillStyle = bgcolor;
-        }
-    }
-    
-    return res;
-}
+			function loadQueue() {
+				loadItems("queue");
+			}
+			function loadHistory() {
+				loadItems("history");
+			}
+			function loadItems(type) {
+				fetch("/" + type)
+					.then((response) => response.json())
+					.then((data) => {
+						var queue_div = document.getElementById(type + "button-content");
+						queue_div.style.display = "block";
+						var see_queue_button = document.getElementById("see" + type + "button");
+						let old_w = see_queue_button.style.width;
+						see_queue_button.innerHTML = "Close";
 
-function updateNodeProgress(v) {
-    progress = v;
-    graph.setDirtyCanvas(true, false);
-}
+						let runningcontents;
+						if (type === "queue") {
+							runningcontents = document.getElementById("runningcontents");
+							runningcontents.innerHTML = "";
+						}
+						let queuecontents = document.getElementById(type + "contents");
+						queuecontents.innerHTML = "";
+						function append_to_list(list_element, append_to_element, append_delete, state) {
+							let number = list_element[0];
+							let id = list_element[1];
+							let prompt = list_element[2];
+							let workflow = list_element[3].extra_pnginfo.workflow;
+							let a = document.createElement("a");
+							a.innerHTML = number + ": ";
+							append_to_element.appendChild(a);
+							let button = document.createElement("button");
+							button.innerHTML = "Load";
+							button.style.fontSize = "10px";
+							button.workflow = workflow;
+							button.onclick = function (event) {
+								loadGraphData(graph, event.target.workflow);
+								if (state) {
+									nodeOutputs = state;
+								}
+							};
 
-function setRunningNode(id) {
-    progress = null;
-    runningNodeId = id;
-    graph.setDirtyCanvas(true, false);
-}
+							append_to_element.appendChild(button);
+							if (append_delete) {
+								let button = document.createElement("button");
+								button.innerHTML = "Delete";
+								button.style.fontSize = "10px";
+								button.delete_id = id;
+								button.onclick = function (event) {
+									deleteQueueElement(type, event.target.delete_id, () => loadItems(type));
+								};
+								append_to_element.appendChild(button);
+							}
+							append_to_element.appendChild(document.createElement("br"));
+						}
 
-(() => {
-    function updateStatus(data) {
-        document.getElementById("queuesize").innerHTML = "Queue size: " + (data ? data.exec_info.queue_remaining : "ERR");
-    }
+						if (runningcontents) {
+							for (let x in data.queue_running) {
+								append_to_list(data.queue_running[x], runningcontents, false);
+							}
+						}
 
-    //fix for colab and other things that don't support websockets.
-    function manually_fetch_queue() {
-        fetch('/prompt')
-            .then(response => response.json())
-            .then(data => {
-                updateStatus(data);
-            }).catch((response) => {updateStatus(null)});
-    }
+						let items;
+						if (type === "queue") {
+							items = data.queue_pending;
+						} else {
+							items = Object.values(data);
+						}
+						items.sort((a, b) => a[0] - b[0]);
+						for (let i of items) {
+							append_to_list(type === "queue" ? i : i.prompt, queuecontents, true, i.outputs);
+						}
+					})
+					.catch((response) => {
+						console.log(response);
+					});
+			}
 
-    let ws;
-    function createSocket(isReconnect) {
-        if(ws) return;
+			function seeItems(type) {
+				var queue_div = document.getElementById(type + "button-content");
+				if (queue_div.style.display == "block") {
+					closeItems(type);
+				} else {
+					loadItems(type);
+				}
+			}
 
-        let opened = false;
-        ws = new WebSocket(`ws${window.location.protocol === "https:"? "s" : ""}://${location.host}/ws`);
+			function seeQueue() {
+				closeItems("history");
+				seeItems("queue");
+			}
 
-        ws.addEventListener("open", () => {
-            opened = true;
-            if(isReconnect) {
-                closeModal();
-            }
-        });
+			function seeHistory() {
+				closeItems("queue");
+				seeItems("history");
+			}
 
-        ws.addEventListener("error", () => {
-            if(ws) ws.close();
-            manually_fetch_queue();
-        });
+			function closeItems(type) {
+				var queue_div = document.getElementById(type + "button-content");
+				queue_div.style.display = "none";
+				var see_queue_button = document.getElementById("see" + type + "button");
+				see_queue_button.innerHTML = "See " + type[0].toUpperCase() + type.substr(1);
+			}
 
-        ws.addEventListener("close", () => {
-            setTimeout(() => {
-                ws = null;
-                createSocket(true);
-            }, 300);
-            if(opened) {
-                updateStatus(null);
-                showModal("Reconnecting...");
-            }
-        });
-
-        ws.addEventListener("message", (event) => {
-            try {
-                const msg = JSON.parse(event.data);
-                switch(msg.type) {
-                    case "status":
-                        if(msg.data.sid) {
-                            clientId = msg.data.sid;
-                        }
-                        updateStatus(msg.data.status);
-                        break;
-                    case "progress":
-                        updateNodeProgress(msg.data)
-                        break;
-                    case "executing":
-                        setRunningNode(msg.data.node);
-                        break;
-                    case "executed":
-                         nodeOutputs[msg.data.node] = msg.data.output;
-                        break;
-                    default:
-                        throw new Error("Unknown message type")
-                }
-            } catch (error) {
-                console.warn("Unhandled message:", event.data)
-            }
-        });
-    }
-    createSocket();
-})();
-
-
-function clearGraph() {
-    graph.clear();
-}
-
-function loadTxt2Img() {
-    loadGraphData(graph, default_graph);
-}
-
-function saveGraph() {
-    var json = JSON.stringify(graph.serialize()); // convert the data to a JSON string
-    var blob = new Blob([json], {type: "application/json"});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.style = "display: none";
-    a.href = url;
-    a.download = "workflow.json";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function() {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-    }, 0);
-}
-
-var input = document.createElement("input");
-input.setAttribute("type", "file");
-input.setAttribute("accept", ".json,image/png");
-input.style.display = "none";
-document.body.appendChild(input);
-
-input.addEventListener('change', function() {
-    var file = input.files[0];
-    prompt_file_load(file);
-
-});
-
-function loadGraph() {
-    input.click();
-}
-
-document.addEventListener('paste', e=>{
-    let data = (e.clipboardData || window.clipboardData).getData('text/plain');
-    console.log(data);
-
-    try {
-        data = data.slice(data.indexOf('{'));
-        j = JSON.parse(data);
-    } catch(err) {
-        data = data.slice(data.indexOf('workflow\n'));
-        data = data.slice(data.indexOf('{'));
-        j = JSON.parse(data);
-    }
-
-
-    if (Object.hasOwn(j, 'version') && Object.hasOwn(j, 'nodes') && Object.hasOwn(j, 'extra')) {
-        loadGraphData(graph, j);
-    }
-});
-
-function deleteQueueElement(type, delete_id, then) {
-    fetch('/' + type, {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({"delete":[delete_id]})
-    })
-    .then(data => {
-        console.log(data);
-        then();
-    })
-    .catch(error => console.error(error))
-}
-
-function loadQueue() {
-    loadItems("queue")
-}
-function loadHistory() {
-    loadItems("history")
-}
-function loadItems(type) {
-    fetch('/' + type)
-    .then(response => response.json())
-    .then(data => {
-        var queue_div = document.getElementById(type + "button-content");
-        queue_div.style.display = 'block';
-        var see_queue_button = document.getElementById("see" + type + "button");
-        let old_w = see_queue_button.style.width;
-        see_queue_button.innerHTML = "Close";
-
-        let runningcontents;
-        if(type === "queue") {
-            runningcontents = document.getElementById("runningcontents");
-            runningcontents.innerHTML = '';
-        }
-        let queuecontents = document.getElementById(type + "contents");
-        queuecontents.innerHTML = '';
-        function append_to_list(list_element, append_to_element, append_delete, state) {
-            let number = list_element[0];
-            let id = list_element[1];
-            let prompt = list_element[2];
-            let workflow = list_element[3].extra_pnginfo.workflow;
-            let a = document.createElement("a");
-            a.innerHTML = number + ": ";
-            append_to_element.appendChild(a);
-            let button = document.createElement("button");
-            button.innerHTML = "Load";
-            button.style.fontSize = "10px";
-            button.workflow = workflow;
-            button.onclick = function(event) {
-                loadGraphData(graph, event.target.workflow);
-                if(state) {
-                    nodeOutputs = state;
-                }
-            };
-
-            append_to_element.appendChild(button);
-            if (append_delete) {
-                let button = document.createElement("button");
-                button.innerHTML = "Delete";
-                button.style.fontSize = "10px";
-                button.delete_id = id;
-                button.onclick = function(event) {
-                    deleteQueueElement(type, event.target.delete_id, () => loadItems(type));
-                };
-                append_to_element.appendChild(button);
-            }
-            append_to_element.appendChild(document.createElement("br"));
-        }
-
-        if(runningcontents) {
-            for (let x in data.queue_running) {
-                append_to_list(data.queue_running[x], runningcontents, false);
-            }
-        }
-
-        let items;
-        if(type === "queue") {
-            items = data.queue_pending;
-        } else {
-            items = Object.values(data);
-        }
-        items.sort((a, b) => a[0] - b[0]);
-        for (let i of items) {
-            append_to_list(type === "queue" ? i : i.prompt, queuecontents, true, i.outputs);
-        }
-    }).catch((response) => {console.log(response)});
-}
-
-function seeItems(type) {
-    var queue_div = document.getElementById(type + "button-content");
-    if (queue_div.style.display == 'block') {
-        closeItems(type)
-    } else {
-        loadItems(type);
-    }
-}
-
-function seeQueue() {
-    closeItems("history")
-    seeItems("queue")
-}
-
-function seeHistory() {
-    closeItems("queue")
-    seeItems("history")
-}
-
-function closeItems(type) {
-    var queue_div = document.getElementById(type + "button-content");
-    queue_div.style.display = 'none';
-    var see_queue_button = document.getElementById("see" + type + "button");
-    see_queue_button.innerHTML = "See " + type[0].toUpperCase() + type.substr(1)
-}
-
-function clearItems(type) {
-    fetch('/' + type, {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({"clear":true})
-    }).then(data => {
-        loadItems(type);
-    })
-    .catch(error => console.error(error));
-}
-
-
-</script>
-
-<span id="menu" style="font-size: 15px;position: absolute; top: 50%; right: 0%; background-color: white; text-align: center; z-index: 100;width:170px">
-<span id="queuesize">Queue size: X</span><br>
-<button style="font-size: 20px;width: 100%;" id="queuebutton" onclick="postPrompt(0)">Queue Prompt</button><br>
-<span style="left: 0%;">
-<button style="font-size: 10px;" id="queuebutton" onclick="postPrompt(-1)">Queue Front</button>
-<button style="font-size: 10px; width: 50%;" id="seequeuebutton" onclick="seeQueue()">See Queue</button>
-<button style="font-size: 10px; width: 50%;" id="seehistorybutton" onclick="seeHistory()">See History</button>
-<br>
-</span>
-  <div id="queuebutton-content" style="background-color: #e1e1e1;min-width: 160px;display: none;z-index: 101;">
-    <span style="width:100%;padding: 3px;display:inline-block;">Running:</span>
-    <div id="runningcontents" style="background-color: #d0d0d0; padding: 5px;">
-        <a>1</a>
-        <button style="font-size: 10px;">Load</button>
-        <br>
-    </div>
-    <span style="left: 0%;padding: 3px;display:inline-block;">Queued:</span>
-    <div id="queuecontents" style="overflow-y: scroll;height: 100px;background-color: #d0d0d0;padding: 5px;">
-        <a>1</a>
-        <button style="font-size: 10px;">Load</button>
-        <button style="font-size: 10px;">Delete</button>
-        <br>
-    <br>
-    </div>
-  <span style="padding: 5px;display:inline-block;">
-  <button style="font-size: 12px;" onclick="clearItems('queue')">Clear Queue</button>
-  <button style="font-size: 12px;" onclick="loadQueue()">Refresh</button>
-  </span>
-  </div>
-
-  <div id="historybutton-content" style="background-color: #e1e1e1;min-width: 160px;display: none;z-index: 101;">
-    <span style="width:100%;padding: 3px;display:inline-block;">History:</span>
-    <div id="historycontents" style="overflow-y: scroll;height: 100px;background-color: #d0d0d0;padding: 5px;">
-    </div>
-    <span style="padding: 5px;display:inline-block;">
-  <button style="font-size: 12px;" onclick="clearItems('history')">Clear History</button>
-  <button style="font-size: 12px;" onclick="loadHistory()">Refresh</button>
-    </span>
-  </div>
-<br>
-<button style="font-size: 20px;" onclick="saveGraph()">Save</button><br>
-<button style="font-size: 20px;" onclick="loadGraph()">Load</button>
-<br>
-<button style="font-size: 20px;" onclick="clearGraph()">Clear</button><br>
-<button style="font-size: 20px;" onclick="loadTxt2Img()">Load Default</button><br>
-</span>
-</body>
+			function clearItems(type) {
+				fetch("/" + type, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ clear: true }),
+				})
+					.then((data) => {
+						loadItems(type);
+					})
+					.catch((error) => console.error(error));
+			}
+		</script>
+	</body>
 </html>
