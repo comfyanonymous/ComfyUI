@@ -16,8 +16,12 @@ except ImportError:
     print("pip install -r requirements.txt")
     sys.exit()
 
+import mimetypes; 
+
 class PromptServer():
     def __init__(self, loop):
+        mimetypes.init(); 
+        mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
         self.prompt_queue = None
         self.loop = loop
         self.messages = asyncio.Queue()
@@ -25,7 +29,7 @@ class PromptServer():
         self.app = web.Application()
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "webshit")
+            os.path.realpath(__file__)), "web")
         routes = web.RouteTableDef()
 
         @routes.get('/ws')
@@ -140,12 +144,7 @@ class PromptServer():
                     self.prompt_queue.delete_queue_item(delete_func)
                     
             return web.Response(status=200)
-
-        @routes.post("/interrupt")
-        async def post_interrupt(request):
-            nodes.interrupt_processing()
-            return web.Response(status=200)
-
+        
         @routes.post("/history")
         async def post_history(request):
             json_data =  await request.json()
