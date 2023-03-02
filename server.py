@@ -140,7 +140,12 @@ class PromptServer():
                     self.prompt_queue.delete_queue_item(delete_func)
                     
             return web.Response(status=200)
-        
+
+        @routes.post("/interrupt")
+        async def post_interrupt(request):
+            nodes.interrupt_processing()
+            return web.Response(status=200)
+
         @routes.post("/history")
         async def post_history(request):
             json_data =  await request.json()

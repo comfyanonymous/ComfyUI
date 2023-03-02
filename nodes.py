@@ -41,6 +41,13 @@ def recursive_search(directory):
 def filter_files_extensions(files, extensions):
     return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
 
+
+def before_node_execution():
+    model_management.throw_exception_if_processing_interrupted()
+
+def interrupt_processing():
+    model_management.interrupt_current_processing()
+
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):

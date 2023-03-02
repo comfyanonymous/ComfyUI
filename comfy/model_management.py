@@ -162,3 +162,31 @@ def maximum_batch_area():
     memory_free = get_free_memory() / (1024 * 1024)
     area = ((memory_free - 1024) * 0.9) / (0.6)
     return int(max(area, 0))
+#TODO: might be cleaner to put this somewhere else
+import threading
+
+class InterruptProcessingException(Exception):
+    pass
+
+interrupt_processing_mutex = threading.RLock()
+
+interrupt_processing = False
+def interrupt_current_processing(value=True):
+    global interrupt_processing
+    global interrupt_processing_mutex
+    with interrupt_processing_mutex:
+        interrupt_processing = value
+
+def processing_interrupted():
+    global interrupt_processing
+    global interrupt_processing_mutex
+    with interrupt_processing_mutex:
+        return interrupt_processing
+
+def throw_exception_if_processing_interrupted():
+    global interrupt_processing
+    global interrupt_processing_mutex
+    with interrupt_processing_mutex:
+        if interrupt_processing:
+            interrupt_processing = False
+            raise InterruptProcessingException()
