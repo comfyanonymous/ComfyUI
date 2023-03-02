@@ -135,6 +135,8 @@ class PromptExecutor:
         self.server = server
 
     def execute(self, prompt, extra_data={}):
+        nodes.interrupt_processing(False)
+
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
         else:

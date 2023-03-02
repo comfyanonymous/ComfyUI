@@ -796,6 +796,11 @@ function setRunningNode(id) {
 (() => {
     function updateStatus(data) {
         document.getElementById("queuesize").innerHTML = "Queue size: " + (data ? data.exec_info.queue_remaining : "ERR");
+        if (data && data.exec_info.queue_remaining) {
+            document.getElementById("cancelcurrentjobbutton").hidden = false;
+        } else {
+            document.getElementById("cancelcurrentjobbutton").hidden = true;
+        }
     }
 
     //fix for colab and other things that don't support websockets.
@@ -1083,6 +1088,7 @@ function clearItems(type) {
         <button style="font-size: 10px;">Load</button>
         <br>
     </div>
+    <button style="font-size: 10px;" hidden onclick="clearItems('interrupt')" id="cancelcurrentjobbutton">Cancel Current</button><br>
     <span style="left: 0%;padding: 3px;display:inline-block;">Queued:</span>
     <div id="queuecontents" style="overflow-y: scroll;height: 100px;background-color: #d0d0d0;padding: 5px;">
         <a>1</a>
