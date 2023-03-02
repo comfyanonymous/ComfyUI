@@ -44,7 +44,6 @@ function addMultilineWidget(node, name, defaultVal, dynamicPrompt, app) {
 			const visible = app.canvas.ds.scale > 0.5;
 			const t = ctx.getTransform();
 			const margin = 10;
-			console.log("back you go")
 			Object.assign(this.inputEl.style, {
 				left: `${t.a * margin + t.e}px`,
 				top: `${t.d * (y + widgetHeight - margin) + t.f}px`,
