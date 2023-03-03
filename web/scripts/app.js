@@ -585,7 +585,7 @@ class ComfyApp {
 	 * Converts the current graph workflow for sending to the API
 	 * @returns The workflow and node links
 	 */
-	graphToPrompt() {
+	async graphToPrompt() {
 		const workflow = this.graph.serialize();
 		const output = {};
 		for (const n of workflow.nodes) {
@@ -604,7 +604,7 @@ class ComfyApp {
 				for (const i in widgets) {
 					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? widget.serializeValue(n, i) : widget.value;
+						inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
 					}
 				}
 			}
@@ -649,7 +649,7 @@ class ComfyApp {
 	}
 
 	async queuePrompt(number) {
-		const p = this.graphToPrompt();
+		const p = await this.graphToPrompt();
 
 		try {
 			await api.queuePrompt(number, p);
