@@ -12,28 +12,5 @@
 			window.graph = app.graph;
 		</script>
 	</head>
-	<body>
-		<script>
-			return;
-
-			let runningNodeId = null;
-			let progress = null;
-			let clientId = null;
-
-			var input = document.createElement("input");
-			input.setAttribute("type", "file");
-			input.setAttribute("accept", ".json,image/png");
-			input.style.display = "none";
-			document.body.appendChild(input);
-
-			input.addEventListener("change", function () {
-				var file = input.files[0];
-				prompt_file_load(file);
-			});
-
-			function loadGraph() {
-				input.click();
-			}
-		</script>
-	</body>
+	<body></body>
 </html>

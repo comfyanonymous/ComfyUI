@@ -300,19 +300,7 @@ class ComfyApp {
 			event.preventDefault();
 			event.stopPropagation();
 			const file = event.dataTransfer.files[0];
-
-			if (file.type === "image/png") {
-				const pngInfo = await getPngMetadata(file);
-				if (pngInfo && pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
-				}
-			} else if (file.type === "application/json" || file.name.endsWith(".json")) {
-				const reader = new FileReader();
-				reader.onload = () => {
-					this.loadGraphData(JSON.parse(reader.result));
-				};
-				reader.readAsText(file);
-			}
+			await this.handleFile(file);
 		});
 	}
 
@@ -629,6 +617,21 @@ class ComfyApp {
 
 		this.canvas.draw(true, true);
 		await this.ui.queue.update();
+	}
+
+	async handleFile(file) {
+		if (file.type === "image/png") {
+			const pngInfo = await getPngMetadata(file);
+			if (pngInfo && pngInfo.workflow) {
+				this.loadGraphData(JSON.parse(pngInfo.workflow));
+			}
+		} else if (file.type === "application/json" || file.name.endsWith(".json")) {
+			const reader = new FileReader();
+			reader.onload = () => {
+				this.loadGraphData(JSON.parse(reader.result));
+			};
+			reader.readAsText(file);
+		}
 	}
 }
 
