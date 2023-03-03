@@ -7,34 +7,8 @@ import { getPngMetadata } from "./pnginfo.js";
 class ComfyApp {
 	constructor() {
 		this.ui = new ComfyUI(this);
+		this.extensions = [];
 		this.nodeOutputs = {};
-		this.extensions = [
-			{
-				name: "TestExtension",
-				init(app) {
-					console.log("[ext:init]", app);
-				},
-				setup(app) {
-					console.log("[ext:setup]", app);
-				},
-				addCustomNodeDefs(defs, app) {
-					console.log("[ext:addCustomNodeDefs]", defs, app);
-				},
-				loadedGraphNode(node, app) {
-					// console.log("[ext:loadedGraphNode]", node, app);
-				},
-				getCustomWidgets(app) {
-					console.log("[ext:getCustomWidgets]", app);
-					return {};
-				},
-				beforeRegisterNode(nodeType, nodeData, app) {
-					// console.log("[ext:beforeRegisterNode]", nodeType, nodeData, app);
-				},
-				registerCustomNodes(app) {
-					console.log("[ext:registerCustomNodes]", app);
-				},
-			},
-		];
 	}
 
 	#log(message, ...other) {
@@ -49,7 +23,7 @@ class ComfyApp {
 	 * Invoke an extension callback
 	 * @param {string} method The extension callback to execute
 	 * @param  {...any} args Any arguments to pass to the callback
-	 * @returns 
+	 * @returns
 	 */
 	#invokeExtensions(method, ...args) {
 		let results = [];
@@ -75,7 +49,7 @@ class ComfyApp {
 	 * Each callback will be invoked concurrently
 	 * @param {string} method The extension callback to execute
 	 * @param  {...any} args Any arguments to pass to the callback
-	 * @returns 
+	 * @returns
 	 */
 	async #invokeExtensionsAsync(method, ...args) {
 		return await Promise.all(
@@ -540,6 +514,8 @@ class ComfyApp {
 					s[1] = Math.max(config.minHeight, s[1]);
 					this.size = s;
 					this.serialize_widgets = true;
+
+					app.#invokeExtensionsAsync("nodeCreated", this);
 				},
 				{
 					title: nodeData.name,
@@ -551,7 +527,7 @@ class ComfyApp {
 			this.#addNodeContextMenuHandler(node);
 			this.#addDrawBackgroundHandler(node, app);
 
-			await this.#invokeExtensionsAsync("beforeRegisterNode", node, nodeData);
+			await this.#invokeExtensionsAsync("beforeRegisterNodeDef", node, nodeData);
 			LiteGraph.registerNodeType(nodeId, node);
 			node.category = nodeData.category;
 		}
@@ -598,28 +574,55 @@ class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	graphToPrompt() {
-		// TODO: Implement dynamic prompts
 		const workflow = this.graph.serialize();
 		const output = {};
 		for (const n of workflow.nodes) {
-			const inputs = {};
 			const node = this.graph.getNodeById(n.id);
+
+			if (node.isVirtualNode) {
+				// Don't serialize frontend only nodes
+				continue;
+			}
+
+			const inputs = {};
 			const widgets = node.widgets;
 
 			// Store all widget values
 			if (widgets) {
 				for (const widget of widgets) {
-					if (widget.options.serialize !== false) {
-						inputs[widget.name] = widget.value;
+					if (!widget.options || widget.options.serialize !== false) {
+						inputs[widget.name] = widget.serializeValue ? widget.serializeValue() : widget.value;
 					}
 				}
 			}
 
 			// Store all node links
 			for (let i in node.inputs) {
-				const link = node.getInputLink(i);
-				if (link) {
-					inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+				let parent = node.getInputNode(i);
+				if (parent) {
+					let link;
+					if (parent.isVirtualNode) {
+						// Follow the path of virtual nodes until we reach the first real one
+						while (parent != null) {
+							link = parent.getInputLink(0);
+							if (link) {
+								const from = graph.getNodeById(link.origin_id);
+								if (from.isVirtualNode) {
+									parent = from;
+								} else {
+									parent = null;
+								}
+							} else {
+								parent = null;
+							}
+						}
+					} else {
+						link = node.getInputLink(i);
+					}
+					
+					if (link) {
+						inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+					}
 				}
 			}
 
@@ -655,15 +658,13 @@ class ComfyApp {
 			}
 		}
 
-		// TODO: check dynamic prompts here
-
 		this.canvas.draw(true, true);
 		await this.ui.queue.update();
 	}
 
 	/**
 	 * Loads workflow data from the specified file
-	 * @param {File} file 
+	 * @param {File} file
 	 */
 	async handleFile(file) {
 		if (file.type === "image/png") {
@@ -678,6 +679,16 @@ class ComfyApp {
 			};
 			reader.readAsText(file);
 		}
+	}
+
+	registerExtension(extension) {
+		if (!extension.name) {
+			throw new Error("Extensions must have a 'name' property.");
+		}
+		if (this.extensions.find((ext) => ext.name === extension.name)) {
+			throw new Error(`Extension named '${extension.name}' already registered.`);
+		}
+		this.extensions.push(extension);
 	}
 }
 
