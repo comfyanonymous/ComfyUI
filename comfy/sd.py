@@ -266,6 +266,7 @@ class CLIP:
         self.cond_stage_model = clip(**(params))
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model)
+        self.layer_idx = -1
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -273,6 +274,7 @@ class CLIP:
         n.patcher = self.patcher.clone()
         n.cond_stage_model = self.cond_stage_model
         n.tokenizer = self.tokenizer
+        n.layer_idx = self.layer_idx
         return n
 
     def load_from_state_dict(self, sd):
@@ -282,9 +284,10 @@ class CLIP:
         return self.patcher.add_patches(patches, strength)
 
     def clip_layer(self, layer_idx):
-        return self.cond_stage_model.clip_layer(layer_idx)
+        self.layer_idx = layer_idx
 
     def encode(self, text):
+        self.cond_stage_model.clip_layer(self.layer_idx)
         tokens = self.tokenizer.tokenize_with_weights(text)
         try:
             self.patcher.patch_model()
@@ -744,15 +747,13 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, e
     else:
         unet_config["num_heads"] = 8 #SD1.x
 
+    if unet_config["context_dim"] == 1024 and unet_config["in_channels"] == 4: #only SD2.x non inpainting models are v prediction
+        k = "model.diffusion_model.output_blocks.11.1.transformer_blocks.0.norm1.bias"
+        out = sd[k]
+        if torch.std(out, unbiased=False) > 0.09: # not sure how well this will actually work. I guess we will find out.
+            sd_config["parameterization"] = 'v'
 
     model = instantiate_from_config(model_config)
     model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
-
-    if unet_config["context_dim"] == 1024 and unet_config["in_channels"] == 4: #only SD2.x non inpainting models are v prediction
-        cond = torch.zeros((1, 2, unet_config["context_dim"]), device="cpu")
-        x_in = torch.rand((1, unet_config["in_channels"], 8, 8), device="cpu", generator=torch.manual_seed(1))
-        out = model.apply_model(x_in, torch.tensor([999], device="cpu"), cond)
-        if out.mean() < -0.6: #mean of eps should be ~0 and mean of v prediction should be ~-1
-            model.parameterization = 'v'
 
     return (ModelPatcher(model), clip, vae)
