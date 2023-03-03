@@ -9,6 +9,8 @@ from typing import Optional, Any
 from ldm.modules.diffusionmodules.util import checkpoint
 from .sub_quadratic_attention import efficient_dot_product_attention
 
+import model_management
+
 try:
     import xformers
     import xformers.ops
@@ -189,12 +191,8 @@ class CrossAttentionBirchSan(nn.Module):
         _, _, k_tokens = key_t.shape
         qk_matmul_size_bytes = batch_x_heads * bytes_per_token * q_tokens * k_tokens
 
-        stats = torch.cuda.memory_stats(query.device)
-        mem_active = stats['active_bytes.all.current']
-        mem_reserved = stats['reserved_bytes.all.current']
-        mem_free_cuda, _ = torch.cuda.mem_get_info(torch.cuda.current_device())
-        mem_free_torch = mem_reserved - mem_active
-        mem_free_total = mem_free_cuda + mem_free_torch
+        mem_free_total, mem_free_torch = model_management.get_free_memory(query.device, True)
+
         chunk_threshold_bytes = mem_free_torch * 0.5 #Using only this seems to work better on AMD
 
         kv_chunk_size_min = None
@@ -276,12 +274,7 @@ class CrossAttentionDoggettx(nn.Module):
 
         r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2], device=q.device)
 
-        stats = torch.cuda.memory_stats(q.device)
-        mem_active = stats['active_bytes.all.current']
-        mem_reserved = stats['reserved_bytes.all.current']
-        mem_free_cuda, _ = torch.cuda.mem_get_info(torch.cuda.current_device())
-        mem_free_torch = mem_reserved - mem_active
-        mem_free_total = mem_free_cuda + mem_free_torch
+        mem_free_total = model_management.get_free_memory(q.device)
 
         gb = 1024 ** 3
         tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * q.element_size()
