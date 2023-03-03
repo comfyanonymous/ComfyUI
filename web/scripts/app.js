@@ -517,6 +517,10 @@ class ComfyApp {
 						}
 					}
 
+					for (const output of nodeData["output"]) {
+						this.addOutput(output, output);
+					}
+
 					const s = this.computeSize();
 					s[0] = Math.max(config.minWidth, s[0] * 1.5);
 					s[1] = Math.max(config.minHeight, s[1]);
