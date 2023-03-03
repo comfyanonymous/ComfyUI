@@ -27,7 +27,7 @@ function seedWidget(node, inputName, inputData) {
 	return { widget: seed, randomize };
 }
 
-function addMultilineWidget(node, name, defaultVal, dynamicPrompt, app) {
+function addMultilineWidget(node, name, defaultVal, app) {
 	const widget = {
 		type: "customtext",
 		name,
@@ -36,9 +36,6 @@ function addMultilineWidget(node, name, defaultVal, dynamicPrompt, app) {
 		},
 		set value(x) {
 			this.inputEl.value = x;
-		},
-		options: {
-			dynamicPrompt,
 		},
 		draw: function (ctx, _, widgetWidth, y, widgetHeight) {
 			const visible = app.canvas.ds.scale > 0.5;
@@ -106,12 +103,11 @@ export const ComfyWidgets = {
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
-		const dynamicPrompt = !!inputData[1].dynamic_prompt;
 
 		if (multiline) {
-			return addMultilineWidget(node, inputName, defaultVal, dynamicPrompt, app);
+			return addMultilineWidget(node, inputName, defaultVal, app);
 		} else {
-			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, { dynamicPrompt }) };
+			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
 	},
 };
