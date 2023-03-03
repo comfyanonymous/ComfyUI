@@ -220,6 +220,22 @@ class CheckpointLoaderSimple:
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=CheckpointLoader.embedding_directory)
         return out
 
+class CLIPSetLastLayer:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip": ("CLIP", ),
+                              "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
+                              }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "set_last_layer"
+
+    CATEGORY = "conditioning"
+
+    def set_last_layer(self, clip, stop_at_clip_layer):
+        clip = clip.clone()
+        clip.clip_layer(stop_at_clip_layer)
+        return (clip,)
+
 class LoraLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
     lora_dir = os.path.join(models_dir, "loras")
@@ -829,6 +845,7 @@ NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoader": CheckpointLoader,
     "CLIPTextEncode": CLIPTextEncode,
+    "CLIPSetLastLayer": CLIPSetLastLayer,
     "VAEDecode": VAEDecode,
     "VAEEncode": VAEEncode,
     "VAEEncodeForInpaint": VAEEncodeForInpaint,
