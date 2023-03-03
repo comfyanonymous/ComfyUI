@@ -359,17 +359,15 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (filter_files_extensions(recursive_search(s.clip_dir), supported_pt_extensions), ),
-                              "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
     CATEGORY = "loaders"
 
-    def load_clip(self, clip_name, stop_at_clip_layer):
+    def load_clip(self, clip_name):
         clip_path = os.path.join(self.clip_dir, clip_name)
         clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
-        clip.clip_layer(stop_at_clip_layer)
         return (clip,)
 
 class EmptyLatentImage:
