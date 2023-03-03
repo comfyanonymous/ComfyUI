@@ -159,17 +159,15 @@ export class ComfyUI {
 			this.history.update();
 		});
 
-		var input = document.createElement("input");
-		input.setAttribute("type", "file");
-		input.setAttribute("accept", ".json,image/png");
-		input.style.display = "none";
-		document.body.appendChild(input);
-
-		input.addEventListener("change", function () {
-			var file = input.files[0];
-			prompt_file_load(file);
+		const fileInput = $el("input", {
+			type: "file",
+			accept: ".json,image/png",
+			style: "display: none",
+			parent: document.body,
+			onchange: () => {
+				app.handleFile(fileInput.files[0]);
+			},
 		});
-
 
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
 			$el("span", { $: (q) => (this.queueSize = q) }),
@@ -214,7 +212,7 @@ export class ComfyUI {
 					}, 0);
 				},
 			}),
-			$el("button", { textContent: "Load", onclick: () => {} }),
+			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
 			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
 		]);
