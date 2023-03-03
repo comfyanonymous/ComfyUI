@@ -1,23 +1,47 @@
 import { api } from "./api.js";
 
+function $el(tag, propsOrChildren, children) {
+	const split = tag.split(".");
+	const element = document.createElement(split.shift());
+	element.classList.add(...split);
+	if (propsOrChildren) {
+		if (Array.isArray(propsOrChildren)) {
+			element.append(...propsOrChildren);
+		} else {
+			const parent = propsOrChildren.parent;
+			delete propsOrChildren.parent;
+			const cb = propsOrChildren.$;
+			delete propsOrChildren.$;
+
+			Object.assign(element, propsOrChildren);
+			if (children) {
+				element.append(...children);
+			}
+
+			if (parent) {
+				parent.append(element);
+			}
+
+			if (cb) {
+				cb(element);
+			}
+		}
+	}
+	return element;
+}
+
 class ComfyDialog {
 	constructor() {
-		this.element = document.createElement("div");
-		this.element.classList.add("comfy-modal");
-
-		const content = document.createElement("div");
-		content.classList.add("comfy-modal-content");
-		this.textElement = document.createElement("p");
-		content.append(this.textElement);
-
-		const closeBtn = document.createElement("button");
-		closeBtn.type = "button";
-		closeBtn.textContent = "CLOSE";
-		content.append(closeBtn);
-		closeBtn.onclick = () => this.close();
-
-		this.element.append(content);
-		document.body.append(this.element);
+		this.element = $el("div.comfy-modal", { parent: document.body }, [
+			$el("div.comfy-modal-content", [
+				$el("p", { $: (p) => (this.textElement = p) }),
+				$el("button", {
+					type: "button",
+					textContent: "CLOSE",
+					onclick: () => this.close(),
+				}),
+			]),
+		]);
 	}
 
 	close() {
@@ -31,10 +55,14 @@ class ComfyDialog {
 }
 
 class ComfyList {
-	constructor() {
-		this.element = document.createElement("div");
+	#type;
+	#text;
+
+	constructor(text, type) {
+		this.#text = text;
+		this.#type = type || text.toLowerCase();
+		this.element = $el("div.comfy-list");
 		this.element.style.display = "none";
-		this.element.textContent = "hello";
 	}
 
 	get visible() {
@@ -42,7 +70,51 @@ class ComfyList {
 	}
 
 	async load() {
-		// const queue = await api.getQueue();
+		const items = await api.getItems(this.#type);
+		this.element.replaceChildren(
+			...Object.keys(items).flatMap((section) => [
+				$el("h4", {
+					textContent: section,
+				}),
+				$el("div.comfy-list-items", [
+					...items[section].map((item) => {
+						// Allow items to specify a custom remove action (e.g. for interrupt current prompt)
+						const removeAction = item.remove || {
+							name: "Delete",
+							cb: () => api.deleteItem(this.#type, item.prompt[1]),
+						};
+						return $el("div", { textContent: item.prompt[0] + ": " }, [
+							$el("button", {
+								textContent: "Load",
+								onclick: () => {
+									if (item.outputs) {
+										app.nodeOutputs = item.outputs;
+									}
+									app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+								},
+							}),
+							$el("button", {
+								textContent: removeAction.name,
+								onclick: async () => {
+									await removeAction.cb();
+									await this.update();
+								},
+							}),
+						]);
+					}),
+				]),
+			]),
+			$el("div.comfy-list-actions", [
+				$el("button", {
+					textContent: "Clear " + this.#text,
+					onclick: async () => {
+						await api.clearItems(this.#type);
+						await this.load();
+					},
+				}),
+				$el("button", { textContent: "Refresh", onclick: () => this.load() }),
+			])
+		);
 	}
 
 	async update() {
@@ -53,11 +125,14 @@ class ComfyList {
 
 	async show() {
 		this.element.style.display = "block";
+		this.button.textContent = "Close";
+
 		await this.load();
 	}
 
 	hide() {
 		this.element.style.display = "none";
+		this.button.textContent = "See " + this.#text;
 	}
 
 	toggle() {
@@ -75,75 +150,76 @@ export class ComfyUI {
 	constructor(app) {
 		this.app = app;
 		this.dialog = new ComfyDialog();
-		this.queue = new ComfyList();
-		this.history = new ComfyList();
 
-		this.menuContainer = document.createElement("div");
-		this.menuContainer.classList.add("comfy-menu");
+		this.queue = new ComfyList("Queue");
+		this.history = new ComfyList("History");
 
-		this.queueSize = document.createElement("span");
-		this.menuContainer.append(this.queueSize);
-
-		this.addAction("Queue Prompt", () => {
-			app.queuePrompt(0);
-		}, "queue");
-
-		this.btnContainer = document.createElement("div");
-		this.btnContainer.classList.add("comfy-menu-btns");
-		this.menuContainer.append(this.btnContainer);
-
-		this.addAction(
-			"Queue Front",
-			() => {
-				app.queuePrompt(-1);
-			},
-			"sm"
-		);
-
-		this.addAction(
-			"See Queue",
-			(btn) => {
-				btn.textContent = this.queue.toggle() ? "Close" : "See Queue";
-			},
-			"sm"
-		);
-
-		this.addAction(
-			"See History",
-			(btn) => {
-				btn.textContent = this.history.toggle() ? "Close" : "See History";
-			},
-			"sm"
-		);
-
-		this.menuContainer.append(this.queue.element);
-		this.menuContainer.append(this.history.element);
-
-		this.addAction("Save", () => {
-			app.queuePrompt(-1);
-		});
-		this.addAction("Load", () => {
-			app.queuePrompt(-1);
-		});
-		this.addAction("Clear", () => {
-			app.queuePrompt(-1);
-		});
-		this.addAction("Load Default", () => {
-			app.queuePrompt(-1);
+		api.addEventListener("status", () => {
+			this.queue.update();
+			this.history.update();
 		});
 
-		document.body.append(this.menuContainer);
+		var input = document.createElement("input");
+		input.setAttribute("type", "file");
+		input.setAttribute("accept", ".json,image/png");
+		input.style.display = "none";
+		document.body.appendChild(input);
+
+		input.addEventListener("change", function () {
+			var file = input.files[0];
+			prompt_file_load(file);
+		});
+
+
+		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
+			$el("span", { $: (q) => (this.queueSize = q) }),
+			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0) }),
+			$el("div.comfy-menu-btns", [
+				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1) }),
+				$el("button", {
+					$: (b) => (this.queue.button = b),
+					textContent: "View Queue",
+					onclick: () => {
+						this.history.hide();
+						this.queue.toggle();
+					},
+				}),
+				$el("button", {
+					$: (b) => (this.history.button = b),
+					textContent: "View History",
+					onclick: () => {
+						this.queue.hide();
+						this.history.toggle();
+					},
+				}),
+			]),
+			this.queue.element,
+			this.history.element,
+			$el("button", {
+				textContent: "Save",
+				onclick: () => {
+					const json = JSON.stringify(app.graph.serialize()); // convert the data to a JSON string
+					const blob = new Blob([json], { type: "application/json" });
+					const url = URL.createObjectURL(blob);
+					const a = $el("a", {
+						href: url,
+						download: "workflow.json",
+						style: "display: none",
+						parent: document.body,
+					});
+					a.click();
+					setTimeout(function () {
+						a.remove();
+						window.URL.revokeObjectURL(url);
+					}, 0);
+				},
+			}),
+			$el("button", { textContent: "Load", onclick: () => {} }),
+			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
+			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
+		]);
+
 		this.setStatus({ exec_info: { queue_remaining: "X" } });
-	}
-
-	addAction(text, cb, cls) {
-		const btn = document.createElement("button");
-		btn.classList.add("comfy-menu-btn-" + (cls || "lg"));
-		btn.textContent = text;
-		btn.onclick = () => {
-			cb(btn);
-		};
-		(cls === "sm" ? this.btnContainer : this.menuContainer).append(btn);
 	}
 
 	setStatus(status) {

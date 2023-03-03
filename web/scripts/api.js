@@ -1,6 +1,6 @@
 class ComfyApi extends EventTarget {
 	constructor() {
-      super();
+		super();
 	}
 
 	#pollQueue() {
@@ -74,9 +74,9 @@ class ComfyApi extends EventTarget {
 		});
 	}
 
-   init() {
-      this.#createSocket();
-   }
+	init() {
+		this.#createSocket();
+	}
 
 	async getNodeDefs() {
 		const resp = await fetch("object_info", { cache: "no-store" });
@@ -109,6 +109,64 @@ class ComfyApi extends EventTarget {
 				response: await res.text(),
 			};
 		}
+	}
+
+	async getItems(type) {
+		if (type === "queue") {
+			return this.getQueue();
+		}
+		return this.getHistory();
+	}
+
+	async getQueue() {
+		try {
+			const res = await fetch("/queue");
+			const data = await res.json();
+			return {
+				// Running action uses a different endpoint for cancelling
+				Running: data.queue_running.map((prompt) => ({ prompt, remove: { name: "Cancel", cb: () => api.interrupt() } })),
+				Pending: data.queue_pending.map((prompt) => ({ prompt })),
+			};
+		} catch (error) {
+			console.error(error);
+			return { Running: [], Pending: [] };
+		}
+	}
+
+	async getHistory() {
+		try {
+			const res = await fetch("/history");
+			return { History: Object.values(await res.json()) };
+		} catch (error) {
+			console.error(error);
+			return { History: [] };
+		}
+	}
+
+	async #postItem(type, body) {
+		try {
+			await fetch("/" + type, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: body ? JSON.stringify(body) : undefined,
+			});
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
+	async deleteItem(type, id) {
+		await this.#postItem(type, { delete: [id] });
+	}
+
+	async clearItems(type) {
+		await this.#postItem(type, { clear: true });
+	}
+
+	async interrupt() {
+		await this.#postItem("interrupt", null);
 	}
 }
 
