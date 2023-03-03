@@ -209,19 +209,15 @@ class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (filter_files_extensions(recursive_search(s.ckpt_dir), supported_ckpt_extensions), ),
-                              "type": (["fp16", "fp32"],),
-                              "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
                              }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "_for_testing"
 
-    def load_checkpoint(self, ckpt_name, type, stop_at_clip_layer, output_vae=True, output_clip=True):
+    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = os.path.join(self.ckpt_dir, ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, type=="fp16", output_vae=True, output_clip=True, embedding_directory=CheckpointLoader.embedding_directory)
-        if out[1] is not None:
-            out[1].clip_layer(stop_at_clip_layer)
+        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=CheckpointLoader.embedding_directory)
         return out
 
 class LoraLoader:

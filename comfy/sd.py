@@ -656,11 +656,13 @@ def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, e
     return (ModelPatcher(model), clip, vae)
 
 
-def load_checkpoint_guess_config(ckpt_path, fp16=False, output_vae=True, output_clip=True, embedding_directory=None):
+def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):
     sd = load_torch_file(ckpt_path)
     sd_keys = sd.keys()
     clip = None
     vae = None
+
+    fp16 = model_management.should_use_fp16()
 
     class WeightsLoader(torch.nn.Module):
         pass
