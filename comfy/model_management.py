@@ -145,14 +145,25 @@ def unload_if_low_vram(model):
     return model
 
 
-def get_free_memory():
-    dev = torch.cuda.current_device()
-    stats = torch.cuda.memory_stats(dev)
-    mem_active = stats['active_bytes.all.current']
-    mem_reserved = stats['reserved_bytes.all.current']
-    mem_free_cuda, _ = torch.cuda.mem_get_info(dev)
-    mem_free_torch = mem_reserved - mem_active
-    return mem_free_cuda + mem_free_torch
+def get_free_memory(dev=None, torch_free_too=False):
+    if dev is None:
+        dev = torch.cuda.current_device()
+
+    if hasattr(dev, 'type') and dev.type == 'cpu':
+        mem_free_total = psutil.virtual_memory().available
+        mem_free_torch = mem_free_total
+    else:
+        stats = torch.cuda.memory_stats(dev)
+        mem_active = stats['active_bytes.all.current']
+        mem_reserved = stats['reserved_bytes.all.current']
+        mem_free_cuda, _ = torch.cuda.mem_get_info(dev)
+        mem_free_torch = mem_reserved - mem_active
+        mem_free_total = mem_free_cuda + mem_free_torch
+
+    if torch_free_too:
+        return (mem_free_total, mem_free_torch)
+    else:
+        return mem_free_total
 
 def maximum_batch_area():
     global vram_state
@@ -162,6 +173,30 @@ def maximum_batch_area():
     memory_free = get_free_memory() / (1024 * 1024)
     area = ((memory_free - 1024) * 0.9) / (0.6)
     return int(max(area, 0))
+
+def cpu_mode():
+    global vram_state
+    return vram_state == CPU
+
+def should_use_fp16():
+    if cpu_mode():
+        return False #TODO ?
+
+    if torch.cuda.is_bf16_supported():
+        return True
+
+    props = torch.cuda.get_device_properties("cuda")
+    if props.major < 7:
+        return False
+
+    #FP32 is faster on those cards?
+    nvidia_16_series = ["1660", "1650", "1630"]
+    for x in nvidia_16_series:
+        if x in props.name:
+            return False
+
+    return True
+
 #TODO: might be cleaner to put this somewhere else
 import threading
 

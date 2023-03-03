@@ -202,6 +202,40 @@ class CheckpointLoader:
         ckpt_path = os.path.join(self.ckpt_dir, ckpt_name)
         return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=self.embedding_directory)
 
+class CheckpointLoaderSimple:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    ckpt_dir = os.path.join(models_dir, "checkpoints")
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "ckpt_name": (filter_files_extensions(recursive_search(s.ckpt_dir), supported_ckpt_extensions), ),
+                             }}
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    FUNCTION = "load_checkpoint"
+
+    CATEGORY = "loaders"
+
+    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
+        ckpt_path = os.path.join(self.ckpt_dir, ckpt_name)
+        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=CheckpointLoader.embedding_directory)
+        return out
+
+class CLIPSetLastLayer:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip": ("CLIP", ),
+                              "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
+                              }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "set_last_layer"
+
+    CATEGORY = "conditioning"
+
+    def set_last_layer(self, clip, stop_at_clip_layer):
+        clip = clip.clone()
+        clip.clip_layer(stop_at_clip_layer)
+        return (clip,)
+
 class LoraLoader:
     models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
     lora_dir = os.path.join(models_dir, "loras")
@@ -325,17 +359,15 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (filter_files_extensions(recursive_search(s.clip_dir), supported_pt_extensions), ),
-                              "stop_at_clip_layer": ("INT", {"default": -1, "min": -24, "max": -1, "step": 1}),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
     CATEGORY = "loaders"
 
-    def load_clip(self, clip_name, stop_at_clip_layer):
+    def load_clip(self, clip_name):
         clip_path = os.path.join(self.clip_dir, clip_name)
         clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
-        clip.clip_layer(stop_at_clip_layer)
         return (clip,)
 
 class EmptyLatentImage:
@@ -810,7 +842,9 @@ class ImageInvert:
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoader": CheckpointLoader,
+    "CheckpointLoaderSimple": CheckpointLoaderSimple,
     "CLIPTextEncode": CLIPTextEncode,
+    "CLIPSetLastLayer": CLIPSetLastLayer,
     "VAEDecode": VAEDecode,
     "VAEEncode": VAEEncode,
     "VAEEncodeForInpaint": VAEEncodeForInpaint,

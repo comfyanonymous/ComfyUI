@@ -522,8 +522,8 @@ class LatentDiffusion(DDPM):
     """main class"""
 
     def __init__(self,
-                 first_stage_config,
-                 cond_stage_config,
+                 first_stage_config={},
+                 cond_stage_config={},
                  num_timesteps_cond=None,
                  cond_stage_key="image",
                  cond_stage_trainable=False,
@@ -562,8 +562,6 @@ class LatentDiffusion(DDPM):
 
         # self.instantiate_first_stage(first_stage_config)
         # self.instantiate_cond_stage(cond_stage_config)
-        self.first_stage_config = first_stage_config
-        self.cond_stage_config = cond_stage_config
 
         self.cond_stage_forward = cond_stage_forward
         self.clip_denoised = False
