@@ -45,6 +45,12 @@ class ComfyApp {
 		console.error("[comfy]", message, ...other);
 	}
 
+	/**
+	 * Invoke an extension callback
+	 * @param {string} method The extension callback to execute
+	 * @param  {...any} args Any arguments to pass to the callback
+	 * @returns 
+	 */
 	#invokeExtensions(method, ...args) {
 		let results = [];
 		for (const ext of this.extensions) {
@@ -64,6 +70,13 @@ class ComfyApp {
 		return results;
 	}
 
+	/**
+	 * Invoke an async extension callback
+	 * Each callback will be invoked concurrently
+	 * @param {string} method The extension callback to execute
+	 * @param  {...any} args Any arguments to pass to the callback
+	 * @returns 
+	 */
 	async #invokeExtensionsAsync(method, ...args) {
 		return await Promise.all(
 			this.extensions.map(async (ext) => {
@@ -83,6 +96,11 @@ class ComfyApp {
 		);
 	}
 
+	/**
+	 * Adds special context menu handling for nodes
+	 * e.g. this adds Open Image functionality for nodes that show images
+	 * @param {*} node The node to add the menu handler
+	 */
 	#addNodeContextMenuHandler(node) {
 		node.prototype.getExtraMenuOptions = function (_, options) {
 			if (this.imgs) {
@@ -105,6 +123,11 @@ class ComfyApp {
 		};
 	}
 
+	/**
+	 * Adds Custom drawing logic for nodes
+	 * e.g. Draws images and handles thumbnail navigation on nodes that output images
+	 * @param {*} node The node to add the draw handler
+	 */
 	#addDrawBackgroundHandler(node) {
 		const app = this;
 		node.prototype.onDrawBackground = function (ctx) {
@@ -294,6 +317,9 @@ class ComfyApp {
 		};
 	}
 
+	/**
+	 * Adds a handler allowing drag+drop of files onto the window to load workflows
+	 */
 	#addDropHandler() {
 		// Get prompt from dropped PNG or json
 		document.addEventListener("drop", async (event) => {
@@ -304,6 +330,9 @@ class ComfyApp {
 		});
 	}
 
+	/**
+	 * Adds a handler on paste that extracts and loads workflows from pasted JSON data
+	 */
 	#addPasteHandler() {
 		document.addEventListener("paste", (e) => {
 			let data = (e.clipboardData || window.clipboardData).getData("text/plain");
@@ -325,6 +354,9 @@ class ComfyApp {
 		});
 	}
 
+	/**
+	 * Draws currently executing node highlight and progress bar
+	 */
 	#addDrawNodeProgressHandler() {
 		const orig = LGraphCanvas.prototype.drawNodeShape;
 		const self = this;
@@ -373,6 +405,9 @@ class ComfyApp {
 		};
 	}
 
+	/**
+	 * Handles updates from the API socket
+	 */
 	#addApiUpdateHandlers() {
 		api.addEventListener("status", ({ detail }) => {
 			this.ui.setStatus(detail);
@@ -458,6 +493,9 @@ class ComfyApp {
 		await this.#invokeExtensionsAsync("setup");
 	}
 
+	/**
+	 * Registers nodes with the graph
+	 */
 	async registerNodes() {
 		const app = this;
 		// Load node definitions from the backend
@@ -555,6 +593,10 @@ class ComfyApp {
 		}
 	}
 
+	/**
+	 * Converts the current graph workflow for sending to the API
+	 * @returns The workflow and node links
+	 */
 	graphToPrompt() {
 		// TODO: Implement dynamic prompts
 		const workflow = this.graph.serialize();
@@ -619,6 +661,10 @@ class ComfyApp {
 		await this.ui.queue.update();
 	}
 
+	/**
+	 * Loads workflow data from the specified file
+	 * @param {File} file 
+	 */
 	async handleFile(file) {
 		if (file.type === "image/png") {
 			const pngInfo = await getPngMetadata(file);
