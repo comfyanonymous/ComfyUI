@@ -313,8 +313,27 @@ class ComfyApp {
 				};
 				reader.readAsText(file);
 			}
+		});
+	}
 
-			prompt_file_load(file);
+	#addPasteHandler() {
+		document.addEventListener("paste", (e) => {
+			let data = (e.clipboardData || window.clipboardData).getData("text/plain");
+			let workflow;
+			try {
+				data = data.slice(data.indexOf("{"));
+				workflow = JSON.parse(data);
+			} catch (err) {
+				try {
+					data = data.slice(data.indexOf("workflow\n"));
+					data = data.slice(data.indexOf("{"));
+					workflow = JSON.parse(data);
+				} catch (error) {}
+			}
+
+			if (workflow && workflow.version && workflow.nodes && workflow.extra) {
+				this.loadGraphData(workflow);
+			}
 		});
 	}
 
@@ -367,13 +386,17 @@ class ComfyApp {
 	}
 
 	#addApiUpdateHandlers() {
-		api.addEventListener("status", (status) => {
-			console.log(status);
+		api.addEventListener("status", ({ detail }) => {
+			this.ui.setStatus(detail);
 		});
 
-		api.addEventListener("reconnecting", () => {});
+		api.addEventListener("reconnecting", () => {
+			this.ui.dialog.show("Reconnecting...");
+		});
 
-		api.addEventListener("reconnected", () => {});
+		api.addEventListener("reconnected", () => {
+			this.ui.dialog.close();
+		});
 
 		api.addEventListener("progress", ({ detail }) => {
 			this.progress = detail;
@@ -386,7 +409,9 @@ class ComfyApp {
 			this.graph.setDirtyCanvas(true, false);
 		});
 
-		api.addEventListener("executed", (e) => {});
+		api.addEventListener("executed", ({ detail }) => {
+			this.nodeOutputs[detail.node] = detail.output;
+		});
 
 		api.init();
 	}
@@ -431,7 +456,7 @@ class ComfyApp {
 
 		// We failed to restore a workflow so load the default
 		if (!restored) {
-			this.loadGraphData(defaultGraph);
+			this.loadGraphData();
 		}
 
 		// Save current workflow automatically
@@ -440,6 +465,8 @@ class ComfyApp {
 		this.#addDrawNodeProgressHandler();
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
+		this.#addPasteHandler();
+
 		await this.#invokeExtensionsAsync("setup");
 	}
 
@@ -511,6 +538,9 @@ class ComfyApp {
 	 * @param {*} graphData A serialized graph object
 	 */
 	loadGraphData(graphData) {
+		if (!graphData) {
+			graphData = defaultGraph;
+		}
 		this.graph.configure(graphData);
 
 		for (const node of this.graph._nodes) {
@@ -526,7 +556,7 @@ class ComfyApp {
 					if (node.type == "KSampler" || node.type == "KSamplerAdvanced") {
 						if (widget.name == "sampler_name") {
 							if (widget.value.startsWith("sample_")) {
-								wid.value = widget.value.slice(7);
+								widget.value = widget.value.slice(7);
 							}
 						}
 					}

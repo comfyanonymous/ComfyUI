@@ -34,6 +34,8 @@ body {
 	max-height: 80vh;
 	transform: translate(-50%, -50%);
 	overflow: hidden;
+	min-width: 60%;
+	justify-content: center;
 }
 
 .comfy-modal-content {
@@ -79,21 +81,56 @@ body {
 	align-items: center;
 }
 
-.comfy-menu-btns {
-	margin-bottom: 10px;
+.comfy-menu button {
+	font-size: 20px;
 }
 
-.comfy-menu-btn-sm {
+.comfy-menu-btns {
+	margin-bottom: 10px;
+	width: 100%;
+}
+
+.comfy-menu-btns button {
 	font-size: 10px;
 	width: 50%;
 }
 
-.comfy-menu-btn-lg, .comfy-menu-btn-queue {
-	font-size: 20px;
+.comfy-queue-btn {
+	width: 100%;
 }
 
-.comfy-menu-btn-queue {
-	width: 100%;
+.comfy-list {
+	background-color: rgb(225, 225, 225);
+	margin-bottom: 10px;
+}
+
+.comfy-list-items {
+	overflow-y: scroll;
+	max-height: 100px;
+	background-color: #d0d0d0;
+	padding: 5px;
+}
+
+.comfy-list h4 {
+	min-width: 160px;
+	margin: 0;
+	padding: 3px;
+	font-weight: normal;
+}
+
+.comfy-list-items button {
+	font-size: 10px;
+}
+
+.comfy-list-actions {
+	margin: 5px;
+	display: flex;
+	gap: 5px;
+	justify-content: center;
+}
+
+.comfy-list-actions button {
+	font-size: 12px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -107,7 +144,7 @@ body {
 }
 
 @media only screen and (max-height: 850px) {
-	#menu {
+	.comfy-menu {
 		margin-top: -70px;
 	}
 }
