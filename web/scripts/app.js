@@ -11,14 +11,6 @@ class ComfyApp {
 		this.nodeOutputs = {};
 	}
 
-	#log(message, ...other) {
-		console.log("[comfy]", message, ...other);
-	}
-
-	#error(message, ...other) {
-		console.error("[comfy]", message, ...other);
-	}
-
 	/**
 	 * Invoke an extension callback
 	 * @param {string} method The extension callback to execute
@@ -32,7 +24,7 @@ class ComfyApp {
 				try {
 					results.push(ext[method](...args, this));
 				} catch (error) {
-					this.#error(
+					console.error(
 						`Error calling extension '${ext.name}' method '${method}'`,
 						{ error },
 						{ extension: ext },
@@ -58,7 +50,7 @@ class ComfyApp {
 					try {
 						return await ext[method](...args, this);
 					} catch (error) {
-						this.#error(
+						console.error(
 							`Error calling extension '${ext.name}' method '${method}'`,
 							{ error },
 							{ extension: ext },
@@ -414,9 +406,25 @@ class ComfyApp {
 	}
 
 	/**
+	 * Loads all extensions from the API into the window
+	 */
+	async #loadExtensions() {
+		const extensions = await api.getExtensions();
+		for (const ext of extensions) {
+			try {
+				await import(ext);
+			} catch (error) {
+				console.error("Error loading extension", ext, error);
+			}
+		}
+	}
+
+	/**
 	 * Set up the app on the page
 	 */
 	async setup() {
+		await this.#loadExtensions();
+
 		// Create and mount the LiteGraph in the DOM
 		const canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" });
 		document.body.prepend(canvasEl);
