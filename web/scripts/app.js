@@ -589,9 +589,10 @@ class ComfyApp {
 
 			// Store all widget values
 			if (widgets) {
-				for (const widget of widgets) {
+				for (const i in widgets) {
+					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? widget.serializeValue() : widget.value;
+						inputs[widget.name] = widget.serializeValue ? widget.serializeValue(n, i) : widget.value;
 					}
 				}
 			}
@@ -619,7 +620,7 @@ class ComfyApp {
 					} else {
 						link = node.getInputLink(i);
 					}
-					
+
 					if (link) {
 						inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
 					}

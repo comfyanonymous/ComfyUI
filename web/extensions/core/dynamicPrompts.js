@@ -6,9 +6,6 @@ import { app } from "../../scripts/app.js";
 app.registerExtension({
 	name: "Comfy.DynamicPrompts",
 	nodeCreated(node) {
-		// TODO: Change this to replace the value and restore it after posting
-
-
 		if (node.widgets) {
 			// Locate dynamic prompt text widgets
 			// Include any widgets with dynamicPrompts set to true, and customtext
@@ -17,7 +14,7 @@ app.registerExtension({
 			);
 			for (const widget of widgets) {
 				// Override the serialization of the value to resolve dynamic prompts for all widgets supporting it in this node
-				widget.serializeValue = () => {
+				widget.serializeValue = (workflowNode, widgetIndex) => {
 					let prompt = widget.value;
 					while (prompt.replace("\\{", "").includes("{") && prompt.replace("\\}", "").includes("}")) {
 						const startIndex = prompt.replace("\\{", "00").indexOf("{");
@@ -31,6 +28,9 @@ app.registerExtension({
 
 						prompt = prompt.substring(0, startIndex) + randomOption + prompt.substring(endIndex + 1);
 					}
+
+					// Overwrite the value in the serialized workflow pnginfo
+					workflowNode.widgets_values[widgetIndex] = prompt;
 
 					return prompt;
 				};
