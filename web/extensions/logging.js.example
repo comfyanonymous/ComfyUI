@@ -1,6 +1,7 @@
 import { app } from "../scripts/app.js";
 
 const ext = {
+	// Unique name for the extension
 	name: "Example.LoggingExtension",
 	async init(app) {
 		// Any initial setup to run as soon as the page loads

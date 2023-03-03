@@ -89,6 +89,15 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
+	 * Gets a list of extension urls
+	 * @returns An array of script urls to import
+	 */
+	async getExtensions() {
+		const resp = await fetch("/extensions", { cache: "no-store" });
+		return await resp.json();
+	}
+
+	/**
 	 * Loads node object definitions for the graph
 	 * @returns The node definitions
 	 */

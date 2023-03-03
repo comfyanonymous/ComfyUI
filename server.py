@@ -5,6 +5,7 @@ import nodes
 import execution
 import uuid
 import json
+import glob
 
 try:
     import aiohttp
@@ -51,6 +52,11 @@ class PromptServer():
         @routes.get("/")
         async def get_root(request):
             return web.FileResponse(os.path.join(self.web_root, "index.html"))
+
+        @routes.get("/extensions")
+        async def get_extensions(request):
+            files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
+            return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
 
         @routes.get("/view/{file}")
         async def view_image(request):
