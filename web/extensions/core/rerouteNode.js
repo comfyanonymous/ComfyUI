@@ -46,6 +46,7 @@ app.registerExtension({
 								this.outputs[0].name = "";
 							}
 							this.size = this.computeSize();
+							app.graph.setDirtyCanvas(true);
 						},
 					},
 					{
