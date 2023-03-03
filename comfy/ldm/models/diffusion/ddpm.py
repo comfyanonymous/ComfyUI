@@ -81,7 +81,7 @@ class DDPM(torch.nn.Module):
         super().__init__()
         assert parameterization in ["eps", "x0", "v"], 'currently only supporting "eps" and "x0" and "v"'
         self.parameterization = parameterization
-        print(f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode")
+        # print(f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode")
         self.cond_stage_model = None
         self.clip_denoised = clip_denoised
         self.log_every_t = log_every_t
@@ -522,8 +522,8 @@ class LatentDiffusion(DDPM):
     """main class"""
 
     def __init__(self,
-                 first_stage_config,
-                 cond_stage_config,
+                 first_stage_config={},
+                 cond_stage_config={},
                  num_timesteps_cond=None,
                  cond_stage_key="image",
                  cond_stage_trainable=False,
@@ -562,8 +562,6 @@ class LatentDiffusion(DDPM):
 
         # self.instantiate_first_stage(first_stage_config)
         # self.instantiate_cond_stage(cond_stage_config)
-        self.first_stage_config = first_stage_config
-        self.cond_stage_config = cond_stage_config
 
         self.cond_stage_forward = cond_stage_forward
         self.clip_denoised = False
