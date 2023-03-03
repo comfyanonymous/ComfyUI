@@ -39,7 +39,9 @@ class ComfyApi extends EventTarget {
 
 		this.socket.addEventListener("error", () => {
 			if (this.socket) this.socket.close();
-			this.#pollQueue();
+			if (!opened) {
+				this.#pollQueue();
+			}
 		});
 
 		this.socket.addEventListener("close", () => {
