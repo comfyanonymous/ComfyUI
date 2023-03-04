@@ -11,3 +11,4 @@ aiohttp
 accelerate
 realesrgan
 gfpgan
+requests

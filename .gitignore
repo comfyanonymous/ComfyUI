@@ -4,4 +4,5 @@ output/
 models/checkpoints
 models/vae
 models/embeddings
-gfpgan/
+models/gfpgan
+models/realesrgan
