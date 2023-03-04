@@ -13,5 +13,4 @@ realesrgan
 gfpgan
 
 # for the configure script
-cmd
 requests
