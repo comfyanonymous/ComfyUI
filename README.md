@@ -135,7 +135,7 @@ You can also set this command line setting to disable the upcasting to fp32 in s
 
 ## Support and dev channel
 
-[Matrix room: #comfyui:matrix.org](https://app.element.io/#/room/%23comfyui%3Amatrix.org) (it's like discord but open source).
+[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
 # QA
 
