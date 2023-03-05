@@ -613,11 +613,7 @@ class T2IAdapter:
 def load_t2i_adapter(ckpt_path, model=None):
     t2i_data = load_torch_file(ckpt_path)
     keys = t2i_data.keys()
-    if "style_embedding" in keys:
-        pass
-        # TODO
-        # model_ad = adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
-    elif "body.0.in_conv.weight" in keys:
+    if "body.0.in_conv.weight" in keys:
         cin = t2i_data['body.0.in_conv.weight'].shape[1]
         model_ad = adapter.Adapter_light(cin=cin, channels=[320, 640, 1280, 1280], nums_rb=4)
     else:
@@ -625,6 +621,26 @@ def load_t2i_adapter(ckpt_path, model=None):
         model_ad = adapter.Adapter(cin=cin, channels=[320, 640, 1280, 1280][:4], nums_rb=2, ksize=1, sk=True, use_conv=False)
     model_ad.load_state_dict(t2i_data)
     return T2IAdapter(model_ad, cin // 64)
+
+
+class StyleModel:
+    def __init__(self, model, device="cpu"):
+        self.model = model
+
+    def get_cond(self, input):
+        return self.model(input.last_hidden_state)
+
+
+def load_style_model(ckpt_path):
+    model_data = load_torch_file(ckpt_path)
+    keys = model_data.keys()
+    if "style_embedding" in keys:
+        model = adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
+    else:
+        raise Exception("invalid style model {}".format(ckpt_path))
+    model.load_state_dict(model_data)
+    return StyleModel(model)
+
 
 def load_clip(ckpt_path, embedding_directory=None):
     clip_data = load_torch_file(ckpt_path)
