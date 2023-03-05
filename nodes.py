@@ -18,6 +18,8 @@ import comfy.samplers
 import comfy.sd
 import comfy.utils
 
+import comfy_extras.clip_vision
+
 import model_management
 import importlib
 
@@ -369,6 +371,89 @@ class CLIPLoader:
         clip_path = os.path.join(self.clip_dir, clip_name)
         clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
         return (clip,)
+
+class CLIPVisionLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    clip_dir = os.path.join(models_dir, "clip_vision")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_name": (filter_files_extensions(recursive_search(s.clip_dir), supported_pt_extensions), ),
+                             }}
+    RETURN_TYPES = ("CLIP_VISION",)
+    FUNCTION = "load_clip"
+
+    CATEGORY = "loaders"
+
+    def load_clip(self, clip_name):
+        clip_path = os.path.join(self.clip_dir, clip_name)
+        clip_vision = comfy_extras.clip_vision.load(clip_path)
+        return (clip_vision,)
+
+class CLIPVisionEncode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_vision": ("CLIP_VISION",),
+                              "image": ("IMAGE",)
+                             }}
+    RETURN_TYPES = ("CLIP_VISION_EMBED",)
+    FUNCTION = "encode"
+
+    CATEGORY = "conditioning"
+
+    def encode(self, clip_vision, image):
+        output = clip_vision.encode_image(image)
+        return (output,)
+
+class StyleModelLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    style_model_dir = os.path.join(models_dir, "style_models")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "style_model_name": (filter_files_extensions(recursive_search(s.style_model_dir), supported_pt_extensions), )}}
+
+    RETURN_TYPES = ("STYLE_MODEL",)
+    FUNCTION = "load_style_model"
+
+    CATEGORY = "loaders"
+
+    def load_style_model(self, style_model_name):
+        style_model_path = os.path.join(self.style_model_dir, style_model_name)
+        style_model = comfy.sd.load_style_model(style_model_path)
+        return (style_model,)
+
+
+class StyleModelApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"clip_vision_embed": ("CLIP_VISION_EMBED", ),
+                             "style_model": ("STYLE_MODEL", )
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "apply_stylemodel"
+
+    CATEGORY = "conditioning"
+
+    def apply_stylemodel(self, clip_vision_embed, style_model):
+        c = style_model.get_cond(clip_vision_embed)
+        return ([[c, {}]], )
+
+
+class ConditioningAppend:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_to": ("CONDITIONING", ), "conditioning_from": ("CONDITIONING", )}}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning_to, conditioning_from):
+        c = []
+        to_append = conditioning_from[0][0]
+        for t in conditioning_to:
+            n = [torch.cat((t[0],to_append), dim=1), t[1].copy()]
+            c.append(n)
+        return (c, )
 
 class EmptyLatentImage:
     def __init__(self, device="cpu"):
@@ -866,6 +951,11 @@ NODE_CLASS_MAPPINGS = {
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
+    "StyleModelLoader": StyleModelLoader,
+    "CLIPVisionLoader": CLIPVisionLoader,
+    "CLIPVisionEncode": CLIPVisionEncode,
+    "StyleModelApply":StyleModelApply,
+    "ConditioningAppend":ConditioningAppend,
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
