@@ -37,10 +37,9 @@ prompt_text = """
         }
     },
     "4": {
-        "class_type": "CheckpointLoader",
+        "class_type": "CheckpointLoaderSimple",
         "inputs": {
-            "ckpt_name": "v1-5-pruned-emaonly.ckpt",
-            "config_name": "v1-inference.yaml"
+            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
         }
     },
     "5": {
