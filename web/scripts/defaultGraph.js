@@ -86,9 +86,9 @@ export const defaultGraph = {
 		},
 		{
 			id: 4,
-			type: "CheckpointLoader",
+			type: "CheckpointLoaderSimple",
 			pos: [26, 474],
-			size: { 0: 315, 1: 122 },
+			size: { 0: 315, 1: 98 },
 			flags: {},
 			order: 0,
 			mode: 0,
@@ -98,7 +98,7 @@ export const defaultGraph = {
 				{ name: "VAE", type: "VAE", links: [8], slot_index: 2 },
 			],
 			properties: {},
-			widgets_values: ["v1-inference.yaml", "v1-5-pruned-emaonly.ckpt"],
+			widgets_values: ["v1-5-pruned-emaonly.ckpt"],
 		},
 	],
 	links: [
