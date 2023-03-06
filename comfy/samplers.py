@@ -438,7 +438,7 @@ class KSampler:
         else:
             max_denoise = True
 
-        with precision_scope(self.device):
+        with precision_scope(model_management.get_autocast_device(self.device)):
             if self.sampler == "uni_pc":
                 samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
             elif self.sampler == "uni_pc_bh2":

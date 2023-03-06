@@ -266,7 +266,7 @@ class CLIP:
         self.cond_stage_model = clip(**(params))
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model)
-        self.layer_idx = -1
+        self.layer_idx = None
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -287,7 +287,8 @@ class CLIP:
         self.layer_idx = layer_idx
 
     def encode(self, text):
-        self.cond_stage_model.clip_layer(self.layer_idx)
+        if self.layer_idx is not None:
+            self.cond_stage_model.clip_layer(self.layer_idx)
         tokens = self.tokenizer.tokenize_with_weights(text)
         try:
             self.patcher.patch_model()
@@ -299,7 +300,7 @@ class CLIP:
         return cond
 
 class VAE:
-    def __init__(self, ckpt_path=None, scale_factor=0.18215, device="cuda", config=None):
+    def __init__(self, ckpt_path=None, scale_factor=0.18215, device=None, config=None):
         if config is None:
             #default SD1.x/SD2.x VAE parameters
             ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
@@ -308,6 +309,8 @@ class VAE:
             self.first_stage_model = AutoencoderKL(**(config['params']), ckpt_path=ckpt_path)
         self.first_stage_model = self.first_stage_model.eval()
         self.scale_factor = scale_factor
+        if device is None:
+            device = model_management.get_torch_device()
         self.device = device
 
     def decode(self, samples):
@@ -381,11 +384,13 @@ def resize_image_to(tensor, target_latent_tensor, batched_number):
         return torch.cat([tensor] * batched_number, dim=0)
 
 class ControlNet:
-    def __init__(self, control_model, device="cuda"):
+    def __init__(self, control_model, device=None):
         self.control_model = control_model
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
+        if device is None:
+            device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
 
@@ -406,7 +411,7 @@ class ControlNet:
         else:
             precision_scope = contextlib.nullcontext
 
-        with precision_scope(self.device):
+        with precision_scope(model_management.get_autocast_device(self.device)):
             self.control_model = model_management.load_if_low_vram(self.control_model)
             control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
             self.control_model = model_management.unload_if_low_vram(self.control_model)
@@ -481,7 +486,7 @@ def load_controlnet(ckpt_path, model=None):
     context_dim = controlnet_data[key].shape[1]
 
     use_fp16 = False
-    if controlnet_data[key].dtype == torch.float16:
+    if model_management.should_use_fp16() and controlnet_data[key].dtype == torch.float16:
         use_fp16 = True
 
     control_model = cldm.ControlNet(image_size=32,
@@ -527,10 +532,12 @@ def load_controlnet(ckpt_path, model=None):
     return control
 
 class T2IAdapter:
-    def __init__(self, t2i_model, channels_in, device="cuda"):
+    def __init__(self, t2i_model, channels_in, device=None):
         self.t2i_model = t2i_model
         self.channels_in = channels_in
         self.strength = 1.0
+        if device is None:
+            device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
         self.control_input = None
@@ -613,11 +620,7 @@ class T2IAdapter:
 def load_t2i_adapter(ckpt_path, model=None):
     t2i_data = load_torch_file(ckpt_path)
     keys = t2i_data.keys()
-    if "style_embedding" in keys:
-        pass
-        # TODO
-        # model_ad = adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
-    elif "body.0.in_conv.weight" in keys:
+    if "body.0.in_conv.weight" in keys:
         cin = t2i_data['body.0.in_conv.weight'].shape[1]
         model_ad = adapter.Adapter_light(cin=cin, channels=[320, 640, 1280, 1280], nums_rb=4)
     else:
@@ -625,6 +628,26 @@ def load_t2i_adapter(ckpt_path, model=None):
         model_ad = adapter.Adapter(cin=cin, channels=[320, 640, 1280, 1280][:4], nums_rb=2, ksize=1, sk=True, use_conv=False)
     model_ad.load_state_dict(t2i_data)
     return T2IAdapter(model_ad, cin // 64)
+
+
+class StyleModel:
+    def __init__(self, model, device="cpu"):
+        self.model = model
+
+    def get_cond(self, input):
+        return self.model(input.last_hidden_state)
+
+
+def load_style_model(ckpt_path):
+    model_data = load_torch_file(ckpt_path)
+    keys = model_data.keys()
+    if "style_embedding" in keys:
+        model = adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
+    else:
+        raise Exception("invalid style model {}".format(ckpt_path))
+    model.load_state_dict(model_data)
+    return StyleModel(model)
+
 
 def load_clip(ckpt_path, embedding_directory=None):
     clip_data = load_torch_file(ckpt_path)

@@ -18,6 +18,8 @@ import comfy.samplers
 import comfy.sd
 import comfy.utils
 
+import comfy_extras.clip_vision
+
 import model_management
 import importlib
 
@@ -370,6 +372,76 @@ class CLIPLoader:
         clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
         return (clip,)
 
+class CLIPVisionLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    clip_dir = os.path.join(models_dir, "clip_vision")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_name": (filter_files_extensions(recursive_search(s.clip_dir), supported_pt_extensions), ),
+                             }}
+    RETURN_TYPES = ("CLIP_VISION",)
+    FUNCTION = "load_clip"
+
+    CATEGORY = "loaders"
+
+    def load_clip(self, clip_name):
+        clip_path = os.path.join(self.clip_dir, clip_name)
+        clip_vision = comfy_extras.clip_vision.load(clip_path)
+        return (clip_vision,)
+
+class CLIPVisionEncode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_vision": ("CLIP_VISION",),
+                              "image": ("IMAGE",)
+                             }}
+    RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
+    FUNCTION = "encode"
+
+    CATEGORY = "conditioning/style_model"
+
+    def encode(self, clip_vision, image):
+        output = clip_vision.encode_image(image)
+        return (output,)
+
+class StyleModelLoader:
+    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+    style_model_dir = os.path.join(models_dir, "style_models")
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "style_model_name": (filter_files_extensions(recursive_search(s.style_model_dir), supported_pt_extensions), )}}
+
+    RETURN_TYPES = ("STYLE_MODEL",)
+    FUNCTION = "load_style_model"
+
+    CATEGORY = "loaders"
+
+    def load_style_model(self, style_model_name):
+        style_model_path = os.path.join(self.style_model_dir, style_model_name)
+        style_model = comfy.sd.load_style_model(style_model_path)
+        return (style_model,)
+
+
+class StyleModelApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "style_model": ("STYLE_MODEL", ),
+                             "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "apply_stylemodel"
+
+    CATEGORY = "conditioning/style_model"
+
+    def apply_stylemodel(self, clip_vision_output, style_model, conditioning):
+        cond = style_model.get_cond(clip_vision_output)
+        c = []
+        for t in conditioning:
+            n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
+            c.append(n)
+        return (c, )
+
 class EmptyLatentImage:
     def __init__(self, device="cpu"):
         self.device = device
@@ -419,7 +491,7 @@ class LatentRotate:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "rotate"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/transform"
 
     def rotate(self, samples, rotation):
         s = samples.copy()
@@ -443,7 +515,7 @@ class LatentFlip:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "flip"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/transform"
 
     def flip(self, samples, flip_method):
         s = samples.copy()
@@ -508,7 +580,7 @@ class LatentCrop:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "crop"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/transform"
 
     def crop(self, samples, width, height, x, y):
         s = samples.copy()
@@ -556,9 +628,10 @@ class SetLatentNoiseMask:
         return (s,)
 
 
-def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
     noise_mask = None
+    device = model_management.get_torch_device()
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -574,12 +647,9 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
         noise_mask = noise_mask.to(device)
 
     real_model = None
-    if device != "cpu":
-        model_management.load_model_gpu(model)
-        real_model = model.model
-    else:
-        #TODO: cpu support
-        real_model = model.patch_model()
+    model_management.load_model_gpu(model)
+    real_model = model.model
+
     noise = noise.to(device)
     latent_image = latent_image.to(device)
 
@@ -625,9 +695,6 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
     return (out, )
 
 class KSampler:
-    def __init__(self, device="cuda"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -649,12 +716,9 @@ class KSampler:
     CATEGORY = "sampling"
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
-        return common_ksampler(self.device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
+        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
 
 class KSamplerAdvanced:
-    def __init__(self, device="cuda"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -685,7 +749,7 @@ class KSamplerAdvanced:
         disable_noise = False
         if add_noise == "disable":
             disable_noise = True
-        return common_ksampler(self.device, model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
+        return common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
 class SaveImage:
     def __init__(self):
@@ -866,10 +930,14 @@ NODE_CLASS_MAPPINGS = {
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
+    "CLIPVisionEncode": CLIPVisionEncode,
+    "StyleModelApply": StyleModelApply,
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
     "T2IAdapterLoader": T2IAdapterLoader,
+    "StyleModelLoader": StyleModelLoader,
+    "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
 }
 
