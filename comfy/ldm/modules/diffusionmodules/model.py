@@ -7,6 +7,7 @@ from einops import rearrange
 from typing import Optional, Any
 
 from ldm.modules.attention import MemoryEfficientCrossAttention
+import model_management
 
 try:
     import xformers
@@ -199,12 +200,7 @@ class AttnBlock(nn.Module):
 
         r1 = torch.zeros_like(k, device=q.device)
 
-        stats = torch.cuda.memory_stats(q.device)
-        mem_active = stats['active_bytes.all.current']
-        mem_reserved = stats['reserved_bytes.all.current']
-        mem_free_cuda, _ = torch.cuda.mem_get_info(torch.cuda.current_device())
-        mem_free_torch = mem_reserved - mem_active
-        mem_free_total = mem_free_cuda + mem_free_torch
+        mem_free_total = model_management.get_free_memory(q.device)
 
         gb = 1024 ** 3
         tensor_size = q.shape[0] * q.shape[1] * k.shape[2] * q.element_size()
