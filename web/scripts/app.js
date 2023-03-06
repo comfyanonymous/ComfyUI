@@ -123,157 +123,150 @@ class ComfyApp {
 							}
 						});
 					}
+				}
 
-					if (this.imgs) {
-						const canvas = graph.list_of_graphcanvas[0];
-						const mouse = canvas.graph_mouse;
-						if (!canvas.pointer_is_down && this.pointerDown) {
-							if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
-								this.imageIndex = this.pointerDown.index;
-							}
-							this.pointerDown = null;
+				if (this.imgs && this.imgs.length) {
+					const canvas = graph.list_of_graphcanvas[0];
+					const mouse = canvas.graph_mouse;
+					if (!canvas.pointer_is_down && this.pointerDown) {
+						if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
+							this.imageIndex = this.pointerDown.index;
 						}
+						this.pointerDown = null;
+					}
 
-						let w = this.imgs[0].naturalWidth;
-						let h = this.imgs[0].naturalHeight;
-						let imageIndex = this.imageIndex;
-						const numImages = this.imgs.length;
-						if (numImages === 1 && !imageIndex) {
-							this.imageIndex = imageIndex = 0;
-						}
-						let shiftY = this.type === "SaveImage" ? 55 : 0;
-						let dw = this.size[0];
-						let dh = this.size[1];
-						dh -= shiftY;
+					let w = this.imgs[0].naturalWidth;
+					let h = this.imgs[0].naturalHeight;
+					let imageIndex = this.imageIndex;
+					const numImages = this.imgs.length;
+					if (numImages === 1 && !imageIndex) {
+						this.imageIndex = imageIndex = 0;
+					}
+					let shiftY = this.type === "SaveImage" ? 55 : 0;
+					let dw = this.size[0];
+					let dh = this.size[1];
+					dh -= shiftY;
 
-						if (imageIndex == null) {
-							let best = 0;
-							let cellWidth;
-							let cellHeight;
-							let cols = 0;
-							let shiftX = 0;
-							for (let c = 1; c <= numImages; c++) {
-								const rows = Math.ceil(numImages / c);
-								const cW = dw / c;
-								const cH = dh / rows;
-								const scaleX = cW / w;
-								const scaleY = cH / h;
+					if (imageIndex == null) {
+						let best = 0;
+						let cellWidth;
+						let cellHeight;
+						let cols = 0;
+						let shiftX = 0;
+						for (let c = 1; c <= numImages; c++) {
+							const rows = Math.ceil(numImages / c);
+							const cW = dw / c;
+							const cH = dh / rows;
+							const scaleX = cW / w;
+							const scaleY = cH / h;
 
-								const scale = Math.min(scaleX, scaleY, 1);
-								const imageW = w * scale;
-								const imageH = h * scale;
-								const area = imageW * imageH * numImages;
-
-								if (area > best) {
-									best = area;
-									cellWidth = imageW;
-									cellHeight = imageH;
-									cols = c;
-									shiftX = c * ((cW - imageW) / 2);
-								}
-							}
-
-							let anyHovered = false;
-							this.imageRects = [];
-							for (let i = 0; i < numImages; i++) {
-								const img = this.imgs[i];
-								const row = Math.floor(i / cols);
-								const col = i % cols;
-								const x = col * cellWidth + shiftX;
-								const y = row * cellHeight + shiftY;
-								if (!anyHovered) {
-									anyHovered = LiteGraph.isInsideRectangle(
-										mouse[0],
-										mouse[1],
-										x + this.pos[0],
-										y + this.pos[1],
-										cellWidth,
-										cellHeight
-									);
-									if (anyHovered) {
-										this.overIndex = i;
-										let value = 110;
-										if (canvas.pointer_is_down) {
-											if (!this.pointerDown || this.pointerDown.index !== i) {
-												this.pointerDown = { index: i, pos: [...mouse] };
-											}
-											value = 125;
-										}
-										ctx.filter = `contrast(${value}%) brightness(${value}%)`;
-										canvas.canvas.style.cursor = "pointer";
-									}
-								}
-								this.imageRects.push([x, y, cellWidth, cellHeight]);
-								ctx.drawImage(img, x, y, cellWidth, cellHeight);
-								ctx.filter = "none";
-							}
-
-							if (!anyHovered) {
-								this.pointerDown = null;
-								this.overIndex = null;
-							}
-						} else {
-							// Draw individual
-							const scaleX = dw / w;
-							const scaleY = dh / h;
 							const scale = Math.min(scaleX, scaleY, 1);
+							const imageW = w * scale;
+							const imageH = h * scale;
+							const area = imageW * imageH * numImages;
 
-							w *= scale;
-							h *= scale;
+							if (area > best) {
+								best = area;
+								cellWidth = imageW;
+								cellHeight = imageH;
+								cols = c;
+								shiftX = c * ((cW - imageW) / 2);
+							}
+						}
 
-							let x = (dw - w) / 2;
-							let y = (dh - h) / 2 + shiftY;
-							ctx.drawImage(this.imgs[imageIndex], x, y, w, h);
-
-							const drawButton = (x, y, sz, text) => {
-								const hovered = LiteGraph.isInsideRectangle(
+						let anyHovered = false;
+						this.imageRects = [];
+						for (let i = 0; i < numImages; i++) {
+							const img = this.imgs[i];
+							const row = Math.floor(i / cols);
+							const col = i % cols;
+							const x = col * cellWidth + shiftX;
+							const y = row * cellHeight + shiftY;
+							if (!anyHovered) {
+								anyHovered = LiteGraph.isInsideRectangle(
 									mouse[0],
 									mouse[1],
 									x + this.pos[0],
 									y + this.pos[1],
-									sz,
-									sz
+									cellWidth,
+									cellHeight
 								);
-								let fill = "#333";
-								let textFill = "#fff";
-								let isClicking = false;
-								if (hovered) {
-									canvas.canvas.style.cursor = "pointer";
+								if (anyHovered) {
+									this.overIndex = i;
+									let value = 110;
 									if (canvas.pointer_is_down) {
-										fill = "#1e90ff";
-										isClicking = true;
-									} else {
-										fill = "#eee";
-										textFill = "#000";
+										if (!this.pointerDown || this.pointerDown.index !== i) {
+											this.pointerDown = { index: i, pos: [...mouse] };
+										}
+										value = 125;
 									}
+									ctx.filter = `contrast(${value}%) brightness(${value}%)`;
+									canvas.canvas.style.cursor = "pointer";
+								}
+							}
+							this.imageRects.push([x, y, cellWidth, cellHeight]);
+							ctx.drawImage(img, x, y, cellWidth, cellHeight);
+							ctx.filter = "none";
+						}
+
+						if (!anyHovered) {
+							this.pointerDown = null;
+							this.overIndex = null;
+						}
+					} else {
+						// Draw individual
+						const scaleX = dw / w;
+						const scaleY = dh / h;
+						const scale = Math.min(scaleX, scaleY, 1);
+
+						w *= scale;
+						h *= scale;
+
+						let x = (dw - w) / 2;
+						let y = (dh - h) / 2 + shiftY;
+						ctx.drawImage(this.imgs[imageIndex], x, y, w, h);
+
+						const drawButton = (x, y, sz, text) => {
+							const hovered = LiteGraph.isInsideRectangle(mouse[0], mouse[1], x + this.pos[0], y + this.pos[1], sz, sz);
+							let fill = "#333";
+							let textFill = "#fff";
+							let isClicking = false;
+							if (hovered) {
+								canvas.canvas.style.cursor = "pointer";
+								if (canvas.pointer_is_down) {
+									fill = "#1e90ff";
+									isClicking = true;
 								} else {
-									this.pointerWasDown = null;
+									fill = "#eee";
+									textFill = "#000";
 								}
+							} else {
+								this.pointerWasDown = null;
+							}
 
-								ctx.fillStyle = fill;
-								ctx.beginPath();
-								ctx.roundRect(x, y, sz, sz, [4]);
-								ctx.fill();
-								ctx.fillStyle = textFill;
-								ctx.font = "12px Arial";
-								ctx.textAlign = "center";
-								ctx.fillText(text, x + 15, y + 20);
+							ctx.fillStyle = fill;
+							ctx.beginPath();
+							ctx.roundRect(x, y, sz, sz, [4]);
+							ctx.fill();
+							ctx.fillStyle = textFill;
+							ctx.font = "12px Arial";
+							ctx.textAlign = "center";
+							ctx.fillText(text, x + 15, y + 20);
 
-								return isClicking;
-							};
+							return isClicking;
+						};
 
-							if (numImages > 1) {
-								if (drawButton(x + w - 35, y + h - 35, 30, `${this.imageIndex + 1}/${numImages}`)) {
-									let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
-									if (!this.pointerDown || !this.pointerDown.index === i) {
-										this.pointerDown = { index: i, pos: [...mouse] };
-									}
+						if (numImages > 1) {
+							if (drawButton(x + w - 35, y + h - 35, 30, `${this.imageIndex + 1}/${numImages}`)) {
+								let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
+								if (!this.pointerDown || !this.pointerDown.index === i) {
+									this.pointerDown = { index: i, pos: [...mouse] };
 								}
+							}
 
-								if (drawButton(x + w - 35, y + 5, 30, `x`)) {
-									if (!this.pointerDown || !this.pointerDown.index === null) {
-										this.pointerDown = { index: null, pos: [...mouse] };
-									}
+							if (drawButton(x + w - 35, y + 5, 30, `x`)) {
+								if (!this.pointerDown || !this.pointerDown.index === null) {
+									this.pointerDown = { index: null, pos: [...mouse] };
 								}
 							}
 						}
