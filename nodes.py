@@ -425,33 +425,20 @@ class StyleModelLoader:
 class StyleModelApply:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"clip_vision_output": ("CLIP_VISION_OUTPUT", ),
-                             "style_model": ("STYLE_MODEL", )
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "style_model": ("STYLE_MODEL", ),
+                             "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
     CATEGORY = "conditioning/style_model"
 
-    def apply_stylemodel(self, clip_vision_output, style_model):
-        c = style_model.get_cond(clip_vision_output)
-        return ([[c, {}]], )
-
-
-class ConditioningAppend:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"conditioning_to": ("CONDITIONING", ), "conditioning_from": ("CONDITIONING", )}}
-    RETURN_TYPES = ("CONDITIONING",)
-    FUNCTION = "append"
-
-    CATEGORY = "conditioning/style_model"
-
-    def append(self, conditioning_to, conditioning_from):
+    def apply_stylemodel(self, clip_vision_output, style_model, conditioning):
+        cond = style_model.get_cond(clip_vision_output)
         c = []
-        to_append = conditioning_from[0][0]
-        for t in conditioning_to:
-            n = [torch.cat((t[0],to_append), dim=1), t[1].copy()]
+        for t in conditioning:
+            n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
             c.append(n)
         return (c, )
 
@@ -952,8 +939,7 @@ NODE_CLASS_MAPPINGS = {
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
-    "StyleModelApply":StyleModelApply,
-    "ConditioningAppend":ConditioningAppend,
+    "StyleModelApply": StyleModelApply,
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
