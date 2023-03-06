@@ -395,10 +395,10 @@ class CLIPVisionEncode:
         return {"required": { "clip_vision": ("CLIP_VISION",),
                               "image": ("IMAGE",)
                              }}
-    RETURN_TYPES = ("CLIP_VISION_EMBED",)
+    RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "conditioning/style_model"
 
     def encode(self, clip_vision, image):
         output = clip_vision.encode_image(image)
@@ -425,16 +425,16 @@ class StyleModelLoader:
 class StyleModelApply:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"clip_vision_embed": ("CLIP_VISION_EMBED", ),
+        return {"required": {"clip_vision_output": ("CLIP_VISION_OUTPUT", ),
                              "style_model": ("STYLE_MODEL", )
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "conditioning/style_model"
 
-    def apply_stylemodel(self, clip_vision_embed, style_model):
-        c = style_model.get_cond(clip_vision_embed)
+    def apply_stylemodel(self, clip_vision_output, style_model):
+        c = style_model.get_cond(clip_vision_output)
         return ([[c, {}]], )
 
 
@@ -445,7 +445,7 @@ class ConditioningAppend:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "conditioning/style_model"
 
     def append(self, conditioning_to, conditioning_from):
         c = []
@@ -504,7 +504,7 @@ class LatentRotate:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "rotate"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/transform"
 
     def rotate(self, samples, rotation):
         s = samples.copy()
@@ -528,7 +528,7 @@ class LatentFlip:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "flip"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/transform"
 
     def flip(self, samples, flip_method):
         s = samples.copy()
@@ -593,7 +593,7 @@ class LatentCrop:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "crop"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/transform"
 
     def crop(self, samples, width, height, x, y):
         s = samples.copy()
@@ -951,8 +951,6 @@ NODE_CLASS_MAPPINGS = {
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
-    "StyleModelLoader": StyleModelLoader,
-    "CLIPVisionLoader": CLIPVisionLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
     "StyleModelApply":StyleModelApply,
     "ConditioningAppend":ConditioningAppend,
@@ -960,6 +958,8 @@ NODE_CLASS_MAPPINGS = {
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
     "T2IAdapterLoader": T2IAdapterLoader,
+    "StyleModelLoader": StyleModelLoader,
+    "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
 }
 
