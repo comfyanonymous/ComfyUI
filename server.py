@@ -17,7 +17,7 @@ except ImportError:
     print("pip install -r requirements.txt")
     sys.exit()
 
-import mimetypes; 
+import mimetypes
 
 class PromptServer():
     def __init__(self, loop):
