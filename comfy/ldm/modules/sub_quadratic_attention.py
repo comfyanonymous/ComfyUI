@@ -14,7 +14,12 @@ import torch
 from torch import Tensor
 from torch.utils.checkpoint import checkpoint
 import math
-from typing import Optional, NamedTuple, Protocol, List
+
+try:
+	from typing import Optional, NamedTuple, List, Protocol
+except ImportError:
+	from typing import Optional, NamedTuple, List
+	from typing_extensions import Protocol
 
 from torch import Tensor
 from typing import List
