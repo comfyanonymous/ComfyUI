@@ -31,6 +31,8 @@ try:
 except:
     pass
 
+if "--cpu" in sys.argv:
+    vram_state = CPU
 if "--lowvram" in sys.argv:
     set_vram_to = LOW_VRAM
 if "--novram" in sys.argv:
@@ -118,6 +120,8 @@ def load_model_gpu(model):
 def load_controlnet_gpu(models):
     global current_gpu_controlnets
     global vram_state
+    if vram_state == CPU:
+        return
 
     if vram_state == LOW_VRAM or vram_state == NO_VRAM:
         #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
@@ -144,10 +148,20 @@ def unload_if_low_vram(model):
         return model.cpu()
     return model
 
+def get_torch_device():
+    if vram_state == CPU:
+        return torch.device("cpu")
+    else:
+        return torch.cuda.current_device()
+
+def get_autocast_device(dev):
+    if hasattr(dev, 'type'):
+        return dev.type
+    return "cuda"
 
 def get_free_memory(dev=None, torch_free_too=False):
     if dev is None:
-        dev = torch.cuda.current_device()
+        dev = get_torch_device()
 
     if hasattr(dev, 'type') and dev.type == 'cpu':
         mem_free_total = psutil.virtual_memory().available

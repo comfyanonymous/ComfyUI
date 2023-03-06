@@ -628,9 +628,10 @@ class SetLatentNoiseMask:
         return (s,)
 
 
-def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
     noise_mask = None
+    device = model_management.get_torch_device()
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -646,12 +647,9 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
         noise_mask = noise_mask.to(device)
 
     real_model = None
-    if device != "cpu":
-        model_management.load_model_gpu(model)
-        real_model = model.model
-    else:
-        #TODO: cpu support
-        real_model = model.patch_model()
+    model_management.load_model_gpu(model)
+    real_model = model.model
+
     noise = noise.to(device)
     latent_image = latent_image.to(device)
 
@@ -697,9 +695,6 @@ def common_ksampler(device, model, seed, steps, cfg, sampler_name, scheduler, po
     return (out, )
 
 class KSampler:
-    def __init__(self, device="cuda"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -721,12 +716,9 @@ class KSampler:
     CATEGORY = "sampling"
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
-        return common_ksampler(self.device, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
+        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
 
 class KSamplerAdvanced:
-    def __init__(self, device="cuda"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -757,7 +749,7 @@ class KSamplerAdvanced:
         disable_noise = False
         if add_noise == "disable":
             disable_noise = True
-        return common_ksampler(self.device, model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
+        return common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
 class SaveImage:
     def __init__(self):
