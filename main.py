@@ -24,6 +24,7 @@ if __name__ == "__main__":
         print("\t--lowvram\t\t\tSplit the unet in parts to use less vram.")
         print("\t--novram\t\t\tWhen lowvram isn't enough.")
         print()
+        print("\t--cpu\t\t\tTo use the CPU for everything (slow).")
         exit()
 
     if '--dont-upcast-attention' in sys.argv:
