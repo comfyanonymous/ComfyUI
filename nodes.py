@@ -11,7 +11,7 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
-sys.path.insert(0, os.path.join(sys.path[0], "comfy"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
 import comfy.samplers
