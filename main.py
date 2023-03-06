@@ -11,7 +11,6 @@ if os.name == "nt":
 import execution
 import server
 
-
 if __name__ == "__main__":
     if '--help' in sys.argv:
         print("Valid Command line Arguments:")
