@@ -266,7 +266,7 @@ class CLIP:
         self.cond_stage_model = clip(**(params))
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model)
-        self.layer_idx = -1
+        self.layer_idx = None
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -287,7 +287,8 @@ class CLIP:
         self.layer_idx = layer_idx
 
     def encode(self, text):
-        self.cond_stage_model.clip_layer(self.layer_idx)
+        if self.layer_idx is not None:
+            self.cond_stage_model.clip_layer(self.layer_idx)
         tokens = self.tokenizer.tokenize_with_weights(text)
         try:
             self.patcher.patch_model()
