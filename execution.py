@@ -55,6 +55,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
 
     input_data_all = get_input_data(inputs, class_def, outputs, prompt, extra_data)
     if server.client_id is not None:
+        server.last_node_id = unique_id
         server.send_sync("executing", { "node": unique_id }, server.client_id)
     obj = class_def()
 
@@ -188,6 +189,7 @@ class PromptExecutor:
                 for x in executed:
                     self.old_prompt[x] = copy.deepcopy(prompt[x])
             finally:
+                self.server.last_node_id = None
                 if self.server.client_id is not None:
                     self.server.send_sync("executing", { "node": None }, self.server.client_id)
 

@@ -28,7 +28,13 @@ class ComfyApi extends EventTarget {
 		}
 
 		let opened = false;
-		this.socket = new WebSocket(`ws${window.location.protocol === "https:" ? "s" : ""}://${location.host}/ws`);
+		let existingSession = sessionStorage["Comfy.SessionId"] || "";
+		if (existingSession) {
+			existingSession = "?clientId=" + existingSession;
+		}
+		this.socket = new WebSocket(
+			`ws${window.location.protocol === "https:" ? "s" : ""}://${location.host}/ws${existingSession}`
+		);
 
 		this.socket.addEventListener("open", () => {
 			opened = true;
@@ -62,6 +68,7 @@ class ComfyApi extends EventTarget {
 					case "status":
 						if (msg.data.sid) {
 							this.clientId = msg.data.sid;
+							sessionStorage["Comfy.SessionId"] = this.clientId;
 						}
 						this.dispatchEvent(new CustomEvent("status", { detail: msg.data.status }));
 						break;
