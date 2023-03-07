@@ -4,8 +4,8 @@ import contextlib
 import sd1_clip
 import sd2_clip
 import model_management
-from ldm.util import instantiate_from_config
-from ldm.models.autoencoder import AutoencoderKL
+from .ldm.util import instantiate_from_config
+from .ldm.models.autoencoder import AutoencoderKL
 from omegaconf import OmegaConf
 from .cldm import cldm
 from .t2i_adapter import adapter
