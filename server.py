@@ -6,7 +6,6 @@ import execution
 import uuid
 import json
 import glob
-
 try:
     import aiohttp
     from aiohttp import web
@@ -27,7 +26,7 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
-        self.app = web.Application()
+        self.app = web.Application(client_max_size=20971520)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
@@ -71,10 +70,37 @@ class PromptServer():
             files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
             return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
 
+        @routes.post("/upload/image")
+        async def upload_image(request):
+            upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "uploads")
+
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir)
+            
+            post = await request.post()
+            image = post.get("image")
+
+            if image and image.file:
+                filename = image.filename
+                if not filename:
+                    return web.Response(status=400)
+
+                with open(os.path.join(upload_dir, filename), "wb") as f:
+                    f.write(image.file.read())
+                
+                return web.json_response({"name" : filename})
+            else:
+                return web.Response(status=400)
+
+
         @routes.get("/view/{file}")
         async def view_image(request):
             if "file" in request.match_info:
-                output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+                type = request.rel_url.query.get("type", "output")
+                if type != "output" and type != "uploads":
+                    return web.Response(status=400)
+
+                output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
                 file = request.match_info["file"]
                 file = os.path.splitext(os.path.basename(file))[0] + ".png"
                 file = os.path.join(output_dir, file)
