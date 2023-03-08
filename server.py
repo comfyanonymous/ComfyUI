@@ -32,21 +32,34 @@ class PromptServer():
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
         routes = web.RouteTableDef()
+        self.last_node_id = None
+        self.client_id = None
 
         @routes.get('/ws')
         async def websocket_handler(request):
             ws = web.WebSocketResponse()
             await ws.prepare(request)
-            sid = uuid.uuid4().hex
+            sid = request.rel_url.query.get('clientId', '')
+            if sid:
+                # Reusing existing session, remove old
+                self.sockets.pop(sid, None)
+            else:
+                sid = uuid.uuid4().hex      
+
             self.sockets[sid] = ws
+
             try:
                 # Send initial state to the new client
                 await self.send("status", { "status": self.get_queue_info(), 'sid': sid }, sid)
+                # On reconnect if we are the currently executing client send the current node
+                if self.client_id == sid and self.last_node_id is not None:
+                    await self.send("executing", { "node": self.last_node_id }, sid)
+                    
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
                         print('ws connection closed with exception %s' % ws.exception())
             finally:
-                self.sockets.pop(sid)
+                self.sockets.pop(sid, None)
             return ws
 
         @routes.get("/")
