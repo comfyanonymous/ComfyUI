@@ -13,6 +13,11 @@ function $el(tag, propsOrChildren, children) {
 			const cb = propsOrChildren.$;
 			delete propsOrChildren.$;
 
+			if (propsOrChildren.style) {
+				Object.assign(element.style, propsOrChildren.style);
+				delete propsOrChildren.style;
+			}
+
 			Object.assign(element, propsOrChildren);
 			if (children) {
 				element.append(...children);
@@ -51,6 +56,80 @@ class ComfyDialog {
 	show(html) {
 		this.textElement.innerHTML = html;
 		this.element.style.display = "flex";
+	}
+}
+
+class ComfySettingsDialog extends ComfyDialog {
+	constructor() {
+		super();
+		this.element.classList.add("comfy-settings");
+		this.settings = [];
+	}
+
+	addSetting({ id, name, type, defaultValue, onChange }) {
+		if (!id) {
+			throw new Error("Settings must have an ID");
+		}
+		if (this.settings.find((s) => s.id === id)) {
+			throw new Error("Setting IDs must be unique");
+		}
+
+		const settingId = "Comfy.Settings." + id;
+		const v = localStorage[settingId];
+		let value = v == null ? defaultValue : JSON.parse(v);
+
+		// Trigger initial setting of value
+		if (onChange) {
+			onChange(value, undefined);
+		}
+
+		this.settings.push({
+			render: () => {
+				const setter = (v) => {
+					if (onChange) {
+						onChange(v, value);
+					}
+					localStorage[settingId] = JSON.stringify(v);
+					value = v;
+				};
+
+				if (typeof type === "function") {
+					return type(name, setter);
+				}
+
+				switch (type) {
+					case "boolean":
+						return $el("div", [
+							$el("label", { textContent: name || id }, [
+								$el("input", {
+									type: "checkbox",
+									checked: !!value,
+									oninput: (e) => {
+										setter(e.target.checked);
+									},
+								}),
+							]),
+						]);
+					default:
+						console.warn("Unsupported setting type, defaulting to text");
+						return $el("div", [
+							$el("label", { textContent: name || id }, [
+								$el("input", {
+									value,
+									oninput: (e) => {
+										setter(e.target.value);
+									},
+								}),
+							]),
+						]);
+				}
+			},
+		});
+	}
+
+	show() {
+		super.show();
+		this.textElement.replaceChildren(...this.settings.map((s) => s.render()));
 	}
 }
 
@@ -150,6 +229,7 @@ export class ComfyUI {
 	constructor(app) {
 		this.app = app;
 		this.dialog = new ComfyDialog();
+		this.settings = new ComfySettingsDialog();
 
 		this.queue = new ComfyList("Queue");
 		this.history = new ComfyList("History");
@@ -162,7 +242,7 @@ export class ComfyUI {
 		const fileInput = $el("input", {
 			type: "file",
 			accept: ".json,image/png",
-			style: "display: none",
+			style: { display: "none" },
 			parent: document.body,
 			onchange: () => {
 				app.handleFile(fileInput.files[0]);
@@ -170,7 +250,10 @@ export class ComfyUI {
 		});
 
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
-			$el("span", { $: (q) => (this.queueSize = q) }),
+			$el("div", { style: { overflow: "hidden", position: "relative", width: "100%" } }, [
+				$el("span", { $: (q) => (this.queueSize = q) }),
+				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
+			]),
 			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0) }),
 			$el("div.comfy-menu-btns", [
 				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1) }),
@@ -202,7 +285,7 @@ export class ComfyUI {
 					const a = $el("a", {
 						href: url,
 						download: "workflow.json",
-						style: "display: none",
+						style: { display: "none" },
 						parent: document.body,
 					});
 					a.click();

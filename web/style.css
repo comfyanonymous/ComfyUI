@@ -1,8 +1,22 @@
+:root {
+	--fg-color: #000;
+	--bg-color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--fg-color: #fff;
+		--bg-color: #202020;
+	}
+}
+
 body {
 	width: 100vw;
 	height: 100vh;
 	margin: 0;
 	overflow: hidden;
+	background-color: var(--bg-color);
+	color: var(--fg-color);
 }
 
 #graph-canvas {
@@ -11,7 +25,8 @@ body {
 }
 
 .comfy-multiline-input {
-	background-color: #ffffff;
+	background-color: var(--bg-color);
+	color: var(--fg-color);
 	overflow: hidden;
 	overflow-y: auto;
 	padding: 2px;
@@ -73,6 +88,7 @@ body {
 	top: 50%;
 	right: 0%;
 	background-color: white;
+	color: #000;
 	text-align: center;
 	z-index: 100;
 	width: 170px;
@@ -133,14 +149,18 @@ body {
 	font-size: 12px;
 }
 
-@media (prefers-color-scheme: dark) {
-	body {
-		background-color: #202020;
-	}
-	.comfy-multiline-input {
-		background-color: #202020;
-		color: white;
-	}
+button.comfy-settings-btn {
+	font-size: 12px;
+	padding: 0;
+	position: absolute;
+	right: 0;
+	border: none;
+}
+
+.comfy-modal.comfy-settings {
+	background-color: var(--bg-color);
+	color: var(--fg-color);
+	z-index: 99;
 }
 
 @media only screen and (max-height: 850px) {
