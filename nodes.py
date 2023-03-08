@@ -807,6 +807,8 @@ class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
     def INPUT_TYPES(s):
+        if not os.path.exists(s.input_dir):
+            os.makedirs(s.input_dir)
         return {"required":
                     {"image": (sorted(os.listdir(s.input_dir)), )},
                 }
@@ -830,7 +832,10 @@ class LoadImage:
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
-
+    
+class UploadImage(LoadImage):
+    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "uploads")
+    
 class LoadImageMask:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
@@ -865,6 +870,9 @@ class LoadImageMask:
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
+    
+class UploadImageMask(LoadImageMask):
+    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "uploads")
 
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -917,7 +925,9 @@ NODE_CLASS_MAPPINGS = {
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
     "LoadImage": LoadImage,
+    "UploadImage": UploadImage,
     "LoadImageMask": LoadImageMask,
+    "UploadImageMask": UploadImageMask,
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
     "ConditioningCombine": ConditioningCombine,

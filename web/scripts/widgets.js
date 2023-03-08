@@ -126,4 +126,84 @@ export const ComfyWidgets = {
 			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
 	},
+	IMAGEUPLOAD(node, inputName, inputData, app) {
+		const imageWidget = node.widgets.find((w) => w.name === "image");
+		let uploadWidget;
+
+		function showImage(name) {
+			// Position the image somewhere sensible
+			if(!node.imageOffset) {
+				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
+			}
+
+			const img = new Image();
+			img.onload = () => {
+				node.imgs = [img];
+				app.graph.setDirtyCanvas(true);
+			};
+			img.src = `/view/${name}?type=uploads`;
+		}
+
+		// Add our own callback to the combo widget to render an image when it changes
+		const cb = node.callback;
+		imageWidget.callback = function () {
+			showImage(imageWidget.value);
+			if (cb) {
+				return cb.apply(this, arguments);
+			}
+		};
+
+		// On load if we have a value then render the image
+		// The value isnt set immediately so we need to wait a moment
+		// No change callbacks seem to be fired on initial setting of the value
+		requestAnimationFrame(() => {
+			if (imageWidget.value) {
+				showImage(imageWidget.value);
+			}
+		});
+
+		const fileInput = document.createElement("input");
+		Object.assign(fileInput, {
+			type: "file",
+			accept: "image/jpeg,image/png",
+			style: "display: none",
+			onchange: async () => {
+				if (fileInput.files.length) {
+					try {
+						// Wrap file in formdata so it includes filename
+						const body = new FormData();
+						body.append("image", fileInput.files[0]);
+						const resp = await fetch("/upload/image", {
+							method: "POST",
+							body,
+						});
+
+						if (resp.status === 200) {
+							const data = await resp.json();
+							showImage(data.name);
+
+							// Add the file as an option and update the widget value
+							if (!imageWidget.options.values.includes(data.name)) {
+								imageWidget.options.values.push(data.name);
+							}
+							imageWidget.value = data.name;
+						} else {
+							alert(resp.status + " - " + resp.statusText);
+						}
+					} catch (error) {
+						alert(error);
+					}
+				}
+			},
+		});
+		document.body.append(fileInput);
+
+		// Create the button widget for selecting the files
+		uploadWidget = node.addWidget("button", "choose file to upload", "image", () => {
+			fileInput.click();
+		});
+		uploadWidget.serialize = false;
+
+		return { widget: uploadWidget };
+	},
 };
