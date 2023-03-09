@@ -142,7 +142,7 @@ class ComfyApp {
 					if (numImages === 1 && !imageIndex) {
 						this.imageIndex = imageIndex = 0;
 					}
-					let shiftY = this.type === "SaveImage" ? 55 : 0;
+					let shiftY = this.type === "SaveImage" ? 55 : this.imageOffset || 0;
 					let dw = this.size[0];
 					let dh = this.size[1];
 					dh -= shiftY;

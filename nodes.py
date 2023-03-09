@@ -807,6 +807,8 @@ class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
     def INPUT_TYPES(s):
+        if not os.path.exists(s.input_dir):
+            os.makedirs(s.input_dir)
         return {"required":
                     {"image": (sorted(os.listdir(s.input_dir)), )},
                 }
