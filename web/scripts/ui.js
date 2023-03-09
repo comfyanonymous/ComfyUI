@@ -254,9 +254,14 @@ export class ComfyUI {
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
-			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0) }),
+			$el("div", { style: { width: "100%" }}, [
+				$el("label", { innerHTML: "Batch count" }, [
+					$el("input", { type: "number", value: "1", min: "1", style: { width: "30%", "margin-left": "0.4em" }, onchange: (i) => this.batchCount = i.target.value })
+				]),
+			]),
+			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
 			$el("div.comfy-menu-btns", [
-				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1) }),
+				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1, this.batchCount) }),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
 					textContent: "View Queue",
