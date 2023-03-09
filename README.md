@@ -12,7 +12,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Fully supports SD1.x and SD2.x
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
-- Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram.
+- Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
+- Works even if you don't have a GPU with: ```--cpu``` (slow)
 - Can load both ckpt and safetensors models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - Loras
