@@ -832,7 +832,7 @@ class LoadImage:
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
-    
+
 class LoadImageMask:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
@@ -867,7 +867,7 @@ class LoadImageMask:
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
-    
+
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
     crop_methods = ["disabled", "center"]
