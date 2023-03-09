@@ -833,9 +833,6 @@ class LoadImage:
             m.update(f.read())
         return m.digest().hex()
     
-class UploadImage(LoadImage):
-    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "uploads")
-    
 class LoadImageMask:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
@@ -871,9 +868,6 @@ class LoadImageMask:
             m.update(f.read())
         return m.digest().hex()
     
-class UploadImageMask(LoadImageMask):
-    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "uploads")
-
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
     crop_methods = ["disabled", "center"]
@@ -925,9 +919,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
     "LoadImage": LoadImage,
-    "UploadImage": UploadImage,
     "LoadImageMask": LoadImageMask,
-    "UploadImageMask": UploadImageMask,
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
     "ConditioningCombine": ConditioningCombine,

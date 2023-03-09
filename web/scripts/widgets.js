@@ -141,7 +141,7 @@ export const ComfyWidgets = {
 				node.imgs = [img];
 				app.graph.setDirtyCanvas(true);
 			};
-			img.src = `/view/${name}?type=uploads`;
+			img.src = `/view/${name}?type=input`;
 		}
 
 		// Add our own callback to the combo widget to render an image when it changes

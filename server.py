@@ -72,7 +72,7 @@ class PromptServer():
 
         @routes.post("/upload/image")
         async def upload_image(request):
-            upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "uploads")
+            upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
 
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
@@ -85,7 +85,15 @@ class PromptServer():
                 if not filename:
                     return web.Response(status=400)
 
-                with open(os.path.join(upload_dir, filename), "wb") as f:
+                split = os.path.splitext(filename)
+                i = 1
+                while os.path.exists(os.path.join(upload_dir, filename)):
+                    filename = f"{split[0]} ({i}){split[1]}"
+                    i += 1
+
+                filepath = os.path.join(upload_dir, filename)
+
+                with open(filepath, "wb") as f:
                     f.write(image.file.read())
                 
                 return web.json_response({"name" : filename})
@@ -97,12 +105,12 @@ class PromptServer():
         async def view_image(request):
             if "file" in request.match_info:
                 type = request.rel_url.query.get("type", "output")
-                if type != "output" and type != "uploads":
+                if type != "output" and type != "input":
                     return web.Response(status=400)
 
                 output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
                 file = request.match_info["file"]
-                file = os.path.splitext(os.path.basename(file))[0] + ".png"
+                file = os.path.basename(file)
                 file = os.path.join(output_dir, file)
                 if os.path.isfile(file):
                     return web.FileResponse(file)
