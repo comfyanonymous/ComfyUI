@@ -18,6 +18,14 @@ except ImportError:
 
 import mimetypes
 
+
+@web.middleware
+async def cache_control(request: web.Request, handler):
+    response: web.Response = await handler(request)
+    if request.path.endswith('.js') or request.path.endswith('.css'):
+        response.headers.setdefault('Cache-Control', 'no-cache')
+    return response
+
 class PromptServer():
     def __init__(self, loop):
         mimetypes.init(); 
@@ -26,7 +34,7 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
-        self.app = web.Application(client_max_size=20971520)
+        self.app = web.Application(client_max_size=20971520, middlewares=[cache_control])
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
