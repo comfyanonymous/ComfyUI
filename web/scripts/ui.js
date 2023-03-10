@@ -231,6 +231,7 @@ export class ComfyUI {
 		this.dialog = new ComfyDialog();
 		this.settings = new ComfySettingsDialog();
 
+		this.batchCount = 1;
 		this.queue = new ComfyList("Queue");
 		this.history = new ComfyList("History");
 
@@ -256,7 +257,20 @@ export class ComfyUI {
 			]),
 			$el("div", { style: { width: "100%" }}, [
 				$el("label", { innerHTML: "Batch count" }, [
-					$el("input", { type: "number", value: "1", min: "1", style: { width: "30%", "margin-left": "0.4em" }, onchange: (i) => this.batchCount = i.target.value })
+					$el("input", { id: "batchCountInputNumber", type: "number", value: this.batchCount, min: "1", style: { width: "35%", "margin-left": "0.4em" }, 
+						oninput: (i) => { 
+							this.batchCount = i.target.value;
+							document.getElementById('batchCountInputRange').value = this.batchCount;
+							console.log("number");
+						}
+					}),
+					$el("input", { id: "batchCountInputRange", type: "range", min: "1", max: "100", value: this.batchCount, 
+						oninput: (i) => {
+							this.batchCount = i.srcElement.value;
+							document.getElementById('batchCountInputNumber').value = i.srcElement.value;
+							console.log("range");
+						}
+					}),
 				]),
 			]),
 			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
