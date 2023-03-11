@@ -790,7 +790,7 @@ class SaveImage:
         paths = list()
         for image in images:
             i = 255. * image.cpu().numpy()
-            img = Image.fromarray(i.astype(np.uint8))
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = PngInfo()
             if prompt is not None:
                 metadata.add_text("prompt", json.dumps(prompt))
