@@ -400,6 +400,14 @@ class VAE:
         samples = samples.cpu()
         return samples
 
+    def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
+        model_management.unload_model()
+        self.first_stage_model = self.first_stage_model.to(self.device)
+        pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
+        samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
+        self.first_stage_model = self.first_stage_model.cpu()
+        samples = samples.cpu()
+        return samples
 
 def resize_image_to(tensor, target_latent_tensor, batched_number):
     tensor = utils.common_upscale(tensor, target_latent_tensor.shape[3] * 8, target_latent_tensor.shape[2] * 8, 'nearest-exact', "center")
