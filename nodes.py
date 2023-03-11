@@ -907,7 +907,7 @@ class ImageScale:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 
-    CATEGORY = "image"
+    CATEGORY = "image/upscaling"
 
     def upscale(self, image, upscale_method, width, height, crop):
         samples = image.movedim(-1,1)
