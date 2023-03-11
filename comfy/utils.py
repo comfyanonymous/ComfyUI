@@ -18,26 +18,26 @@ def common_upscale(samples, width, height, upscale_method, crop):
         return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
 
 @torch.inference_mode()
-def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4):
-    output = torch.empty((samples.shape[0], 3, samples.shape[2] * upscale_amount, samples.shape[3] * upscale_amount), device="cpu")
+def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3):
+    output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device="cpu")
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
-        out = torch.zeros((s.shape[0], 3, s.shape[2] * upscale_amount, s.shape[3] * upscale_amount), device="cpu")
-        out_div = torch.zeros((s.shape[0], 3, s.shape[2] * upscale_amount, s.shape[3] * upscale_amount), device="cpu")
+        out = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device="cpu")
+        out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device="cpu")
         for y in range(0, s.shape[2], tile_y - overlap):
             for x in range(0, s.shape[3], tile_x - overlap):
                 s_in = s[:,:,y:y+tile_y,x:x+tile_x]
 
                 ps = function(s_in).cpu()
                 mask = torch.ones_like(ps)
-                feather = overlap * upscale_amount
+                feather = round(overlap * upscale_amount)
                 for t in range(feather):
                         mask[:,:,t:1+t,:] *= ((1.0/feather) * (t + 1))
                         mask[:,:,mask.shape[2] -1 -t: mask.shape[2]-t,:] *= ((1.0/feather) * (t + 1))
                         mask[:,:,:,t:1+t] *= ((1.0/feather) * (t + 1))
                         mask[:,:,:,mask.shape[3]- 1 - t: mask.shape[3]- t] *= ((1.0/feather) * (t + 1))
-                out[:,:,y*upscale_amount:(y+tile_y)*upscale_amount,x*upscale_amount:(x+tile_x)*upscale_amount] += ps * mask
-                out_div[:,:,y*upscale_amount:(y+tile_y)*upscale_amount,x*upscale_amount:(x+tile_x)*upscale_amount] += mask
+                out[:,:,round(y*upscale_amount):round((y+tile_y)*upscale_amount),round(x*upscale_amount):round((x+tile_x)*upscale_amount)] += ps * mask
+                out_div[:,:,round(y*upscale_amount):round((y+tile_y)*upscale_amount),round(x*upscale_amount):round((x+tile_x)*upscale_amount)] += mask
 
         output[b:b+1] = out/out_div
     return output
