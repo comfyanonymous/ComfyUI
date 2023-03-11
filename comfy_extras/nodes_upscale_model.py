@@ -4,6 +4,7 @@ from comfy.sd import load_torch_file
 import comfy.model_management
 from nodes import filter_files_extensions, recursive_search, supported_ckpt_extensions
 import torch
+import comfy.utils
 
 class UpscaleModelLoader:
     models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "models")
@@ -40,8 +41,7 @@ class ImageUpscaleWithModel:
         device = comfy.model_management.get_torch_device()
         upscale_model.to(device)
         in_img = image.movedim(-1,-3).to(device)
-        with torch.inference_mode():
-            s = upscale_model(in_img).cpu()
+        s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=128 + 64, tile_y=128 + 64, overlap = 8, upscale_amount=upscale_model.scale)
         upscale_model.cpu()
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         return (s,)
