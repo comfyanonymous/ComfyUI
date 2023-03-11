@@ -151,6 +151,27 @@ class VAEEncode:
 
         return ({"samples":t}, )
 
+
+class VAEEncodeTiled:
+    def __init__(self, device="cpu"):
+        self.device = device
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", )}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "encode"
+
+    CATEGORY = "_for_testing"
+
+    def encode(self, vae, pixels):
+        x = (pixels.shape[1] // 64) * 64
+        y = (pixels.shape[2] // 64) * 64
+        if pixels.shape[1] != x or pixels.shape[2] != y:
+            pixels = pixels[:,:x,:y,:]
+        t = vae.encode_tiled(pixels[:,:,:,:3])
+
+        return ({"samples":t}, )
 class VAEEncodeForInpaint:
     def __init__(self, device="cpu"):
         self.device = device
@@ -946,6 +967,7 @@ NODE_CLASS_MAPPINGS = {
     "StyleModelLoader": StyleModelLoader,
     "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
+    "VAEEncodeTiled": VAEEncodeTiled,
 }
 
 def load_custom_node(module_path):
