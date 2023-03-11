@@ -35,7 +35,7 @@ class ImageUpscaleWithModel:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 
-    CATEGORY = "image"
+    CATEGORY = "image/upscaling"
 
     def upscale(self, upscale_model, image):
         device = comfy.model_management.get_torch_device()
