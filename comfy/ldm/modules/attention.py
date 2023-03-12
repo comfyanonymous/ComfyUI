@@ -14,9 +14,8 @@ import model_management
 try:
     import xformers
     import xformers.ops
-    XFORMERS_IS_AVAILBLE = True
 except:
-    XFORMERS_IS_AVAILBLE = False
+    pass
 
 # CrossAttn precision handling
 import os
@@ -481,7 +480,7 @@ class CrossAttentionPytorch(nn.Module):
         return self.to_out(out)
 
 import sys
-if XFORMERS_IS_AVAILBLE == False or "--disable-xformers" in sys.argv:
+if model_management.xformers_enabled() == False:
     if "--use-split-cross-attention" in sys.argv:
         print("Using split optimization for cross attention")
         CrossAttention = CrossAttentionDoggettx

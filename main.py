@@ -38,8 +38,8 @@ def prompt_worker(q, server):
         e.execute(item[-2], item[-1])
         q.task_done(item_id, e.outputs)
 
-async def run(server, address='', port=8188, verbose=True):
-    await asyncio.gather(server.start(address, port, verbose), server.publish_loop())
+async def run(server, address='', port=8188, verbose=True, call_on_start=None):
+    await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
 
 def hijack_progress(server):
     from tqdm.auto import tqdm
@@ -76,11 +76,18 @@ if __name__ == "__main__":
     except:
         pass
 
+    call_on_start = None
+    if "--windows-standalone-build" in sys.argv:
+        def startup_server(address, port):
+            import webbrowser
+            webbrowser.open("http://{}:{}".format(address, port))
+        call_on_start = startup_server
+
     if os.name == "nt":
         try:
-            loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print))
+            loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
         except KeyboardInterrupt:
             pass
     else:
-        loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print))
+        loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
 
