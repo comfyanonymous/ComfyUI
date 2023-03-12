@@ -31,6 +31,16 @@ try:
 except:
     pass
 
+try:
+    import xformers
+    import xformers.ops
+    XFORMERS_IS_AVAILBLE = True
+except:
+    XFORMERS_IS_AVAILBLE = False
+
+if "--disable-xformers" in sys.argv:
+    XFORMERS_IS_AVAILBLE = False
+
 if "--cpu" in sys.argv:
     vram_state = CPU
 if "--lowvram" in sys.argv:
@@ -158,6 +168,11 @@ def get_autocast_device(dev):
     if hasattr(dev, 'type'):
         return dev.type
     return "cuda"
+
+def xformers_enabled():
+    if vram_state == CPU:
+        return False
+    return XFORMERS_IS_AVAILBLE
 
 def get_free_memory(dev=None, torch_free_too=False):
     if dev is None:
