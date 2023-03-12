@@ -23,6 +23,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
 - [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
 - [ControlNet and T2I-Adapter](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
+- [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
 - Starts up very fast.
 - Works fully offline: will never download anything.
 
