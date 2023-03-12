@@ -780,7 +780,8 @@ class SaveImage:
     def INPUT_TYPES(s):
         return {"required": 
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
+                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                     "subfolder": ("STRING", {})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -791,7 +792,7 @@ class SaveImage:
 
     CATEGORY = "image"
 
-    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_images(self, images, filename_prefix="ComfyUI", subfolder=None, prompt=None, extra_pnginfo=None):
         def map_filename(filename):
             prefix_len = len(filename_prefix)
             prefix = filename[:prefix_len + 1]
@@ -800,12 +801,15 @@ class SaveImage:
             except:
                 digits = 0
             return (digits, prefix)
+        
+        outputDirectory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", subfolder);
+        
         try:
-            counter = max(filter(lambda a: a[1][:-1] == filename_prefix and a[1][-1] == "_", map(map_filename, os.listdir(self.output_dir))))[0] + 1
+            counter = max(filter(lambda a: a[1][:-1] == filename_prefix and a[1][-1] == "_", map(map_filename, os.listdir(outputDirectory))))[0] + 1
         except ValueError:
             counter = 1
         except FileNotFoundError:
-            os.mkdir(self.output_dir)
+            os.mkdir(outputDirectory)
             counter = 1
 
         paths = list()
@@ -819,8 +823,8 @@ class SaveImage:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
             file = f"{filename_prefix}_{counter:05}_.png"
-            img.save(os.path.join(self.output_dir, file), pnginfo=metadata, optimize=True)
-            paths.append(file)
+            img.save(os.path.join(outputDirectory, file), pnginfo=metadata, optimize=True)
+            paths.append(os.path.join(subfolder, file))
             counter += 1
         return { "ui": { "images": paths } }
 
