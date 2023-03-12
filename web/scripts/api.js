@@ -107,6 +107,15 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
+	 * Gets a list of embedding names
+	 * @returns An array of script urls to import
+	 */
+	async getEmbeddings() {
+		const resp = await fetch("/embeddings", { cache: "no-store" });
+		return await resp.json();
+	}
+
+	/**
 	 * Loads node object definitions for the graph
 	 * @returns The node definitions
 	 */

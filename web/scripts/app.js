@@ -2,7 +2,7 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata } from "./pnginfo.js";
+import { getPngMetadata, importA1111 } from "./pnginfo.js";
 
 class ComfyApp {
 	constructor() {
@@ -675,8 +675,12 @@ class ComfyApp {
 	async handleFile(file) {
 		if (file.type === "image/png") {
 			const pngInfo = await getPngMetadata(file);
-			if (pngInfo && pngInfo.workflow) {
-				this.loadGraphData(JSON.parse(pngInfo.workflow));
+			if (pngInfo) {
+				if (pngInfo.workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.workflow));
+				} else if (pngInfo.parameters) {
+					importA1111(this.graph, pngInfo.parameters);
+				}
 			}
 		} else if (file.type === "application/json" || file.name.endsWith(".json")) {
 			const reader = new FileReader();
