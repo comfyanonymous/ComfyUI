@@ -809,7 +809,7 @@ class SaveImage:
         except ValueError:
             counter = 1
         except FileNotFoundError:
-            os.mkdir(outputDirectory)
+            os.makedirs(outputDirectory, exist_ok=True)
             counter = 1
 
         paths = list()
