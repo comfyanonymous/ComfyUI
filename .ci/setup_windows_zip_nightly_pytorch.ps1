@@ -11,7 +11,7 @@ ls ../temp_wheel_dir
 "../ComfyUI`n" + (Get-Content .\python310._pth -Raw) | Set-Content .\python310._pth
 cd ..
 
-mkdir ComfyUI_windows_portable
+mkdir ComfyUI_windows_portable_nightly_pytorch
 mv python_embeded ComfyUI_windows_portable_nightly_pytorch
 mv ComfyUI_copy ComfyUI_windows_portable_nightly_pytorch/ComfyUI
 
