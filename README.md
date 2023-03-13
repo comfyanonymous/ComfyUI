@@ -37,7 +37,7 @@ There is a portable standalone build for Windows that should work for running on
 
 ### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_or_cpu.7z)
 
-Just download, extract and run. Make sure you put a checkpoint/model file in ComfyUI/models/checkpoints
+Just download, extract and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
 
 ## Manual Install (Windows, Linux)
 
