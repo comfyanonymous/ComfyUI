@@ -65,7 +65,7 @@ app.registerExtension({
 						if (outputs.length) {
 							for (const linkId of outputs) {
 								const link = app.graph.links[linkId];
-								
+
 								// When disconnecting sometimes the link is still registered
 								if (!link) continue;
 
@@ -92,14 +92,21 @@ app.registerExtension({
 						}
 					}
 
+					const displayType = inputType || outputType || "*";
+
 					// Update the types of each node
 					for (const node of updateNodes) {
 						// If we dont have an input type we are always wildcard but we'll show the output type
 						// This lets you change the output link to a different type and all nodes will update
 						node.outputs[0].type = inputType || "*";
-						node.__outputType = inputType || outputType || "*";
-						node.outputs[0].name = node.properties.showOutputText ? inputType || outputType || "*" : "";
+						node.__outputType = displayType;
+						node.outputs[0].name = node.properties.showOutputText ? displayType : "";
 						node.size = node.computeSize();
+
+						const color = LGraphCanvas.link_type_colors[displayType];
+						for (const l of node.outputs[0].links || []) {
+							app.graph.links[l].color = color;
+						}
 					}
 				};
 
