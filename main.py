@@ -15,6 +15,7 @@ if __name__ == "__main__":
         print("\t--port 8188\t\t\tSet the listen port.")
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
+        print("\t--use-pytorch-cross-attention\tUse the new pytorch 2.0 cross attention function.")
         print("\t--disable-xformers\t\tdisables xformers")
         print()
         print("\t--highvram\t\t\tBy default models will be unloaded to CPU memory after being used.\n\t\t\t\t\tThis option keeps them in GPU memory.\n")
