@@ -39,6 +39,10 @@ There is a portable standalone build for Windows that should work for running on
 
 Just download, extract and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
 
+## Colab Notebook
+
+To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
+
 ## Manual Install (Windows, Linux)
 
 Git clone this repo.
@@ -127,10 +131,6 @@ You can use {day|night}, for wildcard/dynamic prompts. With this syntax "{wild|c
 To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
 
 ```embedding:embedding_filename.pt```
-
-### Colab Notebook
-
-To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
 
 ### Fedora
 
