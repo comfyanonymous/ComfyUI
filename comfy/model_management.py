@@ -31,15 +31,16 @@ try:
 except:
     pass
 
-try:
-    import xformers
-    import xformers.ops
-    XFORMERS_IS_AVAILBLE = True
-except:
-    XFORMERS_IS_AVAILBLE = False
-
 if "--disable-xformers" in sys.argv:
     XFORMERS_IS_AVAILBLE = False
+else:
+    try:
+        import xformers
+        import xformers.ops
+        XFORMERS_IS_AVAILBLE = True
+    except:
+        XFORMERS_IS_AVAILBLE = False
+
 
 if "--cpu" in sys.argv:
     vram_state = CPU

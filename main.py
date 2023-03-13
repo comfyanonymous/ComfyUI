@@ -8,9 +8,6 @@ if os.name == "nt":
     import logging
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
-import execution
-import server
-
 if __name__ == "__main__":
     if '--help' in sys.argv:
         print("Valid Command line Arguments:")
@@ -18,6 +15,7 @@ if __name__ == "__main__":
         print("\t--port 8188\t\t\tSet the listen port.")
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
+        print("\t--disable-xformers\t\tdisables xformers")
         print()
         print("\t--highvram\t\t\tBy default models will be unloaded to CPU memory after being used.\n\t\t\t\t\tThis option keeps them in GPU memory.\n")
         print("\t--normalvram\t\t\tUsed to force normal vram use if lowvram gets automatically enabled.")
@@ -30,6 +28,9 @@ if __name__ == "__main__":
     if '--dont-upcast-attention' in sys.argv:
         print("disabling upcasting of attention")
         os.environ['ATTN_PRECISION'] = "fp16"
+
+import execution
+import server
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
