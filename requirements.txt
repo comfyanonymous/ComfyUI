@@ -9,3 +9,4 @@ safetensors
 pytorch_lightning
 aiohttp
 accelerate
+joblib
