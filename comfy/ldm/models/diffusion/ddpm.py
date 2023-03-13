@@ -18,7 +18,6 @@ import itertools
 from tqdm import tqdm
 from torchvision.utils import make_grid
 # from pytorch_lightning.utilities.distributed import rank_zero_only
-from omegaconf import ListConfig
 
 from ldm.util import log_txt_as_img, exists, default, ismap, isimage, mean_flat, count_params, instantiate_from_config
 from ldm.modules.ema import LitEma
@@ -1124,8 +1123,8 @@ class LatentDiffusion(DDPM):
     def get_unconditional_conditioning(self, batch_size, null_label=None):
         if null_label is not None:
             xc = null_label
-            if isinstance(xc, ListConfig):
-                xc = list(xc)
+            # if isinstance(xc, ListConfig):
+            #     xc = list(xc)
             if isinstance(xc, dict) or isinstance(xc, list):
                 c = self.get_learned_conditioning(xc)
             else:

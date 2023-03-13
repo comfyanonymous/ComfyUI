@@ -5,10 +5,11 @@ cd python_embeded
 Add-Content -Path .\python310._pth -Value 'import site'
 Invoke-WebRequest -Uri https://bootstrap.pypa.io/get-pip.py -OutFile get-pip.py
 .\python.exe get-pip.py
-.\python.exe -s -m pip install torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu118 -r ../ComfyUI/requirements.txt pygit2
+python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu118 -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
+ls ../temp_wheel_dir
+.\python.exe -s -m pip install --pre (get-item ..\temp_wheel_dir\*)
 "../ComfyUI`n" + (Get-Content .\python310._pth -Raw) | Set-Content .\python310._pth
 cd ..
-
 
 mkdir ComfyUI_windows_portable
 mv python_embeded ComfyUI_windows_portable_nightly_pytorch
