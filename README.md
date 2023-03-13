@@ -50,9 +50,15 @@ Put your VAE in: models/vae
 At the time of writing this pytorch has issues with python versions higher than 3.10 so make sure your python/pip versions are 3.10.
 
 ### AMD (Linux only)
-AMD users can install rocm and pytorch with pip if you don't have it already installed:
+AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.2```
+
+
+I highly recommend you use the nightly/unstable pytorch builds though because they work a lot better for me (run this in the ComfyUI folder so it picks up the requirements.txt):
+
+```pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/rocm5.4.2 -r requirements.txt```
+
 
 ### NVIDIA
 
