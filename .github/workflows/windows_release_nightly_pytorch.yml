@@ -1,0 +1,34 @@
+name: "Windows Release Nightly pytorch"
+
+on:
+  workflow_dispatch:
+#  push:
+#    branches:
+#      - master
+
+jobs:
+  build:
+    permissions:
+        contents: "write"
+        packages: "write"
+        pull-requests: "read"
+    runs-on: windows-latest
+    steps:
+        - uses: actions/checkout@v3
+          with:
+            fetch-depth: 0
+
+        - run: |
+            cd ..
+            cp ComfyUI/.ci/setup_windows_zip_nightly_pytorch.ps1 ./
+            cp -r ComfyUI ComfyUI_copy
+            .\setup_windows_zip_nightly_pytorch.ps1
+            ls
+
+        - name: Upload binaries to release
+          uses: svenstaro/upload-release-action@v2
+          with:
+                repo_token: ${{ secrets.GITHUB_TOKEN }}
+                file: ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
+                tag: "latest"
+                overwrite: true
