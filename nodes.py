@@ -775,12 +775,14 @@ class KSamplerAdvanced:
 class SaveImage:
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+        self.temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 
     @classmethod
     def INPUT_TYPES(s):
         return {"required": 
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
+                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                     "use_temp_file": (["yes", "no"], {"default" : "no"} ),},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -791,7 +793,7 @@ class SaveImage:
 
     CATEGORY = "image"
 
-    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_images(self, images, filename_prefix="ComfyUI", use_temp_file="no", prompt=None, extra_pnginfo=None):
         def map_filename(filename):
             prefix_len = len(filename_prefix)
             prefix = filename[:prefix_len + 1]
@@ -818,8 +820,21 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
             file = f"{filename_prefix}_{counter:05}_.png"
-            img.save(os.path.join(self.output_dir, file), pnginfo=metadata, optimize=True)
+
+            if use_temp_file == "yes":   
+                if not os.path.exists(self.temp_dir):
+                    os.makedirs(self.temp_dir)
+                dir = self.temp_dir
+            else:
+                dir = self.output_dir
+            
+            img.save(os.path.join(dir, file), pnginfo=metadata, optimize=True)
+
+            if use_temp_file == "yes":   
+                file += "?type=temp"
+
             paths.append(file)
             counter += 1
         return { "ui": { "images": paths } }
