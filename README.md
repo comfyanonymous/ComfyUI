@@ -31,6 +31,16 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 # Installing
 
+### Windows
+
+There is a portable standalone build for Windows that should work on for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
+
+[Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_or_cpu.7z)
+
+Just download, extract and run. Make sure you put a checkpoint/model file in ComfyUI/models/checkpoints
+
+## Manual Install (Windows, Linux)
+
 Git clone this repo.
 
 Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
@@ -39,7 +49,7 @@ Put your VAE in: models/vae
 
 At the time of writing this pytorch has issues with python versions higher than 3.10 so make sure your python/pip versions are 3.10.
 
-### AMD
+### AMD (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.2```
