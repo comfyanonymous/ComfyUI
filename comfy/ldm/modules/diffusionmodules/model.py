@@ -9,11 +9,9 @@ from typing import Optional, Any
 from ldm.modules.attention import MemoryEfficientCrossAttention
 import model_management
 
-try:
+if model_management.xformers_enabled():
     import xformers
     import xformers.ops
-except:
-    pass
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError

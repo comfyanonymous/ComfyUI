@@ -11,11 +11,10 @@ from .sub_quadratic_attention import efficient_dot_product_attention
 
 import model_management
 
-try:
+
+if model_management.xformers_enabled():
     import xformers
     import xformers.ops
-except:
-    pass
 
 # CrossAttn precision handling
 import os
