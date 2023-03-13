@@ -25,10 +25,11 @@ jobs:
             .\setup_windows_zip.ps1
             ls
 
-        - uses: "marvinpinto/action-automatic-releases@latest"
+        - name: Upload binaries to release
+          uses: svenstaro/upload-release-action@v2
           with:
-                repo_token: "${{ secrets.GITHUB_TOKEN }}"
-                automatic_release_tag: "latest"
-                prerelease: true
-                title: "ComfyUI Standalone Portable Windows Build (For NVIDIA or CPU only)"
-                files: ComfyUI_windows_portable_nvidia_or_cpu.7z
+                repo_token: ${{ secrets.GITHUB_TOKEN }}
+                file: ComfyUI_windows_portable_nvidia_or_cpu.7z
+                tag: "latest"
+                overwrite: true
+
