@@ -41,6 +41,14 @@ else:
     except:
         XFORMERS_IS_AVAILBLE = False
 
+ENABLE_PYTORCH_ATTENTION = False
+if "--use-pytorch-cross-attention" in sys.argv:
+    torch.backends.cuda.enable_math_sdp(True)
+    torch.backends.cuda.enable_flash_sdp(True)
+    torch.backends.cuda.enable_mem_efficient_sdp(True)
+    ENABLE_PYTORCH_ATTENTION = True
+    XFORMERS_IS_AVAILBLE = False
+
 
 if "--cpu" in sys.argv:
     vram_state = CPU
@@ -174,6 +182,9 @@ def xformers_enabled():
     if vram_state == CPU:
         return False
     return XFORMERS_IS_AVAILBLE
+
+def pytorch_attention_enabled():
+    return ENABLE_PYTORCH_ATTENTION
 
 def get_free_memory(dev=None, torch_free_too=False):
     if dev is None:
