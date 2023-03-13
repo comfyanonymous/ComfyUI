@@ -1,0 +1,33 @@
+name: "Windows Release"
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    permissions:
+        contents: "write"
+        packages: "write"
+        pull-requests: "read"
+    runs-on: windows-latest
+    steps:
+        - uses: actions/checkout@v3
+          with:
+            fetch-depth: 0
+
+        - run: |
+            cd ..
+            cp ComfyUI/.ci/setup_windows_zip.ps1 ./
+            cp -r ComfyUI ComfyUI_copy
+            .\setup_windows_zip.ps1
+            ls
+
+        - uses: "marvinpinto/action-automatic-releases@latest"
+          with:
+                repo_token: "${{ secrets.GITHUB_TOKEN }}"
+                automatic_release_tag: "latest"
+                prerelease: true
+                title: "ComfyUI Standalone Portable Windows Build (For NVIDIA or CPU only)"
+                files: ComfyUI_windows_portable_nvidia_or_cpu.7z
