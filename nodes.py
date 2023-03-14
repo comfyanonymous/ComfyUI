@@ -811,7 +811,7 @@ class SaveImage:
 
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-            
+
         paths = list()
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -835,11 +835,11 @@ class PreviewImage(SaveImage):
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": 
+        return {"required":
                     {"images": ("IMAGE", ), },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
-    
+
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
