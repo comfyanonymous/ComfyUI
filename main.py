@@ -1,5 +1,6 @@
 import os
 import sys
+import shutil
 
 import threading
 import asyncio
@@ -53,7 +54,14 @@ def hijack_progress(server):
         return v
     setattr(tqdm, "update", wrapped_func)
 
+def cleanup_temp():
+    temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir)
+
 if __name__ == "__main__":
+    cleanup_temp()
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     server = server.PromptServer(loop)
@@ -93,3 +101,4 @@ if __name__ == "__main__":
     else:
         loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
 
+    cleanup_temp()
