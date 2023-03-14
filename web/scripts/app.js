@@ -284,9 +284,37 @@ class ComfyApp {
 		document.addEventListener("drop", async (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			const file = event.dataTransfer.files[0];
-			await this.handleFile(file);
+
+			const n = this.dragOverNode;
+			this.dragOverNode = null;
+			// Node handles file drop, we dont use the built in onDropFile handler as its buggy
+			// If you drag multiple files it will call it multiple times with the same file
+			if (n && n.onDragDrop && await n.onDragDrop(event)) {
+				return;
+			}
+
+			await this.handleFile(event.dataTransfer.files[0]);
 		});
+
+		// Add handler for dropping onto a specific node
+		this.canvasEl.addEventListener(
+			"dragover",
+			(e) => {
+				this.canvas.adjustMouseEvent(e);
+				const node = this.graph.getNodeOnPos(e.canvasX, e.canvasY);
+				if (node) {
+					if (node.onDragOver && node.onDragOver(e)) {
+						this.dragOverNode = node;
+						requestAnimationFrame(() => {
+							this.graph.setDirtyCanvas(false, true);
+						});
+						return;
+					}
+				}
+				this.dragOverNode = null;
+			},
+			false
+		);
 	}
 
 	/**
@@ -314,15 +342,22 @@ class ComfyApp {
 	}
 
 	/**
-	 * Draws currently executing node highlight and progress bar
+	 * Draws currently node highlights and progress bar
 	 */
-	#addDrawNodeProgressHandler() {
+	#addDrawNodeHandler() {
 		const orig = LGraphCanvas.prototype.drawNodeShape;
 		const self = this;
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
 			const res = orig.apply(this, arguments);
 
-			if (node.id + "" === self.runningNodeId) {
+			let color = null;
+			if (node.id === +self.runningNodeId) {
+				color = "#0f0";
+			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
+				color = "dodgerblue";
+			}
+
+			if (color) {
 				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
 				ctx.lineWidth = 1;
 				ctx.globalAlpha = 0.8;
@@ -348,7 +383,7 @@ class ComfyApp {
 					);
 				else if (shape == LiteGraph.CIRCLE_SHAPE)
 					ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
-				ctx.strokeStyle = "#0f0";
+				ctx.strokeStyle = color;
 				ctx.stroke();
 				ctx.strokeStyle = fgcolor;
 				ctx.globalAlpha = 1;
@@ -419,7 +454,7 @@ class ComfyApp {
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
-		const canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" });
+		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
 		document.body.prepend(canvasEl);
 
 		this.graph = new LGraph();
@@ -460,7 +495,7 @@ class ComfyApp {
 		// Save current workflow automatically
 		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
 
-		this.#addDrawNodeProgressHandler();
+		this.#addDrawNodeHandler();
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
