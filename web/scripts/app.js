@@ -497,7 +497,11 @@ class ComfyApp {
 
 						if (Array.isArray(type)) {
 							// Enums e.g. latent rotation
-							this.addWidget("combo", inputName, type[0], () => {}, { values: type });
+							let defaultValue = type[0];
+							if (inputData[1] && inputData[1].default) {
+								defaultValue = inputData[1].default;
+							}
+							this.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
 						} else if (`${type}:${inputName}` in widgets) {
 							// Support custom widgets by Type:Name
 							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
