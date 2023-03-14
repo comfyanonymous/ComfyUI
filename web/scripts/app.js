@@ -402,7 +402,7 @@ class ComfyApp {
 		window.addEventListener("keydown", (e) => {
 			// Queue prompt using ctrl or command + enter
 			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
-				this.queuePrompt(0);
+				this.queuePrompt(e.shiftKey ? -1 : 0);
 			}
 		});
 	}
