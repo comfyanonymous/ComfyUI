@@ -289,11 +289,19 @@ class ComfyApp {
 			this.dragOverNode = null;
 			// Node handles file drop, we dont use the built in onDropFile handler as its buggy
 			// If you drag multiple files it will call it multiple times with the same file
-			if (n && n.onDragDrop && await n.onDragDrop(event)) {
+			if (n && n.onDragDrop && (await n.onDragDrop(event))) {
 				return;
 			}
 
 			await this.handleFile(event.dataTransfer.files[0]);
+		});
+
+		// Always clear over node on drag leave
+		this.canvasEl.addEventListener("dragleave", async () => {
+			if (this.dragOverNode) {
+				this.dragOverNode = null;
+				this.graph.setDirtyCanvas(false, true);
+			}
 		});
 
 		// Add handler for dropping onto a specific node
