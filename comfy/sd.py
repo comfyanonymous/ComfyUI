@@ -854,4 +854,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, e
     model = instantiate_from_config(model_config)
     model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
 
+    if fp16:
+        model = model.half()
+
     return (ModelPatcher(model), clip, vae)
