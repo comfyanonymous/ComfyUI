@@ -2,7 +2,7 @@ import os
 from comfy_extras.chainner_models import model_loading
 from comfy.sd import load_torch_file
 import comfy.model_management
-from nodes import filter_files_extensions, recursive_search, supported_ckpt_extensions
+from nodes import filter_files_extensions, recursive_search, supported_ckpt_extensions, extract_arg_values
 import torch
 import comfy.utils
 
@@ -12,7 +12,7 @@ class UpscaleModelLoader:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model_name": (filter_files_extensions(recursive_search(s.upscale_model_dir), supported_ckpt_extensions), ),
+        return {"required": { "model_name": (filter_files_extensions(recursive_search(s.upscale_model_dir, *extract_arg_values('--upscaler-dir')), supported_ckpt_extensions), ),
                              }}
     RETURN_TYPES = ("UPSCALE_MODEL",)
     FUNCTION = "load_model"

@@ -13,6 +13,19 @@ if __name__ == "__main__":
         print("Valid Command line Arguments:")
         print("\t--listen\t\t\tListen on 0.0.0.0 so the UI can be accessed from other computers.")
         print("\t--port 8188\t\t\tSet the listen port.")
+
+        s = os.path.sep
+        print(f"\t--ckpt-dir path{s}to{s}dir\t\t\tAdd a path to a checkpoints dir.")
+        print(f"\t--clip-dir path{s}to{s}dir\t\t\tAdd a path to a clip dir.")
+        print(f"\t--clip-vision-dir path{s}to{s}dir\t\t\tAdd a path to a clip vision dir.")
+        print(f"\t--controlnet-dir path{s}to{s}dir\t\t\tAdd a path to a controlnet checkpoints dir.")
+        print(f"\t--embed-dir path{s}to{s}dir\t\t\tAdd a path to an embeddings dir.")
+        print(f"\t--lora-dir path{s}to{s}dir\t\t\tAdd a path to a lora dir.")
+        print(f"\t--style-model-dir path{s}to{s}dir\t\t\tAdd a path to a style models dir.")
+        print(f"\t--t2i-dir path{s}to{s}dir\t\t\tAdd a path to a T2I style adapter dir.")
+        print(f"\t--upscaler-dir path{s}to{s}dir\t\t\tAdd a path to an upscale models dir.")
+        print(f"\t--vae-dir path{s}to{s}dir\t\t\tAdd a path to a vae dir.")
+
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
         print("\t--use-pytorch-cross-attention\tUse the new pytorch 2.0 cross attention function.")
