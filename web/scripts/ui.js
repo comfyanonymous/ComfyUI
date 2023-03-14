@@ -255,25 +255,28 @@ export class ComfyUI {
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
-			$el("div", { style: { width: "100%" }}, [
+			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
+			$el("div", {}, [
+				$el("label", { innerHTML: "Extra options"}, [
+					$el("input", { type: "checkbox", onchange: (i) => document.getElementById('extraOptions').style.visibility = i.srcElement.checked ? "visible" : "collapse" })
+				])
+			]),
+			$el("div", { id: "extraOptions", style: { width: "100%", visibility: "collapse" }}, [
 				$el("label", { innerHTML: "Batch count" }, [
 					$el("input", { id: "batchCountInputNumber", type: "number", value: this.batchCount, min: "1", style: { width: "35%", "margin-left": "0.4em" }, 
 						oninput: (i) => { 
 							this.batchCount = i.target.value;
 							document.getElementById('batchCountInputRange').value = this.batchCount;
-							console.log("number");
 						}
 					}),
 					$el("input", { id: "batchCountInputRange", type: "range", min: "1", max: "100", value: this.batchCount, 
 						oninput: (i) => {
 							this.batchCount = i.srcElement.value;
 							document.getElementById('batchCountInputNumber').value = i.srcElement.value;
-							console.log("range");
 						}
 					}),
 				]),
 			]),
-			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
 			$el("div.comfy-menu-btns", [
 				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1, this.batchCount) }),
 				$el("button", {
