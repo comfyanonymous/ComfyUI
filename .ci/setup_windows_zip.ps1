@@ -16,8 +16,8 @@ mv ComfyUI_copy ComfyUI_windows_portable/ComfyUI
 cd ComfyUI_windows_portable
 
 mkdir update
-cp ComfyUI/.ci/update_windows/* ./update/
-cp ComfyUI/.ci/windows_base_files/* ./
+cp -r ComfyUI/.ci/update_windows/* ./update/
+cp -r ComfyUI/.ci/windows_base_files/* ./
 
 cd ..
 

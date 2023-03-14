@@ -18,8 +18,8 @@ mv ComfyUI_copy ComfyUI_windows_portable_nightly_pytorch/ComfyUI
 cd ComfyUI_windows_portable_nightly_pytorch
 
 mkdir update
-cp ComfyUI/.ci/nightly/update_windows/* ./update/
-cp ComfyUI/.ci/nightly/windows_base_files/* ./
+cp -r ComfyUI/.ci/nightly/update_windows/* ./update/
+cp -r ComfyUI/.ci/nightly/windows_base_files/* ./
 
 cd ..
 
