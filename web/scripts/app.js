@@ -313,6 +313,8 @@ class ComfyApp {
 				if (node) {
 					if (node.onDragOver && node.onDragOver(e)) {
 						this.dragOverNode = node;
+
+						// dragover event is fired very frequently, run this on an animation frame
 						requestAnimationFrame(() => {
 							this.graph.setDirtyCanvas(false, true);
 						});
