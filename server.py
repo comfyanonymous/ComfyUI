@@ -113,7 +113,7 @@ class PromptServer():
         async def view_image(request):
             if "file" in request.match_info:
                 type = request.rel_url.query.get("type", "output")
-                if type != "output" and type != "input":
+                if type not in ["output", "input", "temp"]:
                     return web.Response(status=400)
 
                 output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)

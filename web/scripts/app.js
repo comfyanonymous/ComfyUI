@@ -142,7 +142,14 @@ class ComfyApp {
 					if (numImages === 1 && !imageIndex) {
 						this.imageIndex = imageIndex = 0;
 					}
-					let shiftY = this.type === "SaveImage" ? 55 : this.imageOffset || 0;
+
+					let shiftY;
+					if (this.imageOffset != null) {
+						shiftY = this.imageOffset;
+					} else {
+						shiftY = this.computeSize()[1];
+					}
+
 					let dw = this.size[0];
 					let dh = this.size[1];
 					dh -= shiftY;
@@ -497,7 +504,11 @@ class ComfyApp {
 
 						if (Array.isArray(type)) {
 							// Enums e.g. latent rotation
-							this.addWidget("combo", inputName, type[0], () => {}, { values: type });
+							let defaultValue = type[0];
+							if (inputData[1] && inputData[1].default) {
+								defaultValue = inputData[1].default;
+							}
+							this.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
 						} else if (`${type}:${inputName}` in widgets) {
 							// Support custom widgets by Type:Name
 							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
