@@ -775,14 +775,13 @@ class KSamplerAdvanced:
 class SaveImage:
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-        self.temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        self.url_suffix = ""
 
     @classmethod
     def INPUT_TYPES(s):
         return {"required": 
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                     "use_temp_file": (["yes", "no"], {"default" : "no"} ),},
+                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -810,6 +809,9 @@ class SaveImage:
             os.mkdir(self.output_dir)
             counter = 1
 
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+            
         paths = list()
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -820,25 +822,24 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-
             file = f"{filename_prefix}_{counter:05}_.png"
-
-            if use_temp_file == "yes":   
-                if not os.path.exists(self.temp_dir):
-                    os.makedirs(self.temp_dir)
-                dir = self.temp_dir
-            else:
-                dir = self.output_dir
-            
-            img.save(os.path.join(dir, file), pnginfo=metadata, optimize=True)
-
-            if use_temp_file == "yes":   
-                file += "?type=temp"
-
-            paths.append(file)
+            img.save(os.path.join(self.output_dir, file), pnginfo=metadata, optimize=True)
+            paths.append(file + self.url_suffix)
             counter += 1
         return { "ui": { "images": paths } }
 
+class PreviewImage(SaveImage):
+    def __init__(self):
+        self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        self.url_suffix = "?type=temp"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": 
+                    {"images": ("IMAGE", ), },
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                }
+    
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
@@ -959,6 +960,7 @@ NODE_CLASS_MAPPINGS = {
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
+    "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
