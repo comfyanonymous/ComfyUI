@@ -50,8 +50,6 @@ if "--use-pytorch-cross-attention" in sys.argv:
     XFORMERS_IS_AVAILBLE = False
 
 
-if "--cpu" in sys.argv:
-    vram_state = CPU
 if "--lowvram" in sys.argv:
     set_vram_to = LOW_VRAM
 if "--novram" in sys.argv:
@@ -73,6 +71,8 @@ if set_vram_to == LOW_VRAM or set_vram_to == NO_VRAM:
     total_vram_available_mb = (total_vram - 1024) // 2
     total_vram_available_mb = int(max(256, total_vram_available_mb))
 
+if "--cpu" in sys.argv:
+    vram_state = CPU
 
 print("Set vram state to:", ["CPU", "NO VRAM", "LOW VRAM", "NORMAL VRAM", "HIGH VRAM"][vram_state])
 
