@@ -57,7 +57,7 @@ def hijack_progress(server):
 def cleanup_temp():
     temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
     if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 if __name__ == "__main__":
     cleanup_temp()
