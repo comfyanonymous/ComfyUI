@@ -405,6 +405,15 @@ class ComfyApp {
 		api.init();
 	}
 
+	#addKeyboardHandler() {
+		window.addEventListener("keydown", (e) => {
+			// Queue prompt using ctrl or command + enter
+			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
+				this.queuePrompt(e.shiftKey ? -1 : 0);
+			}
+		});
+	}
+
 	/**
 	 * Loads all extensions from the API into the window
 	 */
@@ -471,6 +480,7 @@ class ComfyApp {
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
+		this.#addKeyboardHandler();
 
 		await this.#invokeExtensionsAsync("setup");
 	}
