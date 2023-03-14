@@ -780,8 +780,7 @@ class SaveImage:
     def INPUT_TYPES(s):
         return {"required": 
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                     "subfolder": ("STRING", {})},
+                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -792,9 +791,9 @@ class SaveImage:
 
     CATEGORY = "image"
 
-    def save_images(self, images, filename_prefix="ComfyUI", subfolder=None, prompt=None, extra_pnginfo=None):
+    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         def map_filename(filename):
-            prefix_len = len(filename_prefix)
+            prefix_len = len(os.path.basename(filename_prefix))
             prefix = filename[:prefix_len + 1]
             try:
                 digits = int(filename[prefix_len + 1:].split('_')[0])
@@ -802,14 +801,21 @@ class SaveImage:
                 digits = 0
             return (digits, prefix)
         
-        outputDirectory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", subfolder);
+        subfolder = os.path.dirname(filename_prefix)
+        filename = os.path.basename(filename_prefix)
+        comfy_output_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+        full_output_folder = os.path.join(comfy_output_folder, subfolder) 
+
+        if os.path.commonpath((comfy_output_folder, os.path.abspath(full_output_folder))) != comfy_output_folder:
+            print("Saving image outside the output folder is not allowed.")
+            return
         
         try:
-            counter = max(filter(lambda a: a[1][:-1] == filename_prefix and a[1][-1] == "_", map(map_filename, os.listdir(outputDirectory))))[0] + 1
+            counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
         except ValueError:
             counter = 1
         except FileNotFoundError:
-            os.makedirs(outputDirectory, exist_ok=True)
+            os.makedirs(full_output_folder, exist_ok=True)
             counter = 1
 
         paths = list()
@@ -822,8 +828,8 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-            file = f"{filename_prefix}_{counter:05}_.png"
-            img.save(os.path.join(outputDirectory, file), pnginfo=metadata, optimize=True)
+            file = f"{filename}_{counter:05}_.png"
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, optimize=True)
             paths.append(os.path.join(subfolder, file))
             counter += 1
         return { "ui": { "images": paths } }
