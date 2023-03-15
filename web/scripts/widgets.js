@@ -11,33 +11,45 @@ function getNumberDefaults(inputData, defaultStep) {
 }
 
 export function addRandomizeWidget(node, targetWidget, name, defaultValue = false) {
-	const randomize = node.addWidget("toggle", name, defaultValue, function (v) {}, {
-		on: "enabled",
-		off: "disabled",
+	const randomize = node.addWidget("combo", name, defaultValue, function (v) {}, {
+		values: ["after generation", "before generation", "off"],
 		serialize: false, // Don't include this in prompt.
 	});
 
-	randomize.afterQueued = () => {
-		if (randomize.value) {
-			const min = targetWidget.options?.min;
-			let max = targetWidget.options?.max;
-			if (min != null || max != null) {
-				if (max) {
-					// limit max to something that javascript can handle
-					max = Math.min(1125899906842624, max);
-				}
-				targetWidget.value = Math.floor(Math.random() * ((max ?? 9999999999) - (min ?? 0) + 1) + (min ?? 0));
-			} else {
-				targetWidget.value = Math.floor(Math.random() * 1125899906842624);
+	const generateSeed = () => {
+		const min = targetWidget.options?.min;
+		let max = targetWidget.options?.max;
+		if (min != null || max != null) {
+			if (max) {
+				// limit max to something that javascript can handle
+				max = Math.min(1125899906842624, max);
 			}
+			targetWidget.value = Math.floor(Math.random() * ((max ?? 9999999999) - (min ?? 0) + 1) + (min ?? 0));
+		} else {
+			targetWidget.value = Math.floor(Math.random() * 1125899906842624);
 		}
 	};
+
+	randomize.beforeQueued = () => {
+		if (randomize.value === "before generation") {
+			generateSeed()
+		}
+	};
+
+	randomize.afterQueued = () => {
+		// Check if value is true for backward compatibilty with the previous toggle
+		// version of this widget.
+		if (randomize.value === "after generation" || randomize.value === true) {
+			generateSeed()
+		}
+	};
+
 	return randomize;
 }
 
 function seedWidget(node, inputName, inputData) {
 	const seed = ComfyWidgets.INT(node, inputName, inputData);
-	const randomize = addRandomizeWidget(node, seed.widget, "Random seed after every gen", true);
+	const randomize = addRandomizeWidget(node, seed.widget, "random seed", "after generation");
 
 	seed.widget.linkedWidgets = [randomize];
 	return { widget: seed, randomize };

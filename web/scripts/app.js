@@ -653,6 +653,23 @@ class ComfyApp {
 		// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 		for (let n of graphData.nodes) {
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
+
+			// Convert old random settings to new ones.
+			// true  -> "after generation"
+			// false -> "off"
+			if (n.type === "KSampler" || n.type === "KSamplerAdvanced" || n.type === "PrimitiveNode") {
+				// KSampler and PrimitiveNode have the random setting as the second widget.
+				// KSamplerAdvanced has it as the third widget.
+				let randomWidgetIndex = 1;
+				if (n.type === "KSamplerAdvanced") randomWidgetIndex = 2;
+
+				const randomSetting = n.widgets_values[randomWidgetIndex];
+				if (randomSetting === true) {
+					n.widgets_values[randomWidgetIndex] = "after generation";
+				} else if (randomSetting !== "before generation") {
+					n.widgets_values[randomWidgetIndex] = "off";
+				}
+			}
 		}
 
 		this.graph.configure(graphData);
@@ -744,7 +761,22 @@ class ComfyApp {
 
 	async queuePrompt(number, batchCount = 1) {
 		for (let i = 0; i < batchCount; i++) {
-			const p = await this.graphToPrompt();
+			let p = await this.graphToPrompt();
+
+			for (const n of p.workflow.nodes) {
+				const node = graph.getNodeById(n.id);
+				if (node.widgets) {
+					for (const widget of node.widgets) {
+						// Allow widgets to run callbacks before a prompt has been queued
+						// e.g. random seed before every gen
+						if (widget.beforeQueued) {
+							widget.beforeQueued();
+						}
+					}
+				}
+			}
+
+			p = await this.graphToPrompt();
 
 			try {
 				await api.queuePrompt(number, p);

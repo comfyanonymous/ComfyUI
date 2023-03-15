@@ -56,7 +56,7 @@ export const defaultGraph = {
 			],
 			outputs: [{ name: "LATENT", type: "LATENT", links: [7], slot_index: 0 }],
 			properties: {},
-			widgets_values: [8566257, true, 20, 8, "euler", "normal", 1],
+			widgets_values: [8566257, "after generation", 20, 8, "euler", "normal", 1],
 		},
 		{
 			id: 8,
