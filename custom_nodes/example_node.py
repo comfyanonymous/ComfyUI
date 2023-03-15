@@ -1,3 +1,4 @@
+from aiohttp import web
 class Example:
     """
     A example node
@@ -78,9 +79,23 @@ class Example:
         image = 1.0 - image
         return (image,)
 
-
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique
 NODE_CLASS_MAPPINGS = {
     "Example": Example
 }
+
+class CustomEndpoint:
+    routes = None
+    def __init__(self):
+        self.routes = web.RouteTableDef()
+        
+        @self.routes.get("/test")
+        async def get(request):
+            return web.Response(text="Hello World! This a test endpoint in example_node.py")
+
+        @self.routes.post("/test")
+        async def post(request):
+            text_data = request.text()
+            return web.Response(text=f"Hello World! This a test endpoint in example_node.py\n\nYour request body: {text_data}")
+

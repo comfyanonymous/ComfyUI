@@ -17,7 +17,8 @@ except ImportError:
     sys.exit()
 
 import mimetypes
-
+import importlib
+import traceback
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -228,6 +229,38 @@ class PromptServer():
         self.app.add_routes([
             web.static('/', self.web_root),
         ])
+
+        def load_custom_endpoint(module_path):
+            module_name = os.path.basename(module_path)
+            if os.path.isfile(module_path):
+                sp = os.path.splitext(module_path)
+                module_name = sp[0]
+            try:
+                if os.path.isfile(module_path):
+                    module_spec = importlib.util.spec_from_file_location(module_name, module_path)
+                else:
+                    module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
+                module = importlib.util.module_from_spec(module_spec)
+                sys.modules[module_name] = module
+                module_spec.loader.exec_module(module)
+                if hasattr(module, "CustomEndpoint") and getattr(module, "CustomEndpoint") is not None:
+                    self.app.add_routes(module.CustomEndpoint().routes)
+            except Exception as e:
+                print(traceback.format_exc())
+                print(f"Cannot import {module_path} module for custom endpoints:", e)
+
+        def load_custom_endpoints():
+            CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
+            possible_modules = os.listdir(CUSTOM_NODE_PATH)
+            if "__pycache__" in possible_modules:
+                possible_modules.remove("__pycache__")
+
+            for possible_module in possible_modules:
+                module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
+                if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+                load_custom_endpoint(module_path)
+
+        load_custom_endpoints()
 
     def get_queue_info(self):
         prompt_info = {}
