@@ -22,11 +22,11 @@ jobs:
           run: |
             cd ..
             cp -r ComfyUI ComfyUI_copy
-            wget https://www.python.org/ftp/python/3.10.9/python-3.10.9-embed-amd64.zip -O python_embeded.zip
+            curl https://www.python.org/ftp/python/3.10.9/python-3.10.9-embed-amd64.zip -o python_embeded.zip
             unzip python_embeded.zip -d python_embeded
             cd python_embeded
             echo 'import site' >> ./python310._pth
-            wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
+            curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             ./python.exe get-pip.py
             ./python.exe -s -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117 xformers -r ../ComfyUI/requirements.txt pygit2
             sed -i '1i../ComfyUI' ./python310._pth
