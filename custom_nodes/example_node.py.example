@@ -87,11 +87,11 @@ NODE_CLASS_MAPPINGS = {
 
 class PatchRoutes:
     def __init__(self, routes):
-        @routes.get("/test")
+        @routes.get("/extensions/example")
         async def get(request):
             return web.Response(text="Hello World! This a test endpoint in example_node.py")
 
-        @routes.post("/test")
+        @routes.post("/extensions/example")
         async def post(request):
             text_data = await request.text()
             return web.Response(text=f"Hello World! This a test endpoint in example_node.py\n\nYour request body: {text_data}")
