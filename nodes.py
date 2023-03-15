@@ -804,10 +804,9 @@ class SaveImage:
         
         subfolder = os.path.dirname(filename_prefix)
         filename = os.path.basename(filename_prefix)
-        comfy_output_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-        full_output_folder = os.path.join(comfy_output_folder, subfolder) 
+        full_output_folder = os.path.join(self.output_dir, subfolder) 
 
-        if os.path.commonpath((comfy_output_folder, os.path.realpath(full_output_folder))) != comfy_output_folder:
+        if os.path.commonpath((self.output_dir, os.path.realpath(full_output_folder))) != self.output_dir:
             print("Saving image outside the output folder is not allowed.")
             return
         
@@ -842,7 +841,7 @@ class SaveImage:
 class PreviewImage(SaveImage):
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
-        self.url_suffix = "?type=temp"
+        self.url_suffix = "&type=temp"
 
     @classmethod
     def INPUT_TYPES(s):
