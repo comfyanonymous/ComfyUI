@@ -56,19 +56,14 @@ At the time of writing this pytorch has issues with python versions higher than 
 ### AMD (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.2```
-
-
-I highly recommend you use the nightly/unstable pytorch builds though because they work a lot better for me (run this in the ComfyUI folder so it picks up the requirements.txt):
-
-```pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/rocm5.4.2 -r requirements.txt```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
 
 
 ### NVIDIA
 
 Nvidia users should install torch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118```
 
 Nvidia users should also install Xformers for a speed boost but can still run the software without it.
 
