@@ -260,13 +260,13 @@ export class ComfyUI {
 				$el("label", { innerHTML: "Extra options"}, [
 					$el("input", { type: "checkbox", 
 						onchange: (i) => { 
-							document.getElementById('extraOptions').style.visibility = i.srcElement.checked ? "visible" : "collapse";
+							document.getElementById('extraOptions').style.display = i.srcElement.checked ? "block" : "none";
 							this.batchCount = i.srcElement.checked ? document.getElementById('batchCountInputRange').value : 1;
 						}
 					})
 				])
 			]),
-			$el("div", { id: "extraOptions", style: { width: "100%", visibility: "collapse" }}, [
+			$el("div", { id: "extraOptions", style: { width: "100%", display: "none" }}, [
 				$el("label", { innerHTML: "Batch count" }, [
 					$el("input", { id: "batchCountInputNumber", type: "number", value: this.batchCount, min: "1", style: { width: "35%", "margin-left": "0.4em" }, 
 						oninput: (i) => { 
