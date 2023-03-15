@@ -258,7 +258,12 @@ export class ComfyUI {
 			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
 			$el("div", {}, [
 				$el("label", { innerHTML: "Extra options"}, [
-					$el("input", { type: "checkbox", onchange: (i) => document.getElementById('extraOptions').style.visibility = i.srcElement.checked ? "visible" : "collapse" })
+					$el("input", { type: "checkbox", 
+						onchange: (i) => { 
+							document.getElementById('extraOptions').style.visibility = i.srcElement.checked ? "visible" : "collapse";
+							this.batchCount = i.srcElement.checked ? document.getElementById('batchCountInputRange').value : 1;
+						}
+					})
 				])
 			]),
 			$el("div", { id: "extraOptions", style: { width: "100%", visibility: "collapse" }}, [
