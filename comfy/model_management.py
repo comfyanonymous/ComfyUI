@@ -31,8 +31,25 @@ try:
 except:
     pass
 
-if "--cpu" in sys.argv:
-    vram_state = CPU
+if "--disable-xformers" in sys.argv:
+    XFORMERS_IS_AVAILBLE = False
+else:
+    try:
+        import xformers
+        import xformers.ops
+        XFORMERS_IS_AVAILBLE = True
+    except:
+        XFORMERS_IS_AVAILBLE = False
+
+ENABLE_PYTORCH_ATTENTION = False
+if "--use-pytorch-cross-attention" in sys.argv:
+    torch.backends.cuda.enable_math_sdp(True)
+    torch.backends.cuda.enable_flash_sdp(True)
+    torch.backends.cuda.enable_mem_efficient_sdp(True)
+    ENABLE_PYTORCH_ATTENTION = True
+    XFORMERS_IS_AVAILBLE = False
+
+
 if "--lowvram" in sys.argv:
     set_vram_to = LOW_VRAM
 if "--novram" in sys.argv:
@@ -54,6 +71,8 @@ if set_vram_to == LOW_VRAM or set_vram_to == NO_VRAM:
     total_vram_available_mb = (total_vram - 1024) // 2
     total_vram_available_mb = int(max(256, total_vram_available_mb))
 
+if "--cpu" in sys.argv:
+    vram_state = CPU
 
 print("Set vram state to:", ["CPU", "NO VRAM", "LOW VRAM", "NORMAL VRAM", "HIGH VRAM"][vram_state])
 
@@ -158,6 +177,14 @@ def get_autocast_device(dev):
     if hasattr(dev, 'type'):
         return dev.type
     return "cuda"
+
+def xformers_enabled():
+    if vram_state == CPU:
+        return False
+    return XFORMERS_IS_AVAILBLE
+
+def pytorch_attention_enabled():
+    return ENABLE_PYTORCH_ATTENTION
 
 def get_free_memory(dev=None, torch_free_too=False):
     if dev is None:

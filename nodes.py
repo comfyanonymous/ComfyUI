@@ -775,6 +775,7 @@ class KSamplerAdvanced:
 class SaveImage:
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+        self.url_suffix = ""
 
     @classmethod
     def INPUT_TYPES(s):
@@ -818,6 +819,9 @@ class SaveImage:
             os.makedirs(full_output_folder, exist_ok=True)
             counter = 1
 
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
         paths = list()
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -828,11 +832,24 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, optimize=True)
-            paths.append(os.path.join(subfolder, file))
+            paths.append(os.path.join(subfolder, file + self.url_suffix))
             counter += 1
         return { "ui": { "images": paths } }
+
+class PreviewImage(SaveImage):
+    def __init__(self):
+        self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        self.url_suffix = "?type=temp"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"images": ("IMAGE", ), },
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                }
 
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
@@ -954,6 +971,7 @@ NODE_CLASS_MAPPINGS = {
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
+    "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,

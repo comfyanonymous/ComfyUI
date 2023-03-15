@@ -1,5 +1,6 @@
 import os
 import sys
+import shutil
 
 import threading
 import asyncio
@@ -8,9 +9,6 @@ if os.name == "nt":
     import logging
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
-import execution
-import server
-
 if __name__ == "__main__":
     if '--help' in sys.argv:
         print("Valid Command line Arguments:")
@@ -18,6 +16,8 @@ if __name__ == "__main__":
         print("\t--port 8188\t\t\tSet the listen port.")
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
+        print("\t--use-pytorch-cross-attention\tUse the new pytorch 2.0 cross attention function.")
+        print("\t--disable-xformers\t\tdisables xformers")
         print()
         print("\t--highvram\t\t\tBy default models will be unloaded to CPU memory after being used.\n\t\t\t\t\tThis option keeps them in GPU memory.\n")
         print("\t--normalvram\t\t\tUsed to force normal vram use if lowvram gets automatically enabled.")
@@ -31,6 +31,9 @@ if __name__ == "__main__":
         print("disabling upcasting of attention")
         os.environ['ATTN_PRECISION'] = "fp16"
 
+import execution
+import server
+
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
     while True:
@@ -38,8 +41,8 @@ def prompt_worker(q, server):
         e.execute(item[-2], item[-1])
         q.task_done(item_id, e.outputs)
 
-async def run(server, address='', port=8188, verbose=True):
-    await asyncio.gather(server.start(address, port, verbose), server.publish_loop())
+async def run(server, address='', port=8188, verbose=True, call_on_start=None):
+    await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
 
 def hijack_progress(server):
     from tqdm.auto import tqdm
@@ -51,7 +54,14 @@ def hijack_progress(server):
         return v
     setattr(tqdm, "update", wrapped_func)
 
+def cleanup_temp():
+    temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+    if os.path.exists(temp_dir):
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
 if __name__ == "__main__":
+    cleanup_temp()
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     server = server.PromptServer(loop)
@@ -76,11 +86,22 @@ if __name__ == "__main__":
     except:
         pass
 
+    if '--quick-test-for-ci' in sys.argv:
+        exit(0)
+
+    call_on_start = None
+    if "--windows-standalone-build" in sys.argv:
+        def startup_server(address, port):
+            import webbrowser
+            webbrowser.open("http://{}:{}".format(address, port))
+        call_on_start = startup_server
+
     if os.name == "nt":
         try:
-            loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print))
+            loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
         except KeyboardInterrupt:
             pass
     else:
-        loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print))
+        loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
 
+    cleanup_temp()
