@@ -1,7 +1,7 @@
 import os
 from comfy_extras.chainner_models import model_loading
 from comfy.sd import load_torch_file
-import comfy.model_management
+import model_management
 from nodes import filter_files_extensions, recursive_search, supported_ckpt_extensions
 import torch
 import comfy.utils
@@ -38,7 +38,7 @@ class ImageUpscaleWithModel:
     CATEGORY = "image/upscaling"
 
     def upscale(self, upscale_model, image):
-        device = comfy.model_management.get_torch_device()
+        device = model_management.get_torch_device()
         upscale_model.to(device)
         in_img = image.movedim(-1,-3).to(device)
         s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=128 + 64, tile_y=128 + 64, overlap = 8, upscale_amount=upscale_model.scale)
