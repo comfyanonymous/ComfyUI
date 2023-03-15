@@ -24,4 +24,4 @@ To update the ComfyUI code: update\update_comfyui.bat
 
 
 To update ComfyUI with the python dependencies:
-update\ONLY_RUN_THIS_IF_YOU_HAVE_TO\update_comfyui_and_python_dependencies.bat
+update\update_comfyui_and_python_dependencies.bat
