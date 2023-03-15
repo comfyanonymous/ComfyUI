@@ -86,6 +86,9 @@ if __name__ == "__main__":
     except:
         pass
 
+    if '--quick-test-for-ci' in sys.argv:
+        exit(0)
+
     call_on_start = None
     if "--windows-standalone-build" in sys.argv:
         def startup_server(address, port):
