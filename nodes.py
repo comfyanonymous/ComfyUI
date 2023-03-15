@@ -691,8 +691,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
         if t.shape[0] < noise.shape[0]:
             t = torch.cat([t] * noise.shape[0])
         t = t.to(device)
-        if 'control' in p[1]:
-            control_nets += [p[1]['control']]
+        if 'control' in n[1]:
+            control_nets += [n[1]['control']]
         negative_copy += [[t] + n[1:]]
 
     control_net_models = []
