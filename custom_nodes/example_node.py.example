@@ -85,17 +85,14 @@ NODE_CLASS_MAPPINGS = {
     "Example": Example
 }
 
-class CustomEndpoint:
-    routes = None
-    def __init__(self):
-        self.routes = web.RouteTableDef()
-        
-        @self.routes.get("/test")
+class PatchRoutes:
+    def __init__(self, routes):
+        @routes.get("/test")
         async def get(request):
             return web.Response(text="Hello World! This a test endpoint in example_node.py")
 
-        @self.routes.post("/test")
+        @routes.post("/test")
         async def post(request):
-            text_data = request.text()
+            text_data = await request.text()
             return web.Response(text=f"Hello World! This a test endpoint in example_node.py\n\nYour request body: {text_data}")
 

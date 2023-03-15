@@ -225,11 +225,6 @@ class PromptServer():
 
             return web.Response(status=200)
 
-        self.app.add_routes(routes)
-        self.app.add_routes([
-            web.static('/', self.web_root),
-        ])
-
         def load_custom_endpoint(module_path):
             module_name = os.path.basename(module_path)
             if os.path.isfile(module_path):
@@ -241,10 +236,9 @@ class PromptServer():
                 else:
                     module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
                 module = importlib.util.module_from_spec(module_spec)
-                sys.modules[module_name] = module
                 module_spec.loader.exec_module(module)
-                if hasattr(module, "CustomEndpoint") and getattr(module, "CustomEndpoint") is not None:
-                    self.app.add_routes(module.CustomEndpoint().routes)
+                if hasattr(module, "PatchRoutes") and getattr(module, "PatchRoutes") is not None:
+                    module.PatchRoutes(routes)
             except Exception as e:
                 print(traceback.format_exc())
                 print(f"Cannot import {module_path} module for custom endpoints:", e)
@@ -261,6 +255,10 @@ class PromptServer():
                 load_custom_endpoint(module_path)
 
         load_custom_endpoints()
+        self.app.add_routes(routes)
+        self.app.add_routes([
+            web.static('/', self.web_root),
+        ])
 
     def get_queue_info(self):
         prompt_info = {}
