@@ -110,9 +110,11 @@ class ComfyApp {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
+									
 									var filename = src.replace(/^.*[\\\/]/, '');
 									var subfolder = src.replace(filename, '');
-									img.src = "/view?file=" + filename + "&subfolder=" + subfolder;
+									var params = new URLSearchParams({file: filename, subfolder});
+									img.src = "/view?" + params.toString();
 								});
 							})
 						).then((imgs) => {
