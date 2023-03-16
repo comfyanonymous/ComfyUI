@@ -142,7 +142,14 @@ class ComfyApp {
 					if (numImages === 1 && !imageIndex) {
 						this.imageIndex = imageIndex = 0;
 					}
-					let shiftY = this.type === "SaveImage" ? 55 : this.imageOffset || 0;
+
+					let shiftY;
+					if (this.imageOffset != null) {
+						shiftY = this.imageOffset;
+					} else {
+						shiftY = this.computeSize()[1];
+					}
+
 					let dw = this.size[0];
 					let dh = this.size[1];
 					dh -= shiftY;
@@ -284,9 +291,47 @@ class ComfyApp {
 		document.addEventListener("drop", async (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			const file = event.dataTransfer.files[0];
-			await this.handleFile(file);
+
+			const n = this.dragOverNode;
+			this.dragOverNode = null;
+			// Node handles file drop, we dont use the built in onDropFile handler as its buggy
+			// If you drag multiple files it will call it multiple times with the same file
+			if (n && n.onDragDrop && (await n.onDragDrop(event))) {
+				return;
+			}
+
+			await this.handleFile(event.dataTransfer.files[0]);
 		});
+
+		// Always clear over node on drag leave
+		this.canvasEl.addEventListener("dragleave", async () => {
+			if (this.dragOverNode) {
+				this.dragOverNode = null;
+				this.graph.setDirtyCanvas(false, true);
+			}
+		});
+
+		// Add handler for dropping onto a specific node
+		this.canvasEl.addEventListener(
+			"dragover",
+			(e) => {
+				this.canvas.adjustMouseEvent(e);
+				const node = this.graph.getNodeOnPos(e.canvasX, e.canvasY);
+				if (node) {
+					if (node.onDragOver && node.onDragOver(e)) {
+						this.dragOverNode = node;
+
+						// dragover event is fired very frequently, run this on an animation frame
+						requestAnimationFrame(() => {
+							this.graph.setDirtyCanvas(false, true);
+						});
+						return;
+					}
+				}
+				this.dragOverNode = null;
+			},
+			false
+		);
 	}
 
 	/**
@@ -314,15 +359,22 @@ class ComfyApp {
 	}
 
 	/**
-	 * Draws currently executing node highlight and progress bar
+	 * Draws node highlights (executing, drag drop) and progress bar
 	 */
-	#addDrawNodeProgressHandler() {
+	#addDrawNodeHandler() {
 		const orig = LGraphCanvas.prototype.drawNodeShape;
 		const self = this;
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
 			const res = orig.apply(this, arguments);
 
-			if (node.id + "" === self.runningNodeId) {
+			let color = null;
+			if (node.id === +self.runningNodeId) {
+				color = "#0f0";
+			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
+				color = "dodgerblue";
+			}
+
+			if (color) {
 				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
 				ctx.lineWidth = 1;
 				ctx.globalAlpha = 0.8;
@@ -348,7 +400,7 @@ class ComfyApp {
 					);
 				else if (shape == LiteGraph.CIRCLE_SHAPE)
 					ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
-				ctx.strokeStyle = "#0f0";
+				ctx.strokeStyle = color;
 				ctx.stroke();
 				ctx.strokeStyle = fgcolor;
 				ctx.globalAlpha = 1;
@@ -398,6 +450,15 @@ class ComfyApp {
 		api.init();
 	}
 
+	#addKeyboardHandler() {
+		window.addEventListener("keydown", (e) => {
+			// Queue prompt using ctrl or command + enter
+			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
+				this.queuePrompt(e.shiftKey ? -1 : 0);
+			}
+		});
+	}
+
 	/**
 	 * Loads all extensions from the API into the window
 	 */
@@ -419,7 +480,7 @@ class ComfyApp {
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
-		const canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" });
+		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
 		document.body.prepend(canvasEl);
 
 		this.graph = new LGraph();
@@ -460,10 +521,11 @@ class ComfyApp {
 		// Save current workflow automatically
 		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
 
-		this.#addDrawNodeProgressHandler();
+		this.#addDrawNodeHandler();
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
+		this.#addKeyboardHandler();
 
 		await this.#invokeExtensionsAsync("setup");
 	}
@@ -497,7 +559,11 @@ class ComfyApp {
 
 						if (Array.isArray(type)) {
 							// Enums e.g. latent rotation
-							this.addWidget("combo", inputName, type[0], () => {}, { values: type });
+							let defaultValue = type[0];
+							if (inputData[1] && inputData[1].default) {
+								defaultValue = inputData[1].default;
+							}
+							this.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
 						} else if (`${type}:${inputName}` in widgets) {
 							// Support custom widgets by Type:Name
 							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
@@ -641,31 +707,33 @@ class ComfyApp {
 		return { workflow, output };
 	}
 
-	async queuePrompt(number) {
-		const p = await this.graphToPrompt();
+	async queuePrompt(number, batchCount = 1) {
+		for (let i = 0; i < batchCount; i++) {
+			const p = await this.graphToPrompt();
 
-		try {
-			await api.queuePrompt(number, p);
-		} catch (error) {
-			this.ui.dialog.show(error.response || error.toString());
-			return;
-		}
+			try {
+				await api.queuePrompt(number, p);
+			} catch (error) {
+				this.ui.dialog.show(error.response || error.toString());
+				return;
+			}
 
-		for (const n of p.workflow.nodes) {
-			const node = graph.getNodeById(n.id);
-			if (node.widgets) {
-				for (const widget of node.widgets) {
-					// Allow widgets to run callbacks after a prompt has been queued
-					// e.g. random seed after every gen
-					if (widget.afterQueued) {
-						widget.afterQueued();
+			for (const n of p.workflow.nodes) {
+				const node = graph.getNodeById(n.id);
+				if (node.widgets) {
+					for (const widget of node.widgets) {
+						// Allow widgets to run callbacks after a prompt has been queued
+						// e.g. random seed after every gen
+						if (widget.afterQueued) {
+							widget.afterQueued();
+						}
 					}
 				}
 			}
-		}
 
-		this.canvas.draw(true, true);
-		await this.ui.queue.update();
+			this.canvas.draw(true, true);
+			await this.ui.queue.update();
+		}
 	}
 
 	/**

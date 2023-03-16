@@ -121,7 +121,7 @@ class PromptServer():
         async def view_image(request):
             if "file" in request.match_info:
                 type = request.rel_url.query.get("type", "output")
-                if type != "output" and type != "input":
+                if type not in ["output", "input", "temp"]:
                     return web.Response(status=400)
 
                 output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
@@ -268,7 +268,7 @@ class PromptServer():
             msg = await self.messages.get()
             await self.send(*msg)
 
-    async def start(self, address, port, verbose=True):
+    async def start(self, address, port, verbose=True, call_on_start=None):
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, address, port)
@@ -279,3 +279,6 @@ class PromptServer():
         if verbose:
             print("Starting server\n")
             print("To see the GUI go to: http://{}:{}".format(address, port))
+        if call_on_start is not None:
+            call_on_start(address, port)
+

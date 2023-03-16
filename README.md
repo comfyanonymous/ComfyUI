@@ -31,6 +31,20 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 # Installing
 
+## Windows
+
+There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
+
+### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_or_cpu.7z)
+
+Just download, extract and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
+
+## Colab Notebook
+
+To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
+
+## Manual Install (Windows, Linux)
+
 Git clone this repo.
 
 Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
@@ -39,20 +53,17 @@ Put your VAE in: models/vae
 
 At the time of writing this pytorch has issues with python versions higher than 3.10 so make sure your python/pip versions are 3.10.
 
-### AMD
-AMD users can install rocm and pytorch with pip if you don't have it already installed:
+### AMD (Linux only)
+AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.2```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
+
 
 ### NVIDIA
 
-Nvidia users should install torch using this command:
+Nvidia users should install torch and xformers using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117```
-
-Nvidia users should also install Xformers for a speed boost but can still run the software without it.
-
-```pip install xformers```
+```pip install torch==1.13.1 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117 xformers```
 
 #### Troubleshooting
 
@@ -111,10 +122,6 @@ You can use {day|night}, for wildcard/dynamic prompts. With this syntax "{wild|c
 To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
 
 ```embedding:embedding_filename.pt```
-
-### Colab Notebook
-
-To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
 
 ### Fedora
 
