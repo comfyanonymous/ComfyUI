@@ -24,15 +24,15 @@ jobs:
             path: cu118_python_deps.tar
             key: ${{ runner.os }}-build-cu118
 
-        - if: ${{ steps.cache-cu118_python_stuff.cache-hit != 'true' }}
+        - if: steps.cache-cu118_python_stuff.outputs.cache-hit != 'true'
           uses: actions/checkout@v3
 
-        - if: ${{ steps.cache-cu118_python_stuff.cache-hit != 'true' }}
+        - if: steps.cache-cu118_python_stuff.outputs.cache-hit != 'true'
           uses: actions/setup-python@v4
           with:
             python-version: '3.10.9'
 
-        - if: ${{ steps.cache-cu118_python_stuff.cache-hit != 'true' }}
+        - if: steps.cache-cu118_python_stuff.outputs.cache-hit != 'true'
           uses: comfyanonymous/cuda-toolkit@test
           id: cuda-toolkit
           with:
@@ -51,7 +51,7 @@ jobs:
           shell: bash
           run: rm /usr/bin/link
 
-        - if: ${{ steps.cache-cu118_python_stuff.cache-hit != 'true' }}
+        - if: steps.cache-cu118_python_stuff.outputs.cache-hit != 'true'
           shell: bash
           run: |
             python -m pip wheel --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 -r requirements.txt pygit2 -w ./temp_wheel_dir
