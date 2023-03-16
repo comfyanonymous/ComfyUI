@@ -61,13 +61,9 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 ### NVIDIA
 
-Nvidia users should install torch using this command:
+Nvidia users should install torch and xformers using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118```
-
-Nvidia users should also install Xformers for a speed boost but can still run the software without it.
-
-```pip install xformers```
+```pip install torch==1.13.1 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117 xformers```
 
 #### Troubleshooting
 
