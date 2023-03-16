@@ -155,8 +155,8 @@ app.registerExtension({
 			computeSize() {
 				return [
 					this.properties.showOutputText && this.outputs && this.outputs.length
-						? Math.max(55, LiteGraph.NODE_TEXT_SIZE * this.outputs[0].name.length * 0.6 + 40)
-						: 55,
+						? Math.max(75, LiteGraph.NODE_TEXT_SIZE * this.outputs[0].name.length * 0.6 + 40)
+						: 75,
 					26,
 				];
 			}
