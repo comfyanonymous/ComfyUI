@@ -34,6 +34,7 @@ app.registerExtension({
 					let currentNode = this;
 					let updateNodes = [];
 					let inputType = null;
+					let inputNode = null;
 					while (currentNode) {
 						updateNodes.unshift(currentNode);
 						const linkId = currentNode.inputs[0].link;
@@ -46,6 +47,7 @@ app.registerExtension({
 								currentNode = node;
 							} else {
 								// We've found the end
+								inputNode = currentNode;
 								inputType = node.outputs[link.origin_slot].type;
 								break;
 							}
@@ -93,6 +95,7 @@ app.registerExtension({
 					}
 
 					const displayType = inputType || outputType || "*";
+					const color = LGraphCanvas.link_type_colors[displayType];
 
 					// Update the types of each node
 					for (const node of updateNodes) {
@@ -103,10 +106,13 @@ app.registerExtension({
 						node.outputs[0].name = node.properties.showOutputText ? displayType : "";
 						node.size = node.computeSize();
 
-						const color = LGraphCanvas.link_type_colors[displayType];
 						for (const l of node.outputs[0].links || []) {
 							app.graph.links[l].color = color;
 						}
+					}
+
+					if (inputNode) {
+						app.graph.links[inputNode.inputs[0].link].color = color;
 					}
 				};
 
@@ -173,6 +179,7 @@ app.registerExtension({
 			Object.assign(RerouteNode, {
 				title_mode: LiteGraph.NO_TITLE,
 				title: "Reroute",
+				collapsable: false,
 			})
 		);
 
