@@ -71,6 +71,7 @@ jobs:
           with:
             name: cu118_python_deps
             path: cu118_python_deps.tar
+            retention-days: 1
 
 
   package_comfyui:
