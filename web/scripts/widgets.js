@@ -132,7 +132,7 @@ export const ComfyWidgets = {
 
 		function showImage(name) {
 			// Position the image somewhere sensible
-			if(!node.imageOffset) {
+			if (!node.imageOffset) {
 				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
 			}
 
@@ -162,6 +162,36 @@ export const ComfyWidgets = {
 			}
 		});
 
+		async function uploadFile(file, updateNode) {
+			try {
+				// Wrap file in formdata so it includes filename
+				const body = new FormData();
+				body.append("image", file);
+				const resp = await fetch("/upload/image", {
+					method: "POST",
+					body,
+				});
+
+				if (resp.status === 200) {
+					const data = await resp.json();
+					// Add the file as an option and update the widget value
+					if (!imageWidget.options.values.includes(data.name)) {
+						imageWidget.options.values.push(data.name);
+					}
+
+					if (updateNode) {
+						showImage(data.name);
+
+						imageWidget.value = data.name;
+					}
+				} else {
+					alert(resp.status + " - " + resp.statusText);
+				}
+			} catch (error) {
+				alert(error);
+			}
+		}
+
 		const fileInput = document.createElement("input");
 		Object.assign(fileInput, {
 			type: "file",
@@ -169,30 +199,7 @@ export const ComfyWidgets = {
 			style: "display: none",
 			onchange: async () => {
 				if (fileInput.files.length) {
-					try {
-						// Wrap file in formdata so it includes filename
-						const body = new FormData();
-						body.append("image", fileInput.files[0]);
-						const resp = await fetch("/upload/image", {
-							method: "POST",
-							body,
-						});
-
-						if (resp.status === 200) {
-							const data = await resp.json();
-							showImage(data.name);
-
-							// Add the file as an option and update the widget value
-							if (!imageWidget.options.values.includes(data.name)) {
-								imageWidget.options.values.push(data.name);
-							}
-							imageWidget.value = data.name;
-						} else {
-							alert(resp.status + " - " + resp.statusText);
-						}
-					} catch (error) {
-						alert(error);
-					}
+					await uploadFile(fileInput.files[0], true);
 				}
 			},
 		});
@@ -203,6 +210,30 @@ export const ComfyWidgets = {
 			fileInput.click();
 		});
 		uploadWidget.serialize = false;
+
+		// Add handler to check if an image is being dragged over our node
+		node.onDragOver = function (e) {
+			if (e.dataTransfer && e.dataTransfer.items) {
+				const image = [...e.dataTransfer.items].find((f) => f.kind === "file" && f.type.startsWith("image/"));
+				return !!image;
+			}
+
+			return false;
+		};
+
+		// On drop upload files
+		node.onDragDrop = function (e) {
+			console.log("onDragDrop called");
+			let handled = false;
+			for (const file of e.dataTransfer.files) {
+				if (file.type.startsWith("image/")) {
+					uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
+					handled = true;
+				}
+			}
+
+			return handled;
+		};
 
 		return { widget: uploadWidget };
 	},
