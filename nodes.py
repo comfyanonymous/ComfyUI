@@ -189,6 +189,7 @@ class VAEEncodeForInpaint:
         y = (pixels.shape[2] // 64) * 64
         mask = torch.nn.functional.interpolate(mask[None,None,], size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")[0][0]
 
+        pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
             pixels = pixels[:,:x,:y,:]
             mask = mask[:x,:y]
