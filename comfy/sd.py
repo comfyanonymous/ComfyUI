@@ -6,7 +6,7 @@ import sd2_clip
 import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL
-from omegaconf import OmegaConf
+import yaml
 from .cldm import cldm
 from .t2i_adapter import adapter
 
@@ -726,11 +726,18 @@ def load_clip(ckpt_path, embedding_directory=None):
     return clip
 
 def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):
-    config = OmegaConf.load(config_path)
+    with open(config_path, 'r') as stream:
+        config = yaml.safe_load(stream)
     model_config_params = config['model']['params']
     clip_config = model_config_params['cond_stage_config']
     scale_factor = model_config_params['scale_factor']
     vae_config = model_config_params['first_stage_config']
+
+    fp16 = False
+    if "unet_config" in model_config_params:
+        if "params" in model_config_params["unet_config"]:
+            if "use_fp16" in model_config_params["unet_config"]["params"]:
+                fp16 = model_config_params["unet_config"]["params"]["use_fp16"]
 
     clip = None
     vae = None
@@ -750,9 +757,13 @@ def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, e
         w.cond_stage_model = clip.cond_stage_model
         load_state_dict_to = [w]
 
-    model = instantiate_from_config(config.model)
+    model = instantiate_from_config(config["model"])
     sd = load_torch_file(ckpt_path)
     model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
+
+    if fp16:
+        model = model.half()
+
     return (ModelPatcher(model), clip, vae)
 
 
@@ -852,5 +863,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, e
 
     model = instantiate_from_config(model_config)
     model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
+
+    if fp16:
+        model = model.half()
 
     return (ModelPatcher(model), clip, vae)
