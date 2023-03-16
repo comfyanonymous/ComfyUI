@@ -700,8 +700,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
         if t.shape[0] < noise.shape[0]:
             t = torch.cat([t] * noise.shape[0])
         t = t.to(device)
-        if 'control' in p[1]:
-            control_nets += [p[1]['control']]
+        if 'control' in n[1]:
+            control_nets += [n[1]['control']]
         negative_copy += [[t] + n[1:]]
 
     control_net_models = []
@@ -784,6 +784,7 @@ class KSamplerAdvanced:
 class SaveImage:
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+        self.url_suffix = ""
 
     @classmethod
     def INPUT_TYPES(s):
@@ -817,6 +818,9 @@ class SaveImage:
             os.mkdir(self.output_dir)
             counter = 1
 
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir)
+
         paths = list()
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -829,9 +833,21 @@ class SaveImage:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
             file = f"{filename_prefix}_{counter:05}_.png"
             img.save(os.path.join(self.output_dir, file), pnginfo=metadata, optimize=True)
-            paths.append(file)
+            paths.append(file + self.url_suffix)
             counter += 1
         return { "ui": { "images": paths } }
+
+class PreviewImage(SaveImage):
+    def __init__(self):
+        self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        self.url_suffix = "?type=temp"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"images": ("IMAGE", ), },
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                }
 
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
@@ -953,6 +969,7 @@ NODE_CLASS_MAPPINGS = {
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
+    "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,

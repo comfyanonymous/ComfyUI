@@ -18,5 +18,10 @@ You can download the stable diffusion 1.5 one from: https://huggingface.co/runwa
 
 
 
-To update only the ComfyUI code: update\update_comfyui_only.bat
-To update ComfyUI with the python dependencies: update\update_all.bat
+RECOMMENDED WAY TO UPDATE:
+To update the ComfyUI code: update\update_comfyui.bat
+
+
+
+To update ComfyUI with the python dependencies:
+update\update_comfyui_and_python_dependencies.bat

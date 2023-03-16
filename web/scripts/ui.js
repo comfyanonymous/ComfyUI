@@ -231,6 +231,7 @@ export class ComfyUI {
 		this.dialog = new ComfyDialog();
 		this.settings = new ComfySettingsDialog();
 
+		this.batchCount = 1;
 		this.queue = new ComfyList("Queue");
 		this.history = new ComfyList("History");
 
@@ -254,9 +255,35 @@ export class ComfyUI {
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
-			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0) }),
+			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
+			$el("div", {}, [
+				$el("label", { innerHTML: "Extra options"}, [
+					$el("input", { type: "checkbox", 
+						onchange: (i) => { 
+							document.getElementById('extraOptions').style.display = i.srcElement.checked ? "block" : "none";
+							this.batchCount = i.srcElement.checked ? document.getElementById('batchCountInputRange').value : 1;
+						}
+					})
+				])
+			]),
+			$el("div", { id: "extraOptions", style: { width: "100%", display: "none" }}, [
+				$el("label", { innerHTML: "Batch count" }, [
+					$el("input", { id: "batchCountInputNumber", type: "number", value: this.batchCount, min: "1", style: { width: "35%", "margin-left": "0.4em" }, 
+						oninput: (i) => { 
+							this.batchCount = i.target.value;
+							document.getElementById('batchCountInputRange').value = this.batchCount;
+						}
+					}),
+					$el("input", { id: "batchCountInputRange", type: "range", min: "1", max: "100", value: this.batchCount, 
+						oninput: (i) => {
+							this.batchCount = i.srcElement.value;
+							document.getElementById('batchCountInputNumber').value = i.srcElement.value;
+						}
+					}),
+				]),
+			]),
 			$el("div.comfy-menu-btns", [
-				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1) }),
+				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1, this.batchCount) }),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
 					textContent: "View Queue",
