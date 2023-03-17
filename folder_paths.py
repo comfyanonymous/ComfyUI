@@ -56,10 +56,10 @@ def get_full_path(folder_name, filename):
 
 def get_filename_list(folder_name):
     global folder_names_and_paths
-    output_list = []
+    output_list = set()
     folders = folder_names_and_paths[folder_name]
     for x in folders[0]:
-        output_list += filter_files_extensions(recursive_search(x), folders[1])
-    return output_list
+        output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
+    return sorted(list(output_list))
 
 
