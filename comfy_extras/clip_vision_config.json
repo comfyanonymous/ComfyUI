@@ -3,8 +3,8 @@
   "architectures": [
     "CLIPVisionModel"
   ],
-  "attention_dropout": 0.0,
-  "dropout": 0.0,
+  "attention_dropout":0.0,
+  "dropout":0.0,
   "hidden_act": "quick_gelu",
   "hidden_size": 1024,
   "image_size": 224,
@@ -20,4 +20,5 @@
   "projection_dim": 768,
   "torch_dtype": "float32",
   "transformers_version": "4.24.0"
+
 }
