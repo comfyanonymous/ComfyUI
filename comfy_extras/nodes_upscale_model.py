@@ -2,7 +2,6 @@ import os
 from comfy_extras.chainner_models import model_loading
 from comfy.sd import load_torch_file
 import model_management
-from nodes import filter_files_extensions, recursive_search, supported_ckpt_extensions
 import torch
 import comfy.utils
 import folder_paths

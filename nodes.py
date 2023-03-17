@@ -24,26 +24,6 @@ import model_management
 import importlib
 
 import folder_paths
-supported_ckpt_extensions = ['.ckpt', '.pth']
-supported_pt_extensions = ['.ckpt', '.pt', '.bin', '.pth']
-try:
-    import safetensors.torch
-    supported_ckpt_extensions += ['.safetensors']
-    supported_pt_extensions += ['.safetensors']
-except:
-    print("Could not import safetensors, safetensors support disabled.")
-
-def recursive_search(directory):  
-    result = []
-    for root, subdir, file in os.walk(directory, followlinks=True):
-        for filepath in file:
-            #we os.path,join directory with a blank string to generate a path separator at the end.
-            result.append(os.path.join(root, filepath).replace(os.path.join(directory,''),'')) 
-    return result
-
-def filter_files_extensions(files, extensions):
-    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
-
 
 def before_node_execution():
     model_management.throw_exception_if_processing_interrupted()
@@ -347,23 +327,6 @@ class ControlNetApply:
             n[1]['control'] = c_net
             c.append(n)
         return (c, )
-
-class T2IAdapterLoader:
-    models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-    t2i_adapter_dir = os.path.join(models_dir, "t2i_adapter")
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "t2i_adapter_name": (filter_files_extensions(recursive_search(s.t2i_adapter_dir), supported_pt_extensions), )}}
-
-    RETURN_TYPES = ("CONTROL_NET",)
-    FUNCTION = "load_t2i_adapter"
-
-    CATEGORY = "loaders"
-
-    def load_t2i_adapter(self, t2i_adapter_name):
-        t2i_path = os.path.join(self.t2i_adapter_dir, t2i_adapter_name)
-        t2i_adapter = comfy.sd.load_t2i_adapter(t2i_path)
-        return (t2i_adapter,)
 
 class CLIPLoader:
     @classmethod
@@ -963,7 +926,6 @@ NODE_CLASS_MAPPINGS = {
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
-    "T2IAdapterLoader": T2IAdapterLoader,
     "StyleModelLoader": StyleModelLoader,
     "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
