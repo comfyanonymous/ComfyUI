@@ -107,12 +107,18 @@ app.registerExtension({
 						node.size = node.computeSize();
 
 						for (const l of node.outputs[0].links || []) {
-							app.graph.links[l].color = color;
+							const link = app.graph.links[l];
+							if (link) {
+								link.color = color;
+							}
 						}
 					}
 
 					if (inputNode) {
-						app.graph.links[inputNode.inputs[0].link].color = color;
+						const link = app.graph.links[inputNode.inputs[0].link];
+						if (link) {
+							link.color = color;
+						}
 					}
 				};
 
