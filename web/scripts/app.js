@@ -614,6 +614,12 @@ class ComfyApp {
 		if (!graphData) {
 			graphData = defaultGraph;
 		}
+
+		// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
+		for (let n of graphData.nodes) {
+			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
+		}
+
 		this.graph.configure(graphData);
 
 		for (const node of this.graph._nodes) {
