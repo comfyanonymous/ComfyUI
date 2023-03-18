@@ -113,8 +113,7 @@ class ComfyApp {
 									
 									var filename = src.replace(/^.*[\\\/]/, '');
 									var subfolder = src.replace(filename, '');
-									var params = new URLSearchParams({file: filename, subfolder});
-									img.src = "/view?" + params.toString();
+									img.src = "/view?file=" + filename + "&subfolder=" + subfolder;
 								});
 							})
 						).then((imgs) => {
