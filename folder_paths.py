@@ -28,8 +28,10 @@ folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"),
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
 
-def add_model_folder(folder_name, full_folder_path):
+def add_model_folder_path(folder_name, full_folder_path):
     global folder_names_and_paths
+    if folder_name in folder_names_and_paths:
+        folder_names_and_paths[folder_name][0].append(full_folder_path)
 
 
 def recursive_search(directory):

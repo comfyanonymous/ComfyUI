@@ -33,6 +33,8 @@ if __name__ == "__main__":
 
 import execution
 import server
+import folder_paths
+import yaml
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
@@ -59,6 +61,26 @@ def cleanup_temp():
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+def load_extra_path_config(yaml_path):
+    with open(yaml_path, 'r') as stream:
+        config = yaml.safe_load(stream)
+    for c in config:
+        conf = config[c]
+        if conf is None:
+            continue
+        base_path = None
+        if "base_path" in conf:
+            base_path = conf.pop("base_path")
+        for x in conf:
+            for y in conf[x].split("\n"):
+                if len(y) == 0:
+                    continue
+                full_path = y
+                if base_path is not None:
+                    full_path = os.path.join(base_path, full_path)
+                print("Adding extra search path", x, full_path)
+                folder_paths.add_model_folder_path(x, full_path)
+
 if __name__ == "__main__":
     cleanup_temp()
 
@@ -78,6 +100,15 @@ if __name__ == "__main__":
     dont_print = False
     if '--dont-print-server' in sys.argv:
         dont_print = True
+
+    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+    if os.path.isfile(extra_model_paths_config_path):
+        load_extra_path_config(extra_model_paths_config_path)
+
+    if '--extra-model-paths-config' in sys.argv:
+        indices = [(i + 1) for i in range(len(sys.argv) - 1) if sys.argv[i] == '--extra-model-paths-config']
+        for i in indices:
+            load_extra_path_config(sys.argv[i])
 
     port = 8188
     try:

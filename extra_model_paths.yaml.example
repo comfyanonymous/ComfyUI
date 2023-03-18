@@ -1,0 +1,23 @@
+#Rename this to extra_model_paths.yaml and ComfyUI will load it
+
+#config for a1111 ui
+#all you have to do is change the base_path to where yours is installed
+a111:
+    base_path: path/to/stable-diffusion-webui/
+
+    checkpoints: models/Stable-diffusion
+    configs: models/Stable-diffusion
+    vae: models/VAE
+    loras: models/Lora
+    upscale_models: |
+                  models/ESRGAN
+                  models/SwinIR
+    embeddings: embeddings
+    controlnet: models/ControlNet
+
+#other_ui:
+#    base_path: path/to/ui
+#    checkpoints: models/checkpoints
+
+
+
