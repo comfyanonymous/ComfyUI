@@ -5,6 +5,8 @@ import shutil
 import threading
 import asyncio
 
+from path_server import PathServer
+
 if os.name == "nt":
     import logging
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
@@ -83,7 +85,18 @@ if __name__ == "__main__":
     try:
         p_index = sys.argv.index('--port')
         port = int(sys.argv[p_index + 1])
-    except:
+    except ValueError as e:
+        pass
+
+    try:
+        print(f"{sys.argv = }")
+        a1111_index = sys.argv.index('--a1111')
+        print(f"{a1111_index = }")
+        a1111 = sys.argv[a1111_index + 1]
+        print(f"{a1111 = }")
+        PathServer().set_a1111_path(a1111)
+        print(f"{PathServer().get('checkpoints') = }")
+    except ValueError as e:
         pass
 
     if '--quick-test-for-ci' in sys.argv:
