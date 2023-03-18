@@ -678,24 +678,10 @@ class ComfyApp {
 			for (let i in node.inputs) {
 				let parent = node.getInputNode(i);
 				if (parent) {
-					let link;
-					if (parent.isVirtualNode) {
-						// Follow the path of virtual nodes until we reach the first real one
-						while (parent != null) {
-							link = parent.getInputLink(0);
-							if (link) {
-								const from = graph.getNodeById(link.origin_id);
-								if (from.isVirtualNode) {
-									parent = from;
-								} else {
-									parent = null;
-								}
-							} else {
-								parent = null;
-							}
-						}
-					} else {
-						link = node.getInputLink(i);
+					let link = node.getInputLink(i);
+					while (parent && parent.isVirtualNode) {
+						link = parent.getInputLink(link.origin_slot);
+						parent = parent.getInputNode(link.origin_slot);
 					}
 
 					if (link) {
