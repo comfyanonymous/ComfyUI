@@ -109,11 +109,8 @@ class ComfyApp {
 								return new Promise((r) => {
 									const img = new Image();
 									img.onload = () => r(img);
-									img.onerror = () => r(null);
-									
-									var filename = src.replace(/^.*[\\\/]/, '');
-									var subfolder = src.replace(filename, '');
-									img.src = "/view?file=" + filename + "&subfolder=" + subfolder;
+									img.onerror = () => r(null);									
+									img.src = "/view?" + new URLSearchParams(src).toString();
 								});
 							})
 						).then((imgs) => {
