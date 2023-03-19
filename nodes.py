@@ -775,7 +775,7 @@ class KSamplerAdvanced:
 class SaveImage:
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-        self.url_suffix = ""
+        self.type = "output"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -822,7 +822,7 @@ class SaveImage:
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        paths = list()
+        results = list()
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
@@ -835,14 +835,19 @@ class SaveImage:
 
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, optimize=True)
-            paths.append(os.path.join(subfolder, file + self.url_suffix))
+            results.append({
+                "filename": file,
+                "subfolder": subfolder,
+                "type": self.type
+            });
             counter += 1
-        return { "ui": { "images": paths } }
+        
+        return { "ui": { "images": results } }
 
 class PreviewImage(SaveImage):
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
-        self.url_suffix = "&type=temp"
+        self.type = "temp"
 
     @classmethod
     def INPUT_TYPES(s):
