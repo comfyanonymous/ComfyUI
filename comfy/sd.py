@@ -595,6 +595,9 @@ def load_controlnet(ckpt_path, model=None):
     else:
         control_model.load_state_dict(controlnet_data, strict=False)
 
+    if use_fp16:
+        control_model = control_model.half()
+
     control = ControlNet(control_model)
     return control
 
