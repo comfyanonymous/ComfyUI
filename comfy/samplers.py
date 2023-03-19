@@ -41,16 +41,16 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
             rr = 8
             if area[2] != 0:
                 for t in range(rr):
-                    mult[:,:,area[2]+t:area[2]+1+t,:] *= ((1.0/rr) * (t + 1))
+                    mult[:,:,t:1+t,:] *= ((1.0/rr) * (t + 1))
             if (area[0] + area[2]) < x_in.shape[2]:
                 for t in range(rr):
-                    mult[:,:,area[0] + area[2] - 1 - t:area[0] + area[2] - t,:] *= ((1.0/rr) * (t + 1))
+                    mult[:,:,area[0] - 1 - t:area[0] - t,:] *= ((1.0/rr) * (t + 1))
             if area[3] != 0:
                 for t in range(rr):
-                    mult[:,:,:,area[3]+t:area[3]+1+t] *= ((1.0/rr) * (t + 1))
+                    mult[:,:,:,t:1+t] *= ((1.0/rr) * (t + 1))
             if (area[1] + area[3]) < x_in.shape[3]:
                 for t in range(rr):
-                    mult[:,:,:,area[1] + area[3] - 1 - t:area[1] + area[3] - t] *= ((1.0/rr) * (t + 1))
+                    mult[:,:,:,area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
             conditionning = {}
             conditionning['c_crossattn'] = cond[0]
             if cond_concat_in is not None and len(cond_concat_in) > 0:
