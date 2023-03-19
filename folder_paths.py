@@ -1,4 +1,5 @@
 import os
+from collections import namedtuple
 
 supported_ckpt_extensions = set(['.ckpt', '.pth'])
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth'])
@@ -10,31 +11,24 @@ except:
     print("Could not import safetensors, safetensors support disabled.")
 
 
-folder_names_and_paths = {}
+SearchLocation = namedtuple('SearchLocation', ['paths', 'extensions'])
+model_search_locations = {}
 
 
-models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_ckpt_extensions)
-folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
-
-folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
-folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
-folder_names_and_paths["clip"] = ([os.path.join(models_dir, "clip")], supported_pt_extensions)
-folder_names_and_paths["clip_vision"] = ([os.path.join(models_dir, "clip_vision")], supported_pt_extensions)
-folder_names_and_paths["style_models"] = ([os.path.join(models_dir, "style_models")], supported_pt_extensions)
-folder_names_and_paths["embeddings"] = ([os.path.join(models_dir, "embeddings")], supported_pt_extensions)
-
-folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], supported_pt_extensions)
-folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
+def register_model_type(model_tag, supported_extensions):
+    if model_tag not in model_search_locations:
+        model_search_locations[model_tag] = SearchLocation([], supported_extensions)
 
 
-def add_model_folder_path(folder_name, full_folder_path):
-    global folder_names_and_paths
-    if folder_name in folder_names_and_paths:
-        folder_names_and_paths[folder_name][0].append(full_folder_path)
+def add_model_search_path(model_tag, full_folder_path):
+    global model_search_locations
+    if model_tag in model_search_locations:
+        model_search_locations[model_tag].paths.append(full_folder_path)
 
-def get_folder_paths(folder_name):
-    return folder_names_and_paths[folder_name][0][:]
+
+def get_folder_paths(model_tag):
+    return model_search_locations[model_tag][0][:]
+
 
 def recursive_search(directory):
     result = []
@@ -44,26 +38,50 @@ def recursive_search(directory):
             result.append(os.path.join(root, filepath).replace(os.path.join(directory,''),''))
     return result
 
+
 def filter_files_extensions(files, extensions):
     return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
 
 
-
-def get_full_path(folder_name, filename):
-    global folder_names_and_paths
-    folders = folder_names_and_paths[folder_name]
+def get_full_path(model_tag, filename):
+    global model_search_locations
+    folders = model_search_locations[model_tag]
     for x in folders[0]:
         full_path = os.path.join(x, filename)
         if os.path.isfile(full_path):
             return full_path
 
 
-def get_filename_list(folder_name):
-    global folder_names_and_paths
+def get_filename_list(model_tag):
+    global model_search_locations
     output_list = set()
-    folders = folder_names_and_paths[folder_name]
+    folders = model_search_locations[model_tag]
     for x in folders[0]:
         output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
     return sorted(list(output_list))
 
 
+# default model types
+register_model_type('ckpt', supported_ckpt_extensions)
+register_model_type('config', ['.yaml'])
+register_model_type('lora', supported_pt_extensions)
+register_model_type('vae', supported_pt_extensions)
+register_model_type('clip', supported_pt_extensions)
+register_model_type('clip_vision', supported_pt_extensions)
+register_model_type('style_model', supported_pt_extensions)
+register_model_type('embedding', supported_pt_extensions)
+register_model_type('controlnet', supported_pt_extensions)
+register_model_type('upscale_model', supported_pt_extensions)
+
+# default search paths
+models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+add_model_search_path('ckpt', os.path.join(models_dir, "checkpoints"))
+add_model_search_path('config', os.path.join(models_dir, "configs"))
+add_model_search_path('lora', os.path.join(models_dir, "loras"))
+add_model_search_path('vae', os.path.join(models_dir, "vae"))
+add_model_search_path('clip', os.path.join(models_dir, "clip"))
+add_model_search_path('clip_vision', os.path.join(models_dir, "clip_vision"))
+add_model_search_path('style_model', os.path.join(models_dir, "style_models"))
+add_model_search_path('embedding', os.path.join(models_dir, "embeddings"))
+add_model_search_path('controlnet', os.path.join(models_dir, "controlnet"))
+add_model_search_path('upscale_model', os.path.join(models_dir, "upscale_models"))

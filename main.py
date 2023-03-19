@@ -15,17 +15,17 @@ if __name__ == "__main__":
         print("\t--listen\t\t\tListen on 0.0.0.0 so the UI can be accessed from other computers.")
         print("\t--port 8188\t\t\tSet the listen port.")
 
-        s = os.path.sep
-        print(f"\t--ckpt-dir path{s}to{s}dir\t\t\tAdd a path to a checkpoints dir.")
-        print(f"\t--clip-dir path{s}to{s}dir\t\t\tAdd a path to a clip dir.")
-        print(f"\t--clip-vision-dir path{s}to{s}dir\tAdd a path to a clip vision dir.")
-        print(f"\t--controlnet-dir path{s}to{s}dir\tAdd a path to a controlnet checkpoints dir.")
-        print(f"\t--embed-dir path{s}to{s}dir\t\t\tAdd a path to an embeddings dir.")
-        print(f"\t--lora-dir path{s}to{s}dir\t\t\tAdd a path to a lora models dir.")
-        print(f"\t--style-model-dir path{s}to{s}dir\tAdd a path to a style models dir.")
-        print(f"\t--t2i-dir path{s}to{s}dir\t\t\tAdd a path to a T2I style adapter dir.")
-        print(f"\t--upscaler-dir path{s}to{s}dir\t\tAdd a path to an upscale models dir.")
-        print(f"\t--vae-dir path{s}to{s}dir\t\t\tAdd a path to a vae dir.")
+        dummy_path = os.path.join('path', 'to', 'dir')
+        print(f"\t--ckpt-dir {dummy_path}\t\t\tAdd a path to a checkpoint directory.")
+        print(f"\t--config-dir {dummy_path}\t\t\tAdd a path to a model config directory.")
+        print(f"\t--clip-dir {dummy_path}\t\t\tAdd a path to a clip directory.")
+        print(f"\t--clip-vision-dir {dummy_path}\tAdd a path to a clip vision directory.")
+        print(f"\t--controlnet-dir {dummy_path}\tAdd a path to a controlnet or T2I checkpoint directory.")
+        print(f"\t--embedding-dir {dummy_path}\t\t\tAdd a path to an embedding directory.")
+        print(f"\t--lora-dir {dummy_path}\t\t\tAdd a path to a lora model directory.")
+        print(f"\t--style-model-dir {dummy_path}\tAdd a path to a style model directory.")
+        print(f"\t--upscale-model-dir {dummy_path}\t\tAdd a path to an upscale model directory.")
+        print(f"\t--vae-dir {dummy_path}\t\t\tAdd a path to a vae directory.")
 
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
@@ -74,6 +74,18 @@ def cleanup_temp():
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
+def add_model_search_paths():
+    if '--extra-model-paths-config' in sys.argv:
+        indices = [(i + 1) for i in range(len(sys.argv) - 1) if sys.argv[i] == '--extra-model-paths-config']
+        for i in indices:
+            load_extra_path_config(sys.argv[i])
+
+    for model_tag, search_location in folder_paths.model_search_locations.items():
+        model_path_arg = f"--{model_tag.replace('_', '-')}-dir"
+        extra_paths = [sys.argv[i + 1] for i, e in enumerate(sys.argv[:-1]) if e == model_path_arg]
+        for extra_path in extra_paths:
+            folder_paths.add_model_search_path(model_tag, extra_path)
+
 def load_extra_path_config(yaml_path):
     with open(yaml_path, 'r') as stream:
         config = yaml.safe_load(stream)
@@ -92,7 +104,7 @@ def load_extra_path_config(yaml_path):
                 if base_path is not None:
                     full_path = os.path.join(base_path, full_path)
                 print("Adding extra search path", x, full_path)
-                folder_paths.add_model_folder_path(x, full_path)
+                folder_paths.add_model_search_path(x, full_path)
 
 if __name__ == "__main__":
     cleanup_temp()
@@ -118,10 +130,7 @@ if __name__ == "__main__":
     if os.path.isfile(extra_model_paths_config_path):
         load_extra_path_config(extra_model_paths_config_path)
 
-    if '--extra-model-paths-config' in sys.argv:
-        indices = [(i + 1) for i in range(len(sys.argv) - 1) if sys.argv[i] == '--extra-model-paths-config']
-        for i in indices:
-            load_extra_path_config(sys.argv[i])
+    add_model_search_paths()
 
     port = 8188
     try:
