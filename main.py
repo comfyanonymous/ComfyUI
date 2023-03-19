@@ -104,7 +104,7 @@ def load_extra_path_config(yaml_path):
                 if base_path is not None:
                     full_path = os.path.join(base_path, full_path)
                 print("Adding extra search path", x, full_path)
-                folder_paths.add_model_search_path(x, full_path)
+                folder_paths.add_model_folder_path(x, full_path)
 
 if __name__ == "__main__":
     cleanup_temp()
