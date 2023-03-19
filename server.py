@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import nodes
+import folder_paths
 import execution
 import uuid
 import json
@@ -75,10 +76,7 @@ class PromptServer():
 
         @routes.get("/embeddings")
         def get_embeddings(self):
-            models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-            embed_dir = os.path.join(models_dir, "embeddings")
-            embeddings = nodes.filter_files_extensions(nodes.recursive_search(embed_dir), nodes.supported_pt_extensions)
-
+            embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0].lower(), embeddings)))
 
         @routes.get("/extensions")
