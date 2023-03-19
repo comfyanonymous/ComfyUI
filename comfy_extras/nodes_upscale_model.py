@@ -1,4 +1,3 @@
-import os
 from comfy_extras.chainner_models import model_loading
 from comfy.sd import load_torch_file
 import model_management
@@ -17,7 +16,7 @@ class UpscaleModelLoader:
     CATEGORY = "loaders"
 
     def load_model(self, model_name):
-        model_path = folder_paths.get_full_path("upscale_models", model_name)
+        model_path = folder_paths.get_full_path("upscale_model", model_name)
         sd = load_torch_file(model_path)
         out = model_loading.load_state_dict(sd).eval()
         return (out, )

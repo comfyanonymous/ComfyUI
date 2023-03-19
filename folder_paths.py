@@ -62,7 +62,7 @@ def get_filename_list(model_tag):
 
 
 # default model types
-register_model_type('ckpt', supported_ckpt_extensions)
+register_model_type('checkpoint', supported_ckpt_extensions)
 register_model_type('config', ['.yaml'])
 register_model_type('lora', supported_pt_extensions)
 register_model_type('vae', supported_pt_extensions)
@@ -75,7 +75,7 @@ register_model_type('upscale_model', supported_pt_extensions)
 
 # default search paths
 models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
-add_model_search_path('ckpt', os.path.join(models_dir, "checkpoints"))
+add_model_search_path('checkpoint', os.path.join(models_dir, "checkpoints"))
 add_model_search_path('config', os.path.join(models_dir, "configs"))
 add_model_search_path('lora', os.path.join(models_dir, "loras"))
 add_model_search_path('vae', os.path.join(models_dir, "vae"))

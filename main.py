@@ -16,7 +16,7 @@ if __name__ == "__main__":
         print("\t--port 8188\t\t\tSet the listen port.")
 
         dummy_path = os.path.join('path', 'to', 'dir')
-        print(f"\t--ckpt-dir {dummy_path}\t\t\tAdd a path to a checkpoint directory.")
+        print(f"\t--checkpoint-dir {dummy_path}\t\t\tAdd a path to a checkpoint directory.")
         print(f"\t--config-dir {dummy_path}\t\t\tAdd a path to a model config directory.")
         print(f"\t--clip-dir {dummy_path}\t\t\tAdd a path to a clip directory.")
         print(f"\t--clip-vision-dir {dummy_path}\tAdd a path to a clip vision directory.")
