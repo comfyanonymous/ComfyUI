@@ -56,7 +56,7 @@ function addMultilineWidget(node, name, defaultVal, app) {
 	widget.inputEl = document.createElement("textarea");
 	widget.inputEl.className = "comfy-multiline-input";
 	widget.inputEl.value = defaultVal;
-	document.addEventListener("click", function (event) {
+	document.addEventListener("mousedown", function (event) {
 		if (!widget.inputEl.contains(event.target)) {
 			widget.inputEl.blur();
 		}

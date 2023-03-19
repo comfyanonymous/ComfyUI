@@ -232,6 +232,7 @@ export class ComfyUI {
 		this.settings = new ComfySettingsDialog();
 
 		this.batchCount = 1;
+		this.lastQueueSize = 0;
 		this.queue = new ComfyList("Queue");
 		this.history = new ComfyList("History");
 
@@ -262,6 +263,7 @@ export class ComfyUI {
 						onchange: (i) => { 
 							document.getElementById('extraOptions').style.display = i.srcElement.checked ? "block" : "none";
 							this.batchCount = i.srcElement.checked ? document.getElementById('batchCountInputRange').value : 1;
+							document.getElementById('autoQueueCheckbox').checked = false;
 						}
 					})
 				])
@@ -280,6 +282,8 @@ export class ComfyUI {
 							document.getElementById('batchCountInputNumber').value = i.srcElement.value;
 						}
 					}),
+					$el("input", { id: "autoQueueCheckbox", type: "checkbox", checked: false, title: "automatically queue prompt when the queue size hits 0",
+					})
 				]),
 			]),
 			$el("div.comfy-menu-btns", [
@@ -332,5 +336,11 @@ export class ComfyUI {
 
 	setStatus(status) {
 		this.queueSize.textContent = "Queue size: " + (status ? status.exec_info.queue_remaining : "ERR");
+		if (status) {
+			if (this.lastQueueSize != 0 && status.exec_info.queue_remaining == 0 && document.getElementById('autoQueueCheckbox').checked) {
+				app.queuePrompt(0, this.batchCount);
+			}
+			this.lastQueueSize = status.exec_info.queue_remaining
+		}
 	}
 }

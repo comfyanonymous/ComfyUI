@@ -5,3 +5,5 @@ models/checkpoints
 models/vae
 models/embeddings
 models/loras
+venv/
+.idea/

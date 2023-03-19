@@ -2,7 +2,7 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata } from "./pnginfo.js";
+import { getPngMetadata, importA1111 } from "./pnginfo.js";
 
 class ComfyApp {
 	constructor() {
@@ -614,6 +614,12 @@ class ComfyApp {
 		if (!graphData) {
 			graphData = defaultGraph;
 		}
+
+		// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
+		for (let n of graphData.nodes) {
+			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
+		}
+
 		this.graph.configure(graphData);
 
 		for (const node of this.graph._nodes) {
@@ -672,24 +678,10 @@ class ComfyApp {
 			for (let i in node.inputs) {
 				let parent = node.getInputNode(i);
 				if (parent) {
-					let link;
-					if (parent.isVirtualNode) {
-						// Follow the path of virtual nodes until we reach the first real one
-						while (parent != null) {
-							link = parent.getInputLink(0);
-							if (link) {
-								const from = graph.getNodeById(link.origin_id);
-								if (from.isVirtualNode) {
-									parent = from;
-								} else {
-									parent = null;
-								}
-							} else {
-								parent = null;
-							}
-						}
-					} else {
-						link = node.getInputLink(i);
+					let link = node.getInputLink(i);
+					while (parent && parent.isVirtualNode) {
+						link = parent.getInputLink(link.origin_slot);
+						parent = parent.getInputNode(link.origin_slot);
 					}
 
 					if (link) {
@@ -743,8 +735,12 @@ class ComfyApp {
 	async handleFile(file) {
 		if (file.type === "image/png") {
 			const pngInfo = await getPngMetadata(file);
-			if (pngInfo && pngInfo.workflow) {
-				this.loadGraphData(JSON.parse(pngInfo.workflow));
+			if (pngInfo) {
+				if (pngInfo.workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.workflow));
+				} else if (pngInfo.parameters) {
+					importA1111(this.graph, pngInfo.parameters);
+				}
 			}
 		} else if (file.type === "application/json" || file.name.endsWith(".json")) {
 			const reader = new FileReader();
