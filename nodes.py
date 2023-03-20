@@ -718,7 +718,7 @@ class KSamplerAdvanced:
 class SaveImage:
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-        self.url_suffix = ""
+        self.type = "output"
 
     @classmethod
     def INPUT_TYPES(s):
@@ -737,25 +737,35 @@ class SaveImage:
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         def map_filename(filename):
-            prefix_len = len(filename_prefix)
+            prefix_len = len(os.path.basename(filename_prefix))
             prefix = filename[:prefix_len + 1]
             try:
                 digits = int(filename[prefix_len + 1:].split('_')[0])
             except:
                 digits = 0
             return (digits, prefix)
+        
+        subfolder = os.path.dirname(os.path.normpath(filename_prefix))
+        filename = os.path.basename(os.path.normpath(filename_prefix))
+
+        full_output_folder = os.path.join(self.output_dir, subfolder) 
+
+        if os.path.commonpath((self.output_dir, os.path.realpath(full_output_folder))) != self.output_dir:
+            print("Saving image outside the output folder is not allowed.")
+            return
+        
         try:
-            counter = max(filter(lambda a: a[1][:-1] == filename_prefix and a[1][-1] == "_", map(map_filename, os.listdir(self.output_dir))))[0] + 1
+            counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
         except ValueError:
             counter = 1
         except FileNotFoundError:
-            os.mkdir(self.output_dir)
+            os.makedirs(full_output_folder, exist_ok=True)
             counter = 1
 
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
-        paths = list()
+        results = list()
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
@@ -765,16 +775,22 @@ class SaveImage:
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
-            file = f"{filename_prefix}_{counter:05}_.png"
-            img.save(os.path.join(self.output_dir, file), pnginfo=metadata, optimize=True)
-            paths.append(file + self.url_suffix)
+
+            file = f"{filename}_{counter:05}_.png"
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, optimize=True)
+            results.append({
+                "filename": file,
+                "subfolder": subfolder,
+                "type": self.type
+            });
             counter += 1
-        return { "ui": { "images": paths } }
+        
+        return { "ui": { "images": results } }
 
 class PreviewImage(SaveImage):
     def __init__(self):
         self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
-        self.url_suffix = "?type=temp"
+        self.type = "temp"
 
     @classmethod
     def INPUT_TYPES(s):
