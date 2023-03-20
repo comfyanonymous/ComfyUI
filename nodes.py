@@ -744,16 +744,16 @@ class SaveImage:
             except:
                 digits = 0
             return (digits, prefix)
-        
+
         subfolder = os.path.dirname(os.path.normpath(filename_prefix))
         filename = os.path.basename(os.path.normpath(filename_prefix))
 
-        full_output_folder = os.path.join(self.output_dir, subfolder) 
+        full_output_folder = os.path.join(self.output_dir, subfolder)
 
         if os.path.commonpath((self.output_dir, os.path.realpath(full_output_folder))) != self.output_dir:
             print("Saving image outside the output folder is not allowed.")
-            return
-        
+            return {}
+
         try:
             counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
         except ValueError:
@@ -784,7 +784,7 @@ class SaveImage:
                 "type": self.type
             });
             counter += 1
-        
+
         return { "ui": { "images": results } }
 
 class PreviewImage(SaveImage):
