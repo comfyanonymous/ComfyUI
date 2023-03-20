@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  app:
+    image: comfyui:1
+    build: .
+
+    ports:
+      - "8188:8188"
+    environment:
+      - CLI_ARGS=--listen --port 8188
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+              - driver: nvidia
+                device_ids: ["0"]
+                capabilities: [gpu]
