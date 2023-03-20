@@ -12,8 +12,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Fully supports SD1.x and SD2.x
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
-- Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
-- Works even if you don't have a GPU with: ```--cpu``` (slow)
+- Command line option: `--lowvram` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
+- Works even if you don't have a GPU with: `--cpu` (slow)
 - Can load both ckpt and safetensors models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - [Loras (regular and locon)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
@@ -56,20 +56,26 @@ At the time of writing this pytorch has issues with python versions higher than 
 ### AMD (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
+```sh
+pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2
+```
 
 
 ### NVIDIA
 
 Nvidia users should install torch and xformers using this command:
 
-```pip install torch==1.13.1 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117 xformers```
+```sh
+pip install torch==1.13.1 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117 xformers
+```
 
 #### Troubleshooting
 
 If you get the "Torch not compiled with CUDA enabled" error, uninstall torch with:
 
-```pip uninstall torch```
+```sh
+pip uninstall torch
+```
 
 And install it again with the command above.
 
@@ -82,30 +88,24 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 After this you should have everything installed and can proceed to running ComfyUI.
 
 
-### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
+#### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
-You don't. If you have another UI installed and working with it's own python venv you can use that venv to run ComfyUI. You can open up your favorite terminal and activate it:
-
-```source path_to_other_sd_gui/venv/bin/activate```
-
-or on Windows:
-
-With Powershell: ```"path_to_other_sd_gui\venv\Scripts\Activate.ps1"```
-
-With cmd.exe: ```"path_to_other_sd_gui\venv\Scripts\activate.bat"```
-
-And then you can use that terminal to run Comfyui without installing any dependencies. Note that the venv folder might be called something else depending on the SD UI.
+Yes. We don't support using the virtual env of other projects.
 
 
 # Running
 
-```python main.py```
+```sh
+python main.py
+```
 
 ### For AMD 6700, 6600 and maybe others
 
 Try running it with this command if you have issues:
 
-```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
+```sh
+HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py
+```
 
 # Notes
 
@@ -121,16 +121,23 @@ You can use {day|night}, for wildcard/dynamic prompts. With this syntax "{wild|c
 
 To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
 
-```embedding:embedding_filename.pt```
+```
+embedding:embedding_filename.pt
+```
 
 ### Fedora
 
 To get python 3.10 on fedora:
-```dnf install python3.10```
+
+```sh
+dnf install python3.10
+```
 
 Then you can:
 
-```python3.10 -m ensurepip```
+```sh
+python3.10 -m ensurepip
+```
 
 This will let you use: pip3.10 to install all the dependencies.
 
@@ -140,7 +147,9 @@ The fp16 model configs in the CheckpointLoader can be used to load them in fp16 
 
 You can also set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models.
 
-```--dont-upcast-attention```
+```sh
+--dont-upcast-attention
+```
 
 ## Support and dev channel
 
