@@ -5,3 +5,4 @@ models/checkpoints
 models/vae
 models/embeddings
 models/loras
+extra_model_paths.yaml
