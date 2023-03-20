@@ -310,7 +310,7 @@ export class ComfyUI {
 			$el("button", {
 				textContent: "Save",
 				onclick: () => {
-					const json = JSON.stringify(app.graph.serialize()); // convert the data to a JSON string
+					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
 					const blob = new Blob([json], { type: "application/json" });
 					const url = URL.createObjectURL(blob);
 					const a = $el("a", {
