@@ -1,3 +1,5 @@
+import { api } from "./api.js";
+
 function getNumberDefaults(inputData, defaultStep) {
 	let defaultVal = inputData[1]["default"];
 	let { min, max, step } = inputData[1];
@@ -25,6 +27,21 @@ function seedWidget(node, inputName, inputData) {
 	};
 
 	return { widget: seed, randomize };
+}
+
+function reloadWidget(node, name, data) {
+	async function reload_callback() {
+		const items = data[1];
+		for (let i in items) {
+			const w = node.widgets.find((w) => w.name === items[i][0]);
+			const filelist = await api.getFiles(items[i][1]);
+			w.options.values = filelist.files;
+			w.value = filelist.files[0];
+		}
+	}
+
+	const reload = node.addWidget("button", "RELOAD", true, function(v) { reload_callback(); }, {});
+	return { reload };
 }
 
 function addMultilineWidget(node, name, defaultVal, app) {
@@ -116,6 +133,7 @@ export const ComfyWidgets = {
 			),
 		};
 	},
+	RELOAD:reloadWidget,
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
