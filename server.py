@@ -158,6 +158,46 @@ class PromptServer():
                 out[x] = info
             return web.json_response(out)
 
+        @routes.get("/getfiles/{kind}")
+        async def get_filelist(request):
+            out = {}
+
+            out["files"] = {}
+            if "kind" in request.match_info:
+                kind = request.match_info["kind"]
+                path = ""
+
+                # whitelist policy for security reason
+                if kind == "checkpoints":
+                    path = kind
+                elif kind == "loras":
+                    path = kind
+                elif kind == "vae":
+                    path = kind
+                elif kind == "controlnet":
+                    path = kind
+                elif kind == "clip":
+                    path = kind
+                elif kind == "clip_vision":
+                    path = kind
+                elif kind == "style_models":
+                    path = kind
+                elif kind == "upscale_models":
+                    path = kind
+                elif kind == "input":
+                    path = kind # must not be empty
+                else:
+                    path = ""
+
+                if path != "":
+                    if path == "input":
+                        input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+                        out["files"] = sorted(os.listdir(input_dir))
+                    else:
+                        out["files"] = folder_paths.get_filename_list(path)
+
+            return web.json_response(out)
+
         @routes.get("/history")
         async def get_history(request):
             return web.json_response(self.prompt_queue.get_history())
