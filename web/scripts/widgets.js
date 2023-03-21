@@ -10,6 +10,20 @@ function getNumberDefaults(inputData, defaultStep) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
 }
 
+function __global_seed() {
+	var seed = null;
+	var reset = () => {
+		seed = Math.floor(Math.random() * 1125899906842624);
+	};
+	var timer = setTimeout(reset, 0);
+	return () => {
+		clearTimeout(timer);
+		timer = setTimeout(reset, 1000);
+		return seed;
+	}
+}
+__global_seed = __global_seed();
+
 function seedWidget(node, inputName, inputData) {
 	const seed = ComfyWidgets.INT(node, inputName, inputData);
 	const randomize = node.addWidget("toggle", "Random seed after every gen", true, function (v) {}, {
@@ -20,7 +34,7 @@ function seedWidget(node, inputName, inputData) {
 
 	randomize.afterQueued = () => {
 		if (randomize.value) {
-			seed.widget.value = Math.floor(Math.random() * 1125899906842624);
+			seed.widget.value = __global_seed();
 		}
 	};
 
