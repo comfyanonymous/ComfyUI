@@ -110,7 +110,7 @@ class ComfyApp {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
-									img.src = "/view/" + src;
+									img.src = "/view?" + new URLSearchParams(src).toString();
 								});
 							})
 						).then((imgs) => {

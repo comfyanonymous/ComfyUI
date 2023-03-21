@@ -115,17 +115,24 @@ class PromptServer():
                 return web.Response(status=400)
 
 
-        @routes.get("/view/{file}")
+        @routes.get("/view")
         async def view_image(request):
-            if "file" in request.match_info:
+            if "filename" in request.rel_url.query:
                 type = request.rel_url.query.get("type", "output")
                 if type not in ["output", "input", "temp"]:
                     return web.Response(status=400)
 
                 output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
-                file = request.match_info["file"]
+                if "subfolder" in request.rel_url.query:
+                    full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+                    if os.path.commonpath((os.path.realpath(full_output_dir), output_dir)) != output_dir:
+                        return web.Response(status=403)
+                    output_dir = full_output_dir
+
+                file = request.rel_url.query["filename"]
                 file = os.path.basename(file)
                 file = os.path.join(output_dir, file)
+
                 if os.path.isfile(file):
                     return web.FileResponse(file)
                 
