@@ -34,7 +34,7 @@ function imagesendWidget(node, inputName, inputData, app) {
 	function showImage(node,uploadWidget,name) {
 			// Position the image somewhere sensible
 			if (!node.imageOffset) {
-					node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
+					node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 50 : 100;
 			}
 
 			const img = new Image();
@@ -51,11 +51,11 @@ function imagesendWidget(node, inputName, inputData, app) {
 
 			const image_name = node.images[0].filename;
 			const copied = false;
-			const imageWidget = node.widgets.find((w) => w.name === "image");
-
+			
 			for(let i in app.graph._nodes) {
 					var n = app.graph._nodes[i];
 					if(n.type == "LoadImage" || n.type == "LoadImageMask") {
+							const imageWidget = n.widgets.find((w) => w.name === "image");
 							const recvWidget = n.widgets.find((w) => w.name === "recv img");
 
 							if(recvWidget.value == "enable") {
@@ -65,7 +65,7 @@ function imagesendWidget(node, inputName, inputData, app) {
 											await api.sendOutputToInputImage(image_name);
 									}
 
-									imageWidget.value = data.name;
+									imageWidget.value = image_name;
 									const thatImageWidget = n.widgets.find((w) => w.value === "image");
 									await showImage(n,thatImageWidget,image_name);
 							}
@@ -183,7 +183,7 @@ export const ComfyWidgets = {
 		function showImage(name) {
 			// Position the image somewhere sensible
 			if (!node.imageOffset) {
-				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
+				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 50 : 100;
 			}
 
 			const img = new Image();
