@@ -551,7 +551,7 @@ class ComfyApp {
 			const nodeData = defs[nodeId];
 			const node = Object.assign(
 				function ComfyNode() {
-					const inputs = nodeData["input"]["required"];
+					const inputs = Object.assign(nodeData["input"]["required"], nodeData["input"]["widget"]);
 					const config = { minWidth: 1, minHeight: 1 };
 					for (const inputName in inputs) {
 						const inputData = inputs[inputName];
@@ -575,16 +575,7 @@ class ComfyApp {
 							this.addInput(inputName, type);
 						}
 					}
-
-					const input_widgets = nodeData["input"]["widget"];
-					for (const inputName in input_widgets) {
-						const inputData = input_widgets[inputName];
-						const type = inputData[0];
-
-						console.log(widgets[type])
-						Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-					}
-
+					
 					for (const output of nodeData["output"]) {
 						this.addOutput(output, output);
 					}
