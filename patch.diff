@@ -1,0 +1,993 @@
+From 15c9574acd2864a0a986e23b967030f565455003 Mon Sep 17 00:00:00 2001
+From: Jaco van der Gryp <jacov@bbd.co.za>
+Date: Tue, 21 Mar 2023 12:15:11 +0200
+Subject: [PATCH] Added some custom nodes for minor upgrades that I wanted in
+ the UI
+
+---
+ comfy_extras/silver_custom.py          | 244 +++++++++
+ comfy_extras/silver_custom/Custom.json | 693 +++++++++++++++++++++++++
+ nodes.py                               |   1 +
+ web/scripts/app.js                     |   5 +-
+ 4 files changed, 942 insertions(+), 1 deletion(-)
+ create mode 100644 comfy_extras/silver_custom.py
+ create mode 100644 comfy_extras/silver_custom/Custom.json
+
+diff --git a/comfy_extras/silver_custom.py b/comfy_extras/silver_custom.py
+new file mode 100644
+index 0000000..9bab2fa
+--- /dev/null
++++ b/comfy_extras/silver_custom.py
+@@ -0,0 +1,244 @@
++import datetime
++
++import torch
++
++import os
++import sys
++import json
++import hashlib
++import copy
++import traceback
++
++from PIL import Image
++from PIL.PngImagePlugin import PngInfo
++import numpy as np
++import comfy.samplers
++import comfy.sd
++import comfy.utils
++import comfy_extras.clip_vision
++import model_management
++import importlib
++import folder_paths
++
++
++class Note:
++    def __init__(self):
++        pass
++
++    @classmethod
++    def INPUT_TYPES(s):
++        return {"required": {"text": ("STRING", {"multiline": True})}}
++
++    RETURN_TYPES = ()
++    FUNCTION = "Note"
++
++    OUTPUT_NODE = False
++
++    CATEGORY = "silver_custom"
++
++
++class SaveImageList:
++    def __init__(self):
++        current_dir = os.path.abspath(os.getcwd())
++        print(current_dir)
++        self.output_dir = os.path.join(current_dir, "output")
++        print(self.output_dir)
++        self.type = "output"
++
++    @classmethod
++    def INPUT_TYPES(s):
++        return {"required":
++                    {"images": ("IMAGE",),
++                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
++                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
++                }
++
++    RETURN_TYPES = ()
++    FUNCTION = "save_images_list"
++
++    OUTPUT_NODE = True
++
++    CATEGORY = "silver_custom"
++
++    def save_images_list(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
++        def map_filename(filename):
++            prefix_len = len(os.path.basename(filename_prefix))
++            prefix = filename[:prefix_len + 1]
++            try:
++                digits = int(filename[prefix_len + 1:].split('_')[0])
++            except:
++                digits = 0
++            return (digits, prefix)
++
++        subfolder = os.path.dirname(os.path.normpath(filename_prefix))
++        filename = os.path.basename(os.path.normpath(filename_prefix))
++
++        full_output_folder = os.path.join(self.output_dir, subfolder)
++
++        if os.path.commonpath((self.output_dir, os.path.realpath(full_output_folder))) != self.output_dir:
++            print("Saving image outside the output folder is not allowed.")
++            return {}
++
++        try:
++            counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_",
++                                 map(map_filename, os.listdir(full_output_folder))))[0] + 1
++        except ValueError:
++            counter = 1
++        except FileNotFoundError:
++            os.makedirs(full_output_folder, exist_ok=True)
++            counter = 1
++
++        if not os.path.exists(self.output_dir):
++            os.makedirs(self.output_dir)
++
++        results = list()
++        for image in images:
++            i = 255. * image.cpu().numpy()
++            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
++            metadata = PngInfo()
++            if prompt is not None:
++                metadata.add_text("prompt", json.dumps(prompt))
++            if extra_pnginfo is not None:
++                for x in extra_pnginfo:
++                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
++
++            now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
++            file = f"{filename}-{now}_{counter:05}_.png"
++            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, optimize=True)
++            results.append({
++                "filename": file,
++                "subfolder": subfolder,
++                "type": self.type
++            })
++            counter += 1
++
++        return self.get_all_files()
++
++    def get_all_files(self):
++        results = []
++        for root, dirs, files in os.walk(self.output_dir):
++            for file in files:
++                subfolder = os.path.relpath(root, self.output_dir)
++                results.append({
++                    "filename": file,
++                    "subfolder": subfolder,
++                    "type": self.type
++                })
++        sorted_results = sorted(results, key=lambda x: x["filename"])
++        return {"ui": {"images": sorted_results}}
++
++
++def custom_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0,
++                    disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, in_seed=None):
++    latent_image = latent["samples"]
++    noise_mask = None
++    device = model_management.get_torch_device()
++    if in_seed is not None:
++        seed = in_seed
++    print(seed)
++    if disable_noise:
++        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
++    else:
++        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout,
++                            generator=torch.manual_seed(seed), device="cpu")
++
++    if "noise_mask" in latent:
++        noise_mask = latent['noise_mask']
++        noise_mask = torch.nn.functional.interpolate(noise_mask[None, None,], size=(noise.shape[2], noise.shape[3]),
++                                                     mode="bilinear")
++        noise_mask = noise_mask.round()
++        noise_mask = torch.cat([noise_mask] * noise.shape[1], dim=1)
++        noise_mask = torch.cat([noise_mask] * noise.shape[0])
++        noise_mask = noise_mask.to(device)
++
++    real_model = None
++    model_management.load_model_gpu(model)
++    real_model = model.model
++
++    noise = noise.to(device)
++    latent_image = latent_image.to(device)
++
++    positive_copy = []
++    negative_copy = []
++
++    control_nets = []
++    for p in positive:
++        t = p[0]
++        if t.shape[0] < noise.shape[0]:
++            t = torch.cat([t] * noise.shape[0])
++        t = t.to(device)
++        if 'control' in p[1]:
++            control_nets += [p[1]['control']]
++        positive_copy += [[t] + p[1:]]
++    for n in negative:
++        t = n[0]
++        if t.shape[0] < noise.shape[0]:
++            t = torch.cat([t] * noise.shape[0])
++        t = t.to(device)
++        if 'control' in n[1]:
++            control_nets += [n[1]['control']]
++        negative_copy += [[t] + n[1:]]
++
++    control_net_models = []
++    for x in control_nets:
++        control_net_models += x.get_control_models()
++    model_management.load_controlnet_gpu(control_net_models)
++
++    if sampler_name in comfy.samplers.KSampler.SAMPLERS:
++        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name,
++                                          scheduler=scheduler, denoise=denoise)
++    else:
++        # other samplers
++        pass
++
++    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image,
++                             start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise,
++                             denoise_mask=noise_mask)
++    samples = samples.cpu()
++    for c in control_nets:
++        c.cleanup()
++
++    out = latent.copy()
++    out["samples"] = samples
++    return (out, seed,)
++
++
++class CustomKSampler:
++    @classmethod
++    def INPUT_TYPES(s):
++        return {
++            "required":
++                {
++                    "model": ("MODEL",),
++                    "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
++                    "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
++                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
++                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS,),
++                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS,),
++                    "positive": ("CONDITIONING",),
++                    "negative": ("CONDITIONING",),
++                    "latent_image": ("LATENT",),
++                    "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
++                },
++            "optional":
++                {
++                    "in_seed": ()
++                }
++        }
++
++    RETURN_TYPES = ("LATENT", "seed",)
++    FUNCTION = "sample"
++
++    CATEGORY = "silver_custom"
++
++    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0,
++               in_seed=None):
++        return custom_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
++                               denoise=denoise, in_seed=in_seed)
++
++
++NODE_CLASS_MAPPINGS = {
++    "Note": Note,
++    "SaveImageList": SaveImageList,
++    "CustomKSampler": CustomKSampler,
++}
+diff --git a/comfy_extras/silver_custom/Custom.json b/comfy_extras/silver_custom/Custom.json
+new file mode 100644
+index 0000000..1ad2baf
+--- /dev/null
++++ b/comfy_extras/silver_custom/Custom.json
+@@ -0,0 +1,693 @@
++{
++  "last_node_id": 17,
++  "last_link_id": 28,
++  "nodes": [
++    {
++      "id": 4,
++      "type": "CheckpointLoaderSimple",
++      "pos": [
++        -343,
++        487
++      ],
++      "size": {
++        "0": 315,
++        "1": 98
++      },
++      "flags": {},
++      "order": 0,
++      "mode": 0,
++      "outputs": [
++        {
++          "name": "MODEL",
++          "type": "MODEL",
++          "links": [
++            10,
++            20
++          ],
++          "slot_index": 0
++        },
++        {
++          "name": "CLIP",
++          "type": "CLIP",
++          "links": [
++            3,
++            5
++          ],
++          "slot_index": 1
++        },
++        {
++          "name": "VAE",
++          "type": "VAE",
++          "links": [],
++          "slot_index": 2
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        "dreamshaper_331BakedVae.safetensors"
++      ]
++    },
++    {
++      "id": 6,
++      "type": "CLIPTextEncode",
++      "pos": [
++        -8,
++        171
++      ],
++      "size": {
++        "0": 422.84503173828125,
++        "1": 164.31304931640625
++      },
++      "flags": {},
++      "order": 3,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "clip",
++          "type": "CLIP",
++          "link": 3
++        }
++      ],
++      "outputs": [
++        {
++          "name": "CONDITIONING",
++          "type": "CONDITIONING",
++          "links": [
++            11,
++            21
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        "masterpiece best quality girl"
++      ]
++    },
++    {
++      "id": 7,
++      "type": "CLIPTextEncode",
++      "pos": [
++        -3,
++        383
++      ],
++      "size": {
++        "0": 425.27801513671875,
++        "1": 180.6060791015625
++      },
++      "flags": {},
++      "order": 4,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "clip",
++          "type": "CLIP",
++          "link": 5
++        }
++      ],
++      "outputs": [
++        {
++          "name": "CONDITIONING",
++          "type": "CONDITIONING",
++          "links": [
++            12,
++            22
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        "bad hands"
++      ]
++    },
++    {
++      "id": 5,
++      "type": "EmptyLatentImage",
++      "pos": [
++        -7,
++        32
++      ],
++      "size": {
++        "0": 315,
++        "1": 106
++      },
++      "flags": {},
++      "order": 1,
++      "mode": 0,
++      "outputs": [
++        {
++          "name": "LATENT",
++          "type": "LATENT",
++          "links": [
++            13
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        512,
++        512,
++        1
++      ]
++    },
++    {
++      "id": 15,
++      "type": "VAEDecode",
++      "pos": [
++        2153,
++        102
++      ],
++      "size": {
++        "0": 210,
++        "1": 46
++      },
++      "flags": {},
++      "order": 11,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "samples",
++          "type": "LATENT",
++          "link": 23
++        },
++        {
++          "name": "vae",
++          "type": "VAE",
++          "link": 25
++        }
++      ],
++      "outputs": [
++        {
++          "name": "IMAGE",
++          "type": "IMAGE",
++          "links": [
++            26
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {}
++    },
++    {
++      "id": 12,
++      "type": "ImageScale",
++      "pos": [
++        993,
++        101
++      ],
++      "size": {
++        "0": 315,
++        "1": 130
++      },
++      "flags": {},
++      "order": 7,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "image",
++          "type": "IMAGE",
++          "link": 17
++        }
++      ],
++      "outputs": [
++        {
++          "name": "IMAGE",
++          "type": "IMAGE",
++          "links": [
++            18
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        "nearest-exact",
++        768,
++        768,
++        "disabled"
++      ]
++    },
++    {
++      "id": 13,
++      "type": "VAEEncode",
++      "pos": [
++        1368,
++        113
++      ],
++      "size": {
++        "0": 210,
++        "1": 46
++      },
++      "flags": {},
++      "order": 9,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "pixels",
++          "type": "IMAGE",
++          "link": 18
++        },
++        {
++          "name": "vae",
++          "type": "VAE",
++          "link": 27
++        }
++      ],
++      "outputs": [
++        {
++          "name": "LATENT",
++          "type": "LATENT",
++          "links": [
++            19
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {}
++    },
++    {
++      "id": 10,
++      "type": "CustomKSampler",
++      "pos": [
++        486,
++        494
++      ],
++      "size": {
++        "0": 315,
++        "1": 282
++      },
++      "flags": {},
++      "order": 5,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "model",
++          "type": "MODEL",
++          "link": 10
++        },
++        {
++          "name": "positive",
++          "type": "CONDITIONING",
++          "link": 11
++        },
++        {
++          "name": "negative",
++          "type": "CONDITIONING",
++          "link": 12
++        },
++        {
++          "name": "latent_image",
++          "type": "LATENT",
++          "link": 13
++        },
++        {
++          "name": "in_seed",
++          "type": 0,
++          "link": null
++        }
++      ],
++      "outputs": [
++        {
++          "name": "LATENT",
++          "type": "LATENT",
++          "links": [
++            16
++          ],
++          "slot_index": 0
++        },
++        {
++          "name": "seed",
++          "type": "seed",
++          "links": [
++            15
++          ],
++          "slot_index": 1
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        57521337950617,
++        true,
++        20,
++        8,
++        "dpmpp_2m",
++        "normal",
++        1
++      ]
++    },
++    {
++      "id": 16,
++      "type": "VAELoader",
++      "pos": [
++        366,
++        -3
++      ],
++      "size": {
++        "0": 315,
++        "1": 58
++      },
++      "flags": {},
++      "order": 2,
++      "mode": 0,
++      "outputs": [
++        {
++          "name": "VAE",
++          "type": "VAE",
++          "links": [
++            24,
++            25,
++            27
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        "vae-ft-mse-840000-ema-pruned.safetensors"
++      ]
++    },
++    {
++      "id": 8,
++      "type": "VAEDecode",
++      "pos": [
++        733,
++        172
++      ],
++      "size": {
++        "0": 210,
++        "1": 46
++      },
++      "flags": {},
++      "order": 6,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "samples",
++          "type": "LATENT",
++          "link": 16
++        },
++        {
++          "name": "vae",
++          "type": "VAE",
++          "link": 24
++        }
++      ],
++      "outputs": [
++        {
++          "name": "IMAGE",
++          "type": "IMAGE",
++          "links": [
++            17,
++            28
++          ],
++          "slot_index": 0
++        }
++      ],
++      "properties": {}
++    },
++    {
++      "id": 17,
++      "type": "PreviewImage",
++      "pos": [
++        2156,
++        327
++      ],
++      "size": [
++        337.8637939453124,
++        365.6173385620117
++      ],
++      "flags": {},
++      "order": 8,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "images",
++          "type": "IMAGE",
++          "link": 28
++        }
++      ],
++      "properties": {}
++    },
++    {
++      "id": 14,
++      "type": "SaveImageList",
++      "pos": [
++        2499,
++        297
++      ],
++      "size": [
++        336.9637939453123,
++        394.6173385620117
++      ],
++      "flags": {},
++      "order": 12,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "images",
++          "type": "IMAGE",
++          "link": 26
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        "ComfyUI"
++      ]
++    },
++    {
++      "id": 11,
++      "type": "CustomKSampler",
++      "pos": [
++        1620,
++        365
++      ],
++      "size": {
++        "0": 315,
++        "1": 282
++      },
++      "flags": {},
++      "order": 10,
++      "mode": 0,
++      "inputs": [
++        {
++          "name": "model",
++          "type": "MODEL",
++          "link": 20
++        },
++        {
++          "name": "positive",
++          "type": "CONDITIONING",
++          "link": 21
++        },
++        {
++          "name": "negative",
++          "type": "CONDITIONING",
++          "link": 22
++        },
++        {
++          "name": "latent_image",
++          "type": "LATENT",
++          "link": 19
++        },
++        {
++          "name": "in_seed",
++          "type": 0,
++          "link": 15
++        }
++      ],
++      "outputs": [
++        {
++          "name": "LATENT",
++          "type": "LATENT",
++          "links": [
++            23
++          ],
++          "slot_index": 0
++        },
++        {
++          "name": "seed",
++          "type": "seed",
++          "links": null
++        }
++      ],
++      "properties": {},
++      "widgets_values": [
++        0,
++        false,
++        20,
++        8,
++        "dpmpp_2m",
++        "karras",
++        0.5
++      ]
++    }
++  ],
++  "links": [
++    [
++      3,
++      4,
++      1,
++      6,
++      0,
++      "CLIP"
++    ],
++    [
++      5,
++      4,
++      1,
++      7,
++      0,
++      "CLIP"
++    ],
++    [
++      10,
++      4,
++      0,
++      10,
++      0,
++      "MODEL"
++    ],
++    [
++      11,
++      6,
++      0,
++      10,
++      1,
++      "CONDITIONING"
++    ],
++    [
++      12,
++      7,
++      0,
++      10,
++      2,
++      "CONDITIONING"
++    ],
++    [
++      13,
++      5,
++      0,
++      10,
++      3,
++      "LATENT"
++    ],
++    [
++      15,
++      10,
++      1,
++      11,
++      4,
++      "seed"
++    ],
++    [
++      16,
++      10,
++      0,
++      8,
++      0,
++      "LATENT"
++    ],
++    [
++      17,
++      8,
++      0,
++      12,
++      0,
++      "IMAGE"
++    ],
++    [
++      18,
++      12,
++      0,
++      13,
++      0,
++      "IMAGE"
++    ],
++    [
++      19,
++      13,
++      0,
++      11,
++      3,
++      "LATENT"
++    ],
++    [
++      20,
++      4,
++      0,
++      11,
++      0,
++      "MODEL"
++    ],
++    [
++      21,
++      6,
++      0,
++      11,
++      1,
++      "CONDITIONING"
++    ],
++    [
++      22,
++      7,
++      0,
++      11,
++      2,
++      "CONDITIONING"
++    ],
++    [
++      23,
++      11,
++      0,
++      15,
++      0,
++      "LATENT"
++    ],
++    [
++      24,
++      16,
++      0,
++      8,
++      1,
++      "VAE"
++    ],
++    [
++      25,
++      16,
++      0,
++      15,
++      1,
++      "VAE"
++    ],
++    [
++      26,
++      15,
++      0,
++      14,
++      0,
++      "IMAGE"
++    ],
++    [
++      27,
++      16,
++      0,
++      13,
++      1,
++      "VAE"
++    ],
++    [
++      28,
++      8,
++      0,
++      17,
++      0,
++      "IMAGE"
++    ]
++  ],
++  "groups": [],
++  "config": {},
++  "extra": {},
++  "version": 0.4
++}
+\ No newline at end of file
+diff --git a/nodes.py b/nodes.py
+index cb4d772..03bb185 100644
+--- a/nodes.py
++++ b/nodes.py
+@@ -980,3 +980,4 @@ def load_custom_nodes():
+ load_custom_nodes()
+ 
+ load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
++load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "silver_custom.py"))
+diff --git a/web/scripts/app.js b/web/scripts/app.js
+index 3f06629..bbd607c 100644
+--- a/web/scripts/app.js
++++ b/web/scripts/app.js
+@@ -551,7 +551,10 @@ class ComfyApp {
+ 			const nodeData = defs[nodeId];
+ 			const node = Object.assign(
+ 				function ComfyNode() {
+-					const inputs = nodeData["input"]["required"];
++					var inputs = nodeData["input"]["required"];
++					if (nodeData["input"]["optional"] != undefined){
++					    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
++					}
+ 					const config = { minWidth: 1, minHeight: 1 };
+ 					for (const inputName in inputs) {
+ 						const inputData = inputs[inputName];
+-- 
+2.24.1.windows.2
+
