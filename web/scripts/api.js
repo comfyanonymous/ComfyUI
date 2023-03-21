@@ -106,6 +106,10 @@ class ComfyApi extends EventTarget {
 		return await resp.json();
 	}
 
+    async deleteAllImages() {
+        await this.#postItem("delete", { delete: "all" })
+    }
+
 	/**
 	 * Gets a list of embedding names
 	 * @returns An array of script urls to import

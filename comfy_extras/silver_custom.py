@@ -40,9 +40,7 @@ class Note:
 class SaveImageList:
     def __init__(self):
         current_dir = os.path.abspath(os.getcwd())
-        print(current_dir)
         self.output_dir = os.path.join(current_dir, "output")
-        print(self.output_dir)
         self.type = "output"
 
     @classmethod
