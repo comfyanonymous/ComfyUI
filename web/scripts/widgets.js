@@ -29,8 +29,8 @@ function seedWidget(node, inputName, inputData) {
 	return { widget: seed, randomize };
 }
 
-function reloadWidget(node, name, data) {
-	async function reload_callback() {
+function refreshWidget(node, name, data) {
+	async function refresh_callback() {
 		const items = data[1];
 		for (let i in items) {
 			const w = node.widgets.find((w) => w.name === items[i][0]);
@@ -40,8 +40,10 @@ function reloadWidget(node, name, data) {
 		}
 	}
 
-	const reload = node.addWidget("button", "RELOAD", true, function(v) { reload_callback(); }, {});
-	return { reload };
+	console.log(name);
+
+	const refresh = node.addWidget("button", name, true, function(v) { refresh_callback(); }, {});
+	return { refresh };
 }
 
 function addMultilineWidget(node, name, defaultVal, app) {
@@ -133,7 +135,7 @@ export const ComfyWidgets = {
 			),
 		};
 	},
-	RELOAD:reloadWidget,
+	REFRESH:refreshWidget,
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
