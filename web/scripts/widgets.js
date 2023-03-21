@@ -103,6 +103,7 @@ export const ComfyWidgets = {
 	},
 	INT(node, inputName, inputData) {
 		const { val, config } = getNumberDefaults(inputData, 1);
+		Object.assign(config, { precision: 0 })
 		return {
 			widget: node.addWidget(
 				"number",
