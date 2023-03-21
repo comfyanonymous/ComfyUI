@@ -151,7 +151,7 @@ export const ComfyWidgets = {
 		function showImage(name) {
 			// Position the image somewhere sensible
 			if (!node.imageOffset) {
-				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
+				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 50 : 100;
 			}
 
 			const img = new Image();
