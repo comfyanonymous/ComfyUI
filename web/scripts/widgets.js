@@ -30,6 +30,50 @@ function seedWidget(node, inputName, inputData) {
 	return { widget: seed, randomize };
 }
 
+function imagesendWidget(node, inputName, inputData, app) {
+	function showImage(node,uploadWidget,name) {
+			// Position the image somewhere sensible
+			if (!node.imageOffset) {
+					node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
+			}
+
+			const img = new Image();
+			img.onload = () => {
+					node.imgs = [img];
+					app.graph.setDirtyCanvas(true);
+			};
+			img.src = `/view?filename=${name}&type=input`;
+	}
+
+	async function callback() {
+		    if(node.images.length < 1)
+				return;
+
+			const image_name = node.images[0].filename;
+			const copied = false;
+
+			for(let i in app.graph._nodes) {
+					var n = app.graph._nodes[i];
+					if(n.type == "LoadImage" || n.type == "LoadImageMask") {
+							const recvWidget = n.widgets.find((w) => w.name === "recv img");
+
+							if(recvWidget.value == "enable") {
+									// copy current node image to 'recv img' enabled node
+									
+									if(!copied) {
+											await api.sendOutputToInputImage(image_name);
+									}
+
+									const thatImageWidget = n.widgets.find((w) => w.value === "image");
+									await showImage(n,thatImageWidget,image_name);
+							}
+					}
+			}
+	}
+
+	return { widget: node.addWidget("button", inputName, "", () => { callback(); }, {}) };
+}
+
 function addMultilineWidget(node, name, defaultVal, app) {
 	const widget = {
 		type: "customtext",
@@ -129,47 +173,7 @@ export const ComfyWidgets = {
 			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
 	},
-	IMAGESEND(node, inputName) {
-		function showImage(node,uploadWidget,name) {
-			// Position the image somewhere sensible
-			if (!node.imageOffset) {
-				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
-			}
-
-			const img = new Image();
-			img.onload = () => {
-				node.imgs = [img];
-				app.graph.setDirtyCanvas(true);
-			};
-			img.src = `/view?filename=${name}&type=input`;
-		}
-
-		async function callback() {
-			const imageWidget = node.widgets.find((w) => w.name === "image");
-
-			const copied = false;
-
-			for(let i in app.graph._nodes) {
-				var n = app.graph._nodes[i];
-				if(n.type == "LoadImage" || n.type == "LoadImageMask") {
-					const recvWidget = n.widgets.find((w) => w.name === "recv img");
-
-					if(recvWidget.value == "enable") {
-						// copy current node image to 'recv img' enabled node
-						
-						if(!copied) {
-							api.sendOutputToInputImage(imageWidget.value);
-						}
-
-						const thatImageWidget = n.widgets.find((w) => w.value === "image");
-						await showImage(n,thatImageWidget,imageWidget.value);
-					}
-				}
-			}
-		}
-
-		return { widget: node.addWidget("button", inputName, "", () => { callback(); }, {}) };
-	},
+	IMAGESEND:imagesendWidget,
 	IMAGEUPLOAD(node, inputName, inputData, app) {
 		const imageWidget = node.widgets.find((w) => w.name === "image");
 		let uploadWidget;
