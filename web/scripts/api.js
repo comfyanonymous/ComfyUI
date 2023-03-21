@@ -124,6 +124,11 @@ class ComfyApi extends EventTarget {
 		return await resp.json();
 	}
 
+
+	async sendOutputToInputImage(name) {
+		await fetch(`/image/output_to_input/${name}`, { cache: "no-store" });
+	}
+	
 	/**
 	 *
 	 * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
