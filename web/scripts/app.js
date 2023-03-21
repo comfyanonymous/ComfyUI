@@ -554,7 +554,7 @@ class ComfyApp {
 					const inputs = nodeData["input"]["required"];
 					const config = { minWidth: 1, minHeight: 1 };
 					for (const inputName in inputs) {
-						const inputData = inputs[inputName];
+						const inputs = Object.assign(nodeData["input"]["required"], nodeData["input"]["widget"]);
 						const type = inputData[0];
 
 						if (Array.isArray(type)) {
@@ -574,25 +574,6 @@ class ComfyApp {
 							// Node connection inputs
 							this.addInput(inputName, type);
 						}
-					}
-
-					// widget type: visible. but prevent pass inputData to node function
-					const input_widgets = nodeData["input"]["widget"];
-					for (const inputName in input_widgets) {
-							const inputData = input_widgets[inputName];
-							const type = inputData[0];
-							
-							if (Array.isArray(type)) {
-									// Enums e.g. latent rotation
-									let defaultValue = type[0];
-									if (inputData[1] && inputData[1].default) {
-											defaultValue = inputData[1].default;
-									}
-									this.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
-							}
-							else {
-									Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-							}
 					}
 
 					for (const output of nodeData["output"]) {
