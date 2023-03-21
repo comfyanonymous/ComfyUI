@@ -191,8 +191,8 @@ class CheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
-                              "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
-                              "Refresh": ("REFRESH", [("config_name", "configs"), ("ckpt_name", "checkpoints")]) }}
+                              "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ) },
+                "widget": { "Refresh": ("REFRESH", [("config_name", "configs"), ("ckpt_name", "checkpoints")]) }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -206,8 +206,8 @@ class CheckpointLoader:
 class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
-                              "Refresh": ("REFRESH", [("ckpt_name", "checkpoints")]) }}
+        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ) },
+                "widget": { "Refresh": ("REFRESH", [("ckpt_name", "checkpoints")]) }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -241,9 +241,8 @@ class LoraLoader:
                               "clip": ("CLIP", ),
                               "lora_name": (folder_paths.get_filename_list("loras"), ),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "Refresh": ("REFRESH", [("lora_name", "loras")])
-                              }}
+                              "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}) },
+                "widget": { "Refresh": ("REFRESH", [("lora_name", "loras")]) }}
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
 
@@ -257,9 +256,8 @@ class LoraLoader:
 class VAELoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), ),
-                              "Refresh": ("REFRESH", [("vae_name", "vae")])
-                             }}
+        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), ) },
+                "widget": { "Refresh": ("REFRESH", [("vae_name", "vae")]) }}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -274,9 +272,8 @@ class VAELoader:
 class ControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), ),
-                              "Refresh": ("REFRESH", [("control_net_name", "controlnet")])
-                             }}
+        return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), )},
+                "widget": { "Refresh": ("REFRESH", [("control_net_name", "controlnet")]) }}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -292,9 +289,8 @@ class DiffControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "control_net_name": (folder_paths.get_filename_list("controlnet"), ),
-                              "Refresh": ("REFRESH", [("control_net_name", "controlnet")])
-                              }}
+                              "control_net_name": (folder_paths.get_filename_list("controlnet"), )},
+                "widget": { "Refresh": ("REFRESH", [("control_net_name", "controlnet")]) }}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -336,9 +332,8 @@ class ControlNetApply:
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
-                              "Refresh": ("REFRESH", [("clip_name", "clip")])
-                             }}
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),},
+                "widget": { "Refresh": ("REFRESH", [("clip_name", "clip")]) }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
@@ -352,9 +347,9 @@ class CLIPLoader:
 class CLIPVisionLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
-                              "Refresh": ("REFRESH", [("clip_name", "clip_vision")])
-                             }}
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), )},
+                "widget": { "Refresh": ("REFRESH", [("clip_name", "clip_vision")]) } }
+    
     RETURN_TYPES = ("CLIP_VISION",)
     FUNCTION = "load_clip"
 
@@ -383,9 +378,8 @@ class CLIPVisionEncode:
 class StyleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), ),
-                              "Refresh": ("REFRESH", [("style_model_name", "style_models")])
-                             }}
+        return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), )},
+                "widget": { "Refresh": ("REFRESH", [("style_model_name", "style_models")]) }}
 
     RETURN_TYPES = ("STYLE_MODEL",)
     FUNCTION = "load_style_model"
@@ -817,12 +811,8 @@ class LoadImage:
     def INPUT_TYPES(s):
         if not os.path.exists(s.input_dir):
             os.makedirs(s.input_dir)
-        return {"required":
-                    {"image": (sorted(os.listdir(s.input_dir)), ),
-                     "Refresh": ("REFRESH", [("image", "input")])
-                     },
-                     
-                }
+        return {"required": {"image": (sorted(os.listdir(s.input_dir)), )},
+                "widget": { "Refresh": ("REFRESH", [("image", "input")]) } }
 
     CATEGORY = "image"
 

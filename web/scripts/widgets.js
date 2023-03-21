@@ -40,8 +40,6 @@ function refreshWidget(node, name, data) {
 		}
 	}
 
-	console.log(name);
-
 	const refresh = node.addWidget("button", name, true, function(v) { refresh_callback(); }, {});
 	return { refresh };
 }
