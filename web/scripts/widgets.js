@@ -51,6 +51,7 @@ function imagesendWidget(node, inputName, inputData, app) {
 
 			const image_name = node.images[0].filename;
 			const copied = false;
+			const imageWidget = node.widgets.find((w) => w.name === "image");
 
 			for(let i in app.graph._nodes) {
 					var n = app.graph._nodes[i];
@@ -64,6 +65,7 @@ function imagesendWidget(node, inputName, inputData, app) {
 											await api.sendOutputToInputImage(image_name);
 									}
 
+									imageWidget.value = data.name;
 									const thatImageWidget = n.widgets.find((w) => w.value === "image");
 									await showImage(n,thatImageWidget,image_name);
 							}
