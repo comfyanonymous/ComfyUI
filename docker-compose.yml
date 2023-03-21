@@ -9,6 +9,7 @@ services:
       - "8188:8188"
     volumes:
       - ./models:/opt/comfy_ui/models
+      - ./output:/opt/comfy_ui/output
 
     environment:
       - CLI_ARGS=--listen --port 8188
