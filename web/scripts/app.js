@@ -494,6 +494,7 @@ class ComfyApp {
 
 		// Create and mount the LiteGraph in the DOM
 		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		canvasEl.tabIndex = "1"
 		document.body.prepend(canvasEl);
 
 		this.graph = new LGraph();
