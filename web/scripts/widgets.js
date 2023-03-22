@@ -62,6 +62,7 @@ function addMultilineWidget(node, name, opts, app) {
 			// There isnt enough space for all the widgets, increase the size of the node
 			freeSpace = MIN_SIZE;
 			node.size[1] = y + widgetHeight + freeSpace * multi.length;
+			node.graph.setDirtyCanvas(true);
 		}
 
 		// Position each of the widgets
@@ -151,7 +152,7 @@ function addMultilineWidget(node, name, opts, app) {
 	if (!(MultilineSymbol in node)) {
 		node[MultilineSymbol] = true;
 		const onResize = node.onResize;
-
+		
 		node.onResize = function (size) {
 			computeSize(size);
 
@@ -160,11 +161,6 @@ function addMultilineWidget(node, name, opts, app) {
 				onResize.apply(this, arguments);
 			}
 		};
-
-		requestAnimationFrame(() => {
-			computeSize(node.size);
-			app.graph.setDirtyCanvas(true);
-		});
 	}
 
 	return { minWidth: 400, minHeight: 200, widget };
