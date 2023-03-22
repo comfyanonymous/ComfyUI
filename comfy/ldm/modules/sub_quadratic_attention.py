@@ -24,10 +24,7 @@ except ImportError:
 from torch import Tensor
 from typing import List
 
-try:
-    OOM_EXCEPTION = torch.cuda.OutOfMemoryError
-except:
-    OOM_EXCEPTION = Exception
+import model_management
 
 def dynamic_slice(
     x: Tensor,
@@ -161,7 +158,7 @@ def _get_attention_scores_no_kv_chunking(
     try:
         attn_probs = attn_scores.softmax(dim=-1)
         del attn_scores
-    except OOM_EXCEPTION:
+    except model_management.OOM_EXCEPTION:
         print("ran out of memory while running softmax in  _get_attention_scores_no_kv_chunking, trying slower in place softmax instead")
         attn_scores -= attn_scores.max(dim=-1, keepdim=True).values
         torch.exp(attn_scores, out=attn_scores)

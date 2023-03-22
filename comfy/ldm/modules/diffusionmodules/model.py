@@ -13,11 +13,6 @@ if model_management.xformers_enabled():
     import xformers
     import xformers.ops
 
-try:
-    OOM_EXCEPTION = torch.cuda.OutOfMemoryError
-except:
-    OOM_EXCEPTION = Exception
-
 def get_timestep_embedding(timesteps, embedding_dim):
     """
     This matches the implementation in Denoising Diffusion Probabilistic Models:
@@ -221,7 +216,7 @@ class AttnBlock(nn.Module):
                     r1[:, :, i:end] = torch.bmm(v, s2)
                     del s2
                 break
-            except OOM_EXCEPTION as e:
+            except model_management.OOM_EXCEPTION as e:
                 steps *= 2
                 if steps > 128:
                     raise e

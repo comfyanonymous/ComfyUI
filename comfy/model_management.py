@@ -31,6 +31,11 @@ try:
 except:
     pass
 
+try:
+    OOM_EXCEPTION = torch.cuda.OutOfMemoryError
+except:
+    OOM_EXCEPTION = Exception
+
 if "--disable-xformers" in sys.argv:
     XFORMERS_IS_AVAILBLE = False
 else:
