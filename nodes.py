@@ -31,6 +31,8 @@ def before_node_execution():
 def interrupt_processing(value=True):
     model_management.interrupt_current_processing(value)
 
+MAX_RESOLUTION=8192
+
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
@@ -59,10 +61,10 @@ class ConditioningSetArea:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
-                              "width": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                              "width": ("INT", {"default": 64, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 64, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
                               "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
@@ -412,8 +414,8 @@ class EmptyLatentImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+        return {"required": { "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
@@ -433,8 +435,8 @@ class LatentUpscale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
@@ -495,9 +497,9 @@ class LatentComposite:
     def INPUT_TYPES(s):
         return {"required": { "samples_to": ("LATENT",),
                               "samples_from": ("LATENT",),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "feather": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "feather": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "composite"
@@ -536,10 +538,10 @@ class LatentCrop:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "crop"
@@ -876,8 +878,8 @@ class ImageScale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
-                              "height": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
+                              "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
+                              "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
