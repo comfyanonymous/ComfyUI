@@ -20,11 +20,6 @@ if model_management.xformers_enabled():
 import os
 _ATTN_PRECISION = os.environ.get("ATTN_PRECISION", "fp32")
 
-try:
-    OOM_EXCEPTION = torch.cuda.OutOfMemoryError
-except:
-    OOM_EXCEPTION = Exception
-
 def exists(val):
     return val is not None
 
@@ -312,7 +307,7 @@ class CrossAttentionDoggettx(nn.Module):
                     r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
                     del s2
                 break
-            except OOM_EXCEPTION as e:
+            except model_management.OOM_EXCEPTION as e:
                 if first_op_done == False:
                     torch.cuda.empty_cache()
                     torch.cuda.ipc_collect()
