@@ -10,6 +10,8 @@ services:
     volumes:
       - ./models:/opt/comfy_ui/models
       - ./output:/opt/comfy_ui/output
+      - ./input:/opt/comfy_ui/input
+      - ./custom_nodes:/opt/comfy_ui/custom_nodes      
 
     environment:
       - CLI_ARGS=--listen --port 8188
