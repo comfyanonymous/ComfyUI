@@ -152,7 +152,7 @@ function addMultilineWidget(node, name, opts, app) {
 	if (!(MultilineSymbol in node)) {
 		node[MultilineSymbol] = true;
 		const onResize = node.onResize;
-		
+
 		node.onResize = function (size) {
 			computeSize(size);
 
