@@ -393,10 +393,16 @@ class VAE:
         pixel_samples = pixel_samples.cpu().movedim(1,-1)
         return pixel_samples
 
-    def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 8):
+    def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
-        output = utils.tiled_scale(samples, lambda a: torch.clamp((self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0) / 2.0, min=0.0, max=1.0), tile_x, tile_y, overlap, upscale_amount = 8)
+        decode_fn = lambda a: (self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0)
+        output = torch.clamp((
+            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8) +
+            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8) +
+             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8))
+            / 3.0) / 2.0, min=0.0, max=1.0)
+
         self.first_stage_model = self.first_stage_model.cpu()
         return output.movedim(1,-1)
 
@@ -414,6 +420,9 @@ class VAE:
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
         samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4)
+        samples /= 3.0
         self.first_stage_model = self.first_stage_model.cpu()
         samples = samples.cpu()
         return samples
