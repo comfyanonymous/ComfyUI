@@ -32,6 +32,54 @@ const MultilineSymbol = Symbol();
 function addMultilineWidget(node, name, opts, app) {
 	const MIN_SIZE = 50;
 
+	function computeSize(size) {
+		if (node.widgets[0].last_y == null) return;
+
+		let y = node.widgets[0].last_y;
+		let freeSpace = size[1] - y;
+
+		// Compute the height of all non customtext widgets
+		let widgetHeight = 0;
+		const multi = [];
+		for (let i = 0; i < node.widgets.length; i++) {
+			const w = node.widgets[i];
+			if (w.type === "customtext") {
+				multi.push(w);
+			} else {
+				if (w.computeSize) {
+					widgetHeight += w.computeSize()[1] + 4;
+				} else {
+					widgetHeight += LiteGraph.NODE_WIDGET_HEIGHT + 4;
+				}
+			}
+		}
+
+		// See how large each text input can be
+		freeSpace -= widgetHeight;
+		freeSpace /= multi.length;
+
+		if (freeSpace < MIN_SIZE) {
+			// There isnt enough space for all the widgets, increase the size of the node
+			freeSpace = MIN_SIZE;
+			node.size[1] = y + widgetHeight + freeSpace * multi.length;
+			node.graph.setDirtyCanvas(true);
+		}
+
+		// Position each of the widgets
+		for (const w of node.widgets) {
+			w.y = y;
+			if (w.type === "customtext") {
+				y += freeSpace;
+			} else if (w.computeSize) {
+				y += w.computeSize()[1] + 4;
+			} else {
+				y += LiteGraph.NODE_WIDGET_HEIGHT + 4;
+			}
+		}
+
+		node.inputHeight = freeSpace;
+	}
+
 	const widget = {
 		type: "customtext",
 		name,
@@ -42,6 +90,11 @@ function addMultilineWidget(node, name, opts, app) {
 			this.inputEl.value = x;
 		},
 		draw: function (ctx, _, widgetWidth, y, widgetHeight) {
+			if (!this.parent.inputHeight) {
+				// If we are initially offscreen when created we wont have received a resize event
+				// Calculate it here instead
+				computeSize(node.size);
+			}
 			const visible = app.canvas.ds.scale > 0.5;
 			const t = ctx.getTransform();
 			const margin = 10;
@@ -101,61 +154,13 @@ function addMultilineWidget(node, name, opts, app) {
 		const onResize = node.onResize;
 
 		node.onResize = function (size) {
-			if (node.widgets[0].last_y == null) return;
-
-			let y = node.widgets[0].last_y;
-			let freeSpace = size[1] - y;
-
-			// Compute the height of all non customtext widgets
-			let widgetHeight = 0;
-			const multi = [];
-			for (let i = 0; i < node.widgets.length; i++) {
-				const w = node.widgets[i];
-				if (w.type === "customtext") {
-					multi.push(w);
-				} else {
-					if (w.computeSize) {
-						widgetHeight += w.computeSize()[1] + 4;
-					} else {
-						widgetHeight += LiteGraph.NODE_WIDGET_HEIGHT + 4;
-					}
-				}
-			}
-
-			// See how large each text input can be
-			freeSpace -= widgetHeight;
-			freeSpace /= multi.length;
-
-			if (freeSpace < MIN_SIZE) {
-				// There isnt enough space for all the widgets, increase the size of the node
-				freeSpace = MIN_SIZE;
-				node.size[1] = y + widgetHeight + freeSpace * multi.length;
-			}
-
-			// Position each of the widgets
-			for (const w of node.widgets) {
-				w.y = y;
-				if (w.type === "customtext") {
-					y += freeSpace;
-				} else if (w.computeSize) {
-					y += w.computeSize()[1] + 4;
-				} else {
-					y += LiteGraph.NODE_WIDGET_HEIGHT + 4;
-				}
-			}
-
-			this.inputHeight = freeSpace;
+			computeSize(size);
 
 			// Call original resizer handler
 			if (onResize) {
 				onResize.apply(this, arguments);
 			}
 		};
-
-		requestAnimationFrame(() => {
-			node.onResize(node.size);
-			app.graph.setDirtyCanvas(true);
-		});
 	}
 
 	return { minWidth: 400, minHeight: 200, widget };
