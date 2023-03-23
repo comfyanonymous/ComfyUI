@@ -129,12 +129,12 @@ class PromptServer():
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
-                file = request.rel_url.query["filename"]
-                file = os.path.basename(file)
-                file = os.path.join(output_dir, file)
+                filename = request.rel_url.query["filename"]
+                filename = os.path.basename(filename)
+                file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
-                    return web.FileResponse(file)
+                    return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
                 
             return web.Response(status=404)
 
