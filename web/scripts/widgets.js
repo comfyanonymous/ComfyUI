@@ -46,31 +46,31 @@ function imagesendWidget(node, inputName, inputData, app) {
 	}
 
 	async function callback() {
-		    if(node.images.length < 1)
-				return;
+		if(node.images == undefined || node.images.length < 1)
+			return;
 
-			const image_name = node.images[0].filename;
-			const copied = false;
-			
-			for(let i in app.graph._nodes) {
-					var n = app.graph._nodes[i];
-					if(n.type == "LoadImage" || n.type == "LoadImageMask") {
-							const imageWidget = n.widgets.find((w) => w.name === "image");
-							const recvWidget = n.widgets.find((w) => w.name === "recv img");
+		const image_name = node.images[0].filename;
+		const copied = false;
+		
+		for(let i in app.graph._nodes) {
+			var n = app.graph._nodes[i];
+			if(n.type == "LoadImage" || n.type == "LoadImageMask") {
+				const imageWidget = n.widgets.find((w) => w.name === "image");
+				const recvWidget = n.widgets.find((w) => w.name === "recv img");
 
-							if(recvWidget.value == "enable") {
-									// copy current node image to 'recv img' enabled node
-									
-									if(!copied) {
-											await api.sendOutputToInputImage(image_name);
-									}
-
-									imageWidget.value = image_name;
-									const thatImageWidget = n.widgets.find((w) => w.value === "image");
-									await showImage(n,thatImageWidget,image_name);
-							}
+				if(recvWidget.value == "enable") {
+					// copy current node image to 'recv img' enabled node
+					
+					if(!copied) {
+						await api.sendOutputToInputImage(image_name);
 					}
+
+					imageWidget.value = image_name;
+					const thatImageWidget = n.widgets.find((w) => w.value === "image");
+					await showImage(n,thatImageWidget,image_name);
+				}
 			}
+		}
 	}
 
 	return { widget: node.addWidget("button", inputName, "", () => { callback(); }, {}) };
