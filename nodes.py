@@ -31,6 +31,8 @@ def before_node_execution():
 def interrupt_processing(value=True):
     model_management.interrupt_current_processing(value)
 
+MAX_RESOLUTION=8192
+
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
@@ -59,10 +61,10 @@ class ConditioningSetArea:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
-                              "width": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                              "width": ("INT", {"default": 64, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 64, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
                               "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
@@ -192,7 +194,7 @@ class CheckpointLoader:
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
                               "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ) },
-                "widget": { "Refresh": ("REFRESH", [("config_name", "configs"), ("ckpt_name", "checkpoints")]) }}
+               }
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -207,7 +209,7 @@ class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ) },
-                "widget": { "Refresh": ("REFRESH", [("ckpt_name", "checkpoints")]) }}
+               }
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -242,7 +244,7 @@ class LoraLoader:
                               "lora_name": (folder_paths.get_filename_list("loras"), ),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}) },
-                "widget": { "Refresh": ("REFRESH", [("lora_name", "loras")]) }}
+               }
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
 
@@ -257,7 +259,7 @@ class VAELoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), ) },
-                "widget": { "Refresh": ("REFRESH", [("vae_name", "vae")]) }}
+               }
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -273,7 +275,7 @@ class ControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), )},
-                "widget": { "Refresh": ("REFRESH", [("control_net_name", "controlnet")]) }}
+               }
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -290,7 +292,7 @@ class DiffControlNetLoader:
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
                               "control_net_name": (folder_paths.get_filename_list("controlnet"), )},
-                "widget": { "Refresh": ("REFRESH", [("control_net_name", "controlnet")]) }}
+               }
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -333,7 +335,8 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),},
-                "widget": { "Refresh": ("REFRESH", [("clip_name", "clip")]) }}
+               }
+    
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
@@ -341,14 +344,14 @@ class CLIPLoader:
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip", clip_name)
-        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
+        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
 class CLIPVisionLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), )},
-                "widget": { "Refresh": ("REFRESH", [("clip_name", "clip_vision")]) } }
+               }
     
     RETURN_TYPES = ("CLIP_VISION",)
     FUNCTION = "load_clip"
@@ -379,7 +382,7 @@ class StyleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), )},
-                "widget": { "Refresh": ("REFRESH", [("style_model_name", "style_models")]) }}
+               }
 
     RETURN_TYPES = ("STYLE_MODEL",)
     FUNCTION = "load_style_model"
@@ -418,8 +421,8 @@ class EmptyLatentImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+        return {"required": { "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
@@ -439,8 +442,8 @@ class LatentUpscale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
@@ -501,9 +504,9 @@ class LatentComposite:
     def INPUT_TYPES(s):
         return {"required": { "samples_to": ("LATENT",),
                               "samples_from": ("LATENT",),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "feather": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "feather": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "composite"
@@ -542,10 +545,10 @@ class LatentCrop:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "crop"
@@ -812,7 +815,7 @@ class LoadImage:
         if not os.path.exists(s.input_dir):
             os.makedirs(s.input_dir)
         return {"required": {"image": (sorted(os.listdir(s.input_dir)), )},
-                "widget": { "Refresh": ("REFRESH", [("image", "input")]) } }
+               }
 
     CATEGORY = "image"
 
@@ -881,8 +884,8 @@ class ImageScale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
-                              "height": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
+                              "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
+                              "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"

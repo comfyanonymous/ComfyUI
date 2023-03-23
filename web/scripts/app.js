@@ -80,10 +80,23 @@ class ComfyApp {
 					img = this.imgs[this.overIndex];
 				}
 				if (img) {
-					options.unshift({
-						content: "Open Image",
-						callback: () => window.open(img.src, "_blank"),
-					});
+					options.unshift(
+						{
+							content: "Open Image",
+							callback: () => window.open(img.src, "_blank"),
+						},
+						{
+							content: "Save Image",
+							callback: () => {
+								const a = document.createElement("a");
+								a.href = img.src;
+								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								document.body.append(a);
+								a.click();
+								requestAnimationFrame(() => a.remove());
+							},
+						}
+					);
 				}
 			}
 		};
@@ -481,6 +494,7 @@ class ComfyApp {
 
 		// Create and mount the LiteGraph in the DOM
 		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		canvasEl.tabIndex = "1"
 		document.body.prepend(canvasEl);
 
 		this.graph = new LGraph();
@@ -759,6 +773,71 @@ class ComfyApp {
 			throw new Error(`Extension named '${extension.name}' already registered.`);
 		}
 		this.extensions.push(extension);
+	}
+
+	/**
+	 * Refresh file list on whole nodes
+	 */
+	async refreshNodes() {
+		for(let nodeNum in this.graph._nodes) {
+			const node = this.graph._nodes[nodeNum];
+			
+			var data = [];
+
+			switch(node.type) {
+			case "CheckpointLoader":
+				data = { "config_name": "configs",
+						 "ckpt_name": "checkpoints" };
+				break;
+
+			case "CheckpointLoaderSimple":
+				data = { "ckpt_name": "checkpoints" };
+				break;
+
+			case "LoraLoader":
+				data = { "lora_name": "loras" };
+				break;
+		
+			case "VAELoader":
+				data = { "vae_name": "vae" };
+				break;
+
+			case "ControlNetLoader":
+			case "DiffControlNetLoader":
+				data = { "control_net_name": "controlnet" };
+				break;
+
+			case "CLIPLoader":
+				data = { "clip_name": "clip" };
+				break;
+
+			case "CLIPVisionLoader":
+				data = { "clip_name": "clip_vision" };
+				break;
+				
+			case "StyleModelLoader":
+				data = { "style_model_name": "style_models" };
+				break;
+			
+			case "LoadImage":
+				data = { "image": "input" };
+				break;
+
+			case "UpscaleModelLoader":
+				data = { "model_name": "upscale_models" };
+				break;
+				
+			default:
+				break;
+			}
+			
+			for (let i in data) {
+				const w = node.widgets.find((w) => w.name === i);
+				const filelist = await api.getFiles(data[i]);
+				w.options.values = filelist.files;
+				w.value = filelist.files[0];
+			}
+		}
 	}
 }
 

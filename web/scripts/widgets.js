@@ -1,5 +1,3 @@
-import { api } from "./api.js";
-
 function getNumberDefaults(inputData, defaultStep) {
 	let defaultVal = inputData[1]["default"];
 	let { min, max, step } = inputData[1];
@@ -29,22 +27,59 @@ function seedWidget(node, inputName, inputData) {
 	return { widget: seed, randomize };
 }
 
-function refreshWidget(node, name, data) {
-	async function refresh_callback() {
-		const items = data[1];
-		for (let i in items) {
-			const w = node.widgets.find((w) => w.name === items[i][0]);
-			const filelist = await api.getFiles(items[i][1]);
-			w.options.values = filelist.files;
-			w.value = filelist.files[0];
+const MultilineSymbol = Symbol();
+
+function addMultilineWidget(node, name, opts, app) {
+	const MIN_SIZE = 50;
+
+	function computeSize(size) {
+		if (node.widgets[0].last_y == null) return;
+
+		let y = node.widgets[0].last_y;
+		let freeSpace = size[1] - y;
+
+		// Compute the height of all non customtext widgets
+		let widgetHeight = 0;
+		const multi = [];
+		for (let i = 0; i < node.widgets.length; i++) {
+			const w = node.widgets[i];
+			if (w.type === "customtext") {
+				multi.push(w);
+			} else {
+				if (w.computeSize) {
+					widgetHeight += w.computeSize()[1] + 4;
+				} else {
+					widgetHeight += LiteGraph.NODE_WIDGET_HEIGHT + 4;
+				}
+			}
 		}
+
+		// See how large each text input can be
+		freeSpace -= widgetHeight;
+		freeSpace /= multi.length;
+
+		if (freeSpace < MIN_SIZE) {
+			// There isnt enough space for all the widgets, increase the size of the node
+			freeSpace = MIN_SIZE;
+			node.size[1] = y + widgetHeight + freeSpace * multi.length;
+			node.graph.setDirtyCanvas(true);
+		}
+
+		// Position each of the widgets
+		for (const w of node.widgets) {
+			w.y = y;
+			if (w.type === "customtext") {
+				y += freeSpace;
+			} else if (w.computeSize) {
+				y += w.computeSize()[1] + 4;
+			} else {
+				y += LiteGraph.NODE_WIDGET_HEIGHT + 4;
+			}
+		}
+
+		node.inputHeight = freeSpace;
 	}
 
-	const refresh = node.addWidget("button", name, true, function(v) { refresh_callback(); }, {});
-	return { refresh };
-}
-
-function addMultilineWidget(node, name, defaultVal, app) {
 	const widget = {
 		type: "customtext",
 		name,
@@ -55,14 +90,19 @@ function addMultilineWidget(node, name, defaultVal, app) {
 			this.inputEl.value = x;
 		},
 		draw: function (ctx, _, widgetWidth, y, widgetHeight) {
+			if (!this.parent.inputHeight) {
+				// If we are initially offscreen when created we wont have received a resize event
+				// Calculate it here instead
+				computeSize(node.size);
+			}
 			const visible = app.canvas.ds.scale > 0.5;
 			const t = ctx.getTransform();
 			const margin = 10;
 			Object.assign(this.inputEl.style, {
 				left: `${t.a * margin + t.e}px`,
-				top: `${t.d * (y + widgetHeight - margin) + t.f}px`,
+				top: `${t.d * (y + widgetHeight - margin - 3) + t.f}px`,
 				width: `${(widgetWidth - margin * 2 - 3) * t.a}px`,
-				height: `${(this.parent.size[1] - (y + widgetHeight) - 3) * t.d}px`,
+				height: `${(this.parent.inputHeight - margin * 2 - 4) * t.d}px`,
 				position: "absolute",
 				zIndex: 1,
 				fontSize: `${t.d * 10.0}px`,
@@ -72,7 +112,8 @@ function addMultilineWidget(node, name, defaultVal, app) {
 	};
 	widget.inputEl = document.createElement("textarea");
 	widget.inputEl.className = "comfy-multiline-input";
-	widget.inputEl.value = defaultVal;
+	widget.inputEl.value = opts.defaultVal;
+	widget.inputEl.placeholder = opts.placeholder || "";
 	document.addEventListener("mousedown", function (event) {
 		if (!widget.inputEl.contains(event.target)) {
 			widget.inputEl.blur();
@@ -108,6 +149,20 @@ function addMultilineWidget(node, name, defaultVal, app) {
 		}
 	};
 
+	if (!(MultilineSymbol in node)) {
+		node[MultilineSymbol] = true;
+		const onResize = node.onResize;
+
+		node.onResize = function (size) {
+			computeSize(size);
+
+			// Call original resizer handler
+			if (onResize) {
+				onResize.apply(this, arguments);
+			}
+		};
+	}
+
 	return { minWidth: 400, minHeight: 200, widget };
 }
 
@@ -120,6 +175,7 @@ export const ComfyWidgets = {
 	},
 	INT(node, inputName, inputData) {
 		const { val, config } = getNumberDefaults(inputData, 1);
+		Object.assign(config, { precision: 0 });
 		return {
 			widget: node.addWidget(
 				"number",
@@ -133,13 +189,12 @@ export const ComfyWidgets = {
 			),
 		};
 	},
-	REFRESH:refreshWidget,
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
 
 		if (multiline) {
-			return addMultilineWidget(node, inputName, defaultVal, app);
+			return addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
 		} else {
 			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
@@ -151,7 +206,7 @@ export const ComfyWidgets = {
 		function showImage(name) {
 			// Position the image somewhere sensible
 			if (!node.imageOffset) {
-				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 50 : 100;
+				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
 			}
 
 			const img = new Image();
