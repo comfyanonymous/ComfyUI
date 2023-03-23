@@ -5801,7 +5801,7 @@ LGraphNode.prototype.executeAction = function(action)
         var skip_action = false;
         var now = LiteGraph.getTime();
 		var is_primary = (e.isPrimary === undefined || !e.isPrimary);
-        var is_double_click = (now - this.last_mouseclick < 300) && is_primary;
+        var is_double_click = (now - this.last_mouseclick < 300);
 		this.mouse[0] = e.clientX;
 		this.mouse[1] = e.clientY;
         this.graph_mouse[0] = e.canvasX;
