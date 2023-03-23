@@ -908,6 +908,45 @@ class ImageInvert:
         return (s,)
 
 
+class ImagePadForOutpaint:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "left": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                "top": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                "right": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                "bottom": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "MASK")
+    FUNCTION = "expand_image"
+
+    CATEGORY = "image"
+
+    def expand_image(self, image, left, top, right, bottom):
+        d1, d2, d3, d4 = image.size()
+
+        new_image = torch.zeros(
+            (d1, d2 + top + bottom, d3 + left + right, d4),
+            dtype=torch.float32,
+        )
+        new_image[:, top:top + d2, left:left + d3, :] = image
+
+        mask = torch.ones(
+            (d2 + top + bottom, d3 + left + right),
+            dtype=torch.float32,
+        )
+        mask[top:top + d2, left:left + d3] = torch.zeros(
+            (d2, d3),
+            dtype=torch.float32,
+        )
+        return (new_image, mask)
+
+
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoader": CheckpointLoader,
@@ -926,6 +965,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
+    "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
