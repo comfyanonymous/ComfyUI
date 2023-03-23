@@ -779,7 +779,7 @@ class SaveImage:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, optimize=True)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
