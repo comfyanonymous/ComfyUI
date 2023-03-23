@@ -80,10 +80,23 @@ class ComfyApp {
 					img = this.imgs[this.overIndex];
 				}
 				if (img) {
-					options.unshift({
-						content: "Open Image",
-						callback: () => window.open(img.src, "_blank"),
-					});
+					options.unshift(
+						{
+							content: "Open Image",
+							callback: () => window.open(img.src, "_blank"),
+						},
+						{
+							content: "Save Image",
+							callback: () => {
+								const a = document.createElement("a");
+								a.href = img.src;
+								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								document.body.append(a);
+								a.click();
+								requestAnimationFrame(() => a.remove());
+							},
+						}
+					);
 				}
 			}
 		};
@@ -481,6 +494,7 @@ class ComfyApp {
 
 		// Create and mount the LiteGraph in the DOM
 		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		canvasEl.tabIndex = "1"
 		document.body.prepend(canvasEl);
 
 		this.graph = new LGraph();

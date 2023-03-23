@@ -129,12 +129,17 @@ def load_lora(path, to_load):
         A_name = "{}.lora_up.weight".format(x)
         B_name = "{}.lora_down.weight".format(x)
         alpha_name = "{}.alpha".format(x)
+        mid_name = "{}.lora_mid.weight".format(x)
         if A_name in lora.keys():
             alpha = None
             if alpha_name in lora.keys():
                 alpha = lora[alpha_name].item()
                 loaded_keys.add(alpha_name)
-            patch_dict[to_load[x]] = (lora[A_name], lora[B_name], alpha)
+            mid = None
+            if mid_name in lora.keys():
+                mid = lora[mid_name]
+                loaded_keys.add(mid_name)
+            patch_dict[to_load[x]] = (lora[A_name], lora[B_name], alpha, mid)
             loaded_keys.add(A_name)
             loaded_keys.add(B_name)
     for x in lora.keys():
@@ -279,6 +284,10 @@ class ModelPatcher:
                 mat2 = v[1]
                 if v[2] is not None:
                     alpha *= v[2] / mat2.shape[0]
+                if v[3] is not None:
+                    #locon mid weights, hopefully the math is fine because I didn't properly test it
+                    final_shape = [mat2.shape[1], mat2.shape[0], v[3].shape[2], v[3].shape[3]]
+                    mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1).float(), v[3].transpose(0, 1).flatten(start_dim=1).float()).reshape(final_shape).transpose(0, 1)
                 weight += (alpha * torch.mm(mat1.flatten(start_dim=1).float(), mat2.flatten(start_dim=1).float())).reshape(weight.shape).type(weight.dtype).to(weight.device)
         return self.model
     def unpatch_model(self):
@@ -374,20 +383,34 @@ class VAE:
             device = model_management.get_torch_device()
         self.device = device
 
-    def decode(self, samples):
+    def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
+        decode_fn = lambda a: (self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0)
+        output = torch.clamp((
+            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8) +
+            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8) +
+             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8))
+            / 3.0) / 2.0, min=0.0, max=1.0)
+        return output
+
+    def decode(self, samples_in):
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
-        samples = samples.to(self.device)
-        pixel_samples = self.first_stage_model.decode(1. / self.scale_factor * samples)
-        pixel_samples = torch.clamp((pixel_samples + 1.0) / 2.0, min=0.0, max=1.0)
+        try:
+            samples = samples_in.to(self.device)
+            pixel_samples = self.first_stage_model.decode(1. / self.scale_factor * samples)
+            pixel_samples = torch.clamp((pixel_samples + 1.0) / 2.0, min=0.0, max=1.0)
+        except model_management.OOM_EXCEPTION as e:
+            print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
+            pixel_samples = self.decode_tiled_(samples_in)
+
         self.first_stage_model = self.first_stage_model.cpu()
         pixel_samples = pixel_samples.cpu().movedim(1,-1)
         return pixel_samples
 
-    def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 8):
+    def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
-        output = utils.tiled_scale(samples, lambda a: torch.clamp((self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0) / 2.0, min=0.0, max=1.0), tile_x, tile_y, overlap, upscale_amount = 8)
+        output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
         self.first_stage_model = self.first_stage_model.cpu()
         return output.movedim(1,-1)
 
@@ -405,6 +428,9 @@ class VAE:
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
         samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4)
+        samples /= 3.0
         self.first_stage_model = self.first_stage_model.cpu()
         samples = samples.cpu()
         return samples

@@ -26,6 +26,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
 - Starts up very fast.
 - Works fully offline: will never download anything.
+- [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
@@ -136,9 +137,9 @@ This will let you use: pip3.10 to install all the dependencies.
 
 ## How to increase generation speed?
 
-The fp16 model configs in the CheckpointLoader can be used to load them in fp16 mode, depending on your GPU this will increase your gen speed by a significant amount.
+Make sure you use the CheckpointLoaderSimple node to load checkpoints. It will auto pick the right settings depending on your GPU.
 
-You can also set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models.
+You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this doesn't do anything when xformers is enabled and will very likely give you black images on SD2.x models.
 
 ```--dont-upcast-attention```
 
