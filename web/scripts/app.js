@@ -527,7 +527,6 @@ class ComfyApp {
 			}
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
-			debugger;
 		}
 
 		// We failed to restore a workflow so load the default
