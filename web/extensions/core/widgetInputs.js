@@ -149,6 +149,7 @@ app.registerExtension({
 				app.graph.add(node);
 				node.pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
 				node.connect(0, this, slot);
+				node.title = this.inputs[slot].name;
 			}
 
 			return r;
