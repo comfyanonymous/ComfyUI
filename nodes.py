@@ -752,7 +752,7 @@ class SaveImage:
 
         full_output_folder = os.path.join(self.output_dir, subfolder)
 
-        if os.path.commonpath((self.output_dir, os.path.realpath(full_output_folder))) != self.output_dir:
+        if os.path.commonpath((self.output_dir, os.path.abspath(full_output_folder))) != self.output_dir:
             print("Saving image outside the output folder is not allowed.")
             return {}
 
