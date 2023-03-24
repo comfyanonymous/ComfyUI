@@ -131,8 +131,6 @@ def load_model_gpu(model):
     if vram_state == CPU:
         pass
     elif vram_state == MPS:
-        # print(inspect.getmro(real_model.__class__))
-        # print(dir(real_model))
         mps_device = torch.device("mps")
         real_model.to(mps_device)
         pass
