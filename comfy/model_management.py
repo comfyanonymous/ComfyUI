@@ -4,7 +4,7 @@ NO_VRAM = 1
 LOW_VRAM = 2
 NORMAL_VRAM = 3
 HIGH_VRAM = 4
-MPS = 4
+MPS = 5
 
 accelerate_enabled = False
 vram_state = NORMAL_VRAM
