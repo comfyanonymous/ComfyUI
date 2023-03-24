@@ -251,6 +251,16 @@ app.registerExtension({
 					addRandomizeWidget(this, widget, "Random after every gen");
 				}
 
+				// When our value changes, update other widgets to reflect our changes
+				// e.g. so LoadImage shows correct image
+				const callback = widget.callback;
+				const self = this;
+				widget.callback = function () {
+					const r = callback ? callback.apply(this, arguments) : undefined;
+					self.applyToGraph();
+					return r;
+				};
+
 				// Grow our node if required
 				const sz = this.computeSize();
 				if (this.size[0] < sz[0]) {
