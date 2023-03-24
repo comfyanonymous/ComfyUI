@@ -143,7 +143,7 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
-        with torch.no_grad():
+        with torch.inference_mode():
             for x in prompt:
                 recursive_output_delete_if_changed(prompt, self.old_prompt, self.outputs, x)
 
