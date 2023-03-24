@@ -207,45 +207,55 @@ def validate_inputs(prompt, item):
     obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
 
     class_inputs = obj_class.INPUT_TYPES()
-    required_inputs = class_inputs['required']
-    for x in required_inputs:
-        if x not in inputs:
-            return (False, "Required input is missing. {}, {}".format(class_type, x))
-        val = inputs[x]
-        info = required_inputs[x]
-        type_input = info[0]
-        if isinstance(val, list):
-            if len(val) != 2:
-                return (False, "Bad Input. {}, {}".format(class_type, x))
-            o_id = val[0]
-            o_class_type = prompt[o_id]['class_type']
-            r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            if r[val[1]] != type_input:
-                return (False, "Return type mismatch. {}, {}, {} != {}".format(class_type, x, r[val[1]], type_input))
-            r = validate_inputs(prompt, o_id)
-            if r[0] == False:
-                return r
-        else:
-            if type_input == "INT":
-                val = int(val)
-                inputs[x] = val
-            if type_input == "FLOAT":
-                val = float(val)
-                inputs[x] = val
-            if type_input == "STRING":
-                val = str(val)
-                inputs[x] = val
+    
+    def validate(current_inputs, is_optional=False):
+        for x in current_inputs:
+            if x not in inputs:
+                if is_optional:
+                    return (True, "")
+                else:
+                    return (False, "Required input is missing. {}, {}".format(class_type, x))
+            val = inputs[x]
+            info = current_inputs[x]
+            type_input = info[0]
+            if isinstance(val, list):
+                if len(val) != 2:
+                    return (False, "Bad Input. {}, {}".format(class_type, x))
+                o_id = val[0]
+                o_class_type = prompt[o_id]['class_type']
+                r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
+                if r[val[1]] != type_input:
+                    return (False, "Return type mismatch. {}, {}, {} != {}".format(class_type, x, r[val[1]], type_input))
+                r = validate_inputs(prompt, o_id)
+                if r[0] == False:
+                    return r
+            else:
+                if type_input == "INT":
+                    val = int(val)
+                    inputs[x] = val
+                if type_input == "FLOAT":
+                    val = float(val)
+                    inputs[x] = val
+                if type_input == "STRING":
+                    val = str(val)
+                    inputs[x] = val
 
-            if len(info) > 1:
-                if "min" in info[1] and val < info[1]["min"]:
-                    return (False, "Value smaller than min. {}, {}".format(class_type, x))
-                if "max" in info[1] and val > info[1]["max"]:
-                    return (False, "Value bigger than max. {}, {}".format(class_type, x))
+                if len(info) > 1:
+                    if "min" in info[1] and val < info[1]["min"]:
+                        return (False, "Value smaller than min. {}, {}".format(class_type, x))
+                    if "max" in info[1] and val > info[1]["max"]:
+                        return (False, "Value bigger than max. {}, {}".format(class_type, x))
 
-            if isinstance(type_input, list):
-                if val not in type_input:
-                    return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
-    return (True, "")
+                if isinstance(type_input, list):
+                    if val not in type_input:
+                        return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
+        return (True, "")
+    
+    result, error = validate(class_inputs['required'])
+    if result:
+        result, error = validate(class_inputs.get('optional', {}), is_optional=True)
+    
+    return result, error
 
 def validate_prompt(prompt):
     outputs = set()

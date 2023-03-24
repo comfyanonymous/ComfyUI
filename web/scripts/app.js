@@ -565,31 +565,35 @@ class ComfyApp {
 			const nodeData = defs[nodeId];
 			const node = Object.assign(
 				function ComfyNode() {
-					const inputs = nodeData["input"]["required"];
-					const config = { minWidth: 1, minHeight: 1 };
-					for (const inputName in inputs) {
-						const inputData = inputs[inputName];
-						const type = inputData[0];
+					function addInputs(self, inputs, config) {
+						for (const inputName in inputs) {
+							const inputData = inputs[inputName];
+							const type = inputData[0];
 
-						if (Array.isArray(type)) {
-							// Enums e.g. latent rotation
-							let defaultValue = type[0];
-							if (inputData[1] && inputData[1].default) {
-								defaultValue = inputData[1].default;
+							if (Array.isArray(type)) {
+								// Enums e.g. latent rotation
+								let defaultValue = type[0];
+								if (inputData[1] && inputData[1].default) {
+									defaultValue = inputData[1].default;
+								}
+								self.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
+							} else if (`${type}:${inputName}` in widgets) {
+								// Support custom widgets by Type:Name
+								Object.assign(config, widgets[`${type}:${inputName}`](self, inputName, inputData, app) || {});
+							} else if (type in widgets) {
+								// Standard type widgets
+								Object.assign(config, widgets[type](self, inputName, inputData, app) || {});
+							} else {
+								// Node connection inputs
+								self.addInput(inputName, type);
 							}
-							this.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
-						} else if (`${type}:${inputName}` in widgets) {
-							// Support custom widgets by Type:Name
-							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
-						} else if (type in widgets) {
-							// Standard type widgets
-							Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-						} else {
-							// Node connection inputs
-							this.addInput(inputName, type);
 						}
 					}
 
+					const config = { minWidth: 1, minHeight: 1 };
+					addInputs(this, nodeData["input"]["required"], config);
+					addInputs(this, nodeData["input"]["optional"], config);
+					
 					for (const output of nodeData["output"]) {
 						this.addOutput(output, output);
 					}
