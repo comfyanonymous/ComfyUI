@@ -54,14 +54,22 @@ function convertToInput(node, widget, config) {
 	const { linkType } = getWidgetType(config);
 
 	// Add input and store widget config for creating on primitive node
+	const sz = node.size;
 	node.addInput(widget.name, linkType, {
 		widget: { name: widget.name, config },
 	});
+
+	// Restore original size but grow if needed
+	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
 }
 
 function convertToWidget(node, widget) {
 	showWidget(widget);
+	const sz = node.size;
 	node.removeInput(node.inputs.findIndex((i) => i.widget?.name === widget.name));
+
+	// Restore original size but grow if needed
+	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
 }
 
 function getWidgetType(config) {
