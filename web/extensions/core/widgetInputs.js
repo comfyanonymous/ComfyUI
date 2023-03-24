@@ -139,17 +139,41 @@ app.registerExtension({
 			return r;
 		};
 
+		function isNodeAtPos(pos) {
+			for (const n of app.graph._nodes) {
+				if (n.pos[0] === pos[0] && n.pos[1] === pos[1]) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		// Double click a widget input to automatically attach a primitive
 		const origOnInputDblClick = nodeType.prototype.onInputDblClick;
+		const ignoreDblClick = Symbol();
 		nodeType.prototype.onInputDblClick = function (slot) {
 			const r = origOnInputDblClick ? origOnInputDblClick.apply(this, arguments) : undefined;
 
-			if (this.inputs[slot].widget) {
+			const input = this.inputs[slot];
+			if (input.widget && !input[ignoreDblClick]) {
 				const node = LiteGraph.createNode("PrimitiveNode");
 				app.graph.add(node);
-				node.pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
+
+				// Calculate a position that wont directly overlap another node
+				const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
+				while (isNodeAtPos(pos)) {
+					pos[1] += LiteGraph.NODE_TITLE_HEIGHT;
+				}
+
+				node.pos = pos;
 				node.connect(0, this, slot);
-				node.title = this.inputs[slot].name;
+				node.title = input.name;
+
+				// Prevent adding duplicates due to triple clicking
+				input[ignoreDblClick] = true;
+				setTimeout(() => {
+					delete input[ignoreDblClick];
+				}, 300);
 			}
 
 			return r;
