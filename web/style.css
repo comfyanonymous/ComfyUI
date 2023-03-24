@@ -82,23 +82,35 @@ body {
 }
 
 .comfy-menu {
-	width: 200px;
 	font-size: 15px;
 	position: absolute;
 	top: 50%;
-	right: 0%;
-	background-color: white;
-	color: #000;
+	right: 0;
+	transform: translateY(-50%);
+	color: #ACACAC;
 	text-align: center;
 	z-index: 100;
 	width: 170px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
+	box-shadow: 0 0 40px rgba(0,0,0,0.5);
+	padding: 10px 15px 10px 10px;
+	border-top-left-radius: 10px;
+	border-bottom-left-radius: 10px;
+	background-color: #454545;
+	background: linear-gradient(90deg, rgba(120,120,120,0.25) 0%, rgba(120,120,120,0.25) 75%, rgba(34,34,34,0.25) 100%);
+	backdrop-filter: blur(30px);
+	border-left: 4px solid rgba(255,255,255,0.25);
+	border-top: 2px solid rgba(255,255,255,0.25);
+	border-bottom: 2px solid rgba(255,255,255, 0.1);
 }
 
 .comfy-menu button {
 	font-size: 20px;
+	margin: 4px;
+	background-color: #999999;
+	border-radius: 5px;
 }
 
 .comfy-menu-btns {
@@ -116,14 +128,15 @@ body {
 }
 
 .comfy-list {
-	background-color: rgb(225, 225, 225);
+	background-color: rgba(0,0,0,0.5);
 	margin-bottom: 10px;
+	border-radius: 5px;
 }
 
 .comfy-list-items {
 	overflow-y: scroll;
 	max-height: 100px;
-	background-color: #d0d0d0;
+	background-color: rgba(0,0,0,0.25);
 	padding: 5px;
 }
 
