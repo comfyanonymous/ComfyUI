@@ -88,19 +88,13 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
-### AMD GPUs (Linux only)
-AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
+Then, run the following command to install comfyui into your current environment:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
+```
+pip install -e .
+```
 
-This is the command to install the nightly with ROCm 5.6 that supports the 7000 series and might have some performance improvements:
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.6```
-
-### NVIDIA
-
-Nvidia users should install torch and xformers using this command:
-
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 xformers```
+This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux).
 
 #### Troubleshooting
 
@@ -109,14 +103,6 @@ If you get the "Torch not compiled with CUDA enabled" error, uninstall torch wit
 ```pip uninstall torch```
 
 And install it again with the command above.
-
-### Dependencies
-
-Install the dependencies by opening your terminal inside the ComfyUI folder and:
-
-```pip install -r requirements.txt```
-
-After this you should have everything installed and can proceed to running ComfyUI.
 
 ### Others:
 
