@@ -35,6 +35,47 @@ function $el(tag, propsOrChildren, children) {
 	return element;
 }
 
+function dragElement(dragEl) {
+	var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+	if (dragEl.getElementsByClassName('drag-handle')[0]) {
+		// if present, the handle is where you move the DIV from:
+		dragEl.getElementsByClassName('drag-handle')[0].onmousedown = dragMouseDown;
+	} else {
+		// otherwise, move the DIV from anywhere inside the DIV:
+		dragEl.onmousedown = dragMouseDown;
+	}
+
+	function dragMouseDown(e) {
+		e = e || window.event;
+		e.preventDefault();
+		// get the mouse cursor position at startup:
+		pos3 = e.clientX;
+		pos4 = e.clientY;
+		document.onmouseup = closeDragElement;
+		// call a function whenever the cursor moves:
+		document.onmousemove = elementDrag;
+	}
+
+	function elementDrag(e) {
+		e = e || window.event;
+		e.preventDefault();
+		// calculate the new cursor position:
+		pos1 = pos3 - e.clientX;
+		pos2 = pos4 - e.clientY;
+		pos3 = e.clientX;
+		pos4 = e.clientY;
+		// set the element's new position:
+		dragEl.style.top = (dragEl.offsetTop - pos2) + "px";
+		dragEl.style.left = (dragEl.offsetLeft - pos1) + "px";
+	}
+
+	function closeDragElement() {
+		// stop moving when mouse button is released:
+		document.onmouseup = null;
+		document.onmousemove = null;
+	}
+}
+
 class ComfyDialog {
 	constructor() {
 		this.element = $el("div.comfy-modal", { parent: document.body }, [
@@ -253,6 +294,7 @@ export class ComfyUI {
 
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
 			$el("div", { style: { overflow: "hidden", position: "relative", width: "100%" } }, [
+				$el("span.drag-handle"),
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
@@ -330,6 +372,8 @@ export class ComfyUI {
 			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
 			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
 		]);
+
+		dragElement(this.menuContainer);
 
 		this.setStatus({ exec_info: { queue_remaining: "X" } });
 	}
