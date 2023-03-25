@@ -915,11 +915,11 @@ class ImagePadForOutpaint:
         return {
             "required": {
                 "image": ("IMAGE",),
-                "left": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                "top": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                "right": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                "bottom": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                "feathering": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 1}),
+                "left": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "top": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "right": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "bottom": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "feathering": ("INT", {"default": 40, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
             }
         }
 
