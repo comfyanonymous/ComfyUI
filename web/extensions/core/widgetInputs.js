@@ -131,7 +131,11 @@ app.registerExtension({
 				for (const input of this.inputs) {
 					if (input.widget) {
 						const w = this.widgets.find((w) => w.name === input.widget.name);
-						hideWidget(this, w);
+						if (w) {
+							hideWidget(this, w);
+						} else {
+							convertToWidget(this, input)
+						}
 					}
 				}
 			}
