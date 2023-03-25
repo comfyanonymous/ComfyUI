@@ -5,17 +5,17 @@ import torch
 import torch as th
 import torch.nn as nn
 
-from ldm.modules.diffusionmodules.util import (
+from comfy.ldm.modules.diffusionmodules.util import (
     conv_nd,
     linear,
     zero_module,
     timestep_embedding,
 )
 
-from ldm.modules.attention import SpatialTransformer
-from ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample, AttentionBlock
-from ldm.models.diffusion.ddpm import LatentDiffusion
-from ldm.util import log_txt_as_img, exists, instantiate_from_config
+from comfy.ldm.modules.attention import SpatialTransformer
+from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample, AttentionBlock
+from comfy.ldm.models.diffusion.ddpm import LatentDiffusion
+from comfy.ldm.util import log_txt_as_img, exists, instantiate_from_config
 
 
 class ControlledUnetModel(UNetModel):

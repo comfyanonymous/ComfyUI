@@ -6,10 +6,10 @@ from torch import nn, einsum
 from einops import rearrange, repeat
 from typing import Optional, Any
 
-from ldm.modules.diffusionmodules.util import checkpoint
+from comfy.ldm.modules.diffusionmodules.util import checkpoint
 from .sub_quadratic_attention import efficient_dot_product_attention
 
-import model_management
+from comfy import model_management
 
 
 if model_management.xformers_enabled():

@@ -1,7 +1,7 @@
 import os
 from comfy_extras.chainner_models import model_loading
 from comfy.sd import load_torch_file
-import model_management
+from comfy import model_management
 import torch
 import comfy.utils
 import folder_paths

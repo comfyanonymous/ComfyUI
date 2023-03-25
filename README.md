@@ -59,17 +59,13 @@ Put your VAE in: models/vae
 
 At the time of writing this pytorch has issues with python versions higher than 3.10 so make sure your python/pip versions are 3.10.
 
-### AMD (Linux only)
-AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
+Then, run the following command to install comfyui into your current environment:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
+```
+pip install -e .
+```
 
-
-### NVIDIA
-
-Nvidia users should install torch and xformers using this command:
-
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 xformers```
+This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux).
 
 #### Troubleshooting
 
@@ -78,15 +74,6 @@ If you get the "Torch not compiled with CUDA enabled" error, uninstall torch wit
 ```pip uninstall torch```
 
 And install it again with the command above.
-
-### Dependencies
-
-Install the dependencies by opening your terminal inside the ComfyUI folder and:
-
-```pip install -r requirements.txt```
-
-After this you should have everything installed and can proceed to running ComfyUI.
-
 
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
@@ -101,7 +88,6 @@ With Powershell: ```"path_to_other_sd_gui\venv\Scripts\Activate.ps1"```
 With cmd.exe: ```"path_to_other_sd_gui\venv\Scripts\activate.bat"```
 
 And then you can use that terminal to run Comfyui without installing any dependencies. Note that the venv folder might be called something else depending on the SD UI.
-
 
 # Running
 
