@@ -199,6 +199,8 @@ class CheckpointLoader:
 
     CATEGORY = "loaders"
 
+    REFRESH_LIST = [("config_name", "configs"), ("ckpt_name", "checkpoints")]
+
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = folder_paths.get_full_path("configs", config_name)
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
@@ -213,6 +215,8 @@ class CheckpointLoaderSimple:
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "loaders"
+
+    REFRESH_LIST = [("ckpt_name", "checkpoints")]
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
@@ -249,6 +253,8 @@ class LoraLoader:
 
     CATEGORY = "loaders"
 
+    REFRESH_LIST = [("lora_name", "loras")]
+
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         lora_path = folder_paths.get_full_path("loras", lora_name)
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora_path, strength_model, strength_clip)
@@ -262,6 +268,8 @@ class VAELoader:
     FUNCTION = "load_vae"
 
     CATEGORY = "loaders"
+
+    REFRESH_LIST = [("vae_name", "vae")]
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
@@ -279,6 +287,8 @@ class ControlNetLoader:
 
     CATEGORY = "loaders"
 
+    REFRESH_LIST = [("control_net_name", "controlnet")]
+
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
         controlnet = comfy.sd.load_controlnet(controlnet_path)
@@ -294,6 +304,8 @@ class DiffControlNetLoader:
     FUNCTION = "load_controlnet"
 
     CATEGORY = "loaders"
+
+    REFRESH_LIST = [("control_net_name", "controlnet")]
 
     def load_controlnet(self, model, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
@@ -337,6 +349,8 @@ class CLIPLoader:
 
     CATEGORY = "loaders"
 
+    REFRESH_LIST = [("clip_name", "clip")]
+
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip", clip_name)
         clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=folder_paths.get_folder_paths("embeddings"))
@@ -351,6 +365,8 @@ class CLIPVisionLoader:
     FUNCTION = "load_clip"
 
     CATEGORY = "loaders"
+
+    REFRESH_LIST = [("clip_name", "clip_vision")]
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
@@ -381,6 +397,8 @@ class StyleModelLoader:
     FUNCTION = "load_style_model"
 
     CATEGORY = "loaders"
+
+    REFRESH_LIST = [("style_model_name", "style_models")]
 
     def load_style_model(self, style_model_name):
         style_model_path = folder_paths.get_full_path("style_models", style_model_name)
@@ -815,6 +833,9 @@ class LoadImage:
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
+
+    REFRESH_LIST = [("image", "input")]
+
     def load_image(self, image):
         image_path = os.path.join(self.input_dir, image)
         i = Image.open(image_path)

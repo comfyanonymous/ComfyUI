@@ -808,63 +808,18 @@ class ComfyApp {
 	 * Refresh file list on whole nodes
 	 */
 	async refreshNodes() {
+	    const defs = await api.getNodeDefs();
+
 		for(let nodeNum in this.graph._nodes) {
 			const node = this.graph._nodes[nodeNum];
-			
-			var data = [];
 
-			switch(node.type) {
-			case "CheckpointLoader":
-				data = { "config_name": "configs",
-						 "ckpt_name": "checkpoints" };
-				break;
-
-			case "CheckpointLoaderSimple":
-				data = { "ckpt_name": "checkpoints" };
-				break;
-
-			case "LoraLoader":
-				data = { "lora_name": "loras" };
-				break;
-		
-			case "VAELoader":
-				data = { "vae_name": "vae" };
-				break;
-
-			case "ControlNetLoader":
-			case "DiffControlNetLoader":
-				data = { "control_net_name": "controlnet" };
-				break;
-
-			case "CLIPLoader":
-				data = { "clip_name": "clip" };
-				break;
-
-			case "CLIPVisionLoader":
-				data = { "clip_name": "clip_vision" };
-				break;
-				
-			case "StyleModelLoader":
-				data = { "style_model_name": "style_models" };
-				break;
-			
-			case "LoadImage":
-				data = { "image": "input" };
-				break;
-
-			case "UpscaleModelLoader":
-				data = { "model_name": "upscale_models" };
-				break;
-				
-			default:
-				break;
-			}
-			
-			for (let i in data) {
-				const w = node.widgets.find((w) => w.name === i);
-				const filelist = await api.getFiles(data[i]);
-				w.options.values = filelist.files;
-				w.value = filelist.files[0];
+			const def = defs[node.type];
+			for(const i in def.refresh_list) {
+			    const item = def.refresh_list[i];
+			    const filelist = def.input["required"][item[0]];
+				const w = node.widgets.find((w) => w.name === item[0]);
+				w.options.values = filelist[0];
+				w.value = w.options.values[0];
 			}
 		}
 	}

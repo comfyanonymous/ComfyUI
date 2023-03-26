@@ -16,6 +16,8 @@ class UpscaleModelLoader:
 
     CATEGORY = "loaders"
 
+    REFRESH_LIST = [("model_name", "upscale_models")]
+
     def load_model(self, model_name):
         model_path = folder_paths.get_full_path("upscale_models", model_name)
         sd = load_torch_file(model_path)
