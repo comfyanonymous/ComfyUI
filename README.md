@@ -27,6 +27,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Starts up very fast.
 - Works fully offline: will never download anything.
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
+- [Prompt weighting](https://github.com/comfyanonymous/ComfyUI#prompts)
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
@@ -115,6 +116,8 @@ Only parts of the graph that have an output with all the correct inputs will be 
 Only parts of the graph that change from each execution to the next will be executed, if you submit the same graph twice only the first will be executed. If you change the last part of the graph only the part you changed and the part that depends on it will be executed.
 
 Dragging a generated png on the webpage or loading one will give you the full workflow including seeds that were used to create it.
+
+# Prompts
 
 You can use () to change emphasis of a word or phrase like: (good code:1.2) or (bad code:0.8). The default emphasis for () is 1.1. To use () characters in your actual prompt escape them like \\( or \\).
 
