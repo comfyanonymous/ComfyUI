@@ -4,6 +4,7 @@ NO_VRAM = 1
 LOW_VRAM = 2
 NORMAL_VRAM = 3
 HIGH_VRAM = 4
+MPS = 5
 
 accelerate_enabled = False
 vram_state = NORMAL_VRAM
@@ -76,10 +77,16 @@ if set_vram_to == LOW_VRAM or set_vram_to == NO_VRAM:
     total_vram_available_mb = (total_vram - 1024) // 2
     total_vram_available_mb = int(max(256, total_vram_available_mb))
 
+try:
+    if torch.backends.mps.is_available():
+        vram_state = MPS
+except:
+    pass
+
 if "--cpu" in sys.argv:
     vram_state = CPU
 
-print("Set vram state to:", ["CPU", "NO VRAM", "LOW VRAM", "NORMAL VRAM", "HIGH VRAM"][vram_state])
+print("Set vram state to:", ["CPU", "NO VRAM", "LOW VRAM", "NORMAL VRAM", "HIGH VRAM", "MPS"][vram_state])
 
 
 current_loaded_model = None
@@ -128,6 +135,10 @@ def load_model_gpu(model):
     current_loaded_model = model
     if vram_state == CPU:
         pass
+    elif vram_state == MPS:
+        mps_device = torch.device("mps")
+        real_model.to(mps_device)
+        pass
     elif vram_state == NORMAL_VRAM or vram_state == HIGH_VRAM:
         model_accelerated = False
         real_model.cuda()
@@ -155,9 +166,10 @@ def load_controlnet_gpu(models):
         if m not in models:
             m.cpu()
 
+    device = get_torch_device()
     current_gpu_controlnets = []
     for m in models:
-        current_gpu_controlnets.append(m.cuda())
+        current_gpu_controlnets.append(m.to(device))
 
 
 def load_if_low_vram(model):
@@ -173,6 +185,8 @@ def unload_if_low_vram(model):
     return model
 
 def get_torch_device():
+    if vram_state == MPS:
+        return torch.device("mps")
     if vram_state == CPU:
         return torch.device("cpu")
     else:
@@ -195,7 +209,7 @@ def get_free_memory(dev=None, torch_free_too=False):
     if dev is None:
         dev = get_torch_device()
 
-    if hasattr(dev, 'type') and dev.type == 'cpu':
+    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
         mem_free_total = psutil.virtual_memory().available
         mem_free_torch = mem_free_total
     else:
@@ -224,8 +238,12 @@ def cpu_mode():
     global vram_state
     return vram_state == CPU
 
+def mps_mode():
+    global vram_state
+    return vram_state == MPS
+
 def should_use_fp16():
-    if cpu_mode():
+    if cpu_mode() or mps_mode():
         return False #TODO ?
 
     if torch.cuda.is_bf16_supported():
