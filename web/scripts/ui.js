@@ -36,7 +36,12 @@ function $el(tag, propsOrChildren, children) {
 }
 
 function dragElement(dragEl) {
-	var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+	var posDiffX = 0,
+		posDiffY = 0,
+		posStartX = 0,
+		posStartY = 0,
+		newPosX = 0,
+		newPosY = 0;
 	if (dragEl.getElementsByClassName('drag-handle')[0]) {
 		// if present, the handle is where you move the DIV from:
 		dragEl.getElementsByClassName('drag-handle')[0].onmousedown = dragMouseDown;
@@ -49,8 +54,8 @@ function dragElement(dragEl) {
 		e = e || window.event;
 		e.preventDefault();
 		// get the mouse cursor position at startup:
-		pos3 = e.clientX;
-		pos4 = e.clientY;
+		posStartX = e.clientX;
+		posStartY = e.clientY;
 		document.onmouseup = closeDragElement;
 		// call a function whenever the cursor moves:
 		document.onmousemove = elementDrag;
@@ -60,13 +65,15 @@ function dragElement(dragEl) {
 		e = e || window.event;
 		e.preventDefault();
 		// calculate the new cursor position:
-		pos1 = pos3 - e.clientX;
-		pos2 = pos4 - e.clientY;
-		pos3 = e.clientX;
-		pos4 = e.clientY;
+		posDiffX = e.clientX - posStartX;
+		posDiffY = e.clientY - posStartY;
+		posStartX = e.clientX;
+		posStartY = e.clientY;
+		newPosX = Math.min((document.body.clientWidth - dragEl.clientWidth), Math.max(0, (dragEl.offsetLeft + posDiffX)));
+		newPosY = Math.min((document.body.clientHeight - dragEl.clientHeight), Math.max(0, (dragEl.offsetTop + posDiffY)));
 		// set the element's new position:
-		dragEl.style.top = (dragEl.offsetTop - pos2) + "px";
-		dragEl.style.left = (dragEl.offsetLeft - pos1) + "px";
+		dragEl.style.top = newPosY + "px";
+		dragEl.style.left = newPosX + "px";
 	}
 
 	function closeDragElement() {
