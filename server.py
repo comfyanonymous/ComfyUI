@@ -138,22 +138,6 @@ class PromptServer():
                 
             return web.Response(status=404)
 
-        @routes.post("/delete")
-        async def delete(request):
-            current_dir = os.path.abspath(os.getcwd())
-            output_dir = os.path.join(current_dir, "output")
-            if not os.path.exists(output_dir):
-                return web.json_response({"message": "Output directory does not exist."}, status=404)
-            try:
-                for file_name in os.listdir(output_dir):
-                    file_path = os.path.join(output_dir, file_name)
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                return web.json_response({"message": "All content deleted from Output folder."}, status=200)
-
-            except Exception as e:
-                return web.json_response({"message": f"An error occurred: {str(e)}"}, status=500)
-
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
