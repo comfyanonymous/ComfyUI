@@ -491,17 +491,17 @@ class ComfyApp {
 	 */
 	setupSlotColors() {
 		let colors = {
-			"CLIP": "#556B2F", // Olive green
-			"CLIP_VISION": "#4B0082", // Dark purple
-			"CLIP_VISION_OUTPUT": "#006400", // Dark green
-			"CONDITIONING": "#FF1493", // Deep pink
-			"CONTROL_NET": "#8B4513", // Dark brown
-			"IMAGE": "#8B0000", // Dark red
-			"LATENT": "#00008B", // Dark blue
-			"MASK": "#2F4F4F", // Dark gray
-			"MODEL": "#FF8C00", // Dark orange
-			"STYLE_MODEL": "#004A4A", // Dark teal
-			"VAE": "#4F394F", // Dark plum
+			"CLIP": "#FFD500", // bright yellow
+			"CLIP_VISION": "#A8DADC", // light blue-gray
+			"CLIP_VISION_OUTPUT": "#ad7452", // rusty brown-orange
+			"CONDITIONING": "#FFA931", // vibrant orange-yellow
+			"CONTROL_NET": "#6EE7B7", // soft mint green
+			"IMAGE": "#64B5F6", // bright sky blue
+			"LATENT": "#FF9CF9", // light pink-purple
+			"MASK": "#81C784", // muted green
+			"MODEL": "#B39DDB", // light lavender-purple
+			"STYLE_MODEL": "#C2FFAE", // light green-yellow
+			"VAE": "#FF6E6E", // bright red
 		};
 
 		Object.assign(this.canvas.default_connection_color_byType, colors);
