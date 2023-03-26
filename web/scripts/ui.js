@@ -54,8 +54,6 @@ function dragElement(dragEl, settings) {
 		newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft));
 		newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop));
 
-		console.log(newPosX, newPosY)
-
 		positionElement();
 	}
 
