@@ -127,7 +127,7 @@ class PromptServer():
                 output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
                 if "subfolder" in request.rel_url.query:
                     full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                    if os.path.commonpath((os.path.realpath(full_output_dir), output_dir)) != output_dir:
+                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
