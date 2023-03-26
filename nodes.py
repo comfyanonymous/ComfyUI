@@ -746,6 +746,13 @@ class SaveImage:
             except:
                 digits = 0
             return (digits, prefix)
+        
+        def compute_vars(input):
+            input = input.replace("%width%", str(images[0].shape[1]))
+            input = input.replace("%height%", str(images[0].shape[0]))
+            return input
+        
+        filename_prefix = compute_vars(filename_prefix)
 
         subfolder = os.path.dirname(os.path.normpath(filename_prefix))
         filename = os.path.basename(os.path.normpath(filename_prefix))
