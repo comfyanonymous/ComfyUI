@@ -726,7 +726,7 @@ class SaveImage:
     def INPUT_TYPES(s):
         return {"required": 
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"}) },
+                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -809,7 +809,9 @@ class LoadImage:
     def INPUT_TYPES(s):
         if not os.path.exists(s.input_dir):
             os.makedirs(s.input_dir)
-        return {"required": {"image": (sorted(os.listdir(s.input_dir)), ) }}
+        return {"required":
+                    {"image": (sorted(os.listdir(s.input_dir)), )},
+                }
 
     WIDGET_TYPES = {"recv img": (["disable", "enable"], )}
 
@@ -844,7 +846,8 @@ class LoadImageMask:
     def INPUT_TYPES(s):
         return {"required":
                     {"image": (sorted(os.listdir(s.input_dir)), ),
-                    "channel": (["alpha", "red", "green", "blue"], ),}}
+                    "channel": (["alpha", "red", "green", "blue"], ),}
+                }
 
     WIDGET_TYPES = { "recv img": (["disable", "enable"], ) }
 
