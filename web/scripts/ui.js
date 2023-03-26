@@ -329,7 +329,6 @@ export class ComfyUI {
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
 			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
-			$el("button", { textContent: "Delete Images", onclick: () => api.deleteAllImages() }),
 		]);
 
 		this.setStatus({ exec_info: { queue_remaining: "X" } });
