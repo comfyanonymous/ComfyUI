@@ -30,6 +30,13 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
+## Shortcuts
+- **Ctrl + C** copy selected nodes
+- **Ctrl + V** paste copied nodes
+- **Ctrl + A** select all nodes
+- **Ctrl + M** mute/unmute selected nodes
+- **Delete** or **Backspace** delete selected nodes
+
 # Installing
 
 ## Windows
