@@ -29,6 +29,8 @@ async def cache_control(request: web.Request, handler):
 
 class PromptServer():
     def __init__(self, loop):
+        PromptServer.instance = self
+        
         mimetypes.init(); 
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
         self.prompt_queue = None
