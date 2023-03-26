@@ -125,15 +125,6 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
-	 * Loads file list
-	 * @returns An array of file list
-	 */
-	async getFiles(kind) {
-		const resp = await fetch("/getfiles/"+kind, { cache: "no-store" });
-		return await resp.json();
-	}
-
-	/**
 	 *
 	 * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
 	 * @param {object} prompt The prompt data to queue
