@@ -111,6 +111,31 @@ body {
 	width: 50%;
 }
 
+.comfy-menu span.drag-handle {
+	width: 10px;
+	height: 20px;
+	display: inline-block;
+	overflow: hidden;
+	line-height: 5px;
+	padding: 3px 4px;
+	cursor: move;
+	vertical-align: middle;
+	margin-top: -.4em;
+	margin-left: -.2em;
+	font-size: 12px;
+	font-family: sans-serif;
+	letter-spacing: 2px;
+	color: #cccccc;
+	text-shadow: 1px 0 1px black;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+.comfy-menu span.drag-handle::after {
+	content: '.. .. ..';
+}
+
 .comfy-queue-btn {
 	width: 100%;
 }
