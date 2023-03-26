@@ -16,7 +16,7 @@ class UpscaleModelLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("model_name", "upscale_models")]
+    REFRESH_LIST = ["model_name"]
 
     def load_model(self, model_name):
         model_path = folder_paths.get_full_path("upscale_models", model_name)

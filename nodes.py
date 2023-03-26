@@ -199,7 +199,7 @@ class CheckpointLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("config_name", "configs"), ("ckpt_name", "checkpoints")]
+    REFRESH_LIST = ["config_name", "ckpt_name"]
 
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = folder_paths.get_full_path("configs", config_name)
@@ -216,7 +216,7 @@ class CheckpointLoaderSimple:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("ckpt_name", "checkpoints")]
+    REFRESH_LIST = ["ckpt_name"]
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
@@ -253,7 +253,7 @@ class LoraLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("lora_name", "loras")]
+    REFRESH_LIST = ["lora_name"]
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         lora_path = folder_paths.get_full_path("loras", lora_name)
@@ -269,7 +269,7 @@ class VAELoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("vae_name", "vae")]
+    REFRESH_LIST = ["vae_name"]
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
@@ -287,7 +287,7 @@ class ControlNetLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("control_net_name", "controlnet")]
+    REFRESH_LIST = ["control_net_name"]
 
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
@@ -305,7 +305,7 @@ class DiffControlNetLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("control_net_name", "controlnet")]
+    REFRESH_LIST = ["control_net_name"]
 
     def load_controlnet(self, model, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
@@ -349,7 +349,7 @@ class CLIPLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("clip_name", "clip")]
+    REFRESH_LIST = ["clip_name"]
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip", clip_name)
@@ -366,7 +366,7 @@ class CLIPVisionLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("clip_name", "clip_vision")]
+    REFRESH_LIST = ["clip_name"]
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
@@ -398,7 +398,7 @@ class StyleModelLoader:
 
     CATEGORY = "loaders"
 
-    REFRESH_LIST = [("style_model_name", "style_models")]
+    REFRESH_LIST = ["style_model_name"]
 
     def load_style_model(self, style_model_name):
         style_model_path = folder_paths.get_full_path("style_models", style_model_name)
@@ -834,7 +834,7 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
 
-    REFRESH_LIST = [("image", "input")]
+    REFRESH_LIST = ["image"]
 
     def load_image(self, image):
         image_path = os.path.join(self.input_dir, image)

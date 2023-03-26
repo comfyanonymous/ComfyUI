@@ -816,8 +816,8 @@ class ComfyApp {
 			const def = defs[node.type];
 			for(const i in def.refresh_list) {
 			    const item = def.refresh_list[i];
-			    const filelist = def.input["required"][item[0]];
-				const w = node.widgets.find((w) => w.name === item[0]);
+			    const filelist = def.input["required"][item];
+				const w = node.widgets.find((w) => w.name === item);
 				w.options.values = filelist[0];
 				w.value = w.options.values[0];
 			}
