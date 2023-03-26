@@ -101,6 +101,7 @@ function dragElement(dragEl, settings) {
 			dragEl.style.right = pos.right;
 			dragEl.style.top = pos.top;
 			dragEl.style.bottom = pos.bottom;
+			dragEl.classList.add("comfy-menu-manual-pos");
 			ensureInBounds();
 		}
 	}
