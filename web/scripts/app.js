@@ -808,15 +808,20 @@ class ComfyApp {
 	 * Refresh file list on whole nodes
 	 */
 	async refreshNodes() {
-	    const defs = await api.getNodeDefs();
+		const defs = await api.getNodeDefs();
 
 		for(let nodeNum in this.graph._nodes) {
 			const node = this.graph._nodes[nodeNum];
 
 			const def = defs[node.type];
+
+			if(def.refresh_list == undefined) {
+				continue;
+			}
+
 			for(const i in def.refresh_list) {
-			    const item = def.refresh_list[i];
-			    const filelist = def.input["required"][item];
+				const item = def.refresh_list[i];
+				const filelist = def.input["required"][item];
 				const w = node.widgets.find((w) => w.name === item);
 				w.options.values = filelist[0];
 				w.value = w.options.values[0];
