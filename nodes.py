@@ -193,8 +193,7 @@ class CheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
-                              "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ) },
-               }
+                              "ckpt_name": (folder_paths.get_filename_list("checkpoints"), )}}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -208,8 +207,8 @@ class CheckpointLoader:
 class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ) },
-               }
+        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                             }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -242,9 +241,9 @@ class LoraLoader:
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
                               "lora_name": (folder_paths.get_filename_list("loras"), ),
-                              "strength_model": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}) },
-               }
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                              }}
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
 
@@ -258,8 +257,7 @@ class LoraLoader:
 class VAELoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), ) },
-               }
+        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), )}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -274,8 +272,7 @@ class VAELoader:
 class ControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), )},
-               }
+        return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), )}}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -291,8 +288,7 @@ class DiffControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "control_net_name": (folder_paths.get_filename_list("controlnet"), )},
-               }
+                              "control_net_name": (folder_paths.get_filename_list("controlnet"), )}}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -334,9 +330,8 @@ class ControlNetApply:
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),},
-               }
-    
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
+                             }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
@@ -350,9 +345,8 @@ class CLIPLoader:
 class CLIPVisionLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), )},
-               }
-    
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
+                             }}
     RETURN_TYPES = ("CLIP_VISION",)
     FUNCTION = "load_clip"
 
@@ -381,8 +375,7 @@ class CLIPVisionEncode:
 class StyleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), )},
-               }
+        return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), )}}
 
     RETURN_TYPES = ("STYLE_MODEL",)
     FUNCTION = "load_style_model"
@@ -814,8 +807,9 @@ class LoadImage:
     def INPUT_TYPES(s):
         if not os.path.exists(s.input_dir):
             os.makedirs(s.input_dir)
-        return {"required": {"image": (sorted(os.listdir(s.input_dir)), )},
-               }
+        return {"required":
+                    {"image": (sorted(os.listdir(s.input_dir)), )},
+                }
 
     CATEGORY = "image"
 
