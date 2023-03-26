@@ -163,6 +163,8 @@ class PromptServer():
                 info = {}
                 info['input'] = obj_class.INPUT_TYPES()
                 info['output'] = obj_class.RETURN_TYPES
+                if hasattr(obj_class, 'WIDGET_TYPES'):
+                    info['widget'] = obj_class.WIDGET_TYPES
                 info['name'] = x #TODO
                 info['description'] = ''
                 info['category'] = 'sd'
