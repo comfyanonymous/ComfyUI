@@ -487,6 +487,27 @@ class ComfyApp {
 	}
 
 	/**
+	 * Setup slot colors for types
+	 */
+	setupSlotColors() {
+		let colors = {
+			"CLIP": "#FFD500", // bright yellow
+			"CLIP_VISION": "#A8DADC", // light blue-gray
+			"CLIP_VISION_OUTPUT": "#ad7452", // rusty brown-orange
+			"CONDITIONING": "#FFA931", // vibrant orange-yellow
+			"CONTROL_NET": "#6EE7B7", // soft mint green
+			"IMAGE": "#64B5F6", // bright sky blue
+			"LATENT": "#FF9CF9", // light pink-purple
+			"MASK": "#81C784", // muted green
+			"MODEL": "#B39DDB", // light lavender-purple
+			"STYLE_MODEL": "#C2FFAE", // light green-yellow
+			"VAE": "#FF6E6E", // bright red
+		};
+
+		Object.assign(this.canvas.default_connection_color_byType, colors);
+	}
+
+	/**
 	 * Set up the app on the page
 	 */
 	async setup() {
@@ -494,12 +515,14 @@ class ComfyApp {
 
 		// Create and mount the LiteGraph in the DOM
 		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
-		canvasEl.tabIndex = "1"
+		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
 		this.graph = new LGraph();
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
+
+		this.setupSlotColors();
 
 		this.graph.start();
 
@@ -525,7 +548,9 @@ class ComfyApp {
 				this.loadGraphData(workflow);
 				restored = true;
 			}
-		} catch (err) {}
+		} catch (err) {
+			console.error("Error loading previous workflow", err);
+		}
 
 		// We failed to restore a workflow so load the default
 		if (!restored) {
@@ -572,12 +597,8 @@ class ComfyApp {
 						const type = inputData[0];
 
 						if (Array.isArray(type)) {
-							// Enums e.g. latent rotation
-							let defaultValue = type[0];
-							if (inputData[1] && inputData[1].default) {
-								defaultValue = inputData[1].default;
-							}
-							this.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
+							// Enums
+							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
 						} else if (`${type}:${inputName}` in widgets) {
 							// Support custom widgets by Type:Name
 							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
@@ -667,11 +688,15 @@ class ComfyApp {
 	async graphToPrompt() {
 		const workflow = this.graph.serialize();
 		const output = {};
-		for (const n of workflow.nodes) {
-			const node = this.graph.getNodeById(n.id);
+		// Process nodes in order of execution
+		for (const node of this.graph.computeExecutionOrder(false)) {
+			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
-				// Don't serialize frontend only nodes
+				// Don't serialize frontend only nodes but let them make changes
+				if (node.applyToGraph) {
+					node.applyToGraph(workflow);
+				}
 				continue;
 			}
 
@@ -695,7 +720,11 @@ class ComfyApp {
 					let link = node.getInputLink(i);
 					while (parent && parent.isVirtualNode) {
 						link = parent.getInputLink(link.origin_slot);
-						parent = parent.getInputNode(link.origin_slot);
+						if (link) {
+							parent = parent.getInputNode(link.origin_slot);
+						} else {
+							parent = null;
+						}
 					}
 
 					if (link) {

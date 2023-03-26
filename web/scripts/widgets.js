@@ -13,9 +13,8 @@ function getNumberDefaults(inputData, defaultStep) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
 }
 
-function seedWidget(node, inputName, inputData) {
-	const seed = ComfyWidgets.INT(node, inputName, inputData);
-	const randomize = node.addWidget("toggle", "Random seed after every gen", true, function (v) {}, {
+export function addRandomizeWidget(node, targetWidget, name, defaultValue = false) {
+	const randomize = node.addWidget("toggle", name, defaultValue, function (v) {}, {
 		on: "enabled",
 		off: "disabled",
 		serialize: false, // Don't include this in prompt.
@@ -23,10 +22,27 @@ function seedWidget(node, inputName, inputData) {
 
 	randomize.afterQueued = () => {
 		if (randomize.value) {
-			seed.widget.value = Math.floor(Math.random() * 1125899906842624);
+			const min = targetWidget.options?.min;
+			let max = targetWidget.options?.max;
+			if (min != null || max != null) {
+				if (max) {
+					// limit max to something that javascript can handle
+					max = Math.min(1125899906842624, max);
+				}
+				targetWidget.value = Math.floor(Math.random() * ((max ?? 9999999999) - (min ?? 0) + 1) + (min ?? 0));
+			} else {
+				targetWidget.value = Math.floor(Math.random() * 1125899906842624);
+			}
 		}
 	};
+	return randomize;
+}
 
+function seedWidget(node, inputName, inputData) {
+	const seed = ComfyWidgets.INT(node, inputName, inputData);
+	const randomize = addRandomizeWidget(node, seed.widget, "Random seed after every gen", true);
+
+	seed.widget.linkedWidgets = [randomize];
 	return { widget: seed, randomize };
 }
 
@@ -51,7 +67,7 @@ function imagesendWidget(node, inputName, inputData, app) {
 
 		const image_name = node.images[0].filename;
 		const copied = false;
-		
+
 		for(let i in app.graph._nodes) {
 			var n = app.graph._nodes[i];
 			if(n.type == "LoadImage" || n.type == "LoadImageMask") {
@@ -60,7 +76,7 @@ function imagesendWidget(node, inputName, inputData, app) {
 
 				if(recvWidget.value == "enable") {
 					// copy current node image to 'recv img' enabled node
-					
+
 					if(!copied) {
 						await api.sendOutputToInputImage(image_name);
 					}
@@ -78,6 +94,7 @@ function imagesendWidget(node, inputName, inputData, app) {
 
 
 const MultilineSymbol = Symbol();
+const MultilineResizeSymbol = Symbol();
 
 function addMultilineWidget(node, name, opts, app) {
 	const MIN_SIZE = 50;
@@ -145,7 +162,7 @@ function addMultilineWidget(node, name, opts, app) {
 				// Calculate it here instead
 				computeSize(node.size);
 			}
-			const visible = app.canvas.ds.scale > 0.5;
+			const visible = app.canvas.ds.scale > 0.5 && this.type === "customtext";
 			const t = ctx.getTransform();
 			const margin = 10;
 			Object.assign(this.inputEl.style, {
@@ -199,9 +216,22 @@ function addMultilineWidget(node, name, opts, app) {
 		}
 	};
 
-	if (!(MultilineSymbol in node)) {
-		node[MultilineSymbol] = true;
-		const onResize = node.onResize;
+	widget.onRemove = () => {
+		widget.inputEl?.remove();
+
+		// Restore original size handler if we are the last
+		if (!--node[MultilineSymbol]) {
+			node.onResize = node[MultilineResizeSymbol];
+			delete node[MultilineSymbol];
+			delete node[MultilineResizeSymbol];
+		}
+	};
+
+	if (node[MultilineSymbol]) {
+		node[MultilineSymbol]++;
+	} else {
+		node[MultilineSymbol] = 1;
+		const onResize = (node[MultilineResizeSymbol] = node.onResize);
 
 		node.onResize = function (size) {
 			computeSize(size);
@@ -248,6 +278,14 @@ export const ComfyWidgets = {
 		} else {
 			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
+	},
+	COMBO(node, inputName, inputData) {
+		const type = inputData[0];
+		let defaultValue = type[0];
+		if (inputData[1] && inputData[1].default) {
+			defaultValue = inputData[1].default;
+		}
+		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
 	},
 	IMAGESEND:imagesendWidget,
 	IMAGEUPLOAD(node, inputName, inputData, app) {
