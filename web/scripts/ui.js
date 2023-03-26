@@ -375,8 +375,8 @@ export class ComfyUI {
 					}, 0);
 				},
 			}),
-			$el("button", { textContent: "Refresh", onclick: () => app.refreshNodes() }),
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
+			$el("button", { textContent: "Refresh", onclick: () => app.refreshNodes() }),
 			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
 			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
 		]);
