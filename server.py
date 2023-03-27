@@ -91,14 +91,14 @@ class PromptServer():
         @routes.get("/image/output_to_input/{name}")
         async def copy_output_to_input_image(request):
             name  = request.match_info["name"]
-            
+
             src_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", name)
             dest_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input", name)
 
             copyfile(src_dir,dest_dir)
 
             return web.Response(status=200)
-            
+
         @routes.post("/upload/image")
         async def upload_image(request):
             upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
@@ -165,6 +165,7 @@ class PromptServer():
                 info = {}
                 info['input'] = obj_class.INPUT_TYPES()
                 info['output'] = obj_class.RETURN_TYPES
+                info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
                 if hasattr(obj_class, 'WIDGET_TYPES'):
                     info['widget'] = obj_class.WIDGET_TYPES
                 info['name'] = x #TODO
