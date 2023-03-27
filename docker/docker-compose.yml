@@ -1,4 +1,5 @@
 version: "3.9"
+name: "comfyui"
 
 
 x-base_service: &base_service
