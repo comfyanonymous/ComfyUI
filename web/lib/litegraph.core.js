@@ -108,7 +108,7 @@
 		node_box_coloured_when_on: false, // [true!] this make the nodes box (top left circle) coloured when triggered (execute/action), visual feedback
         node_box_coloured_by_mode: false, // [true!] nodebox based on node mode, visual feedback
         
-        dialog_close_on_mouse_leave: true, // [false on mobile] better true if not touch device, TODO add an helper/listener to close if false
+        dialog_close_on_mouse_leave: false, // [false on mobile] better true if not touch device, TODO add an helper/listener to close if false
         dialog_close_on_mouse_leave_delay: 500,
         
         shift_click_do_break_link_from: false, // [false!] prefer false if results too easy to break links - implement with ALT or TODO custom keys
@@ -138,7 +138,7 @@
 		
 		release_link_on_empty_shows_menu: false, //[true!] dragging a link to empty space will open a menu, add from list, search or defaults
 		
-        pointerevents_method: "mouse", // "mouse"|"pointer" use mouse for retrocompatibility issues? (none found @ now)
+        pointerevents_method: "pointer", // "mouse"|"pointer" use mouse for retrocompatibility issues? (none found @ now)
         // TODO implement pointercancel, gotpointercapture, lostpointercapture, (pointerover, pointerout if necessary)
 
         /**
@@ -5801,7 +5801,7 @@ LGraphNode.prototype.executeAction = function(action)
         var skip_action = false;
         var now = LiteGraph.getTime();
 		var is_primary = (e.isPrimary === undefined || !e.isPrimary);
-        var is_double_click = (now - this.last_mouseclick < 300) && is_primary;
+        var is_double_click = (now - this.last_mouseclick < 300);
 		this.mouse[0] = e.clientX;
 		this.mouse[1] = e.clientY;
         this.graph_mouse[0] = e.canvasX;

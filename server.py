@@ -29,6 +29,8 @@ async def cache_control(request: web.Request, handler):
 
 class PromptServer():
     def __init__(self, loop):
+        PromptServer.instance = self
+
         mimetypes.init(); 
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
         self.prompt_queue = None
@@ -125,7 +127,7 @@ class PromptServer():
                 output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
                 if "subfolder" in request.rel_url.query:
                     full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                    if os.path.commonpath((os.path.realpath(full_output_dir), output_dir)) != output_dir:
+                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
