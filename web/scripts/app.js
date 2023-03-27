@@ -372,6 +372,96 @@ class ComfyApp {
 	}
 
 	/**
+	 * Handle mouse
+	 *
+	 * Move group by header
+	 */
+	#addProcessMouseHandler() {
+		const self = this;
+
+		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
+		LGraphCanvas.prototype.processMouseDown = function(e) {
+			const res = origProcessMouseDown.apply(this, arguments);
+
+			this.selected_group_moving = false;
+
+			if (this.selected_group && !this.selected_group_resizing) {
+				var font_size =
+					this.selected_group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
+				var height = font_size * 1.4;
+
+				// Move group by header
+				if (LiteGraph.isInsideRectangle(e.canvasX, e.canvasY, this.selected_group.pos[0], this.selected_group.pos[1], this.selected_group.size[0], height)) {
+					this.selected_group_moving = true;
+				}
+			}
+
+			return res;
+		}
+
+		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
+		LGraphCanvas.prototype.processMouseMove = function(e) {
+			const orig_selected_group = this.selected_group;
+
+			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
+				this.selected_group = null;
+			}
+
+			const res = origProcessMouseMove.apply(this, arguments);
+
+			if (orig_selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
+				this.selected_group = orig_selected_group;
+			}
+
+			return res;
+		};
+	}
+
+	/**
+	 * Draws group header bar
+	 */
+	#addDrawGroupsHandler() {
+		const self = this;
+
+		const origDrawGroups = LGraphCanvas.prototype.drawGroups;
+		LGraphCanvas.prototype.drawGroups = function(canvas, ctx) {
+			if (!this.graph) {
+				return;
+			}
+
+			var groups = this.graph._groups;
+
+			ctx.save();
+			ctx.globalAlpha = 0.7 * this.editor_alpha;
+
+			for (var i = 0; i < groups.length; ++i) {
+				var group = groups[i];
+
+				if (!LiteGraph.overlapBounding(this.visible_area, group._bounding)) {
+					continue;
+				} //out of the visible area
+
+				ctx.fillStyle = group.color || "#335";
+				ctx.strokeStyle = group.color || "#335";
+				var pos = group._pos;
+				var size = group._size;
+				ctx.globalAlpha = 0.25 * this.editor_alpha;
+				ctx.beginPath();
+				var font_size =
+					group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
+				ctx.rect(pos[0] + 0.5, pos[1] + 0.5, size[0], font_size * 1.4);
+				ctx.fill();
+				ctx.globalAlpha = this.editor_alpha;
+			}
+
+			ctx.restore();
+
+			const res = origDrawGroups.apply(this, arguments);
+			return res;
+		}
+	}
+
+	/**
 	 * Draws node highlights (executing, drag drop) and progress bar
 	 */
 	#addDrawNodeHandler() {
@@ -518,6 +608,8 @@ class ComfyApp {
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
+		this.#addProcessMouseHandler();
+
 		this.graph = new LGraph();
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
@@ -561,6 +653,7 @@ class ComfyApp {
 		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
 
 		this.#addDrawNodeHandler();
+		this.#addDrawGroupsHandler();
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
@@ -590,7 +683,10 @@ class ComfyApp {
 			const nodeData = defs[nodeId];
 			const node = Object.assign(
 				function ComfyNode() {
-					const inputs = nodeData["input"]["required"];
+					var inputs = nodeData["input"]["required"];
+					if (nodeData["input"]["optional"] != undefined){
+					    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
+					}
 					const config = { minWidth: 1, minHeight: 1 };
 					for (const inputName in inputs) {
 						const inputData = inputs[inputName];
@@ -611,8 +707,10 @@ class ComfyApp {
 						}
 					}
 
-					for (const output of nodeData["output"]) {
-						this.addOutput(output, output);
+					for (const o in nodeData["output"]) {
+						const output = nodeData["output"][o];
+						const outputName = nodeData["output_name"][o] || output;
+						this.addOutput(outputName, output);
 					}
 
 					const s = this.computeSize();
@@ -802,6 +900,31 @@ class ComfyApp {
 			throw new Error(`Extension named '${extension.name}' already registered.`);
 		}
 		this.extensions.push(extension);
+	}
+
+	/**
+	 * Refresh combo list on whole nodes
+	 */
+	async refreshComboInNodes() {
+		const defs = await api.getNodeDefs();
+
+		for(let nodeNum in this.graph._nodes) {
+			const node = this.graph._nodes[nodeNum];
+
+			const def = defs[node.type];
+
+			for(const widgetNum in node.widgets) {
+				const widget = node.widgets[widgetNum]
+
+				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
+					widget.options.values = def["input"]["required"][widget.name][0];
+
+					if(!widget.options.values.includes(widget.value)) {
+						widget.value = widget.options.values[0];
+					}
+				}
+			}
+		}
 	}
 }
 
