@@ -17,7 +17,7 @@ export function addRandomizeWidget(node, targetWidget, name, defaultValue = fals
 		serialize: false, // Don't include this in prompt.
 	});
 
-	randomize.afterQueued = () => {
+	randomize.beforeQueued = () => {
 		if (randomize.value) {
 			const min = targetWidget.options?.min;
 			let max = targetWidget.options?.max;
@@ -32,12 +32,13 @@ export function addRandomizeWidget(node, targetWidget, name, defaultValue = fals
 			}
 		}
 	};
+
 	return randomize;
 }
 
 function seedWidget(node, inputName, inputData) {
 	const seed = ComfyWidgets.INT(node, inputName, inputData);
-	const randomize = addRandomizeWidget(node, seed.widget, "Random seed after every gen", true);
+	const randomize = addRandomizeWidget(node, seed.widget, "Random seed every gen", true);
 
 	seed.widget.linkedWidgets = [randomize];
 	return { widget: seed, randomize };

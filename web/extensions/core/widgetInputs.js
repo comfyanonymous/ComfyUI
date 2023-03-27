@@ -285,7 +285,7 @@ app.registerExtension({
 				}
 
 				if (widget.type === "number") {
-					addRandomizeWidget(this, widget, "Random after every gen");
+					addRandomizeWidget(this, widget, "Random every gen");
 				}
 
 				// When our value changes, update other widgets to reflect our changes

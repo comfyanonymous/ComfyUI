@@ -842,6 +842,22 @@ class ComfyApp {
 
 	async queuePrompt(number, batchCount = 1) {
 		for (let i = 0; i < batchCount; i++) {
+
+			const workflow = this.graph.serialize();
+
+			for (const n of workflow.nodes) {
+				const node = graph.getNodeById(n.id);
+				if (node.widgets) {
+					for (const widget of node.widgets) {
+						// Allow widgets to run callbacks after a prompt has been queued
+						// e.g. random seed after every gen
+						if (widget.beforeQueued) {
+							widget.beforeQueued();
+						}
+					}
+				}
+			}
+
 			const p = await this.graphToPrompt();
 
 			try {
@@ -849,19 +865,6 @@ class ComfyApp {
 			} catch (error) {
 				this.ui.dialog.show(error.response || error.toString());
 				return;
-			}
-
-			for (const n of p.workflow.nodes) {
-				const node = graph.getNodeById(n.id);
-				if (node.widgets) {
-					for (const widget of node.widgets) {
-						// Allow widgets to run callbacks after a prompt has been queued
-						// e.g. random seed after every gen
-						if (widget.afterQueued) {
-							widget.afterQueued();
-						}
-					}
-				}
 			}
 
 			this.canvas.draw(true, true);
