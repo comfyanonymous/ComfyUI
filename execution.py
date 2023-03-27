@@ -281,7 +281,7 @@ def validate_prompt(prompt):
             errors += [(o, reason)]
 
     if len(good_outputs) == 0:
-        errors_list = "\n".join(map(lambda a: "{}".format(a[1]), errors))
+        errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
         return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
 
     return (True, "")
