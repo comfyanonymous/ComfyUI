@@ -158,8 +158,6 @@ class PromptServer():
                 info['category'] = 'sd'
                 if hasattr(obj_class, 'CATEGORY'):
                     info['category'] = obj_class.CATEGORY
-                if hasattr(obj_class, 'REFRESH_LIST'):
-                    info['refresh_list'] = obj_class.REFRESH_LIST
                 out[x] = info
             return web.json_response(out)
 

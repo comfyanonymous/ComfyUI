@@ -903,9 +903,9 @@ class ComfyApp {
 	}
 
 	/**
-	 * Refresh file list on whole nodes
+	 * Refresh combo list on whole nodes
 	 */
-	async refreshNodes() {
+	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
 		for(let nodeNum in this.graph._nodes) {
@@ -913,16 +913,16 @@ class ComfyApp {
 
 			const def = defs[node.type];
 
-			if(def.refresh_list == undefined) {
-				continue;
-			}
+			for(const widgetNum in node.widgets) {
+				const widget = node.widgets[widgetNum]
 
-			for(const i in def.refresh_list) {
-				const item = def.refresh_list[i];
-				const filelist = def.input["required"][item];
-				const w = node.widgets.find((w) => w.name === item);
-				w.options.values = filelist[0];
-				w.value = w.options.values[0];
+				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
+					widget.options.values = def["input"]["required"][widget.name][0];
+
+					if(!widget.options.values.includes(widget.value)) {
+						widget.value = widget.options.values[0];
+					}
+				}
 			}
 		}
 	}
