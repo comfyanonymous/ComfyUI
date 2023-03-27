@@ -29,6 +29,8 @@ async def cache_control(request: web.Request, handler):
 
 class PromptServer():
     def __init__(self, loop):
+        PromptServer.instance = self
+
         mimetypes.init(); 
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
         self.prompt_queue = None
@@ -150,6 +152,7 @@ class PromptServer():
                 info = {}
                 info['input'] = obj_class.INPUT_TYPES()
                 info['output'] = obj_class.RETURN_TYPES
+                info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
                 info['name'] = x #TODO
                 info['description'] = ''
                 info['category'] = 'sd'
