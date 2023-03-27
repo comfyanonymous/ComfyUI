@@ -18,6 +18,8 @@ def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             output_index = input_data[1]
+            if input_unique_id not in outputs:
+                return None
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
         else:
@@ -94,9 +96,10 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
             is_changed_old = old_prompt[unique_id]['is_changed']
         if 'is_changed' not in prompt[unique_id]:
-            input_data_all = get_input_data(inputs, class_def)
-            is_changed = class_def.IS_CHANGED(**input_data_all)
-            prompt[unique_id]['is_changed'] = is_changed
+            input_data_all = get_input_data(inputs, class_def, outputs)
+            if input_data_all is not None:
+                is_changed = class_def.IS_CHANGED(**input_data_all)
+                prompt[unique_id]['is_changed'] = is_changed
         else:
             is_changed = prompt[unique_id]['is_changed']
 
@@ -278,7 +281,7 @@ def validate_prompt(prompt):
             errors += [(o, reason)]
 
     if len(good_outputs) == 0:
-        errors_list = "\n".join(map(lambda a: "{}".format(a[1]), errors))
+        errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
         return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
 
     return (True, "")
