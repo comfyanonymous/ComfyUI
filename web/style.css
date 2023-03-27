@@ -82,23 +82,47 @@ body {
 }
 
 .comfy-menu {
-	width: 200px;
+	width: 250px !important;
 	font-size: 15px;
 	position: absolute;
 	top: 50%;
 	right: 0%;
-	background-color: white;
-	color: #000;
+	background: rgba(68,68,68,0.75);
+	background: linear-gradient(0deg, rgba(68,68,68,0.75) 0%, rgba(102,102,102,0.75) 74%, rgba(119,119,119,0.75) 100%);
+	backdrop-filter: blur(30px);
+	color: #CACACA;
 	text-align: center;
+	text-shadow: 1px 0 1px rgba(0,0,0,0.25);
+	font-family: Helvetica;
 	z-index: 100;
 	width: 170px;
-	display: flex;
 	flex-direction: column;
 	align-items: center;
 }
 
+.comfy-queue-size {
+	font-size: 18px;
+	margin-top:5px;
+}
+
 .comfy-menu button {
-	font-size: 20px;
+	cursor: pointer;
+	display: inline !important;
+	font-size: 18px;
+	text-shadow: 1px 0 1px rgba(0,0,0,0.25);
+	font-family: Helvetica;
+	border-radius: 0;
+	background-color: #8899aa;
+	border-left: 0;
+	border-right: 0;
+	border-top: 1px solid rgba(255,255,255,0.5);
+	border-bottom: 1px solid rgba(127,127,127,0.5);
+	color: #FFF;
+	transition: background-color .1s ease-in-out
+}
+
+.comfy-menu button:hover {
+	background-color: #6686a5;
 }
 
 .comfy-menu-btns {
@@ -108,7 +132,6 @@ body {
 
 .comfy-menu-btns button {
 	font-size: 10px;
-	width: 50%;
 }
 
 .comfy-menu span.drag-handle {
@@ -124,9 +147,9 @@ body {
 	margin-left: -.2em;
 	font-size: 12px;
 	font-family: sans-serif;
+	text-shadow: 1px 1px 1px rgba(0,0,0,0.25);
 	letter-spacing: 2px;
 	color: #cccccc;
-	text-shadow: 1px 0 1px black;
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -137,18 +160,57 @@ body {
 }
 
 .comfy-queue-btn {
+	font-size: 20px !important;
+	font-weight: 600;
 	width: 100%;
+	background-color: #69b768 !important
+}
+
+.comfy-queue-btn:hover {
+	background-color: #42b240 !important;
+}
+
+.comfy-queue-front-btn {
+	width: 50%;
+	border-right: 1px solid rgba(0,0,0,0.25) !important;
+}
+
+.comfy-view-queue-btn {
+	width: 50%;
+	border-left: 1px solid rgba(255,255,255,0.25) !important;
+}
+
+.comfy-history-btn {
+	width: 100% !important;
+}
+
+.comfy-save-btn {
+	width: 50%;
+	border-right: 1px solid rgba(0,0,0,0.25) !important;
+}
+.comfy-load-btn {
+	width: 50%;
+	border-left: 1px solid rgba(255,255,255,0.25) !important;
+}
+
+.comfy-clear-btn {
+	width: 50%;
+	border-right: 1px solid rgba(0,0,0,0.25) !important;
+}
+.comfy-load-default-btn {
+	width: 50%;
+	border-left: 1px solid rgba(255,255,255,0.25) !important;
 }
 
 .comfy-list {
-	background-color: rgb(225, 225, 225);
+	background-color: rgba(0,0,0,0.25);
 	margin-bottom: 10px;
 }
 
 .comfy-list-items {
-	overflow-y: scroll;
+	overflow-y: auto;
 	max-height: 100px;
-	background-color: #d0d0d0;
+	background-color: rgba(0,0,0,0.25);
 	padding: 5px;
 }
 
@@ -180,6 +242,8 @@ button.comfy-settings-btn {
 	position: absolute;
 	right: 0;
 	border: none;
+	background: none;
+	line-height: 22px;
 }
 
 .comfy-modal.comfy-settings {
