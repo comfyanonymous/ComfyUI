@@ -4,8 +4,8 @@ version: "3.9"
 x-base_service: &base_service
   image: comfyui:1
   build:
-    context: docker_files
-    dockerfile: default.Dockerfile
+    context: ..
+    dockerfile: docker/docker_files/default.Dockerfile
 
   environment:
     - CLI_ARGS=--listen --port 8188
@@ -30,8 +30,8 @@ x-nvidia_docker: &nvidia_docker
 
 x-base_service_amd: &amd_docker
   build:
-    context: docker_files
-    dockerfile: amd.Dockerfile
+    context: ..
+    dockerfile: docker/docker_files/amd.Dockerfile
 
   group_add:
     - video

@@ -9,7 +9,7 @@ torch \
 torchvision \
 torchaudio
 
-COPY ../.. /opt/comfy_ui
+COPY . /opt/comfy_ui
 RUN pip install -r requirements.txt
 
 

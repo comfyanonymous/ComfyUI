@@ -11,7 +11,7 @@ torchaudio \
 xformers \
 triton
 
-COPY ../.. /opt/comfy_ui
+COPY . /opt/comfy_ui
 RUN pip install -r requirements.txt
 
 
