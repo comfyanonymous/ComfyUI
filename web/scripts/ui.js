@@ -380,7 +380,7 @@ export class ComfyUI {
 			}),
 			$el("button", { textContent: "Load", className: "comfy-load-btn", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Clear", className: "comfy-clear-btn", onclick: () => app.graph.clear() }),
-      $el("button", { textContent: "Refresh", className: "comfy-refresh-btn" onclick: () => app.refreshComboInNodes() }),
+      			$el("button", { textContent: "Refresh", className: "comfy-refresh-btn" onclick: () => app.refreshComboInNodes() }),
 			$el("button", { textContent: "Load Default", className: "comfy-load-default-btn", onclick: () => app.loadGraphData() }),
 		]);
 
