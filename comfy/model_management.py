@@ -22,7 +22,8 @@ try:
     total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
     total_ram = psutil.virtual_memory().total / (1024 * 1024)
     forced_normal_vram = "--normalvram" in sys.argv
-    if not forced_normal_vram:
+    forced_cpu = "--cpu" in sys.argv
+    if not forced_normal_vram and not forced_cpu:
         if total_vram <= 4096:
             print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
             set_vram_to = LOW_VRAM
