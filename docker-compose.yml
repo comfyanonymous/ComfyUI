@@ -1,25 +1,37 @@
 version: "3.9"
 
+
+x-base_service: &base_service
+  image: comfyui:1
+  build: .
+
+  environment:
+    - CLI_ARGS=--listen --port 8188
+
+  ports:
+    - "8188:8188"
+  volumes:
+    - ./models:/opt/comfy_ui/models
+    - ./output:/opt/comfy_ui/output
+    - ./input:/opt/comfy_ui/input
+    - ./custom_nodes:/opt/comfy_ui/custom_nodes
+  
+x-nvidia_docker: &nvidia_docker
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            device_ids: ["0"]
+            capabilities: [gpu]
+
+
 services:
-  app:
-    image: comfyui:1
-    build: .
-
-    ports:
-      - "8188:8188"
-    volumes:
-      - ./models:/opt/comfy_ui/models
-      - ./output:/opt/comfy_ui/output
-      - ./input:/opt/comfy_ui/input
-      - ./custom_nodes:/opt/comfy_ui/custom_nodes      
-
-    environment:
-      - CLI_ARGS=--listen --port 8188
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-              - driver: nvidia
-                device_ids: ["0"]
-                capabilities: [gpu]
+  nvidia:
+    <<: *base_service
+    <<: *nvidia_docker
+    profiles: ["nvidia"]
+    
+  cpu:
+    <<: *base_service
+    profiles: ["cpu"]
