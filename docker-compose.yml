@@ -15,7 +15,7 @@ x-base_service: &base_service
     - ./output:/opt/comfy_ui/output
     - ./input:/opt/comfy_ui/input
     - ./custom_nodes:/opt/comfy_ui/custom_nodes
-  
+
 x-nvidia_docker: &nvidia_docker
   deploy:
     resources:
@@ -25,13 +25,25 @@ x-nvidia_docker: &nvidia_docker
             device_ids: ["0"]
             capabilities: [gpu]
 
+x-base_service_amd: &amd_docker
+  group_add:
+    - video
+  devices:
+    - "/dev/dri"
+    - "/dev/kfd"
+
 
 services:
   nvidia:
     <<: *base_service
     <<: *nvidia_docker
     profiles: ["nvidia"]
-    
+
+  amd:
+    <<: *base_service
+    <<: *amd_docker
+    profiles: ["amd"]
+
   cpu:
     <<: *base_service
     profiles: ["cpu"]
