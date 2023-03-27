@@ -51,12 +51,10 @@ services:
   
     environment:
       - HSA_OVERRIDE_GFX_VERSION=10.3.0
+      - CLI_ARGS=--listen --port 8188
 
   cpu:
     <<: *base_service
     profiles: ["cpu"]
-
-
-  cpu:
-    <<: *base_service
-    profiles: ["cpu"]
+    environment:
+      - CLI_ARGS=--listen --port 8188 --cpu
