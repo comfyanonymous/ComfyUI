@@ -611,8 +611,10 @@ class ComfyApp {
 						}
 					}
 
-					for (const output of nodeData["output"]) {
-						this.addOutput(output, output);
+					for (const o in nodeData["output"]) {
+						const output = nodeData["output"][o];
+						const outputName = nodeData["output_name"][o] || output;
+						this.addOutput(outputName, output);
 					}
 
 					const s = this.computeSize();
