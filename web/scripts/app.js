@@ -901,6 +901,31 @@ class ComfyApp {
 		}
 		this.extensions.push(extension);
 	}
+
+	/**
+	 * Refresh combo list on whole nodes
+	 */
+	async refreshComboInNodes() {
+		const defs = await api.getNodeDefs();
+
+		for(let nodeNum in this.graph._nodes) {
+			const node = this.graph._nodes[nodeNum];
+
+			const def = defs[node.type];
+
+			for(const widgetNum in node.widgets) {
+				const widget = node.widgets[widgetNum]
+
+				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
+					widget.options.values = def["input"]["required"][widget.name][0];
+
+					if(!widget.options.values.includes(widget.value)) {
+						widget.value = widget.options.values[0];
+					}
+				}
+			}
+		}
+	}
 }
 
 export const app = new ComfyApp();
