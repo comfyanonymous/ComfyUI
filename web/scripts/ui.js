@@ -302,7 +302,7 @@ export class ComfyUI {
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
 			$el("div", { style: { overflow: "hidden", position: "relative", width: "100%" } }, [
 				$el("span.drag-handle"),
-				$el("span", { $: (q) => (this.queueSize = q) }),
+				$el("span", { className: "comfy-queue-size", $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
 			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
@@ -336,10 +336,11 @@ export class ComfyUI {
 				]),
 			]),
 			$el("div.comfy-menu-btns", [
-				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1, this.batchCount) }),
+				$el("button", { textContent: "Queue Front", className: "comfy-queue-front-btn", onclick: () => app.queuePrompt(-1, this.batchCount) }),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
 					textContent: "View Queue",
+					className: "comfy-view-queue-btn",
 					onclick: () => {
 						this.history.hide();
 						this.queue.toggle();
@@ -348,6 +349,7 @@ export class ComfyUI {
 				$el("button", {
 					$: (b) => (this.history.button = b),
 					textContent: "View History",
+					className: "comfy-history-btn",
 					onclick: () => {
 						this.queue.hide();
 						this.history.toggle();
@@ -358,6 +360,7 @@ export class ComfyUI {
 			this.history.element,
 			$el("button", {
 				textContent: "Save",
+				className: "comfy-save-btn",
 				onclick: () => {
 					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
 					const blob = new Blob([json], { type: "application/json" });
@@ -375,9 +378,9 @@ export class ComfyUI {
 					}, 0);
 				},
 			}),
-			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
-			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
-			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
+			$el("button", { textContent: "Load", className: "comfy-load-btn", onclick: () => fileInput.click() }),
+			$el("button", { textContent: "Clear", className: "comfy-clear-btn", onclick: () => app.graph.clear() }),
+			$el("button", { textContent: "Load Default", className: "comfy-load-default-btn", onclick: () => app.loadGraphData() }),
 		]);
 
 		dragElement(this.menuContainer);
