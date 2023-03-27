@@ -3,7 +3,9 @@ version: "3.9"
 
 x-base_service: &base_service
   image: comfyui:1
-  build: .
+  build:
+    context: docker_files
+    dockerfile: default.Dockerfile
 
   environment:
     - CLI_ARGS=--listen --port 8188
@@ -11,10 +13,11 @@ x-base_service: &base_service
   ports:
     - "8188:8188"
   volumes:
-    - ./models:/opt/comfy_ui/models
-    - ./output:/opt/comfy_ui/output
-    - ./input:/opt/comfy_ui/input
-    - ./custom_nodes:/opt/comfy_ui/custom_nodes
+    - models:/opt/comfy_ui/models
+    - output:/opt/comfy_ui/output
+    - input:/opt/comfy_ui/input
+    - custom_nodes:/opt/comfy_ui/custom_nodes
+  restart: unless-stopped
 
 x-nvidia_docker: &nvidia_docker
   deploy:
@@ -26,6 +29,10 @@ x-nvidia_docker: &nvidia_docker
             capabilities: [gpu]
 
 x-base_service_amd: &amd_docker
+  build:
+    context: docker_files
+    dockerfile: amd.Dockerfile
+
   group_add:
     - video
   devices:
@@ -43,12 +50,12 @@ services:
     <<: *base_service
     <<: *amd_docker
     profiles: ["amd"]
-    
+
   amd6600:
     <<: *base_service
     <<: *amd_docker
     profiles: ["amd6600"]
-  
+
     environment:
       - HSA_OVERRIDE_GFX_VERSION=10.3.0
       - CLI_ARGS=--listen --port 8188
@@ -58,3 +65,10 @@ services:
     profiles: ["cpu"]
     environment:
       - CLI_ARGS=--listen --port 8188 --cpu
+
+
+volumes:
+  models:
+  output:
+  input:
+  custom_nodes:
