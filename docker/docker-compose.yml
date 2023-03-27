@@ -18,7 +18,6 @@ x-base_service: &base_service
     - output:/opt/comfy_ui/output
     - input:/opt/comfy_ui/input
     - custom_nodes:/opt/comfy_ui/custom_nodes
-  restart: unless-stopped
 
 x-nvidia_docker: &nvidia_docker
   deploy:
