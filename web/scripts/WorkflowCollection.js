@@ -212,8 +212,7 @@ class OPE{
 	}
 }
 
-wc = new WC(qs('body'));
-ope = new OPE(qs('body'));
+DEFAULT_COLLECTIONS = null;
 
 if (lsGet('WorkflowCollection') == null) {
 	fetch('DefaultWorkflows.json')
@@ -227,8 +226,9 @@ if (lsGet('WorkflowCollection') == null) {
 	  // Examine the text in the response  
 	  response.json().then(function(data) {
 		DEFAULT_COLLECTIONS = data;
-		lsSet('WorkflowCollection', jsonEncode(DEFAULT_COLLECTIONS));
-		ws.load();
+		console.log('test')
+			lsSet('WorkflowCollection', jsonEncode(DEFAULT_COLLECTIONS));
+		wc.load();
 	  });
 	}
   )
@@ -236,3 +236,7 @@ if (lsGet('WorkflowCollection') == null) {
 	console.log('Fetch Error :-S', err);  
   });
 }
+
+wc = new WC(qs('body'));
+ope = new OPE(qs('body'));
+
