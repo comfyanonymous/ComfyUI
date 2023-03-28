@@ -306,6 +306,7 @@ export class ComfyUI {
 			style: { display: "none" },
 			parent: document.body,
 			onchange: () => {
+				app.clean();
 				app.handleFile(fileInput.files[0]);
 			},
 		});
@@ -388,8 +389,14 @@ export class ComfyUI {
 			}),
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
-			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
-			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
+			$el("button", { textContent: "Clear", onclick: () => {
+				app.clean();
+				app.graph.clear();
+			}}),
+			$el("button", { textContent: "Load Default", onclick: () => {
+				app.clean();
+				app.loadGraphData();
+			}}),
 		]);
 
 		dragElement(this.menuContainer);
