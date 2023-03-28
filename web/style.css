@@ -64,6 +64,12 @@ body {
 	margin-bottom: 20px; /* Add some margin between the text and the close button*/
 }
 
+.comfy-modal select,
+.comfy-modal input[type=button],
+.comfy-modal input[type=checkbox] {
+	margin: 3px 3px 3px 4px;
+}
+
 .comfy-modal button {
 	cursor: pointer;
 	color: #aaaaaa;
