@@ -306,7 +306,6 @@ export class ComfyUI {
 			style: { display: "none" },
 			parent: document.body,
 			onchange: () => {
-				app.clean();
 				app.handleFile(fileInput.files[0]);
 			},
 		});
@@ -393,10 +392,7 @@ export class ComfyUI {
 				app.clean();
 				app.graph.clear();
 			}}),
-			$el("button", { textContent: "Load Default", onclick: () => {
-				app.clean();
-				app.loadGraphData();
-			}}),
+			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
 		]);
 
 		dragElement(this.menuContainer);
