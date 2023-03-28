@@ -6,6 +6,7 @@
 		<link rel="stylesheet" type="text/css" href="lib/litegraph.css" />
 		<link rel="stylesheet" type="text/css" href="style.css" />
 		<script type="text/javascript" src="lib/litegraph.core.js"></script>
+		<script type="text/javascript" src="lib/SednaLib.js"></script>
 		<script type="module">
 			import { app } from "/scripts/app.js";
 			await app.setup();
@@ -13,5 +14,7 @@
 			window.graph = app.graph;
 		</script>
 	</head>
-	<body></body>
+	<body>
+		<script type="text/javascript" src="scripts/WorkflowCollection.js"></script>
+	</body>
 </html>
