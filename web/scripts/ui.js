@@ -1,6 +1,6 @@
 import { api } from "./api.js";
 
-function $el(tag, propsOrChildren, children) {
+export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
 	const element = document.createElement(split.shift());
 	element.classList.add(...split);
@@ -114,6 +114,17 @@ class ComfySettingsDialog extends ComfyDialog {
 		this.settings = [];
 	}
 
+	getSettingValue(id, defaultValue) {
+		const settingId = "Comfy.Settings." + id;
+		const v = localStorage[settingId];
+		return v == null ? defaultValue : JSON.parse(v);
+	}
+
+	setSettingValue(id, value) {
+		const settingId = "Comfy.Settings." + id;
+		localStorage[settingId] = JSON.stringify(value);
+	}
+
 	addSetting({ id, name, type, defaultValue, onChange }) {
 		if (!id) {
 			throw new Error("Settings must have an ID");
@@ -142,7 +153,7 @@ class ComfySettingsDialog extends ComfyDialog {
 				};
 
 				if (typeof type === "function") {
-					return type(name, setter);
+					return type(name, setter, value);
 				}
 
 				switch (type) {
