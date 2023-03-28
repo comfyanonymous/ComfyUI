@@ -280,21 +280,31 @@ class ModelPatcher:
         n.patches = self.patches[:]
         return n
 
-    def add_patches(self, patches, strength=1.0):
+    def add_patches(self, patches, strength=1.0, block_weights={}):
         p = {}
         model_sd = self.model.state_dict()
         for k in patches:
             if k in model_sd:
-                p[k] = patches[k]
-        self.patches += [(strength, p)]
+                sk = k.split(".")
+                block_key = ".".join(sk[2:4])
+                if block_weights.__contains__(block_key):
+                    # apply block weights
+                    p[k] = (strength * block_weights[block_key], patches[k])
+                else:
+                    # apply only base strength
+                    p[k] = (strength, patches[k])
+
+        self.patches += [p]
         return p.keys()
 
     def patch_model(self):
         model_sd = self.model.state_dict()
         for p in self.patches:
-            for k in p[1]:
-                v = p[1][k]
+
+            for k in p:
+                v = p[k][1]
                 key = k
+
                 if key not in model_sd:
                     print("could not patch. key doesn't exist in model:", k)
                     continue
@@ -303,7 +313,14 @@ class ModelPatcher:
                 if key not in self.backup:
                     self.backup[key] = weight.clone()
 
-                alpha = p[0]
+                alpha = p[k][0]
+
+                if key.startswith("model.diffusion_model."):
+                    print(f"{key}: {alpha}")
+                    # sk = key.split(".")
+                    # block_key = ".".join(sk[2:4])
+                    # if LORA_BLOCK_WEIGHTS.__contains__(block_key):
+                    #     alpha *= LORA_BLOCK_WEIGHTS[block_key]
 
                 if len(v) == 4: #lora/locon
                     mat1 = v[0]
@@ -342,12 +359,12 @@ class ModelPatcher:
 
         self.backup = {}
 
-def load_lora_for_models(model, clip, lora_path, strength_model, strength_clip):
+def load_lora_for_models(model, clip, lora_path, strength_model, strength_clip, block_weights):
     key_map = model_lora_keys(model.model)
     key_map = model_lora_keys(clip.cond_stage_model, key_map)
     loaded = load_lora(lora_path, key_map)
     new_modelpatcher = model.clone()
-    k = new_modelpatcher.add_patches(loaded, strength_model)
+    k = new_modelpatcher.add_patches(loaded, strength_model, block_weights)
     new_clip = clip.clone()
     k1 = new_clip.add_patches(loaded, strength_clip)
     k = set(k)
