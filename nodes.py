@@ -40,7 +40,7 @@ class CLIPTextEncode:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "Conditioning"
 
     def encode(self, clip, text):
         return ([[clip.encode(text), {}]], )
@@ -52,7 +52,7 @@ class ConditioningCombine:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "combine"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "Conditioning"
 
     def combine(self, conditioning_1, conditioning_2):
         return (conditioning_1 + conditioning_2, )
@@ -70,7 +70,7 @@ class ConditioningSetArea:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "Conditioning"
 
     def append(self, conditioning, width, height, x, y, strength, min_sigma=0.0, max_sigma=99.0):
         c = []
@@ -93,7 +93,7 @@ class VAEDecode:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
-    CATEGORY = "latent"
+    CATEGORY = "Latent"
 
     def decode(self, vae, samples):
         return (vae.decode(samples["samples"]), )
@@ -123,7 +123,7 @@ class VAEEncode:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "latent"
+    CATEGORY = "Latent"
 
     def encode(self, vae, pixels):
         x = (pixels.shape[1] // 64) * 64
@@ -165,7 +165,7 @@ class VAEEncodeForInpaint:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "latent/inpaint"
+    CATEGORY = "Latent/Inpaint"
 
     def encode(self, vae, pixels, mask):
         x = (pixels.shape[1] // 64) * 64
@@ -197,7 +197,7 @@ class CheckpointLoader:
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = folder_paths.get_full_path("configs", config_name)
@@ -212,7 +212,7 @@ class CheckpointLoaderSimple:
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
@@ -228,7 +228,7 @@ class CLIPSetLastLayer:
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "set_last_layer"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "Conditioning"
 
     def set_last_layer(self, clip, stop_at_clip_layer):
         clip = clip.clone()
@@ -247,7 +247,7 @@ class LoraLoader:
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         lora_path = folder_paths.get_full_path("loras", lora_name)
@@ -261,7 +261,7 @@ class VAELoader:
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
@@ -277,7 +277,7 @@ class ControlNetLoader:
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
@@ -293,7 +293,7 @@ class DiffControlNetLoader:
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_controlnet(self, model, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
@@ -312,7 +312,7 @@ class ControlNetApply:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_controlnet"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "Conditioning"
 
     def apply_controlnet(self, conditioning, control_net, image, strength):
         c = []
@@ -335,7 +335,7 @@ class CLIPLoader:
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip", clip_name)
@@ -350,7 +350,7 @@ class CLIPVisionLoader:
     RETURN_TYPES = ("CLIP_VISION",)
     FUNCTION = "load_clip"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
@@ -366,7 +366,7 @@ class CLIPVisionEncode:
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning/style_model"
+    CATEGORY = "Conditioning/Style Model"
 
     def encode(self, clip_vision, image):
         output = clip_vision.encode_image(image)
@@ -380,7 +380,7 @@ class StyleModelLoader:
     RETURN_TYPES = ("STYLE_MODEL",)
     FUNCTION = "load_style_model"
 
-    CATEGORY = "loaders"
+    CATEGORY = "Loaders"
 
     def load_style_model(self, style_model_name):
         style_model_path = folder_paths.get_full_path("style_models", style_model_name)
@@ -398,7 +398,7 @@ class StyleModelApply:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_stylemodel"
 
-    CATEGORY = "conditioning/style_model"
+    CATEGORY = "Conditioning/Style Model"
 
     def apply_stylemodel(self, clip_vision_output, style_model, conditioning):
         cond = style_model.get_cond(clip_vision_output)
@@ -420,7 +420,7 @@ class EmptyLatentImage:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
-    CATEGORY = "latent"
+    CATEGORY = "Latent"
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 4, height // 8, width // 8])
@@ -441,7 +441,7 @@ class LatentUpscale:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
 
-    CATEGORY = "latent"
+    CATEGORY = "Latent"
 
     def upscale(self, samples, upscale_method, width, height, crop):
         s = samples.copy()
@@ -457,7 +457,7 @@ class LatentRotate:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "rotate"
 
-    CATEGORY = "latent/transform"
+    CATEGORY = "Latent/Transform"
 
     def rotate(self, samples, rotation):
         s = samples.copy()
@@ -481,7 +481,7 @@ class LatentFlip:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "flip"
 
-    CATEGORY = "latent/transform"
+    CATEGORY = "Latent/Transform"
 
     def flip(self, samples, flip_method):
         s = samples.copy()
@@ -504,7 +504,7 @@ class LatentComposite:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "composite"
 
-    CATEGORY = "latent"
+    CATEGORY = "Latent"
 
     def composite(self, samples_to, samples_from, x, y, composite_method="normal", feather=0):
         x =  x // 8
@@ -546,7 +546,7 @@ class LatentCrop:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "crop"
 
-    CATEGORY = "latent/transform"
+    CATEGORY = "Latent/Transform"
 
     def crop(self, samples, width, height, x, y):
         s = samples.copy()
@@ -586,7 +586,7 @@ class SetLatentNoiseMask:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "set_mask"
 
-    CATEGORY = "latent/inpaint"
+    CATEGORY = "Latent/Inpaint"
 
     def set_mask(self, samples, mask):
         s = samples.copy()
@@ -679,7 +679,7 @@ class KSampler:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "sample"
 
-    CATEGORY = "sampling"
+    CATEGORY = "Sampling"
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
         return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
@@ -706,7 +706,7 @@ class KSamplerAdvanced:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "sample"
 
-    CATEGORY = "sampling"
+    CATEGORY = "Sampling"
 
     def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, return_with_leftover_noise, denoise=1.0):
         force_full_denoise = True
@@ -735,7 +735,7 @@ class SaveImage:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "image"
+    CATEGORY = "Image"
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         def map_filename(filename):
@@ -818,7 +818,7 @@ class LoadImage:
                     {"image": (sorted(os.listdir(s.input_dir)), )},
                 }
 
-    CATEGORY = "image"
+    CATEGORY = "Image"
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
@@ -852,7 +852,7 @@ class LoadImageMask:
                     "channel": (["alpha", "red", "green", "blue"], ),}
                 }
 
-    CATEGORY = "image"
+    CATEGORY = "Image"
 
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
@@ -891,7 +891,7 @@ class ImageScale:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 
-    CATEGORY = "image/upscaling"
+    CATEGORY = "Image/Upscaling"
 
     def upscale(self, image, upscale_method, width, height, crop):
         samples = image.movedim(-1,1)
@@ -908,7 +908,7 @@ class ImageInvert:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "invert"
 
-    CATEGORY = "image"
+    CATEGORY = "Image"
 
     def invert(self, image):
         s = 1.0 - image
@@ -933,7 +933,7 @@ class ImagePadForOutpaint:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "expand_image"
 
-    CATEGORY = "image"
+    CATEGORY = "Image"
 
     def expand_image(self, image, left, top, right, bottom, feathering):
         d1, d2, d3, d4 = image.size()
@@ -979,43 +979,43 @@ class ImagePadForOutpaint:
 
 
 NODE_CLASS_MAPPINGS = {
+    "CLIP Loader": CLIPLoader,
+    "CLIP Set Last Layer": CLIPSetLastLayer,
+    "CLIP Text Encode": CLIPTextEncode,
+    "CLIP Vision Encode": CLIPVisionEncode,
+    "CLIP Vision Loader": CLIPVisionLoader,
+    "Checkpoint Loader": CheckpointLoader,
+    "Checkpoint Loader (Simple)": CheckpointLoaderSimple,
+    "Conditioning Combine": ConditioningCombine,
+    "Conditioning Set Area": ConditioningSetArea,
+    "ControlNet Apply": ControlNetApply,
+    "ControlNet Loader": ControlNetLoader,
+    "Diff ControlNet Loader": DiffControlNetLoader,
+    "Empty Latent Image": EmptyLatentImage,
+    "Image Invert": ImageInvert,
+    "Image Padding (Outpaint)": ImagePadForOutpaint,
+    "Image Scale": ImageScale,
     "KSampler": KSampler,
-    "CheckpointLoader": CheckpointLoader,
-    "CheckpointLoaderSimple": CheckpointLoaderSimple,
-    "CLIPTextEncode": CLIPTextEncode,
-    "CLIPSetLastLayer": CLIPSetLastLayer,
-    "VAEDecode": VAEDecode,
-    "VAEEncode": VAEEncode,
-    "VAEEncodeForInpaint": VAEEncodeForInpaint,
-    "VAELoader": VAELoader,
-    "EmptyLatentImage": EmptyLatentImage,
-    "LatentUpscale": LatentUpscale,
-    "SaveImage": SaveImage,
-    "PreviewImage": PreviewImage,
-    "LoadImage": LoadImage,
-    "LoadImageMask": LoadImageMask,
-    "ImageScale": ImageScale,
-    "ImageInvert": ImageInvert,
-    "ImagePadForOutpaint": ImagePadForOutpaint,
-    "ConditioningCombine": ConditioningCombine,
-    "ConditioningSetArea": ConditioningSetArea,
-    "KSamplerAdvanced": KSamplerAdvanced,
-    "SetLatentNoiseMask": SetLatentNoiseMask,
-    "LatentComposite": LatentComposite,
-    "LatentRotate": LatentRotate,
-    "LatentFlip": LatentFlip,
-    "LatentCrop": LatentCrop,
-    "LoraLoader": LoraLoader,
-    "CLIPLoader": CLIPLoader,
-    "CLIPVisionEncode": CLIPVisionEncode,
-    "StyleModelApply": StyleModelApply,
-    "ControlNetApply": ControlNetApply,
-    "ControlNetLoader": ControlNetLoader,
-    "DiffControlNetLoader": DiffControlNetLoader,
-    "StyleModelLoader": StyleModelLoader,
-    "CLIPVisionLoader": CLIPVisionLoader,
-    "VAEDecodeTiled": VAEDecodeTiled,
-    "VAEEncodeTiled": VAEEncodeTiled,
+    "KSampler (Advanced)": KSamplerAdvanced,
+    "Latent Composite": LatentComposite,
+    "Latent Crop": LatentCrop,
+    "Latent Flip": LatentFlip,
+    "Latent Rotate": LatentRotate,
+    "Latent Upscale": LatentUpscale,
+    "Load Image": LoadImage,
+    "Load Image Mask": LoadImageMask,
+    "Lora Loader": LoraLoader,
+    "Preview Image": PreviewImage,
+    "Save Image": SaveImage,
+    "Mask Latent Noise": SetLatentNoiseMask,
+    "Style Model Apply": StyleModelApply,
+    "Style Model Loader": StyleModelLoader,
+    "VAE Decode": VAEDecode,
+    "VAE Decode (Tiled)": VAEDecodeTiled,
+    "VAE Encode": VAEEncode,
+    "VAE Encode (Inpaint)": VAEEncodeForInpaint,
+    "VAE Encode (Tiled)": VAEEncodeTiled,
+    "VAE Loader": VAELoader,
 }
 
 def load_custom_node(module_path):

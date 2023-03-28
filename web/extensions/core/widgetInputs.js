@@ -357,6 +357,6 @@ app.registerExtension({
 				title: "Primitive",
 			})
 		);
-		PrimitiveNode.category = "utils";
+		PrimitiveNode.category = "Utilities";
 	},
 });
