@@ -388,7 +388,10 @@ export class ComfyUI {
 			}),
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
-			$el("button", { textContent: "Clear", onclick: () => app.graph.clear() }),
+			$el("button", { textContent: "Clear", onclick: () => {
+				app.clean();
+				app.graph.clear();
+			}}),
 			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
 		]);
 
