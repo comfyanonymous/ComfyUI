@@ -903,6 +903,13 @@ class ComfyApp {
 			}
 		}
 	}
+
+	/**
+	 * Clean current state
+	 */
+	clean() {
+		this.nodeOutputs = {};
+	}
 }
 
 export const app = new ComfyApp();
