@@ -577,27 +577,6 @@ class ComfyApp {
 	}
 
 	/**
-	 * Setup slot colors for types
-	 */
-	setupSlotColors() {
-		let colors = {
-			"CLIP": "#FFD500", // bright yellow
-			"CLIP_VISION": "#A8DADC", // light blue-gray
-			"CLIP_VISION_OUTPUT": "#ad7452", // rusty brown-orange
-			"CONDITIONING": "#FFA931", // vibrant orange-yellow
-			"CONTROL_NET": "#6EE7B7", // soft mint green
-			"IMAGE": "#64B5F6", // bright sky blue
-			"LATENT": "#FF9CF9", // light pink-purple
-			"MASK": "#81C784", // muted green
-			"MODEL": "#B39DDB", // light lavender-purple
-			"STYLE_MODEL": "#C2FFAE", // light green-yellow
-			"VAE": "#FF6E6E", // bright red
-		};
-
-		Object.assign(this.canvas.default_connection_color_byType, colors);
-	}
-
-	/**
 	 * Set up the app on the page
 	 */
 	async setup() {
@@ -613,8 +592,6 @@ class ComfyApp {
 		this.graph = new LGraph();
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
-
-		this.setupSlotColors();
 
 		this.graph.start();
 
