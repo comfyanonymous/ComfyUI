@@ -35,13 +35,17 @@ class WC{
 
 		this.controlPanel = $Add('span', this.mainFrame, {style : {textAlign: 'center'} } );
 		
+		$Add('span', this.controlPanel, {innerHTML : '	|	'});
+		
 		this.itemSelect = $Add('select', this.controlPanel, {style : {width : `${WC_VARIABLES.selectWidth}px`, background : WC_VARIABLES.bgMain, color : WC_VARIABLES.textColor}, onchange : () => {this.select() } } );
 		
-		this.addWorkflow = $Add('span', this.controlPanel, {type : 'button',  innerHTML : 'Add', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.add(prompt(), jsonEncode(app.graph.serialize() ) ) } } );
-		this.removeWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Remove', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.remove() } } );
-		this.renameWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Rename', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.rename() } } );
-		this.backupWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Backup', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.backup() } } );
-		this.restoreWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Restore', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.loader.click() } } );
+		this.addWorkflow = $Add('span', this.controlPanel, {type : 'button',  innerHTML : 'Add', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.add(prompt(), jsonEncode(app.graph.serialize() ) ) } } );
+		this.removeWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Remove', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.remove() } } );
+		this.renameWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Rename', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.rename() } } );
+		this.backupWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Backup', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.backup() } } );
+		this.restoreWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Restore', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.loader.click() } } );
+		
+		$Add('span', this.controlPanel, {innerHTML : '	|	'});
 		
 		this.unselectWorkflow = $Add('option', this.itemSelect, {value : -1, style : {}, innerHTML : 'Not selected' } );
 		
@@ -189,7 +193,7 @@ class WCItem{
 class OPE{
 	constructor(TARGET){
 		this.mainFrame = $Add('div', TARGET, {style: {position: 'fixed', width: `${OPE_VARIABLES.mainWidth}%`, height: `${OPE_VARIABLES.mainHeight}%`, top: 0, left:`-${OPE_VARIABLES.mainWidth}%`, background: WC_VARIABLES.bgMain, zIndex: 2}});
-		this.slideFrame = $Add('div', this.mainFrame, {innerHTML : 'OPE', style : {background : OPE_VARIABLES.bgMain, position: 'absolute', left: `${OPE_VARIABLES.mainWidth}%`, top: `${OPE_VARIABLES.topIdent}px`, border : `solid 1px ${OPE_VARIABLES.borderColor}`, cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
+		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'OPE', style : {background : OPE_VARIABLES.bgMain, /*position: 'fixed', left: `50%`, top: 0,*/ border : `solid 1px ${OPE_VARIABLES.borderColor}`, borderRadius : '3px', padding : '2px', cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
 		
 		this.iFrame = $Add('iframe', this.mainFrame, {width: '100%', height: '100%', src : OPE_VARIABLES.editorURL, style : {border : 'none'} } );
 		
@@ -199,13 +203,11 @@ class OPE{
 		if (this.opened){
 			this.opened = !this.opened;
 			this.mainFrame.style.left = `-${OPE_VARIABLES.mainWidth}%`;
-			console.log(this.slideFrame.style.left);
-			this.slideFrame.style.left = `${OPE_VARIABLES.mainWidth}%`;
-			console.log(this.slideFrame.style.left);
+			this.slideFrame.style.background = OPE_VARIABLES.bgMain;
 		}else{
 			this.opened = !this.opened;
 			this.mainFrame.style.left = 0;
-			this.slideFrame.style.left = 0;
+			this.slideFrame.style.background = WC_VARIABLES.selectedColor;
 		}
 	}
 }
