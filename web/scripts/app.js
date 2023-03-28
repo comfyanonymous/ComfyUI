@@ -721,6 +721,8 @@ class ComfyApp {
 	 * @param {*} graphData A serialized graph object
 	 */
 	loadGraphData(graphData) {
+		this.clean();
+
 		if (!graphData) {
 			graphData = defaultGraph;
 		}
@@ -902,6 +904,13 @@ class ComfyApp {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Clean current state
+	 */
+	clean() {
+		this.nodeOutputs = {};
 	}
 }
 
