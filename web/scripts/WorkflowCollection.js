@@ -1,5 +1,7 @@
 const WC_VARIABLES = {
-	mainWidth : 300,
+	mainWidth : 100,
+	selectWidth : 300,
+	textColor: 'var(--fg-color)',
 	bgMain : 'var(--bg-color)',
 	itemColor: 'var(--item-color)',
 	borderColor : 'var(--fg-color)',
@@ -18,7 +20,7 @@ const OPE_VARIABLES = {
 
 class WC{
 	constructor(TARGET){
-		this.mainFrame = $Add('div', TARGET, {style: {position: 'fixed', width: `${WC_VARIABLES.mainWidth}px`, top: 0, left:0, background: WC_VARIABLES.bgMain , border : `solid 1px ${WC_VARIABLES.borderColor}`, zIndex: 3}});
+		this.mainFrame = $Add('div', TARGET, {style: {position: 'fixed', width: `${WC_VARIABLES.mainWidth}%`, top: 0, left:0, background: WC_VARIABLES.bgMain , borderBottom : `solid 1px ${WC_VARIABLES.borderColor}`, zIndex: 3}});
 		
 		this.loader = $Add("input", $d.body, {
 			type: "file",
@@ -29,17 +31,20 @@ class WC{
 			},
 		});
 		
-		this.slideFrame = $Add('div', this.mainFrame, {innerHTML : '↔', style : {background : WC_VARIABLES.bgMain, position: 'absolute', left: `${WC_VARIABLES.mainWidth}px`, border : `solid 1px ${WC_VARIABLES.borderColor}`, borderLeft : `solid 0 white`, cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
-		this.Title = $Add('div', this.mainFrame, {innerHTML: 'Workflow Collection', style : {textAlign: 'center'}});
+		//this.slideFrame = $Add('div', this.mainFrame, {innerHTML : '↔', style : {background : WC_VARIABLES.bgMain, position: 'absolute', left: `${WC_VARIABLES.mainWidth}px`, border : `solid 1px ${WC_VARIABLES.borderColor}`, borderLeft : `solid 0 white`, cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
+		this.Title = $Add('span', this.mainFrame, {innerHTML: 'ComfyUI', style : {textAlign: 'center', marginRight: '20px'}});
 
-		this.controlPanel = $Add('div', this.mainFrame, {style : {textAlign: 'center'} } );
-		this.addWorkflow = $Add('input', this.controlPanel, {type : 'button', value : 'Add', onclick : () => {this.add(prompt(), jsonEncode(app.graph.serialize() ) ) } } );
-		this.removeWorkflow = $Add('input', this.controlPanel, {type : 'button', value : 'Remove', onclick : () => {this.remove() } } );
-		this.renameWorkflow = $Add('input', this.controlPanel, {type : 'button', value : 'Rename', onclick : () => {this.rename() } } );
-		this.renameWorkflow = $Add('input', this.controlPanel, {type : 'button', value : 'Backup', onclick : () => {this.backup() } } );
-		this.renameWorkflow = $Add('input', this.controlPanel, {type : 'button', value : 'Restore', onclick : () => {this.loader.click() } } );
+		this.controlPanel = $Add('span', this.mainFrame, {style : {textAlign: 'center'} } );
 		
-		this.unselectWorkflow = $Add('div', this.controlPanel, {style : {cursor : 'pointer', background : WC_VARIABLES.selectedColor}, innerHTML : 'Not selected', onclick : () => {this.unselect() } } );
+		this.itemSelect = $Add('select', this.controlPanel, {style : {width : `${WC_VARIABLES.selectWidth}px`, background : WC_VARIABLES.bgMain, color : WC_VARIABLES.textColor}, onchange : () => {this.select() } } );
+		
+		this.addWorkflow = $Add('span', this.controlPanel, {type : 'button',  innerHTML : 'Add', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.add(prompt(), jsonEncode(app.graph.serialize() ) ) } } );
+		this.removeWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Remove', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.remove() } } );
+		this.renameWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Rename', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.rename() } } );
+		this.backupWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Backup', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.backup() } } );
+		this.restoreWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Restore', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '5px', marginLeft: '5px'}, onclick : () => {this.loader.click() } } );
+		
+		this.unselectWorkflow = $Add('option', this.itemSelect, {value : -1, style : {}, innerHTML : 'Not selected' } );
 		
 		this.selected = undefined;
 		this.items = [];
@@ -54,7 +59,7 @@ class WC{
 		}, 1000);
 		
 		this.opened = true;
-		this.slide();
+		//this.slide();
 	}
 	slide(){
 		if (this.opened){
@@ -66,7 +71,7 @@ class WC{
 		}
 	}
 	add(NAME, GRAPH){
-		this.items.push(new WCItem(this, NAME, GRAPH));
+		if (NAME != null && NAME != '')this.items.push(new WCItem(this, NAME, GRAPH));
 	}
 	remove(){
 		if (this.selected == undefined) return 0;
@@ -131,6 +136,7 @@ class WC{
 		this.unselect();
 	}
 	select(){
+		this.selected = (this.itemSelect.value == -1) ? undefined : this.itemSelect.value;
 		for (let i = 0; i < this.items.length; i++){
 			if (i == this.selected){
 				this.items[i].frame.style.background = WC_VARIABLES.selectedColor;
@@ -142,8 +148,8 @@ class WC{
 			this.unselectWorkflow.style.background = WC_VARIABLES.selectedColor;
 		}else{
 			this.unselectWorkflow.style.background = WC_VARIABLES.itemColor;
-			console.log(this.selected);
 		}
+		if (this.selected != undefined) this.items[Number(this.selected)].select()
 	}
 	unselect(){
 		this.selected = undefined;
@@ -155,7 +161,7 @@ class WCItem{
 	constructor(PARENT, NAME, GRAPH){
 		this.parent = PARENT;
 		this.name = NAME;
-		this.frame = $Add('div', this.parent.mainFrame, {innerHTML: this.name, style:{cursor:'pointer',background: WC_VARIABLES.itemColor}, onclick: ()=>{this.select()}});
+		this.frame = $Add('option', this.parent.itemSelect, {innerHTML: this.name, value: this.parent.items.length, style:{} });
 		this.id = this.parent.items.length;
 		this.graph = GRAPH;
 	}
@@ -164,8 +170,8 @@ class WCItem{
 		delete this;
 	}
 	select(){
-		this.parent.selected = this.id;
-		this.parent.select();
+		//this.parent.selected = this.id;
+		//this.parent.select();
 		app.graph.clear();
 		this.load();
 	}
