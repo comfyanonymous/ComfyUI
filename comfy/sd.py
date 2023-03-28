@@ -285,6 +285,7 @@ class ModelPatcher:
         model_sd = self.model.state_dict()
         for k in patches:
             if k in model_sd:
+                # block_key pattern is (input_blocks|output_blocks|middle).(block number)
                 sk = k.split(".")
                 block_key = ".".join(sk[2:4])
                 if block_weights.__contains__(block_key):
@@ -314,13 +315,6 @@ class ModelPatcher:
                     self.backup[key] = weight.clone()
 
                 alpha = p[k][0]
-
-                if key.startswith("model.diffusion_model."):
-                    print(f"{key}: {alpha}")
-                    # sk = key.split(".")
-                    # block_key = ".".join(sk[2:4])
-                    # if LORA_BLOCK_WEIGHTS.__contains__(block_key):
-                    #     alpha *= LORA_BLOCK_WEIGHTS[block_key]
 
                 if len(v) == 4: #lora/locon
                     mat1 = v[0]
