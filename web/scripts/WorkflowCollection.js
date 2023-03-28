@@ -125,24 +125,6 @@ class WC{
 			lsSet('WorkflowCollection', jsonEncode(DATA));
 		}
 		if (lsGet('WorkflowCollection') == null) {
-			fetch('DefaultWorkflows.json')  
-			  .then(  
-				function(response) {  
-				  if (response.status !== 200) {  
-					console.log('Looks like there was a problem. Status Code: ' +  
-					  response.status);  
-					return;  
-				  }
-
-				  // Examine the text in the response  
-				  response.json().then(function(data) {  
-					DEFAULT_COLLECTIONS = data;
-				  });  
-				}  
-			  )  
-			  .catch(function(err) {  
-				console.log('Fetch Error :-S', err);  
-			  });
 			lsSet('WorkflowCollection', jsonEncode(DEFAULT_COLLECTIONS));
 		}
 		let data = jsonDecode(lsGet('WorkflowCollection'));
@@ -230,3 +212,25 @@ class OPE{
 
 wc = new WC(qs('body'));
 ope = new OPE(qs('body'));
+
+if (lsGet('WorkflowCollection') == null) {
+	fetch('DefaultWorkflows.json')
+  .then(
+	function(response) {
+	  if (response.status !== 200) {
+		console.log('Looks like there was a problem. Status Code: ' +
+		  response.status);
+		return;
+	  }
+	  // Examine the text in the response  
+	  response.json().then(function(data) {
+		DEFAULT_COLLECTIONS = data;
+		lsSet('WorkflowCollection', jsonEncode(DEFAULT_COLLECTIONS));
+		ws.load();
+	  });
+	}
+  )
+  .catch(function(err) {  
+	console.log('Fetch Error :-S', err);  
+  });
+}
