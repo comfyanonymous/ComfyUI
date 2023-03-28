@@ -90,7 +90,10 @@ class ComfyApp {
 							callback: () => {
 								const a = document.createElement("a");
 								a.href = img.src;
-								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								a.setAttribute(
+									"download",
+									new URLSearchParams(new URL(img.src).search).get("filename")
+								);
 								document.body.append(a);
 								a.click();
 								requestAnimationFrame(() => a.remove());
@@ -247,7 +250,14 @@ class ComfyApp {
 						ctx.drawImage(this.imgs[imageIndex], x, y, w, h);
 
 						const drawButton = (x, y, sz, text) => {
-							const hovered = LiteGraph.isInsideRectangle(mouse[0], mouse[1], x + this.pos[0], y + this.pos[1], sz, sz);
+							const hovered = LiteGraph.isInsideRectangle(
+								mouse[0],
+								mouse[1],
+								x + this.pos[0],
+								y + this.pos[1],
+								sz,
+								sz
+							);
 							let fill = "#333";
 							let textFill = "#fff";
 							let isClicking = false;
@@ -380,27 +390,35 @@ class ComfyApp {
 		const self = this;
 
 		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
-		LGraphCanvas.prototype.processMouseDown = function(e) {
+		LGraphCanvas.prototype.processMouseDown = function (e) {
 			const res = origProcessMouseDown.apply(this, arguments);
 
 			this.selected_group_moving = false;
 
 			if (this.selected_group && !this.selected_group_resizing) {
-				var font_size =
-					this.selected_group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
+				var font_size = this.selected_group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
 				var height = font_size * 1.4;
 
 				// Move group by header
-				if (LiteGraph.isInsideRectangle(e.canvasX, e.canvasY, this.selected_group.pos[0], this.selected_group.pos[1], this.selected_group.size[0], height)) {
+				if (
+					LiteGraph.isInsideRectangle(
+						e.canvasX,
+						e.canvasY,
+						this.selected_group.pos[0],
+						this.selected_group.pos[1],
+						this.selected_group.size[0],
+						height
+					)
+				) {
 					this.selected_group_moving = true;
 				}
 			}
 
 			return res;
-		}
+		};
 
 		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
-		LGraphCanvas.prototype.processMouseMove = function(e) {
+		LGraphCanvas.prototype.processMouseMove = function (e) {
 			const orig_selected_group = this.selected_group;
 
 			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
@@ -424,7 +442,7 @@ class ComfyApp {
 		const self = this;
 
 		const origDrawGroups = LGraphCanvas.prototype.drawGroups;
-		LGraphCanvas.prototype.drawGroups = function(canvas, ctx) {
+		LGraphCanvas.prototype.drawGroups = function (canvas, ctx) {
 			if (!this.graph) {
 				return;
 			}
@@ -447,8 +465,7 @@ class ComfyApp {
 				var size = group._size;
 				ctx.globalAlpha = 0.25 * this.editor_alpha;
 				ctx.beginPath();
-				var font_size =
-					group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
+				var font_size = group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
 				ctx.rect(pos[0] + 0.5, pos[1] + 0.5, size[0], font_size * 1.4);
 				ctx.fill();
 				ctx.globalAlpha = this.editor_alpha;
@@ -458,7 +475,7 @@ class ComfyApp {
 
 			const res = origDrawGroups.apply(this, arguments);
 			return res;
-		}
+		};
 	}
 
 	/**
@@ -467,7 +484,15 @@ class ComfyApp {
 	#addDrawNodeHandler() {
 		const orig = LGraphCanvas.prototype.drawNodeShape;
 		const self = this;
-		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
+		LGraphCanvas.prototype.drawNodeShape = function (
+			node,
+			ctx,
+			size,
+			fgcolor,
+			bgcolor,
+			selected,
+			mouse_over
+		) {
 			const res = orig.apply(this, arguments);
 
 			let color = null;
@@ -483,8 +508,16 @@ class ComfyApp {
 				ctx.globalAlpha = 0.8;
 				ctx.beginPath();
 				if (shape == LiteGraph.BOX_SHAPE)
-					ctx.rect(-6, -6 + LiteGraph.NODE_TITLE_HEIGHT, 12 + size[0] + 1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT);
-				else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
+					ctx.rect(
+						-6,
+						-6 + LiteGraph.NODE_TITLE_HEIGHT,
+						12 + size[0] + 1,
+						12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT
+					);
+				else if (
+					shape == LiteGraph.ROUND_SHAPE ||
+					(shape == LiteGraph.CARD_SHAPE && node.flags.collapsed)
+				)
 					ctx.roundRect(
 						-6,
 						-6 - LiteGraph.NODE_TITLE_HEIGHT,
@@ -583,7 +616,9 @@ class ComfyApp {
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
-		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), {
+			id: "graph-canvas",
+		}));
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
@@ -627,7 +662,10 @@ class ComfyApp {
 		}
 
 		// Save current workflow automatically
-		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
+		setInterval(
+			() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())),
+			1000
+		);
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
@@ -661,8 +699,12 @@ class ComfyApp {
 			const node = Object.assign(
 				function ComfyNode() {
 					var inputs = nodeData["input"]["required"];
-					if (nodeData["input"]["optional"] != undefined){
-					    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
+					if (nodeData["input"]["optional"] != undefined) {
+						inputs = Object.assign(
+							{},
+							nodeData["input"]["required"],
+							nodeData["input"]["optional"]
+						);
 					}
 					const config = { minWidth: 1, minHeight: 1 };
 					for (const inputName in inputs) {
@@ -674,7 +716,10 @@ class ComfyApp {
 							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
 						} else if (`${type}:${inputName}` in widgets) {
 							// Support custom widgets by Type:Name
-							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+							Object.assign(
+								config,
+								widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {}
+							);
 						} else if (type in widgets) {
 							// Standard type widgets
 							Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
@@ -783,7 +828,9 @@ class ComfyApp {
 				for (const i in widgets) {
 					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+						inputs[widget.name] = widget.serializeValue
+							? await widget.serializeValue(n, i)
+							: widget.value;
 					}
 				}
 			}
@@ -885,23 +932,30 @@ class ComfyApp {
 	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
-		for(let nodeNum in this.graph._nodes) {
+		for (let nodeNum in this.graph._nodes) {
 			const node = this.graph._nodes[nodeNum];
 
 			const def = defs[node.type];
 
-			for(const widgetNum in node.widgets) {
-				const widget = node.widgets[widgetNum]
+			for (const widgetNum in node.widgets) {
+				const widget = node.widgets[widgetNum];
 
-				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
+				if (widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
 					widget.options.values = def["input"]["required"][widget.name][0];
 
-					if(!widget.options.values.includes(widget.value)) {
+					if (!widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
 					}
 				}
 			}
 		}
+	}
+
+	/**
+	 * Clean current state
+	 */
+	clean() {
+		this.nodeOutputs = {};
 	}
 }
 
