@@ -1,6 +1,8 @@
 :root {
-	--fg-color: #000;
-	--bg-color: #fff;
+	--fg-color: #d5d5d5;
+	--bg-color: #202020;
+	--sel-color: #332222;
+	--item-color: #252525;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -62,12 +64,6 @@ body {
 	overflow: auto;
 	white-space: pre-line; /* This will respect line breaks */
 	margin-bottom: 20px; /* Add some margin between the text and the close button*/
-}
-
-.comfy-modal select,
-.comfy-modal input[type=button],
-.comfy-modal input[type=checkbox] {
-	margin: 3px 3px 3px 4px;
 }
 
 .comfy-modal button {
