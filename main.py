@@ -72,8 +72,9 @@ from server import BinaryEventTypes
 from nodes import init_custom_nodes
 import comfy.model_management
 
-def prompt_worker(q, server):
-    e = execution.PromptExecutor(server)
+
+def prompt_worker(q: execution.PromptQueue, _server: server.PromptServer):
+    e = execution.PromptExecutor(_server)
     while True:
         item, item_id = q.get()
         execution_start_time = time.perf_counter()

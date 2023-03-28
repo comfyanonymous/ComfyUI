@@ -3,7 +3,6 @@
 import os.path
 import platform
 import subprocess
-import sys
 
 from pip._internal.index.collector import LinkCollector
 from pip._internal.index.package_finder import PackageFinder
@@ -12,7 +11,7 @@ from pip._internal.models.selection_prefs import SelectionPreferences
 from pip._internal.network.session import PipSession
 from pip._internal.req import InstallRequirement
 from pip._vendor.packaging.requirements import Requirement
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, find_namespace_packages
 
 """
 The name of the package.
@@ -139,6 +138,14 @@ setup(
     author="",
     version=version,
     python_requires=">=3.9,<3.11",
-    packages=find_packages(include=['comfy', 'comfy_extras']),
+    # todo: figure out how to include the web directory to eventually let main live inside the package
+    # todo: see https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/ for more about adding plugins
+    packages=find_packages(where="./", include=['comfy', 'comfy_extras']),
     install_requires=dependencies(),
+    entry_points={
+        'console_scripts': [
+            # todo: eventually migrate main here
+            'comfyui-openapi-gen = comfy.cmd.openapi_gen:main'
+        ],
+    },
 )

@@ -1,26 +1,24 @@
-import os
-import sys
+from __future__ import annotations
 import asyncio
-import nodes
-import folder_paths
-import execution
-import uuid
-import json
 import glob
 import struct
 from PIL import Image, ImageOps
 from io import BytesIO
 
-try:
-    import aiohttp
-    from aiohttp import web
-except ImportError:
-    print("Module 'aiohttp' not installed. Please install it via:")
-    print("pip install aiohttp")
-    print("or")
-    print("pip install -r requirements.txt")
-    sys.exit()
+import json
+import mimetypes
+import os
+import uuid
+from asyncio import Future
+from typing import List
 
+import aiofiles
+import aiohttp
+from aiohttp import web
+
+import execution
+import folder_paths
+import nodes
 import mimetypes
 from comfy.cli_args import args
 import comfy.utils
@@ -62,6 +60,8 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 class PromptServer():
+    prompt_queue: execution.PromptQueue | None
+
     def __init__(self, loop):
         PromptServer.instance = self
 
@@ -104,7 +104,7 @@ class PromptServer():
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
                     await self.send("executing", { "node": self.last_node_id }, sid)
-                    
+
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
                         print('ws connection closed with exception %s' % ws.exception())
@@ -126,7 +126,8 @@ class PromptServer():
             files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
             return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
 
-        def get_dir_by_type(dir_type):
+        def get_dir_by_type(dir_type=None):
+            type_dir = ""
             if dir_type is None:
                 dir_type = "input"
 
@@ -175,8 +176,8 @@ class PromptServer():
                 if image_save_function is not None:
                     image_save_function(image, post, filepath)
                 else:
-                    with open(filepath, "wb") as f:
-                        f.write(image.file.read())
+                    async with aiofiles.open(filepath, mode='wb') as file:
+                        await file.write(image.file.read())
 
                 return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
             else:
@@ -312,7 +313,6 @@ class PromptServer():
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     else:
                         return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
-
             return web.Response(status=404)
 
         @routes.get("/view_metadata/{folder_name}")
@@ -449,7 +449,7 @@ class PromptServer():
                 if valid[0]:
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
-                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
+                    self.prompt_queue.put(execution.QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute), completed=None))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
@@ -489,7 +489,90 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-        
+
+        @routes.post("/api/v1/prompts")
+        async def post_prompt(request: web.Request) -> web.Response | web.FileResponse:
+            # check if the queue is too long
+            queue_size = self.prompt_queue.size()
+            queue_too_busy_size = PromptServer.get_too_busy_queue_size()
+            if queue_size > queue_too_busy_size:
+                return web.Response(status=429, reason=f"the queue has {queue_size} elements and {queue_too_busy_size} is the limit for this worker")
+            # read the request
+            upload_dir = PromptServer.get_upload_dir()
+            prompt_dict: dict = {}
+            if request.headers[aiohttp.hdrs.CONTENT_TYPE] == 'application/json':
+                prompt_dict = await request.json()
+            elif request.headers[aiohttp.hdrs.CONTENT_TYPE] == 'multipart/form-data':
+                try:
+                    reader = await request.multipart()
+                    async for part in reader:
+                        if part is None:
+                            break
+                        if part.headers[aiohttp.hdrs.CONTENT_TYPE] == 'application/json':
+                            prompt_dict = await part.json()
+                            if 'prompt' in prompt_dict:
+                                prompt_dict = prompt_dict['prompt']
+                        elif part.filename:
+                            file_data = await part.read(decode=True)
+                            # overwrite existing files
+                            async with aiofiles.open(os.path.join(upload_dir, part.filename), mode='wb') as file:
+                                await file.write(file_data)
+                except IOError | MemoryError as ioError:
+                    return web.Response(status=507, reason=str(ioError))
+                except Exception as ex:
+                    return web.Response(status=400, reason=str(ex))
+
+            if len(prompt_dict) == 0:
+                return web.Response(status=400, reason="no prompt was specified")
+
+            valid, error_message = execution.validate_prompt(prompt_dict)
+            if not valid:
+                return web.Response(status=400, body=error_message)
+
+            # todo: check that the files specified in the InputFile nodes exist
+
+            # convert a valid prompt to the queue tuple this expects
+            completed: Future = self.loop.create_future()
+            number = self.number
+            self.number += 1
+            self.prompt_queue.put(execution.QueueItem(queue_tuple=(number, id(prompt_dict), prompt_dict, dict()), completed=completed))
+
+            try:
+                await completed
+            except Exception as ex:
+                return web.Response(body=str(ex), status=503)
+                # expect a single image
+            outputs_dict: dict = completed.result()
+            # find images and read them
+
+            output_images: List[str] = []
+            for node_id, node in outputs_dict.items():
+                if isinstance(node, dict) and 'ui' in node and isinstance(node['ui'], dict) and 'images' in node['ui']:
+                    for image_tuple in node['ui']['images']:
+                        subfolder_ = image_tuple['subfolder']
+                        filename_ = image_tuple['filename']
+                        output_images.append(PromptServer.get_output_path(subfolder=subfolder_, filename=filename_))
+
+            if len(output_images) > 0:
+                image_ = output_images[-1]
+                return web.FileResponse(path=image_, headers={"Content-Disposition": f"filename=\"{os.path.basename(image_)}\""})
+            else:
+                return web.Response(status=204)
+
+        @routes.get("/api/v1/prompts")
+        async def get_prompt(_: web.Request) -> web.Response:
+            history = self.prompt_queue.get_history()
+            history_items = list(history.values())
+            if len(history_items) == 0:
+                return web.Response(status=404)
+
+            # argmax
+            def _history_item_timestamp(i: int):
+                return history_items[i]['timestamp']
+            last_history_item: execution.HistoryEntry = history_items[max(range(len(history_items)), key=_history_item_timestamp)]
+            prompt = last_history_item['prompt'][2]
+            return web.json_response(prompt, status=200)
+
     def add_routes(self):
         self.app.add_routes(self.routes)
         self.app.add_routes([
@@ -588,3 +671,20 @@ class PromptServer():
         if call_on_start is not None:
             call_on_start(address, port)
 
+    @classmethod
+    def get_output_path(cls, subfolder: str | None = None, filename: str | None = None):
+        paths = [path for path in ["output", subfolder, filename] if path is not None and path != ""]
+        return os.path.join(os.path.dirname(os.path.realpath(__file__)), *paths)
+
+    @classmethod
+    def get_upload_dir(cls) -> str:
+        upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+
+        if not os.path.exists(upload_dir):
+            os.makedirs(upload_dir)
+        return upload_dir
+
+    @classmethod
+    def get_too_busy_queue_size(cls):
+        # todo: what is too busy of a queue for API clients?
+        return 100

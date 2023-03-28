@@ -1,0 +1,13 @@
+inputSpec: ./openapi.yaml
+outputDir: ./
+generatorName: python
+globalProperties:
+  supportingFiles:
+    - "__init__.py"
+    - "schemas.py"
+    - "exceptions.py"
+    - "configuration.py"
+additionalProperties:
+  generateSourceCodeOnly: true
+  packageName: comfy.api
+  generateAliasAsModel: true

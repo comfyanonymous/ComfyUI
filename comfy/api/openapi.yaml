@@ -1,0 +1,548 @@
+openapi: 3.0.0
+info:
+  title: comfyui
+  version: 0.0.1
+servers:
+  - description: localhost
+    url: http://localhost:8188
+paths:
+  /:
+    get:
+      summary: Web UI index.html
+      operationId: get_root
+      responses:
+        200:
+          description: the index.html of the website
+          content:
+            text/html:
+              example: "<!DOCTYPE html>..."
+  /embeddings:
+    get:
+      summary: Get embeddings
+      operationId: get_embeddings
+      responses:
+        200:
+          description: |
+            Returns a list of the files located in the embeddings/ directory that can be used as arguments for
+            embedding nodes. The file extension is omitted.
+          content:
+            application/json:
+              schema:
+                description: |
+                  File names without extensions in embeddings/ directory
+                type: array
+                items:
+                  type: string
+  /extensions:
+    get:
+      summary: Get extensions
+      operationId: get_extensions
+      responses:
+        200:
+          description: Returns a list of files located in extensions/**/*.js
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /upload/image:
+    post:
+      summary: Upload an image.
+      description: |
+        Uploads an image to the input/ directory.
+        
+        Never replaces files. The method will return a renamed file name if it would have overwritten an existing file.
+      operationId: upload_image
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: The upload data
+              properties:
+                image:
+                  description: The image binary data
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Successful upload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    description: |
+                      The name to use in a workflow.
+                    type: string
+        '400':
+          description: |
+            The request was missing an image upload.
+  /view:
+    get:
+      summary: View image
+      operationId: view_image
+      parameters:
+        - in: query
+          name: filename
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - output
+              - input
+              - temp
+        - in: query
+          name: subfolder
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful retrieval of file
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Bad Request
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+  /prompt:
+    get:
+      summary: Get queue info
+      operationId: get_prompt
+      responses:
+        200:
+          description: The current queue information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exec_info:
+                    type: object
+                    properties:
+                      queue_remaining:
+                        type: integer
+    post:
+      summary: Post prompt
+      operationId: post_prompt
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PromptRequest"
+      responses:
+        '200':
+          description: The prompt was queued.
+          content:
+            text/plain:
+              example: ""
+              schema:
+                type: string
+        '400':
+          description: The prompt was invalid. The validation error is returned as the content.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /object_info:
+    get:
+      summary: Get object info
+      operationId: get_object_info
+      responses:
+        '200':
+          description: The list of supported nodes
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Node"
+  /history:
+    get:
+      summary: Get history
+      operationId: get_history
+      responses:
+        "200":
+          description: History
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    timestamp:
+                      type: number
+                    prompt:
+                      $ref: "#/components/schemas/QueueTuple"
+                    # todo: do the outputs format
+                    outputs:
+                      type: object
+    post:
+      summary: Post history
+      operationId: post_history
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clear:
+                  type: boolean
+                delete:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: OK
+  /queue:
+    get:
+      summary: Get queue
+      operationId: get_queue
+      responses:
+        "200":
+          description: the queue state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queue_running:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/QueueTuple"
+                  queue_pending:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/QueueTuple"
+    post:
+      summary: Post queue
+      operationId: post_queue
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clear:
+                  type: boolean
+                delete:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: OK
+  /interrupt:
+    post:
+      summary: Post interrupt
+      operationId: post_interrupt
+      responses:
+        '200':
+          description: OK
+  /api/v1/prompts:
+    get:
+      summary: Return the last prompt run anywhere that was used to produce an image.
+      description: |
+        The prompt object can be POSTed to run the image again with your own parameters.
+        
+        The last prompt, whether it was in the UI or via the API, will be returned here.
+      responses:
+        200:
+          description: |
+            The last prompt.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Prompt"
+        404:
+          description: |
+            There were no prompts in the history to return.
+    post:
+      summary: Run a prompt to produce an image.
+      description: |
+        Blocks until the image is produced. This may take an arbitrarily long amount of time due to model loading.
+        
+        Prompts that produce multiple images will return the last SaveImage output node in the Prompt by default. To return a specific image, remove other
+        SaveImage nodes.
+        
+        When images are included in your request body, these are saved and their
+        filenames will be used in your Prompt.
+      responses:
+        200:
+          description: |
+            The binary content of the last SaveImage node.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        204:
+          description: |
+            The prompt was run but did not contain any SaveImage outputs, so nothing will be returned.
+            
+            This could be run to e.g. cause the backend to pre-load a model.
+        400:
+          description: |
+            The prompt is invalid.
+        429:
+          description: |
+            The queue is currently too long to process your request.
+        500:
+          description: |
+            An unexpected exception occurred and it is being passed to you.
+            
+            This can occur if file was referenced in a LoadImage / LoadImageMask that doesn't exist.
+        507:
+          description: |
+            The server had an IOError like running out of disk space.
+        503:
+          description: |
+            The server is too busy to process this request right now.
+            
+            This should only be returned by a load balancer. Standalone comfyui does not return this.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Prompt"
+          multipart/formdata:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  $ref: "#/components/schemas/Prompt"
+                files:
+                  description: |
+                    Files to upload along with this request.
+                    
+                    The filename specified in the content-disposition can be used in your Prompt.
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+components:
+  schemas:
+    Node:
+      type: object
+      properties:
+        input:
+          type: object
+          required:
+            - required
+          properties:
+            required:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  minItems: 1
+                  maxItems: 2
+                  oneOf:
+                    - type: string
+                    - type: number
+                    - type: object
+                      properties:
+                        default:
+                          type: string
+                        min:
+                          type: number
+                        max:
+                          type: number
+                        step:
+                          type: number
+                        multiline:
+                          type: boolean
+                    - type: array
+                      items:
+                        type: string
+            hidden:
+              type: object
+              additionalProperties:
+                type: string
+        output:
+          type: array
+          items:
+            type: string
+        output_name:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+    ExtraData:
+      type: object
+      properties:
+        extra_pnginfo:
+          type: object
+          properties:
+            workflow:
+              $ref: "#/components/schemas/Workflow"
+    Prompt:
+      type: object
+      description: |
+        The keys are stringified integers corresponding to nodes.
+        
+        You can retrieve the last prompt run using GET /api/v1/prompts
+      additionalProperties:
+        $ref: '#/components/schemas/PromptNode'
+    PromptNode:
+      type: object
+      required:
+        - class_type
+        - inputs
+      properties:
+        class_type:
+          type: string
+          description: The node's class type, which maps to a class in NODE_CLASS_MAPPINGS.
+        inputs:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: number
+              - type: string
+              - type: array
+                description: |
+                  When this is specified, it is a node connection, followed by an output.
+                items:
+                  minItems: 2
+                  maxItems: 2
+                  oneOf:
+                    - type: string
+                    - type: integer
+          description: The inputs for the node, which can be scalar values or references to other nodes' outputs.
+        is_changed:
+          type: string
+          description: A string representing whether the node has changed (optional).
+    Workflow:
+      type: object
+      properties:
+        last_node_id:
+          type: integer
+        last_link_id:
+          type: integer
+        nodes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              type:
+                type: string
+              pos:
+                type: array
+                maxItems: 2
+                minItems: 2
+                items:
+                  type: number
+              size:
+                type: object
+                properties:
+                  "0":
+                    type: number
+                  "1":
+                    type: number
+              flags:
+                type: object
+                additionalProperties:
+                  type: object
+              order:
+                type: integer
+              mode:
+                type: integer
+              inputs:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    link:
+                      type: integer
+              outputs:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    links:
+                      type: array
+                      items:
+                        type: integer
+                    slot_index:
+                      type: integer
+              properties:
+                type: object
+              widgets_values:
+                type: array
+                items:
+                  type: string
+        links:
+          type: array
+          items:
+            type: array
+            items:
+              minItems: 6
+              maxItems: 6
+              oneOf:
+                - type: integer
+                - type: string
+        groups:
+          type: array
+          items:
+            type: object
+        config:
+          type: object
+        extra:
+          type: object
+        version:
+          type: number
+    PromptRequest:
+      type: object
+      required:
+        - prompt
+      properties:
+        client_id:
+          type: string
+        prompt:
+          $ref: "#/components/schemas/Prompt"
+        extra_data:
+          $ref: "#/components/schemas/ExtraData"
+    QueueTuple:
+      type: array
+      description: |
+        The first item is the queue priority
+        The second item is the hash id of the prompt object
+        The third item is a Prompt
+        The fourth item is an ExtraData
+      items:
+        minItems: 4
+        maxItems: 4
+        oneOf:
+          - type: number
+          - $ref: "#/components/schemas/Prompt"
+          - $ref: "#/components/schemas/ExtraData"

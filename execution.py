@@ -1,16 +1,58 @@
-import os
-import sys
+from __future__ import annotations
+
+import asyncio
 import copy
-import json
-import threading
+import datetime
+import gc
 import heapq
+import threading
 import traceback
+import typing
+from dataclasses import dataclass
+from typing import Tuple
 import gc
 
 import torch
-import nodes
 
+import nodes
 import comfy.model_management
+
+"""
+A queued item
+"""
+QueueTuple = Tuple[float, int, dict, dict]
+
+
+def get_queue_priority(t: QueueTuple):
+    return t[0]
+
+
+def get_prompt_id(t: QueueTuple):
+    return t[1]
+
+
+def get_prompt(t: QueueTuple):
+    return t[2]
+
+
+def get_extra_data(t: QueueTuple):
+    return t[3]
+
+
+class HistoryEntry(typing.TypedDict):
+    prompt: QueueTuple
+    outputs: dict
+    timestamp: datetime.datetime
+
+@dataclass
+class QueueItem:
+    """
+    An item awaiting processing in the queue
+    """
+    queue_tuple: QueueTuple
+    completed: asyncio.Future | None
+
+
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -50,14 +92,13 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         max_len_input = 0
     else:
         max_len_input = max([len(x) for x in input_data_all.values()])
-     
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         d_new = dict()
         for k,v in d.items():
             d_new[k] = v[i if len(v) > i else -1]
         return d_new
-    
+
     results = []
     if input_is_list:
         if allow_interrupt:
@@ -75,7 +116,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     return results
 
 def get_output_data(obj, input_data_all):
-    
+
     results = []
     uis = []
     return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
@@ -88,7 +129,7 @@ def get_output_data(obj, input_data_all):
                 results.append(r['result'])
         else:
             results.append(r)
-    
+
     output = []
     if len(results) > 0:
         # check which outputs need concatenating
@@ -103,7 +144,7 @@ def get_output_data(obj, input_data_all):
             else:
                 output.append([o[i] for o in results])
 
-    ui = dict()    
+    ui = dict()
     if len(uis) > 0:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui
@@ -383,6 +424,8 @@ class PromptExecutor:
 
 
 def validate_inputs(prompt, item, validated):
+    # todo: this should check if LoadImage / LoadImageMask paths exist
+    # todo: or, nodes should provide a way to validate their values
     unique_id = item
     if unique_id in validated:
         return validated[unique_id]
@@ -583,13 +626,14 @@ def validate_inputs(prompt, item, validated):
     validated[unique_id] = ret
     return ret
 
+
 def full_type_name(klass):
     module = klass.__module__
     if module == 'builtins':
         return klass.__qualname__
     return module + '.' + klass.__qualname__
 
-def validate_prompt(prompt):
+def validate_prompt(prompt: dict) -> typing.Tuple[bool, str]:
     outputs = set()
     for x in prompt:
         class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
@@ -680,47 +724,62 @@ def validate_prompt(prompt):
 
 
 class PromptQueue:
+    queue: typing.List[QueueItem]
+    currently_running: typing.Dict[int, QueueItem]
+    # history maps the second integer prompt id in the queue tuple to a dictionary with keys "prompt" and "outputs
+    history: typing.Dict[int, HistoryEntry]
+
     def __init__(self, server):
         self.server = server
         self.mutex = threading.RLock()
         self.not_empty = threading.Condition(self.mutex)
-        self.task_counter = 0
+        self.next_task_id = 0
         self.queue = []
         self.currently_running = {}
         self.history = {}
         server.prompt_queue = self
 
-    def put(self, item):
+    def size(self) -> int:
+        return len(self.queue)
+
+    def put(self, item: QueueItem):
         with self.mutex:
             heapq.heappush(self.queue, item)
             self.server.queue_updated()
             self.not_empty.notify()
 
-    def get(self):
+    def get(self) -> typing.Tuple[QueueTuple, int]:
         with self.not_empty:
             while len(self.queue) == 0:
                 self.not_empty.wait()
-            item = heapq.heappop(self.queue)
-            i = self.task_counter
-            self.currently_running[i] = copy.deepcopy(item)
-            self.task_counter += 1
+            item_with_future: QueueItem = heapq.heappop(self.queue)
+            task_id = self.next_task_id
+            self.currently_running[task_id] = item_with_future
+            self.next_task_id += 1
             self.server.queue_updated()
-            return (item, i)
+            return copy.deepcopy(item_with_future.queue_tuple), task_id
 
-    def task_done(self, item_id, outputs):
+    def task_done(self, item_id, outputs: dict):
         with self.mutex:
-            prompt = self.currently_running.pop(item_id)
-            self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
+            queue_item = self.currently_running.pop(item_id)
+            prompt = queue_item.queue_tuple
+            self.history[prompt[1]] = {"prompt": prompt, "outputs": {}, "timestamp": datetime.datetime.now()}
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
             self.server.queue_updated()
+            if queue_item.completed:
+                queue_item.completed.set_result(outputs)
 
-    def get_current_queue(self):
+    def get_current_queue(self) -> Tuple[typing.List[QueueTuple], typing.List[QueueTuple]]:
+        """
+        Gets the current state of the queue
+        :return: A tuple containing (the currently running items, the items awaiting execution)
+        """
         with self.mutex:
-            out = []
+            out: typing.List[QueueTuple] = []
             for x in self.currently_running.values():
-                out += [x]
-            return (out, copy.deepcopy(self.queue))
+                out += [x.queue_tuple]
+            return out, copy.deepcopy([item.queue_tuple for item in self.queue])
 
     def get_tasks_remaining(self):
         with self.mutex:
@@ -728,6 +787,9 @@ class PromptQueue:
 
     def wipe_queue(self):
         with self.mutex:
+            for item in self.queue:
+                if item.completed:
+                    item.completed.set_exception(Exception("queue cancelled"))
             self.queue = []
             self.server.queue_updated()
 
@@ -738,7 +800,9 @@ class PromptQueue:
                     if len(self.queue) == 1:
                         self.wipe_queue()
                     else:
-                        self.queue.pop(x)
+                        item = self.queue.pop(x)
+                        if item.completed:
+                            item.completed.set_exception(Exception("queue item deleted"))
                         heapq.heapify(self.queue)
                     self.server.queue_updated()
                     return True
@@ -757,6 +821,6 @@ class PromptQueue:
         with self.mutex:
             self.history = {}
 
-    def delete_history_item(self, id_to_delete):
+    def delete_history_item(self, id_to_delete: int):
         with self.mutex:
             self.history.pop(id_to_delete, None)

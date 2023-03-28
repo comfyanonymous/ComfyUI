@@ -1,11 +1,11 @@
-output/
-input/
-!input/example.png
-models/
-temp/
-custom_nodes/
-!custom_nodes/example_node.py.example
-extra_model_paths.yaml
+/[Oo]utput/
+/[Ii]nput/
+!/input/example.png
+/[Mm]odels/
+/[Tt]emp/
+/[Cc]ustom_nodes/
+!/custom_nodes/example_node.py.example
+/extra_model_paths.yaml
 /.vs
 .idea/
 venv/
@@ -167,3 +167,4 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+.openapi-generator/
