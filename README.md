@@ -80,21 +80,45 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 
 To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
 
-## Manual Install (Windows, Linux)
+## Manual Install (Windows, Linuxm, macOS)
 
-Git clone this repo.
-
-Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
-
-Put your VAE in: models/vae
-
-Then, run the following command to install comfyui into your current environment:
-
+ 1. Clone this repo:
 ```
+git clone https://github.com/comfyanonymous/ComfyUI.git
+cd ComfyUI
+```
+
+ 2. Put your Stable Diffusion checkpoints (the huge ckpt/safetensors files) into the `models/checkpoints` folder. You can download SD v1.5 using the following command:
+```shell
+curl -L https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt -o ./models/checkpoints/v1-5-pruned-emaonly.ckpt
+```
+
+ 3. Put your VAE into the `models/vae` folder.
+
+ 4. (Optional) Create a virtual environment:
+    1. Create an environment:
+```shell
+python -m virtualenv venv
+```
+2. Activate it:
+
+**Windows:**
+```pwsh
+Set-ExecutionPolicy Unrestricted -Scope Process
+& .\venv\Scripts\activate.ps1
+```
+
+**Linux, macOS and bash/busybox64.exe on Windows:**
+```shell
+source ./venv/bin/activate
+```
+
+ 5. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
+```shell
 pip install -e .
 ```
 
-This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux).
+
 
 #### Troubleshooting
 
