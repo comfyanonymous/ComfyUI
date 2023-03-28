@@ -7,7 +7,6 @@ import execution
 import uuid
 import json
 import glob
-from shutil import copyfile
 
 try:
     import aiohttp
@@ -87,17 +86,6 @@ class PromptServer():
         async def get_extensions(request):
             files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
             return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
-
-        @routes.get("/image/output_to_input/{name}")
-        async def copy_output_to_input_image(request):
-            name  = request.match_info["name"]
-
-            src_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output", name)
-            dest_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input", name)
-
-            copyfile(src_dir,dest_dir)
-
-            return web.Response(status=200)
 
         @routes.post("/upload/image")
         async def upload_image(request):

@@ -247,7 +247,9 @@ def validate_inputs(prompt, item):
 
             if isinstance(type_input, list):
                 if val not in type_input:
-                    return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
+                    # bypass validation on special output
+                    if not val.endswith(" [OUT]") and not val.endswith(" [TEMP]"):
+                        return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
     return (True, "")
 
 def validate_prompt(prompt):

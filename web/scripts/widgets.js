@@ -47,7 +47,7 @@ function seedWidget(node, inputName, inputData) {
 }
 
 function imagesendWidget(node, inputName, inputData, app) {
-	function showImage(node,uploadWidget,name) {
+	function showImage(node,uploadWidget,name,type) {
 			// Position the image somewhere sensible
 			if (!node.imageOffset) {
 					node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 50 : 100;
@@ -58,7 +58,13 @@ function imagesendWidget(node, inputName, inputData, app) {
 					node.imgs = [img];
 					app.graph.setDirtyCanvas(true);
 			};
-			img.src = `/view?filename=${name}&type=input`;
+
+			if(type == "OUT")
+				img.src = `/view?filename=${name}&type=output`;
+			else if(type == "TEMP")
+				img.src = `/view?filename=${name}&type=temp`;
+			else
+				img.src = `/view?filename=${name}&type=input`;
 	}
 
 	async function callback() {
@@ -75,15 +81,9 @@ function imagesendWidget(node, inputName, inputData, app) {
 				const recvWidget = n.widgets.find((w) => w.name === "recv img");
 
 				if(recvWidget.value == "enable") {
-					// copy current node image to 'recv img' enabled node
-
-					if(!copied) {
-						await api.sendOutputToInputImage(image_name);
-					}
-
-					imageWidget.value = image_name;
+					imageWidget.value = image_name + ` [${inputData[1]}]`;
 					const thatImageWidget = n.widgets.find((w) => w.value === "image");
-					await showImage(n,thatImageWidget,image_name);
+					await showImage(n,thatImageWidget,image_name,inputData[1]);
 				}
 			}
 		}

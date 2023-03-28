@@ -730,7 +730,7 @@ class SaveImage:
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
-    WIDGET_TYPES = {"send to img": ("IMAGESEND", )}
+    WIDGET_TYPES = {"send to img": ("IMAGESEND", "OUT")}
 
     RETURN_TYPES = ()
     FUNCTION = "save_images"
@@ -810,8 +810,12 @@ class PreviewImage(SaveImage):
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
+    WIDGET_TYPES = {"send to img": ("IMAGESEND", "TEMP")}
+
 class LoadImage:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+    temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
     @classmethod
     def INPUT_TYPES(s):
         if not os.path.exists(s.input_dir):
@@ -826,8 +830,17 @@ class LoadImage:
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
+
+    def get_image_path(self, image):
+        if image.endswith(" [OUT]"):
+            return os.path.join(self.output_dir, image[:-6])
+        elif image.endswith(" [TEMP]"):
+            return os.path.join(self.temp_dir, image[:-7])
+        else:
+            return os.path.join(self.input_dir, image)
+
     def load_image(self, image):
-        image_path = os.path.join(self.input_dir, image)
+        image_path = LoadImage.get_image_path(self, image)
         i = Image.open(image_path)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -841,7 +854,7 @@ class LoadImage:
 
     @classmethod
     def IS_CHANGED(s, image):
-        image_path = os.path.join(s.input_dir, image)
+        image_path = LoadImage.get_image_path(s, image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
@@ -849,6 +862,8 @@ class LoadImage:
 
 class LoadImageMask:
     input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+    output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+    temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -863,7 +878,7 @@ class LoadImageMask:
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
     def load_image(self, image, channel):
-        image_path = os.path.join(self.input_dir, image)
+        image_path = LoadImage.get_image_path(self, image)
         i = Image.open(image_path)
         mask = None
         c = channel[0].upper()
@@ -878,7 +893,7 @@ class LoadImageMask:
 
     @classmethod
     def IS_CHANGED(s, image, channel):
-        image_path = os.path.join(s.input_dir, image)
+        image_path = LoadImage.get_image_path(s, image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
