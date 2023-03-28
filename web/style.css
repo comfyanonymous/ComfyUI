@@ -1,6 +1,8 @@
 :root {
-	--fg-color: #000;
-	--bg-color: #fff;
+	--fg-color: #d5d5d5;
+	--bg-color: #202020;
+	--sel-color: #332222;
+	--item-color: #252525;
 }
 
 @media (prefers-color-scheme: dark) {
