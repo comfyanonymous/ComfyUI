@@ -10,7 +10,7 @@ import gc
 import torch
 import nodes
 
-def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
+def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     for x in inputs:
@@ -34,6 +34,8 @@ def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
             if h[x] == "EXTRA_PNGINFO":
                 if "extra_pnginfo" in extra_data:
                     input_data_all[x] = extra_data['extra_pnginfo']
+            if h[x] == "UNIQUE_ID":
+                input_data_all[x] = unique_id
     return input_data_all
 
 def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
@@ -55,7 +57,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
             if input_unique_id not in outputs:
                 executed += recursive_execute(server, prompt, outputs, input_unique_id, extra_data)
 
-    input_data_all = get_input_data(inputs, class_def, outputs, prompt, extra_data)
+    input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
         server.last_node_id = unique_id
         server.send_sync("executing", { "node": unique_id }, server.client_id)
@@ -96,7 +98,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
             is_changed_old = old_prompt[unique_id]['is_changed']
         if 'is_changed' not in prompt[unique_id]:
-            input_data_all = get_input_data(inputs, class_def, outputs)
+            input_data_all = get_input_data(inputs, class_def, unique_id, outputs)
             if input_data_all is not None:
                 is_changed = class_def.IS_CHANGED(**input_data_all)
                 prompt[unique_id]['is_changed'] = is_changed
