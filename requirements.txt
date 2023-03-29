@@ -3,7 +3,7 @@ torchdiffeq
 torchsde
 einops
 open-clip-torch
-transformers
+transformers>=4.25.1
 safetensors
 pytorch_lightning
 aiohttp
