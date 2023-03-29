@@ -5,8 +5,12 @@ const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
-	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
+	if (widget.name == "seed control after generating")
+		widget.allowConvertToInput = false;
+	else
+		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
 }
+
 
 function hideWidget(node, widget, suffix = "") {
 	widget.origType = widget.type;

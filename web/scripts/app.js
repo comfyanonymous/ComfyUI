@@ -773,8 +773,9 @@ class ComfyApp {
 						}
 
 						if (widget.name == "seed control after generating") {
-							if (widget.value == true)
+							if (widget.value == true) {
 								widget.value = "fixed seed";
+                            }
 						}
 					}
 				}

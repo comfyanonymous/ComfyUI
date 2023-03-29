@@ -10,16 +10,17 @@ function getNumberDefaults(inputData, defaultStep) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
 }
 
-export function addSeedControlWidget(node, targetWidget, defauly, options) {
+export function addSeedControlWidget(node, targetWidget, defaultValue = "fixed seed", values) {
 	const seedControl = node.addWidget("combo", "seed control after generating", "fixed seed", function (v) { }, {
-		values: ["fixed seed", "increment", "decrement", "randomize"] },)
+		values: ["fixed seed", "increment", "decrement", "randomize"]
+	})
 	seedControl.afterQueued = () => {
 
 		var v = seedControl.value;
 
 		switch (v) {
 			case ("fixed seed"):
-				console.log("fixed seed");
+				console.log("Fixed Seed");
 				break;
 			case ("increment"):
 				targetWidget.value += 1;
@@ -49,7 +50,7 @@ export function addSeedControlWidget(node, targetWidget, defauly, options) {
 				console.log("default (fail)");
 		}
 	};
-	
+
 	return seedControl;
 }
 
@@ -58,7 +59,7 @@ function seedWidget(node, inputName, inputData) {
 	const seedControl = addSeedControlWidget(node, seed.widget, "fixed seed");
 
 	seed.widget.linkedWidgets = [seedControl];
-	return { widget: seed, seedControl};
+	return { widget: seed, seedControl };
 }
 
 const MultilineSymbol = Symbol();
