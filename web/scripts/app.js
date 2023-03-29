@@ -618,7 +618,7 @@ class ComfyApp {
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
 			const node = this.graph.getNodeById(detail.node);
-			if (node.onExecuted) {
+			if (node?.onExecuted) {
 				node.onExecuted(detail.output);
 			}
 		});
