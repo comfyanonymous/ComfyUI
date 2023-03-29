@@ -17,6 +17,8 @@ const OPE_VARIABLES = {
 	editorURL : 'https://zhuyu1997.github.io/open-pose-editor/'
 }
 
+log = console.log;
+
 class WC{
 	constructor(TARGET){
 		this.mainFrame = $Add('div', TARGET, {style: {position: 'fixed', width: `${WC_VARIABLES.mainWidth}%`, top: 0, left:0, background: WC_VARIABLES.bgMain , borderBottom : `solid 1px ${WC_VARIABLES.borderColor}`, zIndex: 3}});
@@ -129,7 +131,9 @@ class WC{
 			lsSet('WorkflowCollection', jsonEncode(DATA));
 		}
 		if (lsGet('WorkflowCollection') == null) {
-			lsSet('WorkflowCollection', jsonEncode(DEFAULT_COLLECTIONS));
+			//lsSet('WorkflowCollection', jsonEncode(DEFAULT_COLLECTIONS));
+			this.loadDefault();
+			return
 		}
 		let data = jsonDecode(lsGet('WorkflowCollection'));
 		if (data == null) {data = []};
@@ -137,6 +141,22 @@ class WC{
 			this.add(data[i].name, data[i].graph);
 		}
 		this.unselect();
+	}
+	async loadDefault(){
+		let listResp = await fetch('DefaultWorkflows/index.json');
+		log(listResp);
+		let list = await listResp.json();
+		log(list);
+		let data = [];
+		log(data);
+		for (let i = 0; i < list.length; i++){
+			log(i);
+			let temp = await fetch(`DefaultWorkflows/${list[i]}`);
+			log(temp);
+			data.push( {name : list[i].replace('.json', ''), graph : jsonEncode(await temp.json()) } );
+			log(data);
+		}
+		this.load(data);
 	}
 	select(){
 		this.selected = (this.itemSelect.value == -1) ? undefined : this.itemSelect.value;
@@ -212,7 +232,7 @@ class OPE{
 	}
 }
 
-DEFAULT_COLLECTIONS = null;
+/*DEFAULT_COLLECTIONS = null;
 
 if (lsGet('WorkflowCollection') == null) {
 	fetch('DefaultWorkflows.json')
@@ -235,7 +255,7 @@ if (lsGet('WorkflowCollection') == null) {
   .catch(function(err) {  
 	console.log('Fetch Error :-S', err);  
   });
-}
+}*/
 
 wc = new WC(qs('body'));
 ope = new OPE(qs('body'));
