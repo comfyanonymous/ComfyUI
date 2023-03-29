@@ -1,0 +1,307 @@
+{
+  "last_node_id": 11,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 10,
+      "type": "SaveImage",
+      "pos": [
+        695,
+        151
+      ],
+      "size": {
+        "0": 1500.8460693359375,
+        "1": 927.6019287109375
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "Image Upscaler Atlas ComfyUI"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "ImageUpscaleWithModel",
+      "pos": [
+        282,
+        496
+      ],
+      "size": {
+        "0": 315.4982604980469,
+        "1": 250
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "upscale_model",
+          "type": "UPSCALE_MODEL",
+          "link": 5,
+          "slot_index": 0
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 7,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ]
+        },
+        {
+          "links": null
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "id": 8,
+      "type": "ImageScale",
+      "pos": [
+        -147,
+        512
+      ],
+      "size": {
+        "0": 315,
+        "1": 150
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        },
+        {
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "nearest-exact",
+        768,
+        512,
+        "disabled"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "PreviewImage",
+      "pos": [
+        -114,
+        949
+      ],
+      "size": {
+        "0": 630.5836181640625,
+        "1": 344.1615905761719
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 10,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "links": null
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "id": 5,
+      "type": "LoadImage",
+      "pos": [
+        -579,
+        682
+      ],
+      "size": {
+        "0": 338.4964294433594,
+        "1": 323.1502990722656
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            6,
+            10
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "UpscaleModelLoader",
+      "pos": [
+        -157,
+        197
+      ],
+      "size": {
+        "0": 315,
+        "1": 78
+      },
+      "flags": {
+        "collapsed": false
+      },
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "links": [
+            5
+          ],
+          "slot_index": 0
+        },
+        {
+          "links": null
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "RealESRGAN_x8.pth"
+      ]
+    }
+  ],
+  "links": [
+    [
+      5,
+      6,
+      0,
+      7,
+      0,
+      "UPSCALE_MODEL"
+    ],
+    [
+      6,
+      5,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      8,
+      0,
+      7,
+      1,
+      "IMAGE"
+    ],
+    [
+      9,
+      7,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      5,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  ],
+  "groups": [
+    {
+      "title": "this is the best place to get the ESRGAN files. Just open the ZIP, then copy all the files from the 'models' folder into the 'upscalers' folder in ComfyUI",
+      "bounding": [
+        -65,
+        7,
+        140,
+        80
+      ],
+      "color": "#88A"
+    },
+    {
+      "title": "https://huggingface.co/sberbank-ai/Real-ESRGAN/tree/main",
+      "bounding": [
+        88,
+        55,
+        140,
+        80
+      ],
+      "color": "#b58b2a"
+    }
+  ],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
