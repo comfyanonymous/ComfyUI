@@ -221,8 +221,6 @@ class KSamplerX0Inpaint(torch.nn.Module):
     def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None):
         if denoise_mask is not None:
             latent_mask = 1. - denoise_mask
-            if not torch.all(torch.eq(sigma, sigma[0])):
-                raise ValueError('sigma must be the same for all timesteps when using denoise_mask')
             x = x * denoise_mask + (self.latent_image + self.noise * sigma[0]) * latent_mask
         out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat)
         if denoise_mask is not None:
