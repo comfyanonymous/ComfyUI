@@ -420,18 +420,13 @@ class ComfyApp {
 	/**
 	 * Handle keypress
 	 *
-	 * Ctrl + M mute/unmute selected nodes
+	 * Replace the processKey to make key bindings work in all devices
+	 *
+	 * We don't call the original function to avoid duplication
+	 * because we are replacing all key bindings to a more compatible way
 	 */
 	#addProcessKeyHandler() {
-		const self = this;
-		const origProcessKey = LGraphCanvas.prototype.processKey;
 		LGraphCanvas.prototype.processKey = function(e) {
-			const res = origProcessKey.apply(this, arguments);
-
-			if (res === false) {
-				return res;
-			}
-
 			if (!this.graph) {
 				return;
 			}
@@ -442,9 +437,51 @@ class ComfyApp {
 				return;
 			}
 
+			var keyCode = e.keyCode || 0; // Deprecated
+			var code = e.code || ""; // Returns a string with the code value of the physical key represented by the event. New not fully supported by all browsers see: https://caniuse.com/keyboardevent-code
+			var key = e.key || ""; // Returns a string representing the key value of the key represented by the event. New not fully supported by all browsers see: https://caniuse.com/keyboardevent-key
+			var ctrlKey = e.ctrlKey;
+			var metaKey = e.metaKey;
+			var shiftKey = e.shiftKey;
+			var onlyCtrlOrMeta = (ctrlKey || metaKey) && !shiftKey;
+
 			if (e.type == "keydown") {
-				// Ctrl + M mute/unmute
-				if (e.keyCode == 77 && e.ctrlKey) {
+				// Space
+				if (keyCode === 32 || code === "Space" || key === " ") {
+					this.dragging_canvas = true;
+					block_default = true;
+				}
+
+				// Esc
+				if (keyCode === 27 || code === "Escape" || key === "Escape") {
+					if(this.node_panel) this.node_panel.close();
+					if(this.options_panel) this.options_panel.close();
+					block_default = true;
+				}
+
+				// Ctrl + A (select all nodes)
+				if (onlyCtrlOrMeta && (keyCode === 65 || code === "KeyA" || key === "a")) {
+					this.selectNodes();
+					block_default = true;
+				}
+
+				// Ctrl + C (copy selected nodes)
+				if (onlyCtrlOrMeta && (keyCode === 67 || code === "KeyC" || key === "c")) {
+					//copy
+					if (this.selected_nodes) {
+						this.copyToClipboard();
+						block_default = true;
+					}
+				}
+
+				// Ctrl + V (paste copied nodes)
+				if (onlyCtrlOrMeta && (keyCode === 86 || code === "KeyV" || key === "v")) {
+					//paste
+					this.pasteFromClipboard();
+				}
+
+				// Ctrl + M (mute/unmute selected nodes)
+				if (onlyCtrlOrMeta && (keyCode === 77 || code === "KeyM" || key === "m")) {
 					if (this.selected_nodes) {
 						for (var i in this.selected_nodes) {
 							if (this.selected_nodes[i].mode === 2) { // never
@@ -456,6 +493,39 @@ class ComfyApp {
 					}
 					block_default = true;
 				}
+
+				// Delete or Backspace (delete selected nodes)
+				if ((keyCode === 46 || code === "Delete" || key === "Delete")
+					|| (keyCode === 8 || code === "Backspace" || key === "Backspace")) {
+					if (
+						e.target.localName != "input" &&
+						e.target.localName != "textarea"
+					) {
+						this.deleteSelectedNodes();
+						block_default = true;
+					}
+				}
+
+				if (this.selected_nodes) {
+					for (var i in this.selected_nodes) {
+						if (this.selected_nodes[i].onKeyDown) {
+							this.selected_nodes[i].onKeyDown(e);
+						}
+					}
+				}
+			} else if (e.type == "keyup") {
+				// Space
+				if (keyCode === 32 || code === "Space" || key === " ") {
+					this.dragging_canvas = false;
+				}
+
+				if (this.selected_nodes) {
+					for (var i in this.selected_nodes) {
+						if (this.selected_nodes[i].onKeyUp) {
+							this.selected_nodes[i].onKeyUp(e);
+						}
+					}
+				}
 			}
 
 			this.graph.change();
@@ -465,8 +535,6 @@ class ComfyApp {
 				e.stopImmediatePropagation();
 				return false;
 			}
-
-			return res;
 		};
 	}
 
@@ -625,7 +693,7 @@ class ComfyApp {
 	#addKeyboardHandler() {
 		window.addEventListener("keydown", (e) => {
 			// Queue prompt using ctrl or command + enter
-			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
+			if ((e.ctrlKey || e.metaKey) && (e.keyCode === 13 || e.keyCode === 10 || e.code === "Enter" || e.key === "Enter")) {
 				this.queuePrompt(e.shiftKey ? -1 : 0);
 			}
 		});
