@@ -10,17 +10,16 @@ function getNumberDefaults(inputData, defaultStep) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
 }
 
-export function addSeedControlWidget(node, targetWidget, defaultValue = "fixed seed", values) {
+export function addSeedControlWidget(node, targetWidget, defauly, options) {
 	const seedControl = node.addWidget("combo", "seed control after generating", "fixed seed", function (v) { }, {
 		values: ["fixed seed", "increment", "decrement", "randomize"] },)
 	seedControl.afterQueued = () => {
-
 
 		var v = seedControl.value;
 
 		switch (v) {
 			case ("fixed seed"):
-				console.log("Fixed Seed");
+				console.log("fixed seed");
 				break;
 			case ("increment"):
 				targetWidget.value += 1;

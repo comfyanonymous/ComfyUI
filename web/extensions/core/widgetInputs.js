@@ -284,8 +284,8 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "number") {
-					addSeedControlWidget(this, widget, "fixed_seed");
+				if (widget.type === "combo") {
+					addSeedControlWidget(this, widget, "fixed seed");
 				}
 
 				// When our value changes, update other widgets to reflect our changes
