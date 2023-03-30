@@ -66,7 +66,6 @@ function dragElement(dragEl, settings) {
 
 	function positionElement() {
 		const halfWidth = document.body.clientWidth / 2;
-
 		const anchorRight = newPosX + dragEl.clientWidth / 2 > halfWidth;
 
 		// set the element's new position:
@@ -77,8 +76,9 @@ function dragElement(dragEl, settings) {
 			dragEl.style.left = newPosX + "px";
 			dragEl.style.right = "unset";
 		}
-			dragEl.style.top = newPosY + "px";
-			dragEl.style.bottom = "unset";
+		
+		dragEl.style.top = newPosY + "px";
+		dragEl.style.bottom = "unset";
 
 		if (savePos) {
 			localStorage.setItem(
