@@ -65,8 +65,11 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
 
     nodes.before_node_execution()
     outputs[unique_id] = getattr(obj, obj.FUNCTION)(**input_data_all)
-    if "ui" in outputs[unique_id] and server.client_id is not None:
-        server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
+    if "ui" in outputs[unique_id]:
+        if server.client_id is not None:
+            server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
+        if "result" in outputs[unique_id]:
+            outputs[unique_id] = outputs[unique_id]["result"]
     return executed + [unique_id]
 
 def recursive_will_execute(prompt, outputs, current_item):
