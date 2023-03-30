@@ -1,12 +1,16 @@
-import { ComfyWidgets, addRandomizeWidget } from "/scripts/widgets.js";
+import { ComfyWidgets, addSeedControlWidget } from "/scripts/widgets.js";
 import { app } from "/scripts/app.js";
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
-	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
+	if (widget.name == "seed control after generating")
+		widget.allowConvertToInput = false;
+	else
+		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
 }
+
 
 function hideWidget(node, widget, suffix = "") {
 	widget.origType = widget.type;
@@ -23,7 +27,7 @@ function hideWidget(node, widget, suffix = "") {
 		return widget.value;
 	};
 
-	// Hide any linked widgets, e.g. seed+randomize
+	// Hide any linked widgets, e.g. seed+seedControl
 	if (widget.linkedWidgets) {
 		for (const w of widget.linkedWidgets) {
 			hideWidget(node, w, ":" + widget.name);
@@ -40,7 +44,7 @@ function showWidget(widget) {
 	delete widget.origComputeSize;
 	delete widget.origSerializeValue;
 
-	// Hide any linked widgets, e.g. seed+randomize
+	// Hide any linked widgets, e.g. seed+seedControl
 	if (widget.linkedWidgets) {
 		for (const w of widget.linkedWidgets) {
 			showWidget(w);
@@ -284,8 +288,8 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "number") {
-					addRandomizeWidget(this, widget, "Random after every gen");
+				if (widget.type === "combo") {
+					addSeedControlWidget(this, widget, "randomize");
 				}
 
 				// When our value changes, update other widgets to reflect our changes
