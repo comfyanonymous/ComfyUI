@@ -57,11 +57,11 @@ function dragElement(dragEl, settings) {
 
 	function ensureInBounds() {
 		if (dragEl.classList.contains("comfy-menu-manual-pos")) {
-		newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft));
-		newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop));
+			newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft));
+			newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop));
 
-		positionElement();
-	}
+			positionElement();
+		}
 	}
 
 	function positionElement() {
