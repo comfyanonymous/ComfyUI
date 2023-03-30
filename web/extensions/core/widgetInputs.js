@@ -271,10 +271,20 @@ app.registerExtension({
 				}
 
 				let widget;
-				if (type in ComfyWidgets) {
-					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
+
+				// ComfyWidgets allows a subtype of widgets which is defined by "<type>:<widgetName>"
+				// common example is "INT:seed"
+				// so let's check for those first
+				let combinedWidgetType = type + ":" + widgetName;
+				if (combinedWidgetType in ComfyWidgets) {
+					widget = (ComfyWidgets[combinedWidgetType](this, "value", inputData, app) || {}).widget;
 				} else {
-					widget = this.addWidget(type, "value", null, () => {}, {});
+					// we did not find a subtype, so proceed with "<type>" only
+					if (type in ComfyWidgets) {
+						widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
+					} else {
+						widget = this.addWidget(type, "value", null, () => {}, {});
+					}
 				}
 
 				if (node?.widgets && widget) {
@@ -282,10 +292,6 @@ app.registerExtension({
 					if (theirWidget) {
 						widget.value = theirWidget.value;
 					}
-				}
-
-				if (widget.type === "number") {
-					addRandomizeWidget(this, widget, "Random after every gen");
 				}
 
 				// When our value changes, update other widgets to reflect our changes
