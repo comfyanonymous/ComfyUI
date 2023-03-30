@@ -153,7 +153,8 @@ class PromptServer():
                 info['input'] = obj_class.INPUT_TYPES()
                 info['output'] = obj_class.RETURN_TYPES
                 info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
-                info['name'] = x #TODO
+                info['name'] = x
+                info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[x] if x in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else x
                 info['description'] = ''
                 info['category'] = 'sd'
                 if hasattr(obj_class, 'CATEGORY'):
