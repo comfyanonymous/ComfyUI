@@ -18,6 +18,7 @@ if __name__ == "__main__":
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
         print("\t--use-pytorch-cross-attention\tUse the new pytorch 2.0 cross attention function.")
         print("\t--disable-xformers\t\tdisables xformers")
+        print("\t--cuda-device 1\t\tSet the id of the cuda device this instance will use.")
         print()
         print("\t--highvram\t\t\tBy default models will be unloaded to CPU memory after being used.\n\t\t\t\t\tThis option keeps them in GPU memory.\n")
         print("\t--normalvram\t\t\tUsed to force normal vram use if lowvram gets automatically enabled.")
@@ -30,6 +31,14 @@ if __name__ == "__main__":
     if '--dont-upcast-attention' in sys.argv:
         print("disabling upcasting of attention")
         os.environ['ATTN_PRECISION'] = "fp16"
+
+    try:
+        index = sys.argv.index('--cuda-device')
+        device = sys.argv[index + 1]
+        os.environ['CUDA_VISIBLE_DEVICES'] = device
+        print("Set cuda device to:", device)
+    except:
+        pass
 
 import execution
 import server

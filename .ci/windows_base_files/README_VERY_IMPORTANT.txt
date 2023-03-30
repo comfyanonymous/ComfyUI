@@ -25,3 +25,7 @@ To update the ComfyUI code: update\update_comfyui.bat
 To update ComfyUI with the python dependencies, note that you should ONLY run this if you have issues with python dependencies.
 update\update_comfyui_and_python_dependencies.bat
 
+
+TO SHARE MODELS BETWEEN COMFYUI AND ANOTHER UI:
+In the ComfyUI directory you will find a file: extra_model_paths.yaml.example
+Rename this file to: extra_model_paths.yaml and edit it with your favorite text editor.
