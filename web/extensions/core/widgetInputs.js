@@ -101,7 +101,7 @@ app.registerExtension({
 							callback: () => convertToWidget(this, w),
 						});
 					} else {
-						const config = nodeData?.input?.required[w.name] || [w.type, w.options || {}];
+						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
 						if (isConvertableWidget(w, config)) {
 							toInput.push({
 								content: `Convert ${w.name} to input`,
