@@ -617,6 +617,10 @@ class ComfyApp {
 
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
+			const node = this.graph.getNodeById(detail.node);
+			if (node?.onExecuted) {
+				node.onExecuted(detail.output);
+			}
 		});
 
 		api.init();
@@ -739,18 +743,22 @@ class ComfyApp {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
 
-						if (Array.isArray(type)) {
-							// Enums
-							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
-						} else if (`${type}:${inputName}` in widgets) {
-							// Support custom widgets by Type:Name
-							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
-						} else if (type in widgets) {
-							// Standard type widgets
-							Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-						} else {
-							// Node connection inputs
+						if(inputData[1]?.forceInput) {
 							this.addInput(inputName, type);
+						} else {
+							if (Array.isArray(type)) {
+								// Enums
+								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
+							} else if (`${type}:${inputName}` in widgets) {
+								// Support custom widgets by Type:Name
+								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+							} else if (type in widgets) {
+								// Standard type widgets
+								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
+							} else {
+								// Node connection inputs
+								this.addInput(inputName, type);
+							}
 						}
 					}
 
