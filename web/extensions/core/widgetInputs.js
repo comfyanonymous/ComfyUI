@@ -287,7 +287,7 @@ app.registerExtension({
 						widget.value = theirWidget.value;
 					}
 				}
-
+				
 				if (widget.type === "combo") {
 					addSeedControlWidget(this, widget, "randomize");
 				}
