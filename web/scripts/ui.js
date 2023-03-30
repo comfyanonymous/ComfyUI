@@ -50,19 +50,24 @@ function dragElement(dragEl, settings) {
 		dragEl.onmousedown = dragMouseDown;
 	}
 
+	// When the element resizes (e.g. view queue) ensure it is still in the windows bounds
+	const resizeObserver = new ResizeObserver(() => {
+		ensureInBounds();
+	}).observe(dragEl);
+
 	function ensureInBounds() {
+		if (dragEl.classList.contains("comfy-menu-manual-pos")) {
 		newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft));
 		newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop));
 
 		positionElement();
 	}
+	}
 
 	function positionElement() {
 		const halfWidth = document.body.clientWidth / 2;
-		const halfHeight = document.body.clientHeight / 2;
 
 		const anchorRight = newPosX + dragEl.clientWidth / 2 > halfWidth;
-		const anchorBottom = newPosY + dragEl.clientHeight / 2 > halfHeight;
 
 		// set the element's new position:
 		if (anchorRight) {
@@ -72,22 +77,15 @@ function dragElement(dragEl, settings) {
 			dragEl.style.left = newPosX + "px";
 			dragEl.style.right = "unset";
 		}
-		if (anchorBottom) {
-			dragEl.style.top = "unset";
-			dragEl.style.bottom = document.body.clientHeight - newPosY - dragEl.clientHeight + "px";
-		} else {
 			dragEl.style.top = newPosY + "px";
 			dragEl.style.bottom = "unset";
-		}
 
 		if (savePos) {
 			localStorage.setItem(
 				"Comfy.MenuPosition",
 				JSON.stringify({
-					left: dragEl.style.left,
-					right: dragEl.style.right,
-					top: dragEl.style.top,
-					bottom: dragEl.style.bottom,
+					x: dragEl.offsetLeft,
+					y: dragEl.offsetTop,
 				})
 			);
 		}
@@ -97,11 +95,9 @@ function dragElement(dragEl, settings) {
 		let pos = localStorage.getItem("Comfy.MenuPosition");
 		if (pos) {
 			pos = JSON.parse(pos);
-			dragEl.style.left = pos.left;
-			dragEl.style.right = pos.right;
-			dragEl.style.top = pos.top;
-			dragEl.style.bottom = pos.bottom;
-			dragEl.classList.add("comfy-menu-manual-pos");
+			newPosX = pos.x;
+			newPosY = pos.y;
+			positionElement();
 			ensureInBounds();
 		}
 	}
@@ -150,9 +146,7 @@ function dragElement(dragEl, settings) {
 	}
 
 	window.addEventListener("resize", () => {
-		if (dragEl.classList.contains("comfy-menu-manual-pos")) {
 			ensureInBounds();
-		}
 	});
 
 	function closeDragElement() {
