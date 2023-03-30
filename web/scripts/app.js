@@ -771,17 +771,11 @@ class ComfyApp {
 								widget.value = widget.value.slice(7);
 							}
 						}
-<<<<<<< HEAD
 						
 						if (widget.name == "seed control after generating") {
 							if (widget.value == true) {
 								widget.value = "randomize";
-=======
 
-						if (widget.name == "seed control after generating") {
-							if (widget.value == true) {
-								widget.value = "fixed seed";
->>>>>>> 1518b385a7a2f22887dabd97f45548197f65fad3
                             }
 						}
 					}

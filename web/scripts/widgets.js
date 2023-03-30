@@ -10,13 +10,8 @@ function getNumberDefaults(inputData, defaultStep) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
 }
 
-<<<<<<< HEAD
 export function addSeedControlWidget(node, targetWidget, defaultValue = "randomize", values) {
 	const seedControl = node.addWidget("combo", "seed control after generating", "randomize", function (v) { }, {
-=======
-export function addSeedControlWidget(node, targetWidget, defaultValue = "fixed seed", values) {
-	const seedControl = node.addWidget("combo", "seed control after generating", "fixed seed", function (v) { }, {
->>>>>>> 1518b385a7a2f22887dabd97f45548197f65fad3
 		values: ["fixed seed", "increment", "decrement", "randomize"]
 	})
 	seedControl.afterQueued = () => {
@@ -55,21 +50,13 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "fixed s
 				console.log("default (fail)");
 		}
 	};
-<<<<<<< HEAD
-	
-=======
-
->>>>>>> 1518b385a7a2f22887dabd97f45548197f65fad3
 	return seedControl;
 }
 
 function seedWidget(node, inputName, inputData) {
 	const seed = ComfyWidgets.INT(node, inputName, inputData);
-<<<<<<< HEAD
 	const seedControl = addSeedControlWidget(node, seed.widget, "randomize");
-=======
-	const seedControl = addSeedControlWidget(node, seed.widget, "fixed seed");
->>>>>>> 1518b385a7a2f22887dabd97f45548197f65fad3
+
 
 	seed.widget.linkedWidgets = [seedControl];
 	return { widget: seed, seedControl };

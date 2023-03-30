@@ -287,15 +287,10 @@ app.registerExtension({
 						widget.value = theirWidget.value;
 					}
 				}
-<<<<<<< HEAD
 				
 				if (widget.type === "combo") {
 					addSeedControlWidget(this, widget, "randomize");
-=======
 
-				if (widget.type === "combo") {
-					addSeedControlWidget(this, widget, "fixed seed");
->>>>>>> 1518b385a7a2f22887dabd97f45548197f65fad3
 				}
 
 				// When our value changes, update other widgets to reflect our changes
