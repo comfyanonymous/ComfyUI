@@ -1,4 +1,4 @@
-import { ComfyWidgets } from "./widgets.js";
+import { addSeedControlWidget, ComfyWidgets } from "./widgets.js";
 import { ComfyUI } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
@@ -781,7 +781,6 @@ class ComfyApp {
 					}
 				}
 			}
-
 			this.#invokeExtensions("loadedGraphNode", node);
 		}
 	}

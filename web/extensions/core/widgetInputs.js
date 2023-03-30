@@ -5,9 +5,6 @@ const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
-	if (widget.name == "seed control after generating")
-		widget.allowConvertToInput = false;
-	else
 		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
 }
 
@@ -176,6 +173,10 @@ app.registerExtension({
 				node.pos = pos;
 				node.connect(0, this, slot);
 				node.title = input.name;
+				if (node.title == "seed") {
+					node.widgets.addSeedControlWidget(node, node.widgets[0], "randomize");
+					value.widget.linkedWidgets = [seedControl];
+				}
 
 				// Prevent adding duplicates due to triple clicking
 				input[ignoreDblClick] = true;
@@ -192,7 +193,7 @@ app.registerExtension({
 			constructor() {
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
-				this.isVirtualNode = true;
+				this.isVirtualNode = true;			
 			}
 
 			applyToGraph() {
@@ -287,11 +288,10 @@ app.registerExtension({
 						widget.value = theirWidget.value;
 					}
 				}
-				
-				if (widget.type === "combo") {
-					addSeedControlWidget(this, widget, "randomize");
 
-				}
+				if (widget.type === "combo")
+					addSeedControlWidget(this, widget, "randomize");
+				
 
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
