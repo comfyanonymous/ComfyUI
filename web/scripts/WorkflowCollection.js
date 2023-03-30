@@ -21,7 +21,7 @@ log = console.log;
 
 class WC{
 	constructor(TARGET){
-		this.mainFrame = $Add('div', TARGET, {style: {position: 'fixed', width: `${WC_VARIABLES.mainWidth}%`, top: 0, left:0, background: WC_VARIABLES.bgMain , borderBottom : `solid 1px ${WC_VARIABLES.borderColor}`, zIndex: 3}});
+		this.mainFrame = $Add('div', TARGET, {className : 'topMenu'});
 		
 		this.loader = $Add("input", $d.body, {
 			type: "file",
@@ -33,19 +33,19 @@ class WC{
 		});
 		
 		//this.slideFrame = $Add('div', this.mainFrame, {innerHTML : '↔', style : {background : WC_VARIABLES.bgMain, position: 'absolute', left: `${WC_VARIABLES.mainWidth}px`, border : `solid 1px ${WC_VARIABLES.borderColor}`, borderLeft : `solid 0 white`, cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
-		this.Title = $Add('span', this.mainFrame, {innerHTML: 'ComfyUI', style : {textAlign: 'center', marginRight: '20px'}});
+		this.Title = $Add('span', this.mainFrame, {innerHTML: 'ComfyUI', className : 'title'});
 
-		this.controlPanel = $Add('span', this.mainFrame, {style : {textAlign: 'center'} } );
+		this.controlPanel = $Add('span', this.mainFrame, {className : 'workflowControlPanel'});
 		
 		$Add('span', this.controlPanel, {innerHTML : '	|	'});
 		
-		this.itemSelect = $Add('select', this.controlPanel, {style : {width : `${WC_VARIABLES.selectWidth}px`, background : WC_VARIABLES.bgMain, color : WC_VARIABLES.textColor}, onchange : () => {this.select() } } );
+		this.itemSelect = $Add('select', this.controlPanel, {className: 'comboBox', onchange : () => {this.select() } } );
 		
-		this.addWorkflow = $Add('span', this.controlPanel, {type : 'button',  innerHTML : 'Add', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.add(prompt(), jsonEncode(app.graph.serialize() ) ) } } );
-		this.removeWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Remove', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.remove() } } );
-		this.renameWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Rename', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.rename() } } );
-		this.backupWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Backup', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.backup() } } );
-		this.restoreWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Restore', style : {cursor : 'pointer', border: `solid 1px ${WC_VARIABLES.textColor}`, borderRadius : '3px', padding : '2px', marginLeft: '5px'}, onclick : () => {this.loader.click() } } );
+		this.addWorkflow = $Add('span', this.controlPanel, {type : 'button',  innerHTML : 'Add', className : 'button', onclick : () => {this.add(prompt(), jsonEncode(app.graph.serialize() ) ) } } );
+		this.removeWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Remove', className : 'button', onclick : () => {this.remove() } } );
+		this.renameWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Rename', className : 'button', onclick : () => {this.rename() } } );
+		this.backupWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Backup', className : 'button', onclick : () => {this.backup() } } );
+		this.restoreWorkflow = $Add('span', this.controlPanel, {type : 'button', innerHTML : 'Restore', className : 'button', onclick : () => {this.loader.click() } } );
 		
 		$Add('span', this.controlPanel, {innerHTML : '	|	'});
 		
@@ -212,8 +212,8 @@ class WCItem{
 
 class OPE{
 	constructor(TARGET){
-		this.mainFrame = $Add('div', TARGET, {style: {position: 'fixed', width: `${OPE_VARIABLES.mainWidth}%`, height: `${OPE_VARIABLES.mainHeight}%`, top: 0, left:`-${OPE_VARIABLES.mainWidth}%`, background: WC_VARIABLES.bgMain, zIndex: 2}});
-		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'OPE', style : {background : OPE_VARIABLES.bgMain, /*position: 'fixed', left: `50%`, top: 0,*/ border : `solid 1px ${OPE_VARIABLES.borderColor}`, borderRadius : '3px', padding : '2px', cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
+		this.mainFrame = $Add('div', TARGET, {className : 'FullWindow'});
+		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'OPE', style : {background : OPE_VARIABLES.bgMain, border : `solid 1px ${OPE_VARIABLES.borderColor}`, borderRadius : '3px', padding : '2px', cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
 		
 		this.iFrame = $Add('iframe', this.mainFrame, {width: '100%', height: '100%', src : OPE_VARIABLES.editorURL, style : {border : 'none'} } );
 		
@@ -231,31 +231,6 @@ class OPE{
 		}
 	}
 }
-
-/*DEFAULT_COLLECTIONS = null;
-
-if (lsGet('WorkflowCollection') == null) {
-	fetch('DefaultWorkflows.json')
-  .then(
-	function(response) {
-	  if (response.status !== 200) {
-		console.log('Looks like there was a problem. Status Code: ' +
-		  response.status);
-		return;
-	  }
-	  // Examine the text in the response  
-	  response.json().then(function(data) {
-		DEFAULT_COLLECTIONS = data;
-		console.log('test')
-			lsSet('WorkflowCollection', jsonEncode(DEFAULT_COLLECTIONS));
-		wc.load();
-	  });
-	}
-  )
-  .catch(function(err) {  
-	console.log('Fetch Error :-S', err);  
-  });
-}*/
 
 wc = new WC(qs('body'));
 ope = new OPE(qs('body'));
