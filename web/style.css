@@ -64,6 +64,12 @@ body {
 	color: var(--fg-color);
 }
 
+.comfy-modal select,
+.comfy-modal input[type=button],
+.comfy-modal input[type=checkbox] {
+	margin: 3px 3px 3px 4px;
+}
+
 #graph-canvas {
 	width: 100%;
 	height: 100%;
@@ -140,12 +146,6 @@ body {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	color: #999;
-	background-color: #353535;
-	font-family: sans-serif;
-	padding: 10px;
-	border-radius: 0 8px 8px 8px;
-	box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
 }
 
 .comfy-menu button {
@@ -160,22 +160,6 @@ body {
 .comfy-menu-btns button {
 	font-size: 10px;
 	width: 50%;
-	color: #999 !important;
-}
-
-.comfy-menu > button {
-	width: 100%;
-}
-
-.comfy-menu > button,
-.comfy-menu-btns button,
-.comfy-menu .comfy-list button {
-	color: #ddd;
-	background-color: #222;
-	border-radius: 8px;
-	border-color: #4e4e4e;
-	border-style: solid;
-	margin-top: 2px;
 }
 
 .comfy-menu span.drag-handle {
@@ -208,18 +192,14 @@ body {
 }
 
 .comfy-list {
-	color: #999;
-	background-color: #333;
+	background-color: rgb(225, 225, 225);
 	margin-bottom: 10px;
-	border-color: #4e4e4e;
-	border-style: solid;
 }
 
 .comfy-list-items {
 	overflow-y: scroll;
 	max-height: 100px;
-	min-height: 25px;
-	background-color: #222;
+	background-color: #d0d0d0;
 	padding: 5px;
 }
 
@@ -246,16 +226,11 @@ body {
 }
 
 button.comfy-settings-btn {
-	background-color: rgba(0, 0, 0, 0);
 	font-size: 12px;
 	padding: 0;
 	position: absolute;
 	right: 0;
 	border: none;
-}
-
-button.comfy-queue-btn {
-	margin: 6px 0 !important;
 }
 
 .comfy-modal.comfy-settings {
@@ -266,13 +241,6 @@ button.comfy-queue-btn {
 
 @media only screen and (max-height: 850px) {
 	.comfy-menu {
-		top: 0 !important;
-		bottom: 0 !important;
-		left: auto !important;
-		right: 0 !important;
-		border-radius: 0px;
-	}
-	.comfy-menu span.drag-handle {
-		visibility:hidden
+		margin-top: -70px;
 	}
 }
