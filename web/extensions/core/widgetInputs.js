@@ -266,8 +266,9 @@ app.registerExtension({
 
 				if (widget.name === "seed") {
 					const seed = this.#createWidget(widget.config, theirNode, widget.name);
-					const seedControl = addSeedControlWidget(this, seed, "randomize");
-					seed.link = [seedControl];
+					addSeedControlWidget(this, seed, "randomize");
+					//const seedControl = addSeedControlWidget(this, seed, "randomize");
+					//seed.link = [seedControl];//tried using all different links, not just link
 				}
 				else
 					this.#createWidget(widget.config, theirNode, widget.name);
