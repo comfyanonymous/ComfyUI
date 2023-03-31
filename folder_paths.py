@@ -16,6 +16,7 @@ folder_names_and_paths = {}
 models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_ckpt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
+folder_names_and_paths["output"] = ([os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")], [".png"])
 
 folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
 folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
