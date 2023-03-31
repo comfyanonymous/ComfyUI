@@ -30,6 +30,11 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
+## Shortcuts
+- **Ctrl + A** select all nodes
+- **Ctrl + M** mute/unmute selected nodes
+- **Delete** or **Backspace** delete selected nodes
+
 # Installing
 
 ## Windows
@@ -64,7 +69,7 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 Nvidia users should install torch and xformers using this command:
 
-```pip install torch==1.13.1 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu117 xformers```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 xformers```
 
 #### Troubleshooting
 

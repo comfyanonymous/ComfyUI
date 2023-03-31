@@ -10,7 +10,7 @@ import gc
 import torch
 import nodes
 
-def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
+def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     for x in inputs:
@@ -18,6 +18,8 @@ def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             output_index = input_data[1]
+            if input_unique_id not in outputs:
+                return None
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
         else:
@@ -32,6 +34,8 @@ def get_input_data(inputs, class_def, outputs={}, prompt={}, extra_data={}):
             if h[x] == "EXTRA_PNGINFO":
                 if "extra_pnginfo" in extra_data:
                     input_data_all[x] = extra_data['extra_pnginfo']
+            if h[x] == "UNIQUE_ID":
+                input_data_all[x] = unique_id
     return input_data_all
 
 def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
@@ -53,7 +57,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
             if input_unique_id not in outputs:
                 executed += recursive_execute(server, prompt, outputs, input_unique_id, extra_data)
 
-    input_data_all = get_input_data(inputs, class_def, outputs, prompt, extra_data)
+    input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
         server.last_node_id = unique_id
         server.send_sync("executing", { "node": unique_id }, server.client_id)
@@ -61,8 +65,11 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
 
     nodes.before_node_execution()
     outputs[unique_id] = getattr(obj, obj.FUNCTION)(**input_data_all)
-    if "ui" in outputs[unique_id] and server.client_id is not None:
-        server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
+    if "ui" in outputs[unique_id]:
+        if server.client_id is not None:
+            server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
+        if "result" in outputs[unique_id]:
+            outputs[unique_id] = outputs[unique_id]["result"]
     return executed + [unique_id]
 
 def recursive_will_execute(prompt, outputs, current_item):
@@ -94,9 +101,10 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
             is_changed_old = old_prompt[unique_id]['is_changed']
         if 'is_changed' not in prompt[unique_id]:
-            input_data_all = get_input_data(inputs, class_def)
-            is_changed = class_def.IS_CHANGED(**input_data_all)
-            prompt[unique_id]['is_changed'] = is_changed
+            input_data_all = get_input_data(inputs, class_def, unique_id, outputs)
+            if input_data_all is not None:
+                is_changed = class_def.IS_CHANGED(**input_data_all)
+                prompt[unique_id]['is_changed'] = is_changed
         else:
             is_changed = prompt[unique_id]['is_changed']
 
@@ -278,7 +286,7 @@ def validate_prompt(prompt):
             errors += [(o, reason)]
 
     if len(good_outputs) == 0:
-        errors_list = "\n".join(map(lambda a: "{}".format(a[1]), errors))
+        errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
         return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
 
     return (True, "")

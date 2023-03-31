@@ -242,7 +242,10 @@ def ddim_scheduler(model, steps):
     sigs = []
     ddim_timesteps = make_ddim_timesteps(ddim_discr_method="uniform", num_ddim_timesteps=steps, num_ddpm_timesteps=model.inner_model.inner_model.num_timesteps, verbose=False)
     for x in range(len(ddim_timesteps) - 1, -1, -1):
-        sigs.append(model.t_to_sigma(torch.tensor(ddim_timesteps[x])))
+        ts = ddim_timesteps[x]
+        if ts > 999:
+            ts = 999
+        sigs.append(model.t_to_sigma(torch.tensor(ts)))
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
@@ -373,7 +376,7 @@ class KSampler:
 
     def set_steps(self, steps, denoise=None):
         self.steps = steps
-        if denoise is None:
+        if denoise is None or denoise > 0.9999:
             self.sigmas = self._calculate_sigmas(steps)
         else:
             new_steps = int(steps/denoise)
