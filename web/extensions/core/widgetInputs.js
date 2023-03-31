@@ -266,15 +266,7 @@ app.registerExtension({
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
-				//make sure the seedControl is added to the correct Primitive node labelled "seed"
-				if (widget.name === "seed") {
-					const seed = this.#createWidget(widget.config, theirNode, widget.name);
-					const seedControl = addSeedControlWidget(this, seed, "randomize");
-					//this.widgets[0].link = [seedControl];//tried using all different links, not just link
-					this.title = "seed";
-				}
-				else
-					this.#createWidget(widget.config, theirNode, widget.name);
+				this.#createWidget(widget.config, theirNode, widget.name);
 			}
 
 			#createWidget(inputData, node, widgetName) {
@@ -286,12 +278,27 @@ app.registerExtension({
 
 				let widget;
 				
-				if (type in ComfyWidgets) {
-					widget = (ComfyWidgets[type](this, widgetName/*"value*"*/, inputData, app) || {}).widget;
+				// ComfyWidgets allows a subtype of widgets which is defined by "<type>:<widgetName>"
+				// common example is "INT:seed"
+				// so let's check for those first
+				let combinedWidgetType = type + ":" + widgetName;
+				if (combinedWidgetType in ComfyWidgets) {
+					// widget = (ComfyWidgets[combinedWidgetType](this, "value", inputData, app) || {}).widget;
+					widget = (ComfyWidgets[combinedWidgetType](this, widgetName, inputData, app) || {}).widget;
 				} else {
-					widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
+					// we did not find a subtype, so proceed with "<type>" only
+					if (type in ComfyWidgets) {
+						widget = (ComfyWidgets[type](this, widgetName/*"value*"*/, inputData, app) || {}).widget;
+					} else {
+						widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
+					}
+					
+					// addSeedControlWidget(node, seed.widget, "randomize");
+
+					if (widget.type === "number") {
+						addSeedControlWidget(this, widget, "fixed seed");
+					}
 				}
-				
 
 				if (node?.widgets && widget) {
 
@@ -299,10 +306,6 @@ app.registerExtension({
 					if (theirWidget) {
 						widget.value = theirWidget.value;
 					}
-				}
-
-				if (widget.type === "combo") {
-					addSeedControlWidget(this, widget, "randomize");
 				}
 
 				// When our value changes, update other widgets to reflect our changes

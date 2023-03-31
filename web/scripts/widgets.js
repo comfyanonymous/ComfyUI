@@ -11,8 +11,9 @@ function getNumberDefaults(inputData, defaultStep) {
 }
 
 export function addSeedControlWidget(node, targetWidget, defaultValue = "randomize", values) {
-	const seedControl = node.addWidget("combo", "seed control after generating", "randomize", function (v) { }, {
-		values: ["fixed seed", "increment", "decrement", "randomize"]
+	const seedControl = node.addWidget("combo", "seed control after generating", defaultValue, function (v) { }, {
+		values: ["fixed seed", "increment", "decrement", "randomize"],
+		serialize: false, // Don't include this in prompt.
 	})
 	seedControl.afterQueued = () => {
 
@@ -59,7 +60,7 @@ function seedWidget(node, inputName, inputData) {
 	const seedControl = addSeedControlWidget(node, seed.widget, "randomize");
 
 	seed.widget.linkedWidgets = [seedControl];
-	return { widget: seed, seedControl };
+	return seed;
 }
 
 const MultilineSymbol = Symbol();
