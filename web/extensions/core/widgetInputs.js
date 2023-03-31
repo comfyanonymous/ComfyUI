@@ -301,10 +301,11 @@ app.registerExtension({
 						widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
 					}
 					
+					// addSeedControlWidget(node, seed.widget, "randomize");
 
-					// if (widget.type === "number") {
-					// 	addSeedControlWidget(this, this.widget, "randomize");
-					// }
+					if (widget.type === "number") {
+						addSeedControlWidget(this, widget, "randomize");
+					}
 				}
 
 				if (node?.widgets && widget) {
