@@ -418,6 +418,59 @@ class ComfyApp {
 	}
 
 	/**
+	 * Handle keypress
+	 *
+	 * Ctrl + M mute/unmute selected nodes
+	 */
+	#addProcessKeyHandler() {
+		const self = this;
+		const origProcessKey = LGraphCanvas.prototype.processKey;
+		LGraphCanvas.prototype.processKey = function(e) {
+			const res = origProcessKey.apply(this, arguments);
+
+			if (res === false) {
+				return res;
+			}
+
+			if (!this.graph) {
+				return;
+			}
+
+			var block_default = false;
+
+			if (e.target.localName == "input") {
+				return;
+			}
+
+			if (e.type == "keydown") {
+				// Ctrl + M mute/unmute
+				if (e.keyCode == 77 && e.ctrlKey) {
+					if (this.selected_nodes) {
+						for (var i in this.selected_nodes) {
+							if (this.selected_nodes[i].mode === 2) { // never
+								this.selected_nodes[i].mode = 0; // always
+							} else {
+								this.selected_nodes[i].mode = 2; // never
+							}
+						}
+					}
+					block_default = true;
+				}
+			}
+
+			this.graph.change();
+
+			if (block_default) {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				return false;
+			}
+
+			return res;
+		};
+	}
+
+	/**
 	 * Draws group header bar
 	 */
 	#addDrawGroupsHandler() {
@@ -465,10 +518,11 @@ class ComfyApp {
 	 * Draws node highlights (executing, drag drop) and progress bar
 	 */
 	#addDrawNodeHandler() {
-		const orig = LGraphCanvas.prototype.drawNodeShape;
+		const origDrawNodeShape = LGraphCanvas.prototype.drawNodeShape;
 		const self = this;
+
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
-			const res = orig.apply(this, arguments);
+			const res = origDrawNodeShape.apply(this, arguments);
 
 			let color = null;
 			if (node.id === +self.runningNodeId) {
@@ -517,6 +571,21 @@ class ComfyApp {
 
 			return res;
 		};
+
+		const origDrawNode = LGraphCanvas.prototype.drawNode;
+		LGraphCanvas.prototype.drawNode = function (node, ctx) {
+			var editor_alpha = this.editor_alpha;
+
+			if (node.mode === 2) { // never
+				this.editor_alpha = 0.4;
+			}
+
+			const res = origDrawNode.apply(this, arguments);
+
+			this.editor_alpha = editor_alpha;
+
+			return res;
+		};
 	}
 
 	/**
@@ -548,6 +617,10 @@ class ComfyApp {
 
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
+			const node = this.graph.getNodeById(detail.node);
+			if (node?.onExecuted) {
+				node.onExecuted(detail.output);
+			}
 		});
 
 		api.init();
@@ -577,27 +650,6 @@ class ComfyApp {
 	}
 
 	/**
-	 * Setup slot colors for types
-	 */
-	setupSlotColors() {
-		let colors = {
-			"CLIP": "#FFD500", // bright yellow
-			"CLIP_VISION": "#A8DADC", // light blue-gray
-			"CLIP_VISION_OUTPUT": "#ad7452", // rusty brown-orange
-			"CONDITIONING": "#FFA931", // vibrant orange-yellow
-			"CONTROL_NET": "#6EE7B7", // soft mint green
-			"IMAGE": "#64B5F6", // bright sky blue
-			"LATENT": "#FF9CF9", // light pink-purple
-			"MASK": "#81C784", // muted green
-			"MODEL": "#B39DDB", // light lavender-purple
-			"STYLE_MODEL": "#C2FFAE", // light green-yellow
-			"VAE": "#FF6E6E", // bright red
-		};
-
-		Object.assign(this.canvas.default_connection_color_byType, colors);
-	}
-
-	/**
 	 * Set up the app on the page
 	 */
 	async setup() {
@@ -609,12 +661,11 @@ class ComfyApp {
 		document.body.prepend(canvasEl);
 
 		this.#addProcessMouseHandler();
+		this.#addProcessKeyHandler();
 
 		this.graph = new LGraph();
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
-
-		this.setupSlotColors();
 
 		this.graph.start();
 
@@ -692,18 +743,22 @@ class ComfyApp {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
 
-						if (Array.isArray(type)) {
-							// Enums
-							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
-						} else if (`${type}:${inputName}` in widgets) {
-							// Support custom widgets by Type:Name
-							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
-						} else if (type in widgets) {
-							// Standard type widgets
-							Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-						} else {
-							// Node connection inputs
+						if(inputData[1]?.forceInput) {
 							this.addInput(inputName, type);
+						} else {
+							if (Array.isArray(type)) {
+								// Enums
+								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
+							} else if (`${type}:${inputName}` in widgets) {
+								// Support custom widgets by Type:Name
+								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+							} else if (type in widgets) {
+								// Standard type widgets
+								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
+							} else {
+								// Node connection inputs
+								this.addInput(inputName, type);
+							}
 						}
 					}
 
@@ -744,6 +799,8 @@ class ComfyApp {
 	 * @param {*} graphData A serialized graph object
 	 */
 	loadGraphData(graphData) {
+		this.clean();
+
 		if (!graphData) {
 			graphData = defaultGraph;
 		}
@@ -802,6 +859,11 @@ class ComfyApp {
 				continue;
 			}
 
+			if (node.mode === 2) {
+				// Don't serialize muted nodes
+				continue;
+			}
+
 			const inputs = {};
 			const widgets = node.widgets;
 
@@ -839,6 +901,18 @@ class ComfyApp {
 				inputs,
 				class_type: node.comfyClass,
 			};
+		}
+
+		// Remove inputs connected to removed nodes
+
+		for (const o in output) {
+			for (const i in output[o].inputs) {
+				if (Array.isArray(output[o].inputs[i])
+					&& output[o].inputs[i].length === 2
+					&& !output[output[o].inputs[i][0]]) {
+					delete output[o].inputs[i];
+				}
+			}
 		}
 
 		return { workflow, output };
@@ -929,6 +1003,13 @@ class ComfyApp {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Clean current state
+	 */
+	clean() {
+		this.nodeOutputs = {};
 	}
 }
 
