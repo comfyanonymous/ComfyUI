@@ -109,7 +109,7 @@ def get_functions(x, ratio, original_shape):
         w = original_w // downsample
         h = original_h // downsample
         r = int(x.shape[1] * ratio)
-        no_rand = True
+        no_rand = False
         m, u = bipartite_soft_matching_random2d(x, w, h, stride_x, stride_y, r, no_rand)
         return m, u
 
