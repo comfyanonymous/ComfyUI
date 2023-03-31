@@ -1,12 +1,13 @@
-import { ComfyWidgets, addRandomizeWidget } from "/scripts/widgets.js";
+import { ComfyWidgets, addSeedControlWidget } from "/scripts/widgets.js";
 import { app } from "/scripts/app.js";
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
-	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
+		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
 }
+
 
 function hideWidget(node, widget, suffix = "") {
 	widget.origType = widget.type;
@@ -23,7 +24,7 @@ function hideWidget(node, widget, suffix = "") {
 		return widget.value;
 	};
 
-	// Hide any linked widgets, e.g. seed+randomize
+	// Hide any linked widgets, e.g. seed+seedControl
 	if (widget.linkedWidgets) {
 		for (const w of widget.linkedWidgets) {
 			hideWidget(node, w, ":" + widget.name);
@@ -40,7 +41,7 @@ function showWidget(widget) {
 	delete widget.origComputeSize;
 	delete widget.origSerializeValue;
 
-	// Hide any linked widgets, e.g. seed+randomize
+	// Hide any linked widgets, e.g. seed+seedControl
 	if (widget.linkedWidgets) {
 		for (const w of widget.linkedWidgets) {
 			showWidget(w);
@@ -172,6 +173,10 @@ app.registerExtension({
 				node.pos = pos;
 				node.connect(0, this, slot);
 				node.title = input.name;
+				if (node.title == "seed") {
+					node.widgets.addSeedControlWidget(node, node.widgets[0], "randomize");
+					value.widget.linkedWidgets = [seedControl];
+				}
 
 				// Prevent adding duplicates due to triple clicking
 				input[ignoreDblClick] = true;
@@ -188,7 +193,7 @@ app.registerExtension({
 			constructor() {
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
-				this.isVirtualNode = true;
+				this.isVirtualNode = true;			
 			}
 
 			applyToGraph() {
@@ -284,9 +289,9 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "number") {
-					addRandomizeWidget(this, widget, "Random after every gen");
-				}
+				if (widget.type === "combo")
+					addSeedControlWidget(this, widget, "randomize");
+				
 
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
