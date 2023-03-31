@@ -5,6 +5,9 @@ const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
+	if (widget.name == "seed control after generating")
+		widget.allowConvertToInput = false;
+	else
 		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
 }
 
@@ -173,10 +176,6 @@ app.registerExtension({
 				node.pos = pos;
 				node.connect(0, this, slot);
 				node.title = input.name;
-				if (node.title == "seed") {
-					node.widgets.addSeedControlWidget(node, node.widgets[0], "randomize");
-					value.widget.linkedWidgets = [seedControl];
-				}
 
 				// Prevent adding duplicates due to triple clicking
 				input[ignoreDblClick] = true;
@@ -193,7 +192,7 @@ app.registerExtension({
 			constructor() {
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
-				this.isVirtualNode = true;			
+				this.isVirtualNode = true;
 			}
 
 			applyToGraph() {
@@ -276,11 +275,19 @@ app.registerExtension({
 				}
 
 				let widget;
+				
 				if (type in ComfyWidgets) {
-					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
+					widget = (ComfyWidgets[type](this, widgetName/*"value*"*/, inputData, app) || {}).widget;
+					if (widgetName == "seed") {
+						addSeedControlWidget(node, node.widgets[0],"randomize");
+					}
 				} else {
-					widget = this.addWidget(type, "value", null, () => {}, {});
+					widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});	
+					if (widgetName == "seed") {
+						addSeedControlWidget(node, node.widgets[0], "randomize");
+					}
 				}
+				
 
 				if (node?.widgets && widget) {
 					const theirWidget = node.widgets.find((w) => w.name === widgetName);
@@ -288,9 +295,6 @@ app.registerExtension({
 						widget.value = theirWidget.value;
 					}
 				}
-				if (widget.type === "combo") {
-					addSeedControlWidget(this, widget, "randomize");
-                }
 
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
