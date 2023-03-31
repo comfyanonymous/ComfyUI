@@ -294,7 +294,7 @@ app.registerExtension({
 					// addSeedControlWidget(node, seed.widget, "randomize");
 
 					if (widget.type === "number") {
-						addSeedControlWidget(this, widget, "randomize");
+						addSeedControlWidget(this, widget, "fixed seed");
 					}
 				}
 
