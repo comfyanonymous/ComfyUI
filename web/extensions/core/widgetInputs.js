@@ -263,8 +263,21 @@ app.registerExtension({
 				this.outputs[0].type = linkType;
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
+				/*
+				if (widget.name == "seed") {
 
+					widget = seedWidget(node, inputName, inputData);
+
+				} else {
+
+
+
+                }
+				*/
 				this.#createWidget(widget.config, theirNode, widget.name);
+				if (widget.name === "seed") {
+					addSeedControlWidget(this, this.widget, "randomize");
+				}
 			}
 
 			#createWidget(inputData, node, widgetName) {
@@ -278,19 +291,14 @@ app.registerExtension({
 				
 				if (type in ComfyWidgets) {
 					widget = (ComfyWidgets[type](this, widgetName/*"value*"*/, inputData, app) || {}).widget;
-					if (widgetName == "seed") {
-						addSeedControlWidget(node, node.widgets[0],"randomize");
-					}
 				} else {
-					widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});	
-					if (widgetName == "seed") {
-						addSeedControlWidget(node, node.widgets[0], "randomize");
-					}
+					widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
 				}
 				
 
 				if (node?.widgets && widget) {
-					const theirWidget = node.widgets.find((w) => w.name === widgetName);
+
+	const theirWidget = node.widgets.find((w) => w.name === widgetName);
 					if (theirWidget) {
 						widget.value = theirWidget.value;
 					}
