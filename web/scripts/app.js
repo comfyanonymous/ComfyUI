@@ -802,7 +802,7 @@ class ComfyApp {
 		this.clean();
 
 		if (!graphData) {
-			graphData = defaultGraph;
+			graphData = structuredClone(defaultGraph);
 		}
 
 		// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
