@@ -1,4 +1,4 @@
-import { ComfyWidgets } from "./widgets.js";
+import { addSeedControlWidget, ComfyWidgets } from "./widgets.js";
 import { ComfyUI } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
@@ -771,6 +771,13 @@ class ComfyApp {
 								widget.value = widget.value.slice(7);
 							}
 						}
+						
+						if (widget.name == "seed control after generating") {
+							if (widget.value == true) {
+								widget.value = "randomize";
+
+                            }
+						}
 					}
 					if (widget.name == "seed control after generating") {
 						if (widget.value == true) {
@@ -780,7 +787,6 @@ class ComfyApp {
 					}
 				}
 			}
-
 			this.#invokeExtensions("loadedGraphNode", node);
 		}
 	}

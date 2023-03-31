@@ -54,7 +54,11 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 }
 
 function seedWidget(node, inputName, inputData) {
+<<<<<<< HEAD
 	const seed = ComfyWidgets.COMBO(node, inputName, inputData);
+=======
+	const seed = ComfyWidgets.INT(node, inputName, inputData);
+>>>>>>> fbe3df1ec837d298aaab68bab81c967182d2bab6
 	const seedControl = addSeedControlWidget(node, seed.widget, "randomize");
 
 	seed.widget.linkedWidgets = [seedControl];
