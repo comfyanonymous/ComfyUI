@@ -266,9 +266,9 @@ app.registerExtension({
 
 				if (widget.name === "seed") {
 					const seed = this.#createWidget(widget.config, theirNode, widget.name);
-					addSeedControlWidget(this, seed, "randomize");
-					//const seedControl = addSeedControlWidget(this, seed, "randomize");
-					//seed.link = [seedControl];//tried using all different links, not just link
+					const seedControl = addSeedControlWidget(this, seed, "randomize");
+					//this.widgets[0].link = [seedControl];//tried using all different links, not just link
+					this.title = "seed";
 				}
 				else
 					this.#createWidget(widget.config, theirNode, widget.name);
@@ -292,7 +292,7 @@ app.registerExtension({
 
 				if (node?.widgets && widget) {
 
-	const theirWidget = node.widgets.find((w) => w.name === widgetName);
+				const theirWidget = node.widgets.find((w) => w.name === widgetName);
 					if (theirWidget) {
 						widget.value = theirWidget.value;
 					}
