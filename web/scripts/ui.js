@@ -225,10 +225,10 @@ class ComfyList {
 							$el("button", {
 								textContent: "Load",
 								onclick: () => {
+									app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
 									if (item.outputs) {
 										app.nodeOutputs = item.outputs;
 									}
-									app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
 								},
 							}),
 							$el("button", {
