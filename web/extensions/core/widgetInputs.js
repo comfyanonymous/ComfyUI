@@ -264,10 +264,7 @@ app.registerExtension({
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
-                
-				
 				this.#createWidget(widget.config, theirNode, widget.name);
-				
 			}
 
 			#createWidget(inputData, node, widgetName) {
