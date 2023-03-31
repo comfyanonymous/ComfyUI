@@ -76,12 +76,12 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, x, emb, context=None):
+    def forward(self, x, emb, context=None, transformer_options={}):
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context)
+                x = layer(x, context, transformer_options)
             else:
                 x = layer(x)
         return x
@@ -753,7 +753,7 @@ class UNetModel(nn.Module):
         self.middle_block.apply(convert_module_to_f32)
         self.output_blocks.apply(convert_module_to_f32)
 
-    def forward(self, x, timesteps=None, context=None, y=None, control=None, **kwargs):
+    def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -762,6 +762,7 @@ class UNetModel(nn.Module):
         :param y: an [N] Tensor of labels, if class-conditional.
         :return: an [N x C x ...] Tensor of outputs.
         """
+        transformer_options["original_shape"] = list(x.shape)
         assert (y is not None) == (
             self.num_classes is not None
         ), "must specify y if and only if the model is class-conditional"
@@ -775,13 +776,13 @@ class UNetModel(nn.Module):
 
         h = x.type(self.dtype)
         for id, module in enumerate(self.input_blocks):
-            h = module(h, emb, context)
+            h = module(h, emb, context, transformer_options)
             if control is not None and 'input' in control and len(control['input']) > 0:
                 ctrl = control['input'].pop()
                 if ctrl is not None:
                     h += ctrl
             hs.append(h)
-        h = self.middle_block(h, emb, context)
+        h = self.middle_block(h, emb, context, transformer_options)
         if control is not None and 'middle' in control and len(control['middle']) > 0:
             h += control['middle'].pop()
 
@@ -793,7 +794,7 @@ class UNetModel(nn.Module):
                     hsp += ctrl
             h = th.cat([h, hsp], dim=1)
             del hsp
-            h = module(h, emb, context)
+            h = module(h, emb, context, transformer_options)
         h = h.type(x.dtype)
         if self.predict_codebook_ids:
             return self.id_predictor(h)
