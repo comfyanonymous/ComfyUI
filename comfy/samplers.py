@@ -221,7 +221,7 @@ class KSamplerX0Inpaint(torch.nn.Module):
     def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None):
         if denoise_mask is not None:
             latent_mask = 1. - denoise_mask
-            x = x * denoise_mask + (self.latent_image + self.noise * sigma) * latent_mask
+            x = x * denoise_mask + (self.latent_image + self.noise * sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1))) * latent_mask
         out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat)
         if denoise_mask is not None:
             out *= denoise_mask
@@ -242,7 +242,10 @@ def ddim_scheduler(model, steps):
     sigs = []
     ddim_timesteps = make_ddim_timesteps(ddim_discr_method="uniform", num_ddim_timesteps=steps, num_ddpm_timesteps=model.inner_model.inner_model.num_timesteps, verbose=False)
     for x in range(len(ddim_timesteps) - 1, -1, -1):
-        sigs.append(model.t_to_sigma(torch.tensor(ddim_timesteps[x])))
+        ts = ddim_timesteps[x]
+        if ts > 999:
+            ts = 999
+        sigs.append(model.t_to_sigma(torch.tensor(ts)))
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
@@ -373,7 +376,7 @@ class KSampler:
 
     def set_steps(self, steps, denoise=None):
         self.steps = steps
-        if denoise is None:
+        if denoise is None or denoise > 0.9999:
             self.sigmas = self._calculate_sigmas(steps)
         else:
             new_steps = int(steps/denoise)

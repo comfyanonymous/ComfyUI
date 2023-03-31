@@ -747,6 +747,13 @@ class SaveImage:
                 digits = 0
             return (digits, prefix)
 
+        def compute_vars(input):
+            input = input.replace("%width%", str(images[0].shape[1]))
+            input = input.replace("%height%", str(images[0].shape[0]))
+            return input
+
+        filename_prefix = compute_vars(filename_prefix)
+
         subfolder = os.path.dirname(os.path.normpath(filename_prefix))
         filename = os.path.basename(os.path.normpath(filename_prefix))
 
@@ -1046,4 +1053,3 @@ def load_custom_nodes():
 load_custom_nodes()
 
 load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
-load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "silver_custom.py"))
