@@ -284,7 +284,8 @@ app.registerExtension({
 				// so let's check for those first
 				let combinedWidgetType = type + ":" + widgetName;
 				if (combinedWidgetType in ComfyWidgets) {
-					widget = (ComfyWidgets[combinedWidgetType](this, "value", inputData, app) || {}).widget;
+					// widget = (ComfyWidgets[combinedWidgetType](this, "value", inputData, app) || {}).widget;
+					widget = (ComfyWidgets[combinedWidgetType](this, widgetName, inputData, app) || {}).widget;
 				} else {
 					// we did not find a subtype, so proceed with "<type>" only
 					if (type in ComfyWidgets) {
@@ -302,7 +303,7 @@ app.registerExtension({
 
 				if (node?.widgets && widget) {
 
-	const theirWidget = node.widgets.find((w) => w.name === widgetName);
+				const theirWidget = node.widgets.find((w) => w.name === widgetName);
 					if (theirWidget) {
 						widget.value = theirWidget.value;
 					}
