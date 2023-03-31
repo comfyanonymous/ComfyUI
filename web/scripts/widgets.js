@@ -51,6 +51,7 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 				console.log("default (fail)");
 		}
 	};
+
 	return seedControl;
 }
 
