@@ -264,6 +264,7 @@ app.registerExtension({
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
+				//make sure the seedControl is added to the correct Primitive node labelled "seed"
 				if (widget.name === "seed") {
 					const seed = this.#createWidget(widget.config, theirNode, widget.name);
 					const seedControl = addSeedControlWidget(this, seed, "randomize");
