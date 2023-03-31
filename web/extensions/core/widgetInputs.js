@@ -1,4 +1,4 @@
-import { ComfyWidgets, addRandomizeWidget } from "/scripts/widgets.js";
+import { ComfyWidgets, addSeedControlWidget } from "/scripts/widgets.js";
 import { app } from "/scripts/app.js";
 
 const CONVERTED_TYPE = "converted-widget";
@@ -284,10 +284,10 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "number") {
-					addRandomizeWidget(this, widget, "Random after every gen");
-				}
-
+				if (widget.type === "combo") {
+					addSeedControlWidget(this, widget, "randomize");
+                }
+					
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
 				const callback = widget.callback;

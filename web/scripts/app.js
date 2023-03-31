@@ -772,6 +772,12 @@ class ComfyApp {
 							}
 						}
 					}
+					if (widget.name == "seed control after generating") {
+						if (widget.value == true) {
+							widget.value = "randomize";
+						}
+
+					}
 				}
 			}
 
