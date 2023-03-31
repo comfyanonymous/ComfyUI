@@ -167,6 +167,8 @@ app.registerExtension({
 				const node = LiteGraph.createNode("PrimitiveNode");
 				app.graph.add(node);
 
+				node.widgets.addSeedControlWidget(node,node.widgets[0],"randomize");
+
 				// Calculate a position that wont directly overlap another node
 				const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
 				while (isNodeAtPos(pos)) {
@@ -299,6 +301,13 @@ app.registerExtension({
 					}
 				}
 
+<<<<<<< HEAD
+=======
+				if (widget.type === "combo") {
+					addSeedControlWidget(this, widget, "randomize");
+				}
+
+>>>>>>> origin/master
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
 				const callback = widget.callback;
