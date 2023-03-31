@@ -263,21 +263,14 @@ app.registerExtension({
 				this.outputs[0].type = linkType;
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
-				/*
-				if (widget.name == "seed") {
 
-					widget = seedWidget(node, inputName, inputData);
-
-				} else {
-
-
-
-                }
-				*/
-				this.#createWidget(widget.config, theirNode, widget.name);
 				if (widget.name === "seed") {
-					addSeedControlWidget(this, this.widget, "randomize");
+					const seed = this.#createWidget(widget.config, theirNode, widget.name);
+					const seedControl = addSeedControlWidget(this, seed, "randomize");
+					seed.link = [seedControl];
 				}
+				else
+					this.#createWidget(widget.config, theirNode, widget.name);
 			}
 
 			#createWidget(inputData, node, widgetName) {
