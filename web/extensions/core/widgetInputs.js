@@ -288,18 +288,10 @@ app.registerExtension({
 						widget.value = theirWidget.value;
 					}
 				}
-
-<<<<<<< HEAD
 				if (widget.type === "combo") {
 					addSeedControlWidget(this, widget, "randomize");
                 }
-					
-=======
-				if (widget.type === "combo")
-					addSeedControlWidget(this, widget, "randomize");
-				
 
->>>>>>> fbe3df1ec837d298aaab68bab81c967182d2bab6
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
 				const callback = widget.callback;
