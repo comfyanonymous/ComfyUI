@@ -308,10 +308,6 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "combo") {
-					addSeedControlWidget(this, widget, "randomize");
-				}
-
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
 				const callback = widget.callback;
