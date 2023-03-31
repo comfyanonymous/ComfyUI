@@ -84,3 +84,8 @@ class Example:
 NODE_CLASS_MAPPINGS = {
     "Example": Example
 }
+
+# A dictionary that contains the friendly/humanly readable titles for the nodes
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "Example": "Example Node"
+}
