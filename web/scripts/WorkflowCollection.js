@@ -23,6 +23,8 @@ class WC{
 	constructor(TARGET){
 		this.mainFrame = $Add('div', TARGET, {className : 'topMenu'});
 		
+		this.comfyMenuHidden = false;
+		
 		this.loader = $Add("input", $d.body, {
 			type: "file",
 			accept: ".json",
@@ -36,7 +38,7 @@ class WC{
 		this.Title = $Add('span', this.mainFrame, {innerHTML: 'ComfyUI', className : 'title'});
 		
 		this.queuePanel = $Add('span', this.mainFrame, {style : {position: 'absolute', right: 0} } );
-		this.queueInfoButton = $Add('span', this.queuePanel, {innerHTML : '≡', className : 'button'});
+		this.queueInfoButton = $Add('span', this.queuePanel, {innerHTML : '≡', className : 'button', onclick : ()=>{this.showHideComfyMenu()} } );
 		this.generateButton = $Add('span', this.queuePanel, {innerHTML : 'GENERATE', className : 'button' , onclick : function(){app.queuePrompt(0, this.batchCount)} } );
 
 		this.controlPanel = $Add('span', this.mainFrame, {className : 'workflowControlPanel'});
@@ -69,6 +71,14 @@ class WC{
 		
 		this.opened = true;
 		//this.slide();
+	}
+	showHideComfyMenu(){
+		if (this.comfyMenuHidden){
+			qs('.comfy-menu').style.display = '';
+		}else{
+			qs('.comfy-menu').style.display = 'none';
+		}
+		this.comfyMenuHidden = !this.comfyMenuHidden;
 	}
 	slide(){
 		if (this.opened){
