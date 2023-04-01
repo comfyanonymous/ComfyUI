@@ -1,5 +1,6 @@
 import torch
 import contextlib
+import copy
 
 import sd1_clip
 import sd2_clip
@@ -274,11 +275,19 @@ class ModelPatcher:
         self.model = model
         self.patches = []
         self.backup = {}
+        self.model_options = {"transformer_options":{}}
 
     def clone(self):
         n = ModelPatcher(self.model)
         n.patches = self.patches[:]
+        n.model_options = copy.deepcopy(self.model_options)
         return n
+
+    def set_model_tomesd(self, ratio):
+        self.model_options["transformer_options"]["tomesd"] = {"ratio": ratio}
+
+    def model_dtype(self):
+        return self.model.diffusion_model.dtype
 
     def add_patches(self, patches, strength=1.0):
         p = {}
