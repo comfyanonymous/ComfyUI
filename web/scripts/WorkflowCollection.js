@@ -34,6 +34,10 @@ class WC{
 		
 		//this.slideFrame = $Add('div', this.mainFrame, {innerHTML : '↔', style : {background : WC_VARIABLES.bgMain, position: 'absolute', left: `${WC_VARIABLES.mainWidth}px`, border : `solid 1px ${WC_VARIABLES.borderColor}`, borderLeft : `solid 0 white`, cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
 		this.Title = $Add('span', this.mainFrame, {innerHTML: 'ComfyUI', className : 'title'});
+		
+		this.queuePanel = $Add('span', this.mainFrame, {style : {position: 'absolute', right: 0} } );
+		this.queueInfoButton = $Add('span', this.queuePanel, {innerHTML : '≡', className : 'button'});
+		this.generateButton = $Add('span', this.queuePanel, {innerHTML : 'GENERATE', className : 'button' , onclick : function(){app.queuePrompt(0, this.batchCount)} } );
 
 		this.controlPanel = $Add('span', this.mainFrame, {className : 'workflowControlPanel'});
 		
@@ -213,7 +217,7 @@ class WCItem{
 class OPE{
 	constructor(TARGET){
 		this.mainFrame = $Add('div', TARGET, {className : 'FullWindow'});
-		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'OPE', style : {background : OPE_VARIABLES.bgMain, border : `solid 1px ${OPE_VARIABLES.borderColor}`, borderRadius : '3px', padding : '2px', cursor: 'pointer'}, onclick : ()=>{this.slide()} } );
+		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'OPE', className : 'button', onclick : ()=>{this.slide()} } );
 		
 		this.iFrame = $Add('iframe', this.mainFrame, {width: '100%', height: '100%', src : OPE_VARIABLES.editorURL, style : {border : 'none'} } );
 		
@@ -232,6 +236,42 @@ class OPE{
 	}
 }
 
+class NCP{
+	constructor(TARGET){
+		this.mainFrame = $Add('div', TARGET, {className : 'FullWindow'});
+		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'NCP', className : 'button', onclick : ()=>{this.slide()} } );
+		
+		this.opened = false;
+		this.editMode = false;
+		
+		$Add('div', this.mainFrame, {style : {height : '25px'} } );
+		this.panel = $Add('div', this.mainFrame, {});
+		
+		this.editModeButton = $Add('div', this.mainFrame, {innerHTML : 'Edit', className : 'button', style : {position : 'absolute', left : 0}, onclick : ()=>{this.editSwitch();} } );
+	}
+	slide(){
+		if (this.opened){
+			this.opened = !this.opened;
+			this.mainFrame.style.left = `-${OPE_VARIABLES.mainWidth}%`;
+			this.slideFrame.style.background = OPE_VARIABLES.bgMain;
+		}else{
+			this.opened = !this.opened;
+			this.mainFrame.style.left = 0;
+			this.slideFrame.style.background = WC_VARIABLES.selectedColor;
+		}
+	}
+	editSwitch(){
+		if (this.editMode){
+			this.editMode = !this.editMode;
+			this.editModeButton.style.background = OPE_VARIABLES.bgMain;
+		}else{
+			this.editMode = !this.editMode;
+			this.editModeButton.style.background = WC_VARIABLES.selectedColor;
+		}
+	}
+}
+
 wc = new WC(qs('body'));
 ope = new OPE(qs('body'));
+ncp = new NCP(qs('body'));
 
