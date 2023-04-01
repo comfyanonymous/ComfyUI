@@ -5,7 +5,7 @@ const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
-	if (widget.name == "seed control after generating")
+	if (widget.name == "seed control after generate")
 		widget.allowConvertToInput = false;
 	else
 		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
@@ -291,8 +291,8 @@ app.registerExtension({
 						widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
 					}
 				}
-				
-				if (widget.type === "number" && widget.name != "seed") {
+
+				if (widget.type === "number" && combinedWidgetType != "INT:seed" && combinedWidgetType != "INT:seed") {
 					addSeedControlWidget(this, widget, "fixed seed");
 				}
 			

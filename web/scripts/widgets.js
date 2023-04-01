@@ -11,8 +11,8 @@ function getNumberDefaults(inputData, defaultStep) {
 }
 
 export function addSeedControlWidget(node, targetWidget, defaultValue = "randomize", values) {
-	const seedControl = node.addWidget("combo", "seed control after generating", defaultValue, function (v) { }, {
-		values: ["fixed seed", "increment", "decrement", "randomize"],
+	const seedControl = node.addWidget("combo", "seed control after generate", defaultValue, function (v) { }, {
+		values: ["fixed", "increment", "decrement", "randomize"],
 		serialize: false, // Don't include this in prompt.
 	})
 	seedControl.afterQueued = () => {
@@ -23,8 +23,8 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 		let max = targetWidget.options?.max;
 
 		switch (v) {
-			case ("fixed seed"):
-				console.log("Fixed Seed");
+			case ("fixed"):
+				console.log("fixed");
 				break;
 			case ("increment"):
 				if (min != null || max != null) {
@@ -79,7 +79,7 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 				}
 				break;
 			default:
-				console.log("default (fail)");
+				console.log("default (failed to detect input!)");
 		}
 	};
 
