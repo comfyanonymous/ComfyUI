@@ -12,8 +12,8 @@
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
-
+import image as image
+import pilgram
 from PIL import Image, ImageFilter, ImageEnhance, ImageOps, ImageDraw, ImageChops, ImageFont
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -698,9 +698,6 @@ class WAS_Image_Style_Filter:
             subprocess.check_call(
                 [sys.executable, '-m', 'pip', '-q', 'install', 'pilgram'])
 
-        # Import Pilgram module
-        import pilgram
-
         # Convert image to PIL
         image = tensor2pil(image)
 
@@ -708,68 +705,66 @@ class WAS_Image_Style_Filter:
         WFilter = WAS_Filter_Class()
 
         # Apply blending
-        match style:
-            case "1977":
-                out_image = pilgram._1977(image)
-            case "aden":
-                out_image = pilgram.aden(image)
-            case "brannan":
-                out_image = pilgram.brannan(image)
-            case "brooklyn":
-                out_image = pilgram.brooklyn(image)
-            case "clarendon":
-                out_image = pilgram.clarendon(image)
-            case "earlybird":
-                out_image = pilgram.earlybird(image)
-            case "fairy tale":
-                out_image = WFilter.sparkle(image)
-            case "gingham":
-                out_image = pilgram.gingham(image)
-            case "hudson":
-                out_image = pilgram.hudson(image)
-            case "inkwell":
-                out_image = pilgram.inkwell(image)
-            case "kelvin":
-                out_image = pilgram.kelvin(image)
-            case "lark":
-                out_image = pilgram.lark(image)
-            case "lofi":
-                out_image = pilgram.lofi(image)
-            case "maven":
-                out_image = pilgram.maven(image)
-            case "mayfair":
-                out_image = pilgram.mayfair(image)
-            case "moon":
-                out_image = pilgram.moon(image)
-            case "nashville":
-                out_image = pilgram.nashville(image)
-            case "perpetua":
-                out_image = pilgram.perpetua(image)
-            case "reyes":
-                out_image = pilgram.reyes(image)
-            case "rise":
-                out_image = pilgram.rise(image)
-            case "slumber":
-                out_image = pilgram.slumber(image)
-            case "stinson":
-                out_image = pilgram.stinson(image)
-            case "toaster":
-                out_image = pilgram.toaster(image)
-            case "valencia":
-                out_image = pilgram.valencia(image)
-            case "walden":
-                out_image = pilgram.walden(image)
-            case "willow":
-                out_image = pilgram.willow(image)
-            case "xpro2":
-                out_image = pilgram.xpro2(image)
-            case _:
-                out_image = image
+        if style == "1977":
+            out_image = pilgram._1977(image)
+        elif style == "aden":
+            out_image = pilgram.aden(image)
+        elif style == "brannan":
+            out_image = pilgram.brannan(image)
+        elif style == "brooklyn":
+            out_image = pilgram.brooklyn(image)
+        elif style == "clarendon":
+            out_image = pilgram.clarendon(image)
+        elif style == "earlybird":
+            out_image = pilgram.earlybird(image)
+        elif style == "fairy tale":
+            out_image = WFilter.sparkle(image)
+        elif style == "gingham":
+            out_image = pilgram.gingham(image)
+        elif style == "hudson":
+            out_image = pilgram.hudson(image)
+        elif style == "inkwell":
+            out_image = pilgram.inkwell(image)
+        elif style == "kelvin":
+            out_image = pilgram.kelvin(image)
+        elif style == "lark":
+            out_image = pilgram.lark(image)
+        elif style == "lofi":
+            out_image = pilgram.lofi(image)
+        elif style == "maven":
+            out_image = pilgram.maven(image)
+        elif style == "mayfair":
+            out_image = pilgram.mayfair(image)
+        elif style == "moon":
+            out_image = pilgram.moon(image)
+        elif style == "nashville":
+            out_image = pilgram.nashville(image)
+        elif style == "perpetua":
+            out_image = pilgram.perpetua(image)
+        elif style == "reyes":
+            out_image = pilgram.reyes(image)
+        elif style == "rise":
+            out_image = pilgram.rise(image)
+        elif style == "slumber":
+            out_image = pilgram.slumber(image)
+        elif style == "stinson":
+            out_image = pilgram.stinson(image)
+        elif style == "toaster":
+            out_image = pilgram.toaster(image)
+        elif style == "valencia":
+            out_image = pilgram.valencia(image)
+        elif style == "walden":
+            out_image = pilgram.walden(image)
+        elif style == "willow":
+            out_image = pilgram.willow(image)
+        elif style == "xpro2":
+            out_image = pilgram.xpro2(image)
+        else:
+            out_image = image
 
         out_image = out_image.convert("RGB")
 
-        return (torch.from_numpy(np.array(out_image).astype(np.float32) / 255.0).unsqueeze(0), )
-
+        return (torch.from_numpy(np.array(out_image).astype(np.float32) / 255.0).unsqueeze(0),)
 
 
 # COMBINE NODE
@@ -825,37 +820,36 @@ class WAS_Image_Blending_Mode:
         img_b = tensor2pil(image_b)
 
         # Apply blending
-        match mode:
-            case "color":
-                out_image = pilgram.css.blending.color(img_a, img_b)
-            case "color_burn":
-                out_image = pilgram.css.blending.color_burn(img_a, img_b)
-            case "color_dodge":
-                out_image = pilgram.css.blending.color_dodge(img_a, img_b)
-            case "darken":
-                out_image = pilgram.css.blending.darken(img_a, img_b)
-            case "difference":
-                out_image = pilgram.css.blending.difference(img_a, img_b)
-            case "exclusion":
-                out_image = pilgram.css.blending.exclusion(img_a, img_b)
-            case "hard_light":
-                out_image = pilgram.css.blending.hard_light(img_a, img_b)
-            case "hue":
-                out_image = pilgram.css.blending.hue(img_a, img_b)
-            case "lighten":
-                out_image = pilgram.css.blending.lighten(img_a, img_b)
-            case "multiply":
-                out_image = pilgram.css.blending.multiply(img_a, img_b)
-            case "add":
-                out_image = pilgram.css.blending.normal(img_a, img_b)
-            case "overlay":
-                out_image = pilgram.css.blending.overlay(img_a, img_b)
-            case "screen":
-                out_image = pilgram.css.blending.screen(img_a, img_b)
-            case "soft_light":
-                out_image = pilgram.css.blending.soft_light(img_a, img_b)
-            case _:
-                out_image = img_a
+        if mode == "color":
+            out_image = pilgram.css.blending.color(img_a, img_b)
+        elif mode == "color_burn":
+            out_image = pilgram.css.blending.color_burn(img_a, img_b)
+        elif mode == "color_dodge":
+            out_image = pilgram.css.blending.color_dodge(img_a, img_b)
+        elif mode == "darken":
+            out_image = pilgram.css.blending.darken(img_a, img_b)
+        elif mode == "difference":
+            out_image = pilgram.css.blending.difference(img_a, img_b)
+        elif mode == "exclusion":
+            out_image = pilgram.css.blending.exclusion(img_a, img_b)
+        elif mode == "hard_light":
+            out_image = pilgram.css.blending.hard_light(img_a, img_b)
+        elif mode == "hue":
+            out_image = pilgram.css.blending.hue(img_a, img_b)
+        elif mode == "lighten":
+            out_image = pilgram.css.blending.lighten(img_a, img_b)
+        elif mode == "multiply":
+            out_image = pilgram.css.blending.multiply(img_a, img_b)
+        elif mode == "add":
+            out_image = pilgram.css.blending.normal(img_a, img_b)
+        elif mode == "overlay":
+            out_image = pilgram.css.blending.overlay(img_a, img_b)
+        elif mode == "screen":
+            out_image = pilgram.css.blending.screen(img_a, img_b)
+        elif mode == "soft_light":
+            out_image = pilgram.css.blending.soft_light(img_a, img_b)
+        else:
+            out_image = img_a
 
         out_image = out_image.convert("RGB")
 
@@ -938,13 +932,12 @@ class WAS_Image_Monitor_Distortion_Filter:
         WFilter = WAS_Filter_Class()
 
         # Apply image effect
-        match mode:
-            case 'Digital Distortion':
-                image = WFilter.digital_distortion(image, amplitude, offset)
-            case 'Signal Distortion':
-                image = WFilter.signal_distortion(image, amplitude)
-            case 'TV Distortion':
-                image = WFilter.tv_vhs_distortion(image, amplitude)  
+        if mode == 'Digital Distortion':
+            image = WFilter.digital_distortion(image, amplitude, offset)
+        elif mode == 'Signal Distortion':
+            image = WFilter.signal_distortion(image, amplitude)
+        elif mode == 'TV Distortion':
+            image = WFilter.tv_vhs_distortion(image, amplitude)
 
         return (pil2tensor(image), )
 
@@ -1021,13 +1014,12 @@ class WAS_Image_Analyze:
         WFilter = WAS_Filter_Class()
 
         # Analye Image
-        match mode:
-            case 'Black White Levels':
-                image = WFilter.black_white_levels(image)
-            case 'RGB Levels':
-                image = WFilter.channel_frequency(image)
+        if mode == 'Black White Levels':
+            image = WFilter.black_white_levels(image)
+        elif mode == 'RGB Levels':
+            image = WFilter.channel_frequency(image)
 
-        return (pil2tensor(image), )        
+        return (pil2tensor(image), )
         
 
 # IMAGE GENERATE GRADIENT
@@ -1995,13 +1987,14 @@ class WAS_Image_Rotate:
             rotation = int((rotation//90)*90)
 
         # Set Sampler
-        match sampler:
-            case 'nearest':
-                sampler = Image.NEAREST
-            case 'bicubic':
-                sampler = Image.BICUBIC
-            case 'bilinear':
-                sampler = Image.BILINEAR
+        if sampler == 'nearest':
+            sampler = Image.NEAREST
+        elif sampler == 'bicubic':
+            sampler = Image.BICUBIC
+        elif sampler == 'bilinear':
+            sampler = Image.BILINEAR
+        else:
+            sampler = Image.NEAREST  # default to nearest if none of the above
 
         # Rotate Image
         if mode == 'internal':
@@ -2244,14 +2237,13 @@ class WAS_Image_Edge:
         image = tensor2pil(image)
 
         # Detect edges
-        match mode:
-            case "normal":
-                image = image.filter(ImageFilter.FIND_EDGES)
-            case "laplacian":
-                image = image.filter(ImageFilter.Kernel((3, 3), (-1, -1, -1, -1, 8,
-                                                                 -1, -1, -1, -1), 1, 0))
-            case _:
-                image = image
+        if mode == "normal":
+            image = image.filter(ImageFilter.FIND_EDGES)
+        elif mode == "laplacian":
+            kernel = (-1, -1, -1, -1, 8, -1, -1, -1, -1)
+            image = image.filter(ImageFilter.Kernel((3, 3), kernel, scale=1, offset=0))
+        else:
+            image = image
 
         return (torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0), )
 
@@ -3645,15 +3637,14 @@ class WAS_Random_Number:
         random.seed(seed)
 
         # Return random number
-        match number_type:
-            case 'integer':
-                number = random.randint(minimum, maximum)
-            case 'float':
-                number = random.uniform(minimum, maximum)
-            case 'bool':
-                number = random.random()
-            case _:
-                return
+        if number_type == 'integer':
+            number = random.randint(minimum, maximum)
+        elif number_type == 'float':
+            number = random.uniform(minimum, maximum)
+        elif number_type == 'bool':
+            number = random.random()
+        else:
+            return
 
         # Return number
         return (number, )
@@ -3682,13 +3673,14 @@ class WAS_Constant_Number:
     def return_constant_number(self, number_type, number):
 
         # Return number
-        match number_type:
-            case 'integer':
-                return (int(number), )
-            case 'integer':
-                return (float(number), )
-            case 'bool':
-                return ((1 if int(number) > 0 else 0), )
+        if number_type == 'integer':
+            return (int(number), )
+        elif number_type == 'float':
+            return (float(number), )
+        elif number_type == 'bool':
+            return ((1 if int(number) > 0 else 0), )
+        else:
+            return
 
 
 # NUMBER TO SEED
@@ -3898,34 +3890,32 @@ class WAS_Number_Operation:
 
     def math_operations(self, number_a, number_b, operation="addition"):
 
-        # Return random number
-        match operation:
-            case 'addition':
-                return ((number_a + number_b), )
-            case 'subtraction':
-                return ((number_a - number_b), )
-            case 'division':
-                return ((number_a / number_b), )
-            case 'floor division':
-                return ((number_a // number_b), )
-            case 'multiplication':
-                return ((number_a * number_b), )
-            case 'exponentiation':
-                return ((number_a ** number_b), )
-            case 'modulus':
-                return ((number_a % number_b), )
-            case 'greater-than':
-                return (+(number_a > number_b), )
-            case 'greater-than or equals':
-                return (+(number_a >= number_b), )
-            case 'less-than':
-                return (+(number_a < number_b), )
-            case 'less-than or equals':
-                return (+(number_a <= number_b), )
-            case 'equals':
-                return (+(number_a == number_b), )
-            case 'does not equal':
-                return (+(number_a != number_b), )
+        if operation == 'addition':
+            return ((number_a + number_b),)
+        elif operation == 'subtraction':
+            return ((number_a - number_b),)
+        elif operation == 'division':
+            return ((number_a / number_b),)
+        elif operation == 'floor division':
+            return ((number_a // number_b),)
+        elif operation == 'multiplication':
+            return ((number_a * number_b),)
+        elif operation == 'exponentiation':
+            return ((number_a ** number_b),)
+        elif operation == 'modulus':
+            return ((number_a % number_b),)
+        elif operation == 'greater-than':
+            return (+(number_a > number_b),)
+        elif operation == 'greater-than or equals':
+            return (+(number_a >= number_b),)
+        elif operation == 'less-than':
+            return (+(number_a < number_b),)
+        elif operation == 'less-than or equals':
+            return (+(number_a <= number_b),)
+        elif operation == 'equals':
+            return (+(number_a == number_b),)
+        elif operation == 'does not equal':
+            return (+(number_a != number_b),)
 
 
 #! MISC
