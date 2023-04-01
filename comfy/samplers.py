@@ -26,7 +26,7 @@ class CFGDenoiser(torch.nn.Module):
 
 #The main sampling function shared by all the samplers
 #Returns predicted noise
-def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None):
+def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
         def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
@@ -104,7 +104,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 out['c_concat'] = [torch.cat(c_concat)]
             return out
 
-        def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in):
+        def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in, model_options):
             out_cond = torch.zeros_like(x_in)
             out_count = torch.ones_like(x_in)/100000.0
 
@@ -169,6 +169,9 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 if control is not None:
                     c['control'] = control.get_control(input_x, timestep_, c['c_crossattn'], len(cond_or_uncond))
 
+                if 'transformer_options' in model_options:
+                    c['transformer_options'] = model_options['transformer_options']
+
                 output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
                 del input_x
 
@@ -192,7 +195,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
 
         max_total_area = model_management.maximum_batch_area()
-        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat)
+        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
         return uncond + (cond - uncond) * cond_scale
 
 
@@ -209,8 +212,8 @@ class CFGNoisePredictor(torch.nn.Module):
         super().__init__()
         self.inner_model = model
         self.alphas_cumprod = model.alphas_cumprod
-    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None):
-        out = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat)
+    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}):
+        out = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat, model_options=model_options)
         return out
 
 
@@ -218,11 +221,11 @@ class KSamplerX0Inpaint(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.inner_model = model
-    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None):
+    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={}):
         if denoise_mask is not None:
             latent_mask = 1. - denoise_mask
             x = x * denoise_mask + (self.latent_image + self.noise * sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1))) * latent_mask
-        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat)
+        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat, model_options=model_options)
         if denoise_mask is not None:
             out *= denoise_mask
 
@@ -330,7 +333,7 @@ class KSampler:
                 "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde",
                 "dpmpp_2m", "ddim", "uni_pc", "uni_pc_bh2"]
 
-    def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None):
+    def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
         self.model_denoise = CFGNoisePredictor(self.model)
         if self.model.parameterization == "v":
@@ -350,6 +353,7 @@ class KSampler:
         self.sigma_max=float(self.model_wrap.sigma_max)
         self.set_steps(steps, denoise)
         self.denoise = denoise
+        self.model_options = model_options
 
     def _calculate_sigmas(self, steps):
         sigmas = None
@@ -418,7 +422,7 @@ class KSampler:
         else:
             precision_scope = contextlib.nullcontext
 
-        extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg}
+        extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options}
 
         cond_concat = None
         if hasattr(self.model, 'concat_keys'):
@@ -467,7 +471,7 @@ class KSampler:
                                                      x_T=z_enc,
                                                      x0=latent_image,
                                                      denoise_function=sampling_function,
-                                                     cond_concat=cond_concat,
+                                                     extra_args=extra_args,
                                                      mask=noise_mask,
                                                      to_zero=sigmas[-1]==0,
                                                      end_step=sigmas.shape[0] - 1)
