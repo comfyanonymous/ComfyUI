@@ -168,7 +168,10 @@ app.registerExtension({
 				app.graph.add(node);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> parent of ec3e40e (flyingshutter's code added, in working order)
 				node.widgets.addSeedControlWidget(node,node.widgets[0],"randomize");
 
 >>>>>>> parent of ec3e40e (flyingshutter's code added, in working order)
@@ -307,6 +310,9 @@ app.registerExtension({
 					if (widget.type === "number") {
 						addSeedControlWidget(this, widget, "fixed seed");
 					}
+<<<<<<< HEAD
+>>>>>>> parent of ec3e40e (flyingshutter's code added, in working order)
+=======
 >>>>>>> parent of ec3e40e (flyingshutter's code added, in working order)
 				}
 
