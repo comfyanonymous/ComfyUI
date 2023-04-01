@@ -19,26 +19,57 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 
 		var v = seedControl.value;
 
+		const min = targetWidget.options?.min;
+		let max = targetWidget.options?.max;
+
 		switch (v) {
 			case ("fixed seed"):
 				console.log("Fixed Seed");
 				break;
 			case ("increment"):
-				targetWidget.value += 1;
-				console.log("increment");
-				break;
-			case ("decrement"):
-				targetWidget.value -= 1;
-				console.log("decrement");
-				break;
-			case ("randomize"):
-				const min = targetWidget.options?.min;
-				let max = targetWidget.options?.max;
 				if (min != null || max != null) {
 					if (max) {
 						// limit max to something that javascript can handle
 						max = Math.min(1125899906842624, max);
-						console.log("Random");
+					}
+					/*if (targetWidget.value >= 1125899906842624) { //loop to lowest and continue batch
+						targetWidget.value = 0;
+						console.log("increment");
+					} else {
+						targetWidget.value += 1;
+						console.log("increment");
+					}
+				} else {*/
+					if (max >= 1125899906842624) {
+						targetWidget.value += 1;
+						console.log("increment");
+                    }				
+				}
+				break;
+			case ("decrement"):
+				if (min != null || max != null) {
+					if (min) {
+						// limit min to something that javascript can handle
+						min = Math.min(0, min);
+					}
+					/*if (targetWidget.value <= 0) { //Loop to highest and continue batch
+						targetWidget.value = 1125899906842624;
+						console.log("decrement");
+					} else {
+						targetWidget.value -= 1;
+						console.log("decrement");
+					} else {*/
+					if (min) { 
+						targetWidget.value -= 1;
+						console.log("decrement");
+					}
+				}
+				break;
+			case ("randomize"):
+				if (min != null || max != null) {
+					if (max) {
+						// limit max to something that javascript can handle
+						max = Math.min(1125899906842624, max);
 					}
 					targetWidget.value = Math.floor(Math.random() * ((max ?? 9999999999) - (min ?? 0) + 1) + (min ?? 0));
 					console.log("Random");
