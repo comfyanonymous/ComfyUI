@@ -40,6 +40,7 @@ if __name__ == "__main__":
     except:
         pass
 
+from nodes import init_custom_nodes
 import execution
 import server
 import folder_paths
@@ -98,6 +99,8 @@ if __name__ == "__main__":
     server = server.PromptServer(loop)
     q = execution.PromptQueue(server)
 
+    init_custom_nodes()
+    server.add_routes()
     hijack_progress(server)
 
     threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
@@ -112,7 +115,6 @@ if __name__ == "__main__":
             pass
     except:
         address = '127.0.0.1'
-
 
     dont_print = False
     if '--dont-print-server' in sys.argv:
