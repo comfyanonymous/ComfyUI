@@ -1050,6 +1050,6 @@ def load_custom_nodes():
         if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
         load_custom_node(module_path)
 
-load_custom_nodes()
-
-load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
+def init_custom_nodes():
+    load_custom_nodes()
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
