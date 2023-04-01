@@ -832,7 +832,6 @@ class ComfyApp {
 							if (widget.value == true) {
 								widget.value = "randomize";
 							}
-
 						}
 					}
 				}
