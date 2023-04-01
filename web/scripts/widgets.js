@@ -32,7 +32,7 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 						// limit max to something that javascript can handle
 						max = Math.min(1125899906842624, max);
 					}
-					/*if (targetWidget.value >= 1125899906842624) { //loop to lowest and continue batch
+					/*if (max) { //loop to lowest and continue batch
 						targetWidget.value = 0;
 						console.log("increment");
 					} else {
@@ -52,7 +52,7 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 						// limit min to something that javascript can handle
 						min = Math.min(0, min);
 					}
-					/*if (targetWidget.value <= 0) { //Loop to highest and continue batch
+					/*if (min) { //Loop to highest and continue batch
 						targetWidget.value = 1125899906842624;
 						console.log("decrement");
 					} else {
