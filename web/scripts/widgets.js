@@ -30,7 +30,10 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 				if (min != null || max != null) {
 					if (max) {
 						// limit max to something that javascript can handle
-						max = Math.min(1125899906842624, max);
+						if (targetWidget.name != "steps")
+							max = Math.min(1125899906842624.0, max);
+						else
+							max = 1000;
 					}
 					/*if (max) { //loop to lowest and continue batch
 						targetWidget.value = 0;
@@ -40,8 +43,8 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 						console.log("increment");
 					}
 				} else {*/
-					if (max >= 1125899906842624) {
-						targetWidget.value += 1;
+					if (max) {
+						targetWidget.value += 1.0;
 						console.log("increment");
                     }				
 				}
@@ -49,8 +52,10 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 			case ("decrement"):
 				if (min != null || max != null) {
 					if (min) {
-						// limit min to something that javascript can handle
-						min = Math.min(0, min);
+						// limit min to 0
+						if (targetWidget.name != "steps")
+							min = Math.min(0, min);
+
 					}
 					/*if (min) { //Loop to highest and continue batch
 						targetWidget.value = 1125899906842624;
@@ -60,7 +65,7 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 						console.log("decrement");
 					} else {*/
 					if (min) { 
-						targetWidget.value -= 1;
+						targetWidget.value -= 1.0;
 						console.log("decrement");
 					}
 				}
@@ -69,12 +74,15 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 				if (min != null || max != null) {
 					if (max) {
 						// limit max to something that javascript can handle
-						max = Math.min(1125899906842624, max);
+						if (targetWidget.name != "steps")
+							max = Math.min(1125899906842624.0, max);
+						else
+							max = 1000;
 					}
-					targetWidget.value = Math.floor(Math.random() * ((max ?? 9999999999) - (min ?? 0) + 1) + (min ?? 0));
+					targetWidget.value = Math.floor(Math.random() * ((max ?? 9999999999.0) - (min ?? 0) + 1) + (min ?? 0));
 					console.log("Random");
 				} else {
-					targetWidget.value = Math.floor(Math.random() * 1125899906842624);
+					targetWidget.value = Math.floor(Math.random() * 1125899906842624.0);
 					console.log("Random");
 				}
 				break;
