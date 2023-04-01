@@ -167,7 +167,7 @@ app.registerExtension({
 				const node = LiteGraph.createNode("PrimitiveNode");
 				app.graph.add(node);
 
-				node.widgets.addSeedControlWidget(node,node.widgets[0],"randomize");
+				//node.widgets.addSeedControlWidget(node,node.widgets[0],"randomize");
 
 				// Calculate a position that wont directly overlap another node
 				const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
@@ -294,10 +294,11 @@ app.registerExtension({
 					}
 					
 					// addSeedControlWidget(node, seed.widget, "randomize");
-
+					/*
 					if (widget.type === "number") {
 						addSeedControlWidget(this, widget, "fixed seed");
 					}
+					*/
 				}
 
 				if (node?.widgets && widget) {
