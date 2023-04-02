@@ -111,9 +111,13 @@ app.registerExtension({
 					// Focus the filter box when opening
 					filter.focus();
 
-					// If the top is off screen then shift the element
-					if (parseInt(this.root.style.top) < 0) {
-						this.root.style.top = 0;
+					const rect = this.root.getBoundingClientRect();
+
+					// If the top is off screen then shift the element with scaling applied
+					if (rect.top < 0) {
+						const scale = 1 - this.root.getBoundingClientRect().height / this.root.clientHeight;
+						const shift = (this.root.clientHeight * scale) / 2;
+						this.root.style.top = -shift + "px";
 					}
 				});
 			}
