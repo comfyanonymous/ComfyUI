@@ -676,6 +676,9 @@ class ComfyApp {
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
 
+		LiteGraph.release_link_on_empty_shows_menu = true;
+		LiteGraph.alt_drag_do_clone_nodes = true;
+
 		this.graph.start();
 
 		function resizeCanvas() {
