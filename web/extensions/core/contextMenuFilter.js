@@ -25,13 +25,73 @@ app.registerExtension({
 				filter.placeholder = "Filter list";
 				this.root.prepend(filter);
 
+				let selectedIndex = 0;
+				let items = this.root.querySelectorAll(".litemenu-entry");
+				let itemCount = items.length;
+				let selectedItem;
+
+				// Apply highlighting to the selected item
+				function updateSelected() {
+					if (selectedItem) {
+						selectedItem.style.setProperty("background-color", "");
+						selectedItem.style.setProperty("color", "");
+					}
+					selectedItem = items[selectedIndex];
+					if (selectedItem) {
+						selectedItem.style.setProperty("background-color", "#ccc", "important");
+						selectedItem.style.setProperty("color", "#000", "important");
+					}
+				}
+
+				updateSelected();
+
+				// Arrow up/down to select items
+				filter.addEventListener("keydown", (e) => {
+					if (e.key === "ArrowUp") {
+						if (selectedIndex === 0) {
+							selectedIndex = itemCount - 1;
+						} else {
+							selectedIndex--;
+						}
+						updateSelected();
+						e.preventDefault();
+					} else if (e.key === "ArrowDown") {
+						if (selectedIndex === itemCount - 1) {
+							selectedIndex = 0;
+						} else {
+							selectedIndex++;
+						}
+						updateSelected();
+						e.preventDefault();
+					} else if ((selectedItem && e.key === "Enter") || e.keyCode === 13 || e.keyCode === 10) {
+						selectedItem.click();
+					}
+				});
+
 				filter.addEventListener("input", () => {
 					// Hide all items that dont match our filter
 					const term = filter.value.toLocaleLowerCase();
-					const items = this.root.querySelectorAll(".litemenu-entry");
+					items = this.root.querySelectorAll(".litemenu-entry");
+					// When filtering recompute which items are visible for arrow up/down
+					// Try and maintain selection
+					let visibleItems = [];
 					for (const item of items) {
-						item.style.display = !term || item.textContent.toLocaleLowerCase().includes(term) ? "block" : "none";
+						const visible = !term || item.textContent.toLocaleLowerCase().includes(term);
+						if (visible) {
+							item.style.display = "block";
+							if (item === selectedItem) {
+								selectedIndex = visibleItems.length;
+							}
+							visibleItems.push(item);
+						} else {
+							item.style.display = "none";
+							if (item === selectedItem) {
+								selectedIndex = 0;
+							}
+						}
 					}
+					items = visibleItems;
+					updateSelected();
 
 					// If we have an event then we can try and position the list under the source
 					if (options.event) {
