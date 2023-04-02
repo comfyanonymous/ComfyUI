@@ -1,6 +1,6 @@
 import { app } from "/scripts/app.js";
 
-// Shift + drag/resize to snap to grid 
+// Shift + drag/resize to snap to grid
 
 app.registerExtension({
 	name: "Comfy.SnapToGrid",
@@ -28,32 +28,35 @@ app.registerExtension({
 			const r = onNodeMoved?.apply(this, arguments);
 
 			if (app.shiftDown) {
-				node.alignToGrid();
+				// Ensure all selected nodes are realigned
+				for (const id in this.selected_nodes) {
+					this.selected_nodes[id].alignToGrid();
+				}
 			}
 
 			return r;
 		};
 
-      // When a node is added, add a resize handler to it so we can fix align the size with the grid
+		// When a node is added, add a resize handler to it so we can fix align the size with the grid
 		const onNodeAdded = app.graph.onNodeAdded;
 		app.graph.onNodeAdded = function (node) {
 			const onResize = node.onResize;
 			node.onResize = function () {
-            if(app.shiftDown) {
-               const w = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.size[0] / LiteGraph.CANVAS_GRID_SIZE);
-               const h = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.size[1] / LiteGraph.CANVAS_GRID_SIZE);
-               node.size[0] = w;
-               node.size[1] = h;
-            }
+				if (app.shiftDown) {
+					const w = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.size[0] / LiteGraph.CANVAS_GRID_SIZE);
+					const h = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.size[1] / LiteGraph.CANVAS_GRID_SIZE);
+					node.size[0] = w;
+					node.size[1] = h;
+				}
 				return onResize?.apply(this, arguments);
 			};
 			return onNodeAdded?.apply(this, arguments);
 		};
 
-		// Draw a preview of where the node will go if holding shift
+		// Draw a preview of where the node will go if holding shift and the node is selected
 		const origDrawNode = LGraphCanvas.prototype.drawNode;
 		LGraphCanvas.prototype.drawNode = function (node, ctx) {
-			if (app.shiftDown && node === this.node_dragged) {
+			if (app.shiftDown && this.node_dragged && node.id in this.selected_nodes) {
 				const x = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.pos[0] / LiteGraph.CANVAS_GRID_SIZE);
 				const y = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.pos[1] / LiteGraph.CANVAS_GRID_SIZE);
 
