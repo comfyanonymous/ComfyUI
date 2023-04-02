@@ -1,11 +1,14 @@
-import { ComfyWidgets, addSeedControlWidget } from "/scripts/widgets.js";
+import { ComfyWidgets, addValueControlWidget } from "/scripts/widgets.js";
 import { app } from "/scripts/app.js";
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
-	if (widget.name == "seed control after generate")
+	if (widget.name == "control_after_generate" ||
+		widget.name == "batch_size" ||
+		widget.name == "start_at_step" ||
+		widget.name == "end_at_step")
 		widget.allowConvertToInput = false;
 	else
 		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
@@ -290,12 +293,11 @@ app.registerExtension({
 					} else {
 						widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
 					}
+				
+					if (widget.type === "number" && combinedWidgetType != "INT:seed" && combinedWidgetType != "INT:noise_seed") {
+						addValueControlWidget(this, widget, "fixed");
+					}
 				}
-
-				if (widget.type === "number" && combinedWidgetType != "INT:seed" && combinedWidgetType != "INT:seed") {
-					addSeedControlWidget(this, widget, "fixed seed");
-				}
-			
 				
 
 				if (node?.widgets && widget) {

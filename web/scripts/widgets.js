@@ -10,31 +10,73 @@ function getNumberDefaults(inputData, defaultStep) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
 }
 
-export function addSeedControlWidget(node, targetWidget, defaultValue = "randomize", values) {
-	const seedControl = node.addWidget("combo", "seed control after generate", defaultValue, function (v) { }, {
+export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
+	const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
 		values: ["fixed", "increment", "decrement", "randomize"],
 		serialize: false, // Don't include this in prompt.
 	})
-	seedControl.afterQueued = () => {
+	valueControl.afterQueued = () => {
 
-		var v = seedControl.value;
+		var v = valueControl.value;
+		var w = targetWidget.name;
 
-		const min = targetWidget.options?.min;
+		let min = 0.0;
 		let max = targetWidget.options?.max;
+		let range = Math.max(min, max);
 
+
+		//set the max/min values depending on the parameter
+		switch (w) {
+			case ("seed"):
+			case ("noise_seed"):
+				console.log("noise_seed/seed");
+				max = 1125899906842624; // limit max to something that javascript can handle
+				range = Math.max(min, max);
+				break;
+			case ("cfg"):
+				console.log("cfg");
+				max = 50.0;
+				range = Math.max(min, max);
+				break;
+			case ("steps"):
+				max = 100;
+				min = 1;
+				range = Math.max(min, max);
+				break;
+			case ("start_at_step"):
+				max = 50000;
+				range = Math.max(min, max);
+				break;
+			case ("end_at_step"):
+				min = 50000;
+				max = 100000;
+				range = Math.max(min, max);
+				break;
+			case ("denoise"):
+				console.log("denoise");
+				max = 1.0;
+				min = 0.001;
+				range = Math.max(min, max);
+				break;
+			case ("height"):
+			case ("width"):
+				console.log("width/height");
+				min = 64;
+				max = 1920;
+				range = Math.max(0, Math.floor((max - min) / 64));
+				break;
+			default:
+				console.log("default (Failed)");
+				break;
+		}
+
+		//adjust values based on valueControl Behaviour
 		switch (v) {
 			case ("fixed"):
 				console.log("fixed");
 				break;
 			case ("increment"):
 				if (min != null || max != null) {
-					if (max) {
-						// limit max to something that javascript can handle
-						if (targetWidget.name != "steps")
-							max = Math.min(1125899906842624.0, max);
-						else
-							max = 1000;
-					}
 					/*if (max) { //loop to lowest and continue batch
 						targetWidget.value = 0;
 						console.log("increment");
@@ -44,19 +86,24 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 					}
 				} else {*/
 					if (max) {
-						targetWidget.value += 1.0;
-						console.log("increment");
-                    }				
+						if (w == "denoise") {
+							targetWidget.value += 0.01;
+							console.log("denoise decrement");
+						} else if (w == "cfg") {
+							targetWidget.value += 0.5;
+							console.log("cfg increment");
+						} else if (w == "width" || w == "height") {
+							targetWidget.value += 64;
+							console.log("width/height decrement");
+						} else {
+							targetWidget.value += 1.0;
+							console.log("decrement");
+						}
+					}
 				}
 				break;
 			case ("decrement"):
 				if (min != null || max != null) {
-					if (min) {
-						// limit min to 0
-						if (targetWidget.name != "steps")
-							min = Math.min(0, min);
-
-					}
 					/*if (min) { //Loop to highest and continue batch
 						targetWidget.value = 1125899906842624;
 						console.log("decrement");
@@ -64,39 +111,63 @@ export function addSeedControlWidget(node, targetWidget, defaultValue = "randomi
 						targetWidget.value -= 1;
 						console.log("decrement");
 					} else {*/
-					if (min) { 
-						targetWidget.value -= 1.0;
-						console.log("decrement");
+					if (max) {
+						if (w == "denoise") {
+							targetWidget.value -= 0.01;
+							console.log("denoise decrement");
+						} else if (w == "cfg") {
+							targetWidget.value -= 0.5;
+							console.log("cfg decrement");
+						} else if (w == "width" || w == "height") {
+							targetWidget.value -= 64;
+							console.log("width/height decrement");
+						} else {
+							targetWidget.value -= 1.0;
+							console.log("decrement");
+						}
+
 					}
 				}
 				break;
 			case ("randomize"):
 				if (min != null || max != null) {
-					if (max) {
-						// limit max to something that javascript can handle
-						if (targetWidget.name != "steps")
-							max = Math.min(1125899906842624.0, max);
-						else
-							max = 1000;
+					switch (w) {
+						case ("cfg"):
+						case ("denoise"):
+							console.log("random denoise");
+							targetWidget.value = parseFloat((Math.floor(Math.random() * ((range * 100) + 1)) / 100).toFixed(2));
+							break;
+						case ("height"):
+						case ("width"):
+							targetWidget.value = Math.floor(Math.random() * range) * 64 + min;
+							console.log("Random resolution");
+							break;
+						default:
+							targetWidget.value = Math.floor(Math.random() * range);
+							console.log("Random");
+							break;
 					}
-					targetWidget.value = Math.floor(Math.random() * ((max ?? 9999999999.0) - (min ?? 0) + 1) + (min ?? 0));
-					console.log("Random");
-				} else {
-					targetWidget.value = Math.floor(Math.random() * 1125899906842624.0);
-					console.log("Random");
 				}
 				break;
 			default:
 				console.log("default (failed to detect input!)");
+				break;
 		}
-	};
 
-	return seedControl;
-}
+		/*check if values are over or under their respective
+	 * ranges and set them to min or max.*/
+		if (targetWidget.value < min)
+			targetWidget.value = min;
+
+		if (targetWidget.value > max)
+			targetWidget.value = max;
+	}
+	return valueControl;	
+};
 
 function seedWidget(node, inputName, inputData) {
 	const seed = ComfyWidgets.INT(node, inputName, inputData);
-	const seedControl = addSeedControlWidget(node, seed.widget, "randomize");
+	const seedControl = addValueControlWidget(node, seed.widget, "randomize");
 
 	seed.widget.linkedWidgets = [seedControl];
 	return seed;
