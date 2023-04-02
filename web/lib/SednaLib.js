@@ -32,14 +32,6 @@ HTMLElement.prototype.qsa = function(STR){
     return this.querySelectorAll(STR);
 }
 
-Array.prototype.inArray = function(ARGUMENT){
-    if(this.indexOf(ARGUMENT) != -1){
-        return true;
-    }else{
-        return false;
-    }
-}
-
 /* --------- Полезные функции --------- */
 Math.clamp = function(number, min, max) {//Ограничение диапазона
   return Math.max(min, Math.min(number, max));
