@@ -1,6 +1,6 @@
 import { app } from "/scripts/app.js";
 
-// Adds filtering to context menus
+// Adds filtering to combo context menus
 
 const id = "Comfy.ContextMenuFilter";
 app.registerExtension({
