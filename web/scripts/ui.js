@@ -35,20 +35,86 @@ export function $el(tag, propsOrChildren, children) {
 	return element;
 }
 
-function dragElement(dragEl) {
+function dragElement(dragEl, settings) {
 	var posDiffX = 0,
 		posDiffY = 0,
 		posStartX = 0,
 		posStartY = 0,
 		newPosX = 0,
 		newPosY = 0;
-	if (dragEl.getElementsByClassName('drag-handle')[0]) {
+	if (dragEl.getElementsByClassName("drag-handle")[0]) {
 		// if present, the handle is where you move the DIV from:
-		dragEl.getElementsByClassName('drag-handle')[0].onmousedown = dragMouseDown;
+		dragEl.getElementsByClassName("drag-handle")[0].onmousedown = dragMouseDown;
 	} else {
 		// otherwise, move the DIV from anywhere inside the DIV:
 		dragEl.onmousedown = dragMouseDown;
 	}
+
+	// When the element resizes (e.g. view queue) ensure it is still in the windows bounds
+	const resizeObserver = new ResizeObserver(() => {
+		ensureInBounds();
+	}).observe(dragEl);
+
+	function ensureInBounds() {
+		if (dragEl.classList.contains("comfy-menu-manual-pos")) {
+			newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft));
+			newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop));
+
+			positionElement();
+		}
+	}
+
+	function positionElement() {
+		const halfWidth = document.body.clientWidth / 2;
+		const anchorRight = newPosX + dragEl.clientWidth / 2 > halfWidth;
+
+		// set the element's new position:
+		if (anchorRight) {
+			dragEl.style.left = "unset";
+			dragEl.style.right = document.body.clientWidth - newPosX - dragEl.clientWidth + "px";
+		} else {
+			dragEl.style.left = newPosX + "px";
+			dragEl.style.right = "unset";
+		}
+		
+		dragEl.style.top = newPosY + "px";
+		dragEl.style.bottom = "unset";
+
+		if (savePos) {
+			localStorage.setItem(
+				"Comfy.MenuPosition",
+				JSON.stringify({
+					x: dragEl.offsetLeft,
+					y: dragEl.offsetTop,
+				})
+			);
+		}
+	}
+
+	function restorePos() {
+		let pos = localStorage.getItem("Comfy.MenuPosition");
+		if (pos) {
+			pos = JSON.parse(pos);
+			newPosX = pos.x;
+			newPosY = pos.y;
+			positionElement();
+			ensureInBounds();
+		}
+	}
+
+	let savePos = undefined;
+	settings.addSetting({
+		id: "Comfy.MenuPosition",
+		name: "Save menu position",
+		type: "boolean",
+		defaultValue: savePos,
+		onChange(value) {
+			if (savePos === undefined && value) {
+				restorePos();
+			}
+			savePos = value;
+		},
+	});
 
 	function dragMouseDown(e) {
 		e = e || window.event;
@@ -64,17 +130,24 @@ function dragElement(dragEl) {
 	function elementDrag(e) {
 		e = e || window.event;
 		e.preventDefault();
+
+		dragEl.classList.add("comfy-menu-manual-pos");
+
 		// calculate the new cursor position:
 		posDiffX = e.clientX - posStartX;
 		posDiffY = e.clientY - posStartY;
 		posStartX = e.clientX;
 		posStartY = e.clientY;
-		newPosX = Math.min((document.body.clientWidth - dragEl.clientWidth), Math.max(0, (dragEl.offsetLeft + posDiffX)));
-		newPosY = Math.min((document.body.clientHeight - dragEl.clientHeight), Math.max(0, (dragEl.offsetTop + posDiffY)));
-		// set the element's new position:
-		dragEl.style.top = newPosY + "px";
-		dragEl.style.left = newPosX + "px";
+
+		newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft + posDiffX));
+		newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop + posDiffY));
+
+		positionElement();
 	}
+
+	window.addEventListener("resize", () => {
+			ensureInBounds();
+	});
 
 	function closeDragElement() {
 		// stop moving when mouse button is released:
@@ -316,34 +389,52 @@ export class ComfyUI {
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
-			$el("button.comfy-queue-btn", { textContent: "Queue Prompt", onclick: () => app.queuePrompt(0, this.batchCount) }),
+			$el("button.comfy-queue-btn", {
+				textContent: "Queue Prompt",
+				onclick: () => app.queuePrompt(0, this.batchCount),
+			}),
 			$el("div", {}, [
-				$el("label", { innerHTML: "Extra options"}, [
-					$el("input", { type: "checkbox", 
-						onchange: (i) => { 
-							document.getElementById('extraOptions').style.display = i.srcElement.checked ? "block" : "none";
-							this.batchCount = i.srcElement.checked ? document.getElementById('batchCountInputRange').value : 1;
-							document.getElementById('autoQueueCheckbox').checked = false;
-						}
-					})
-				])
-			]),
-			$el("div", { id: "extraOptions", style: { width: "100%", display: "none" }}, [
-				$el("label", { innerHTML: "Batch count" }, [
-					$el("input", { id: "batchCountInputNumber", type: "number", value: this.batchCount, min: "1", style: { width: "35%", "margin-left": "0.4em" }, 
-						oninput: (i) => { 
-							this.batchCount = i.target.value;
-							document.getElementById('batchCountInputRange').value = this.batchCount;
-						}
+				$el("label", { innerHTML: "Extra options" }, [
+					$el("input", {
+						type: "checkbox",
+						onchange: (i) => {
+							document.getElementById("extraOptions").style.display = i.srcElement.checked ? "block" : "none";
+							this.batchCount = i.srcElement.checked ? document.getElementById("batchCountInputRange").value : 1;
+							document.getElementById("autoQueueCheckbox").checked = false;
+						},
 					}),
-					$el("input", { id: "batchCountInputRange", type: "range", min: "1", max: "100", value: this.batchCount, 
+				]),
+			]),
+			$el("div", { id: "extraOptions", style: { width: "100%", display: "none" } }, [
+				$el("label", { innerHTML: "Batch count" }, [
+					$el("input", {
+						id: "batchCountInputNumber",
+						type: "number",
+						value: this.batchCount,
+						min: "1",
+						style: { width: "35%", "margin-left": "0.4em" },
+						oninput: (i) => {
+							this.batchCount = i.target.value;
+							document.getElementById("batchCountInputRange").value = this.batchCount;
+						},
+					}),
+					$el("input", {
+						id: "batchCountInputRange",
+						type: "range",
+						min: "1",
+						max: "100",
+						value: this.batchCount,
 						oninput: (i) => {
 							this.batchCount = i.srcElement.value;
-							document.getElementById('batchCountInputNumber').value = i.srcElement.value;
-						}
+							document.getElementById("batchCountInputNumber").value = i.srcElement.value;
+						},
 					}),
-					$el("input", { id: "autoQueueCheckbox", type: "checkbox", checked: false, title: "automatically queue prompt when the queue size hits 0",
-					})
+					$el("input", {
+						id: "autoQueueCheckbox",
+						type: "checkbox",
+						checked: false,
+						title: "automatically queue prompt when the queue size hits 0",
+					}),
 				]),
 			]),
 			$el("div.comfy-menu-btns", [
@@ -395,7 +486,7 @@ export class ComfyUI {
 			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
 		]);
 
-		dragElement(this.menuContainer);
+		dragElement(this.menuContainer, this.settings);
 
 		this.setStatus({ exec_info: { queue_remaining: "X" } });
 	}
@@ -403,10 +494,14 @@ export class ComfyUI {
 	setStatus(status) {
 		this.queueSize.textContent = "Queue size: " + (status ? status.exec_info.queue_remaining : "ERR");
 		if (status) {
-			if (this.lastQueueSize != 0 && status.exec_info.queue_remaining == 0 && document.getElementById('autoQueueCheckbox').checked) {
+			if (
+				this.lastQueueSize != 0 &&
+				status.exec_info.queue_remaining == 0 &&
+				document.getElementById("autoQueueCheckbox").checked
+			) {
 				app.queuePrompt(0, this.batchCount);
 			}
-			this.lastQueueSize = status.exec_info.queue_remaining
+			this.lastQueueSize = status.exec_info.queue_remaining;
 		}
 	}
 }
