@@ -87,7 +87,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 				} else {*/
 					if (max) {
 						if (w == "denoise") {
-							targetWidget.value += 0.01;
+							targetWidget.value += 0.1;
 							console.log("denoise decrement");
 						} else if (w == "cfg") {
 							targetWidget.value += 0.5;
@@ -113,7 +113,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 					} else {*/
 					if (max) {
 						if (w == "denoise") {
-							targetWidget.value -= 0.01;
+							targetWidget.value -= 0.1;
 							console.log("denoise decrement");
 						} else if (w == "cfg") {
 							targetWidget.value -= 0.5;
