@@ -198,7 +198,7 @@ class ComfySettingsDialog extends ComfyDialog {
 		localStorage[settingId] = JSON.stringify(value);
 	}
 
-	addSetting({ id, name, type, defaultValue, onChange }) {
+	addSetting({ id, name, type, defaultValue, onChange, attrs = {}, tooltip = "", }) {
 		if (!id) {
 			throw new Error("Settings must have an ID");
 		}
@@ -225,42 +225,72 @@ class ComfySettingsDialog extends ComfyDialog {
 					value = v;
 				};
 
+				let element;
+
 				if (typeof type === "function") {
-					return type(name, setter, value);
+					element = type(name, setter, value, attrs);
+				} else {
+					switch (type) {
+						case "boolean":
+							element = $el("div", [
+								$el("label", { textContent: name || id }, [
+									$el("input", {
+										type: "checkbox",
+										checked: !!value,
+										oninput: (e) => {
+											setter(e.target.checked);
+										},
+										...attrs
+									}),
+								]),
+							]);
+							break;
+						case "number":
+							element = $el("div", [
+								$el("label", { textContent: name || id }, [
+									$el("input", {
+										type,
+										value,
+										oninput: (e) => {
+											setter(e.target.value);
+										},
+										...attrs
+									}),
+								]),
+							]);
+							break;
+						default:
+							console.warn("Unsupported setting type, defaulting to text");
+							element = $el("div", [
+								$el("label", { textContent: name || id }, [
+									$el("input", {
+										value,
+										oninput: (e) => {
+											setter(e.target.value);
+										},
+										...attrs
+									}),
+								]),
+							]);
+							break;
+					}
+				}
+				if(tooltip) {
+					element.title = tooltip;
 				}
 
-				switch (type) {
-					case "boolean":
-						return $el("div", [
-							$el("label", { textContent: name || id }, [
-								$el("input", {
-									type: "checkbox",
-									checked: !!value,
-									oninput: (e) => {
-										setter(e.target.checked);
-									},
-								}),
-							]),
-						]);
-					default:
-						console.warn("Unsupported setting type, defaulting to text");
-						return $el("div", [
-							$el("label", { textContent: name || id }, [
-								$el("input", {
-									value,
-									oninput: (e) => {
-										setter(e.target.value);
-									},
-								}),
-							]),
-						]);
-				}
+				return element;
 			},
 		});
 	}
 
 	show() {
 		super.show();
+		Object.assign(this.textElement.style, {
+			display: "flex",
+			flexDirection: "column",
+			gap: "10px"
+		});
 		this.textElement.replaceChildren(...this.settings.map((s) => s.render()));
 	}
 }
