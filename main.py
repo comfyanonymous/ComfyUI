@@ -11,9 +11,14 @@ if os.name == "nt":
 
 if __name__ == "__main__":
     if '--help' in sys.argv:
+        print()
         print("Valid Command line Arguments:")
         print("\t--listen [ip]\t\t\tListen on ip or 0.0.0.0 if none given so the UI can be accessed from other computers.")
         print("\t--port 8188\t\t\tSet the listen port.")
+        print()
+        print("\t--extra-model-paths-config file.yaml\tload an extra_model_paths.yaml file.")
+        print()
+        print()
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
         print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
         print("\t--use-pytorch-cross-attention\tUse the new pytorch 2.0 cross attention function.")
