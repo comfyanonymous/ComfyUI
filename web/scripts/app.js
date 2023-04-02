@@ -18,6 +18,7 @@ class ComfyApp {
 		this.ui = new ComfyUI(this);
 		this.extensions = [];
 		this.nodeOutputs = {};
+		this.shiftDown = false;
 	}
 
 	/**
@@ -637,10 +638,15 @@ class ComfyApp {
 
 	#addKeyboardHandler() {
 		window.addEventListener("keydown", (e) => {
+			this.shiftDown = e.shiftKey;
+
 			// Queue prompt using ctrl or command + enter
 			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
 				this.queuePrompt(e.shiftKey ? -1 : 0);
 			}
+		});
+		window.addEventListener("keyup", (e) => {
+			this.shiftDown = e.shiftKey;
 		});
 	}
 
