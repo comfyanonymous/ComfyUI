@@ -34,6 +34,13 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2,
         betas = 1 - alphas[1:] / alphas[:-1]
         betas = np.clip(betas, a_min=0, a_max=0.999)
 
+    elif schedule == "squaredcos_cap_v2":  # used for karlo prior
+        # return early
+        return betas_for_alpha_bar(
+            n_timestep,
+            lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2,
+        )
+
     elif schedule == "sqrt_linear":
         betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=torch.float64)
     elif schedule == "sqrt":
@@ -217,6 +224,7 @@ class SiLU(nn.Module):
 class GroupNorm32(nn.GroupNorm):
     def forward(self, x):
         return super().forward(x.float()).type(x.dtype)
+
 
 def conv_nd(dims, *args, **kwargs):
     """
