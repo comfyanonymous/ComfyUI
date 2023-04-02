@@ -6,9 +6,7 @@ const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
 	if (widget.name == "control_after_generate" ||
-		widget.name == "batch_size" ||
-		widget.name == "start_at_step" ||
-		widget.name == "end_at_step")
+		widget.name == "batch_size")
 		widget.allowConvertToInput = false;
 	else
 		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
@@ -293,8 +291,12 @@ app.registerExtension({
 					} else {
 						widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
 					}
-				
-					if (widget.type === "number" && combinedWidgetType != "INT:seed" && combinedWidgetType != "INT:noise_seed") {
+						
+					if (widget.type === "number" &&
+						combinedWidgetType != "INT:seed" &&
+						combinedWidgetType != "INT:noise_seed" &&
+						widgetName != "start_at_step" &&
+						widgetName != "end_at_step") {
 						addValueControlWidget(this, widget, "fixed");
 					}
 				}
