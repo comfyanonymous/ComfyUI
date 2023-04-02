@@ -617,6 +617,20 @@ class LatentComposite:
         samples_out["samples"] = s
         return (samples_out,)
 
+class LatentBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "batch"
+
+    CATEGORY = "latent"
+
+    def batch(self, samples, batch_size=1):
+        return ({"samples":samples["samples"].repeat(batch_size, 1, 1, 1)}, )
+
 class LatentCrop:
     @classmethod
     def INPUT_TYPES(s):
@@ -1086,6 +1100,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
+    "LatentBatch": LatentBatch,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
