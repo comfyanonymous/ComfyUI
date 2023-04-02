@@ -539,7 +539,7 @@ class ComfyApp {
 				color = "#0f0";
 			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
 				color = "dodgerblue";
-			} 
+			}
 
 			if (color) {
 				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
