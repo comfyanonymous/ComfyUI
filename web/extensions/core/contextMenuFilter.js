@@ -43,6 +43,17 @@ app.registerExtension({
 					}
 				}
 
+				const positionList = () => {
+					const rect = this.root.getBoundingClientRect();
+
+					// If the top is off screen then shift the element with scaling applied
+					if (rect.top < 0) {
+						const scale = 1 - this.root.getBoundingClientRect().height / this.root.clientHeight;
+						const shift = (this.root.clientHeight * scale) / 2;
+						this.root.style.top = -shift + "px";
+					}
+				}
+
 				updateSelected();
 
 				// Arrow up/down to select items
@@ -65,6 +76,8 @@ app.registerExtension({
 						e.preventDefault();
 					} else if ((selectedItem && e.key === "Enter") || e.keyCode === 13 || e.keyCode === 10) {
 						selectedItem.click();
+					} else if(e.key === "Escape") {
+						this.close();
 					}
 				});
 
@@ -104,6 +117,7 @@ app.registerExtension({
 						}
 
 						this.root.style.top = top + "px";
+						positionList();
 					}
 				});
 
@@ -111,14 +125,7 @@ app.registerExtension({
 					// Focus the filter box when opening
 					filter.focus();
 
-					const rect = this.root.getBoundingClientRect();
-
-					// If the top is off screen then shift the element with scaling applied
-					if (rect.top < 0) {
-						const scale = 1 - this.root.getBoundingClientRect().height / this.root.clientHeight;
-						const shift = (this.root.clientHeight * scale) / 2;
-						this.root.style.top = -shift + "px";
-					}
+					positionList();
 				});
 			}
 
