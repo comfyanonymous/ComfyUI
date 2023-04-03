@@ -445,17 +445,18 @@ class unCLIPConditioning:
         return {"required": {"conditioning": ("CONDITIONING", ),
                              "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
                              "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                             "noise_augmentation": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_adm"
 
     CATEGORY = "_for_testing/unclip"
 
-    def apply_adm(self, conditioning, clip_vision_output, strength):
+    def apply_adm(self, conditioning, clip_vision_output, strength, noise_augmentation):
         c = []
         for t in conditioning:
             o = t[1].copy()
-            x = (clip_vision_output, strength)
+            x = (clip_vision_output, strength, noise_augmentation)
             if "adm" in o:
                 o["adm"] = o["adm"][:] + [x]
             else:
