@@ -50,12 +50,12 @@ app.registerExtension({
 								}
 								else {
 								// Move the previous node
-									currentNode = node;
+								currentNode = node;
 								}
 							} else {
 								// We've found the end
 								inputNode = currentNode;
-								inputType = node.outputs[link.origin_slot].type;
+								inputType = node.outputs[link.origin_slot]?.type ?? null;
 								break;
 							}
 						} else {
@@ -87,7 +87,7 @@ app.registerExtension({
 									updateNodes.push(node);
 								} else {
 									// We've found an output
-									const nodeOutType = node.inputs[link.target_slot].type;
+									const nodeOutType = node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type ? node.inputs[link.target_slot].type : null;
 									if (inputType && nodeOutType !== inputType) {
 										// The output doesnt match our input so disconnect it
 										node.disconnectInput(link.target_slot);
