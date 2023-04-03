@@ -348,17 +348,27 @@ def encode_adm(noise_augmentor, conds, batch_size, device):
         if 'adm' in x[1]:
             adm_inputs = []
             weights = []
+            noise_aug = []
             adm_in = x[1]["adm"]
             for adm_c in adm_in:
                 adm_cond = adm_c[0].image_embeds
                 weight = adm_c[1]
-                c_adm, noise_level_emb = noise_augmentor(adm_cond.to(device), noise_level=torch.tensor([0], device=device))
+                noise_augment = adm_c[2]
+                noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
+                c_adm, noise_level_emb = noise_augmentor(adm_cond.to(device), noise_level=torch.tensor([noise_level], device=device))
                 adm_out = torch.cat((c_adm, noise_level_emb), 1) * weight
                 weights.append(weight)
+                noise_aug.append(noise_augment)
                 adm_inputs.append(adm_out)
 
-            adm_out = torch.stack(adm_inputs).sum(0)
-            #TODO: Apply Noise to Embedding Mix
+            if len(noise_aug) > 1:
+                adm_out = torch.stack(adm_inputs).sum(0)
+                #TODO: add a way to control this
+                noise_augment = 0.05
+                noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
+                print(noise_level)
+                c_adm, noise_level_emb = noise_augmentor(adm_out[:, :noise_augmentor.time_embed.dim], noise_level=torch.tensor([noise_level], device=device))
+                adm_out = torch.cat((c_adm, noise_level_emb), 1)
         else:
             adm_out = torch.zeros((1, noise_augmentor.time_embed.dim * 2), device=device)
         x[1] = x[1].copy()
