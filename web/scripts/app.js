@@ -18,6 +18,7 @@ class ComfyApp {
 		this.ui = new ComfyUI(this);
 		this.extensions = [];
 		this.nodeOutputs = {};
+		this.shiftDown = false;
 	}
 
 	/**
@@ -637,10 +638,15 @@ class ComfyApp {
 
 	#addKeyboardHandler() {
 		window.addEventListener("keydown", (e) => {
+			this.shiftDown = e.shiftKey;
+
 			// Queue prompt using ctrl or command + enter
 			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
 				this.queuePrompt(e.shiftKey ? -1 : 0);
 			}
+		});
+		window.addEventListener("keyup", (e) => {
+			this.shiftDown = e.shiftKey;
 		});
 	}
 
@@ -675,6 +681,9 @@ class ComfyApp {
 		this.graph = new LGraph();
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
+
+		LiteGraph.release_link_on_empty_shows_menu = true;
+		LiteGraph.alt_drag_do_clone_nodes = true;
 
 		this.graph.start();
 
