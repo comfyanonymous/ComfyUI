@@ -18,7 +18,7 @@ import comfy.samplers
 import comfy.sd
 import comfy.utils
 
-import comfy_extras.clip_vision
+import comfy.clip_vision
 
 import model_management
 import importlib
@@ -219,6 +219,21 @@ class CheckpointLoaderSimple:
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
 
+class unCLIPCheckpointLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                             }}
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "CLIP_VISION")
+    FUNCTION = "load_checkpoint"
+
+    CATEGORY = "_for_testing/unclip"
+
+    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
+        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return out
+
 class CLIPSetLastLayer:
     @classmethod
     def INPUT_TYPES(s):
@@ -330,6 +345,22 @@ class LoraLoaderBlockWeights:
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora_path, strength_model, strength_clip, block_weights)
         return (model_lora, clip_lora)
 
+class TomePatchModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "ratio": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "_for_testing"
+
+    def patch(self, model, ratio):
+        m = model.clone()
+        m.set_model_tomesd(ratio)
+        return (m, )
+
 class VAELoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -430,7 +461,7 @@ class CLIPVisionLoader:
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
-        clip_vision = comfy_extras.clip_vision.load(clip_path)
+        clip_vision = comfy.clip_vision.load(clip_path)
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -442,7 +473,7 @@ class CLIPVisionEncode:
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning/style_model"
+    CATEGORY = "conditioning"
 
     def encode(self, clip_vision, image):
         output = clip_vision.encode_image(image)
@@ -483,6 +514,32 @@ class StyleModelApply:
             n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
             c.append(n)
         return (c, )
+
+class unCLIPConditioning:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "apply_adm"
+
+    CATEGORY = "_for_testing/unclip"
+
+    def apply_adm(self, conditioning, clip_vision_output, strength):
+        c = []
+        for t in conditioning:
+            o = t[1].copy()
+            x = (clip_vision_output, strength)
+            if "adm" in o:
+                o["adm"] = o["adm"][:] + [x]
+            else:
+                o["adm"] = [x]
+            n = [t[0], o]
+            c.append(n)
+        return (c, )
+
 
 class EmptyLatentImage:
     def __init__(self, device="cpu"):
@@ -722,7 +779,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     model_management.load_controlnet_gpu(control_net_models)
 
     if sampler_name in comfy.samplers.KSampler.SAMPLERS:
-        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise)
+        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
     else:
         #other samplers
         pass
@@ -1086,6 +1143,7 @@ NODE_CLASS_MAPPINGS = {
     "CLIPLoader": CLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
     "StyleModelApply": StyleModelApply,
+    "unCLIPConditioning": unCLIPConditioning,
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
@@ -1093,6 +1151,8 @@ NODE_CLASS_MAPPINGS = {
     "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
     "VAEEncodeTiled": VAEEncodeTiled,
+    "TomePatchModel": TomePatchModel,
+    "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
 }
 
 def load_custom_node(module_path):
@@ -1127,6 +1187,6 @@ def load_custom_nodes():
         if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
         load_custom_node(module_path)
 
-load_custom_nodes()
-
-load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
+def init_custom_nodes():
+    load_custom_nodes()
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))

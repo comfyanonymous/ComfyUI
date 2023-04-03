@@ -43,8 +43,15 @@ app.registerExtension({
 							const node = app.graph.getNodeById(link.origin_id);
 							const type = node.constructor.type;
 							if (type === "Reroute") {
+								if (node === this) {
+									// We've found a circle
+									currentNode.disconnectInput(link.target_slot);
+									currentNode = null;
+								}
+								else {
 								// Move the previous node
-								currentNode = node;
+									currentNode = node;
+								}
 							} else {
 								// We've found the end
 								inputNode = currentNode;

@@ -20,7 +20,7 @@ function hideWidget(node, widget, suffix = "") {
 		if (link == null) {
 			return undefined;
 		}
-		return widget.value;
+		return widget.origSerializeValue ? widget.origSerializeValue() : widget.value;
 	};
 
 	// Hide any linked widgets, e.g. seed+randomize
@@ -101,7 +101,7 @@ app.registerExtension({
 							callback: () => convertToWidget(this, w),
 						});
 					} else {
-						const config = nodeData?.input?.required[w.name] || [w.type, w.options || {}];
+						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
 						if (isConvertableWidget(w, config)) {
 							toInput.push({
 								content: `Convert ${w.name} to input`,

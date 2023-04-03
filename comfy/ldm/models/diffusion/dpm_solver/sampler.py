@@ -3,7 +3,6 @@ import torch
 
 from .dpm_solver import NoiseScheduleVP, model_wrapper, DPM_Solver
 
-
 MODEL_TYPES = {
     "eps": "noise",
     "v": "v"
@@ -51,12 +50,20 @@ class DPMSolverSampler(object):
                ):
         if conditioning is not None:
             if isinstance(conditioning, dict):
-                cbs = conditioning[list(conditioning.keys())[0]].shape[0]
-                if cbs != batch_size:
-                    print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
+                ctmp = conditioning[list(conditioning.keys())[0]]
+                while isinstance(ctmp, list): ctmp = ctmp[0]
+                if isinstance(ctmp, torch.Tensor):
+                    cbs = ctmp.shape[0]
+                    if cbs != batch_size:
+                        print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
+            elif isinstance(conditioning, list):
+                for ctmp in conditioning:
+                    if ctmp.shape[0] != batch_size:
+                        print(f"Warning: Got {ctmp.shape[0]} conditionings but batch-size is {batch_size}")
             else:
-                if conditioning.shape[0] != batch_size:
-                    print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
+                if isinstance(conditioning, torch.Tensor):
+                    if conditioning.shape[0] != batch_size:
+                        print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
 
         # sampling
         C, H, W = shape
@@ -83,6 +90,7 @@ class DPMSolverSampler(object):
         )
 
         dpm_solver = DPM_Solver(model_fn, ns, predict_x0=True, thresholding=False)
-        x = dpm_solver.sample(img, steps=S, skip_type="time_uniform", method="multistep", order=2, lower_order_final=True)
+        x = dpm_solver.sample(img, steps=S, skip_type="time_uniform", method="multistep", order=2,
+                              lower_order_final=True)
 
         return x.to(device), None
