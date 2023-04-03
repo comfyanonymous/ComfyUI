@@ -43,6 +43,7 @@ class PromptServer():
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
         routes = web.RouteTableDef()
+        self.routes = routes
         self.last_node_id = None
         self.client_id = None
 
@@ -242,8 +243,9 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-
-        self.app.add_routes(routes)
+        
+    def add_routes(self):
+        self.app.add_routes(self.routes)
         self.app.add_routes([
             web.static('/', self.web_root),
         ])
