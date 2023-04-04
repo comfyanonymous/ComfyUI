@@ -366,7 +366,6 @@ def encode_adm(noise_augmentor, conds, batch_size, device):
                 #TODO: add a way to control this
                 noise_augment = 0.05
                 noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
-                print(noise_level)
                 c_adm, noise_level_emb = noise_augmentor(adm_out[:, :noise_augmentor.time_embed.dim], noise_level=torch.tensor([noise_level], device=device))
                 adm_out = torch.cat((c_adm, noise_level_emb), 1)
         else:
