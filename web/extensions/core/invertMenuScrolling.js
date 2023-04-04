@@ -3,10 +3,10 @@ import { app } from "/scripts/app.js";
 // Inverts the scrolling of context menus
 
 const id = "Comfy.InvertMenuScrolling";
-const ctxMenu = LiteGraph.ContextMenu;
 app.registerExtension({
 	name: id,
 	init() {
+		const ctxMenu = LiteGraph.ContextMenu;
 		const replace = () => {
 			LiteGraph.ContextMenu = function (values, options) {
 				options = options || {};
