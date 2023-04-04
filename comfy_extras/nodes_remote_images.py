@@ -21,8 +21,8 @@ class LoadImageUrl:
     CATEGORY = "image"
 
     def load_image(self, url):
-        r = request.urlopen(url)
-        i = Image.open(r)
+        with request.urlopen(url) as r:
+            i = Image.open(r)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
