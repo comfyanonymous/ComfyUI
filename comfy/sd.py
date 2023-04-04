@@ -767,15 +767,23 @@ def load_style_model(ckpt_path):
     return StyleModel(model)
 
 
-def load_clip(ckpt_path, embedding_directory=None):
-    clip_data = utils.load_torch_file(ckpt_path)
-    config = {}
-    if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+def load_clip(ckpt_path, version = None, embedding_directory=None):
+    if version is not None:
+        assert version in ("openai/clip-vit-large-patch14", )
+        config = {}
+        if version == "openai/clip-vit-large-patch14":
+            config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+            config["params"] = {"textmodel_path": version}
+            clip = CLIP(config=config, embedding_directory=embedding_directory)
     else:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
-    clip = CLIP(config=config, embedding_directory=embedding_directory)
-    clip.load_from_state_dict(clip_data)
+        clip_data = utils.load_torch_file(ckpt_path)
+        config = {}
+        if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
+            config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+        else:
+            config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+        clip = CLIP(config=config, embedding_directory=embedding_directory)
+        clip.load_from_state_dict(clip_data)
     return clip
 
 def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):

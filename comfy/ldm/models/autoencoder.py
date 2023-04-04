@@ -53,6 +53,8 @@ class AutoencoderKL(torch.nn.Module):
         if path.lower().endswith(".safetensors"):
             import safetensors.torch
             sd = safetensors.torch.load_file(path, device="cpu")
+        elif path.lower().endswith(".pth") or path.lower().endswith(".pt"):
+            sd = torch.load(path, map_location='cpu')
         else:
             sd = torch.load(path, map_location="cpu")["state_dict"]
         keys = list(sd.keys())

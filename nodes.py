@@ -373,6 +373,20 @@ class CLIPLoader:
         clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
+class CLIPVersionLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_version": (["openai/clip-vit-large-patch14"], ),
+                             }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "load_clip"
+
+    CATEGORY = "loaders"
+
+    def load_clip(self, clip_version):
+        clip = comfy.sd.load_clip(ckpt_path=None, version=clip_version, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return (clip,)
+
 class CLIPVisionLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -1065,6 +1079,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
+    "CLIPVersionLoader": CLIPVersionLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
     "StyleModelApply": StyleModelApply,
     "unCLIPConditioning": unCLIPConditioning,
