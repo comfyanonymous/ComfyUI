@@ -30,7 +30,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 			case ("seed"):
 			case ("noise_seed"):
 				console.log("noise_seed/seed");
-				max = 1125899906842624; // limit max to something that javascript can handle
+				max = 4294967294; // limit max to something that javascript can handle
 				range = Math.max(min, max);
 				break;
 			case ("cfg"):
