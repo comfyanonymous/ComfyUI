@@ -10,7 +10,7 @@ import traceback
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
-import requests
+from urllib import request
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -954,9 +954,8 @@ class LoadImageUrl:
     CATEGORY = "image"
 
     def load_image(self, url):
-        r = requests.get(url, stream=True)
-        r.raise_for_status()
-        i = Image.open(r.raw)
+        r = request.urlopen(url)
+        i = Image.open(r)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
