@@ -11,11 +11,14 @@ app.registerExtension({
 					this.properties = {};
 				}
 				this.properties.showOutputText = RerouteNode.defaultVisibility;
+				this.properties.horizontal = false;
 
 				this.addInput("", "*");
 				this.addOutput(this.properties.showOutputText ? "*" : "", "*");
 
 				this.onConnectionsChange = function (type, index, connected, link_info) {
+					this.applyOrientation();
+
 					// Prevent multiple connections to different types when we have no input
 					if (connected && type === LiteGraph.OUTPUT) {
 						// Ignore wildcard nodes as these will be updated to real types
@@ -49,8 +52,8 @@ app.registerExtension({
 									currentNode = null;
 								}
 								else {
-								// Move the previous node
-								currentNode = node;
+									// Move the previous node
+									currentNode = node;
 								}
 							} else {
 								// We've found the end
@@ -112,6 +115,7 @@ app.registerExtension({
 						node.__outputType = displayType;
 						node.outputs[0].name = node.properties.showOutputText ? displayType : "";
 						node.size = node.computeSize();
+						node.applyOrientation();
 
 						for (const l of node.outputs[0].links || []) {
 							const link = app.graph.links[l];
@@ -153,6 +157,7 @@ app.registerExtension({
 								this.outputs[0].name = "";
 							}
 							this.size = this.computeSize();
+							this.applyOrientation();
 							app.graph.setDirtyCanvas(true, true);
 						},
 					},
@@ -161,8 +166,31 @@ app.registerExtension({
 						callback: () => {
 							RerouteNode.setDefaultTextVisibility(!RerouteNode.defaultVisibility);
 						},
+					},
+					{
+						// naming is inverted with respect to LiteGraphNode.horizontal
+						// LiteGraphNode.horizontal == true means that 
+						// each slot in the inputs and outputs are layed out horizontally, 
+						// which is the opposite of the visual orientation of the inputs and outputs as a node
+						content: "Set " + (this.properties.horizontal ? "Horizontal" : "Vertical"),
+						callback: () => {
+							this.properties.horizontal = !this.properties.horizontal;
+							this.applyOrientation();
+						},
 					}
 				);
+			}
+			applyOrientation() {
+				this.horizontal = this.properties.horizontal;
+				if (this.horizontal) {
+					// we correct the input position, because LiteGraphNode.horizontal 
+					// doesn't account for title presence
+					// which reroute nodes don't have
+					this.inputs[0].pos = [this.size[0] / 2, 0];
+				} else {
+					delete this.inputs[0].pos;
+				}
+				app.graph.setDirtyCanvas(true, true);
 			}
 
 			computeSize() {
