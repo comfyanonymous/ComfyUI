@@ -510,6 +510,7 @@ export class ComfyUI {
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
 			$el("button", { textContent: "Clear", onclick: () => {
+				if (!confirm("Are you sure you want to remove all nodes?")) return;
 				app.clean();
 				app.graph.clear();
 			}}),
