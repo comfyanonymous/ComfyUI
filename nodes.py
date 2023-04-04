@@ -810,7 +810,9 @@ class SaveImage:
             input = input.replace("%height%", str(images[0].shape[0]))
             return input
 
-        filename_prefix = compute_vars(filename_prefix)
+        from datetime import date
+
+        filename_prefix = f'{date.today()}/{compute_vars(filename_prefix)}'
 
         subfolder = os.path.dirname(os.path.normpath(filename_prefix))
         filename = os.path.basename(os.path.normpath(filename_prefix))
