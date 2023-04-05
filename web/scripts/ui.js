@@ -288,7 +288,7 @@ class ComfySettingsDialog extends ComfyDialog {
 				return self.getSettingValue(id);
 			},
 			set value(v) {
-				self.setSettingValue(id, value);
+				self.setSettingValue(id, v);
 			},
 		};
 	}
