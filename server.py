@@ -27,6 +27,19 @@ async def cache_control(request: web.Request, handler):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
 
+@web.middleware
+async def cors_middleware(request: web.Request, handler):
+    if request.method == "OPTIONS":
+        # Pre-flight request. Reply successfully:
+        response = web.Response()
+    else:
+        response = await handler(request)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -37,7 +50,7 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
-        self.app = web.Application(client_max_size=20971520, middlewares=[cache_control])
+        self.app = web.Application(client_max_size=20971520, middlewares=[cache_control, cors_middleware])
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
