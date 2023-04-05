@@ -17,6 +17,7 @@ if __name__ == "__main__":
         print("\t--port 8188\t\t\tSet the listen port.")
         print()
         print("\t--extra-model-paths-config file.yaml\tload an extra_model_paths.yaml file.")
+        print("\t--output-directory path/to/output\tSet the ComfyUI output directory.")
         print()
         print()
         print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
@@ -133,6 +134,14 @@ if __name__ == "__main__":
         indices = [(i + 1) for i in range(len(sys.argv) - 1) if sys.argv[i] == '--extra-model-paths-config']
         for i in indices:
             load_extra_path_config(sys.argv[i])
+
+    try:
+        output_dir = sys.argv[sys.argv.index('--output-directory') + 1]
+        output_dir = os.path.abspath(output_dir)
+        print("setting output directory to:", output_dir)
+        folder_paths.set_output_directory(output_dir)
+    except:
+        pass
 
     port = 8188
     try:
