@@ -120,7 +120,7 @@ function dragElement(dragEl, settings) {
 		id: "Comfy.ConfirmClear",
 		name: "Require confirmation when clearing workflow",
 		type: "boolean",
-		defaultValue: false,
+		defaultValue: true,
 	});
 
 	function dragMouseDown(e) {
