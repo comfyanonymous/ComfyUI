@@ -199,10 +199,24 @@ def get_autocast_device(dev):
         return dev.type
     return "cuda"
 
+
 def xformers_enabled():
     if vram_state == CPU:
         return False
     return XFORMERS_IS_AVAILBLE
+
+
+def xformers_enabled_vae():
+    enabled = xformers_enabled()
+    if not enabled:
+        return False
+    try:
+        #0.0.18 has a bug where Nan is returned when inputs are too big (1152x1920 res images and above)
+        if xformers.version.__version__ == "0.0.18":
+            return False
+    except:
+        pass
+    return enabled
 
 def pytorch_attention_enabled():
     return ENABLE_PYTORCH_ATTENTION
