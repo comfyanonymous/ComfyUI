@@ -102,7 +102,7 @@ body {
 	background-color: #353535;
 	font-family: sans-serif;
 	padding: 10px;
-	border-radius: 8px;
+	border-radius: 0 8px 8px 8px;
 	box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
 }
 
