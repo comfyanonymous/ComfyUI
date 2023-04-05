@@ -29,7 +29,7 @@ class Blend:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "blend_images"
 
-    CATEGORY = "postprocessing"
+    CATEGORY = "image/postprocessing"
 
     def blend_images(self, image1: torch.Tensor, image2: torch.Tensor, blend_factor: float, blend_mode: str):
         if image1.shape != image2.shape:
@@ -86,7 +86,7 @@ class Blur:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "blur"
 
-    CATEGORY = "postprocessing"
+    CATEGORY = "image/postprocessing"
 
     def gaussian_kernel(self, kernel_size: int, sigma: float):
         x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size), torch.linspace(-1, 1, kernel_size), indexing="ij")
@@ -131,7 +131,7 @@ class Quantize:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "quantize"
 
-    CATEGORY = "postprocessing"
+    CATEGORY = "image/postprocessing"
 
     def quantize(self, image: torch.Tensor, colors: int = 256, dither: str = "FLOYDSTEINBERG"):
         batch_size, height, width, _ = image.shape
@@ -179,7 +179,7 @@ class Sharpen:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "sharpen"
 
-    CATEGORY = "postprocessing"
+    CATEGORY = "image/postprocessing"
 
     def sharpen(self, image: torch.Tensor, sharpen_radius: int, alpha: float):
         if sharpen_radius == 0:
@@ -203,8 +203,8 @@ class Sharpen:
         return (result,)
 
 NODE_CLASS_MAPPINGS = {
-    "Blend": Blend,
-    "Blur": Blur,
-    "Quantize": Quantize,
-    "Sharpen": Sharpen,
+    "ImageBlend": Blend,
+    "ImageBlur": Blur,
+    "ImageQuantize": Quantize,
+    "ImageSharpen": Sharpen,
 }
