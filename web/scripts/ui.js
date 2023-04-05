@@ -115,6 +115,13 @@ function dragElement(dragEl, settings) {
 			savePos = value;
 		},
 	});
+	
+	settings.addSetting({
+		id: "Comfy.ConfirmClear",
+		name: "Require confirmation when clearing workflow",
+		type: "boolean",
+		defaultValue: false,
+	});
 
 	function dragMouseDown(e) {
 		e = e || window.event;
@@ -510,10 +517,16 @@ export class ComfyUI {
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
 			$el("button", { textContent: "Clear", onclick: () => {
-				app.clean();
-				app.graph.clear();
+				if (localStorage.getItem("Comfy.Settings.Comfy.ConfirmClear") == "false" || confirm("Clear workflow?")) {
+					app.clean();
+					app.graph.clear();
+				}
 			}}),
-			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
+			$el("button", { textContent: "Load Default", onclick: () => {
+				if (localStorage.getItem("Comfy.Settings.Comfy.ConfirmClear") == "false" || confirm("Load default workflow?")) {
+					app.loadGraphData()
+				}
+			}}),
 		]);
 
 		dragElement(this.menuContainer, this.settings);
