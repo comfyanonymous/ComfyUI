@@ -414,8 +414,7 @@ export class ComfyUI {
 		});
 
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
-			$el("div", { style: { overflow: "hidden", position: "relative", width: "100%" } }, [
-				$el("span.drag-handle"),
+			$el("div.drag-handle", { style: { overflow: "hidden", position: "relative", width: "100%", cursor: "default" } }, [
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
