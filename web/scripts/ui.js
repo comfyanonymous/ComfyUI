@@ -225,6 +225,7 @@ class ComfySettingsDialog extends ComfyDialog {
 				};
 
 				let element;
+				value = this.getSettingValue(id, defaultValue);
 
 				if (typeof type === "function") {
 					element = type(name, setter, value, attrs);
@@ -418,7 +419,7 @@ export class ComfyUI {
 			type: "boolean",
 			defaultValue: true,
 		});
-
+		
 		const fileInput = $el("input", {
 			type: "file",
 			accept: ".json,image/png",
