@@ -9994,12 +9994,12 @@ LGraphNode.prototype.executeAction = function(action)
 						var delta = x < 40 ? -1 : x > widget_width - 40 ? 1 : 0;
 						if (event.click_time < 200 && delta == 0) {
 							this.prompt("Value",w.value,function(v) {
-                                    
-                                    try {//solve the equation if possible
-                                        v = eval(v);
-                                    } catch (error) {
+                                    // check if v is a valid equation or a number
+                                    if (/^[0-9+\-*/()\s]+$/.test(v)) {
+                                        try {//solve the equation if possible
+                                            v = eval(v);
+                                        } catch (e) { }
                                     }
-
 									this.value = Number(v);
 									inner_value_change(this, this.value);
 								}.bind(w),
