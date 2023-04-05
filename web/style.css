@@ -237,3 +237,28 @@ button.comfy-queue-btn {
 		visibility:hidden
 	}
 }
+
+.graphdialog {
+    min-height: 1em;
+}
+
+.graphdialog .name {
+    font-size: 14px;
+    font-family: sans-serif;
+    color: #999999;
+}
+
+.graphdialog button {
+    margin-top: unset;
+    vertical-align: unset;
+    height: 1.6em;
+    padding-right: 8px;
+}
+
+.graphdialog input, .graphdialog textarea, .graphdialog select {
+    background-color: #222;
+    border: 2px solid;
+    border-color: #444444;
+    color: #ddd;
+    border-radius: 12px 0 0 12px;
+}
