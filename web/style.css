@@ -88,13 +88,10 @@ body {
 }
 
 .comfy-menu {
-	width: 200px;
 	font-size: 15px;
 	position: absolute;
 	top: 50%;
 	right: 0%;
-	background-color: white;
-	color: #000;
 	text-align: center;
 	z-index: 100;
 	width: 170px;
