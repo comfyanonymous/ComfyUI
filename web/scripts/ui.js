@@ -286,7 +286,7 @@ class ComfySettingsDialog extends ComfyDialog {
 		const self = this;
 		return {
 			get value() {
-				return self.getSettingValue(id);
+				return self.getSettingValue(id, defaultValue);
 			},
 			set value(v) {
 				self.setSettingValue(id, v);
