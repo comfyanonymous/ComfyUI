@@ -223,8 +223,11 @@ class CheckpointLoaderSimple:
 class DiffusersLoader:
     @classmethod
     def INPUT_TYPES(cls):
-        return {"required": {"model_path": (os.listdir(os.path.join(folder_paths.models_dir, 'diffusers'), ),),
-                             }}
+        paths = []
+        search_path = os.path.join(folder_paths.models_dir, 'diffusers')
+        if os.path.exists(search_path):
+            paths = next(os.walk(search_path))[1]
+        return {"required": {"model_path": (paths,), }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
