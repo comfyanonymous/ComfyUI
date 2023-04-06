@@ -4,8 +4,10 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--listen", nargs="?", const="0.0.0.0", default="127.0.0.1", type=str, help="Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)")
 parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
+parser.add_argument("--cors", default=None, nargs="?", const="*", help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
 parser.add_argument("--extra-model-paths-config", type=str, default=None, help="Load an extra_model_paths.yaml file.")
 parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory.")
+parser.add_argument("--cuda-device", type=int, default=None, help="Set the id of the cuda device this instance will use.")
 parser.add_argument("--dont-upcast-attention", action="store_true", help="Disable upcasting of attention. Can boost speed but increase the chances of black images.")
 
 attn_group = parser.add_mutually_exclusive_group()
@@ -13,7 +15,6 @@ attn_group.add_argument("--use-split-cross-attention", action="store_true", help
 attn_group.add_argument("--use-pytorch-cross-attention", action="store_true", help="Use the new pytorch 2.0 cross attention function.")
 
 parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
-parser.add_argument("--cuda-device", type=int, default=None, help="Set the id of the cuda device this instance will use.")
 
 vram_group = parser.add_mutually_exclusive_group()
 vram_group.add_argument("--highvram", action="store_true", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.")
