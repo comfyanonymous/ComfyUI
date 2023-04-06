@@ -42,6 +42,7 @@ class PromptServer():
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
         routes = web.RouteTableDef()
+        self.routes = routes
         self.last_node_id = None
         self.client_id = None
 
@@ -88,7 +89,7 @@ class PromptServer():
 
         @routes.post("/upload/image")
         async def upload_image(request):
-            upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+            upload_dir = folder_paths.get_input_directory()
 
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
@@ -121,10 +122,10 @@ class PromptServer():
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 type = request.rel_url.query.get("type", "output")
-                if type not in ["output", "input", "temp"]:
+                output_dir = folder_paths.get_directory_by_type(type)
+                if output_dir is None:
                     return web.Response(status=400)
 
-                output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
                 if "subfolder" in request.rel_url.query:
                     full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
                     if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
@@ -239,8 +240,9 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-
-        self.app.add_routes(routes)
+        
+    def add_routes(self):
+        self.app.add_routes(self.routes)
         self.app.add_routes([
             web.static('/', self.web_root),
         ])

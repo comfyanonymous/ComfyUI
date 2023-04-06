@@ -25,7 +25,7 @@ function hideWidget(node, widget, suffix = "") {
 		if (link == null) {
 			return undefined;
 		}
-		return widget.value;
+		return widget.origSerializeValue ? widget.origSerializeValue() : widget.value;
 	};
 
 	// Hide any linked widgets, e.g. seed+seedControl
