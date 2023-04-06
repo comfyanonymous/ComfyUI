@@ -235,7 +235,7 @@ class DiffusersLoader:
 
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
         model_path = os.path.join(folder_paths.models_dir, 'diffusers', model_path)
-        return load_diffusers(model_path, fp16=True, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
