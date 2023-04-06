@@ -18,6 +18,7 @@ except ImportError:
     sys.exit()
 
 import mimetypes
+from comfy.cli_args import args
 
 
 @web.middleware
@@ -27,18 +28,22 @@ async def cache_control(request: web.Request, handler):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
 
-@web.middleware
-async def cors_middleware(request: web.Request, handler):
-    if request.method == "OPTIONS":
-        # Pre-flight request. Reply successfully:
-        response = web.Response()
-    else:
-        response = await handler(request)
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
+def create_cors_middleware(allowed_origin: str):
+    @web.middleware
+    async def cors_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
+    return cors_middleware
 
 class PromptServer():
     def __init__(self, loop):
@@ -50,7 +55,12 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
-        self.app = web.Application(client_max_size=20971520, middlewares=[cache_control, cors_middleware])
+
+        middlewares = [cache_control]
+        if args.cors:
+            middlewares.append(create_cors_middleware(args.cors))
+
+        self.app = web.Application(client_max_size=20971520, middlewares=middlewares)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
