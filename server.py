@@ -57,8 +57,8 @@ class PromptServer():
         self.number = 0
 
         middlewares = [cache_control]
-        if args.cors:
-            middlewares.append(create_cors_middleware(args.cors))
+        if args.enable_cors_header:
+            middlewares.append(create_cors_middleware(args.enable_cors_header))
 
         self.app = web.Application(client_max_size=20971520, middlewares=middlewares)
         self.sockets = dict()
