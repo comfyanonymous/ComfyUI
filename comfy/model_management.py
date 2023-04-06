@@ -87,7 +87,7 @@ except:
     pass
 
 try:
-    import intel_extension_for_pytorch
+    import intel_extension_for_pytorch as ipex
     if torch.xpu.is_available():
         vram_state = XPU
 except:
