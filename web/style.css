@@ -39,18 +39,19 @@ body {
 	position: fixed; /* Stay in place */
 	z-index: 100; /* Sit on top */
 	padding: 30px 30px 10px 30px;
-	background-color: #ff0000; /* Modal background */
+	background-color: #353535; /* Modal background */
+	color: #ff4444;
 	box-shadow: 0px 0px 20px #888888;
 	border-radius: 10px;
-	text-align: center;
 	top: 50%;
 	left: 50%;
 	max-width: 80vw;
 	max-height: 80vh;
 	transform: translate(-50%, -50%);
 	overflow: hidden;
-	min-width: 60%;
 	justify-content: center;
+	font-family: monospace;
+	font-size: 15px;
 }
 
 .comfy-modal-content {
@@ -70,31 +71,11 @@ body {
 	margin: 3px 3px 3px 4px;
 }
 
-.comfy-modal button {
-	cursor: pointer;
-	color: #aaaaaa;
-	border: none;
-	background-color: transparent;
-	font-size: 24px;
-	font-weight: bold;
-	width: 100%;
-}
-
-.comfy-modal button:hover,
-.comfy-modal button:focus {
-	color: #000;
-	text-decoration: none;
-	cursor: pointer;
-}
-
 .comfy-menu {
-	width: 200px;
 	font-size: 15px;
 	position: absolute;
 	top: 50%;
 	right: 0%;
-	background-color: white;
-	color: #000;
 	text-align: center;
 	z-index: 100;
 	width: 170px;
@@ -109,7 +90,8 @@ body {
 	box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
 }
 
-.comfy-menu button {
+.comfy-menu button,
+.comfy-modal button {
 	font-size: 20px;
 }
 
@@ -130,7 +112,8 @@ body {
 
 .comfy-menu > button,
 .comfy-menu-btns button,
-.comfy-menu .comfy-list button {
+.comfy-menu .comfy-list button,
+.comfy-modal button{
 	color: #ddd;
 	background-color: #222;
 	border-radius: 8px;
@@ -220,9 +203,20 @@ button.comfy-queue-btn {
 }
 
 .comfy-modal.comfy-settings {
-	background-color: var(--bg-color);
-	color: var(--fg-color);
+	text-align: center;
+	font-family: sans-serif;
+	color: #999;
 	z-index: 99;
+}
+
+.comfy-modal input,
+.comfy-modal select {
+	color: #ddd;
+	background-color: #222;
+	border-radius: 8px;
+	border-color: #4e4e4e;
+	border-style: solid;
+	font-size: inherit;
 }
 
 @media only screen and (max-height: 850px) {
@@ -239,26 +233,26 @@ button.comfy-queue-btn {
 }
 
 .graphdialog {
-    min-height: 1em;
+	min-height: 1em;
 }
 
 .graphdialog .name {
-    font-size: 14px;
-    font-family: sans-serif;
-    color: #999999;
+	font-size: 14px;
+	font-family: sans-serif;
+	color: #999999;
 }
 
 .graphdialog button {
-    margin-top: unset;
-    vertical-align: unset;
-    height: 1.6em;
-    padding-right: 8px;
+	margin-top: unset;
+	vertical-align: unset;
+	height: 1.6em;
+	padding-right: 8px;
 }
 
 .graphdialog input, .graphdialog textarea, .graphdialog select {
-    background-color: #222;
-    border: 2px solid;
-    border-color: #444444;
-    color: #ddd;
-    border-radius: 12px 0 0 12px;
+	background-color: #222;
+	border: 2px solid;
+	border-color: #444444;
+	color: #ddd;
+	border-radius: 12px 0 0 12px;
 }
