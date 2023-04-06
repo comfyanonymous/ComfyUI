@@ -1,56 +1,53 @@
-import os
-import sys
-import shutil
-
-import threading
+import argparse
 import asyncio
+import os
+import shutil
+import sys
+import threading
 
 if os.name == "nt":
     import logging
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
-    if '--help' in sys.argv:
-        print()
-        print("Valid Command line Arguments:")
-        print("\t--listen [ip]\t\t\tListen on ip or 0.0.0.0 if none given so the UI can be accessed from other computers.")
-        print("\t--port 8188\t\t\tSet the listen port.")
-        print()
-        print("\t--extra-model-paths-config file.yaml\tload an extra_model_paths.yaml file.")
-        print("\t--output-directory path/to/output\tSet the ComfyUI output directory.")
-        print()
-        print()
-        print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
-        print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
-        print("\t--use-pytorch-cross-attention\tUse the new pytorch 2.0 cross attention function.")
-        print("\t--disable-xformers\t\tdisables xformers")
-        print("\t--cuda-device 1\t\tSet the id of the cuda device this instance will use.")
-        print()
-        print("\t--highvram\t\t\tBy default models will be unloaded to CPU memory after being used.\n\t\t\t\t\tThis option keeps them in GPU memory.\n")
-        print("\t--normalvram\t\t\tUsed to force normal vram use if lowvram gets automatically enabled.")
-        print("\t--lowvram\t\t\tSplit the unet in parts to use less vram.")
-        print("\t--novram\t\t\tWhen lowvram isn't enough.")
-        print()
-        print("\t--cpu\t\t\tTo use the CPU for everything (slow).")
-        exit()
+    parser = argparse.ArgumentParser(description="Script Arguments")
 
-    if '--dont-upcast-attention' in sys.argv:
+    parser.add_argument("--listen", type=str, default="127.0.0.1", help="Listen on IP or 0.0.0.0 if none given so the UI can be accessed from other computers.")
+    parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
+    parser.add_argument("--extra-model-paths-config", type=str, default=None, help="Load an extra_model_paths.yaml file.")
+    parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory.")
+    parser.add_argument("--dont-upcast-attention", action="store_true", help="Disable upcasting of attention. Can boost speed but increase the chances of black images.")
+    parser.add_argument("--use-split-cross-attention", action="store_true", help="Use the split cross attention optimization instead of the sub-quadratic one. Ignored when xformers is used.")
+    parser.add_argument("--use-pytorch-cross-attention", action="store_true", help="Use the new pytorch 2.0 cross attention function.")
+    parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
+    parser.add_argument("--cuda-device", type=int, default=None, help="Set the id of the cuda device this instance will use.")
+    parser.add_argument("--highvram", action="store_true", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.")
+    parser.add_argument("--normalvram", action="store_true", help="Used to force normal vram use if lowvram gets automatically enabled.")
+    parser.add_argument("--lowvram", action="store_true", help="Split the unet in parts to use less vram.")
+    parser.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
+    parser.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
+    parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
+    parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
+    parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build.")
+
+    args = parser.parse_args()
+
+    if args.dont_upcast_attention:
         print("disabling upcasting of attention")
         os.environ['ATTN_PRECISION'] = "fp16"
 
-    try:
-        index = sys.argv.index('--cuda-device')
-        device = sys.argv[index + 1]
-        os.environ['CUDA_VISIBLE_DEVICES'] = device
-        print("Set cuda device to:", device)
-    except:
-        pass
+    if args.cuda_device is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+        print("Set cuda device to:", args.cuda_device)
 
-from nodes import init_custom_nodes
-import execution
-import server
-import folder_paths
+
 import yaml
+
+import execution
+import folder_paths
+import server
+from nodes import init_custom_nodes
+
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
@@ -110,51 +107,30 @@ if __name__ == "__main__":
     hijack_progress(server)
 
     threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
-    try:
-        address = '0.0.0.0'
-        p_index = sys.argv.index('--listen')
-        try:
-            ip = sys.argv[p_index + 1]
-            if ip[:2] != '--':
-                address = ip
-        except:
-            pass
-    except:
-        address = '127.0.0.1'
 
-    dont_print = False
-    if '--dont-print-server' in sys.argv:
-        dont_print = True
+    address = args.listen
+
+    dont_print = args.dont_print_server
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
         load_extra_path_config(extra_model_paths_config_path)
 
-    if '--extra-model-paths-config' in sys.argv:
-        indices = [(i + 1) for i in range(len(sys.argv) - 1) if sys.argv[i] == '--extra-model-paths-config']
-        for i in indices:
-            load_extra_path_config(sys.argv[i])
+    if args.extra_model_paths_config:
+        load_extra_path_config(args.extra_model_paths_config)
 
-    try:
-        output_dir = sys.argv[sys.argv.index('--output-directory') + 1]
-        output_dir = os.path.abspath(output_dir)
+    if args.output_directory:
+        output_dir = os.path.abspath(args.output_directory)
         print("setting output directory to:", output_dir)
         folder_paths.set_output_directory(output_dir)
-    except:
-        pass
 
-    port = 8188
-    try:
-        p_index = sys.argv.index('--port')
-        port = int(sys.argv[p_index + 1])
-    except:
-        pass
+    port = args.port
 
-    if '--quick-test-for-ci' in sys.argv:
+    if args.quick_test_for_ci:
         exit(0)
 
     call_on_start = None
-    if "--windows-standalone-build" in sys.argv:
+    if args.windows_standalone_build:
         def startup_server(address, port):
             import webbrowser
             webbrowser.open("http://{}:{}".format(address, port))
