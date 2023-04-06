@@ -22,11 +22,12 @@ set_vram_to = NORMAL_VRAM
 
 try:
     import torch
-    import intel_extension_for_pytorch as ipex
-    if torch.xpu.is_available():
-        xpu_available = True
-        total_vram = torch.xpu.get_device_properties(torch.xpu.current_device()).total_memory / (1024 * 1024)
-    else:
+    try:
+        import intel_extension_for_pytorch as ipex
+        if torch.xpu.is_available():
+            xpu_available = True
+            total_vram = torch.xpu.get_device_properties(torch.xpu.current_device()).total_memory / (1024 * 1024)
+    except:
         total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
     total_ram = psutil.virtual_memory().total / (1024 * 1024)
     forced_normal_vram = "--normalvram" in sys.argv
