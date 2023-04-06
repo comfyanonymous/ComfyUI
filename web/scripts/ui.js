@@ -162,7 +162,7 @@ class ComfyDialog {
 				$el("p", { $: (p) => (this.textElement = p) }),
 				$el("button", {
 					type: "button",
-					textContent: "CLOSE",
+					textContent: "Close",
 					onclick: () => this.close(),
 				}),
 			]),
