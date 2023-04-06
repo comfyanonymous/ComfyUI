@@ -68,21 +68,23 @@ app.registerExtension({
 		api.addEventListener("executed", ({ detail }) => {
 			if (detail?.output?.images) {
 				for (const src of detail.output.images) {
-					const img = document.createElement("img");
-					const a = document.createElement("a");
-					a.href = `/view?filename=${encodeURIComponent(src.filename)}&type=${src.type}&subfolder=${encodeURIComponent(
-						src.subfolder
-					)}`;
-					a.target = "_blank";
-					Object.assign(img.style, {
-						height: "120px",
-						width: "120px",
-						objectFit: "cover",
-					});
+				    if (src.type == 'output') { //Only show output images, not preview images
+                        const img = document.createElement("img");
+                        const a = document.createElement("a");
+                        a.href = `/view?filename=${encodeURIComponent(src.filename)}&type=${src.type}&subfolder=${encodeURIComponent(
+                            src.subfolder
+                        )}`;
+                        a.target = "_blank";
+                        Object.assign(img.style, {
+                            height: "120px",
+                            width: "120px",
+                            objectFit: "cover",
+                        });
 
-					img.src = a.href;
-					a.append(img);
-					imageList.prepend(a);
+                        img.src = a.href;
+                        a.append(img);
+                        imageList.prepend(a);
+					}
 				}
 			}
 		});
