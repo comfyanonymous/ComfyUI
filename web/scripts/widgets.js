@@ -24,52 +24,6 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 		let max = targetWidget.options?.max;
 		let range = Math.max(min, max);
 
-
-		//set the max/min values depending on the parameter
-		switch (w) {
-			case ("seed"):
-			case ("noise_seed"):
-				console.log("noise_seed/seed");
-				max = 4294967294; // limit max to something that javascript can handle
-				range = Math.max(min, max);
-				break;
-			case ("cfg"):
-				console.log("cfg");
-				max = 50.0;
-				range = Math.max(min, max);
-				break;
-			case ("steps"):
-				max = 100;
-				min = 1;
-				range = Math.max(min, max);
-				break;
-			case ("start_at_step"):
-				max = 50000;
-				range = Math.max(min, max);
-				break;
-			case ("end_at_step"):
-				min = 50000;
-				max = 100000;
-				range = Math.max(min, max);
-				break;
-			case ("denoise"):
-				console.log("denoise");
-				max = 1.0;
-				min = 0.001;
-				range = Math.max(min, max);
-				break;
-			case ("height"):
-			case ("width"):
-				console.log("width/height");
-				min = 64;
-				max = 1920;
-				range = Math.max(0, Math.floor((max - min) / 64));
-				break;
-			default:
-				console.log("default (Failed)");
-				break;
-		}
-
 		//adjust values based on valueControl Behaviour
 		switch (v) {
 			case ("fixed"):
@@ -154,7 +108,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 				break;
 		}
 
-		/*check if values are over or under their respective
+	/*check if values are over or under their respective
 	 * ranges and set them to min or max.*/
 		if (targetWidget.value < min)
 			targetWidget.value = min;
