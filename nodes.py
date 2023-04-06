@@ -4,12 +4,13 @@ import os
 import sys
 import json
 import hashlib
-import copy
 import traceback
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
+
+from comfy.diffusers_convert import load_diffusers
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -218,6 +219,21 @@ class CheckpointLoaderSimple:
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
+
+class DiffusersLoader:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {"model_path": (os.listdir(os.path.join(folder_paths.models_dir, 'diffusers'), ),),
+                             }}
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    FUNCTION = "load_checkpoint"
+
+    CATEGORY = "loaders"
+
+    def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
+        model_path = os.path.join(folder_paths.models_dir, 'diffusers', model_path)
+        return load_diffusers(model_path, fp16=True, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+
 
 class unCLIPCheckpointLoader:
     @classmethod
@@ -1076,6 +1092,7 @@ NODE_CLASS_MAPPINGS = {
     "TomePatchModel": TomePatchModel,
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "CheckpointLoader": CheckpointLoader,
+    "DiffusersLoader": DiffusersLoader,
 }
 
 def load_custom_node(module_path):
