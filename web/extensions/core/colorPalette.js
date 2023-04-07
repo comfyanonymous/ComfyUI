@@ -21,8 +21,31 @@ const colorPalettes = {
 				"MODEL": "#B39DDB", // light lavender-purple
 				"STYLE_MODEL": "#C2FFAE", // light green-yellow
 				"VAE": "#FF6E6E", // bright red
-			}
-		}
+			},
+			"litegraph_base": {
+				"NODE_TITLE_COLOR": "#999",
+				"NODE_SELECTED_TITLE_COLOR": "#FFF",
+				"NODE_TEXT_SIZE": 14,
+				"NODE_TEXT_COLOR": "#AAA",
+				"NODE_SUBTEXT_SIZE": 12,
+				"NODE_DEFAULT_COLOR": "#333",
+				"NODE_DEFAULT_BGCOLOR": "#353535",
+				"NODE_DEFAULT_BOXCOLOR": "#666",
+				"NODE_DEFAULT_SHAPE": "box",
+				"NODE_BOX_OUTLINE_COLOR": "#FFF",
+				"DEFAULT_SHADOW_COLOR": "rgba(0,0,0,0.5)",
+				"DEFAULT_GROUP_FONT": 24,
+
+				"WIDGET_BGCOLOR": "#222",
+				"WIDGET_OUTLINE_COLOR": "#666",
+				"WIDGET_TEXT_COLOR": "#DDD",
+				"WIDGET_SECONDARY_TEXT_COLOR": "#999",
+
+				"LINK_COLOR": "#9A9",
+				"EVENT_LINK_COLOR": "#A86",
+				"CONNECTING_LINK_COLOR": "#AFA",
+			},
+		},
 	},
 	"palette_2": {
 		"id": "palette_2",
@@ -193,6 +216,13 @@ app.registerExtension({
 				if (colorPalette.colors.node_slot) {
 					Object.assign(app.canvas.default_connection_color_byType, colorPalette.colors.node_slot);
 					app.canvas.draw(true, true);
+				}
+				if (colorPalette.colors.litegraph_base) {
+					for (const key in colorPalette.colors.litegraph_base) {
+						if (colorPalette.colors.litegraph_base.hasOwnProperty(key) && LiteGraph.hasOwnProperty(key)) {
+							LiteGraph[key] = colorPalette.colors.litegraph_base[key];
+						}
+					}
 				}
 			}
 		};
