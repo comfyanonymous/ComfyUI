@@ -224,7 +224,7 @@ class DiffusersLoader:
     @classmethod
     def INPUT_TYPES(cls):
         paths = []
-        search_path = os.path.join(folder_paths.models_dir, 'diffusers')
+        search_path = folder_paths.get_folder_paths("diffusers")[0]
         if os.path.exists(search_path):
             paths = next(os.walk(search_path))[1]
         return {"required": {"model_path": (paths,), }}
