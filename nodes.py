@@ -6,6 +6,7 @@ import json
 import hashlib
 import traceback
 
+from datetime import datetime
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
@@ -833,6 +834,7 @@ class SaveImage:
         def compute_vars(input):
             input = input.replace("%width%", str(images[0].shape[1]))
             input = input.replace("%height%", str(images[0].shape[0]))
+            input = input.replace("%date%", datetime.now().strftime("%Y%m%d%H%M%S"))
             return input
 
         filename_prefix = compute_vars(filename_prefix)
