@@ -272,7 +272,8 @@ def load_diffusers(model_path, fp16=True, output_vae=True, output_clip=True, emb
 
     # magic
     v2 = diffusers_unet_conf["sample_size"] == 96
-    v_pred = diffusers_scheduler_conf['prediction_type'] == 'v_prediction'
+    if 'prediction_type' in diffusers_scheduler_conf:
+        v_pred = diffusers_scheduler_conf['prediction_type'] == 'v_prediction'
 
     if v2:
         if v_pred:
@@ -290,6 +291,7 @@ def load_diffusers(model_path, fp16=True, output_vae=True, output_clip=True, emb
     scale_factor = model_config_params['scale_factor']
     vae_config = model_config_params['first_stage_config']
     vae_config['scale_factor'] = scale_factor
+    model_config_params["unet_config"]["params"]["use_fp16"] = fp16
 
     unet_path = osp.join(model_path, "unet", "diffusion_pytorch_model.safetensors")
     vae_path = osp.join(model_path, "vae", "diffusion_pytorch_model.safetensors")
