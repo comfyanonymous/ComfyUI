@@ -14,7 +14,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
-- Can load both ckpt and safetensors models/checkpoints. Standalone VAEs and CLIP models.
+- Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
 - Loading full workflows (with seeds) from generated PNG files.
@@ -24,6 +24,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
 - [ControlNet and T2I-Adapter](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
 - [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
+- [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
 - Starts up very fast.
 - Works fully offline: will never download anything.
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.

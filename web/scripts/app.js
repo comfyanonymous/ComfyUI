@@ -112,6 +112,46 @@ class ComfyApp {
 		};
 	}
 
+	#addNodeKeyHandler(node) {
+		const app = this;
+		const origNodeOnKeyDown = node.prototype.onKeyDown;
+
+		node.prototype.onKeyDown = function(e) {
+			if (origNodeOnKeyDown && origNodeOnKeyDown.apply(this, e) === false) {
+				return false;
+			}
+
+			if (this.flags.collapsed || !this.imgs || this.imageIndex === null) {
+				return;
+			}
+
+			let handled = false;
+
+			if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+				if (e.key === "ArrowLeft") {
+					this.imageIndex -= 1;
+				} else if (e.key === "ArrowRight") {
+					this.imageIndex += 1;
+				}
+				this.imageIndex %= this.imgs.length;
+
+				if (this.imageIndex < 0) {
+					this.imageIndex = this.imgs.length + this.imageIndex;
+				}
+				handled = true;
+			} else if (e.key === "Escape") {
+				this.imageIndex = null;
+				handled = true;
+			}
+
+			if (handled === true) {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				return false;
+			}
+		}
+	}
+
 	/**
 	 * Adds Custom drawing logic for nodes
 	 * e.g. Draws images and handles thumbnail navigation on nodes that output images
@@ -803,6 +843,7 @@ class ComfyApp {
 
 			this.#addNodeContextMenuHandler(node);
 			this.#addDrawBackgroundHandler(node, app);
+			this.#addNodeKeyHandler(node);
 
 			await this.#invokeExtensionsAsync("beforeRegisterNodeDef", node, nodeData);
 			LiteGraph.registerNodeType(nodeId, node);

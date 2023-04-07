@@ -115,7 +115,6 @@ function dragElement(dragEl, settings) {
 			savePos = value;
 		},
 	});
-
 	function dragMouseDown(e) {
 		e = e || window.event;
 		e.preventDefault();
@@ -163,7 +162,7 @@ class ComfyDialog {
 				$el("p", { $: (p) => (this.textElement = p) }),
 				$el("button", {
 					type: "button",
-					textContent: "CLOSE",
+					textContent: "Close",
 					onclick: () => this.close(),
 				}),
 			]),
@@ -226,6 +225,7 @@ class ComfySettingsDialog extends ComfyDialog {
 				};
 
 				let element;
+				value = this.getSettingValue(id, defaultValue);
 
 				if (typeof type === "function") {
 					element = type(name, setter, value, attrs);
@@ -282,6 +282,16 @@ class ComfySettingsDialog extends ComfyDialog {
 				return element;
 			},
 		});
+
+		const self = this;
+		return {
+			get value() {
+				return self.getSettingValue(id, defaultValue);
+			},
+			set value(v) {
+				self.setSettingValue(id, v);
+			},
+		};
 	}
 
 	show() {
@@ -403,6 +413,13 @@ export class ComfyUI {
 			this.history.update();
 		});
 
+		const confirmClear = this.settings.addSetting({
+			id: "Comfy.ConfirmClear",
+			name: "Require confirmation when clearing workflow",
+			type: "boolean",
+			defaultValue: true,
+		});
+		
 		const fileInput = $el("input", {
 			type: "file",
 			accept: ".json,image/png",
@@ -414,7 +431,7 @@ export class ComfyUI {
 		});
 
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
-			$el("div", { style: { overflow: "hidden", position: "relative", width: "100%" } }, [
+			$el("div.drag-handle", { style: { overflow: "hidden", position: "relative", width: "100%", cursor: "default" } }, [
 				$el("span.drag-handle"),
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
@@ -510,10 +527,16 @@ export class ComfyUI {
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
 			$el("button", { textContent: "Clear", onclick: () => {
-				app.clean();
-				app.graph.clear();
+				if (!confirmClear.value || confirm("Clear workflow?")) {
+					app.clean();
+					app.graph.clear();
+				}
 			}}),
-			$el("button", { textContent: "Load Default", onclick: () => app.loadGraphData() }),
+			$el("button", { textContent: "Load Default", onclick: () => {
+				if (!confirmClear.value || confirm("Load default workflow?")) {
+					app.loadGraphData()
+				}
+			}}),
 		]);
 
 		dragElement(this.menuContainer, this.settings);
