@@ -21,6 +21,8 @@ if model_management.xformers_enabled():
 import os
 _ATTN_PRECISION = os.environ.get("ATTN_PRECISION", "fp32")
 
+from cli_args import args
+
 def exists(val):
     return val is not None
 
@@ -474,7 +476,6 @@ class CrossAttentionPytorch(nn.Module):
 
         return self.to_out(out)
 
-import sys
 if model_management.xformers_enabled():
     print("Using xformers cross attention")
     CrossAttention = MemoryEfficientCrossAttention
@@ -482,7 +483,7 @@ elif model_management.pytorch_attention_enabled():
     print("Using pytorch cross attention")
     CrossAttention = CrossAttentionPytorch
 else:
-    if "--use-split-cross-attention" in sys.argv:
+    if args.use_split_cross_attention:
         print("Using split optimization for cross attention")
         CrossAttention = CrossAttentionDoggettx
     else:
