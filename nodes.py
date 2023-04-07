@@ -224,10 +224,9 @@ class DiffusersLoader:
     @classmethod
     def INPUT_TYPES(cls):
         paths = []
-        search_paths = folder_paths.get_folder_paths("diffusers")
-        for search_path in search_paths:
+        for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
-                paths = next(os.walk(search_path))[1]
+                paths += next(os.walk(search_path))[1]
         return {"required": {"model_path": (paths,), }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
@@ -235,7 +234,13 @@ class DiffusersLoader:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
-        model_path = os.path.join(folder_paths.models_dir, 'diffusers', model_path)
+        for search_path in folder_paths.get_folder_paths("diffusers"):
+            if os.path.exists(search_path):
+                paths = next(os.walk(search_path))[1]
+                if model_path in paths:
+                    model_path = os.path.join(search_path, model_path)
+                    break
+        search_paths = folder_paths.get_folder_paths("diffusers")
         return load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
