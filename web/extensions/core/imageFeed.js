@@ -66,12 +66,14 @@ app.registerExtension({
             const newHeight = startHeight + startY - event.clientY;
             imageList.style.height = newHeight + "px";
         }
+        var allImages = []
 
         function loadImages(detail) {
-          const allImages = detail.output.images.filter(
+          const images = detail.output.images.filter(
             (img) => img.type === "output" && img.filename !== "_output_images_will_be_put_here"
           );
-          for (const src of allImages) {
+          allImages.push(...images);
+          for (const src of images) {
             const imgContainer = document.createElement("div");
             imgContainer.style.cssText = "height: 120px; width: 120px; position: relative;";
 
@@ -84,11 +86,14 @@ app.registerExtension({
               const confirmDelete = confirm("Are you sure you want to delete this image?");
               if (confirmDelete) {
                 await api.deleteImage(src.filename);
+                let newAllImages = allImages.filter(image => image.filename !== src.filename);
+                allImages = newAllImages;
                 imgContainer.remove();
               }
             });
 
             const img = document.createElement("img");
+            img.setAttribute("filename", src.filename);
             img.style.cssText = "height: 120px; width: 120px; object-fit: cover;";
             img.src = `/view?filename=${encodeURIComponent(src.filename)}&type=${src.type}&subfolder=${encodeURIComponent(src.subfolder)}`;
             img.addEventListener("click", () => {
@@ -208,6 +213,7 @@ app.registerExtension({
 			right: "5px",
 		});
 		clearButton.onclick = () => {
+		    allImages = []
 			imageList.replaceChildren(menu, resizeHandle);
 		};
 		const deleteAllButton = makeButton("🗑️ Delete", {
@@ -216,6 +222,7 @@ app.registerExtension({
 		});
 		deleteAllButton.onclick = () => {
 			api.deleteAllImages();
+			allImages = []
 			imageList.replaceChildren(menu, resizeHandle);
 		};
 
