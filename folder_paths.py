@@ -27,6 +27,40 @@ folder_names_and_paths["embeddings"] = ([os.path.join(models_dir, "embeddings")]
 folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], supported_pt_extensions)
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
+output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+
+if not os.path.exists(input_directory):
+    os.makedirs(input_directory)
+
+def set_output_directory(output_dir):
+    global output_directory
+    output_directory = output_dir
+
+def get_output_directory():
+    global output_directory
+    return output_directory
+
+def get_temp_directory():
+    global temp_directory
+    return temp_directory
+
+def get_input_directory():
+    global input_directory
+    return input_directory
+
+
+#NOTE: used in http server so don't put folders that should not be accessed remotely
+def get_directory_by_type(type_name):
+    if type_name == "output":
+        return get_output_directory()
+    if type_name == "temp":
+        return get_temp_directory()
+    if type_name == "input":
+        return get_input_directory()
+    return None
+
 
 def add_model_folder_path(folder_name, full_folder_path):
     global folder_names_and_paths
