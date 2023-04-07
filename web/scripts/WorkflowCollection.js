@@ -255,9 +255,12 @@ class NCP{
 		this.editMode = false;
 		
 		$Add('div', this.mainFrame, {style : {height : '25px'} } );
-		this.panel = $Add('div', this.mainFrame, {});
+		this.workflow = $Add('div', this.mainFrame, {id : 'NCPWorkflow'} );
+		this.addPanel = $Add('div', this.mainFrame, {id : 'addDiv', style : {textAlign : 'center', display : 'none'}} );
 		
-		this.editModeButton = $Add('div', this.mainFrame, {innerHTML : 'Edit', className : 'button', style : {position : 'absolute', left : 0}, onclick : ()=>{this.editSwitch();} } );
+		this.addDivButton = $Add('span', this.addPanel, {innerHTML : '+', className : 'button'});
+		
+		this.editModeButton = $Add('div', this.mainFrame, {innerHTML : 'Edit', className : 'button', style : {position : 'absolute', left : 0, top: '25px'}, onclick : ()=>{this.editSwitch();} } );
 	}
 	slide(){
 		if (this.opened){
@@ -274,9 +277,11 @@ class NCP{
 		if (this.editMode){
 			this.editMode = !this.editMode;
 			this.editModeButton.style.background = OPE_VARIABLES.bgMain;
+			this.addPanel.style.display = 'none';
 		}else{
 			this.editMode = !this.editMode;
 			this.editModeButton.style.background = WC_VARIABLES.selectedColor;
+			this.addPanel.style.display = '';
 		}
 	}
 }
