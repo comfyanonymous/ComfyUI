@@ -14,7 +14,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
-- Can load both ckpt and safetensors models/checkpoints. Standalone VAEs and CLIP models.
+- Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
 - Loading full workflows (with seeds) from generated PNG files.
