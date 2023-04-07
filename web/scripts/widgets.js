@@ -48,7 +48,6 @@ export function batchIndexWidget(node, inputName, inputData) {
 	const { val, config } = getNumberDefaults(inputData, 1);
 	Object.assign(config, { precision: 0 });
 	const batchIndex = node.addWidget("number", inputName, val, () => {}, config)
-	batchIndex.forbidConvertToInput = true;
 	batchIndex.disabled = true;
 
 	batchIndex.onInitBatch = () => {

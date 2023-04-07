@@ -1059,22 +1059,6 @@ class ImagePadForOutpaint:
 
         return (new_image, mask)
 
-class BatchIndex:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "batch_index": ("INT", {}),
-            },
-        }
-
-    RETURN_TYPES = ("INT", "FLOAT")
-    FUNCTION = "getBatchIndex"
-    CATEGORY = "utils"
-
-    def getBatchIndex(self, batch_index):
-        return (batch_index, batch_index)
-
 
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
@@ -1118,7 +1102,6 @@ NODE_CLASS_MAPPINGS = {
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
-    "BatchIndex": BatchIndex,
 }
 
 def load_custom_node(module_path):
