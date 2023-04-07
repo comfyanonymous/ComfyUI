@@ -69,6 +69,11 @@ elif args.novram:
 elif args.highvram:
     vram_state = VRAMState.HIGH_VRAM
 
+FORCE_FP32 = False
+if args.force_fp32:
+    print("Forcing FP32, if this improves things please report it.")
+    FORCE_FP32 = True
+
 
 if set_vram_to in (VRAMState.LOW_VRAM, VRAMState.NO_VRAM):
     try:
@@ -273,6 +278,9 @@ def mps_mode():
 
 def should_use_fp16():
     global xpu_available
+    if FORCE_FP32:
+        return False
+
     if cpu_mode() or mps_mode() or xpu_available:
         return False #TODO ?
 
