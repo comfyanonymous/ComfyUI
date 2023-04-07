@@ -123,6 +123,9 @@ class ComfyApi extends EventTarget {
             await this.#postItem("delete", { delete: "all" })
         }
     }
+    async deleteImage(filename) {
+        await this.#postItem("delete", { delete: filename })
+    }
 
 	/**
 	 * Gets a list of embedding names
@@ -220,6 +223,20 @@ class ComfyApi extends EventTarget {
 		} catch (error) {
 			console.error(error);
 			return { History: [] };
+		}
+	}
+
+	/**
+	 * Gets the prompt execution history
+	 * @returns Prompt history including node outputs
+	 */
+	async getOutput() {
+		try {
+			const res = await fetch("/output/images");
+			return { filenames: Object.values(await res.json()) };
+		} catch (error) {
+			console.error(error);
+			return { output: [] };
 		}
 	}
 
