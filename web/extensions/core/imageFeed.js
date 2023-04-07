@@ -208,7 +208,7 @@ app.registerExtension({
 			right: "5px",
 		});
 		clearButton.onclick = () => {
-			imageList.replaceChildren(closeButton, clearButton);
+			imageList.replaceChildren(menu, resizeHandle);
 		};
 		const deleteAllButton = makeButton("🗑️ Delete", {
 			top: "55px",
@@ -216,7 +216,7 @@ app.registerExtension({
 		});
 		deleteAllButton.onclick = () => {
 			api.deleteAllImages();
-			imageList.replaceChildren(closeButton, clearButton);
+			imageList.replaceChildren(menu, resizeHandle);
 		};
 
 		showButton.classList.add("comfy-settings-btn");
