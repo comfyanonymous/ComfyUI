@@ -43,24 +43,6 @@ function seedWidget(node, inputName, inputData) {
 	return { widget: seed, randomize };
 }
 
-export function batchIndexWidget(node, inputName, inputData) {
-
-	const { val, config } = getNumberDefaults(inputData, 1);
-	Object.assign(config, { precision: 0 });
-	const batchIndex = node.addWidget("number", inputName, val, () => {}, config)
-	batchIndex.disabled = true;
-
-	batchIndex.onInitBatch = () => {
-		batchIndex.value = 0;
-	};
-
-	batchIndex.afterQueued = () => {
-		batchIndex.value += 1;
-	};
-
-	return batchIndex;
-}
-
 const MultilineSymbol = Symbol();
 const MultilineResizeSymbol = Symbol();
 
@@ -215,7 +197,6 @@ function addMultilineWidget(node, name, opts, app) {
 }
 
 export const ComfyWidgets = {
-	"INT:batch_index": batchIndexWidget,
 	"INT:seed": seedWidget,
 	"INT:noise_seed": seedWidget,
 	FLOAT(node, inputName, inputData) {

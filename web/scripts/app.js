@@ -997,7 +997,7 @@ class ComfyApp {
 									// Allow widgets to run callbacks on firts iteration of a batch
 									// e.g. random seed after every gen
 									if (widget.onInitBatch) {
-										widget.onInitBatch();
+										widget.onInitBatch(batchCount);
 									}
 								}
 							}
