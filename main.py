@@ -1,7 +1,9 @@
 import asyncio
+import itertools
 import os
 import shutil
 import threading
+
 from comfy.cli_args import args
 
 if os.name == "nt":
@@ -94,7 +96,8 @@ if __name__ == "__main__":
         load_extra_path_config(extra_model_paths_config_path)
 
     if args.extra_model_paths_config:
-        load_extra_path_config(args.extra_model_paths_config)
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            load_extra_path_config(config_path)
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
