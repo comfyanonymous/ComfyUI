@@ -10,11 +10,11 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
-from comfy.diffusers_convert import load_diffusers
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
+import comfy.diffusers_convert
 import comfy.samplers
 import comfy.sd
 import comfy.utils
@@ -241,7 +241,7 @@ class DiffusersLoader:
                     model_path = os.path.join(search_path, model_path)
                     break
 
-        return load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return comfy.diffusers_convert.load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:

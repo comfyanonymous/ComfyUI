@@ -2,10 +2,6 @@ import json
 import os
 import yaml
 
-# because of local import nonsense
-import sys
-sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-
 import folder_paths
 from comfy.ldm.util import instantiate_from_config
 from comfy.sd import ModelPatcher, load_model_weights, CLIP, VAE
