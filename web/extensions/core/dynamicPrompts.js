@@ -30,7 +30,8 @@ app.registerExtension({
 					}
 
 					// Overwrite the value in the serialized workflow pnginfo
-					workflowNode.widgets_values[widgetIndex] = prompt;
+					if (workflowNode?.widgets_values)
+						workflowNode.widgets_values[widgetIndex] = prompt;
 
 					return prompt;
 				};
