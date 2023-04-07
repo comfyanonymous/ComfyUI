@@ -4,16 +4,17 @@ import os
 import sys
 import json
 import hashlib
-import copy
 import traceback
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
+import comfy.diffusers_convert
 import comfy.samplers
 import comfy.sd
 import comfy.utils
@@ -218,6 +219,30 @@ class CheckpointLoaderSimple:
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
+
+class DiffusersLoader:
+    @classmethod
+    def INPUT_TYPES(cls):
+        paths = []
+        for search_path in folder_paths.get_folder_paths("diffusers"):
+            if os.path.exists(search_path):
+                paths += next(os.walk(search_path))[1]
+        return {"required": {"model_path": (paths,), }}
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    FUNCTION = "load_checkpoint"
+
+    CATEGORY = "advanced/loaders"
+
+    def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
+        for search_path in folder_paths.get_folder_paths("diffusers"):
+            if os.path.exists(search_path):
+                paths = next(os.walk(search_path))[1]
+                if model_path in paths:
+                    model_path = os.path.join(search_path, model_path)
+                    break
+
+        return comfy.diffusers_convert.load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+
 
 class unCLIPCheckpointLoader:
     @classmethod
@@ -853,7 +878,7 @@ class KSamplerAdvanced:
 
 class SaveImage:
     def __init__(self):
-        self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+        self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
 
     @classmethod
@@ -905,9 +930,6 @@ class SaveImage:
             os.makedirs(full_output_folder, exist_ok=True)
             counter = 1
 
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-
         results = list()
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -932,7 +954,7 @@ class SaveImage:
 
 class PreviewImage(SaveImage):
     def __init__(self):
-        self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
 
     @classmethod
@@ -943,13 +965,11 @@ class PreviewImage(SaveImage):
                 }
 
 class LoadImage:
-    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
     def INPUT_TYPES(s):
-        if not os.path.exists(s.input_dir):
-            os.makedirs(s.input_dir)
+        input_dir = folder_paths.get_input_directory()
         return {"required":
-                    {"image": (sorted(os.listdir(s.input_dir)), )},
+                    {"image": (sorted(os.listdir(input_dir)), )},
                 }
 
     CATEGORY = "image"
@@ -957,7 +977,8 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
     def load_image(self, image):
-        image_path = os.path.join(self.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         i = Image.open(image_path)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -971,18 +992,19 @@ class LoadImage:
 
     @classmethod
     def IS_CHANGED(s, image):
-        image_path = os.path.join(s.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
 
 class LoadImageMask:
-    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
     def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
         return {"required":
-                    {"image": (sorted(os.listdir(s.input_dir)), ),
+                    {"image": (sorted(os.listdir(input_dir)), ),
                     "channel": (["alpha", "red", "green", "blue"], ),}
                 }
 
@@ -991,7 +1013,8 @@ class LoadImageMask:
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
     def load_image(self, image, channel):
-        image_path = os.path.join(self.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         i = Image.open(image_path)
         mask = None
         c = channel[0].upper()
@@ -1006,7 +1029,8 @@ class LoadImageMask:
 
     @classmethod
     def IS_CHANGED(s, image, channel):
-        image_path = os.path.join(s.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
@@ -1154,6 +1178,7 @@ NODE_CLASS_MAPPINGS = {
     "TomePatchModel": TomePatchModel,
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "CheckpointLoader": CheckpointLoader,
+    "DiffusersLoader": DiffusersLoader,
 }
 
 def load_custom_node(module_path):
