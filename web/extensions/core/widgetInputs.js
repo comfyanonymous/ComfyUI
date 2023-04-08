@@ -159,26 +159,30 @@ app.registerExtension({
 			const r = origOnInputDblClick ? origOnInputDblClick.apply(this, arguments) : undefined;
 
 			const input = this.inputs[slot];
-			if (input.widget && !input[ignoreDblClick]) {
-				const node = LiteGraph.createNode("PrimitiveNode");
-				app.graph.add(node);
-
-				// Calculate a position that wont directly overlap another node
-				const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
-				while (isNodeAtPos(pos)) {
-					pos[1] += LiteGraph.NODE_TITLE_HEIGHT;
-				}
-
-				node.pos = pos;
-				node.connect(0, this, slot);
-				node.title = input.name;
-
-				// Prevent adding duplicates due to triple clicking
-				input[ignoreDblClick] = true;
-				setTimeout(() => {
-					delete input[ignoreDblClick];
-				}, 300);
+			if (!input.widget || !input[ignoreDblClick])// Not a widget input or already handled input
+			{
+				if (!(input.type in ComfyWidgets)) return r;//also Not a ComfyWidgets input (do nothing)
 			}
+
+			// Create a primitive node
+			const node = LiteGraph.createNode("PrimitiveNode");
+			app.graph.add(node);
+
+			// Calculate a position that wont directly overlap another node
+			const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
+			while (isNodeAtPos(pos)) {
+				pos[1] += LiteGraph.NODE_TITLE_HEIGHT;
+			}
+
+			node.pos = pos;
+			node.connect(0, this, slot);
+			node.title = input.name;
+
+			// Prevent adding duplicates due to triple clicking
+			input[ignoreDblClick] = true;
+			setTimeout(() => {
+				delete input[ignoreDblClick];
+			}, 300);
 
 			return r;
 		};
@@ -265,7 +269,6 @@ app.registerExtension({
 
 				const widget = _widget;
 				const { type, linkType } = getWidgetType(widget.config);
-				console.log({ "input": input });
 				// Update our output to restrict to the widget type
 				this.outputs[0].type = linkType;
 				this.outputs[0].name = type;
