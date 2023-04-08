@@ -8,14 +8,18 @@ export function $el(tag, propsOrChildren, children) {
 		if (Array.isArray(propsOrChildren)) {
 			element.append(...propsOrChildren);
 		} else {
-			const parent = propsOrChildren.parent;
+			const { parent, $: cb, dataset, style } = propsOrChildren;
 			delete propsOrChildren.parent;
-			const cb = propsOrChildren.$;
 			delete propsOrChildren.$;
+			delete propsOrChildren.dataset;
+			delete propsOrChildren.style;
 
-			if (propsOrChildren.style) {
-				Object.assign(element.style, propsOrChildren.style);
-				delete propsOrChildren.style;
+			if (style) {
+				Object.assign(element.style, style);
+			}
+
+			if (dataset) {
+				Object.assign(element.dataset, dataset);
 			}
 
 			Object.assign(element, propsOrChildren);
@@ -76,7 +80,7 @@ function dragElement(dragEl, settings) {
 			dragEl.style.left = newPosX + "px";
 			dragEl.style.right = "unset";
 		}
-		
+
 		dragEl.style.top = newPosY + "px";
 		dragEl.style.bottom = "unset";
 
@@ -145,7 +149,7 @@ function dragElement(dragEl, settings) {
 	}
 
 	window.addEventListener("resize", () => {
-			ensureInBounds();
+		ensureInBounds();
 	});
 
 	function closeDragElement() {
@@ -155,18 +159,21 @@ function dragElement(dragEl, settings) {
 	}
 }
 
-class ComfyDialog {
+export class ComfyDialog {
 	constructor() {
 		this.element = $el("div.comfy-modal", { parent: document.body }, [
-			$el("div.comfy-modal-content", [
-				$el("p", { $: (p) => (this.textElement = p) }),
-				$el("button", {
-					type: "button",
-					textContent: "Close",
-					onclick: () => this.close(),
-				}),
-			]),
+			$el("div.comfy-modal-content", [$el("p", { $: (p) => (this.textElement = p) }), ...this.createButtons()]),
 		]);
+	}
+
+	createButtons() {
+		return [
+			$el("button", {
+				type: "button",
+				textContent: "Close",
+				onclick: () => this.close(),
+			}),
+		];
 	}
 
 	close() {
@@ -174,7 +181,11 @@ class ComfyDialog {
 	}
 
 	show(html) {
-		this.textElement.innerHTML = html;
+		if (typeof html === "string") {
+			this.textElement.innerHTML = html;
+		} else {
+			this.textElement.replaceChildren(html);
+		}
 		this.element.style.display = "flex";
 	}
 }
@@ -419,7 +430,7 @@ export class ComfyUI {
 			type: "boolean",
 			defaultValue: true,
 		});
-		
+
 		const fileInput = $el("input", {
 			type: "file",
 			accept: ".json,image/png",
