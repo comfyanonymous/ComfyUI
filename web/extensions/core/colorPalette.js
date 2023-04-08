@@ -238,11 +238,11 @@ app.registerExtension({
 			if (colorPalette.colors) {
 				if (colorPalette.colors.node_slot) {
 					Object.assign(app.canvas.default_connection_color_byType, colorPalette.colors.node_slot);
-					app.canvas.draw(true, true);
 				}
 				if (colorPalette.colors.litegraph_base) {
 					// Everything updates correctly in the loop, except the Node Title for some reason
 					app.canvas.node_title_color = colorPalette.colors.litegraph_base.NODE_TITLE_COLOR;
+					app.canvas.default_link_color = colorPalette.colors.litegraph_base.LINK_COLOR;
 
 					for (const key in colorPalette.colors.litegraph_base) {
 						if (colorPalette.colors.litegraph_base.hasOwnProperty(key) && LiteGraph.hasOwnProperty(key)) {
@@ -250,6 +250,7 @@ app.registerExtension({
 						}
 					}
 				}
+				app.canvas.draw(true, true);
 			}
 		};
 
