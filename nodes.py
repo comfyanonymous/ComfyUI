@@ -1104,6 +1104,54 @@ NODE_CLASS_MAPPINGS = {
     "DiffusersLoader": DiffusersLoader,
 }
 
+NODE_DISPLAY_NAME_MAPPINGS = {
+    # Sampling
+    "KSampler": "KSampler",
+    "KSamplerAdvanced": "KSampler (Advanced)",
+    # Loaders
+    "CheckpointLoader": "Load Checkpoint",
+    "CheckpointLoaderSimple": "Load Checkpoint (Simple)",
+    "VAELoader": "Load VAE",
+    "LoraLoader": "Load LoRA",
+    "CLIPLoader": "Load CLIP",
+    "ControlNetLoader": "Load ControlNet Model",
+    "DiffControlNetLoader": "Load ControlNet Model (diff)",
+    "StyleModelLoader": "Load Style Model",
+    "CLIPVisionLoader": "Load CLIP Vision",
+    "UpscaleModelLoader": "Load Upscale Model",
+    # Conditioning
+    "CLIPVisionEncode": "CLIP Vision Encode",
+    "StyleModelApply": "Apply Style Model",
+    "CLIPTextEncode": "CLIP Text Encode (Prompt)",
+    "CLIPSetLastLayer": "CLIP Set Last Layer",
+    "ConditioningCombine": "Conditioning (Combine)",
+    "ConditioningSetArea": "Conditioning (Set Area)",
+    "ControlNetApply": "Apply ControlNet",
+    # Latent
+    "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
+    "SetLatentNoiseMask": "Set Latent Noise Mask",
+    "VAEDecode": "VAE Decode",
+    "VAEEncode": "VAE Encode",
+    "LatentRotate": "Rotate Latent",
+    "LatentFlip": "Flip Latent",
+    "LatentCrop": "Crop Latent",
+    "EmptyLatentImage": "Empty Latent Image",
+    "LatentUpscale": "Upscale Latent",
+    "LatentComposite": "Latent Composite",
+    # Image
+    "SaveImage": "Save Image",
+    "PreviewImage": "Preview Image",
+    "LoadImage": "Load Image",
+    "LoadImageMask": "Load Image (as Mask)",
+    "ImageScale": "Upscale Image",
+    "ImageUpscaleWithModel": "Upscale Image (using Model)",
+    "ImageInvert": "Invert Image",
+    "ImagePadForOutpaint": "Pad Image for Outpainting",
+    # _for_testing
+    "VAEDecodeTiled": "VAE Decode (Tiled)",
+    "VAEEncodeTiled": "VAE Encode (Tiled)",
+}
+
 def load_custom_node(module_path):
     module_name = os.path.basename(module_path)
     if os.path.isfile(module_path):
@@ -1119,6 +1167,8 @@ def load_custom_node(module_path):
         module_spec.loader.exec_module(module)
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
+            if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
+                NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
         else:
             print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
     except Exception as e:
