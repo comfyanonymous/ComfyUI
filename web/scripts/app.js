@@ -835,7 +835,7 @@ class ComfyApp {
 					app.#invokeExtensionsAsync("nodeCreated", this);
 				},
 				{
-					title: nodeData.name,
+					title: nodeData.display_name || nodeData.name,
 					comfyClass: nodeData.name,
 				}
 			);
