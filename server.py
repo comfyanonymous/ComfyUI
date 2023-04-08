@@ -148,6 +148,11 @@ class PromptServer():
                 return web.Response(status=404)
 
             images = [f for f in os.listdir(output_dir) if f.endswith('.png')]
+            # Check the length of the images list
+            if len(images) > 50:
+                # If there are more than 50 images, raise an exception
+                return web.json_response({"error": "Too many images, load from output disabled."}, status=400)
+
             return web.json_response({"images": images})
 
         @routes.get("/view")

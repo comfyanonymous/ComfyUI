@@ -153,17 +153,6 @@ app.registerExtension({
           }
         }
 
-        api.getOutput().then(data => {
-        try {
-                var images = data.filenames[0].map((filename) => {
-                  return { filename: filename, type: 'output', subfolder: '' };
-                });
-                var output = {images: images}
-                var detail = {output: output}
-                loadImages(detail);
-            } catch(err){}
-        });
-
         // stop resize function
         function stopResize() {
             document.removeEventListener("mousemove", resize);
@@ -225,7 +214,24 @@ app.registerExtension({
 			allImages = []
 			imageList.replaceChildren(menu, resizeHandle);
 		};
-
+        api.getOutput().then(data => {
+        try {
+                if (data.message == "Success"){
+                    var images = data.filenames[0].map((filename) => {
+                      return { filename: filename, type: 'output', subfolder: '' };
+                    });
+                    var output = {images: images}
+                    var detail = {output: output}
+                    loadImages(detail);
+                }
+                else  {
+                    deleteAllButton.setAttribute("disabled", true);
+                }
+            } catch(err){
+                deleteAllButton.setAttribute("disabled", true);
+                console.error(err);
+            }
+        });
 		showButton.classList.add("comfy-settings-btn");
 		showButton.style.right = "16px";
 		showButton.style.cursor = "pointer";

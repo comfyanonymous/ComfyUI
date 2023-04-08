@@ -230,15 +230,21 @@ class ComfyApi extends EventTarget {
 	 * Gets the prompt execution history
 	 * @returns Prompt history including node outputs
 	 */
-	async getOutput() {
-		try {
-			const res = await fetch("/output/images");
-			return { filenames: Object.values(await res.json()) };
-		} catch (error) {
-			console.error(error);
-			return { output: [] };
-		}
-	}
+    async getOutput() {
+        try {
+            const res = await fetch("/output/images");
+            if (res.status == 200){
+                var values = await res.json();
+                return { filenames: Object.values(values), message: "Success"  };
+            }
+            else {
+                return { filenames: [], message: "Failed to fetch output images"  };
+            }
+        } catch (error) {
+            console.error(error);
+            return { filenames: [], message: "Failed to fetch output images" };
+        }
+    }
 
 	/**
 	 * Sends a POST request to the API
