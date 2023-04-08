@@ -864,9 +864,15 @@ class ComfyApp {
 			graphData = structuredClone(defaultGraph);
 		}
 
-		// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
+		const missingNodeTypes = [];
 		for (let n of graphData.nodes) {
+			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
+
+			// Find missing node types
+			if (!(n.type in LiteGraph.registered_node_types)) {
+				missingNodeTypes.push(n.type);
+			}
 		}
 
 		this.graph.configure(graphData);
@@ -892,6 +898,14 @@ class ComfyApp {
 			}
 
 			this.#invokeExtensions("loadedGraphNode", node);
+		}
+
+		if (missingNodeTypes.length) {
+			this.ui.dialog.show(
+				`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
+					(t) => `<li>${t}</li>`
+				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
+			);
 		}
 	}
 
