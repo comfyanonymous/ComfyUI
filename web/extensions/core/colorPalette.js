@@ -284,7 +284,20 @@ app.registerExtension({
 							} else {
 								data = inputNode.outputs[0];
 							}
-							let nodeType = data.type;
+
+							const matchingEntry = inputNode.outputs.find(output => {
+								return outputNode.inputs.some(input => input.type === output.type);
+							});
+
+							console.log("matchingEntry: ", matchingEntry)
+
+							const inputTypes = inputNode.outputs.map(output => output.type);
+							console.log("Input types:", inputTypes);
+
+							const outputTypes = outputNode.inputs.map(input => input.type);
+							console.log("Output types:", outputTypes);
+
+							let nodeType = matchingEntry.type;
 							color = "#" + Math.floor(Math.random() * 16777215).toString(16);
 
 							color = colorPalette.colors.node_slot[nodeType];
