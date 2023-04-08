@@ -872,12 +872,21 @@ class ComfyApp {
 		try {
 			this.graph.configure(graphData);
 		} catch (error) {
-			let errorHint = "";
+			let errorHint = [];
 			// Try extracting filename to see if it was caused by an extension script
 			const filename = error.fileName || (error.stack || "").match(/(\/extensions\/.*\.js)/)?.[1];
 			const pos = (filename || "").indexOf("/extensions/");
 			if (pos > -1) {
-				errorHint = "This may be due to the following script: " + filename.substring(pos + 12);
+				errorHint.push(
+					$el("span", { textContent: "This may be due to the following script:" }),
+					$el("br"),
+					$el("span", {
+						style: {
+							fontWeight: "bold",
+						},
+						textContent: filename.substring(pos),
+					})
+				);
 			}
 
 			// Show dialog to let the user know something went wrong loading the data
@@ -895,14 +904,14 @@ class ComfyApp {
 							fontSize: "10px",
 							maxHeight: "50vh",
 							overflow: "auto",
-							backgroundColor: "rgba(255,0,0,0.2)",
+							backgroundColor: "rgba(0,0,0,0.2)",
 						},
 						textContent: error.stack || "No stacktrace available",
 					}),
-					$el("span", { textContent: errorHint, style: { fontWeight: "bold" } }),
+					...errorHint,
 				]).outerHTML
 			);
-			
+
 			return;
 		}
 
