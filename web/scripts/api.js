@@ -118,10 +118,7 @@ class ComfyApi extends EventTarget {
 	}
 
     async deleteAllImages() {
-        const confirmDelete = confirm("Are you sure you want to delete all images?");
-        if (confirmDelete) {
-            await this.#postItem("delete", { delete: "all" })
-        }
+        await this.#postItem("delete", { delete: "all" })
     }
     async deleteImage(filename) {
         await this.#postItem("delete", { delete: filename })
