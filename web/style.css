@@ -202,7 +202,8 @@ button.comfy-queue-btn {
 	margin: 6px 0 !important;
 }
 
-.comfy-modal.comfy-settings {
+.comfy-modal.comfy-settings, 
+.comfy-modal.comfy-manage-templates {
 	text-align: center;
 	font-family: sans-serif;
 	color: #999;
