@@ -238,6 +238,7 @@ app.registerExtension({
 			if (colorPalette.colors) {
 				if (colorPalette.colors.node_slot) {
 					Object.assign(app.canvas.default_connection_color_byType, colorPalette.colors.node_slot);
+					customizeRenderLink(colorPalette);
 				}
 				if (colorPalette.colors.litegraph_base) {
 					// Everything updates correctly in the loop, except the Node Title and Link Color for some reason
@@ -250,7 +251,6 @@ app.registerExtension({
 						}
 					}
 				}
-				customizeRenderLink(colorPalette);
 				app.canvas.draw(true, true);
 			}
 		};
@@ -411,24 +411,28 @@ app.registerExtension({
 function customizeRenderLink(colorPalette) {
     var LGraphCanvas = LiteGraph.LGraphCanvas;
 
-    function getLinkColor(link, inputNode, outputNode, colorPalette) {
-        let color = null;
-        if (link && link.color) {
-            color = link.color;
-        } else if (link) {
-            const matchingEntry = inputNode.outputs.find((output) => {
-                return outputNode.inputs.some((input) => input.type === output.type);
-            });
+    if (!LGraphCanvas.prototype.getLinkColor) {
+        LGraphCanvas.prototype.getLinkColor = function(link, inputNode, outputNode, colorPalette) {
+            let color = null;
+            if (link && link.color) {
+                color = link.color;
+            } else if (link) {
+                const matchingEntry = inputNode.outputs.find((output) => {
+                    return outputNode.inputs.some((input) => input.type === output.type);
+                });
 
-            if (matchingEntry) {
-                let nodeType = matchingEntry.type;
-                color = colorPalette.colors.node_slot[nodeType];
+                if (matchingEntry) {
+                    let nodeType = matchingEntry.type;
+                    color = colorPalette.colors.node_slot[nodeType];
+                }
             }
-        }
-        return color;
+            return color;
+        };
     }
 
-    var originalRenderLink = LGraphCanvas.prototype.renderLink;
+    if (!LGraphCanvas.prototype.originalRenderLink) {
+        LGraphCanvas.prototype.originalRenderLink = LGraphCanvas.prototype.renderLink;
+    }
 
     LGraphCanvas.prototype.renderLink = function(
         ctx,
@@ -445,10 +449,11 @@ function customizeRenderLink(colorPalette) {
         if (link) {
             const inputNode = this.graph.getNodeById(link.origin_id);
             const outputNode = this.graph.getNodeById(link.target_id);
-            color = getLinkColor(link, inputNode, outputNode, colorPalette);
+            color = this.getLinkColor(link, inputNode, outputNode, colorPalette);
         }
 
-        originalRenderLink.call(
+        // call the original renderLink function
+        this.originalRenderLink.call(
             this,
             ctx,
             a,
