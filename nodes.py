@@ -4,16 +4,17 @@ import os
 import sys
 import json
 import hashlib
-import copy
 import traceback
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
+import comfy.diffusers_convert
 import comfy.samplers
 import comfy.sd
 import comfy.utils
@@ -218,6 +219,30 @@ class CheckpointLoaderSimple:
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
+
+class DiffusersLoader:
+    @classmethod
+    def INPUT_TYPES(cls):
+        paths = []
+        for search_path in folder_paths.get_folder_paths("diffusers"):
+            if os.path.exists(search_path):
+                paths += next(os.walk(search_path))[1]
+        return {"required": {"model_path": (paths,), }}
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    FUNCTION = "load_checkpoint"
+
+    CATEGORY = "advanced/loaders"
+
+    def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
+        for search_path in folder_paths.get_folder_paths("diffusers"):
+            if os.path.exists(search_path):
+                paths = next(os.walk(search_path))[1]
+                if model_path in paths:
+                    model_path = os.path.join(search_path, model_path)
+                    break
+
+        return comfy.diffusers_convert.load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+
 
 class unCLIPCheckpointLoader:
     @classmethod
@@ -1076,6 +1101,55 @@ NODE_CLASS_MAPPINGS = {
     "TomePatchModel": TomePatchModel,
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "CheckpointLoader": CheckpointLoader,
+    "DiffusersLoader": DiffusersLoader,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    # Sampling
+    "KSampler": "KSampler",
+    "KSamplerAdvanced": "KSampler (Advanced)",
+    # Loaders
+    "CheckpointLoader": "Load Checkpoint (With Config)",
+    "CheckpointLoaderSimple": "Load Checkpoint",
+    "VAELoader": "Load VAE",
+    "LoraLoader": "Load LoRA",
+    "CLIPLoader": "Load CLIP",
+    "ControlNetLoader": "Load ControlNet Model",
+    "DiffControlNetLoader": "Load ControlNet Model (diff)",
+    "StyleModelLoader": "Load Style Model",
+    "CLIPVisionLoader": "Load CLIP Vision",
+    "UpscaleModelLoader": "Load Upscale Model",
+    # Conditioning
+    "CLIPVisionEncode": "CLIP Vision Encode",
+    "StyleModelApply": "Apply Style Model",
+    "CLIPTextEncode": "CLIP Text Encode (Prompt)",
+    "CLIPSetLastLayer": "CLIP Set Last Layer",
+    "ConditioningCombine": "Conditioning (Combine)",
+    "ConditioningSetArea": "Conditioning (Set Area)",
+    "ControlNetApply": "Apply ControlNet",
+    # Latent
+    "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
+    "SetLatentNoiseMask": "Set Latent Noise Mask",
+    "VAEDecode": "VAE Decode",
+    "VAEEncode": "VAE Encode",
+    "LatentRotate": "Rotate Latent",
+    "LatentFlip": "Flip Latent",
+    "LatentCrop": "Crop Latent",
+    "EmptyLatentImage": "Empty Latent Image",
+    "LatentUpscale": "Upscale Latent",
+    "LatentComposite": "Latent Composite",
+    # Image
+    "SaveImage": "Save Image",
+    "PreviewImage": "Preview Image",
+    "LoadImage": "Load Image",
+    "LoadImageMask": "Load Image (as Mask)",
+    "ImageScale": "Upscale Image",
+    "ImageUpscaleWithModel": "Upscale Image (using Model)",
+    "ImageInvert": "Invert Image",
+    "ImagePadForOutpaint": "Pad Image for Outpainting",
+    # _for_testing
+    "VAEDecodeTiled": "VAE Decode (Tiled)",
+    "VAEEncodeTiled": "VAE Encode (Tiled)",
 }
 
 def load_custom_node(module_path):
@@ -1093,6 +1167,8 @@ def load_custom_node(module_path):
         module_spec.loader.exec_module(module)
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
+            if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
+                NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
         else:
             print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
     except Exception as e:
