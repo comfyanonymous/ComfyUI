@@ -873,11 +873,11 @@ class ComfyApp {
 			this.graph.configure(graphData);
 		} catch (error) {
 			let errorHint = "";
-			// Try extracting filename to see if it was caused by an extension
-			const filename = error.fileName || (error.stack || "").match(/\/([\/\w-_\.]+\.js):(\d*):(\d*)/)?.[1];
+			// Try extracting filename to see if it was caused by an extension script
+			const filename = error.fileName || (error.stack || "").match(/(\/extensions\/.*\.js)/)?.[1];
 			const pos = (filename || "").indexOf("/extensions/");
 			if (pos > -1) {
-				errorHint = "This may be due to the following extension: " + filename.substring(pos + 12);
+				errorHint = "This may be due to the following script: " + filename.substring(pos + 12);
 			}
 
 			// Show dialog to let the user know something went wrong loading the data
