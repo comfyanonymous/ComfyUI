@@ -3,8 +3,8 @@ import { app } from "/scripts/app.js";
 
 class BatchInfo {
     constructor() {
-        this.addOutput("iteration", "INT");
-        this.addOutput("batchCount", "INT");
+        this.addOutput("iteration", "FLOAT");
+        this.addOutput("batchCount", "FLOAT");
         
         const batchIteration = (ComfyWidgets["INT"](this, "iteration", ["INT",{}], app) || {}).widget;
         batchIteration.disabled = true;
