@@ -250,76 +250,7 @@ app.registerExtension({
 						}
 					}
 				}
-
-				(function(colorPalette) {
-					var LGraphCanvas = LiteGraph.LGraphCanvas;
-					var LGraph = LiteGraph.LGraph;
-
-					// Save the original renderLink function
-					var originalRenderLink = LGraphCanvas.prototype.renderLink;
-
-					// Override the renderLink function
-					LGraphCanvas.prototype.renderLink = function (
-						ctx,
-						a,
-						b,
-						link,
-						skip_border,
-						flow,
-						color,
-						start_dir,
-						end_dir,
-						num_sublines
-					) {
-						if (link && link.color) {
-							color = link.color;
-						}
-						if (link) {
-							const inputNode = this.graph.getNodeById(link.origin_id);
-							const outputNode = this.graph.getNodeById(link.target_id);
-
-							let data = null;
-							if (inputNode.outputs.length > 1) {
-								data = outputNode.inputs[0];
-							} else {
-								data = inputNode.outputs[0];
-							}
-
-							const matchingEntry = inputNode.outputs.find(output => {
-								return outputNode.inputs.some(input => input.type === output.type);
-							});
-
-							console.log("matchingEntry: ", matchingEntry)
-
-							const inputTypes = inputNode.outputs.map(output => output.type);
-							console.log("Input types:", inputTypes);
-
-							const outputTypes = outputNode.inputs.map(input => input.type);
-							console.log("Output types:", outputTypes);
-
-							let nodeType = matchingEntry.type;
-							color = "#" + Math.floor(Math.random() * 16777215).toString(16);
-
-							color = colorPalette.colors.node_slot[nodeType];
-						}
-
-						// Call the original renderLink function with the new color
-						originalRenderLink.call(
-							this,
-							ctx,
-							a,
-							b,
-							link,
-							skip_border,
-							flow,
-							color,
-							start_dir,
-							end_dir,
-							num_sublines
-						);
-					};
-				})(colorPalette);
-
+				customizeRenderLink(colorPalette);
 				app.canvas.draw(true, true);
 			}
 		};
@@ -476,3 +407,59 @@ app.registerExtension({
 		});
 	},
 });
+
+function customizeRenderLink(colorPalette) {
+    var LGraphCanvas = LiteGraph.LGraphCanvas;
+
+    function getLinkColor(link, inputNode, outputNode, colorPalette) {
+        let color = null;
+        if (link && link.color) {
+            color = link.color;
+        } else if (link) {
+            const matchingEntry = inputNode.outputs.find((output) => {
+                return outputNode.inputs.some((input) => input.type === output.type);
+            });
+
+            if (matchingEntry) {
+                let nodeType = matchingEntry.type;
+                color = colorPalette.colors.node_slot[nodeType];
+            }
+        }
+        return color;
+    }
+
+    var originalRenderLink = LGraphCanvas.prototype.renderLink;
+
+    LGraphCanvas.prototype.renderLink = function(
+        ctx,
+        a,
+        b,
+        link,
+        skip_border,
+        flow,
+        color,
+        start_dir,
+        end_dir,
+        num_sublines
+    ) {
+        if (link) {
+            const inputNode = this.graph.getNodeById(link.origin_id);
+            const outputNode = this.graph.getNodeById(link.target_id);
+            color = getLinkColor(link, inputNode, outputNode, colorPalette);
+        }
+
+        originalRenderLink.call(
+            this,
+            ctx,
+            a,
+            b,
+            link,
+            skip_border,
+            flow,
+            color,
+            start_dir,
+            end_dir,
+            num_sublines
+        );
+    };
+}
