@@ -3,6 +3,7 @@ import torch
 import torch.nn.functional as F
 from PIL import Image, ImageColor
 import re
+import itertools
 
 import comfy.utils
 
@@ -125,7 +126,6 @@ class Quantize:
                     "max": 256,
                     "step": 1
                 }),
-                "palette": ("STRING", {"default": ""}),
                 "dither": (["none", "floyd-steinberg"],),
             },
         }
@@ -135,7 +135,7 @@ class Quantize:
 
     CATEGORY = "image/postprocessing"
 
-    def quantize(self, palette: str, image: torch.Tensor, colors: int = 256, dither: str = "FLOYDSTEINBERG"):
+    def quantize(self, image: torch.Tensor, colors: int = 256, dither: str = "FLOYDSTEINBERG"):
         batch_size, height, width, _ = image.shape
         result = torch.zeros_like(image)
 
@@ -146,22 +146,62 @@ class Quantize:
             img = (tensor_image * 255).to(torch.uint8).numpy()
             pil_image = Image.fromarray(img, mode='RGB')
 
-            if palette:
-                def flatten_list(list_of_lists, flat_list=[]):
-                    for item in list_of_lists:
-                        if type(item) == tuple:
-                            flatten_list(item, flat_list)
-                        else:
-                            flat_list.append(item)
-                    return flat_list
-
-                pal_img = Image.new('P', (1, 1))
-                pal_colors = palette.replace(" ", "").split(",")
-                pal_colors = map(lambda i: ImageColor.getrgb(i) if re.search("#[a-fA-F0-9]{6}", i) else int(i), pal_colors)
-                pal_img.putpalette(flatten_list(pal_colors))
-            else:
-                pal_img = pil_image.quantize(colors=colors) # Required as described in https://github.com/python-pillow/Pillow/issues/5836
+            pal_img = pil_image.quantize(colors=colors) # Required as described in https://github.com/python-pillow/Pillow/issues/5836
             quantized_image = pil_image.quantize(colors=colors, palette=pal_img, dither=dither_option)
+
+            quantized_array = torch.tensor(np.array(quantized_image.convert("RGB"))).float() / 255
+            result[b] = quantized_array
+
+        return (result,)
+
+class QuantizePalette:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "palette": ("STRING", {"default": "#000000, #ffffff", "multiline": True}),
+                "dither": (["none", "floyd-steinberg"],),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "quantize"
+
+    CATEGORY = "image/postprocessing"
+
+    def quantize(self, palette: str, image: torch.Tensor, dither: str = "FLOYDSTEINBERG"):
+        batch_size, height, width, _ = image.shape
+        result = torch.zeros_like(image)
+
+        for b in range(batch_size):
+            tensor_image = image[b]
+            img = (tensor_image * 255).to(torch.uint8).numpy()
+            pil_image = Image.fromarray(img, mode='RGB')
+
+            if not palette:
+                raise ValueError("Palette is empty")
+
+            def parse_palette(color_str):
+                if re.match(r'#[a-fA-F0-9]{6}', color_str):
+                    return ImageColor.getrgb(color_str)
+
+                color_rgb = re.match(r'\(?(\d{1,3}),(\d{1,3}),(\d{1,3})\)?', color_str)
+                if color_rgb and int(color_rgb.group(1)) <= 255 and int(color_rgb.group(2)) <= 255 and int(color_rgb.group(3)) <= 255:
+                    return tuple(map(int, re.findall(r'\d{1,3}', color_str)))
+                else:
+                    raise ValueError(f"Invalid color format: {color_str}")
+
+            pal_img = Image.new('P', (1, 1))
+            pal_colors = palette.replace(" ", "")
+            pal_colors = re.findall(r'#[a-fA-F0-9]{6}|\(?\d{1,3},\d{1,3},\d{1,3}\)?', pal_colors)
+            pal_colors = list(itertools.chain.from_iterable(map(parse_palette, pal_colors)))
+            pal_img.putpalette(pal_colors)
+
+            quantized_image = pil_image.quantize(palette=pal_img)
 
             quantized_array = torch.tensor(np.array(quantized_image.convert("RGB"))).float() / 255
             result[b] = quantized_array
@@ -222,5 +262,6 @@ NODE_CLASS_MAPPINGS = {
     "ImageBlend": Blend,
     "ImageBlur": Blur,
     "ImageQuantize": Quantize,
+    "ImageQuantizePalette": QuantizePalette,
     "ImageSharpen": Sharpen,
 }
