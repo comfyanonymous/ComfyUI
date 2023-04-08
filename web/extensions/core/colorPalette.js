@@ -240,7 +240,7 @@ app.registerExtension({
 					Object.assign(app.canvas.default_connection_color_byType, colorPalette.colors.node_slot);
 				}
 				if (colorPalette.colors.litegraph_base) {
-					// Everything updates correctly in the loop, except the Node Title for some reason
+					// Everything updates correctly in the loop, except the Node Title and Link Color for some reason
 					app.canvas.node_title_color = colorPalette.colors.litegraph_base.NODE_TITLE_COLOR;
 					app.canvas.default_link_color = colorPalette.colors.litegraph_base.LINK_COLOR;
 
@@ -250,6 +250,63 @@ app.registerExtension({
 						}
 					}
 				}
+
+				(function(colorPalette) {
+					var LGraphCanvas = LiteGraph.LGraphCanvas;
+					var LGraph = LiteGraph.LGraph;
+
+					// Save the original renderLink function
+					var originalRenderLink = LGraphCanvas.prototype.renderLink;
+
+					// Override the renderLink function
+					LGraphCanvas.prototype.renderLink = function (
+						ctx,
+						a,
+						b,
+						link,
+						skip_border,
+						flow,
+						color,
+						start_dir,
+						end_dir,
+						num_sublines
+					) {
+						if (link && link.color) {
+							color = link.color;
+						}
+						if (link) {
+							const inputNode = this.graph.getNodeById(link.origin_id);
+							const outputNode = this.graph.getNodeById(link.target_id);
+
+							let data = null;
+							if (inputNode.outputs.length > 1) {
+								data = outputNode.inputs[0];
+							} else {
+								data = inputNode.outputs[0];
+							}
+							let nodeType = data.type;
+							color = "#" + Math.floor(Math.random() * 16777215).toString(16);
+
+							color = colorPalette.colors.node_slot[nodeType];
+						}
+
+						// Call the original renderLink function with the new color
+						originalRenderLink.call(
+							this,
+							ctx,
+							a,
+							b,
+							link,
+							skip_border,
+							flow,
+							color,
+							start_dir,
+							end_dir,
+							num_sublines
+						);
+					};
+				})(colorPalette);
+
 				app.canvas.draw(true, true);
 			}
 		};
