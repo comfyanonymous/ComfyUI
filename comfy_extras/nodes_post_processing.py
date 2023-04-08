@@ -265,3 +265,11 @@ NODE_CLASS_MAPPINGS = {
     "ImageQuantizePalette": QuantizePalette,
     "ImageSharpen": Sharpen,
 }
+
+NODE_DISPLAY_NAME_MAPPINGS  = {
+    "ImageBlend": "Blend Images",
+    "ImageBlur": "Blur Image",
+    "ImageQuantize": "Quantize Image",
+    "ImageQuantizePalette": "Quantize Image (using Palette)",
+    "ImageSharpen": "Sharpen Image",
+}
