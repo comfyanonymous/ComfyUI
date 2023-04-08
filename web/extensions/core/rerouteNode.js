@@ -49,7 +49,7 @@ app.registerExtension({
 				this.properties.showOutputText = RerouteNode.defaultVisibility;
 
 				this.addInput("", "*", {nameLocked: true});
-				this.addOutput(this.properties.showOutputText ? "*" : "", "*", {nameLocked: true});
+				this.addOutput("", "*", {nameLocked: true});
 				
 				this.inputs[0].dir = LiteGraph.LEFT;
 				this.outputs[0].dir = LiteGraph.RIGHT;
@@ -74,8 +74,11 @@ app.registerExtension({
 					if (!this.inputs[0].dir) { this.inputs[0].dir = LiteGraph.LEFT; }
 					if (!this.outputs[0].dir) { this.outputs[0].dir = LiteGraph.RIGHT; }
 
-					if (this.inputs[0].label) { this.inputs[0].label = "" }
-					if (this.outputs[0].label) { this.outputs[0].label = "" }
+					if (this.inputs[0].name !== "") { this.inputs[0].name = "" }
+					if (this.outputs[0].name !== "") { this.outputs[0].name = "" }
+
+					if (this.inputs[0].label) { delete this.inputs[0].label; }
+					if (this.outputs[0].label) { delete this.outputs[0].label; }
 					
 					if (!this.inputs[0].nameLocked) { this.inputs[0].nameLocked = true }
 					if (!this.outputs[0].nameLocked) { this.outputs[0].nameLocked = true }
