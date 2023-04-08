@@ -902,9 +902,9 @@ class ComfyApp {
 
 		if (missingNodeTypes.length) {
 			this.ui.dialog.show(
-				`When loading the graph, the following node types were not found: <ul>${missingNodeTypes.map(
+				`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
 					(t) => `<li>${t}</li>`
-				)}</ul>Nodes that have failed to load will show as red on the graph.`
+				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
 			);
 		}
 	}
