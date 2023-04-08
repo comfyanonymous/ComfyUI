@@ -864,7 +864,7 @@ class ComfyApp {
 			graphData = structuredClone(defaultGraph);
 		}
 
-		let missingNodeTypes = [];
+		const missingNodeTypes = [];
 		for (let n of graphData.nodes) {
 			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
