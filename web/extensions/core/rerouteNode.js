@@ -93,9 +93,10 @@ app.registerExtension({
 									const nodeOutType = node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type ? node.inputs[link.target_slot].type : null;
 									if (inputType && nodeOutType !== inputType) {
 										// The output doesnt match our input so disconnect it
-										console.log("Disconnecting", {"node":node}, "as it doesnt match type of ", {"inputNode":inputNode});
-
-										node.disconnectInput(link.target_slot);
+										console.log("Disconnecting", { "node": node }, "as it doesnt match type of ", { "inputNode": inputNode });
+										console.log("Input type:", inputType, "Output type:", nodeOutType);
+										if (inputNode.type !== "Reroute")
+											node.disconnectInput(link.target_slot);
 									} else {
 										outputType = nodeOutType;
 									}
