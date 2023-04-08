@@ -236,10 +236,17 @@ app.registerExtension({
 			onConnectOutput(slot, type, input, target_node, target_slot) {
 				// Fires before the link is made allowing us to reject it if it isn't valid
 
-				// No widget, we cant connect
+				console.log("onConnectOutput", { "input": input, "target_node": target_node, "target_slot": target_slot, "slot": slot, "type": type });
 				if (!input.widget) {
-					if (!(input.type in ComfyWidgets)) return false;
+
+					if (input.type === '*') {//allow reroute nodes
+						var outputType = target_node.__outputType;
+						if (!(outputType in ComfyWidgets)) return false;  //not a ComfyWidgets output
+					}else{
+						if (!(input.type in ComfyWidgets)) return false; //not a ComfyWidgets input
+					}
 				}
+				console.log("1");
 
 				if (this.outputs[slot].links?.length) {
 					return this.#isValidConnection(input);
@@ -258,11 +265,21 @@ app.registerExtension({
 				const input = theirNode.inputs[link.target_slot];
 				if (!input) return;
 
-
+				console.log(input);
 				var _widget;
 				if (!input.widget) {
-					if (!(input.type in ComfyWidgets)) return;
-					_widget = { "name": input.name, "config": [input.type, {}] }//fake widget
+
+					if (input.type === '*') { //connected to reroute node
+						var outputType = theirNode.__outputType;
+						console.log("onFirstConnection", { "outputType": outputType });
+						if (!(outputType in ComfyWidgets)) return;
+						_widget = { "name": outputType, "config": [outputType, {}] }//fake widget
+
+					} else {
+						if (!(input.type in ComfyWidgets)) return;
+						_widget = { "name": input.name, "config": [input.type, {}] }//fake widget
+					}
+
 				} else {
 					_widget = input.widget;
 				}
