@@ -7481,8 +7481,8 @@ LGraphNode.prototype.executeAction = function(action)
         	clientY_rel = e.clientY;
         }
     	
-        // e.deltaX = clientX_rel - this.last_mouse_position[0];
-        // e.deltaY = clientY_rel- this.last_mouse_position[1];
+        e.deltaX = clientX_rel - this.last_mouse_position[0];
+        e.deltaY = clientY_rel- this.last_mouse_position[1];
 
         this.last_mouse_position[0] = clientX_rel;
         this.last_mouse_position[1] = clientY_rel;
@@ -9923,7 +9923,14 @@ LGraphNode.prototype.executeAction = function(action)
 				case "number":
 				case "combo":
 					var old_value = w.value;
-					if (event.type == LiteGraph.pointerevents_method+"move" && w.type == "number") {
+					var delta = x < 40 ? -1 : x > widget_width - 40 ? 1 : 0;
+					var allow_scroll = true;
+					if (delta) {
+						if (x > -3 && x < widget_width + 3) {
+							allow_scroll = false;
+						}
+					}
+					if (allow_scroll && event.type == LiteGraph.pointerevents_method+"move" && w.type == "number") {
                         if(event.deltaX)
 						    w.value += event.deltaX * 0.1 * (w.options.step || 1);
 						if ( w.options.min != null && w.value < w.options.min ) {

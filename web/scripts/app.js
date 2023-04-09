@@ -1,5 +1,5 @@
 import { ComfyWidgets } from "./widgets.js";
-import { ComfyUI } from "./ui.js";
+import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111 } from "./pnginfo.js";
@@ -835,7 +835,7 @@ class ComfyApp {
 					app.#invokeExtensionsAsync("nodeCreated", this);
 				},
 				{
-					title: nodeData.name,
+					title: nodeData.display_name || nodeData.name,
 					comfyClass: nodeData.name,
 				}
 			);
@@ -864,12 +864,62 @@ class ComfyApp {
 			graphData = structuredClone(defaultGraph);
 		}
 
-		// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
+		const missingNodeTypes = [];
 		for (let n of graphData.nodes) {
+			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
+
+			// Find missing node types
+			if (!(n.type in LiteGraph.registered_node_types)) {
+				missingNodeTypes.push(n.type);
+			}
 		}
 
-		this.graph.configure(graphData);
+		try {
+			this.graph.configure(graphData);
+		} catch (error) {
+			let errorHint = [];
+			// Try extracting filename to see if it was caused by an extension script
+			const filename = error.fileName || (error.stack || "").match(/(\/extensions\/.*\.js)/)?.[1];
+			const pos = (filename || "").indexOf("/extensions/");
+			if (pos > -1) {
+				errorHint.push(
+					$el("span", { textContent: "This may be due to the following script:" }),
+					$el("br"),
+					$el("span", {
+						style: {
+							fontWeight: "bold",
+						},
+						textContent: filename.substring(pos),
+					})
+				);
+			}
+
+			// Show dialog to let the user know something went wrong loading the data
+			this.ui.dialog.show(
+				$el("div", [
+					$el("p", { textContent: "Loading aborted due to error reloading workflow data" }),
+					$el("pre", {
+						style: { padding: "5px", backgroundColor: "rgba(255,0,0,0.2)" },
+						textContent: error.toString(),
+					}),
+					$el("pre", {
+						style: {
+							padding: "5px",
+							color: "#ccc",
+							fontSize: "10px",
+							maxHeight: "50vh",
+							overflow: "auto",
+							backgroundColor: "rgba(0,0,0,0.2)",
+						},
+						textContent: error.stack || "No stacktrace available",
+					}),
+					...errorHint,
+				]).outerHTML
+			);
+
+			return;
+		}
 
 		for (const node of this.graph._nodes) {
 			const size = node.computeSize();
@@ -892,6 +942,14 @@ class ComfyApp {
 			}
 
 			this.#invokeExtensions("loadedGraphNode", node);
+		}
+
+		if (missingNodeTypes.length) {
+			this.ui.dialog.show(
+				`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
+					(t) => `<li>${t}</li>`
+				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
+			);
 		}
 	}
 

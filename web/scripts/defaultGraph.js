@@ -13,7 +13,7 @@ export const defaultGraph = {
 			inputs: [{ name: "clip", type: "CLIP", link: 5 }],
 			outputs: [{ name: "CONDITIONING", type: "CONDITIONING", links: [6], slot_index: 0 }],
 			properties: {},
-			widgets_values: ["bad hands"],
+			widgets_values: ["text, watermark"],
 		},
 		{
 			id: 6,
@@ -26,7 +26,7 @@ export const defaultGraph = {
 			inputs: [{ name: "clip", type: "CLIP", link: 3 }],
 			outputs: [{ name: "CONDITIONING", type: "CONDITIONING", links: [4], slot_index: 0 }],
 			properties: {},
-			widgets_values: ["masterpiece best quality girl"],
+			widgets_values: ["beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"],
 		},
 		{
 			id: 5,
@@ -56,7 +56,7 @@ export const defaultGraph = {
 			],
 			outputs: [{ name: "LATENT", type: "LATENT", links: [7], slot_index: 0 }],
 			properties: {},
-			widgets_values: [8566257, true, 20, 8, "euler", "normal", 1],
+			widgets_values: [156680208700286, true, 20, 8, "euler", "normal", 1],
 		},
 		{
 			id: 8,
