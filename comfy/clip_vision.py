@@ -1,6 +1,7 @@
 from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor
 from .utils import load_torch_file, transformers_convert
 import os
+import torch
 
 class ClipVisionModel():
     def __init__(self, json_config):
@@ -20,7 +21,8 @@ class ClipVisionModel():
         self.model.load_state_dict(sd, strict=False)
 
     def encode_image(self, image):
-        inputs = self.processor(images=[image[0]], return_tensors="pt")
+        img = torch.clip((255. * image[0]), 0, 255).round().int()
+        inputs = self.processor(images=[img], return_tensors="pt")
         outputs = self.model(**inputs)
         return outputs
 
