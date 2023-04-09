@@ -257,3 +257,15 @@ button.comfy-queue-btn {
 	color: #ddd;
 	border-radius: 12px 0 0 12px;
 }
+
+.litegraph .litemenu-entry.has_submenu {
+	position: relative;
+	padding-right: 20px;
+ }
+ 
+ .litemenu-entry.has_submenu::after {
+	content: ">";
+	position: absolute;
+	top: 0;
+	right: 2px;
+ }
