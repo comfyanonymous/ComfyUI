@@ -11,103 +11,58 @@ function getNumberDefaults(inputData, defaultStep) {
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
-	const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
-		values: ["fixed", "increment", "decrement", "randomize"],
-		serialize: false, // Don't include this in prompt.
-	})
-	valueControl.afterQueued = () => {
+    const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
+        values: ["fixed", "increment", "decrement", "randomize"],
+        serialize: false, // Don't include this in prompt.
+    });
+    valueControl.afterQueued = () => {
 
-		var v = valueControl.value;
-		var w = targetWidget.name;
+        var v = valueControl.value;
+        var w = targetWidget.type;
 
-		let min = 0.0;
-		let max = targetWidget.options?.max;
-		let range = Math.max(min, max);
+        let min = targetWidget.options?.min;
+        let max = targetWidget.options?.max;
+        let range = Math.max(min, max);
 
-		//adjust values based on valueControl Behaviour
-		switch (v) {
-			case ("fixed"):
-				console.log("fixed");
-				break;
-			case ("increment"):
-				if (min != null || max != null) {
-					/*if (max) { //loop to lowest and continue batch
-						targetWidget.value = 0;
-						console.log("increment");
-					} else {
-						targetWidget.value += 1;
-						console.log("increment");
-					}
-				} else {*/
-					if (max) {
-						if (w == "denoise") {
-							targetWidget.value += 0.1;
-							console.log("denoise decrement");
-						} else if (w == "cfg") {
-							targetWidget.value += 0.5;
-							console.log("cfg increment");
-						} else if (w == "width" || w == "height") {
-							targetWidget.value += 64;
-							console.log("width/height decrement");
-						} else {
-							targetWidget.value += 1.0;
-							console.log("decrement");
-						}
-					}
-				}
-				break;
-			case ("decrement"):
-				if (min != null || max != null) {
-					/*if (min) { //Loop to highest and continue batch
-						targetWidget.value = 1125899906842624;
-						console.log("decrement");
-					} else {
-						targetWidget.value -= 1;
-						console.log("decrement");
-					} else {*/
-					if (max) {
-						if (w == "denoise") {
-							targetWidget.value -= 0.1;
-							console.log("denoise decrement");
-						} else if (w == "cfg") {
-							targetWidget.value -= 0.5;
-							console.log("cfg decrement");
-						} else if (w == "width" || w == "height") {
-							targetWidget.value -= 64;
-							console.log("width/height decrement");
-						} else {
-							targetWidget.value -= 1.0;
-							console.log("decrement");
-						}
-
-					}
-				}
-				break;
-			case ("randomize"):
-				if (min != null || max != null) {
-					switch (w) {
-						case ("cfg"):
-						case ("denoise"):
-							console.log("random denoise");
-							targetWidget.value = parseFloat((Math.floor(Math.random() * ((range * 100) + 1)) / 100).toFixed(2));
-							break;
-						case ("height"):
-						case ("width"):
-							targetWidget.value = Math.floor(Math.random() * range) * 64 + min;
-							console.log("Random resolution");
-							break;
-						default:
-							targetWidget.value = Math.floor(Math.random() * range);
-							console.log("Random");
-							break;
-					}
-				}
-				break;
-			default:
-				console.log("default (failed to detect input!)");
-				break;
-		}
-
+        //adjust values based on valueControl Behaviour
+        switch (v) {
+            case "fixed":
+                break;
+            case "increment":
+                if (min != null && max != null) {
+                    if (max) {
+                        targetWidget.value += targetWidget.options?.increment;
+                    }
+                }
+                break;
+            case "decrement":
+                if (min != null && max != null) {
+                    if (max) {
+                        targetWidget.value -= targetWidget.options?.increment;
+                    }
+                }
+                break;
+            case "randomize":
+                if (min != null && max != null) {
+                    switch (w) {
+                        case "FLOAT":
+                            targetWidget.value = parseFloat((Math.floor(Math.random() * ((range * 100) + 1)) / 100).toFixed(2));
+                            break;
+                        case "INT":
+                            if (targetWidget.name == "width" || targetWidget.name == "height") {
+                                targetWidget.value = Math.floor(Math.random() * range) * 64 + min;
+                            } else {
+                                targetWidget.value = Math.floor(Math.random() * range);
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                break;
+            default:
+                break;
+        }
 	/*check if values are over or under their respective
 	 * ranges and set them to min or max.*/
 		if (targetWidget.value < min)
