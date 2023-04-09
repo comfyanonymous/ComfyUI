@@ -262,10 +262,11 @@ button.comfy-queue-btn {
 	position: relative;
 	padding-right: 20px;
  }
- 
+
  .litemenu-entry.has_submenu::after {
 	content: ">";
 	position: absolute;
 	top: 0;
 	right: 2px;
  }
+ 
