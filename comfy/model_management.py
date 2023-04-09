@@ -45,6 +45,8 @@ try:
 except:
     OOM_EXCEPTION = Exception
 
+XFORMERS_VERSION = ""
+XFORMERS_ENABLED_VAE = True
 if args.disable_xformers:
     XFORMERS_IS_AVAILABLE = False
 else:
@@ -52,6 +54,17 @@ else:
         import xformers
         import xformers.ops
         XFORMERS_IS_AVAILABLE = True
+        try:
+            XFORMERS_VERSION = xformers.version.__version__
+            print("xformers version:", XFORMERS_VERSION)
+            if XFORMERS_VERSION.startswith("0.0.18"):
+                print()
+                print("WARNING: This version of xformers has a major bug where you will get black images when generating high resolution images.")
+                print("Please downgrade or upgrade xformers to a different version.")
+                print()
+                XFORMERS_ENABLED_VAE = False
+        except:
+            pass
     except:
         XFORMERS_IS_AVAILABLE = False
 
@@ -223,13 +236,8 @@ def xformers_enabled_vae():
     enabled = xformers_enabled()
     if not enabled:
         return False
-    try:
-        #0.0.18 has a bug where Nan is returned when inputs are too big (1152x1920 res images and above)
-        if xformers.version.__version__ == "0.0.18":
-            return False
-    except:
-        pass
-    return enabled
+
+    return XFORMERS_ENABLED_VAE
 
 def pytorch_attention_enabled():
     return ENABLE_PYTORCH_ATTENTION
