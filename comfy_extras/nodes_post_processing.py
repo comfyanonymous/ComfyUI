@@ -163,7 +163,7 @@ class QuantizePalette:
         return {
             "required": {
                 "image": ("IMAGE",),
-                "palette": ("STRING", {"default": "#000000, #ffffff", "multiline": True}),
+                "palette": ("STRING", {"default": "black, white", "multiline": True}),
                 "dither": (["none", "floyd-steinberg"],),
             },
         }
@@ -186,7 +186,7 @@ class QuantizePalette:
                 raise ValueError("Palette is empty")
 
             def parse_palette(color_str):
-                if re.match(r'#[a-fA-F0-9]{6}', color_str)  or color_str.lower() in ImageColor.colormap:
+                if re.match(r'#[a-fA-F0-9]{6}', color_str) or color_str.lower() in ImageColor.colormap:
                     return ImageColor.getrgb(color_str)
 
                 color_rgb = re.match(r'\(?(\d{1,3}),(\d{1,3}),(\d{1,3})\)?', color_str)
@@ -197,7 +197,7 @@ class QuantizePalette:
 
             pal_img = Image.new('P', (1, 1))
             pal_colors = palette.replace(" ", "")
-            pal_colors = re.findall(fr'#[a-fA-F0-9]{{6}}|\(?\d{{1,3}},\d{{1,3}},\d{{1,3}}\)?|{"|".join(ImageColor.colormap.keys())}', pal_colors)
+            pal_colors = re.findall(fr'#[a-fA-F0-9]{{6}}|\(?\d{{1,3}},\d{{1,3}},\d{{1,3}}\)?|{"|".join(ImageColor.colormap.keys())}', pal_colors, re.IGNORECASE)
             pal_colors = list(itertools.chain.from_iterable(map(parse_palette, pal_colors)))
             pal_img.putpalette(pal_colors)
 
