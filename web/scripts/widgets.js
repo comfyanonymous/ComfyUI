@@ -35,12 +35,12 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
                 targetWidget.value -= targetWidget.options.step / 10;
                 break;
             case "randomize":
-				var w = targetWidget.type;
+				var w = targetWidget.inputType;
                 switch (w) {
-                        case FLOAT:
+                        case "FLOAT":
                             targetWidget.value = parseFloat((Math.floor(Math.random() * ((range * 100) + 1)) / 100).toFixed(2));
                             break;
-                        case INT:
+                        case "INT":
                             if (targetWidget.name == "width" || targetWidget.name == "height") {
                                 targetWidget.value = Math.floor(Math.random() * range) * 64 + min;
                             } else {
