@@ -373,6 +373,8 @@ class Split:
         }
 
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE")
+    RETURN_NAMES = ("Red", "Green", "Blue")
+
     FUNCTION = "split"
 
     CATEGORY = "image/postprocessing"
