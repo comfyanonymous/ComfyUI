@@ -232,6 +232,8 @@ class Transpose:
     def transpose(self, image: torch.Tensor, method: str):
         batch_size, height, width, _ = image.shape
         result = torch.zeros_like(image)
+        if height != width and method in ("Transpose", "Transverse", "Rotate 90°", "Rotate 270°"):
+            result = torch.permute(result, (0, 2, 1, 3))
 
         methods = {
             "Flip horizontal": Image.Transpose.FLIP_LEFT_RIGHT,
