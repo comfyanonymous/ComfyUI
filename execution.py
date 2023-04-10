@@ -64,12 +64,15 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
     obj = class_def()
 
     nodes.before_node_execution()
-    outputs[unique_id] = getattr(obj, obj.FUNCTION)(**input_data_all)
-    if "ui" in outputs[unique_id]:
-        if server.client_id is not None:
-            server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
-        if "result" in outputs[unique_id]:
-            outputs[unique_id] = outputs[unique_id]["result"]
+    try:
+        outputs[unique_id] = getattr(obj, obj.FUNCTION)(**input_data_all)
+        if "ui" in outputs[unique_id]:
+            if server.client_id is not None:
+                server.send_sync("executed", {"node": unique_id, "output": outputs[unique_id]["ui"]}, server.client_id)
+            if "result" in outputs[unique_id]:
+                outputs[unique_id] = outputs[unique_id]["result"]
+    except Exception as e:
+        traceback.print_exc()
     return executed + [unique_id]
 
 def recursive_will_execute(prompt, outputs, current_item):
@@ -213,12 +216,14 @@ def validate_inputs(prompt, item):
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
-
     class_inputs = obj_class.INPUT_TYPES()
     required_inputs = class_inputs['required']
     for x in required_inputs:
         if x not in inputs:
-            return (False, "Required input is missing. {}, {}".format(class_type, x))
+            if obj_class.MULTIPLE_NODE != True:
+                return (False, "Required input is missing. {}, {}".format(class_type, x))
+            else:
+                return (True, "")
         val = inputs[x]
         info = required_inputs[x]
         type_input = info[0]
