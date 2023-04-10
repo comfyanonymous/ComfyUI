@@ -395,6 +395,45 @@ class Split:
 
         return (result_r, result_g, result_b)
 
+class Merge:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "red": ("IMAGE",),
+                "green": ("IMAGE",),
+                "blue": ("IMAGE",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "merge"
+
+    CATEGORY = "image/postprocessing"
+
+    def merge(self, red: torch.Tensor, green: torch.Tensor, blue: torch.Tensor):
+        batch_size, height, width, _ = red.shape
+        result = torch.zeros_like(red)
+
+        for b in range(batch_size):
+            img_r = (red[b] * 255).to(torch.uint8).numpy()
+            img_g = (green[b] * 255).to(torch.uint8).numpy()
+            img_b = (blue[b] * 255).to(torch.uint8).numpy()
+            pil_image_r = Image.fromarray(img_r, mode='RGB').convert("L")
+            pil_image_g = Image.fromarray(img_g, mode='RGB').convert("L")
+            pil_image_b = Image.fromarray(img_b, mode='RGB').convert("L")
+
+            output_image = Image.merge("RGB", (pil_image_r, pil_image_g, pil_image_b))
+
+            output_array = torch.tensor(np.array(output_image.convert("RGB"))).float() / 255
+            result[b] = output_array
+
+        return (result,)
+
+
 
 NODE_CLASS_MAPPINGS = {
     "ImageBlend": Blend,
@@ -405,4 +444,17 @@ NODE_CLASS_MAPPINGS = {
     "ImageRotate": Rotate,
     "ImageGetChannel": GetChannel,
     "ImageSplit": Split,
+    "ImageMerge": Merge,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS  = {
+    "ImageBlend": "Blend Images",
+    "ImageBlur": "Blur Image",
+    "ImageQuantize": "Quantize Image",
+    "ImageSharpen": "Sharpen Image",
+    "ImageTranspose": "Transpose",
+    "ImageRotate": "Rotate",
+    "ImageGetChannel": "Extract Channel",
+    "ImageSplit": "Split Channels",
+    "ImageMerge": "Merge Channels",
 }
