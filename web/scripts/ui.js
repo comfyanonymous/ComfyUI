@@ -8,14 +8,18 @@ export function $el(tag, propsOrChildren, children) {
 		if (Array.isArray(propsOrChildren)) {
 			element.append(...propsOrChildren);
 		} else {
-			const parent = propsOrChildren.parent;
+			const { parent, $: cb, dataset, style } = propsOrChildren;
 			delete propsOrChildren.parent;
-			const cb = propsOrChildren.$;
 			delete propsOrChildren.$;
+			delete propsOrChildren.dataset;
+			delete propsOrChildren.style;
 
-			if (propsOrChildren.style) {
-				Object.assign(element.style, propsOrChildren.style);
-				delete propsOrChildren.style;
+			if (style) {
+				Object.assign(element.style, style);
+			}
+
+			if (dataset) {
+				Object.assign(element.dataset, dataset);
 			}
 
 			Object.assign(element, propsOrChildren);
@@ -76,7 +80,7 @@ function dragElement(dragEl, settings) {
 			dragEl.style.left = newPosX + "px";
 			dragEl.style.right = "unset";
 		}
-		
+
 		dragEl.style.top = newPosY + "px";
 		dragEl.style.bottom = "unset";
 
@@ -115,14 +119,6 @@ function dragElement(dragEl, settings) {
 			savePos = value;
 		},
 	});
-	
-	settings.addSetting({
-		id: "Comfy.ConfirmClear",
-		name: "Require confirmation when clearing workflow",
-		type: "boolean",
-		defaultValue: true,
-	});
-
 	function dragMouseDown(e) {
 		e = e || window.event;
 		e.preventDefault();
@@ -153,7 +149,7 @@ function dragElement(dragEl, settings) {
 	}
 
 	window.addEventListener("resize", () => {
-			ensureInBounds();
+		ensureInBounds();
 	});
 
 	function closeDragElement() {
@@ -163,18 +159,21 @@ function dragElement(dragEl, settings) {
 	}
 }
 
-class ComfyDialog {
+export class ComfyDialog {
 	constructor() {
 		this.element = $el("div.comfy-modal", { parent: document.body }, [
-			$el("div.comfy-modal-content", [
-				$el("p", { $: (p) => (this.textElement = p) }),
-				$el("button", {
-					type: "button",
-					textContent: "CLOSE",
-					onclick: () => this.close(),
-				}),
-			]),
+			$el("div.comfy-modal-content", [$el("p", { $: (p) => (this.textElement = p) }), ...this.createButtons()]),
 		]);
+	}
+
+	createButtons() {
+		return [
+			$el("button", {
+				type: "button",
+				textContent: "Close",
+				onclick: () => this.close(),
+			}),
+		];
 	}
 
 	close() {
@@ -182,7 +181,11 @@ class ComfyDialog {
 	}
 
 	show(html) {
-		this.textElement.innerHTML = html;
+		if (typeof html === "string") {
+			this.textElement.innerHTML = html;
+		} else {
+			this.textElement.replaceChildren(html);
+		}
 		this.element.style.display = "flex";
 	}
 }
@@ -233,6 +236,7 @@ class ComfySettingsDialog extends ComfyDialog {
 				};
 
 				let element;
+				value = this.getSettingValue(id, defaultValue);
 
 				if (typeof type === "function") {
 					element = type(name, setter, value, attrs);
@@ -289,6 +293,16 @@ class ComfySettingsDialog extends ComfyDialog {
 				return element;
 			},
 		});
+
+		const self = this;
+		return {
+			get value() {
+				return self.getSettingValue(id, defaultValue);
+			},
+			set value(v) {
+				self.setSettingValue(id, v);
+			},
+		};
 	}
 
 	show() {
@@ -410,6 +424,13 @@ export class ComfyUI {
 			this.history.update();
 		});
 
+		const confirmClear = this.settings.addSetting({
+			id: "Comfy.ConfirmClear",
+			name: "Require confirmation when clearing workflow",
+			type: "boolean",
+			defaultValue: true,
+		});
+
 		const fileInput = $el("input", {
 			type: "file",
 			accept: ".json,image/png",
@@ -421,7 +442,7 @@ export class ComfyUI {
 		});
 
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
-			$el("div", { style: { overflow: "hidden", position: "relative", width: "100%" } }, [
+			$el("div.drag-handle", { style: { overflow: "hidden", position: "relative", width: "100%", cursor: "default" } }, [
 				$el("span.drag-handle"),
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
@@ -517,13 +538,13 @@ export class ComfyUI {
 			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
 			$el("button", { textContent: "Clear", onclick: () => {
-				if (localStorage.getItem("Comfy.Settings.Comfy.ConfirmClear") == "false" || confirm("Clear workflow?")) {
+				if (!confirmClear.value || confirm("Clear workflow?")) {
 					app.clean();
 					app.graph.clear();
 				}
 			}}),
 			$el("button", { textContent: "Load Default", onclick: () => {
-				if (localStorage.getItem("Comfy.Settings.Comfy.ConfirmClear") == "false" || confirm("Load default workflow?")) {
+				if (!confirmClear.value || confirm("Load default workflow?")) {
 					app.loadGraphData()
 				}
 			}}),

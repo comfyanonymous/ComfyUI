@@ -7,7 +7,6 @@ import execution
 import uuid
 import json
 import glob
-
 try:
     import aiohttp
     from aiohttp import web
@@ -19,6 +18,7 @@ except ImportError:
     sys.exit()
 
 import mimetypes
+from comfy.cli_args import args
 
 
 @web.middleware
@@ -27,6 +27,23 @@ async def cache_control(request: web.Request, handler):
     if request.path.endswith('.js') or request.path.endswith('.css'):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
+
+def create_cors_middleware(allowed_origin: str):
+    @web.middleware
+    async def cors_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Access-Control-Allow-Origin'] = allowed_origin
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
+    return cors_middleware
 
 class PromptServer():
     def __init__(self, loop):
@@ -38,7 +55,12 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
-        self.app = web.Application(client_max_size=20971520, middlewares=[cache_control])
+
+        middlewares = [cache_control]
+        if args.enable_cors_header:
+            middlewares.append(create_cors_middleware(args.enable_cors_header))
+
+        self.app = web.Application(client_max_size=20971520, middlewares=middlewares)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
@@ -90,7 +112,7 @@ class PromptServer():
 
         @routes.post("/upload/image")
         async def upload_image(request):
-            upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+            upload_dir = folder_paths.get_input_directory()
 
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
@@ -123,10 +145,10 @@ class PromptServer():
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 type = request.rel_url.query.get("type", "output")
-                if type not in ["output", "input", "temp"]:
+                output_dir = folder_paths.get_directory_by_type(type)
+                if output_dir is None:
                     return web.Response(status=400)
 
-                output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), type)
                 if "subfolder" in request.rel_url.query:
                     full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
                     if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
@@ -155,9 +177,10 @@ class PromptServer():
                 info['input'] = obj_class.INPUT_TYPES()
                 info['output'] = obj_class.RETURN_TYPES
                 info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
+                info['name'] = x
+                info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[x] if x in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else x
                 if hasattr(obj_class, 'WIDGET_TYPES'):
                     info['widget'] = obj_class.WIDGET_TYPES
-                info['name'] = x #TODO
                 info['description'] = ''
                 info['category'] = 'sd'
                 if hasattr(obj_class, 'CATEGORY'):
