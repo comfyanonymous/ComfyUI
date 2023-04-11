@@ -46,8 +46,8 @@ const colorPalettes = {
 				"CONNECTING_LINK_COLOR": "#AFA",
 			},
 			"comfy_base": {
-				"fg-color": "#000",
-				"bg-color": "#fff",
+				"fg-color": "#fff",
+				"bg-color": "#202020",
 				"comfy-menu-bg": "#353535",
 				"comfy-input-bg": "#222",
 				"input-text": "#ddd",
@@ -311,10 +311,12 @@ app.registerExtension({
 		const loadColorPalette = async (colorPalette) => {
 			colorPalette = await completeColorPalette(colorPalette);
 			if (colorPalette.colors) {
+				// Sets the colors of node slots and links
 				if (colorPalette.colors.node_slot) {
 					Object.assign(app.canvas.default_connection_color_byType, colorPalette.colors.node_slot);
 					Object.assign(LGraphCanvas.link_type_colors, colorPalette.colors.node_slot);
 				}
+				// Sets the colors of the LiteGraph objects
 				if (colorPalette.colors.litegraph_base) {
 					// Everything updates correctly in the loop, except the Node Title and Link Color for some reason
 					app.canvas.node_title_color = colorPalette.colors.litegraph_base.NODE_TITLE_COLOR;
@@ -326,20 +328,11 @@ app.registerExtension({
 						}
 					}
 				}
+				// Sets the color of ComfyUI elements
 				if (colorPalette.colors.comfy_base) {
-					const stylesheet = document.styleSheets[1];
-
-					for (let i = 0; i < stylesheet.cssRules.length; i++) {
-						const rule = stylesheet.cssRules[i];
-						const selectorText = rule.selectorText;
-
-						if (selectorText && selectorText === ":root") {
-							console.log("Found :root rule");
-							for (const key in colorPalette.colors.comfy_base) {
-								rule.style.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
-							}
-							break;
-						}
+					const rootStyle = document.documentElement.style;
+					for (const key in colorPalette.colors.comfy_base) {
+					  	rootStyle.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
 					}
 				}
 				app.canvas.draw(true, true);
