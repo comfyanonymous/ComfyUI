@@ -45,6 +45,17 @@ const colorPalettes = {
 				"EVENT_LINK_COLOR": "#A86",
 				"CONNECTING_LINK_COLOR": "#AFA",
 			},
+			"comfy_base": {
+				"fg-color": "#000",
+				"bg-color": "#fff",
+				"comfy-menu-bg": "#353535",
+				"comfy-input-bg": "#222",
+				"input-text": "#ddd",
+				"descrip-text": "#999",
+				"drag-text": "#ccc",
+				"error-text": "#ff4444",
+				"border-color": "#4e4e4e"
+			}
 		},
 	},
 	"solarized": {
@@ -88,6 +99,17 @@ const colorPalettes = {
 				"EVENT_LINK_COLOR": "#268bd2",
 				"CONNECTING_LINK_COLOR": "#859900",
 			},
+			"comfy_base": {
+				"fg-color": "#fdf6e3", // Base3
+				"bg-color": "#002b36", // Base03
+				"comfy-menu-bg": "#073642", // Base02
+				"comfy-input-bg": "#002b36", // Base03
+				"input-text": "#93a1a1", // Base1
+				"descrip-text": "#586e75", // Base01
+				"drag-text": "#839496", // Base0
+				"error-text": "#dc322f", // Solarized Red
+				"border-color": "#657b83" // Base00
+			}
 		},
 	}
 };
@@ -248,6 +270,22 @@ app.registerExtension({
 					for (const key in colorPalette.colors.litegraph_base) {
 						if (colorPalette.colors.litegraph_base.hasOwnProperty(key) && LiteGraph.hasOwnProperty(key)) {
 							LiteGraph[key] = colorPalette.colors.litegraph_base[key];
+						}
+					}
+				}
+				if (colorPalette.colors.comfy_base) {
+					const stylesheet = document.styleSheets[1];
+
+					for (let i = 0; i < stylesheet.cssRules.length; i++) {
+						const rule = stylesheet.cssRules[i];
+						const selectorText = rule.selectorText;
+
+						if (selectorText && selectorText === ":root") {
+							console.log("Found :root rule");
+							for (const key in colorPalette.colors.comfy_base) {
+								rule.style.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
+							}
+							break;
 						}
 					}
 				}
