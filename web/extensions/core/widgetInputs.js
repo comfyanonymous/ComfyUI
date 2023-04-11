@@ -83,6 +83,7 @@ function getWidgetType(config) {
 	return { type, linkType };
 }
 
+
 app.registerExtension({
 	name: "Comfy.WidgetInputs",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -190,12 +191,26 @@ app.registerExtension({
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
 			}
+			getExtraMenuOptions(_, options) {
+                                options.unshift(
+                                        {
+                                                content: "Add output",
+                                                callback: () => {
+                                                        this.addOutput("connect to widget input", "*");
+                                                }
+                                        },
+				);
+			}
 
-			applyToGraph() {
-				if (!this.outputs[0].links?.length) return;
+			sortWidgets(widgets) {
+				this.widgets?.sort((a, b) => (a.primitiveSlot || 0) - (a.primitiveSlot || 0));
+			}
+
+			applyToGraph(slot) {
+				if (!this.outputs[slot].links?.length) return;
 
 				// For each output link copy our value over the original widget value
-				for (const l of this.outputs[0].links) {
+				for (const l of this.outputs[slot].links) {
 					const linkInfo = app.graph.links[l];
 					const node = this.graph.getNodeById(linkInfo.target_id);
 					const input = node.inputs[linkInfo.target_slot];
@@ -203,7 +218,7 @@ app.registerExtension({
 					if (widgetName) {
 						const widget = node.widgets.find((w) => w.name === widgetName);
 						if (widget) {
-							widget.value = this.widgets[0].value;
+							widget.value = this.widgets[slot].value;
 							if (widget.callback) {
 								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
 							}
@@ -212,21 +227,26 @@ app.registerExtension({
 				}
 			}
 
-			onConnectionsChange(_, index, connected) {
+			onConnectionsChange(_, index, connected, linkInfo) {
+				let slot = linkInfo.origin_slot;
 				if (connected) {
-					if (this.outputs[0].links?.length) {
-						if (!this.widgets?.length) {
-							this.#onFirstConnection();
+					if (this.outputs[slot].links?.length) {
+						const w = this.widgets?.find((w) => (w.primitiveSlot || 0) === slot);
+						if (!w) {
+							this.#onFirstConnection(slot);
 						}
-						if (!this.widgets?.length && this.outputs[0].widget) {
+						const w2 = this.widgets?.find((w) => (w.primitiveSlot || 0) === slot);
+						if (!w2 && this.outputs[slot].widget) {
 							// On first load it often cant recreate the widget as the other node doesnt exist yet
 							// Manually recreate it from the output info
-							this.#createWidget(this.outputs[0].widget.config);
+							this.#createWidget(slot, this.outputs[slot].widget.config);
 						}
 					}
-				} else if (!this.outputs[0].links?.length) {
-					this.#onLastDisconnect();
 				}
+				if (!this.outputs[slot].links?.length) {
+					this.#onLastDisconnect(slot);
+				}
+				this.sortWidgets();
 			}
 
 			onConnectOutput(slot, type, input, target_node, target_slot) {
@@ -236,13 +256,13 @@ app.registerExtension({
 				if (!input.widget) return false;
 
 				if (this.outputs[slot].links?.length) {
-					return this.#isValidConnection(input);
+					return this.#isValidConnection(slot, input);
 				}
 			}
 
-			#onFirstConnection() {
+			#onFirstConnection(slot) {
 				// First connection can fire before the graph is ready on initial load so random things can be missing
-				const linkId = this.outputs[0].links[0];
+				const linkId = this.outputs[slot].links[0];
 				const link = this.graph.links[linkId];
 				if (!link) return;
 
@@ -256,14 +276,14 @@ app.registerExtension({
 				const { type, linkType } = getWidgetType(widget.config);
 
 				// Update our output to restrict to the widget type
-				this.outputs[0].type = linkType;
-				this.outputs[0].name = type;
-				this.outputs[0].widget = widget;
+				this.outputs[slot].type = linkType;
+				this.outputs[slot].name = type;
+				this.outputs[slot].widget = widget;
 
-				this.#createWidget(widget.config, theirNode, widget.name);
+				this.#createWidget(slot, widget.config, theirNode, widget.name);
 			}
 
-			#createWidget(inputData, node, widgetName) {
+			#createWidget(slot, inputData, node, widgetName) {
 				let type = inputData[0];
 
 				if (type instanceof Array) {
@@ -272,9 +292,9 @@ app.registerExtension({
 
 				let widget;
 				if (type in ComfyWidgets) {
-					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
+					widget = (ComfyWidgets[type](this, "value " + slot, inputData, app) || {}).widget;
 				} else {
-					widget = this.addWidget(type, "value", null, () => {}, {});
+					widget = this.addWidget(type, "value " + slot, null, () => {}, {});
 				}
 
 				if (node?.widgets && widget) {
@@ -283,9 +303,13 @@ app.registerExtension({
 						widget.value = theirWidget.value;
 					}
 				}
+				widget.primitiveSlot = slot;
 
 				if (widget.type === "number") {
-					addValueControlWidget(this, widget, "fixed");
+					let v = addValueControlWidget(this, widget, "fixed");
+					let r = addRandomizeWidget(this, widget, "Random after every gen");
+					v.primitiveSlot = slot;
+					r.primitiveSlot = slot;
 				}
 
 				// When our value changes, update other widgets to reflect our changes
@@ -294,7 +318,7 @@ app.registerExtension({
 				const self = this;
 				widget.callback = function () {
 					const r = callback ? callback.apply(this, arguments) : undefined;
-					self.applyToGraph();
+					self.applyToGraph(slot);
 					return r;
 				};
 
@@ -314,9 +338,9 @@ app.registerExtension({
 				});
 			}
 
-			#isValidConnection(input) {
+			#isValidConnection(slot, input) {
 				// Only allow connections where the configs match
-				const config1 = this.outputs[0].widget.config;
+				const config1 = this.outputs[slot].widget.config;
 				const config2 = input.widget.config;
 
 				if (config1[0] !== config2[0]) return false;
@@ -332,21 +356,29 @@ app.registerExtension({
 				return true;
 			}
 
-			#onLastDisconnect() {
+			#onLastDisconnect(slot) {
 				// We cant remove + re-add the output here as if you drag a link over the same link
 				// it removes, then re-adds, causing it to break
-				this.outputs[0].type = "*";
-				this.outputs[0].name = "connect to widget input";
-				delete this.outputs[0].widget;
+				this.outputs[slot].type = "*";
+				this.outputs[slot].name = "connect to widget input";
+				delete this.outputs[slot].widget;
 
+				// might have widgets for other slots, so let's avoid deleting them
+				let newWidgets = [];
 				if (this.widgets) {
 					// Allow widgets to cleanup
 					for (const w of this.widgets) {
-						if (w.onRemove) {
+						// Handle old workflows that might not have slot information
+						w.primitiveSlot = w.primitiveSlot || 0;
+						if (w.onRemove && w.primitiveSlot === slot) {
 							w.onRemove();
 						}
+						if (w.primitiveSlot !== slot) {
+							newWidgets.push(w);
+						}
 					}
-					this.widgets.length = 0;
+					this.widgets = newWidgets;
+					this.sortWidgets();
 				}
 			}
 		}
