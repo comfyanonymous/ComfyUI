@@ -148,7 +148,7 @@ This will let you use: pip3.10 to install all the dependencies.
 
 Make sure you use the regular loaders/Load Checkpoint node to load checkpoints. It will auto pick the right settings depending on your GPU.
 
-You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this doesn't do anything when xformers is enabled and will very likely give you black images on SD2.x models.
+You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers this option does not do anything.
 
 ```--dont-upcast-attention```
 
