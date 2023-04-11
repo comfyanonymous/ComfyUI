@@ -5,9 +5,9 @@ import { api } from "/scripts/api.js";
 // Manage color palettes
 
 const colorPalettes = {
-	"palette_1": {
-		"id": "palette_1",
-		"name": "Palette 1",
+	"dark": {
+		"id": "dark",
+		"name": "Dark (Default)",
 		"colors": {
 			"node_slot": {
 				"CLIP": "#FFD500", // bright yellow
@@ -55,6 +55,59 @@ const colorPalettes = {
 				"drag-text": "#ccc",
 				"error-text": "#ff4444",
 				"border-color": "#4e4e4e"
+			}
+		},
+	},
+	"light": {
+		"id": "light",
+		"name": "Light",
+		"colors": {
+			"node_slot": {
+				"CLIP": "#FFA726", // orange
+				"CLIP_VISION": "#5C6BC0", // indigo
+				"CLIP_VISION_OUTPUT": "#8D6E63", // brown
+				"CONDITIONING": "#EF5350", // red
+				"CONTROL_NET": "#66BB6A", // green
+				"IMAGE": "#42A5F5", // blue
+				"LATENT": "#AB47BC", // purple
+				"MASK": "#9CCC65", // light green
+				"MODEL": "#7E57C2", // deep purple
+				"STYLE_MODEL": "#D4E157", // lime
+				"VAE": "#FF7043", // deep orange
+			},
+			"litegraph_base": {
+				"NODE_TITLE_COLOR": "#222",
+				"NODE_SELECTED_TITLE_COLOR": "#000",
+				"NODE_TEXT_SIZE": 14,
+				"NODE_TEXT_COLOR": "#444",
+				"NODE_SUBTEXT_SIZE": 12,
+				"NODE_DEFAULT_COLOR": "#F7F7F7",
+				"NODE_DEFAULT_BGCOLOR": "#F5F5F5",
+				"NODE_DEFAULT_BOXCOLOR": "#CCC",
+				"NODE_DEFAULT_SHAPE": "box",
+				"NODE_BOX_OUTLINE_COLOR": "#000",
+				"DEFAULT_SHADOW_COLOR": "rgba(0,0,0,0.1)",
+				"DEFAULT_GROUP_FONT": 24,
+
+				"WIDGET_BGCOLOR": "#D4D4D4",
+				"WIDGET_OUTLINE_COLOR": "#999",
+				"WIDGET_TEXT_COLOR": "#222",
+				"WIDGET_SECONDARY_TEXT_COLOR": "#555",
+
+				"LINK_COLOR": "#4CAF50",
+				"EVENT_LINK_COLOR": "#FF9800",
+				"CONNECTING_LINK_COLOR": "#2196F3",
+			},
+			"comfy_base": {
+				"fg-color": "#222",
+				"bg-color": "#FFF",
+				"comfy-menu-bg": "#F5F5F5",
+				"comfy-input-bg": "#C9C9C9",
+				"input-text": "#222",
+				"descrip-text": "#444",
+				"drag-text": "#555",
+				"error-text": "#F44336",
+				"border-color": "#CCC"
 			}
 		},
 	},
@@ -116,7 +169,7 @@ const colorPalettes = {
 
 const id = "Comfy.ColorPalette";
 const idCustomColorPalettes = "Comfy.CustomColorPalettes";
-const defaultColorPaletteId = "palette_1";
+const defaultColorPaletteId = "dark";
 const els = {}
 // const ctxMenu = LiteGraph.ContextMenu;
 app.registerExtension({
