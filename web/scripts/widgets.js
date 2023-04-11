@@ -1,3 +1,5 @@
+import { keyupEditAttention } from "./edit-attention.js";
+
 function getNumberDefaults(inputData, defaultStep) {
 	let defaultVal = inputData[1]["default"];
 	let { min, max, step } = inputData[1];
@@ -136,6 +138,9 @@ function addMultilineWidget(node, name, opts, app) {
 			widget.inputEl.blur();
 		}
 	});
+    widget.inputEl.addEventListener('keydown', (event) => {
+        keyupEditAttention(event);
+    });
 	widget.parent = node;
 	document.body.appendChild(widget.inputEl);
 
