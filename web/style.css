@@ -32,8 +32,8 @@ body {
 }
 
 .comfy-multiline-input {
-	background-color: var(--bg-color);
-	color: var(--fg-color);
+	background-color: var(--comfy-input-bg);
+	color: var(--input-text);
 	overflow: hidden;
 	overflow-y: auto;
 	padding: 2px;
