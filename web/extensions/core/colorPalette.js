@@ -63,41 +63,41 @@ const colorPalettes = {
 		"name": "Solarized",
 		"colors": {
 			"node_slot": {
-				"CLIP": "#859900", // Green
-				"CLIP_VISION": "#6c71c4", // Indigo
-				"CLIP_VISION_OUTPUT": "#859900", // Green
-				"CONDITIONING": "#d33682", // Magenta
-				"CONTROL_NET": "#cb4b16", // Orange
-				"IMAGE": "#dc322f", // Red
-				"LATENT": "#268bd2", // Blue
-				"MASK": "#073642", // Base02
-				"MODEL": "#cb4b16", // Orange
-				"STYLE_MODEL": "#073642", // Base02
-				"UPSCALE_MODEL": "#6c71c4", // Indigo
-				"VAE": "#586e75", // Base1
+				"CLIP": "#2AB7CA", // light blue
+				"CLIP_VISION": "#6c71c4", // blue violet
+				"CLIP_VISION_OUTPUT": "#859900", // olive green
+				"CONDITIONING": "#d33682", // magenta
+				"CONTROL_NET": "#d1ffd7", // light mint green
+				"IMAGE": "#5940bb", // deep blue violet
+				"LATENT": "#268bd2", // blue
+				"MASK": "#CCC9E7", // light purple-gray
+				"MODEL": "#dc322f", // red
+				"STYLE_MODEL": "#1a998a", // teal
+				"UPSCALE_MODEL": "#054A29", // dark green
+				"VAE": "#facfad", // light pink-orange
 			},
 			"litegraph_base": {
-				"NODE_TITLE_COLOR": "#fdf6e3",
-				"NODE_SELECTED_TITLE_COLOR": "#b58900",
+				"NODE_TITLE_COLOR": "#fdf6e3", // Base3
+				"NODE_SELECTED_TITLE_COLOR": "#A9D400",
 				"NODE_TEXT_SIZE": 14,
-				"NODE_TEXT_COLOR": "#657b83",
+				"NODE_TEXT_COLOR": "#657b83", // Base00
 				"NODE_SUBTEXT_SIZE": 12,
-				"NODE_DEFAULT_COLOR": "#586e75",
-				"NODE_DEFAULT_BGCOLOR": "#073642",
-				"NODE_DEFAULT_BOXCOLOR": "#839496",
+				"NODE_DEFAULT_COLOR": "#094656",
+				"NODE_DEFAULT_BGCOLOR": "#073642", // Base02
+				"NODE_DEFAULT_BOXCOLOR": "#839496", // Base0
 				"NODE_DEFAULT_SHAPE": "box",
-				"NODE_BOX_OUTLINE_COLOR": "#fdf6e3",
+				"NODE_BOX_OUTLINE_COLOR": "#fdf6e3", // Base3
 				"DEFAULT_SHADOW_COLOR": "rgba(0,0,0,0.5)",
 				"DEFAULT_GROUP_FONT": 24,
 
-				"WIDGET_BGCOLOR": "#002b36",
-				"WIDGET_OUTLINE_COLOR": "#839496",
-				"WIDGET_TEXT_COLOR": "#fdf6e3",
-				"WIDGET_SECONDARY_TEXT_COLOR": "#93a1a1",
+				"WIDGET_BGCOLOR": "#002b36", // Base03
+				"WIDGET_OUTLINE_COLOR": "#839496", // Base0
+				"WIDGET_TEXT_COLOR": "#fdf6e3", // Base3
+				"WIDGET_SECONDARY_TEXT_COLOR": "#93a1a1", // Base1
 
-				"LINK_COLOR": "#2aa198",
-				"EVENT_LINK_COLOR": "#268bd2",
-				"CONNECTING_LINK_COLOR": "#859900",
+				"LINK_COLOR": "#2aa198", // Solarized Cyan
+				"EVENT_LINK_COLOR": "#268bd2", // Solarized Blue
+				"CONNECTING_LINK_COLOR": "#859900", // Solarized Green
 			},
 			"comfy_base": {
 				"fg-color": "#fdf6e3", // Base3
