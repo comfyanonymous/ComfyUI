@@ -187,8 +187,8 @@ class PromptServer():
             if not os.path.exists(output_dir):
                 return web.json_response({"message": "Output directory does not exist."}, status=404)
             try:
-                if (filename == "all"):
-                    for file_name in os.listdir(output_dir):
+                if isinstance(filename, list):
+                    for file_name in filename: #os.listdir(output_dir):
                         file_path = os.path.join(output_dir, file_name)
                         if os.path.isfile(file_path):
                             os.remove(file_path)

@@ -117,8 +117,8 @@ class ComfyApi extends EventTarget {
 		return await resp.json();
 	}
 
-    async deleteAllImages() {
-        await this.#postItem("delete", { delete: "all" })
+    async deleteAllImages(filenames) {
+        await this.#postItem("delete", { delete: filenames })
     }
     async deleteImage(filename) {
         await this.#postItem("delete", { delete: filename })

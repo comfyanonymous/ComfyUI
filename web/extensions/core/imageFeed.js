@@ -210,9 +210,10 @@ app.registerExtension({
 			right: "5px",
 		});
 		deleteAllButton.onclick = () => {
-            const confirmDelete = confirm("Are you sure you want to delete all images?");
+            const confirmDelete = confirm("Are you sure you want to delete all images in the drawer?");
             if (confirmDelete) {
-                api.deleteAllImages();
+                debugger;
+                api.deleteAllImages(allImages.map(item => item.filename));
                 allImages = []
                 imageList.replaceChildren(menu, resizeHandle);
 			}
