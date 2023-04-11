@@ -145,7 +145,7 @@ class PromptServer():
             output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 
             if not os.path.exists(output_dir):
-                return web.Response(status=404)
+                os.mkdir(output_dir)
 
             images = [f for f in os.listdir(output_dir) if f.endswith('.png')]
             # Check the length of the images list
