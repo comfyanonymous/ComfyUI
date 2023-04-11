@@ -169,10 +169,11 @@ app.registerExtension({
             top:"0px"
         });
         imageList.append(menu);
-		function makeButton(text, style) {
+		function makeButton(text, style, title) {
 			const btn = document.createElement("button");
 			btn.type = "button";
 			btn.textContent = text;
+			btn.title = title;
             Object.assign(btn.style, {
               ...style,
               height: "20px",
@@ -191,7 +192,8 @@ app.registerExtension({
 			textIndent: "-4px",
 			top: "5px",
 			right: "5px",
-		});
+		    }, "Hide the image drawer (Open Drawer button will be displayed on main floating menu)"
+		);
 		closeButton.onclick = () => {
 			imageList.style.display = "none";
 			showButton.style.display = "unset";
@@ -200,7 +202,8 @@ app.registerExtension({
 		const clearButton = makeButton("✖ Clear", {
 			top: "30px",
 			right: "5px",
-		});
+			}, "Clears all items displayed in image drawer (This won't delete anything, refreshing the page will reload from Output)"
+		);
 		clearButton.onclick = () => {
 		    allImages = []
 			imageList.replaceChildren(menu, resizeHandle);
@@ -208,11 +211,11 @@ app.registerExtension({
 		const deleteAllButton = makeButton("🗑️ Delete", {
 			top: "55px",
 			right: "5px",
-		});
+			}, "Delete all items displayed in image drawer (This won't delete the entire output folder)"
+		);
 		deleteAllButton.onclick = () => {
             const confirmDelete = confirm("Are you sure you want to delete all images in the drawer?");
             if (confirmDelete) {
-                debugger;
                 api.deleteAllImages(allImages.map(item => item.filename));
                 allImages = []
                 imageList.replaceChildren(menu, resizeHandle);
@@ -228,11 +231,7 @@ app.registerExtension({
                     var detail = {output: output}
                     loadImages(detail);
                 }
-                else  {
-                    deleteAllButton.setAttribute("disabled", true);
-                }
             } catch(err){
-                deleteAllButton.setAttribute("disabled", true);
                 console.error(err);
             }
         });
