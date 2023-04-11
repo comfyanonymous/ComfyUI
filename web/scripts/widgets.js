@@ -29,28 +29,17 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
             case "fixed":
                 break;
             case "increment":
-                 targetWidget.value += targetWidget.options.step / 10;
+                targetWidget.value += targetWidget.options?.step / 10;
                 break;
             case "decrement":
-                targetWidget.value -= targetWidget.options.step / 10;
+                targetWidget.value -= targetWidget.options?.step / 10;
                 break;
             case "randomize":
-				var w = targetWidget.inputType;
-                switch (w) {
-                        case "FLOAT":
-                            targetWidget.value = parseFloat((Math.floor(Math.random() * ((range * 100) + 1)) / 100).toFixed(2));
-                            break;
-                        case "INT":
-                            if (targetWidget.name == "width" || targetWidget.name == "height") {
-                                targetWidget.value = Math.floor(Math.random() * range) * 64 + min;
-                            } else {
-                                targetWidget.value = Math.floor(Math.random() * range);
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                break;
+			if (targetWidget.step == 64)
+				targetWidget.value = Math.floor(Math.random() * range) * 64 + min;
+			else
+                targetWidget.value = parseFloat((Math.floor(Math.random() * ((range * 100) + 1)) / 100).toFixed(2));
+				break;
             default:
                 break;
         }
