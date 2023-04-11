@@ -246,6 +246,13 @@ class OPE{
 	}
 }
 
+class NCITEM{
+	constructor(TARGET, NODEID){
+		this.id = NODEID;
+		this.frame = $Add('div', TARGET, {className: 'button', style : {minHeight: '100px'} } );
+	}
+}
+
 class NCP{
 	constructor(TARGET){
 		this.mainFrame = $Add('div', TARGET, {className : 'FullWindow'});
@@ -256,11 +263,36 @@ class NCP{
 		
 		$Add('div', this.mainFrame, {style : {height : '25px'} } );
 		this.workflow = $Add('div', this.mainFrame, {id : 'NCPWorkflow'} );
-		this.addPanel = $Add('div', this.mainFrame, {id : 'addDiv', style : {textAlign : 'center', display : 'none'}} );
+		this.addPanel = $Add('div', this.mainFrame, {id : 'addDiv', style : {textAlign : 'center', position : 'absolute', left : 0, top : '50px', display : 'none'}} );
 		
-		this.addDivButton = $Add('span', this.addPanel, {innerHTML : '+', className : 'button'});
+		//this.addDivButton = $Add('span', this.addPanel, {innerHTML : '+', className : 'button', onclick : ()=>{this.addNCClick()}});
 		
 		this.editModeButton = $Add('div', this.mainFrame, {innerHTML : 'Edit', className : 'button', style : {position : 'absolute', left : 0, top: '25px'}, onclick : ()=>{this.editSwitch();} } );
+		
+		this.NCItems = [];
+		this.selectors = [];
+	}
+	addNCClick(EVENT){
+		//log(app.graph._nodes_by_id);
+		//log(EVENT.target);
+		let nodeid = EVENT.target.getAttribute('nodeid');
+		//log(nodeid);
+		this.NCItems.push(new NCITEM(this.workflow));
+	}
+	loadSelectors(){
+		let nodes = app.graph._nodes_by_id;
+		let j = 0;
+		for (let i in nodes){
+			this.selectors.push($Add('div', this.addPanel, {innerHTML : `<b style="pointer-events:none">id:</b>${nodes[i].id} <b style="pointer-events:none">title:</b>${nodes[i].title}`, className: 'button', onclick : (e)=>{this.addNCClick(e)}}));
+			this.selectors[j].setAttribute('nodeid', i);
+			j++;
+		}
+	}
+	clearSelectors(){
+		for (let i = 0; i < this.selectors.length; i++){
+			this.selectors[i].remove();
+		}
+		this.selectos = [];
 	}
 	slide(){
 		if (this.opened){
@@ -278,10 +310,12 @@ class NCP{
 			this.editMode = !this.editMode;
 			this.editModeButton.style.background = OPE_VARIABLES.bgMain;
 			this.addPanel.style.display = 'none';
+			this.clearSelectors()
 		}else{
 			this.editMode = !this.editMode;
 			this.editModeButton.style.background = WC_VARIABLES.selectedColor;
 			this.addPanel.style.display = '';
+			this.loadSelectors();
 		}
 	}
 }
