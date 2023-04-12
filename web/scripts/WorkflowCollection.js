@@ -259,20 +259,36 @@ class NC{
 	addController(){
 		switch (this.type){
 			case 'number':
-				this.controller = $Add('input', this.frame, {type : 'number'});
+				this.controller = $Add('input', this.frame, {type : 'number' , min : this.widget.options.min, max : this.widget.options.max, step : this.widget.options.step/10, value : this.widget.value, onchange : ()=>{this.changeController()}});
 				break;
 			case 'toggle':
-				this.controller = $Add('input', this.frame, {type : 'checkbox'});
+				this.controller = $Add('input', this.frame, {type : 'checkbox', checked : this.widget.value, onchange : ()=>{this.changeController()}});
 				break;
 			case 'combo':
-				this.controller = $Add('select', this.frame, {});
+				this.controller = $Add('select', this.frame, {onchange : ()=>{this.changeController()}});
+				for (let i = 0; i < this.widget.options.values.length; i++){
+					$Add('option', this.controller, {value : this.widget.options.values[i], innerHTML : this.widget.options.values[i]});
+				}
+				this.controller.value = this.widget.value;
 				break;
 			case 'text':
-				this.controller = $Add('input', this.frame, {type : 'text'});
+				this.controller = $Add('input', this.frame, {type : 'text', value : this.widget.value, onchange : ()=>{this.changeController()}});
 				break;
 			case 'customtext':
-				this.controller = $Add('textarea', this.frame, {});
+				this.controller = $Add('textarea', this.frame, {value : this.widget.value, onchange : ()=>{this.changeController()}});
 				break;
+		}
+	}
+	changeController(){
+		switch(this.type){
+			case 'number':
+			case 'combo':
+			case 'text':
+			case 'customtext':
+				this.widget.value = this.controller.value;
+				break;
+			case 'toggle':
+				this.widget.value = this.controller.checked;
 		}
 	}
 }
@@ -282,25 +298,128 @@ class NCITEM{
 		this.id = NODEID;
 		this.parent = PARENT;
 		//log(this.id);
+		this.editMode = true;
+		this.haveImage = false;
+		
 		let nodes = app.graph._nodes_by_id;
 		this.node = nodes[this.id];
 		this.controllers = [];
 		
-		this.frame = $Add('div', TARGET, {className: 'button', style : {position : 'relative', minHeight: '100px', minWidth : '100px', marginLeft : '250px'} } );
+		this.frame = $Add('div', TARGET, {className: 'button', style : {position : 'absolute', minHeight: '100px', minWidth : '100px', /*marginLeft : '250px'*/} } );
 		if(this.node.bgcolor != undefined) this.frame.style.background = this.node.bgcolor;
+		
 		this.title = $Add('div', this.frame, {className : 'button', innerHTML : `<b style="pointer-events:none">id:</b>${this.id} <b style="pointer-events:none">title:</b>${this.node.title}`} );
 		if (this.node.color != undefined) this.title.style.background = this.node.color;
 		
-		//this.config = $Add('div', this.frame, {style : {position : 'absolute', width: '100%', height : '100%', } } );
-		this.drag = $Add('div', this.frame, {style : {height : '25px', cursor : 'move', position: 'absolute', top : 0, width : '100%'} } );
-		this.resize = $Add('div', this.frame, {className : 'button', style : {position : 'absolute', bottom : 0, right : 0, height : '25px', width : '25px', cursor : 'nwse-resize'} } );
-		this.deleteButton = $Add('div', this.frame, {innerHTML : 'X', className : 'button', style : {position : 'absolute', top : 0, right : 0} } );
+		this.config = $Add('div', this.frame, {style : {position : 'absolute', width: '100%', height : '100%', top : 0/*, background : '#0000'*/} } );
+		
+		this.drag = $Add('div', this.config, {style : {height : '25px', cursor : 'move', position: 'absolute', top : 0, width : '100%'}, onmousedown : (e)=>{this.mouseDownDrag(e)} } );
+		
+		this.haveImageToggle = $Add('input', this.config, {type : 'checkbox', style : {position : 'absolute', top : '75px', right : 0}, onchange : ()=>{this.switchHaveImage()}});
+		this.deleteButton = $Add('div', this.config, {innerHTML : 'X', className : 'button', style : {position : 'absolute', top : 0, right : 0} } );
+		
+		this.setColor = $Add('input', this.config, {type : 'color', className : 'button', style : {position : 'absolute', top : '25px', right : 0}, onchange : (e)=>{this.colorSet(e)} } );
+		if (this.node.color != undefined) this.setColor.value = (this.node.color != undefined) ? `#${this.node.color[1]}0${this.node.color[2]}0${this.node.color[3]}0` : '#000000';
+		
+		this.setBGColor = $Add('input', this.config, {type : 'color', className : 'button', style : {position : 'absolute', top : '50px', right : 0}, onchange : (e)=>{this.BGcolorSet(e)} } );
+		if(this.node.bgcolor != undefined) this.setBGColor.value = (this.node.color != undefined) ? `#${this.node.bgcolor[1]}0${this.node.bgcolor[2]}0${this.node.bgcolor[3]}0` : '#000000';
+		
+		this.resize = $Add('div', this.config, {className : 'button', style : {position : 'absolute', bottom : 0, right : 0, height : '25px', width : '25px', cursor : 'nwse-resize'}, onmousedown : (e)=>{this.mouseDownResize(e)} } );
 		
 		if (this.node.widgets != undefined) for (let i = 0; i < this.node.widgets.length; i++){
 			this.controllers.push(new NC(this.frame, this.node.widgets[i]));
 		}
+		
+		this.mouseOffset = [0,0];
+		
+		this.pos = [250, 100];
+		this.size = [this.frame.clientWidth, this.frame.clientHeight];
+		this.move();
+		this.resi();
 	}
-	deconstructor(){
+	colorSet(EVENT){
+		//log(EVENT.target.value);
+		this.title.style.background = EVENT.target.value;
+		this.node.color = EVENT.target.value;
+	}
+	BGcolorSet(EVENT){
+		this.frame.style.background = EVENT.target.value;
+		this.node.bgcolor = EVENT.target.value;
+	}
+	editModeOff(){
+		this.editMode = false;
+		this.config.style.display = 'none';
+	}
+	editModeOn(){
+		this.editMode = true;
+		this.config.style.display = '';
+	}
+	resi(OFFSET){
+		if(OFFSET == undefined){
+			this.frame.style.width = `${this.size[0]}px`;
+			this.frame.style.height = `${this.size[1]}px`;
+		}else{
+			this.size[0] += OFFSET[0];
+			this.size[1] += OFFSET[1];
+			this.resi();
+		}
+	}
+	move(OFFSET){
+		if(OFFSET == undefined){
+			this.frame.style.left = `${this.pos[0]}px`;
+			this.frame.style.top = `${this.pos[1]}px`;
+		}else{
+			this.pos[0] += OFFSET[0];
+			this.pos[1] += OFFSET[1];
+			this.move();
+		}
+	}
+	mouseDownResize(EVENT){
+		this.mouseOffset = [0,0];
+		this.mousePos = [EVENT.clientX, EVENT.clientY];
+		//log(EVENT);
+		this.moveMode = false; //true - move mode
+		this.parent.mainFrame.onmousemove = (e)=>{this.mouseMove(e)};
+		this.parent.mainFrame.onmouseup = (e)=>{this.mouseUp(e)};
+	}
+	mouseDownDrag(EVENT){
+		this.mouseOffset = [0,0];
+		this.mousePos = [EVENT.clientX, EVENT.clientY];
+		//log(EVENT);
+		this.moveMode = true; //flase - resize mode
+		this.parent.mainFrame.onmousemove = (e)=>{this.mouseMove(e)};
+		this.parent.mainFrame.onmouseup = (e)=>{this.mouseUp(e)};
+	}
+	mouseMove(EVENT){
+		event.preventDefault();
+		this.mouseOffset = [EVENT.clientX - this.mousePos[0], EVENT.clientY - this.mousePos[1]];
+		//log(this.mouseOffset,this.mousePos,this.mouseOffset);
+		if (this.moveMode){
+			this.move(this.mouseOffset);
+		}else{
+			this.resi(this.mouseOffset);
+		}
+		this.mousePos = [EVENT.clientX, EVENT.clientY];
+		this.mouseOffset = [0,0];
+	}
+	mouseUp(EVENT){
+
+		this.pos[0] = Math.clamp(this.pos[0], 0, 1820);
+		this.pos[0] = Math.round(this.pos[0]/25)*25;
+		this.pos[1] = Math.clamp(this.pos[1], 0, 10000);
+		this.pos[1] = Math.round(this.pos[1]/25)*25;
+		this.move();
+		
+		this.size[0] = Math.clamp(this.size[0], 0, 1920);
+		this.size[0] = Math.round(this.size[0]/25)*25;
+		this.size[1] = Math.clamp(this.size[1], 0, 10000);
+		this.size[1] = Math.round(this.size[1]/25)*25;
+		this.resi();
+		
+		this.parent.mainFrame.onmouseup = undefined;
+		this.parent.mainFrame.onmousemove = undefined;
+	}
+	destructor(){
 		
 	}
 }
@@ -373,11 +492,17 @@ class NCP{
 			this.editModeButton.style.background = OPE_VARIABLES.bgMain;
 			this.addPanel.style.display = 'none';
 			this.clearSelectors()
+			for (let i = 0; i < this.NCItems.length; i++){
+				this.NCItems[i].editModeOff();
+			}
 		}else{
 			this.editMode = !this.editMode;
 			this.editModeButton.style.background = WC_VARIABLES.selectedColor;
 			this.addPanel.style.display = '';
 			this.loadSelectors();
+			for (let i = 0; i < this.NCItems.length; i++){
+				this.NCItems[i].editModeOn();
+			}
 		}
 	}
 }
