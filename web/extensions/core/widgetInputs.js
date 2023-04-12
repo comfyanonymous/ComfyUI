@@ -221,7 +221,10 @@ app.registerExtension({
 						if (widgetName) {
 							const widget = node.widgets.find((w) => w.name === widgetName);
 							if (widget) {
-								widget.value = this.widgets[linkInfo.origin_slot].value;
+								// the first widget matching a slot in the primitive should hold the value, as they're kept
+								// sorted. If this is undefined, something weird is going on.
+								const sourcewidget = this.widgets.find((w) => w.primitiveSlot === linkInfo.origin_slot);
+								widget.value = sourcewidget.value;
 								if (widget.callback) {
 									widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
 								}
