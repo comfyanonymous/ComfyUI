@@ -944,8 +944,9 @@ class ComfyApp {
 						}
 					}
 				}
-				this.#invokeExtensions("loadedGraphNode", node);
 			}
+
+			this.#invokeExtensions("loadedGraphNode", node);
 		}
 
 		if (missingNodeTypes.length) {

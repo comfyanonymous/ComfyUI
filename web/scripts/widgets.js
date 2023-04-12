@@ -17,32 +17,29 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
     });
     valueControl.afterQueued = () => {
 
-        var v = valueControl.value;
+		var v = valueControl.value;
 
-        let min = targetWidget.options?.min;
-        let max = targetWidget.options?.max;
-        let range = Math.max(min, max);
+		let min = targetWidget.options.min;
+		let max = targetWidget.options.max;
+		// limit to something that javascript can handle
+		max = Math.min(1125899906842624, max);
+		min = Math.max(-1125899906842624, min);
+		let range = (max - min) / (targetWidget.options.step / 10);
 
-        //adjust values based on valueControl Behaviour
-        if (min != null && max != null) {
+		//adjust values based on valueControl Behaviour
 		switch (v) {
-            case "fixed":
-                break;
-            case "increment":
-                targetWidget.value += targetWidget.options?.step / 10;
-                break;
-            case "decrement":
-                targetWidget.value -= targetWidget.options?.step / 10;
-                break;
-            case "randomize":
-			if (targetWidget.step == 64)
-				targetWidget.value = Math.floor(Math.random() * range) * 64 + min;
-			else
-                targetWidget.value = parseFloat((Math.floor(Math.random() * ((range * 100) + 1)) / 100).toFixed(2));
+			case "fixed":
 				break;
-            default:
-                break;
-        }
+			case "increment":
+				targetWidget.value += targetWidget.options.step / 10;
+				break;
+			case "decrement":
+				targetWidget.value -= targetWidget.options.step / 10;
+				break;
+			case "randomize":
+				targetWidget.value = Math.floor(Math.random() * range) * (targetWidget.options.step / 10) + min;
+			default:
+				break;
 		}
 	/*check if values are over or under their respective
 	 * ranges and set them to min or max.*/

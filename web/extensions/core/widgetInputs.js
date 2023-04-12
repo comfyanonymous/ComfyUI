@@ -5,13 +5,8 @@ const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
 function isConvertableWidget(widget, config) {
-	if (widget.name == "control_after_generate" ||
-		widget.name == "batch_size")
-		widget.allowConvertToInput = false;
-	else
-		return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
+	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
 }
-
 
 function hideWidget(node, widget, suffix = "") {
 	widget.origType = widget.type;
@@ -276,40 +271,22 @@ app.registerExtension({
 				}
 
 				let widget;
-				
-				// ComfyWidgets allows a subtype of widgets which is defined by "<type>:<widgetName>"
-				// common example is "INT:seed"
-				// so let's check for those first
-				let combinedWidgetType = type + ":" + widgetName;
-				if (combinedWidgetType in ComfyWidgets) {
-					// widget = (ComfyWidgets[combinedWidgetType](this, "value", inputData, app) || {}).widget;
-					widget = (ComfyWidgets[combinedWidgetType](this, widgetName, inputData, app) || {}).widget;
+				if (type in ComfyWidgets) {
+					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
 				} else {
-					// we did not find a subtype, so proceed with "<type>" only
-					if (type in ComfyWidgets) {
-						widget = (ComfyWidgets[type](this, widgetName/*"value*"*/, inputData, app) || {}).widget;
-					} else {
-						widget = this.addWidget(type, widgetName /*"value"*/, null, () => { }, {});
-					}
-						
-					if (widget.type === "number" &&
-						combinedWidgetType != "INT:seed" &&
-						combinedWidgetType != "INT:noise_seed" &&
-						widgetName != "start_at_step" &&
-						widgetName != "end_at_step") {
-						addValueControlWidget(this, widget, "fixed");
-					}
+					widget = this.addWidget(type, "value", null, () => {}, {});
 				}
-				
 
 				if (node?.widgets && widget) {
-
-				const theirWidget = node.widgets.find((w) => w.name === widgetName);
+					const theirWidget = node.widgets.find((w) => w.name === widgetName);
 					if (theirWidget) {
 						widget.value = theirWidget.value;
 					}
 				}
 
+				if (widget.type === "number") {
+					addValueControlWidget(this, widget, "fixed");
+				}
 
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
