@@ -206,21 +206,25 @@ app.registerExtension({
 				this.widgets?.sort((a, b) => (a.primitiveSlot || 0) - (a.primitiveSlot || 0));
 			}
 
-			applyToGraph(slot) {
-				if (!this.outputs[slot].links?.length) return;
+			applyToGraph() {
+				for (const o of this.outputs) {
+					if (!o.links?.length) {
+						continue;
+					}
 
-				// For each output link copy our value over the original widget value
-				for (const l of this.outputs[slot].links) {
-					const linkInfo = app.graph.links[l];
-					const node = this.graph.getNodeById(linkInfo.target_id);
-					const input = node.inputs[linkInfo.target_slot];
-					const widgetName = input.widget.name;
-					if (widgetName) {
-						const widget = node.widgets.find((w) => w.name === widgetName);
-						if (widget) {
-							widget.value = this.widgets[slot].value;
-							if (widget.callback) {
-								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
+					// For each output link copy our value over the original widget value
+					for (const l of o.links) {
+						const linkInfo = app.graph.links[l];
+						const node = this.graph.getNodeById(linkInfo.target_id);
+						const input = node.inputs[linkInfo.target_slot];
+						const widgetName = input.widget.name;
+						if (widgetName) {
+							const widget = node.widgets.find((w) => w.name === widgetName);
+							if (widget) {
+								widget.value = this.widgets[linkInfo.origin_slot].value;
+								if (widget.callback) {
+									widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
+								}
 							}
 						}
 					}
@@ -318,7 +322,7 @@ app.registerExtension({
 				const self = this;
 				widget.callback = function () {
 					const r = callback ? callback.apply(this, arguments) : undefined;
-					self.applyToGraph(slot);
+					self.applyToGraph();
 					return r;
 				};
 
