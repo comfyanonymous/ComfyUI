@@ -71,6 +71,7 @@ class WC{
 		
 		this.opened = true;
 		//this.slide();
+		//this.showHideComfyMenu();
 	}
 	showHideComfyMenu(){
 		if (this.comfyMenuHidden){
@@ -194,6 +195,28 @@ class WC{
 	}
 }
 
+class OPE{
+	constructor(TARGET){
+		this.mainFrame = $Add('div', TARGET, {className : 'FullWindow'});
+		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'OPE', className : 'button', onclick : ()=>{this.slide()} } );
+		
+		this.iFrame = $Add('iframe', this.mainFrame, {width: '100%', height: '100%', src : OPE_VARIABLES.editorURL, style : {border : 'none'} } );
+		
+		this.opened = false;
+	}
+	slide(){
+		if (this.opened){
+			this.opened = !this.opened;
+			this.mainFrame.style.left = `-${OPE_VARIABLES.mainWidth}%`;
+			this.slideFrame.style.background = OPE_VARIABLES.bgMain;
+		}else{
+			this.opened = !this.opened;
+			this.mainFrame.style.left = 0;
+			this.slideFrame.style.background = WC_VARIABLES.selectedColor;
+		}
+	}
+}
+
 class WCItem{
 	constructor(PARENT, NAME, GRAPH){
 		this.parent = PARENT;
@@ -224,32 +247,61 @@ class WCItem{
 	}
 }
 
-class OPE{
-	constructor(TARGET){
-		this.mainFrame = $Add('div', TARGET, {className : 'FullWindow'});
-		this.slideFrame = $Add('span', wc.mainFrame, {innerHTML : 'OPE', className : 'button', onclick : ()=>{this.slide()} } );
+class NC{
+	constructor(TARGET, WIDGET){
+		this.frame = $Add('div', TARGET, {style : {marginTop : '5px'} } );
+		this.widget = WIDGET;
+		this.type = WIDGET.type;
 		
-		this.iFrame = $Add('iframe', this.mainFrame, {width: '100%', height: '100%', src : OPE_VARIABLES.editorURL, style : {border : 'none'} } );
-		
-		this.opened = false;
+		this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
+		this.addController();
 	}
-	slide(){
-		if (this.opened){
-			this.opened = !this.opened;
-			this.mainFrame.style.left = `-${OPE_VARIABLES.mainWidth}%`;
-			this.slideFrame.style.background = OPE_VARIABLES.bgMain;
-		}else{
-			this.opened = !this.opened;
-			this.mainFrame.style.left = 0;
-			this.slideFrame.style.background = WC_VARIABLES.selectedColor;
+	addController(){
+		switch (this.type){
+			case 'number':
+				this.controller = $Add('input', this.frame, {type : 'number'});
+				break;
+			case 'toggle':
+				this.controller = $Add('input', this.frame, {type : 'checkbox'});
+				break;
+			case 'combo':
+				this.controller = $Add('select', this.frame, {});
+				break;
+			case 'text':
+				this.controller = $Add('input', this.frame, {type : 'text'});
+				break;
+			case 'customtext':
+				this.controller = $Add('textarea', this.frame, {});
+				break;
 		}
 	}
 }
 
 class NCITEM{
-	constructor(TARGET, NODEID){
+	constructor(TARGET, NODEID, PARENT){
 		this.id = NODEID;
-		this.frame = $Add('div', TARGET, {className: 'button', style : {minHeight: '100px'} } );
+		this.parent = PARENT;
+		//log(this.id);
+		let nodes = app.graph._nodes_by_id;
+		this.node = nodes[this.id];
+		this.controllers = [];
+		
+		this.frame = $Add('div', TARGET, {className: 'button', style : {position : 'relative', minHeight: '100px', minWidth : '100px', marginLeft : '250px'} } );
+		if(this.node.bgcolor != undefined) this.frame.style.background = this.node.bgcolor;
+		this.title = $Add('div', this.frame, {className : 'button', innerHTML : `<b style="pointer-events:none">id:</b>${this.id} <b style="pointer-events:none">title:</b>${this.node.title}`} );
+		if (this.node.color != undefined) this.title.style.background = this.node.color;
+		
+		//this.config = $Add('div', this.frame, {style : {position : 'absolute', width: '100%', height : '100%', } } );
+		this.drag = $Add('div', this.frame, {style : {height : '25px', cursor : 'move', position: 'absolute', top : 0, width : '100%'} } );
+		this.resize = $Add('div', this.frame, {className : 'button', style : {position : 'absolute', bottom : 0, right : 0, height : '25px', width : '25px', cursor : 'nwse-resize'} } );
+		this.deleteButton = $Add('div', this.frame, {innerHTML : 'X', className : 'button', style : {position : 'absolute', top : 0, right : 0} } );
+		
+		if (this.node.widgets != undefined) for (let i = 0; i < this.node.widgets.length; i++){
+			this.controllers.push(new NC(this.frame, this.node.widgets[i]));
+		}
+	}
+	deconstructor(){
+		
 	}
 }
 
@@ -263,28 +315,38 @@ class NCP{
 		
 		$Add('div', this.mainFrame, {style : {height : '25px'} } );
 		this.workflow = $Add('div', this.mainFrame, {id : 'NCPWorkflow'} );
-		this.addPanel = $Add('div', this.mainFrame, {id : 'addDiv', style : {textAlign : 'center', position : 'absolute', left : 0, top : '50px', display : 'none'}} );
+		this.addPanel = $Add('div', this.mainFrame, {id : 'addDiv', style : {textAlign : 'center', position : 'absolute', left : 0, top : '50px', display : 'none'} } );
 		
 		//this.addDivButton = $Add('span', this.addPanel, {innerHTML : '+', className : 'button', onclick : ()=>{this.addNCClick()}});
 		
 		this.editModeButton = $Add('div', this.mainFrame, {innerHTML : 'Edit', className : 'button', style : {position : 'absolute', left : 0, top: '25px'}, onclick : ()=>{this.editSwitch();} } );
 		
 		this.NCItems = [];
+		this.addedList = [];
 		this.selectors = [];
 	}
 	addNCClick(EVENT){
-		//log(app.graph._nodes_by_id);
+		log(app.graph._nodes_by_id);
 		//log(EVENT.target);
 		let nodeid = EVENT.target.getAttribute('nodeid');
 		//log(nodeid);
-		this.NCItems.push(new NCITEM(this.workflow));
+		this.NCItems.push(new NCITEM(this.workflow, nodeid, this));
+		this.addedList.push(nodeid);
+		this.clearSelectors();
+		this.loadSelectors();
 	}
 	loadSelectors(){
 		let nodes = app.graph._nodes_by_id;
 		let j = 0;
 		for (let i in nodes){
 			this.selectors.push($Add('div', this.addPanel, {innerHTML : `<b style="pointer-events:none">id:</b>${nodes[i].id} <b style="pointer-events:none">title:</b>${nodes[i].title}`, className: 'button', onclick : (e)=>{this.addNCClick(e)}}));
+			//log(i);
 			this.selectors[j].setAttribute('nodeid', i);
+			//log(this.addedList.indexOf(i), i, this.addedList);
+			if (this.addedList.indexOf(i) != -1){
+				this.selectors[j].style.display = 'none';
+			}
+			if (nodes[i].color != undefined) this.selectors[j].style.background = nodes[i].color;
 			j++;
 		}
 	}
@@ -292,7 +354,7 @@ class NCP{
 		for (let i = 0; i < this.selectors.length; i++){
 			this.selectors[i].remove();
 		}
-		this.selectos = [];
+		this.selectors = [];
 	}
 	slide(){
 		if (this.opened){
