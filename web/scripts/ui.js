@@ -448,6 +448,7 @@ export class ComfyUI {
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
 			$el("button.comfy-queue-btn", {
+				id: "queue-button",
 				textContent: "Queue Prompt",
 				onclick: () => app.queuePrompt(0, this.batchCount),
 			}),
@@ -496,9 +497,10 @@ export class ComfyUI {
 				]),
 			]),
 			$el("div.comfy-menu-btns", [
-				$el("button", { textContent: "Queue Front", onclick: () => app.queuePrompt(-1, this.batchCount) }),
+				$el("button", { id: "queue-front-button", textContent: "Queue Front", onclick: () => app.queuePrompt(-1, this.batchCount) }),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
+					id: "view-queue-button",
 					textContent: "View Queue",
 					onclick: () => {
 						this.history.hide();
@@ -507,6 +509,7 @@ export class ComfyUI {
 				}),
 				$el("button", {
 					$: (b) => (this.history.button = b),
+					id: "view-history-button",
 					textContent: "View History",
 					onclick: () => {
 						this.queue.hide();
