@@ -35,6 +35,11 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 - **Ctrl + A** select all nodes
 - **Ctrl + M** mute/unmute selected nodes
 - **Delete** or **Backspace** delete selected nodes
+- **Space** Holding space key while moving the cursor moves the canvas around. It works when holding the mouse button down so it is easier to connect different nodes when the canvas gets too large.
+- **Ctrl/Shift + Click** Add clicked node to selection.
+- **Ctrl + C/Ctrl + V** - Copy and paste selected nodes, without maintaining the connection to the outputs of unselected nodes.
+- **Ctrl + C/Ctrl + Shift + V** - Copy and paste selected nodes, and maintaining the connection from the outputs of unselected nodes to the inputs of the newly pasted nodes.
+- Holding **Shift** and drag selected nodes - Move multiple selected nodes at the same time.
 
 # Installing
 
