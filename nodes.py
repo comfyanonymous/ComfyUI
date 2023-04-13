@@ -62,8 +62,8 @@ class ConditioningAddWeighted:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", ),
-                              "conditioning_1_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.1}),
-                              "conditioning_2_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.1})
+                              "conditioning_1_strength": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 10.0, "step": 0.1}),
+                              "conditioning_2_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.1})
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "addWeighted"
@@ -78,8 +78,8 @@ class ConditioningAddWeighted:
         if conditioning_1_tensor.shape[1] > conditioning_2_tensor.shape[1]:
             conditioning_2_tensor = torch.cat((conditioning_2_tensor, torch.zeros((1,conditioning_1_tensor.shape[1] - conditioning_2_tensor.shape[1],768))), dim=1)
         elif conditioning_2_tensor.shape[1] > conditioning_1_tensor.shape[1]:
-            conditioning_1_tensor = torch.cat((conditioning_1_tensor, torch.zeros((1,conditioning_2_tensor.shape[1] - conditioning_1_tensor.shape[1],768))), dim=1)
-        output[0][0] = ((conditioning_1_tensor * conditioning_1_strength) + (conditioning_2_tensor * conditioning_2_strength))/(conditioning_1_strength + conditioning_2_strength)
+            conditioning_1_tensor = torch.cat((conditioning_1_tensor, torch.zeros((conditioning_2_tensor.shape[1].value,conditioning_2_tensor.shape[1] - conditioning_1_tensor.shape[1],conditioning_1_tensor.shape[1].value))), dim=1)
+        output[0][0] = ((conditioning_1_tensor * conditioning_1_strength) + (conditioning_2_tensor * conditioning_2_strength))
         return (output, )
 
 class ConditioningSetArea:
@@ -1104,6 +1104,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
     "ImagePadForOutpaint": ImagePadForOutpaint,
+    "ConditioningAddWeighted": ConditioningAddWeighted,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
@@ -1151,6 +1152,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPTextEncode": "CLIP Text Encode (Prompt)",
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
+    "ConditioningAddWeighted": "Conditioning (Weighted Combine)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ControlNetApply": "Apply ControlNet",
     # Latent
