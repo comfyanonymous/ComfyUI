@@ -270,7 +270,7 @@ class ComfySettingsDialog extends ComfyDialog {
 								]),
 							]);
 							break;
-                        case "slider":
+						case "slider":
 							element = $el("div", [
 								$el("label", { textContent: name }, [
 									$el("input", {
@@ -278,16 +278,16 @@ class ComfySettingsDialog extends ComfyDialog {
 										value,
 										oninput: (e) => {
 											setter(e.target.value);
-                                            e.target.nextElementSibling.value = e.target.value;
+											e.target.nextElementSibling.value = e.target.value;
 										},
 										...attrs
 									}),
-                                    $el("input", {
+									$el("input", {
 										type: "number",
 										value,
 										oninput: (e) => {
 											setter(e.target.value);
-                                            e.target.previousElementSibling.value = e.target.value;
+											e.target.previousElementSibling.value = e.target.value;
 										},
 										...attrs
 									}),
