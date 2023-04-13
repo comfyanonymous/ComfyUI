@@ -97,6 +97,11 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 
 After this you should have everything installed and can proceed to running ComfyUI.
 
+### Others:
+
+[Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+
+Mac/MPS: There is basic support in the code but until someone makes some install instruction you are on your own.
 
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
