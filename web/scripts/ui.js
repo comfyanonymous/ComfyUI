@@ -432,6 +432,7 @@ export class ComfyUI {
 		});
 
 		const fileInput = $el("input", {
+			id: "comfy-file-input",
 			type: "file",
 			accept: ".json,image/png",
 			style: { display: "none" },

@@ -11,13 +11,15 @@ app.registerExtension({
                 return;
             }
 
+            if (event.ctrlKey || event.altKey || event.metaKey) {
+                return;
+            }
+
             const keyToButtonIdMap = {
                 "Enter": "queue-button",
                 "f": "queue-front-button",
                 "q": "view-queue-button",
                 "h": "view-history-button",
-                "s": "save-button",
-                "l": "load-button",
                 "r": "refresh-button",
                 "c": "clear-button",
                 "d": "load-default-button",
