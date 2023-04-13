@@ -35,23 +35,25 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 | Keybind | Explanation |
 | - | - |
-| Enter | Queues up current graph for generation |
+| Ctrl + Enter | Queues up current graph for generation |
+| Ctrl + Shift + Enter | Queues up current graph as first for generation |
+| Ctrl + S | Saves workflow |
+| Ctrl + O | Load workflow |
 | Ctrl + A | Select all nodes |
 | Ctrl + M | Mute/unmute selected nodes |
 | Delete/Backspace | Delete selected nodes |
+| Ctrl + Delete/Backspace | Delete the current graph |
 | Space | Move the canvas around when held and moving the cursor |
 | Ctrl/Shift + Click | Add clicked node to selection |
 | Ctrl + C/Ctrl + V | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes) |
 | Ctrl + C/Ctrl + Shift + V| Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
 | Shift + Drag | Move multiple selected nodes at the same time |
-| F | Places current graph at the front of the queue |
 | Q | Toggles visibility of the queue |
 | H | Toggles visibility of history |
-| S | Saves current graph as json |
-| L | Brings up file input to load graphs |
 | R | Refreshes graph |
-| C | Clears graph |
 | D | Loads default graph |
+
+Ctrl can also be replaced with Cmd instead for MacOS users
 
 # Installing
 

@@ -18,7 +18,6 @@ class ComfyApp {
 		this.ui = new ComfyUI(this);
 		this.extensions = [];
 		this.nodeOutputs = {};
-		this.shiftDown = false;
 	}
 
 	/**
@@ -688,49 +687,6 @@ class ComfyApp {
 		api.init();
 	}
 
-	#addKeyboardHandler() {
-		window.addEventListener("keydown", (e) => {
-			this.shiftDown = e.shiftKey;
-			const modifierPressed = e.ctrlKey || e.metaKey;
-
-			// Queue prompt using ctrl or command + enter
-			if (modifierPressed && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
-				this.queuePrompt(e.shiftKey ? -1 : 0);
-			}
-
-			// Save workflow using ctrl or command + s
-			if (modifierPressed && (e.key === "s" || e.keyCode === 83)) {
-				e.preventDefault();
-
-				const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
-				const blob = new Blob([json], { type: "application/json" });
-				const url = URL.createObjectURL(blob);
-				const a = $el("a", {
-					href: url,
-					download: "workflow.json",
-					style: { display: "none" },
-					parent: document.body,
-				});
-				a.click();
-				setTimeout(function () {
-					a.remove();
-					window.URL.revokeObjectURL(url);
-				}, 0);
-			}
-
-			// Load workflow using ctrl or command + o
-			if (modifierPressed && (e.key === "o" || e.keyCode === 79)) {
-				e.preventDefault();
-
-				const fileInput = document.querySelector("#comfy-file-input");
-				fileInput.click()
-			}
-		});
-		window.addEventListener("keyup", (e) => {
-			this.shiftDown = e.shiftKey;
-		});
-	}
-
 	/**
 	 * Loads all extensions from the API into the window
 	 */
@@ -807,7 +763,6 @@ class ComfyApp {
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
-		this.#addKeyboardHandler();
 
 		await this.#invokeExtensionsAsync("setup");
 	}
