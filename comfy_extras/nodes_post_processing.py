@@ -313,8 +313,6 @@ class Rotate:
                 raise ValueError(f"Invalid color format: {color_str}")
 
         center = (center_x, center_y) if center_of_image == "disabled" else (width / 2, height / 2)  
-        print(center_of_image)
-        print(center)
         translate = (translate_x, translate_y)
 
         color = fill_color.replace(" ", "")
