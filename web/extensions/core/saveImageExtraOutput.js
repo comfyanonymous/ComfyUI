@@ -90,7 +90,7 @@ app.registerExtension({
 				const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
 
 				if (!this.properties || !("Node name for S&R" in this.properties)) {
-					this.addProperty("Node name for S&R", this.title, "string");
+					this.addProperty("Node name for S&R", this.constructor.type, "string");
 				}
 
 				return r;
