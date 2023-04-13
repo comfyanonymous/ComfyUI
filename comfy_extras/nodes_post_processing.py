@@ -124,7 +124,10 @@ class Quantize:
                     "max": 256,
                     "step": 1
                 }),
-                "dither": (["none", "floyd-steinberg"],),
+                "dither": ("BOOL", {
+                    "off": "none",
+                    "on": "floyd-steinberg"
+                }),
             },
         }
 
@@ -133,11 +136,11 @@ class Quantize:
 
     CATEGORY = "image/postprocessing"
 
-    def quantize(self, image: torch.Tensor, colors: int = 256, dither: str = "FLOYDSTEINBERG"):
+    def quantize(self, image: torch.Tensor, colors: int = 256, dither: bool = True):
         batch_size, height, width, _ = image.shape
         result = torch.zeros_like(image)
 
-        dither_option = Image.Dither.FLOYDSTEINBERG if dither == "floyd-steinberg" else Image.Dither.NONE
+        dither_option = Image.Dither.FLOYDSTEINBERG if dither else Image.Dither.NONE
 
         for b in range(batch_size):
             tensor_image = image[b]

@@ -11,11 +11,11 @@ function getNumberDefaults(inputData, defaultStep) {
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
-    const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
-        values: ["fixed", "increment", "decrement", "randomize"],
-        serialize: false, // Don't include this in prompt.
-    });
-    valueControl.afterQueued = () => {
+	const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
+		values: ["fixed", "increment", "decrement", "randomize"],
+		serialize: false, // Don't include this in prompt.
+	});
+	valueControl.afterQueued = () => {
 
 		var v = valueControl.value;
 
@@ -364,5 +364,20 @@ export const ComfyWidgets = {
 		};
 
 		return { widget: uploadWidget };
+	},
+	BOOL(node, inputName, inputData) {
+		let defaultVal = true;
+		let defaultOn = "true";
+		let defaultOff = "false";
+		if (inputData[1] && inputData[1].default) {
+			defaultVal = inputData[1].default == "true" ? true : false
+		}
+		if (inputData[1] && inputData[1].on) {
+			defaultOn = inputData[1].on;
+		}
+		if (inputData[1] && inputData[1].off) {
+			defaultOff = inputData[1].off;
+		}
+		return { widget: node.addWidget("toggle", inputName, defaultVal, () => {}, { on: defaultOn, off: defaultOff }) };
 	},
 };

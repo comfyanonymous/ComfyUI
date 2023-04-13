@@ -513,14 +513,13 @@ class EmptyLatentImage:
 
 class LatentUpscale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
-    crop_methods = ["disabled", "center"]
 
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
                               "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
-                              "crop": (s.crop_methods,)}}
+                              "crop": ("BOOL", {"default": "false", "on": "center", "off": "disabled"}),}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
 
@@ -528,6 +527,7 @@ class LatentUpscale:
 
     def upscale(self, samples, upscale_method, width, height, crop):
         s = samples.copy()
+        crop = "center" if crop else "disabled"
         s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
@@ -559,7 +559,7 @@ class LatentFlip:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "flip_method": (["x-axis: vertically", "y-axis: horizontally"],),
+                              "flip_method": ("BOOL", {"on": "x-axis: vertically", "off": "y-axis: horizontally"}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "flip"
@@ -568,9 +568,9 @@ class LatentFlip:
 
     def flip(self, samples, flip_method):
         s = samples.copy()
-        if flip_method.startswith("x"):
+        if flip_method:
             s["samples"] = torch.flip(samples["samples"], dims=[2])
-        elif flip_method.startswith("y"):
+        else:
             s["samples"] = torch.flip(samples["samples"], dims=[3])
 
         return (s,)
@@ -772,7 +772,7 @@ class KSamplerAdvanced:
     def INPUT_TYPES(s):
         return {"required":
                     {"model": ("MODEL",),
-                    "add_noise": (["enable", "disable"], ),
+                    "add_noise": ("BOOL", {"on": "enable", "off": "disable"}),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
@@ -783,7 +783,7 @@ class KSamplerAdvanced:
                     "latent_image": ("LATENT", ),
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
-                    "return_with_leftover_noise": (["disable", "enable"], ),
+                    "return_with_leftover_noise": ("BOOL", {"default": "false", "on": "enable", "off": "disable"}),
                     }}
 
     RETURN_TYPES = ("LATENT",)
@@ -792,12 +792,8 @@ class KSamplerAdvanced:
     CATEGORY = "sampling"
 
     def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, return_with_leftover_noise, denoise=1.0):
-        force_full_denoise = True
-        if return_with_leftover_noise == "enable":
-            force_full_denoise = False
-        disable_noise = False
-        if add_noise == "disable":
-            disable_noise = True
+        force_full_denoise = return_with_leftover_noise
+        disable_noise = add_noise
         return common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
 class SaveImage:
@@ -964,14 +960,13 @@ class LoadImageMask:
 
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
-    crop_methods = ["disabled", "center"]
 
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
                               "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "crop": (s.crop_methods,)}}
+                              "crop": ("BOOL", {"default": "false", "on": "center", "off": "disabled"})}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 
@@ -979,6 +974,7 @@ class ImageScale:
 
     def upscale(self, image, upscale_method, width, height, crop):
         samples = image.movedim(-1,1)
+        crop = "center" if crop else "disabled"
         s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
         s = s.movedim(1,-1)
         return (s,)
