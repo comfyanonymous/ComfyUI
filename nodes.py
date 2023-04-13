@@ -940,6 +940,8 @@ class LoadImageMask:
         input_dir = folder_paths.get_input_directory()
         image_path = os.path.join(input_dir, image)
         i = Image.open(image_path)
+        if i.getbands() != ("R", "G", "B", "A"):
+            i = i.convert("RGBA")
         mask = None
         c = channel[0].upper()
         if c in i.getbands():

@@ -1,6 +1,13 @@
 :root {
 	--fg-color: #000;
 	--bg-color: #fff;
+	--comfy-menu-bg: #353535;
+	--comfy-input-bg: #222;
+	--input-text: #ddd;
+	--descrip-text: #999;
+	--drag-text: #ccc;
+	--error-text: #ff4444;
+	--border-color: #4e4e4e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -25,8 +32,8 @@ body {
 }
 
 .comfy-multiline-input {
-	background-color: var(--bg-color);
-	color: var(--fg-color);
+	background-color: var(--comfy-input-bg);
+	color: var(--input-text);
 	overflow: hidden;
 	overflow-y: auto;
 	padding: 2px;
@@ -39,8 +46,8 @@ body {
 	position: fixed; /* Stay in place */
 	z-index: 100; /* Sit on top */
 	padding: 30px 30px 10px 30px;
-	background-color: #353535; /* Modal background */
-	color: #ff4444;
+	background-color: var(--comfy-menu-bg); /* Modal background */
+	color: var(--error-text);
 	box-shadow: 0px 0px 20px #888888;
 	border-radius: 10px;
 	top: 50%;
@@ -82,8 +89,8 @@ body {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	color: #999;
-	background-color: #353535;
+	color: var(--descrip-text);
+	background-color: var(--comfy-menu-bg);
 	font-family: sans-serif;
 	padding: 10px;
 	border-radius: 0 8px 8px 8px;
@@ -103,7 +110,7 @@ body {
 .comfy-menu-btns button {
 	font-size: 10px;
 	width: 50%;
-	color: #999 !important;
+	color: var(--descrip-text) !important;
 }
 
 .comfy-menu > button {
@@ -114,10 +121,10 @@ body {
 .comfy-menu-btns button,
 .comfy-menu .comfy-list button,
 .comfy-modal button{
-	color: #ddd;
-	background-color: #222;
+	color: var(--input-text);
+	background-color: var(--comfy-input-bg);
 	border-radius: 8px;
-	border-color: #4e4e4e;
+	border-color: var(--border-color);
 	border-style: solid;
 	margin-top: 2px;
 }
@@ -136,7 +143,7 @@ body {
 	font-size: 12px;
 	font-family: sans-serif;
 	letter-spacing: 2px;
-	color: #cccccc;
+	color: var(--drag-text);
 	text-shadow: 1px 0 1px black;
 	position: absolute;
 	top: 0;
@@ -152,7 +159,7 @@ body {
 }
 
 .comfy-list {
-	color: #999;
+	color: var(--descrip-text);
 	background-color: #333;
 	margin-bottom: 10px;
 	border-color: #4e4e4e;
@@ -163,7 +170,7 @@ body {
 	overflow-y: scroll;
 	max-height: 100px;
 	min-height: 25px;
-	background-color: #222;
+	background-color: var(--comfy-input-bg);
 	padding: 5px;
 }
 
@@ -206,16 +213,16 @@ button.comfy-queue-btn {
 .comfy-modal.comfy-manage-templates {
 	text-align: center;
 	font-family: sans-serif;
-	color: #999;
+	color: var(--descrip-text);
 	z-index: 99;
 }
 
 .comfy-modal input,
 .comfy-modal select {
-	color: #ddd;
-	background-color: #222;
+	color: var(--input-text);
+	background-color: var(--comfy-input-bg);
 	border-radius: 8px;
-	border-color: #4e4e4e;
+	border-color: var(--border-color);
 	border-style: solid;
 	font-size: inherit;
 }
@@ -240,7 +247,7 @@ button.comfy-queue-btn {
 .graphdialog .name {
 	font-size: 14px;
 	font-family: sans-serif;
-	color: #999999;
+	color: var(--descrip-text);
 }
 
 .graphdialog button {
@@ -251,10 +258,10 @@ button.comfy-queue-btn {
 }
 
 .graphdialog input, .graphdialog textarea, .graphdialog select {
-	background-color: #222;
+	background-color: var(--comfy-input-bg);
 	border: 2px solid;
-	border-color: #444444;
-	color: #ddd;
+	border-color: var(--border-color);
+	color: var(--input-text);
 	border-radius: 12px 0 0 12px;
 }
 

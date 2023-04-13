@@ -362,8 +362,20 @@ class ComfyApp {
 			if (n && n.onDragDrop && (await n.onDragDrop(event))) {
 				return;
 			}
-
+			// Dragging from Chrome->Firefox there is a file but its a bmp, so ignore that
+			if (event.dataTransfer.files.length && event.dataTransfer.files[0].type !== "image/bmp") {
 			await this.handleFile(event.dataTransfer.files[0]);
+			} else {
+				// Try loading the first URI in the transfer list
+				const validTypes = ["text/uri-list", "text/x-moz-url"];
+				const match = [...event.dataTransfer.types].find((t) => validTypes.find(v => t === v));
+				if (match) {
+					const uri = event.dataTransfer.getData(match)?.split("\n")?.[0];
+					if (uri) {
+						await this.handleFile(await (await fetch(uri)).blob());
+					}
+				}
+			}
 		});
 
 		// Always clear over node on drag leave
@@ -937,6 +949,11 @@ class ComfyApp {
 								widget.value = widget.value.slice(7);
 							}
 						}
+						if (widget.name == "control_after_generate") {
+							if (widget.value == true) {
+								widget.value = "randomize";
+							}
+						}
 					}
 				}
 			}
@@ -1090,7 +1107,7 @@ class ComfyApp {
 					importA1111(this.graph, pngInfo.parameters);
 				}
 			}
-		} else if (file.type === "application/json" || file.name.endsWith(".json")) {
+		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = () => {
 				this.loadGraphData(JSON.parse(reader.result));

@@ -1,4 +1,4 @@
-import { ComfyWidgets, addRandomizeWidget } from "/scripts/widgets.js";
+import { ComfyWidgets, addValueControlWidget } from "/scripts/widgets.js";
 import { app } from "/scripts/app.js";
 
 const CONVERTED_TYPE = "converted-widget";
@@ -23,7 +23,7 @@ function hideWidget(node, widget, suffix = "") {
 		return widget.origSerializeValue ? widget.origSerializeValue() : widget.value;
 	};
 
-	// Hide any linked widgets, e.g. seed+randomize
+	// Hide any linked widgets, e.g. seed+seedControl
 	if (widget.linkedWidgets) {
 		for (const w of widget.linkedWidgets) {
 			hideWidget(node, w, ":" + widget.name);
@@ -40,7 +40,7 @@ function showWidget(widget) {
 	delete widget.origComputeSize;
 	delete widget.origSerializeValue;
 
-	// Hide any linked widgets, e.g. seed+randomize
+	// Hide any linked widgets, e.g. seed+seedControl
 	if (widget.linkedWidgets) {
 		for (const w of widget.linkedWidgets) {
 			showWidget(w);
@@ -285,7 +285,7 @@ app.registerExtension({
 				}
 
 				if (widget.type === "number") {
-					addRandomizeWidget(this, widget, "Random after every gen");
+					addValueControlWidget(this, widget, "fixed");
 				}
 
 				// When our value changes, update other widgets to reflect our changes
