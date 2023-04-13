@@ -31,15 +31,27 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
-## Shortcuts
-- **Ctrl + A** select all nodes
-- **Ctrl + M** mute/unmute selected nodes
-- **Delete** or **Backspace** delete selected nodes
-- **Space** Holding space key while moving the cursor moves the canvas around. It works when holding the mouse button down so it is easier to connect different nodes when the canvas gets too large.
-- **Ctrl/Shift + Click** Add clicked node to selection.
-- **Ctrl + C/Ctrl + V** - Copy and paste selected nodes, without maintaining the connection to the outputs of unselected nodes.
-- **Ctrl + C/Ctrl + Shift + V** - Copy and paste selected nodes, and maintaining the connection from the outputs of unselected nodes to the inputs of the newly pasted nodes.
-- Holding **Shift** and drag selected nodes - Move multiple selected nodes at the same time.
+## Shortcuts/Keybinds
+
+| Keybind | Explanation |
+| - | - |
+| Enter | Queues up current graph for generation |
+| Ctrl + A | Select all nodes |
+| Ctrl + M | Mute/unmute selected nodes |
+| Delete/Backspace | Delete selected nodes |
+| Space | Move the canvas around when held and moving the cursor |
+| Ctrl/Shift + Click | Add clicked node to selection |
+| Ctrl + C/Ctrl + V | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes) |
+| Ctrl + C/Ctrl + Shift + V| Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
+| Shift + Drag | Move multiple selected nodes at the same time |
+| F | Places current graph at the front of the queue |
+| Q | Toggles visibility of the queue |
+| H | Toggles visibility of history |
+| S | Saves current graph as json |
+| L | Brings up file input to load graphs |
+| R | Refreshes graph |
+| C | Clears graph |
+| D | Loads default graph |
 
 # Installing
 

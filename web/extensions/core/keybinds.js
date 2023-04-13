@@ -24,7 +24,6 @@ app.registerExtension({
             };
 
             const buttonId = keyToButtonIdMap[event.key];
-            console.log(event.key, buttonId);
             if (buttonId) {
                 const button = document.querySelector(`#${buttonId}`);
                 button.dispatchEvent(new Event("click"));
