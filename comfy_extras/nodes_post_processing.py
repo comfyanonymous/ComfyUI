@@ -320,8 +320,8 @@ class Rotate:
         color = fill_color.replace(" ", "")
         color = parse_palette(color)
         rotated_image = pil_image.rotate(angle=angle, resample=resamplers[resample], expand=expand, center=center, translate=translate, fillcolor=color)
-        height, width = rotated_image.size
-        result = torch.zeros(batch_size, width, height, 3)
+        width, height = rotated_image.size
+        result = torch.zeros(batch_size, height, width, 3)
         rotated_array = torch.tensor(np.array(rotated_image.convert("RGB"))).float() / 255
         result[0] = rotated_array
 
