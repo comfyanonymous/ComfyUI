@@ -949,9 +949,13 @@ class ComfyApp {
 								widget.value = widget.value.slice(7);
 							}
 						}
+					}
+					if (node.type == "KSampler" || node.type == "KSamplerAdvanced" || node.type == "PrimitiveNode") {
 						if (widget.name == "control_after_generate") {
-							if (widget.value == true) {
+							if (widget.value === true) {
 								widget.value = "randomize";
+							} else if (widget.value === false) {
+								widget.value = "fixed";
 							}
 						}
 					}
