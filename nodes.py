@@ -519,7 +519,7 @@ class LatentUpscale:
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
                               "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
-                              "crop": ("BOOL", {"default": "false", "on": "center", "off": "disabled"}),}}
+                              "crop": ("BOOL", {"default": False, "on": "center", "off": "disabled"}),}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
 
@@ -783,7 +783,7 @@ class KSamplerAdvanced:
                     "latent_image": ("LATENT", ),
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
-                    "return_with_leftover_noise": ("BOOL", {"default": "false", "on": "enable", "off": "disable"}),
+                    "return_with_leftover_noise": ("BOOL", {"default": False, "on": "enable", "off": "disable"}),
                     }}
 
     RETURN_TYPES = ("LATENT",)
@@ -966,7 +966,7 @@ class ImageScale:
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
                               "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "crop": ("BOOL", {"default": "false", "on": "center", "off": "disabled"})}}
+                              "crop": ("BOOL", {"default": False, "on": "center", "off": "disabled"})}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 

@@ -369,8 +369,8 @@ export const ComfyWidgets = {
 		let defaultVal = true;
 		let defaultOn = "true";
 		let defaultOff = "false";
-		if (inputData[1] && inputData[1].default) {
-			defaultVal = inputData[1].default == "true" ? true : false
+		if (inputData[1] && "default" in inputData[1]) {
+			defaultVal = inputData[1].default
 		}
 		if (inputData[1] && inputData[1].on) {
 			defaultOn = inputData[1].on;
