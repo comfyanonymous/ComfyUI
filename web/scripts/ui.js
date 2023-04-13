@@ -517,6 +517,7 @@ export class ComfyUI {
 			this.queue.element,
 			this.history.element,
 			$el("button", {
+				id: "save-button",
 				textContent: "Save",
 				onclick: () => {
 					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
@@ -535,15 +536,15 @@ export class ComfyUI {
 					}, 0);
 				},
 			}),
-			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
-			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
-			$el("button", { textContent: "Clear", onclick: () => {
+			$el("button", { id: "load-button", textContent: "Load", onclick: () => fileInput.click() }),
+			$el("button", { id: "refresh-button", textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
+			$el("button", { id: "clear-button", textContent: "Clear", onclick: () => {
 				if (!confirmClear.value || confirm("Clear workflow?")) {
 					app.clean();
 					app.graph.clear();
 				}
 			}}),
-			$el("button", { textContent: "Load Default", onclick: () => {
+			$el("button", { id: "load-default-button", textContent: "Load Default", onclick: () => {
 				if (!confirmClear.value || confirm("Load default workflow?")) {
 					app.loadGraphData()
 				}
