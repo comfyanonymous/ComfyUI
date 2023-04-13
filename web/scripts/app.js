@@ -949,6 +949,11 @@ class ComfyApp {
 								widget.value = widget.value.slice(7);
 							}
 						}
+						if (widget.name == "control_after_generate") {
+							if (widget.value == true) {
+								widget.value = "randomize";
+							}
+						}
 					}
 				}
 			}
