@@ -871,7 +871,7 @@ class SaveImage:
                 "filename": file,
                 "subfolder": subfolder,
                 "type": self.type
-            });
+            })
             counter += 1
 
         return { "ui": { "images": results } }
