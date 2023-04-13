@@ -61,9 +61,9 @@ class ConditioningCombine:
 class ConditioningAddWeighted:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", ),
-                              "conditioning_1_strength": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                              "conditioning_2_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.1})
+        return {"required": {"conditioning_from": ("CONDITIONING", ), "conditioning_to": ("CONDITIONING", ),
+                              "conditioning_from_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1}),
+                              "conditioning_to_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.1})
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "addWeighted"
@@ -71,15 +71,15 @@ class ConditioningAddWeighted:
     CATEGORY = "conditioning"
 
 
-    def addWeighted(self, conditioning_1, conditioning_2, conditioning_1_strength, conditioning_2_strength):
-        conditioning_1_tensor = conditioning_1[0][0]
-        conditioning_2_tensor = conditioning_2[0][0]
-        output = conditioning_1
-        if conditioning_1_tensor.shape[1] > conditioning_2_tensor.shape[1]:
-            conditioning_2_tensor = torch.cat((conditioning_2_tensor, torch.zeros((1,conditioning_1_tensor.shape[1] - conditioning_2_tensor.shape[1],768))), dim=1)
-        elif conditioning_2_tensor.shape[1] > conditioning_1_tensor.shape[1]:
-            conditioning_1_tensor = torch.cat((conditioning_1_tensor, torch.zeros((conditioning_2_tensor.shape[1].value,conditioning_2_tensor.shape[1] - conditioning_1_tensor.shape[1],conditioning_1_tensor.shape[1].value))), dim=1)
-        output[0][0] = ((conditioning_1_tensor * conditioning_1_strength) + (conditioning_2_tensor * conditioning_2_strength))
+    def addWeighted(self, conditioning_from, conditioning_to, conditioning_from_strength, conditioning_to_strength):
+        conditioning_from_tensor = conditioning_from[0][0]
+        conditioning_to_tensor = conditioning_to[0][0]
+        output = conditioning_from
+        if conditioning_from_tensor.shape[1] > conditioning_to_tensor.shape[1]:
+            conditioning_to_tensor = torch.cat((conditioning_to_tensor, torch.zeros((1,conditioning_from_tensor.shape[1] - conditioning_to_tensor.shape[1],768))), dim=1)
+        elif conditioning_to_tensor.shape[1] > conditioning_from_tensor.shape[1]:
+            conditioning_from_tensor = torch.cat((conditioning_from_tensor, torch.zeros((conditioning_to_tensor.shape[1].value,conditioning_to_tensor.shape[1] - conditioning_from_tensor.shape[1],conditioning_from_tensor.shape[1].value))), dim=1)
+        output[0][0] = ((conditioning_from_tensor * conditioning_from_strength) + (conditioning_to_tensor * conditioning_to_strength))
         return (output, )
 
 class ConditioningSetArea:
