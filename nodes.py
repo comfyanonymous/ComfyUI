@@ -947,7 +947,7 @@ class SaveImage:
                 "filename": file,
                 "subfolder": subfolder,
                 "type": self.type
-            });
+            })
             counter += 1
 
         return { "ui": { "images": results } }
@@ -1008,7 +1008,7 @@ class LoadImageMask:
                     "channel": (["alpha", "red", "green", "blue"], ),}
                 }
 
-    CATEGORY = "image"
+    CATEGORY = "mask"
 
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
@@ -1016,6 +1016,8 @@ class LoadImageMask:
         input_dir = folder_paths.get_input_directory()
         image_path = os.path.join(input_dir, image)
         i = Image.open(image_path)
+        if i.getbands() != ("R", "G", "B", "A"):
+            i = i.convert("RGBA")
         mask = None
         c = channel[0].upper()
         if c in i.getbands():
@@ -1267,3 +1269,4 @@ def init_custom_nodes():
     load_custom_nodes()
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
