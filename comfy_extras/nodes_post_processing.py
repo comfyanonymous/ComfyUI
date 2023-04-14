@@ -428,10 +428,12 @@ class Composite:
             "required": {
                 "image_a": ("IMAGE",),
                 "image_b": ("IMAGE",),
-                "mask": ("MASK",),
                 "x": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
                 "y": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
             },
+            "optional": {
+                "mask": ("MASK",),
+            }
         }
 
     RETURN_TYPES = ("IMAGE",)
@@ -439,11 +441,14 @@ class Composite:
 
     CATEGORY = "image/postprocessing"
 
-    def composite(self, image_a: torch.Tensor, image_b: torch.Tensor, mask: torch.Tensor, x: int, y: int):
+    def composite(self, image_a: torch.Tensor, image_b: torch.Tensor, x: int, y: int, mask: torch.Tensor = None):
         batch_size, height, width, _ = image_a.shape
         result = torch.zeros_like(image_a)
 
         for b in range(batch_size):
+            if mask is None:
+                mask = torch.ones(image_b.shape[1:3])
+        
             img_a = (image_a[b] * 255).to(torch.uint8).numpy()
             img_b = (image_b[b] * 255).to(torch.uint8).numpy()
             img_mask = (mask * 255).to(torch.uint8).numpy()
