@@ -59,23 +59,41 @@ class LatentCompositeMasked:
 
 class MaskToImage:
     @classmethod
-    def INPUT_TYPES(cls):
+    def INPUT_TYPES(s):
         return {
-            "required": {
-                "mask": ("MASK",),
-            }
+                "required": {
+                    "mask": ("MASK",),
+                }
         }
 
     CATEGORY = "mask"
 
     RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "mask_to_image"
 
-    FUNCTION = "convert"
+    def mask_to_image(self, mask):
+        result = mask[None, :, :, None].expand(-1, -1, -1, 3)
+        return (result,)
 
-    def convert(self, mask):
-        image = torch.cat([torch.reshape(mask.clone(), [1, mask.shape[0], mask.shape[1], 1,])] * 3, 3)
+class ImageToMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+                "required": {
+                    "image": ("IMAGE",),
+                    "channel": (["red", "green", "blue"],),
+                }
+        }
 
-        return (image,)
+    CATEGORY = "mask"
+
+    RETURN_TYPES = ("MASK",)
+    FUNCTION = "image_to_mask"
+
+    def image_to_mask(self, image, channel):
+        channels = ["red", "green", "blue"]
+        mask = image[0, :, :, channels.index(channel)]
+        return (mask,)
 
 class SolidMask:
     @classmethod
@@ -231,6 +249,7 @@ class FeatherMask:
 NODE_CLASS_MAPPINGS = {
     "LatentCompositeMasked": LatentCompositeMasked,
     "MaskToImage": MaskToImage,
+    "ImageToMask": ImageToMask,
     "SolidMask": SolidMask,
     "InvertMask": InvertMask,
     "CropMask": CropMask,
@@ -238,3 +257,7 @@ NODE_CLASS_MAPPINGS = {
     "FeatherMask": FeatherMask,
 }
 
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "ImageToMask": "Convert Image to Mask",
+    "MaskToImage": "Convert Mask to Image",
+}
