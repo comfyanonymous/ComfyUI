@@ -9,8 +9,8 @@ class LatentCompositeMasked:
             "required": {
                 "destination": ("LATENT",),
                 "source": ("LATENT",),
-                "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
-                "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                "x": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION, "step": 8}),
+                "y": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION, "step": 8}),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -26,6 +26,9 @@ class LatentCompositeMasked:
         destination = destination["samples"].clone()
         source = source["samples"]
 
+        x = max(-source.shape[3] * 8, min(x, destination.shape[3] * 8))
+        y = max(-source.shape[2] * 8, min(y, destination.shape[2] * 8))
+
         left, top = (x // 8, y // 8)
         right, bottom = (left + source.shape[3], top + source.shape[2],)
 
@@ -40,7 +43,7 @@ class LatentCompositeMasked:
         # calculate the bounds of the source that will be overlapping the destination
         # this prevents the source trying to overwrite latent pixels that are out of bounds
         # of the destination
-        visible_width, visible_height = (destination.shape[3] - left, destination.shape[2] - top,)
+        visible_width, visible_height = (destination.shape[3] - left + min(0, x), destination.shape[2] - top + min(0, y),)
 
         mask = mask[:, :, :visible_height, :visible_width]
         inverse_mask = torch.ones_like(mask) - mask
