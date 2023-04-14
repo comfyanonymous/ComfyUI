@@ -23,30 +23,8 @@ app.registerExtension({
 			if (modifierPressed && (event.key === "s" || event.keyCode === 83)) {
 				event.preventDefault();
 
-				const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
-				const blob = new Blob([json], { type: "application/json" });
-				const url = URL.createObjectURL(blob);
-
-				const defaultFileName = "workflow.json";
-				const userFileName = prompt("Save workflow as:", defaultFileName);
-				if (userFileName === null) return;
-				const fileName = userFileName ? userFileName : defaultFileName;
-
-				if (!fileName.endsWith(".json")) {
-					fileName += ".json";
-				}
-
-				const a = $el("a", {
-					href: url,
-					download: fileName,
-					style: { display: "none" },
-					parent: document.body,
-				});
-				a.click();
-				setTimeout(() => {
-					a.remove();
-					window.URL.revokeObjectURL(url);
-				}, 0);
+				const saveButton = document.querySelector("#comfy-save-button");
+				saveButton.click()
 			}
 
 			// Load workflow using ctrl or command + o
@@ -59,14 +37,14 @@ app.registerExtension({
 
 			// Delete all nodes using ctrl or command + backspace or delete
 			if (modifierPressed && ((event.key === "Backspace" || event.keyCode === 8) || (event.key === "Delete" || event.keyCode === 46))) {
-				const clearButton = document.querySelector("#clear-button");
+				const clearButton = document.querySelector("#comfy-clear-button");
 				clearButton.click()
 			}
 
 			// Load default workflow using ctrl or command + d
 			if (modifierPressed && (event.key === "d" || event.keyCode === 68)) {
 				event.preventDefault();
-				const loadDefaultButton = document.querySelector("#load-default-button");
+				const loadDefaultButton = document.querySelector("#comfy-load-default-button");
 				loadDefaultButton.click()
 			}
 
@@ -76,12 +54,12 @@ app.registerExtension({
 			}
 
 			const keyToButtonIdMap = {
-				"q": "view-queue-button",
-				81: "view-queue-button",
-				"h": "view-history-button",
-				72: "view-history-button",
-				"r": "refresh-button",
-				82: "refresh-button",
+				"q": "comfy-view-queue-button",
+				81: "comfy-view-queue-button",
+				"h": "comfy-view-history-button",
+				72: "comfy-view-history-button",
+				"r": "comfy-refresh-button",
+				82: "comfy-refresh-button",
 			};
 
 			const buttonId = keyToButtonIdMap[event.key] || keyToButtonIdMap[event.keyCode];

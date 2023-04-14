@@ -31,13 +31,13 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
-## Shortcuts/Keybinds
+## Shortcuts
 
 | Keybind | Explanation |
 | - | - |
-| Ctrl + Enter | Queues up current graph for generation |
-| Ctrl + Shift + Enter | Queues up current graph as first for generation |
-| Ctrl + S | Saves workflow |
+| Ctrl + Enter | Queue up current graph for generation |
+| Ctrl + Shift + Enter | Queue up current graph as first for generation |
+| Ctrl + S | Save workflow |
 | Ctrl + O | Load workflow |
 | Ctrl + A | Select all nodes |
 | Ctrl + M | Mute/unmute selected nodes |
@@ -48,10 +48,10 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + C/Ctrl + V | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes) |
 | Ctrl + C/Ctrl + Shift + V| Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
 | Shift + Drag | Move multiple selected nodes at the same time |
-| Q | Toggles visibility of the queue |
-| H | Toggles visibility of history |
-| R | Refreshes graph |
-| D | Loads default graph |
+| Ctrl + D | Load default graph |
+| Q | Toggle visibility of the queue |
+| H | Toggle visibility of history |
+| R | Refresh graph |
 
 Ctrl can also be replaced with Cmd instead for MacOS users
 

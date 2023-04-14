@@ -501,7 +501,7 @@ export class ComfyUI {
 				$el("button", { id: "queue-front-button", textContent: "Queue Front", onclick: () => app.queuePrompt(-1, this.batchCount) }),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
-					id: "view-queue-button",
+					id: "comfy-view-queue-button",
 					textContent: "View Queue",
 					onclick: () => {
 						this.history.hide();
@@ -510,7 +510,7 @@ export class ComfyUI {
 				}),
 				$el("button", {
 					$: (b) => (this.history.button = b),
-					id: "view-history-button",
+					id: "comfy-view-history-button",
 					textContent: "View History",
 					onclick: () => {
 						this.queue.hide();
@@ -521,15 +521,23 @@ export class ComfyUI {
 			this.queue.element,
 			this.history.element,
 			$el("button", {
-				id: "save-button",
+				id: "comfy-save-button",
 				textContent: "Save",
 				onclick: () => {
+					const defaultFileName = "workflow.json";
+					const userFileName = prompt("Save workflow as:", defaultFileName);
+					if (userFileName === null) return;
+					let fileName = userFileName ? userFileName : defaultFileName;
+
+					if (!fileName.endsWith(".json")) {
+						fileName += ".json";
+					}
 					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
 					const blob = new Blob([json], { type: "application/json" });
 					const url = URL.createObjectURL(blob);
 					const a = $el("a", {
 						href: url,
-						download: "workflow.json",
+						download: fileName,
 						style: { display: "none" },
 						parent: document.body,
 					});
@@ -540,15 +548,15 @@ export class ComfyUI {
 					}, 0);
 				},
 			}),
-			$el("button", { id: "load-button", textContent: "Load", onclick: () => fileInput.click() }),
-			$el("button", { id: "refresh-button", textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
-			$el("button", { id: "clear-button", textContent: "Clear", onclick: () => {
+			$el("button", { id: "comfy-load-button", textContent: "Load", onclick: () => fileInput.click() }),
+			$el("button", { id: "comfy-refresh-button", textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
+			$el("button", { id: "comfy-clear-button", textContent: "Clear", onclick: () => {
 				if (!confirmClear.value || confirm("Clear workflow?")) {
 					app.clean();
 					app.graph.clear();
 				}
 			}}),
-			$el("button", { id: "load-default-button", textContent: "Load Default", onclick: () => {
+			$el("button", { id: "comfy-load-default-button", textContent: "Load Default", onclick: () => {
 				if (!confirmClear.value || confirm("Load default workflow?")) {
 					app.loadGraphData()
 				}
