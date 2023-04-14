@@ -9,8 +9,8 @@ class LatentCompositeMasked:
             "required": {
                 "destination": ("LATENT",),
                 "source": ("LATENT",),
-                "x": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION, "step": 8}),
-                "y": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION, "step": 8}),
+                "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
             },
             "optional": {
                 "mask": ("MASK",),
