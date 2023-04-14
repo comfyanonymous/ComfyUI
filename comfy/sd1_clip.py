@@ -240,7 +240,7 @@ class SD1Tokenizer:
         return (embed, "")
 
 
-    def tokenize_with_weights(self, text:str):
+    def tokenize_with_weights(self, text:str, return_word_ids=False):
         '''
         Takes a prompt and converts it to a list of (token, weight, word id) elements.
         Tokens can both be integer tokens and pre computed CLIP tensors.
@@ -301,6 +301,10 @@ class SD1Tokenizer:
         
         #add start and end tokens
         batched_tokens = [[(self.start_token, 1.0, 0)] + x + [(self.end_token, 1.0, 0)] for x in batched_tokens]
+
+        if not return_word_ids:
+            batched_tokens = [[(t, w) for t, w,_ in x] for x in batched_tokens]
+
         return batched_tokens
 
 

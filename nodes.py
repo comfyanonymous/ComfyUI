@@ -44,8 +44,7 @@ class CLIPTextEncode:
     CATEGORY = "conditioning"
 
     def encode(self, clip, text):
-        tokens = clip.tokenize(text)
-        return ([[clip.encode(tokens), {}]], )
+        return ([[clip.encode(text), {}]], )
 
 class ConditioningCombine:
     @classmethod
