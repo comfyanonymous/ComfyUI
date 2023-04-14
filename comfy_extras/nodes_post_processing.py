@@ -452,17 +452,18 @@ class Composite:
         result = torch.zeros_like(base_image)
 
         for b in range(batch_size):
-            if mask is None:
-                mask = torch.ones(overlay_image.shape[1:3])
-        
             img_a = (base_image[b] * 255).to(torch.uint8).numpy()
             img_b = (overlay_image[b] * 255).to(torch.uint8).numpy()
-            img_mask = (mask * 255).to(torch.uint8).numpy()
             pil_base_image = Image.fromarray(img_a, mode='RGB')
             pil_overlay_image = Image.fromarray(img_b, mode='RGB')
-            pil_image_mask = Image.fromarray(img_mask, mode='L')
-            if pil_image_mask.size != pil_overlay_image.size:
-                pil_image_mask = pil_image_mask.resize(pil_overlay_image.size, resamplers[resample])
+            
+            if mask is None:
+                pil_image_mask = mask
+            else:
+                img_mask = (mask * 255).to(torch.uint8).numpy()
+                pil_image_mask = Image.fromarray(img_mask, mode='L')
+                if pil_image_mask.size != pil_overlay_image.size:
+                    pil_image_mask = pil_image_mask.resize(pil_overlay_image.size, resamplers[resample])
 
             pil_base_image.paste(pil_overlay_image, (x, y), pil_image_mask)
 
