@@ -578,64 +578,44 @@ class LatentFlip:
 class LatentComposite:
     @classmethod
     def INPUT_TYPES(s):
-        return {
-            "required": {
-                "samples_to": ("LATENT",),
-                "samples_from": ("LATENT",),
-                "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
-                "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
-                "feather": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
-            }
-        }
+        return {"required": { "samples_to": ("LATENT",),
+                              "samples_from": ("LATENT",),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "feather": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "composite"
 
     CATEGORY = "latent"
 
-    def composite(self, samples_to, samples_from, x, y, feather):
-        output = samples_to.copy()
-        destination = samples_to["samples"].clone()
-        source = samples_from["samples"]
-
-        left, top = (x // 8, y // 8)
-        right, bottom = (left + source.shape[3], top + source.shape[2],)
+    def composite(self, samples_to, samples_from, x, y, composite_method="normal", feather=0):
+        x =  x // 8
+        y = y // 8
         feather = feather // 8
+        samples_out = samples_to.copy()
+        s = samples_to["samples"].clone()
+        samples_to = samples_to["samples"]
+        samples_from = samples_from["samples"]
+        if feather == 0:
+            s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x]
+        else:
+            samples_from = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x]
+            mask = torch.ones_like(samples_from)
+            for t in range(feather):
+                if y != 0:
+                    mask[:,:,t:1+t,:] *= ((1.0/feather) * (t + 1))
 
-
-
-        # calculate the bounds of the source that will be overlapping the destination
-        # this prevents the source trying to overwrite latent pixels that are out of bounds
-        # of the destination
-        visible_width, visible_height = (destination.shape[3] - left, destination.shape[2] - top,)
-
-        mask = torch.ones_like(source)
-
-        for f in range(feather):
-            feather_rate = (f + 1.0) / feather
-
-            if left > 0:
-                mask[:, :, :, f] *= feather_rate
-
-            if right < destination.shape[3] - 1:
-                mask[:, :, :, -f] *= feather_rate
-
-            if top > 0:
-                mask[:, :, f, :] *= feather_rate
-
-            if bottom < destination.shape[2] - 1:
-                mask[:, :, -f, :] *= feather_rate
-
-        mask = mask[:, :, :visible_height, :visible_width]
-        inverse_mask = torch.ones_like(mask) - mask
-
-        source_portion = mask * source[:, :, :visible_height, :visible_width]
-        destination_portion = inverse_mask  * destination[:, :, top:bottom, left:right]
-
-        destination[:, :, top:bottom, left:right] = source_portion + destination_portion
-
-        output["samples"] = destination
-
-        return (output,)
+                if y + samples_from.shape[2] < samples_to.shape[2]:
+                    mask[:,:,mask.shape[2] -1 -t: mask.shape[2]-t,:] *= ((1.0/feather) * (t + 1))
+                if x != 0:
+                    mask[:,:,:,t:1+t] *= ((1.0/feather) * (t + 1))
+                if x + samples_from.shape[3] < samples_to.shape[3]:
+                    mask[:,:,:,mask.shape[3]- 1 - t: mask.shape[3]- t] *= ((1.0/feather) * (t + 1))
+            rev_mask = torch.ones_like(mask) - mask
+            s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] = samples_from[:,:,:samples_to.shape[2] - y, :samples_to.shape[3] - x] * mask + s[:,:,y:y+samples_from.shape[2],x:x+samples_from.shape[3]] * rev_mask
+        samples_out["samples"] = s
+        return (samples_out,)
 
 class LatentCrop:
     @classmethod
