@@ -367,7 +367,7 @@ class Split:
         }
 
     RETURN_TYPES = ("IMAGE", "IMAGE", "IMAGE")
-    RETURN_NAMES = ("Red", "Green", "Blue")
+    RETURN_NAMES = ("red", "green", "blue")
 
     FUNCTION = "split"
 
@@ -422,8 +422,8 @@ class Composite:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "image_a": ("IMAGE",),
-                "image_b": ("IMAGE",),
+                "base_image": ("IMAGE",),
+                "overlay_image": ("IMAGE",),
                 "x": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
                 "y": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
                 "resample": (["nearest neighbor", "box", "bilinear", "bicubic", "hamming", "lanczos"],),
@@ -438,7 +438,7 @@ class Composite:
 
     CATEGORY = "image/postprocessing"
 
-    def composite(self, image_a: torch.Tensor, image_b: torch.Tensor, x: int, y: int, resample: str, mask: torch.Tensor = None):
+    def composite(self, base_image: torch.Tensor, overlay_image: torch.Tensor, x: int, y: int, resample: str, mask: torch.Tensor = None):
         resamplers = {
             "nearest neighbor": Image.Resampling.NEAREST,
             "bilinear": Image.Resampling.BILINEAR,
@@ -448,25 +448,25 @@ class Composite:
             "lanczos": Image.Resampling.LANCZOS,
         }
 
-        batch_size, height, width, _ = image_a.shape
-        result = torch.zeros_like(image_a)
+        batch_size, height, width, _ = base_image.shape
+        result = torch.zeros_like(base_image)
 
         for b in range(batch_size):
             if mask is None:
-                mask = torch.ones(image_b.shape[1:3])
+                mask = torch.ones(overlay_image.shape[1:3])
         
-            img_a = (image_a[b] * 255).to(torch.uint8).numpy()
-            img_b = (image_b[b] * 255).to(torch.uint8).numpy()
+            img_a = (base_image[b] * 255).to(torch.uint8).numpy()
+            img_b = (overlay_image[b] * 255).to(torch.uint8).numpy()
             img_mask = (mask * 255).to(torch.uint8).numpy()
-            pil_image_a = Image.fromarray(img_a, mode='RGB')
-            pil_image_b = Image.fromarray(img_b, mode='RGB')
+            pil_base_image = Image.fromarray(img_a, mode='RGB')
+            pil_overlay_image = Image.fromarray(img_b, mode='RGB')
             pil_image_mask = Image.fromarray(img_mask, mode='L')
-            if pil_image_mask.size != pil_image_b.size:
-                pil_image_mask = pil_image_mask.resize(pil_image_b.size, resamplers[resample])
+            if pil_image_mask.size != pil_overlay_image.size:
+                pil_image_mask = pil_image_mask.resize(pil_overlay_image.size, resamplers[resample])
 
-            pil_image_a.paste(pil_image_b, (x, y), pil_image_mask)
+            pil_base_image.paste(pil_overlay_image, (x, y), pil_image_mask)
 
-            output_array = torch.tensor(np.array(pil_image_a.convert("RGB"))).float() / 255
+            output_array = torch.tensor(np.array(pil_base_image.convert("RGB"))).float() / 255
             result[b] = output_array
 
         return (result,)
