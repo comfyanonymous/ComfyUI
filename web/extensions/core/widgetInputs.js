@@ -159,26 +159,30 @@ app.registerExtension({
 			const r = origOnInputDblClick ? origOnInputDblClick.apply(this, arguments) : undefined;
 
 			const input = this.inputs[slot];
-			if (input.widget && !input[ignoreDblClick]) {
-				const node = LiteGraph.createNode("PrimitiveNode");
-				app.graph.add(node);
-
-				// Calculate a position that wont directly overlap another node
-				const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
-				while (isNodeAtPos(pos)) {
-					pos[1] += LiteGraph.NODE_TITLE_HEIGHT;
-				}
-
-				node.pos = pos;
-				node.connect(0, this, slot);
-				node.title = input.name;
-
-				// Prevent adding duplicates due to triple clicking
-				input[ignoreDblClick] = true;
-				setTimeout(() => {
-					delete input[ignoreDblClick];
-				}, 300);
+			if (!input.widget || !input[ignoreDblClick])// Not a widget input or already handled input
+			{
+				if (!(input.type in ComfyWidgets)) return r;//also Not a ComfyWidgets input (do nothing)
 			}
+
+			// Create a primitive node
+			const node = LiteGraph.createNode("PrimitiveNode");
+			app.graph.add(node);
+
+			// Calculate a position that wont directly overlap another node
+			const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
+			while (isNodeAtPos(pos)) {
+				pos[1] += LiteGraph.NODE_TITLE_HEIGHT;
+			}
+
+			node.pos = pos;
+			node.connect(0, this, slot);
+			node.title = input.name;
+
+			// Prevent adding duplicates due to triple clicking
+			input[ignoreDblClick] = true;
+			setTimeout(() => {
+				delete input[ignoreDblClick];
+			}, 300);
 
 			return r;
 		};
@@ -233,7 +237,9 @@ app.registerExtension({
 				// Fires before the link is made allowing us to reject it if it isn't valid
 
 				// No widget, we cant connect
-				if (!input.widget) return false;
+				if (!input.widget) {
+					if (!(input.type in ComfyWidgets)) return false;
+				}
 
 				if (this.outputs[slot].links?.length) {
 					return this.#isValidConnection(input);
@@ -252,9 +258,17 @@ app.registerExtension({
 				const input = theirNode.inputs[link.target_slot];
 				if (!input) return;
 
-				const widget = input.widget;
-				const { type, linkType } = getWidgetType(widget.config);
 
+				var _widget;
+				if (!input.widget) {
+					if (!(input.type in ComfyWidgets)) return;
+					_widget = { "name": input.name, "config": [input.type, {}] }//fake widget
+				} else {
+					_widget = input.widget;
+				}
+
+				const widget = _widget;
+				const { type, linkType } = getWidgetType(widget.config);
 				// Update our output to restrict to the widget type
 				this.outputs[0].type = linkType;
 				this.outputs[0].name = type;
@@ -274,7 +288,7 @@ app.registerExtension({
 				if (type in ComfyWidgets) {
 					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
 				} else {
-					widget = this.addWidget(type, "value", null, () => {}, {});
+					widget = this.addWidget(type, "value", null, () => { }, {});
 				}
 
 				if (node?.widgets && widget) {
