@@ -2,6 +2,7 @@ import os
 
 from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig
 import torch
+import traceback
 
 class ClipTokenWeightEncoder:
     def encode_token_weights(self, token_weight_pairs):
@@ -194,14 +195,21 @@ def load_embed(embedding_name, embedding_directory):
 
     embed_path = valid_file
 
-    if embed_path.lower().endswith(".safetensors"):
-        import safetensors.torch
-        embed = safetensors.torch.load_file(embed_path, device="cpu")
-    else:
-        if 'weights_only' in torch.load.__code__.co_varnames:
-            embed = torch.load(embed_path, weights_only=True, map_location="cpu")
+    try:
+        if embed_path.lower().endswith(".safetensors"):
+            import safetensors.torch
+            embed = safetensors.torch.load_file(embed_path, device="cpu")
         else:
-            embed = torch.load(embed_path, map_location="cpu")
+            if 'weights_only' in torch.load.__code__.co_varnames:
+                embed = torch.load(embed_path, weights_only=True, map_location="cpu")
+            else:
+                embed = torch.load(embed_path, map_location="cpu")
+    except Exception as e:
+        print(traceback.format_exc())
+        print()
+        print("error loading embedding, skipping loading:", embedding_name)
+        return None
+
     if 'string_to_param' in embed:
         values = embed['string_to_param'].values()
     else:
