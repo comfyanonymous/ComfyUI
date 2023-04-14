@@ -519,12 +519,16 @@ export class ComfyUI {
 			$el("button", {
 				textContent: "Save",
 				onclick: () => {
+                    const filename = prompt("Save as...", "workflow");
+                    if (!filename) {
+                        return;
+                    }
 					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
 					const blob = new Blob([json], { type: "application/json" });
 					const url = URL.createObjectURL(blob);
 					const a = $el("a", {
 						href: url,
-						download: "workflow.json",
+						download: `${filename}.json`,
 						style: { display: "none" },
 						parent: document.body,
 					});
