@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from PIL import Image, ImageColor
+from PIL import Image, ImageColor, ImageOps
 import re
 
 import comfy.utils
@@ -429,6 +429,8 @@ class Composite:
                 "image_a": ("IMAGE",),
                 "image_b": ("IMAGE",),
                 "mask": ("MASK",),
+                "x": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
+                "y": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION}),
             },
         }
 
@@ -437,7 +439,7 @@ class Composite:
 
     CATEGORY = "image/postprocessing"
 
-    def composite(self, image_a: torch.Tensor, image_b: torch.Tensor, mask: torch.Tensor):
+    def composite(self, image_a: torch.Tensor, image_b: torch.Tensor, mask: torch.Tensor, x: int, y: int):
         batch_size, height, width, _ = image_a.shape
         result = torch.zeros_like(image_a)
 
@@ -449,9 +451,9 @@ class Composite:
             pil_image_b = Image.fromarray(img_b, mode='RGB')
             pil_image_mask = Image.fromarray(img_mask, mode='L')
 
-            output_image = Image.composite(pil_image_a, pil_image_b, pil_image_mask)
+            pil_image_a.paste(pil_image_b, (x, y), pil_image_mask)
 
-            output_array = torch.tensor(np.array(output_image.convert("RGB"))).float() / 255
+            output_array = torch.tensor(np.array(pil_image_a.convert("RGB"))).float() / 255
             result[b] = output_array
 
         return (result,)
