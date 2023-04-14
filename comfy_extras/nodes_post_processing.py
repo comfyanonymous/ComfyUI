@@ -124,10 +124,7 @@ class Quantize:
                     "max": 256,
                     "step": 1
                 }),
-                "dither": ("BOOL", {
-                    "off": "none",
-                    "on": "floyd-steinberg"
-                }),
+                "dither": ("BOOL", {"default": True, "on": "floyd-steinberg", "off": "none"}),
             },
         }
 

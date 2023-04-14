@@ -366,10 +366,10 @@ export const ComfyWidgets = {
 		return { widget: uploadWidget };
 	},
 	BOOL(node, inputName, inputData) {
-		let defaultVal = true;
+		let defaultVal = false;
 		let defaultOn = "true";
 		let defaultOff = "false";
-		if (inputData[1] && "default" in inputData[1]) {
+		if (inputData[1] && inputData[1].default) {
 			defaultVal = inputData[1].default
 		}
 		if (inputData[1] && inputData[1].on) {

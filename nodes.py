@@ -519,7 +519,7 @@ class LatentUpscale:
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
                               "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
-                              "crop": ("BOOL", {"default": False, "on": "center", "off": "disabled"}),}}
+                              "crop": ("BOOL", {"on": "center", "off": "disabled"}),}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
 
@@ -559,7 +559,7 @@ class LatentFlip:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "flip_method": ("BOOL", {"on": "x-axis: vertically", "off": "y-axis: horizontally"}),
+                              "flip_method": ("BOOL", {"default": True, "on": "x-axis: vertically", "off": "y-axis: horizontally"}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "flip"
@@ -772,7 +772,7 @@ class KSamplerAdvanced:
     def INPUT_TYPES(s):
         return {"required":
                     {"model": ("MODEL",),
-                    "add_noise": ("BOOL", {"on": "enable", "off": "disable"}),
+                    "add_noise": ("BOOL", {"default": True, "on": "enable", "off": "disable"}),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
@@ -783,7 +783,7 @@ class KSamplerAdvanced:
                     "latent_image": ("LATENT", ),
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
-                    "return_with_leftover_noise": ("BOOL", {"default": False, "on": "enable", "off": "disable"}),
+                    "return_with_leftover_noise": ("BOOL", {"on": "enable", "off": "disable"}),
                     }}
 
     RETURN_TYPES = ("LATENT",)
@@ -966,7 +966,7 @@ class ImageScale:
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
                               "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "crop": ("BOOL", {"default": False, "on": "center", "off": "disabled"})}}
+                              "crop": ("BOOL", {"on": "center", "off": "disabled"})}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
 
