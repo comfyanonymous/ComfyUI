@@ -4,15 +4,15 @@ import { $el } from "/scripts/ui.js";
 const id = "Comfy.Keybinds";
 app.registerExtension({
 	name: id,
-    init() {
-        const keybindListener = function(event) {
-            const target = event.composedPath()[0];
+	init() {
+		const keybindListener = function(event) {
+			const target = event.composedPath()[0];
 
-            if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-                return;
-            }
+			if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+				return;
+			}
 
-            const modifierPressed = event.ctrlKey || event.metaKey;
+			const modifierPressed = event.ctrlKey || event.metaKey;
 
 			// Queue prompt using ctrl or command + enter
 			if (modifierPressed && (event.key === "Enter" || event.keyCode === 13 || event.keyCode === 10)) {
@@ -63,25 +63,34 @@ app.registerExtension({
 				clearButton.click()
 			}
 
-            // Finished Handling all modifier keybinds, now handle the rest
-            if (event.ctrlKey || event.altKey || event.metaKey) {
-                return;
-            }
+			// Load default workflow using ctrl or command + d
+			if (modifierPressed && (event.key === "d" || event.keyCode === 68)) {
+				event.preventDefault();
+				const loadDefaultButton = document.querySelector("#load-default-button");
+				loadDefaultButton.click()
+			}
 
-            const keyToButtonIdMap = {
-                "q": "view-queue-button",
-                "h": "view-history-button",
-                "r": "refresh-button",
-                "d": "load-default-button",
-            };
+			// Finished Handling all modifier keybinds, now handle the rest
+			if (event.ctrlKey || event.altKey || event.metaKey) {
+				return;
+			}
 
-            const buttonId = keyToButtonIdMap[event.key];
-            if (buttonId) {
-                const button = document.querySelector(`#${buttonId}`);
-                button.dispatchEvent(new Event("click"));
-            }
-        }
+			const keyToButtonIdMap = {
+				"q": "view-queue-button",
+				81: "view-queue-button",
+				"h": "view-history-button",
+				72: "view-history-button",
+				"r": "refresh-button",
+				82: "refresh-button",
+			};
 
-        window.addEventListener("keydown", keybindListener, true);
-    }
+			const buttonId = keyToButtonIdMap[event.key] || keyToButtonIdMap[event.keyCode];
+			if (buttonId) {
+				const button = document.querySelector(`#${buttonId}`);
+				button.click();
+			}
+		}
+
+		window.addEventListener("keydown", keybindListener, true);
+	}
 });
