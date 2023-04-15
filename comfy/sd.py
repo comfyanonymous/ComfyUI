@@ -375,13 +375,9 @@ class CLIP:
     def tokenize(self, text, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
-    def encode(self, text, from_tokens=False):
+    def encode_from_tokens(self, tokens):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
-        if from_tokens:
-            tokens = text
-        else:
-            tokens = self.tokenizer.tokenize_with_weights(text)
         try:
             self.patcher.patch_model()
             cond = self.cond_stage_model.encode_token_weights(tokens)
@@ -390,6 +386,10 @@ class CLIP:
             self.patcher.unpatch_model()
             raise e
         return cond
+
+    def encode(self, text):
+        tokens = self.tokenizer.tokenize_with_weights(text)
+        return self.encode_from_tokens(tokens)
 
 class VAE:
     def __init__(self, ckpt_path=None, scale_factor=0.18215, device=None, config=None):
