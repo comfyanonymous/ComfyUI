@@ -315,7 +315,7 @@ class SD1Tokenizer:
                         continue
                 #parse word
                 tokens.append([(t, weight) for t in self.tokenizer(word)["input_ids"][1:-1]])
-        
+
         #reshape token array to CLIP input size
         batched_tokens = []
         batch = [(self.start_token, 1.0, 0)]
@@ -338,11 +338,11 @@ class SD1Tokenizer:
                         batch.extend([(pad_token, 1.0, 0)] * (remaining_length))
                     #start new batch
                     batch = [(self.start_token, 1.0, 0)]
-                    batched_tokens.append(batch)    
+                    batched_tokens.append(batch)
                 else:
                     batch.extend([(t,w,i+1) for t,w in t_group])
                     t_group = []
-        
+
         #fill last batch
         batch.extend([(self.end_token, 1.0, 0)] + [(pad_token, 1.0, 0)] * (self.max_length - len(batch) - 1))
 
