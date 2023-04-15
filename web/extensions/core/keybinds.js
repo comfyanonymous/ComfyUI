@@ -1,5 +1,4 @@
 import { app } from "/scripts/app.js";
-import { $el } from "/scripts/ui.js";
 
 const id = "Comfy.Keybinds";
 app.registerExtension({
@@ -17,35 +16,29 @@ app.registerExtension({
 			// Queue prompt using ctrl or command + enter
 			if (modifierPressed && (event.key === "Enter" || event.keyCode === 13 || event.keyCode === 10)) {
 				app.queuePrompt(event.shiftKey ? -1 : 0);
+				return;
 			}
 
-			// Save workflow using ctrl or command + s
-			if (modifierPressed && (event.key === "s" || event.keyCode === 83)) {
+			const modifierKeyIdMap = {
+				"s": "#comfy-save-button",
+				83: "#comfy-save-button",
+				"o": "#comfy-file-input",
+				79: "#comfy-file-input",
+				"Backspace": "#comfy-clear-button",
+				8: "#comfy-clear-button",
+				"Delete": "#comfy-clear-button",
+				46: "#comfy-clear-button",
+				"d": "#comfy-load-default-button",
+				68: "#comfy-load-default-button",
+			};
+
+			const modifierKeybindId = modifierKeyIdMap[event.key] || modifierKeyIdMap[event.keyCode];
+			if (modifierPressed && modifierKeybindId) {
 				event.preventDefault();
 
-				const saveButton = document.querySelector("#comfy-save-button");
-				saveButton.click()
-			}
-
-			// Load workflow using ctrl or command + o
-			if (modifierPressed && (event.key === "o" || event.keyCode === 79)) {
-				event.preventDefault();
-
-				const fileInput = document.querySelector("#comfy-file-input");
-				fileInput.click()
-			}
-
-			// Delete all nodes using ctrl or command + backspace or delete
-			if (modifierPressed && ((event.key === "Backspace" || event.keyCode === 8) || (event.key === "Delete" || event.keyCode === 46))) {
-				const clearButton = document.querySelector("#comfy-clear-button");
-				clearButton.click()
-			}
-
-			// Load default workflow using ctrl or command + d
-			if (modifierPressed && (event.key === "d" || event.keyCode === 68)) {
-				event.preventDefault();
-				const loadDefaultButton = document.querySelector("#comfy-load-default-button");
-				loadDefaultButton.click()
+				const elem = document.querySelector(modifierKeybindId);
+				elem.click();
+				return;
 			}
 
 			// Finished Handling all modifier keybinds, now handle the rest
@@ -62,18 +55,18 @@ app.registerExtension({
 				}
 			}
 
-			const keyToButtonIdMap = {
-				"q": "comfy-view-queue-button",
-				81: "comfy-view-queue-button",
-				"h": "comfy-view-history-button",
-				72: "comfy-view-history-button",
-				"r": "comfy-refresh-button",
-				82: "comfy-refresh-button",
+			const keyIdMap = {
+				"q": "#comfy-view-queue-button",
+				81: "#comfy-view-queue-button",
+				"h": "#comfy-view-history-button",
+				72: "#comfy-view-history-button",
+				"r": "#comfy-refresh-button",
+				82: "#comfy-refresh-button",
 			};
 
-			const buttonId = keyToButtonIdMap[event.key] || keyToButtonIdMap[event.keyCode];
+			const buttonId = keyIdMap[event.key] || keyIdMap[event.keyCode];
 			if (buttonId) {
-				const button = document.querySelector(`#${buttonId}`);
+				const button = document.querySelector(buttonId);
 				button.click();
 			}
 		}
