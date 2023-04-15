@@ -534,8 +534,8 @@ export class ComfyUI {
 					let filename = "workflow.json";
 					if (promptFilename.value) {
 						filename = prompt("Save workflow as:", filename);
-						if (filename === null) return;
-						if (!filename.endsWith(".json")) {
+						if (!filename) return;
+						if (!filename.toLowerCase().endsWith(".json")) {
 							filename += ".json";
 						}
 					}
