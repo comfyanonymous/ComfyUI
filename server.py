@@ -271,7 +271,6 @@ class PromptServer():
             files = []
             for dirpath, directories, file in os.walk(dir):
                 for file in file:
-                    print(directories, file)
                     if(file.endswith(".json")):
                         files.append(os.path.relpath(os.path.join(dirpath, file), dir))
             return web.json_response(list(map(lambda f: os.path.splitext(f)[0].replace("\\", "/"), files)))
