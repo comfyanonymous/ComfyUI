@@ -483,7 +483,6 @@ export class ComfyUI {
 						app.refreshComboInNodes();
 				},
 			}),
-			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
 			$el("button", { textContent: "Clear", onclick: () => {
 				if (!confirmClear.value || confirm("Clear workflow?")) {
 					app.clean();
