@@ -131,6 +131,7 @@ export async function importA1111(graph, parameters) {
 			}
 
 			function replaceEmbeddings(text) {
+				if(!embeddings.length) return text;
 				return text.replaceAll(
 					new RegExp(
 						"\\b(" + embeddings.map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\b|\\b") + ")\\b",
