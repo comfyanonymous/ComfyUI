@@ -21,16 +21,16 @@ import comfy.utils
 
 import comfy.clip_vision
 
-import model_management
+import comfy.model_management
 import importlib
 
 import folder_paths
 
 def before_node_execution():
-    model_management.throw_exception_if_processing_interrupted()
+    comfy.model_management.throw_exception_if_processing_interrupted()
 
 def interrupt_processing(value=True):
-    model_management.interrupt_current_processing(value)
+    comfy.model_management.interrupt_current_processing(value)
 
 MAX_RESOLUTION=8192
 
@@ -241,7 +241,7 @@ class DiffusersLoader:
                     model_path = os.path.join(search_path, model_path)
                     break
 
-        return comfy.diffusers_convert.load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return comfy.diffusers_convert.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
@@ -680,7 +680,7 @@ class SetLatentNoiseMask:
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
     noise_mask = None
-    device = model_management.get_torch_device()
+    device = comfy.model_management.get_torch_device()
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -696,7 +696,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
         noise_mask = noise_mask.to(device)
 
     real_model = None
-    model_management.load_model_gpu(model)
+    comfy.model_management.load_model_gpu(model)
     real_model = model.model
 
     noise = noise.to(device)
@@ -726,7 +726,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     control_net_models = []
     for x in control_nets:
         control_net_models += x.get_control_models()
-    model_management.load_controlnet_gpu(control_net_models)
+    comfy.model_management.load_controlnet_gpu(control_net_models)
 
     if sampler_name in comfy.samplers.KSampler.SAMPLERS:
         sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)

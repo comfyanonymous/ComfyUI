@@ -3,7 +3,7 @@ from .k_diffusion import external as k_diffusion_external
 from .extra_samplers import uni_pc
 import torch
 import contextlib
-import model_management
+from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 
