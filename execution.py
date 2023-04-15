@@ -10,7 +10,7 @@ import gc
 import torch
 import nodes
 
-from model_management import xpu_available
+import comfy.model_management
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -204,12 +204,7 @@ class PromptExecutor:
                     self.server.send_sync("executing", { "node": None }, self.server.client_id)
 
         gc.collect()
-        if torch.cuda.is_available():
-            if torch.version.cuda: #This seems to make things worse on ROCm so I only do it for cuda
-                torch.cuda.empty_cache()
-                torch.cuda.ipc_collect()
-        elif xpu_available:
-            torch.xpu.empty_cache()
+        comfy.model_management.soft_empty_cache()
 
 
 def validate_inputs(prompt, item):
