@@ -268,7 +268,12 @@ class PromptServer():
         @routes.get("/workflows")
         async def get_workflows(request):
             dir = folder_paths.get_workflows_directory()
-            files = glob.glob('**/*.json', root_dir=dir, recursive=True)
+            files = []
+            for dirpath, directories, file in os.walk(dir):
+                for file in file:
+                    print(directories, file)
+                    if(file.endswith(".json")):
+                        files.append(os.path.relpath(os.path.join(dirpath, file), dir))
             return web.json_response(list(map(lambda f: os.path.splitext(f)[0].replace("\\", "/"), files)))
 
         @routes.get("/workflows/{name:.+}")
