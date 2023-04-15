@@ -253,18 +253,21 @@ class NC{
 		this.widget = WIDGET;
 		this.type = WIDGET.type;
 		
-		this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
+		//this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
 		this.addController();
 	}
 	addController(){
 		switch (this.type){
 			case 'number':
+				this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
 				this.controller = $Add('input', this.frame, {type : 'number' , min : this.widget.options.min, max : this.widget.options.max, step : this.widget.options.step/10, value : this.widget.value, onchange : ()=>{this.changeController()}});
 				break;
 			case 'toggle':
+				this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
 				this.controller = $Add('input', this.frame, {type : 'checkbox', checked : this.widget.value, onchange : ()=>{this.changeController()}});
 				break;
 			case 'combo':
+				this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
 				this.controller = $Add('select', this.frame, {onchange : ()=>{this.changeController()}});
 				for (let i = 0; i < this.widget.options.values.length; i++){
 					$Add('option', this.controller, {value : this.widget.options.values[i], innerHTML : this.widget.options.values[i]});
@@ -272,10 +275,15 @@ class NC{
 				this.controller.value = this.widget.value;
 				break;
 			case 'text':
+				this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
 				this.controller = $Add('input', this.frame, {type : 'text', value : this.widget.value, onchange : ()=>{this.changeController()}});
 				break;
 			case 'customtext':
+				this.name = $Add('div', this.frame, {innerHTML : this.widget.name});
 				this.controller = $Add('textarea', this.frame, {value : this.widget.value, onchange : ()=>{this.changeController()}});
+				break;
+			case 'button':
+				this.controller = $Add('input', this.frame, {type : 'button', value : this.widget.name, onclick : ()=>{this.widget.callback()} } );
 				break;
 		}
 	}
@@ -291,6 +299,9 @@ class NC{
 				this.widget.value = this.controller.checked;
 		}
 	}
+	update(){
+		
+	}
 }
 
 class NCITEM{
@@ -305,29 +316,35 @@ class NCITEM{
 		this.node = nodes[this.id];
 		this.controllers = [];
 		
-		this.frame = $Add('div', TARGET, {className: 'button', style : {position : 'absolute', minHeight: '100px', minWidth : '100px', /*marginLeft : '250px'*/} } );
+		this.frame = $Add('div', TARGET, {className: 'button', style : {position : 'absolute', minHeight: '100px', minWidth : '100px', overflow : 'auto'} } );
 		if(this.node.bgcolor != undefined) this.frame.style.background = this.node.bgcolor;
-		
+		//title
 		this.title = $Add('div', this.frame, {className : 'button', innerHTML : `<b style="pointer-events:none">id:</b>${this.id} <b style="pointer-events:none">title:</b>${this.node.title}`} );
 		if (this.node.color != undefined) this.title.style.background = this.node.color;
 		
+		//config farame
 		this.config = $Add('div', this.frame, {style : {position : 'absolute', width: '100%', height : '100%', top : 0/*, background : '#0000'*/} } );
 		
 		this.drag = $Add('div', this.config, {style : {height : '25px', cursor : 'move', position: 'absolute', top : 0, width : '100%'}, onmousedown : (e)=>{this.mouseDownDrag(e)} } );
 		
-		this.haveImageToggle = $Add('input', this.config, {type : 'checkbox', style : {position : 'absolute', top : '75px', right : 0}, onchange : ()=>{this.switchHaveImage()}});
+		//this.haveImageToggle = $Add('input', this.config, {type : 'checkbox', style : {position : 'absolute', top : '75px', right : 0}, onchange : ()=>{this.switchHaveImage()}});
 		this.deleteButton = $Add('div', this.config, {innerHTML : 'X', className : 'button', style : {position : 'absolute', top : 0, right : 0} } );
 		
 		this.setColor = $Add('input', this.config, {type : 'color', className : 'button', style : {position : 'absolute', top : '25px', right : 0}, onchange : (e)=>{this.colorSet(e)} } );
-		if (this.node.color != undefined) this.setColor.value = (this.node.color != undefined) ? `#${this.node.color[1]}0${this.node.color[2]}0${this.node.color[3]}0` : '#000000';
+		if (this.node.color != undefined) this.setColor.value = (this.node.color != undefined) ? ((this.node.color.length == 4) ? `#${this.node.color[1]}0${this.node.color[2]}0${this.node.color[3]}0` : this.node.color) : '#000000';
 		
 		this.setBGColor = $Add('input', this.config, {type : 'color', className : 'button', style : {position : 'absolute', top : '50px', right : 0}, onchange : (e)=>{this.BGcolorSet(e)} } );
-		if(this.node.bgcolor != undefined) this.setBGColor.value = (this.node.color != undefined) ? `#${this.node.bgcolor[1]}0${this.node.bgcolor[2]}0${this.node.bgcolor[3]}0` : '#000000';
+		if(this.node.bgcolor != undefined) this.setBGColor.value = (this.node.bgcolor != undefined) ? ((this.node.bgcolor.length == 4) ? `#${this.node.bgcolor[1]}0${this.node.bgcolor[2]}0${this.node.bgcolor[3]}0` : this.node.bgcolor) : '#000000';
 		
 		this.resize = $Add('div', this.config, {className : 'button', style : {position : 'absolute', bottom : 0, right : 0, height : '25px', width : '25px', cursor : 'nwse-resize'}, onmousedown : (e)=>{this.mouseDownResize(e)} } );
 		
+		//widgets
 		if (this.node.widgets != undefined) for (let i = 0; i < this.node.widgets.length; i++){
 			this.controllers.push(new NC(this.frame, this.node.widgets[i]));
+		}
+		//show images
+		if(this.node.imgs != undefined){
+			this.img = $Add('img', this.frame, {src : this.node.imgs[0].src, style : {maxWidth : '100%'} } );
 		}
 		
 		this.mouseOffset = [0,0];
@@ -336,6 +353,24 @@ class NCITEM{
 		this.size = [this.frame.clientWidth, this.frame.clientHeight];
 		this.move();
 		this.resi();
+	}
+	update(){
+		if(this.node.bgcolor != undefined) this.frame.style.background = this.node.bgcolor;
+		if(this.node.bgcolor != undefined) this.setBGColor.value = (this.node.bgcolor != undefined) ? ((this.node.bgcolor.length == 4) ? `#${this.node.bgcolor[1]}0${this.node.bgcolor[2]}0${this.node.bgcolor[3]}0` : this.node.bgcolor) : '#000000';
+		//title
+		this.title.innerHTML = `<b style="pointer-events:none">id:</b>${this.id} <b style="pointer-events:none">title:</b>${this.node.title}`;
+		if (this.node.color != undefined) this.title.style.background = this.node.color;
+		if (this.node.color != undefined) this.setColor.value = (this.node.color != undefined) ? ((this.node.color.length == 4) ? `#${this.node.color[1]}0${this.node.color[2]}0${this.node.color[3]}0` : this.node.color) : '#000000';
+		
+		for (let i = 0; i < this.controllers.length; i++) this.controllers[i].update();
+		
+		if(this.node.imgs != undefined){
+			if(this.img == undefined){
+				this.img = $Add('img', this.frame, {src : this.node.imgs[0].src, style : {maxWidth : '100%'} } );
+			}else{
+				this.img.src = this.node.imgs[0].src;
+			}
+		}
 	}
 	colorSet(EVENT){
 		//log(EVENT.target.value);
@@ -443,7 +478,21 @@ class NCP{
 		this.NCItems = [];
 		this.addedList = [];
 		this.selectors = [];
+		//on change
+		/*this.onChange = new Event('onChange');
+		this.createEventOnAfterChange();*/
+		document.addEventListener('onImageChange', ()=>{this.nodesUpdate()});
 	}
+	nodesUpdate(){
+		for (let i = 0; i < this.NCItems.length; i++){
+			this.NCItems[i].update();
+		}
+	}
+	/*async createEventOnAfterChange(){
+		await sleep(1000);
+		app.canvas.onAfterChange = ()=>{document.dispatchEvent(this.onAfterChange)};//()=>{this.nodesUpdate()};
+		document.addEventListener('onChange', ()=>{this.nodesUpdate()});
+	}*/
 	addNCClick(EVENT){
 		log(app.graph._nodes_by_id);
 		//log(EVENT.target);
@@ -484,6 +533,7 @@ class NCP{
 			this.opened = !this.opened;
 			this.mainFrame.style.left = 0;
 			this.slideFrame.style.background = WC_VARIABLES.selectedColor;
+			this.nodesUpdate();
 		}
 	}
 	editSwitch(){
