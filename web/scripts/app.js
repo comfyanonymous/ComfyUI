@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111 } from "./pnginfo.js";
 
-	/** 
+/** 
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
 
