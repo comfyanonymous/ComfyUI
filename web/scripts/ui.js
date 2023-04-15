@@ -431,6 +431,13 @@ export class ComfyUI {
 			defaultValue: true,
 		});
 
+		const promptFilename = this.settings.addSetting({
+			id: "Comfy.PromptFilename",
+			name: "Prompt for filename when saving workflow",
+			type: "boolean",
+			defaultValue: true,
+		});
+
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
@@ -524,20 +531,20 @@ export class ComfyUI {
 				id: "comfy-save-button",
 				textContent: "Save",
 				onclick: () => {
-					const defaultFileName = "workflow.json";
-					const userFileName = prompt("Save workflow as:", defaultFileName);
-					if (userFileName === null) return;
-					let fileName = userFileName ? userFileName : defaultFileName;
-
-					if (!fileName.endsWith(".json")) {
-						fileName += ".json";
+					let filename = "workflow.json";
+					if (promptFilename.value) {
+						filename = prompt("Save workflow as:", filename);
+						if (filename === null) return;
+						if (!filename.endsWith(".json")) {
+							filename += ".json";
+						}
 					}
 					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
 					const blob = new Blob([json], { type: "application/json" });
 					const url = URL.createObjectURL(blob);
 					const a = $el("a", {
 						href: url,
-						download: fileName,
+						download: filename,
 						style: { display: "none" },
 						parent: document.body,
 					});
