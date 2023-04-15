@@ -264,6 +264,41 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+
+        @routes.get("/workflows")
+        async def get_workflows(request):
+            dir = folder_paths.get_workflows_directory()
+            files = glob.glob('**/*.json', root_dir=dir, recursive=True)
+            return web.json_response(list(map(lambda f: os.path.splitext(f)[0].replace("\\", "/"), files)))
+
+        @routes.get("/workflows/{name:.+}")
+        async def get_workflow(request):
+            dir = folder_paths.get_workflows_directory()
+            file = os.path.abspath(os.path.join(dir, request.match_info["name"] + ".json"))
+            if os.path.commonpath([file, dir]) != dir:
+                return web.Response(status=403)
+
+            return web.FileResponse(file)
+        
+        @routes.post("/workflows")
+        async def save_workflow(request):
+            json_data =  await request.json()
+            dir = folder_paths.get_workflows_directory()
+            file = os.path.abspath(os.path.join(dir, json_data["name"] + ".json"))
+            if os.path.commonpath([file, dir]) != dir:
+                return web.Response(status=403)
+            
+            if os.path.exists(file) and ("overwrite" not in json_data or json_data["overwrite"] == False):
+                return web.Response(status=409)
+            
+            sub_path = os.path.dirname(file)
+            if not os.path.exists(sub_path):
+                os.makedirs(sub_path)
+
+            with open(file, "w") as f:
+                f.write(json.dumps(json_data["workflow"]))
+
+            return web.Response(status=201)
         
     def add_routes(self):
         self.app.add_routes(self.routes)

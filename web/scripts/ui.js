@@ -1,43 +1,7 @@
 import { api } from "./api.js";
-
-export function $el(tag, propsOrChildren, children) {
-	const split = tag.split(".");
-	const element = document.createElement(split.shift());
-	element.classList.add(...split);
-	if (propsOrChildren) {
-		if (Array.isArray(propsOrChildren)) {
-			element.append(...propsOrChildren);
-		} else {
-			const { parent, $: cb, dataset, style } = propsOrChildren;
-			delete propsOrChildren.parent;
-			delete propsOrChildren.$;
-			delete propsOrChildren.dataset;
-			delete propsOrChildren.style;
-
-			if (style) {
-				Object.assign(element.style, style);
-			}
-
-			if (dataset) {
-				Object.assign(element.dataset, dataset);
-			}
-
-			Object.assign(element, propsOrChildren);
-			if (children) {
-				element.append(...children);
-			}
-
-			if (parent) {
-				parent.append(element);
-			}
-
-			if (cb) {
-				cb(element);
-			}
-		}
-	}
-	return element;
-}
+import { $el } from "./ui/helpers.js";
+import { ComfyWorkflows } from "./ui/comfyWorkflows.js";
+export { $el } from "./ui/helpers.js";
 
 function dragElement(dragEl, settings) {
 	var posDiffX = 0,
@@ -418,6 +382,7 @@ export class ComfyUI {
 		this.lastQueueSize = 0;
 		this.queue = new ComfyList("Queue");
 		this.history = new ComfyList("History");
+		this.workflows = new ComfyWorkflows();
 
 		api.addEventListener("status", () => {
 			this.queue.update();
@@ -431,18 +396,11 @@ export class ComfyUI {
 			defaultValue: true,
 		});
 
-		const fileInput = $el("input", {
-			type: "file",
-			accept: ".json,image/png",
-			style: { display: "none" },
-			parent: document.body,
-			onchange: () => {
-				app.handleFile(fileInput.files[0]);
-			},
-		});
-
-		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
-			$el("div.drag-handle", { style: { overflow: "hidden", position: "relative", width: "100%", cursor: "default" } }, [
+		this.menuContainer = $el("div.comfy-menu", {
+				parent: document.body,
+				onmousedown: () => LiteGraph.closeAllContextMenus()
+			}, [
+				$el("div.drag-handle", { style: { overflow: "hidden", position: "relative", width: "100%", cursor: "default" } }, [
 				$el("span.drag-handle"),
 				$el("span", { $: (q) => (this.queueSize = q) }),
 				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
@@ -516,26 +474,15 @@ export class ComfyUI {
 			]),
 			this.queue.element,
 			this.history.element,
+			this.workflows.save_button.element,
+			this.workflows.load_button.element,
 			$el("button", {
-				textContent: "Save",
-				onclick: () => {
-					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
-					const blob = new Blob([json], { type: "application/json" });
-					const url = URL.createObjectURL(blob);
-					const a = $el("a", {
-						href: url,
-						download: "workflow.json",
-						style: { display: "none" },
-						parent: document.body,
-					});
-					a.click();
-					setTimeout(function () {
-						a.remove();
-						window.URL.revokeObjectURL(url);
-					}, 0);
+					textContent: "Refresh",
+					onclick: () => {
+						this.workflows.load();
+						app.refreshComboInNodes();
 				},
 			}),
-			$el("button", { textContent: "Load", onclick: () => fileInput.click() }),
 			$el("button", { textContent: "Refresh", onclick: () => app.refreshComboInNodes() }),
 			$el("button", { textContent: "Clear", onclick: () => {
 				if (!confirmClear.value || confirm("Clear workflow?")) {

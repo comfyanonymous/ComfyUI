@@ -117,16 +117,27 @@ body {
 	width: 100%;
 }
 
+.comfy-menu-button,
 .comfy-menu > button,
 .comfy-menu-btns button,
 .comfy-menu .comfy-list button,
-.comfy-modal button{
+.comfy-modal button {
 	color: var(--input-text);
 	background-color: var(--comfy-input-bg);
 	border-radius: 8px;
 	border-color: var(--border-color);
 	border-style: solid;
 	margin-top: 2px;
+}
+
+.comfy-settings-btn:hover,
+.comfy-menu-button:hover,
+.comfy-menu > button:hover,
+.comfy-menu-btns button:hover,
+.comfy-menu .comfy-list button:hover,
+.comfy-modal button:hover {
+	filter: brightness(1.2);
+	cursor: pointer;
 }
 
 .comfy-menu span.drag-handle {
@@ -209,7 +220,7 @@ button.comfy-queue-btn {
 	margin: 6px 0 !important;
 }
 
-.comfy-modal.comfy-settings, 
+.comfy-modal.comfy-settings,
 .comfy-modal.comfy-manage-templates {
 	text-align: center;
 	font-family: sans-serif;
@@ -268,12 +279,52 @@ button.comfy-queue-btn {
 .litegraph .litemenu-entry.has_submenu {
 	position: relative;
 	padding-right: 20px;
- }
+}
 
- .litemenu-entry.has_submenu::after {
+.litemenu-entry.has_submenu::after {
 	content: ">";
 	position: absolute;
 	top: 0;
 	right: 2px;
- }
- 
+}
+
+.litecontextmenu {
+	z-index: 9999 !important;
+}
+
+.comfy-split-button {
+	width: 100%;
+	position: relative;
+	border-width: 2px;
+	box-sizing: border-box;
+}
+
+.comfy-split-arrow {
+	padding: 0 2px;
+	border-top-right-radius: 5px;
+	position: absolute;
+	display: flex;
+	align-items: center;
+	top: 0;
+	right: 0;
+	bottom: 0;
+}
+
+.comfy-split-arrow:hover {
+	background-color: rgba(255, 255, 255, 0.5);
+}
+
+.comfy-split-button button {
+	margin: 0;
+	padding: 0;
+	background-color: transparent;
+	color: var(--input-text);
+	border: none;
+	width: 100%;
+	cursor: pointer;
+}
+
+.comfy-split-popup,
+.comfy-split-popup ~ .litecontextmenu {
+	transform: scale(1.3);
+}

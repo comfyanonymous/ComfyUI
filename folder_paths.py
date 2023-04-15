@@ -31,6 +31,7 @@ folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_m
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+workflows_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "workflows")
 
 if not os.path.exists(input_directory):
     os.makedirs(input_directory)
@@ -50,6 +51,10 @@ def get_temp_directory():
 def get_input_directory():
     global input_directory
     return input_directory
+
+def get_workflows_directory():
+    global workflows_directory
+    return workflows_directory
 
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely

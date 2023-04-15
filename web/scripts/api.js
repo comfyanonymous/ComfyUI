@@ -223,7 +223,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async #postItem(type, body) {
 		try {
-			await fetch("/" + type, {
+			return await fetch("/" + type, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -257,6 +257,36 @@ class ComfyApi extends EventTarget {
 	 */
 	async interrupt() {
 		await this.#postItem("interrupt", null);
+	}
+
+	/**
+	 * Gets a list of saved workflows
+	 */
+	async get_workflows() {
+		const response = await fetch("/workflows", { cache: "no-store" });
+		return await response.json();
+	}
+
+	/**
+	 * Gets a saved workflow
+	 */
+	async get_workflow(name) {
+		const response = await fetch(`/workflows/${encodeURIComponent(name)}`, { cache: "no-store" });
+		return await response.json();
+	}
+
+	/**
+	 * Gets a saved workflow
+	 */
+	async save_workflow(name, workflow, overwrite) {
+		const response = await this.#postItem("workflows", { name, workflow, overwrite });
+		if (response.status === 201) {
+			return true;
+		}
+		if (response.status === 409) {
+			return false;
+		}
+		throw new Error(response.statusText);
 	}
 }
 
