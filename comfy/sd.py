@@ -372,10 +372,16 @@ class CLIP:
     def clip_layer(self, layer_idx):
         self.layer_idx = layer_idx
 
-    def encode(self, text):
+    def tokenize(self, text, return_word_ids=False):
+        return self.tokenizer.tokenize_with_weights(text, return_word_ids)
+
+    def encode(self, text, from_tokens=False):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
-        tokens = self.tokenizer.tokenize_with_weights(text)
+        if from_tokens:
+            tokens = text
+        else:
+            tokens = self.tokenizer.tokenize_with_weights(text)
         try:
             self.patcher.patch_model()
             cond = self.cond_stage_model.encode_token_weights(tokens)
