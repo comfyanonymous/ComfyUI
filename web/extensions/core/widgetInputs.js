@@ -127,13 +127,16 @@ app.registerExtension({
 		nodeType.prototype.onConfigure = function () {
 			const r = origOnConfigure ? origOnConfigure.apply(this, arguments) : undefined;
 
+
 			if (this.inputs) {
+				//check all inputs
 				for (const input of this.inputs) {
+					//if input contains a widget then it is a converted widget
 					if (input.widget) {
 						const w = this.widgets.find((w) => w.name === input.widget.name);
-						if (w) {
+						if (w) {//if the original widget still exists then hide it
 							hideWidget(this, w);
-						} else {
+						} else {//otherwise remove the input
 							convertToWidget(this, input)
 						}
 					}
@@ -142,6 +145,22 @@ app.registerExtension({
 
 			return r;
 		};
+
+
+		const originalOnNodeCreated = nodeType.prototype.onNodeCreated;
+		nodeType.prototype.onNodeCreated = function () {
+			const r = originalOnNodeCreated ? originalOnNodeCreated.apply(this, arguments) : undefined;
+			if (this.widgets) {
+				for (const w of this.widgets) {
+					if (w.defaultBehavior === "input") {
+						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
+						convertToInput(this, w, config);
+						w.defaultBehavior === "widget"
+					}
+				}
+			}
+			return r;
+		}
 
 		function isNodeAtPos(pos) {
 			for (const n of app.graph._nodes) {

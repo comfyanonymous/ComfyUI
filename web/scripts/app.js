@@ -116,7 +116,7 @@ class ComfyApp {
 		const app = this;
 		const origNodeOnKeyDown = node.prototype.onKeyDown;
 
-		node.prototype.onKeyDown = function(e) {
+		node.prototype.onKeyDown = function (e) {
 			if (origNodeOnKeyDown && origNodeOnKeyDown.apply(this, e) === false) {
 				return false;
 			}
@@ -364,7 +364,7 @@ class ComfyApp {
 			}
 			// Dragging from Chrome->Firefox there is a file but its a bmp, so ignore that
 			if (event.dataTransfer.files.length && event.dataTransfer.files[0].type !== "image/bmp") {
-			await this.handleFile(event.dataTransfer.files[0]);
+				await this.handleFile(event.dataTransfer.files[0]);
 			} else {
 				// Try loading the first URI in the transfer list
 				const validTypes = ["text/uri-list", "text/x-moz-url"];
@@ -424,7 +424,7 @@ class ComfyApp {
 					data = data.slice(data.indexOf("workflow\n"));
 					data = data.slice(data.indexOf("{"));
 					workflow = JSON.parse(data);
-				} catch (error) {}
+				} catch (error) { }
 			}
 
 			if (workflow && workflow.version && workflow.nodes && workflow.extra) {
@@ -442,7 +442,7 @@ class ComfyApp {
 		const self = this;
 
 		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
-		LGraphCanvas.prototype.processMouseDown = function(e) {
+		LGraphCanvas.prototype.processMouseDown = function (e) {
 			const res = origProcessMouseDown.apply(this, arguments);
 
 			this.selected_group_moving = false;
@@ -462,7 +462,7 @@ class ComfyApp {
 		}
 
 		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
-		LGraphCanvas.prototype.processMouseMove = function(e) {
+		LGraphCanvas.prototype.processMouseMove = function (e) {
 			const orig_selected_group = this.selected_group;
 
 			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
@@ -487,7 +487,7 @@ class ComfyApp {
 	#addProcessKeyHandler() {
 		const self = this;
 		const origProcessKey = LGraphCanvas.prototype.processKey;
-		LGraphCanvas.prototype.processKey = function(e) {
+		LGraphCanvas.prototype.processKey = function (e) {
 			const res = origProcessKey.apply(this, arguments);
 
 			if (res === false) {
@@ -539,7 +539,7 @@ class ComfyApp {
 		const self = this;
 
 		const origDrawGroups = LGraphCanvas.prototype.drawGroups;
-		LGraphCanvas.prototype.drawGroups = function(canvas, ctx) {
+		LGraphCanvas.prototype.drawGroups = function (canvas, ctx) {
 			if (!this.graph) {
 				return;
 			}
@@ -805,27 +805,39 @@ class ComfyApp {
 			const node = Object.assign(
 				function ComfyNode() {
 					var inputs = nodeData["input"]["required"];
-					if (nodeData["input"]["optional"] != undefined){
-					    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
+					if (nodeData["input"]["optional"] != undefined) {
+						inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
 					}
 					const config = { minWidth: 1, minHeight: 1 };
 					for (const inputName in inputs) {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
+						const customProperties = inputData[1];
 
-						if(inputData[1]?.forceInput) {
+						if (customProperties?.forceInput) {
 							this.addInput(inputName, type);
 						} else {
+							var w = null;
 							if (Array.isArray(type)) {
 								// Enums
-								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
+								w = widgets.COMBO(this, inputName, inputData, app) || {};
 							} else if (`${type}:${inputName}` in widgets) {
 								// Support custom widgets by Type:Name
-								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+								w = widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {};
 							} else if (type in widgets) {
 								// Standard type widgets
-								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-							} else {
+								w = widgets[type](this, inputName, inputData, app) || {};
+							}
+
+							if (w != null) {
+								if(customProperties.defaultBehavior){
+									w.widget.defaultBehavior = customProperties.defaultBehavior;
+								}else{
+									w.widget.defaultBehavior = "widget";
+								}
+								Object.assign(config, w);
+							}
+							else {
 								// Node connection inputs
 								this.addInput(inputName, type);
 							}
@@ -1059,7 +1071,7 @@ class ComfyApp {
 		if (this.#processingQueue) {
 			return;
 		}
-	
+
 		this.#processingQueue = true;
 		try {
 			while (this.#queueItems.length) {
@@ -1136,18 +1148,18 @@ class ComfyApp {
 	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
-		for(let nodeNum in this.graph._nodes) {
+		for (let nodeNum in this.graph._nodes) {
 			const node = this.graph._nodes[nodeNum];
 
 			const def = defs[node.type];
 
-			for(const widgetNum in node.widgets) {
+			for (const widgetNum in node.widgets) {
 				const widget = node.widgets[widgetNum]
 
-				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
+				if (widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
 					widget.options.values = def["input"]["required"][widget.name][0];
 
-					if(!widget.options.values.includes(widget.value)) {
+					if (!widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
 					}
 				}
