@@ -53,6 +53,15 @@ app.registerExtension({
 				return;
 			}
 
+			// Close out of modals using escape
+			if (event.key === "Escape" || event.keyCode === 27) {
+				const modals = document.querySelectorAll(".comfy-modal");
+				const modal = Array.from(modals).find(modal => window.getComputedStyle(modal).getPropertyValue("display") !== "none");
+				if (modal) {
+					modal.style.display = "none";
+				}
+			}
+
 			const keyToButtonIdMap = {
 				"q": "comfy-view-queue-button",
 				81: "comfy-view-queue-button",
