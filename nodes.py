@@ -510,6 +510,14 @@ class EmptyLatentImage:
         return ({"samples":latent}, )
 
 
+class Note:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"text": ("STRING", {"multiline": True})}}
+
+    CATEGORY = "other"
+    RETURN_TYPES = ()
+
 
 class LatentUpscale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -1072,6 +1080,7 @@ NODE_CLASS_MAPPINGS = {
     "VAEEncodeForInpaint": VAEEncodeForInpaint,
     "VAELoader": VAELoader,
     "EmptyLatentImage": EmptyLatentImage,
+    "Note": Note,
     "LatentUpscale": LatentUpscale,
     "SaveImage": SaveImage,
     "PreviewImage": PreviewImage,
@@ -1138,6 +1147,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentFlip": "Flip Latent",
     "LatentCrop": "Crop Latent",
     "EmptyLatentImage": "Empty Latent Image",
+    "Note": "Note",
     "LatentUpscale": "Upscale Latent",
     "LatentComposite": "Latent Composite",
     # Image
