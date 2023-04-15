@@ -258,7 +258,7 @@ app.registerExtension({
 				const input = theirNode.inputs[link.target_slot];
 				if (!input) return;
 
-				
+
 				var _widget;
 				if (!input.widget) {
 					if (!(input.type in ComfyWidgets)) return;
