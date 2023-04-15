@@ -307,6 +307,15 @@ def should_use_fp16():
 
     return True
 
+def soft_empty_cache():
+    global xpu_available
+    if xpu_available:
+        torch.xpu.empty_cache()
+    elif torch.cuda.is_available():
+        if torch.version.cuda: #This seems to make things worse on ROCm so I only do it for cuda
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
 #TODO: might be cleaner to put this somewhere else
 import threading
 
