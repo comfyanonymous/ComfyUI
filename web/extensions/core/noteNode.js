@@ -12,9 +12,10 @@ app.registerExtension({
             constructor() {
                 if (!this.properties) {
                     this.properties = {};
+                    this.properties.text="";
                 }
 
-                ComfyWidgets.STRING(this, "", ["", {multiline: true}], app)
+                ComfyWidgets.STRING(this, "", ["", {default:this.properties.text, multiline: true}], app)
                 // This node is purely frontend and does not impact the resulting prompt so should not be serialized
                 this.isVirtualNode = true;
             }
