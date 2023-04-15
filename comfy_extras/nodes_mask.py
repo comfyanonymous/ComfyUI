@@ -187,13 +187,12 @@ class MaskComposite:
         source_portion = source[:visible_height, :visible_width]
         destination_portion = destination[top:bottom, left:right]
 
-        match operation:
-            case "multiply":
-                output[top:bottom, left:right] = destination_portion * source_portion
-            case "add":
-                output[top:bottom, left:right] = destination_portion + source_portion
-            case "subtract":
-                output[top:bottom, left:right] = destination_portion - source_portion
+        if operation == "multiply":
+            output[top:bottom, left:right] = destination_portion * source_portion
+        elif operation == "add":
+            output[top:bottom, left:right] = destination_portion + source_portion
+        elif operation == "subtract":
+            output[top:bottom, left:right] = destination_portion - source_portion
 
         output = torch.clamp(output, 0.0, 1.0)
 
