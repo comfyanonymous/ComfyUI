@@ -4,7 +4,7 @@ import copy
 
 import sd1_clip
 import sd2_clip
-import model_management
+from comfy import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL
 import yaml
@@ -388,7 +388,7 @@ class CLIP:
         return cond
 
     def encode(self, text):
-        tokens = self.tokenizer.tokenize_with_weights(text)
+        tokens = self.tokenize(text)
         return self.encode_from_tokens(tokens)
 
 class VAE:
