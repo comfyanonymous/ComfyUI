@@ -159,9 +159,11 @@ app.registerExtension({
 			const r = origOnInputDblClick ? origOnInputDblClick.apply(this, arguments) : undefined;
 
 			const input = this.inputs[slot];
-			if (!input.widget || !input[ignoreDblClick])// Not a widget input or already handled input
-			{
-				if (!(input.type in ComfyWidgets)) return r;//also Not a ComfyWidgets input (do nothing)
+			if (!input.widget || !input[ignoreDblClick]) {
+				// Not a widget input or already handled input
+				if (!(input.type in ComfyWidgets) && !(input.widget.config?.[0] instanceof Array)) {
+					return r; //also Not a ComfyWidgets input or combo (do nothing)
+				}
 			}
 
 			// Create a primitive node
