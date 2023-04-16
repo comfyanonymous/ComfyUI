@@ -830,7 +830,7 @@ class ComfyApp {
 							}
 
 							if (w != null) {
-								if(customProperties.defaultBehavior){
+								if(customProperties?.defaultBehavior){
 									w.widget.defaultBehavior = customProperties.defaultBehavior;
 								}else{
 									w.widget.defaultBehavior = "widget";

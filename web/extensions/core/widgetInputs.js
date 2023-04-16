@@ -152,10 +152,10 @@ app.registerExtension({
 			const r = originalOnNodeCreated ? originalOnNodeCreated.apply(this, arguments) : undefined;
 			if (this.widgets) {
 				for (const w of this.widgets) {
-					if (w.defaultBehavior === "input") {
+					if (w?.defaultBehavior === "input") {
 						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
 						convertToInput(this, w, config);
-						w.defaultBehavior === "widget"
+						w?.defaultBehavior === "widget"
 					}
 				}
 			}
