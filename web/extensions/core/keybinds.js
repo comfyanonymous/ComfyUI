@@ -5,17 +5,17 @@ app.registerExtension({
 	name: id,
 	init() {
 		const keybindListener = function(event) {
-			const target = event.composedPath()[0];
-
-			if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
-				return;
-			}
-
 			const modifierPressed = event.ctrlKey || event.metaKey;
 
 			// Queue prompt using ctrl or command + enter
 			if (modifierPressed && (event.key === "Enter" || event.keyCode === 13 || event.keyCode === 10)) {
 				app.queuePrompt(event.shiftKey ? -1 : 0);
+				return;
+			}
+
+			const target = event.composedPath()[0];
+
+			if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
 				return;
 			}
 
