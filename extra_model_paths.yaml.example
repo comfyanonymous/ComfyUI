@@ -18,6 +18,6 @@ a111:
 #other_ui:
 #    base_path: path/to/ui
 #    checkpoints: models/checkpoints
-
+#    custom_nodes: path/custom_nodes
 
 

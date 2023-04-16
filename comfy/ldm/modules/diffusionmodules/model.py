@@ -7,7 +7,7 @@ from einops import rearrange
 from typing import Optional, Any
 
 from ldm.modules.attention import MemoryEfficientCrossAttention
-import model_management
+from comfy import model_management
 
 if model_management.xformers_enabled_vae():
     import xformers

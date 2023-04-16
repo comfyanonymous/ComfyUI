@@ -4,27 +4,48 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111 } from "./pnginfo.js";
 
-class ComfyApp {
-	/** 
-	 * List of {number, batchCount} entries to queue
+/** 
+ * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
+ */
+
+export class ComfyApp {
+	/**
+	 * List of entries to queue
+	 * @type {{number: number, batchCount: number}[]}
 	 */
 	#queueItems = [];
 	/**
 	 * If the queue is currently being processed
+	 * @type {boolean}
 	 */
 	#processingQueue = false;
 
 	constructor() {
 		this.ui = new ComfyUI(this);
+
+		/**
+		 * List of extensions that are registered with the app
+		 * @type {ComfyExtension[]}
+		 */
 		this.extensions = [];
+
+		/**
+		 * Stores the execution output data for each node
+		 * @type {Record<string, any>}
+		 */
 		this.nodeOutputs = {};
+
+		/**
+		 * If the shift key on the keyboard is pressed
+		 * @type {boolean}
+		 */
 		this.shiftDown = false;
 	}
 
 	/**
 	 * Invoke an extension callback
-	 * @param {string} method The extension callback to execute
-	 * @param  {...any} args Any arguments to pass to the callback
+	 * @param {keyof ComfyExtension} method The extension callback to execute
+	 * @param  {any[]} args Any arguments to pass to the callback
 	 * @returns
 	 */
 	#invokeExtensions(method, ...args) {
@@ -691,11 +712,6 @@ class ComfyApp {
 	#addKeyboardHandler() {
 		window.addEventListener("keydown", (e) => {
 			this.shiftDown = e.shiftKey;
-
-			// Queue prompt using ctrl or command + enter
-			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
-				this.queuePrompt(e.shiftKey ? -1 : 0);
-			}
 		});
 		window.addEventListener("keyup", (e) => {
 			this.shiftDown = e.shiftKey;
@@ -1120,6 +1136,10 @@ class ComfyApp {
 		}
 	}
 
+	/**
+	 * Registers a Comfy web extension with the app
+	 * @param {ComfyExtension} extension
+	 */
 	registerExtension(extension) {
 		if (!extension.name) {
 			throw new Error("Extensions must have a 'name' property.");

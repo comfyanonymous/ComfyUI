@@ -159,9 +159,11 @@ app.registerExtension({
 			const r = origOnInputDblClick ? origOnInputDblClick.apply(this, arguments) : undefined;
 
 			const input = this.inputs[slot];
-			if (!input.widget || !input[ignoreDblClick])// Not a widget input or already handled input
-			{
-				if (!(input.type in ComfyWidgets)) return r;//also Not a ComfyWidgets input (do nothing)
+			if (!input.widget || !input[ignoreDblClick]) {
+				// Not a widget input or already handled input
+				if (!(input.type in ComfyWidgets) && !(input.widget.config?.[0] instanceof Array)) {
+					return r; //also Not a ComfyWidgets input or combo (do nothing)
+				}
 			}
 
 			// Create a primitive node
@@ -333,7 +335,20 @@ app.registerExtension({
 				const config1 = this.outputs[0].widget.config;
 				const config2 = input.widget.config;
 
-				if (config1[0] !== config2[0]) return false;
+				if (config1[0] instanceof Array) {
+					// These checks shouldnt actually be necessary as the types should match
+					// but double checking doesn't hurt
+
+					// New input isnt a combo
+					if (!(config2[0] instanceof Array)) return false;
+					// New imput combo has a different size
+					if (config1[0].length !== config2[0].length) return false;
+					// New input combo has different elements
+					if (config1[0].find((v, i) => config2[0][i] !== v)) return false;
+				} else if (config1[0] !== config2[0]) {
+					// Configs dont match
+					return false;
+				}
 
 				for (const k in config1[1]) {
 					if (k !== "default") {
