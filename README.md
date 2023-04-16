@@ -32,14 +32,28 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 ## Shortcuts
-- **Ctrl + A** select all nodes
-- **Ctrl + M** mute/unmute selected nodes
-- **Delete** or **Backspace** delete selected nodes
-- **Space** Holding space key while moving the cursor moves the canvas around. It works when holding the mouse button down so it is easier to connect different nodes when the canvas gets too large.
-- **Ctrl/Shift + Click** Add clicked node to selection.
-- **Ctrl + C/Ctrl + V** - Copy and paste selected nodes, without maintaining the connection to the outputs of unselected nodes.
-- **Ctrl + C/Ctrl + Shift + V** - Copy and paste selected nodes, and maintaining the connection from the outputs of unselected nodes to the inputs of the newly pasted nodes.
-- Holding **Shift** and drag selected nodes - Move multiple selected nodes at the same time.
+
+| Keybind | Explanation |
+| - | - |
+| Ctrl + Enter | Queue up current graph for generation |
+| Ctrl + Shift + Enter | Queue up current graph as first for generation |
+| Ctrl + S | Save workflow |
+| Ctrl + O | Load workflow |
+| Ctrl + A | Select all nodes |
+| Ctrl + M | Mute/unmute selected nodes |
+| Delete/Backspace | Delete selected nodes |
+| Ctrl + Delete/Backspace | Delete the current graph |
+| Space | Move the canvas around when held and moving the cursor |
+| Ctrl/Shift + Click | Add clicked node to selection |
+| Ctrl + C/Ctrl + V | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes) |
+| Ctrl + C/Ctrl + Shift + V| Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
+| Shift + Drag | Move multiple selected nodes at the same time |
+| Ctrl + D | Load default graph |
+| Q | Toggle visibility of the queue |
+| H | Toggle visibility of history |
+| R | Refresh graph |
+
+Ctrl can also be replaced with Cmd instead for MacOS users
 
 # Installing
 
