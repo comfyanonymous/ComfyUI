@@ -35,7 +35,6 @@ export class ComfyApp {
 		 */
 		this.nodeOutputs = {};
 
-		
 		/**
 		 * If the shift key on the keyboard is pressed
 		 * @type {boolean}
@@ -713,11 +712,6 @@ export class ComfyApp {
 	#addKeyboardHandler() {
 		window.addEventListener("keydown", (e) => {
 			this.shiftDown = e.shiftKey;
-
-			// Queue prompt using ctrl or command + enter
-			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
-				this.queuePrompt(e.shiftKey ? -1 : 0);
-			}
 		});
 		window.addEventListener("keyup", (e) => {
 			this.shiftDown = e.shiftKey;
