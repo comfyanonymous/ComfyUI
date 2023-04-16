@@ -1178,15 +1178,16 @@ def load_custom_node(module_path):
         print(f"Cannot import {module_path} module for custom nodes:", e)
 
 def load_custom_nodes():
-    CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
-    possible_modules = os.listdir(CUSTOM_NODE_PATH)
-    if "__pycache__" in possible_modules:
-        possible_modules.remove("__pycache__")
+    node_paths = folder_paths.get_folder_paths("custom_nodes")
+    for custom_node_path in node_paths:
+        possible_modules = os.listdir(custom_node_path)
+        if "__pycache__" in possible_modules:
+            possible_modules.remove("__pycache__")
 
-    for possible_module in possible_modules:
-        module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
-        if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-        load_custom_node(module_path)
+        for possible_module in possible_modules:
+            module_path = os.path.join(custom_node_path, possible_module)
+            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+            load_custom_node(module_path)
 
 def init_custom_nodes():
     load_custom_nodes()

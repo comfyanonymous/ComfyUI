@@ -12,8 +12,8 @@ except:
 
 folder_names_and_paths = {}
 
-
-models_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "models")
+base_path = os.path.dirname(os.path.realpath(__file__))
+models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_ckpt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
@@ -27,6 +27,9 @@ folder_names_and_paths["diffusers"] = ([os.path.join(models_dir, "diffusers")], 
 
 folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], supported_pt_extensions)
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
+
+folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
+
 
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
