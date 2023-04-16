@@ -4,26 +4,48 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111 } from "./pnginfo.js";
 
-class ComfyApp {
-	/** 
-	 * List of {number, batchCount} entries to queue
+/** 
+ * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
+ */
+
+export class ComfyApp {
+	/**
+	 * List of entries to queue
+	 * @type {{number: number, batchCount: number}[]}
 	 */
 	#queueItems = [];
 	/**
 	 * If the queue is currently being processed
+	 * @type {boolean}
 	 */
 	#processingQueue = false;
 
 	constructor() {
 		this.ui = new ComfyUI(this);
+
+		/**
+		 * List of extensions that are registered with the app
+		 * @type {ComfyExtension[]}
+		 */
 		this.extensions = [];
+
+		/**
+		 * Stores the execution output data for each node
+		 * @type {Record<string, any>}
+		 */
 		this.nodeOutputs = {};
+
+		/**
+		 * If the shift key on the keyboard is pressed
+		 * @type {boolean}
+		 */
+		this.shiftDown = false;
 	}
 
 	/**
 	 * Invoke an extension callback
-	 * @param {string} method The extension callback to execute
-	 * @param  {...any} args Any arguments to pass to the callback
+	 * @param {keyof ComfyExtension} method The extension callback to execute
+	 * @param  {any[]} args Any arguments to pass to the callback
 	 * @returns
 	 */
 	#invokeExtensions(method, ...args) {
@@ -687,6 +709,15 @@ class ComfyApp {
 		api.init();
 	}
 
+	#addKeyboardHandler() {
+		window.addEventListener("keydown", (e) => {
+			this.shiftDown = e.shiftKey;
+		});
+		window.addEventListener("keyup", (e) => {
+			this.shiftDown = e.shiftKey;
+		});
+	}
+
 	/**
 	 * Loads all extensions from the API into the window
 	 */
@@ -763,6 +794,7 @@ class ComfyApp {
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
+		this.#addKeyboardHandler();
 
 		await this.#invokeExtensionsAsync("setup");
 	}
@@ -933,9 +965,13 @@ class ComfyApp {
 								widget.value = widget.value.slice(7);
 							}
 						}
+					}
+					if (node.type == "KSampler" || node.type == "KSamplerAdvanced" || node.type == "PrimitiveNode") {
 						if (widget.name == "control_after_generate") {
-							if (widget.value == true) {
+							if (widget.value === true) {
 								widget.value = "randomize";
+							} else if (widget.value === false) {
+								widget.value = "fixed";
 							}
 						}
 					}
@@ -1100,6 +1136,10 @@ class ComfyApp {
 		}
 	}
 
+	/**
+	 * Registers a Comfy web extension with the app
+	 * @param {ComfyExtension} extension
+	 */
 	registerExtension(extension) {
 		if (!extension.name) {
 			throw new Error("Extensions must have a 'name' property.");

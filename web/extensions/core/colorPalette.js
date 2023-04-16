@@ -107,7 +107,7 @@ const colorPalettes = {
 				"descrip-text": "#444",
 				"drag-text": "#555",
 				"error-text": "#F44336",
-				"border-color": "#CCC"
+				"border-color": "#888"
 			}
 		},
 	},
