@@ -16,8 +16,10 @@ app.registerExtension({
                 }
 
                 ComfyWidgets.STRING(this, "", ["", {default:this.properties.text, multiline: true}], app)
-                // This node is purely frontend and does not impact the resulting prompt so should not be serialized
+
+                this.serialize_widgets = true;
                 this.isVirtualNode = true;
+
             }
 
 
