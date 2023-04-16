@@ -139,6 +139,7 @@ function addMultilineWidget(node, name, opts, app) {
 				background: (!node.color || node.color==='#222')?'':node.color,
 				height: `${(this.parent.inputHeight - margin * 2 - 4) * t.d}px`,
 				position: "absolute",
+				color: (!node.color || node.color==='#222')?'':'white',
 				zIndex: app.graph._nodes.indexOf(node),
 				fontSize: `${t.d * 10.0}px`,
 			});
