@@ -4,7 +4,7 @@ import copy
 
 import sd1_clip
 import sd2_clip
-import model_management
+from comfy import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL
 import yaml
@@ -372,10 +372,12 @@ class CLIP:
     def clip_layer(self, layer_idx):
         self.layer_idx = layer_idx
 
-    def encode(self, text):
+    def tokenize(self, text, return_word_ids=False):
+        return self.tokenizer.tokenize_with_weights(text, return_word_ids)
+
+    def encode_from_tokens(self, tokens):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
-        tokens = self.tokenizer.tokenize_with_weights(text)
         try:
             self.patcher.patch_model()
             cond = self.cond_stage_model.encode_token_weights(tokens)
@@ -384,6 +386,10 @@ class CLIP:
             self.patcher.unpatch_model()
             raise e
         return cond
+
+    def encode(self, text):
+        tokens = self.tokenize(text)
+        return self.encode_from_tokens(tokens)
 
 class VAE:
     def __init__(self, ckpt_path=None, scale_factor=0.18215, device=None, config=None):
