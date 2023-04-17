@@ -708,8 +708,9 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
             batch_index = latent["batch_index"]
 
         generator = torch.manual_seed(seed)
-        for i in range(batch_index + 1):
+        for i in range(batch_index):
             noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
+        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
 
     if "noise_mask" in latent:
         noise_mask = latent['noise_mask']
