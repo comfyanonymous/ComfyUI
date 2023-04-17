@@ -58,7 +58,7 @@ name:id,
 
         function editAttention(event) {
             const inputField = event.composedPath()[0];
-            const delta = 0.1;
+            const delta = 0.025;
 
             if (inputField.tagName !== "TEXTAREA") return;
             if (!(event.key === "ArrowUp" || event.key === "ArrowDown")) return;
