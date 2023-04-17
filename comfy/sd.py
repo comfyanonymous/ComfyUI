@@ -250,6 +250,9 @@ class ModelPatcher:
     def set_model_tomesd(self, ratio):
         self.model_options["transformer_options"]["tomesd"] = {"ratio": ratio}
 
+    def set_model_sampler_cfg_function(self, sampler_cfg_function):
+        self.model_options["sampler_cfg_function"] = sampler_cfg_function
+
     def model_dtype(self):
         return self.model.diffusion_model.dtype
 
