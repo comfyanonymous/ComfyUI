@@ -81,6 +81,14 @@ if __name__ == "__main__":
     server = server.PromptServer(loop)
     q = execution.PromptQueue(server)
 
+    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+    if os.path.isfile(extra_model_paths_config_path):
+        load_extra_path_config(extra_model_paths_config_path)
+
+    if args.extra_model_paths_config:
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            load_extra_path_config(config_path)
+
     init_custom_nodes()
     server.add_routes()
     hijack_progress(server)
@@ -91,13 +99,6 @@ if __name__ == "__main__":
 
     dont_print = args.dont_print_server
 
-    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
-    if os.path.isfile(extra_model_paths_config_path):
-        load_extra_path_config(extra_model_paths_config_path)
-
-    if args.extra_model_paths_config:
-        for config_path in itertools.chain(*args.extra_model_paths_config):
-            load_extra_path_config(config_path)
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
