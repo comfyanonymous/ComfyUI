@@ -3,7 +3,7 @@ from .k_diffusion import external as k_diffusion_external
 from .extra_samplers import uni_pc
 import torch
 import contextlib
-import model_management
+from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 
@@ -211,7 +211,10 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
         max_total_area = model_management.maximum_batch_area()
         cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
-        return uncond + (cond - uncond) * cond_scale
+        if "sampler_cfg_function" in model_options:
+            return model_options["sampler_cfg_function"](cond, uncond, cond_scale)
+        else:
+            return uncond + (cond - uncond) * cond_scale
 
 
 class CompVisVDenoiser(k_diffusion_external.DiscreteVDDPMDenoiser):
