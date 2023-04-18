@@ -2,10 +2,21 @@ import { app } from "/scripts/app.js";
 
 // Allows you to edit the attention weight by holding ctrl (or cmd) and using the up/down arrow keys
 
-const id = "Comfy.EditAttention";
 app.registerExtension({
-name:id,
+    name: "Comfy.EditAttention",
     init() {
+        const editAttentionDelta = app.ui.settings.addSetting({
+            id: "Comfy.EditAttention.Delta",
+            name: "Ctrl+up/down precision",
+            type: "slider",
+            attrs: {
+                min: 0.01,
+                max: 2,
+                step: 0.01,
+            },
+            defaultValue: 0.1,
+        });
+
         function incrementWeight(weight, delta) {
             const floatWeight = parseFloat(weight);
             if (isNaN(floatWeight)) return weight;
@@ -58,7 +69,7 @@ name:id,
 
         function editAttention(event) {
             const inputField = event.composedPath()[0];
-            const delta = 0.025;
+            const delta = parseFloat(editAttentionDelta.value);
 
             if (inputField.tagName !== "TEXTAREA") return;
             if (!(event.key === "ArrowUp" || event.key === "ArrowDown")) return;
@@ -125,7 +136,7 @@ name:id,
             // Increment the weight
             const weightDelta = event.key === "ArrowUp" ? delta : -delta;
             const updatedText = selectedText.replace(/(.*:)(\d+(\.\d+)?)(.*)/, (match, prefix, weight, _, suffix) => {
-              return prefix + incrementWeight(weight, weightDelta) + suffix;
+                return prefix + incrementWeight(weight, weightDelta) + suffix;
             });
 
             inputField.setRangeText(updatedText, start, end, "select");
