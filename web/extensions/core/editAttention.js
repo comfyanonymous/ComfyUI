@@ -68,7 +68,7 @@ app.registerExtension({
         };
 
         function editAttention(event) {
-            const inputField = event.target;
+            const inputField = event.composedPath()[0];
             let delta = localStorage.getItem("Comfy.Settings.Comfy.EditAttention.Delta")
             delta = delta ? parseFloat(delta.replace('"', "")) : 0.1
 
