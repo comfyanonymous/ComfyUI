@@ -70,7 +70,7 @@ name:id,
             let end = inputField.selectionEnd;
             let selectedText = inputField.value.substring(start, end);
 
-            // If there is no selection, attempt to find the nearest enclosure
+            // If there is no selection, attempt to find the nearest enclosure, or select the current word
             if (!selectedText) {
                 const nearestEnclosure = findNearestEnclosure(inputField.value, start);
                 if (nearestEnclosure) {
@@ -78,7 +78,26 @@ name:id,
                     end = nearestEnclosure.end;
                     selectedText = inputField.value.substring(start, end);
                 } else {
-                    return;
+                    // Select the current word, find the start and end of the word (first space before and after)
+                    const wordStart = inputField.value.substring(0, start).lastIndexOf(" ") + 1;
+                    const wordEnd = inputField.value.substring(end).indexOf(" ");
+                    // If there is no space after the word, select to the end of the string
+                    if (wordEnd === -1) {
+                        end = inputField.value.length;
+                    } else {
+                        end += wordEnd;
+                    }
+                    start = wordStart;
+
+                    // Remove all punctuation at the end and beginning of the word
+                    while (inputField.value[start].match(/[.,\/#!$%\^&\*;:{}=\-_`~()]/)) {
+                        start++;
+                    }
+                    while (inputField.value[end - 1].match(/[.,\/#!$%\^&\*;:{}=\-_`~()]/)) {
+                        end--;
+                    }
+                    selectedText = inputField.value.substring(start, end);
+                    if (!selectedText) return;
                 }
             }
 
@@ -97,7 +116,6 @@ name:id,
 
             // If the selection is not enclosed in parentheses, add them
             if (selectedText[0] !== "(" || selectedText[selectedText.length - 1] !== ")") {
-                console.log("adding parentheses", inputField.value[start], inputField.value[end], selectedText);
                 selectedText = `(${selectedText})`;
             }
 
