@@ -8,7 +8,7 @@ app.registerExtension({
         app.ui.settings.addSetting({
             id: "Comfy.EditAttention.Delta",
             name: "Ctrl+up/down precision",
-            type: "number",
+            type: "slider",
             attrs: {
                 min: 0.01,
                 max: 2,
