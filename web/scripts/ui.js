@@ -270,6 +270,30 @@ class ComfySettingsDialog extends ComfyDialog {
 								]),
 							]);
 							break;
+						case "slider":
+							element = $el("div", [
+								$el("label", { textContent: name }, [
+									$el("input", {
+										type: "range",
+										value,
+										oninput: (e) => {
+											setter(e.target.value);
+											e.target.nextElementSibling.value = e.target.value;
+										},
+										...attrs
+									}),
+									$el("input", {
+										type: "number",
+										value,
+										oninput: (e) => {
+											setter(e.target.value);
+											e.target.previousElementSibling.value = e.target.value;
+										},
+										...attrs
+									}),
+								]),
+							]);
+							break;
 						default:
 							console.warn("Unsupported setting type, defaulting to text");
 							element = $el("div", [
