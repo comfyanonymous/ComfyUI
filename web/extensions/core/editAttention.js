@@ -69,8 +69,8 @@ app.registerExtension({
 
         function editAttention(event) {
             const inputField = event.composedPath()[0];
-            let delta = localStorage.getItem("Comfy.Settings.Comfy.EditAttention.Delta")
-            delta = delta ? parseFloat(delta.replace('"', "")) : 0.1
+            let delta = localStorage.getItem("Comfy.Settings.Comfy.EditAttention.Delta") || "0.1"
+            delta = parseFloat(JSON.parse(delta))
 
             if (inputField.tagName !== "TEXTAREA") return;
             if (!(event.key === "ArrowUp" || event.key === "ArrowDown")) return;
