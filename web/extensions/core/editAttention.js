@@ -11,10 +11,10 @@ app.registerExtension({
             type: "slider",
             attrs: {
                 min: 0.01,
-                max: 2,
+                max: 0.5,
                 step: 0.01,
             },
-            defaultValue: 0.1,
+            defaultValue: 0.05,
         });
 
         function incrementWeight(weight, delta) {
