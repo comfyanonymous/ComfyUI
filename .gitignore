@@ -3,7 +3,6 @@ __pycache__/
 output/
 input/
 !input/example.png
-models/
 temp/
 !custom_nodes/example_node.py.example
 extra_model_paths.yaml
@@ -11,3 +10,5 @@ extra_model_paths.yaml
 venv/
 venv38/
 .idea/
+*.ckpt
+*.safetensors

@@ -7,7 +7,6 @@ import numpy as np
 import torch
 from torch import nn
 
-from custom_nodes.facerestore.facelib.detection.yolov5face.models.common import Conv
 from custom_nodes.facerestore.facelib.detection.yolov5face.models.yolo import Model
 from custom_nodes.facerestore.facelib.detection.yolov5face.utils.datasets import letterbox
 from custom_nodes.facerestore.facelib.detection.yolov5face.utils.general import (

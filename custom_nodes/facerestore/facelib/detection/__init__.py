@@ -4,7 +4,6 @@ from torch import nn
 from copy import deepcopy
 
 from custom_nodes.facerestore.facelib.utils import load_file_from_url
-from custom_nodes.facerestore.facelib.utils import download_pretrained_models
 from custom_nodes.facerestore.facelib.detection.yolov5face.models.common import Conv
 
 from .retinaface.retinaface import RetinaFace
