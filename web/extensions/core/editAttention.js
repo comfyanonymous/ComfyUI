@@ -5,7 +5,7 @@ import { app } from "/scripts/app.js";
 app.registerExtension({
     name: "Comfy.EditAttention",
     init() {
-        app.ui.settings.addSetting({
+        const editAttentionDelta = app.ui.settings.addSetting({
             id: "Comfy.EditAttention.Delta",
             name: "Ctrl+up/down precision",
             type: "slider",
@@ -69,8 +69,7 @@ app.registerExtension({
 
         function editAttention(event) {
             const inputField = event.composedPath()[0];
-            let delta = localStorage.getItem("Comfy.Settings.Comfy.EditAttention.Delta") || "0.1"
-            delta = parseFloat(JSON.parse(delta))
+            const delta = parseFloat(editAttentionDelta.value);
 
             if (inputField.tagName !== "TEXTAREA") return;
             if (!(event.key === "ArrowUp" || event.key === "ArrowDown")) return;
