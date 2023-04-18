@@ -69,7 +69,7 @@ app.registerExtension({
 
         function editAttention(event) {
             const inputField = event.target;
-            const localStorage.getItem("Comfy.Settings.Comfy.EditAttention.Delta")
+            let delta = localStorage.getItem("Comfy.Settings.Comfy.EditAttention.Delta")
             delta = delta ? parseFloat(delta.replace('"', "")) : 0.1
 
             if (inputField.tagName !== "TEXTAREA") return;
