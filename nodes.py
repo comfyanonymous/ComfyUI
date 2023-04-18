@@ -586,6 +586,24 @@ class EmptyLatentImage:
         return ({"samples":latent}, )
 
 
+class LatentFromBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "rotate"
+
+    CATEGORY = "latent"
+
+    def rotate(self, samples, batch_index):
+        s = samples.copy()
+        s_in = samples["samples"]
+        batch_index = min(s_in.shape[0] - 1, batch_index)
+        s["samples"] = s_in[batch_index:batch_index + 1].clone()
+        s["batch_index"] = batch_index
+        return (s,)
 
 class LatentUpscale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -761,7 +779,14 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
-        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=torch.manual_seed(seed), device="cpu")
+        batch_index = 0
+        if "batch_index" in latent:
+            batch_index = latent["batch_index"]
+
+        generator = torch.manual_seed(seed)
+        for i in range(batch_index):
+            noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
+        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
 
     if "noise_mask" in latent:
         noise_mask = latent['noise_mask']
@@ -1149,6 +1174,7 @@ NODE_CLASS_MAPPINGS = {
     "VAELoader": VAELoader,
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
+    "LatentFromBatch": LatentFromBatch,
     "SaveImage": SaveImage,
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
