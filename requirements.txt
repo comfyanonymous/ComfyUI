@@ -17,3 +17,4 @@ timm~=0.6.13
 scipy~=1.10.1
 Pillow~=9.5.0
 psutil~=5.9.4
+transformers
