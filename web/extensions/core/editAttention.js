@@ -79,8 +79,16 @@ name:id,
                     selectedText = inputField.value.substring(start, end);
                 } else {
                     // Select the current word, find the start and end of the word (first space before and after)
-                    start = inputField.value.substring(0, start).lastIndexOf(" ") + 1;
-                    end = inputField.value.substring(end).indexOf(" ") + end;
+                    const wordStart = inputField.value.substring(0, start).lastIndexOf(" ") + 1;
+                    const wordEnd = inputField.value.substring(end).indexOf(" ");
+                    // If there is no space after the word, select to the end of the string
+                    if (wordEnd === -1) {
+                        end = inputField.value.length;
+                    } else {
+                        end += wordEnd;
+                    }
+                    start = wordStart;
+
                     // Remove all punctuation at the end and beginning of the word
                     while (inputField.value[start].match(/[.,\/#!$%\^&\*;:{}=\-_`~()]/)) {
                         start++;
