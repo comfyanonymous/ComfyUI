@@ -47,6 +47,14 @@ app.registerExtension({
             }
         `;
         document.head.appendChild(hoverStyle);
+//        const link = document.createElement("link");
+//        link.rel = "stylesheet";
+//        link.href = "https://cdnjs.cloudflare.com/ajax/libs/sweetalert/2.1.2/sweetalert.min.css";
+//        document.head.appendChild(link);
+//
+//        const script = document.createElement("script");
+//        script.src = "https://cdnjs.cloudflare.com/ajax/libs/sweetalert/2.1.2/sweetalert.min.js";
+//        document.body.appendChild(script);
 
         // set class for resize handle
         resizeHandle.classList.add("resize-handle");
@@ -66,8 +74,8 @@ app.registerExtension({
             const newHeight = startHeight + startY - event.clientY;
             imageList.style.height = newHeight + "px";
         }
-        var allImages = []
-
+        var allImages = [];
+        var alwaysYes = false;
         function loadImages(detail) {
           const images = detail.output.images.filter(
             (img) => img.type === "output" && img.filename !== "_output_images_will_be_put_here"
@@ -83,14 +91,41 @@ app.registerExtension({
               "position: absolute; top: 0; right: 0; width: 20px; text-indent: -4px; right: 5px; height: 20px; cursor: pointer; position: absolute; top: 5px; font-size: 12px; line-height: 12px;";
 
             imgDelete.addEventListener("click", async () => {
-              const confirmDelete = confirm("Are you sure you want to delete this image?");
-              if (confirmDelete) {
-                await api.deleteImage(src.filename);
-                let newAllImages = allImages.filter(image => image.filename !== src.filename);
-                allImages = newAllImages;
-                imgContainer.remove();
+              if (alwaysYes) {
+                deleteImage_func(src);
+              } else {
+                Swal.fire({
+                  title: 'Are you sure?',
+                  text: 'Once deleted, you will not be able to recover this image!',
+                  icon: 'warning',
+                  confirmButtonText: 'Yes',
+                  confirmButtonColor: '#3085d6',
+                  showCancelButton: true,
+                  cancelButtonText: 'No',
+                  cancelButtonColor: '#d33',
+                  showDenyButton: true,
+                  denyButtonText: 'Always Yes',
+                  denyButtonColor: '#589bdb',
+                  customClass: {
+                    popup: 'lgraphcanvas',
+                    content: 'lgraphcanvas',
+                  }
+                }).then((result) => {
+                  if (result.isConfirmed) {
+                    deleteImage_func(src);
+                  } else if (result.isDenied) {
+                    alwaysYes = true;
+                    deleteImage_func(src);
+                  }
+                })
               }
             });
+            function deleteImage_func(src_val){
+                api.deleteImage(src_val.filename);
+                let newAllImages = allImages.filter(image => image.filename !== src_val.filename);
+                allImages = newAllImages;
+                imgContainer.remove();
+            }
 
             const img = document.createElement("img");
             img.setAttribute("filename", src.filename);
@@ -174,6 +209,7 @@ app.registerExtension({
 			btn.type = "button";
 			btn.textContent = text;
 			btn.title = title;
+			btn.classList.add("comfy-list");
             Object.assign(btn.style, {
               ...style,
               height: "20px",
@@ -182,6 +218,8 @@ app.registerExtension({
               position: "absolute",
               fontSize: "12px",
               lineHeight: "12px",
+              borderRadius: "5px",
+              backgroundColor: "#202020"
             });
 			menu.append(btn);
 			return btn;
@@ -214,13 +252,27 @@ app.registerExtension({
 			}, "Delete all items displayed in image drawer (This won't delete the entire output folder)"
 		);
 		deleteAllButton.onclick = () => {
-            const confirmDelete = confirm("Are you sure you want to delete all images in the drawer?");
-            if (confirmDelete) {
-                api.deleteAllImages(allImages.map(item => item.filename));
-                allImages = []
-                imageList.replaceChildren(menu, resizeHandle);
-			}
-		};
+            Swal.fire({
+              title: 'Are you sure?',
+              text: 'Delete all the images currently displayed in the drawer',
+              icon: 'warning',
+              confirmButtonText: 'Yes',
+              confirmButtonColor: '#3085d6',
+              showCancelButton: true,
+              cancelButtonText: 'No',
+              cancelButtonColor: '#d33'
+            }).then((result) => {
+              if (result.isConfirmed) {
+                deleteAllImage_func();
+              }
+            })
+        };
+        function deleteAllImage_func(){
+            api.deleteAllImages(allImages.map(item => item.filename));
+            allImages = []
+            imageList.replaceChildren(menu, resizeHandle);
+        }
+
         api.getOutput().then(data => {
         try {
                 if (data.message == "Success"){
