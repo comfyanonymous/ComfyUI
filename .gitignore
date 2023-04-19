@@ -12,3 +12,4 @@ venv38/
 .idea/
 *.ckpt
 *.safetensors
+models/
