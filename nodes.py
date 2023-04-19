@@ -58,7 +58,7 @@ class ConditioningCombine:
     def combine(self, conditioning_1, conditioning_2):
         return (conditioning_1 + conditioning_2, )
 
-class ConditioningAddWeighted:
+class ConditioningAverage :
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_from": ("CONDITIONING", ), "conditioning_to": ("CONDITIONING", ),
@@ -70,6 +70,13 @@ class ConditioningAddWeighted:
 
     CATEGORY = "conditioning"
 
+    #def applyConditions(self, conditioning_from, conditioning_to, conditioning_from_strength, conditioning_to_strength):
+    #    c = []
+    #    for t in conditioning_from:
+    #        averaged = self.averageConditioning(t[0], conditioning_to, conditioning_from_strength, conditioning_to_strength)
+    #        n = [averaged, t[1].clone()]
+    #        c.append(n)
+    #    return (c, )
 
     def addWeighted(self, conditioning_from, conditioning_to, conditioning_from_strength, conditioning_to_strength):
         conditioning_from_tensor = conditioning_from[0][0]
@@ -1104,7 +1111,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
     "ImagePadForOutpaint": ImagePadForOutpaint,
-    "ConditioningAddWeighted": ConditioningAddWeighted,
+    "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
@@ -1152,7 +1159,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPTextEncode": "CLIP Text Encode (Prompt)",
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
-    "ConditioningAddWeighted": "Conditioning (Weighted Combine)",
+    "ConditioningAverage ": "Conditioning (Average)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ControlNetApply": "Apply ControlNet",
     # Latent
