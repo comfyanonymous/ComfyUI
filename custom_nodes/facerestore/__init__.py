@@ -120,7 +120,7 @@ class FaceRestoreWithModel:
             device = model_management.get_torch_device()
             upscale_model.to(device)
             if self.face_helper is None:
-                self.face_helper = FaceRestoreHelper(1, face_size=512, crop_ratio=(1, 1), det_model=facedetection, save_ext='png', use_parse=True, device=device)
+                self.face_helper = FaceRestoreHelper(1, face_size=768, crop_ratio=(1, 1), det_model=facedetection, save_ext='png', use_parse=True, device=device)
 
             image_np = 255. * image_itm.cpu().numpy().squeeze()
 
