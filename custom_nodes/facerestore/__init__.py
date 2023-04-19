@@ -1,4 +1,6 @@
 import os
+import sys
+
 import model_management
 import torch
 import comfy.utils
@@ -101,6 +103,7 @@ class FaceRestoreWithModel:
     def INPUT_TYPES(s):
         return {"required": { "upscale_model": ("UPSCALE_MODEL",),
                               "image": ("IMAGE",),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                               "facedetection": (["retinaface_resnet50", "retinaface_mobile0.25", "YOLOv5l", "YOLOv5n"],)
                               }}
 
@@ -113,7 +116,7 @@ class FaceRestoreWithModel:
     def __init__(self):
         self.face_helper = None
 
-    def restore_face(self, upscale_model, image, facedetection):
+    def restore_face(self, upscale_model, image, strength_model, facedetection):
         counter = 0
         restored_img_list = []
         for image_itm in image:
@@ -145,7 +148,7 @@ class FaceRestoreWithModel:
                 try:
                     with torch.no_grad():
                         #output = upscale_model(cropped_face_t, w=strength, adain=True)[0]
-                        output = upscale_model(cropped_face_t)[0]
+                        output = upscale_model(cropped_face_t, w=strength_model)[0]
                         restored_face = tensor2img(output, rgb2bgr=True, min_max=(-1, 1))
                     del output
                     torch.cuda.empty_cache()
