@@ -9,8 +9,9 @@ from typing import Optional, Any
 from ldm.modules.diffusionmodules.util import checkpoint
 from .sub_quadratic_attention import efficient_dot_product_attention
 
-import model_management
+from comfy import model_management
 
+from . import tomesd
 
 if model_management.xformers_enabled():
     import xformers
@@ -20,10 +21,7 @@ if model_management.xformers_enabled():
 import os
 _ATTN_PRECISION = os.environ.get("ATTN_PRECISION", "fp32")
 
-try:
-    OOM_EXCEPTION = torch.cuda.OutOfMemoryError
-except:
-    OOM_EXCEPTION = Exception
+from cli_args import args
 
 def exists(val):
     return val is not None
@@ -312,7 +310,7 @@ class CrossAttentionDoggettx(nn.Module):
                     r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
                     del s2
                 break
-            except OOM_EXCEPTION as e:
+            except model_management.OOM_EXCEPTION as e:
                 if first_op_done == False:
                     torch.cuda.empty_cache()
                     torch.cuda.ipc_collect()
@@ -478,7 +476,6 @@ class CrossAttentionPytorch(nn.Module):
 
         return self.to_out(out)
 
-import sys
 if model_management.xformers_enabled():
     print("Using xformers cross attention")
     CrossAttention = MemoryEfficientCrossAttention
@@ -486,7 +483,7 @@ elif model_management.pytorch_attention_enabled():
     print("Using pytorch cross attention")
     CrossAttention = CrossAttentionPytorch
 else:
-    if "--use-split-cross-attention" in sys.argv:
+    if args.use_split_cross_attention:
         print("Using split optimization for cross attention")
         CrossAttention = CrossAttentionDoggettx
     else:
@@ -509,13 +506,39 @@ class BasicTransformerBlock(nn.Module):
         self.norm3 = nn.LayerNorm(dim)
         self.checkpoint = checkpoint
 
-    def forward(self, x, context=None):
-        return checkpoint(self._forward, (x, context), self.parameters(), self.checkpoint)
+    def forward(self, x, context=None, transformer_options={}):
+        return checkpoint(self._forward, (x, context, transformer_options), self.parameters(), self.checkpoint)
 
-    def _forward(self, x, context=None):
-        x = self.attn1(self.norm1(x), context=context if self.disable_self_attn else None) + x
-        x = self.attn2(self.norm2(x), context=context) + x
+    def _forward(self, x, context=None, transformer_options={}):
+        current_index = None
+        if "current_index" in transformer_options:
+            current_index = transformer_options["current_index"]
+        if "patches" in transformer_options:
+            transformer_patches = transformer_options["patches"]
+        else:
+            transformer_patches = {}
+
+        n = self.norm1(x)
+        if "tomesd" in transformer_options:
+            m, u = tomesd.get_functions(x, transformer_options["tomesd"]["ratio"], transformer_options["original_shape"])
+            n = u(self.attn1(m(n), context=context if self.disable_self_attn else None))
+        else:
+            n = self.attn1(n, context=context if self.disable_self_attn else None)
+
+        x += n
+        if "middle_patch" in transformer_patches:
+            patch = transformer_patches["middle_patch"]
+            for p in patch:
+                x = p(current_index, x)
+
+        n = self.norm2(x)
+        n = self.attn2(n, context=context)
+
+        x += n
         x = self.ff(self.norm3(x)) + x
+
+        if current_index is not None:
+            transformer_options["current_index"] += 1
         return x
 
 
@@ -562,7 +585,7 @@ class SpatialTransformer(nn.Module):
             self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
         self.use_linear = use_linear
 
-    def forward(self, x, context=None):
+    def forward(self, x, context=None, transformer_options={}):
         # note: if no context is given, cross-attention defaults to self-attention
         if not isinstance(context, list):
             context = [context]
@@ -575,7 +598,7 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_in(x)
         for i, block in enumerate(self.transformer_blocks):
-            x = block(x, context=context[i])
+            x = block(x, context=context[i], transformer_options=transformer_options)
         if self.use_linear:
             x = self.proj_out(x)
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w).contiguous()

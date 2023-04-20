@@ -1,40 +1,32 @@
-import os
-import sys
-import shutil
-
-import threading
 import asyncio
+import itertools
+import os
+import shutil
+import threading
+
+from comfy.cli_args import args
 
 if os.name == "nt":
     import logging
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
-    if '--help' in sys.argv:
-        print("Valid Command line Arguments:")
-        print("\t--listen\t\t\tListen on 0.0.0.0 so the UI can be accessed from other computers.")
-        print("\t--port 8188\t\t\tSet the listen port.")
-        print("\t--dont-upcast-attention\t\tDisable upcasting of attention \n\t\t\t\t\tcan boost speed but increase the chances of black images.\n")
-        print("\t--use-split-cross-attention\tUse the split cross attention optimization instead of the sub-quadratic one.\n\t\t\t\t\tIgnored when xformers is used.")
-        print("\t--use-pytorch-cross-attention\tUse the new pytorch 2.0 cross attention function.")
-        print("\t--disable-xformers\t\tdisables xformers")
-        print()
-        print("\t--highvram\t\t\tBy default models will be unloaded to CPU memory after being used.\n\t\t\t\t\tThis option keeps them in GPU memory.\n")
-        print("\t--normalvram\t\t\tUsed to force normal vram use if lowvram gets automatically enabled.")
-        print("\t--lowvram\t\t\tSplit the unet in parts to use less vram.")
-        print("\t--novram\t\t\tWhen lowvram isn't enough.")
-        print()
-        print("\t--cpu\t\t\tTo use the CPU for everything (slow).")
-        exit()
-
-    if '--dont-upcast-attention' in sys.argv:
+    if args.dont_upcast_attention:
         print("disabling upcasting of attention")
         os.environ['ATTN_PRECISION'] = "fp16"
 
-import execution
-import server
-import folder_paths
+    if args.cuda_device is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+        print("Set cuda device to:", args.cuda_device)
+
+
 import yaml
+
+import execution
+import folder_paths
+import server
+from nodes import init_custom_nodes
+
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
@@ -89,39 +81,37 @@ if __name__ == "__main__":
     server = server.PromptServer(loop)
     q = execution.PromptQueue(server)
 
-    hijack_progress(server)
-
-    threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
-    if '--listen' in sys.argv:
-        address = '0.0.0.0'
-    else:
-        address = '127.0.0.1'
-
-    dont_print = False
-    if '--dont-print-server' in sys.argv:
-        dont_print = True
-
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
         load_extra_path_config(extra_model_paths_config_path)
 
-    if '--extra-model-paths-config' in sys.argv:
-        indices = [(i + 1) for i in range(len(sys.argv) - 1) if sys.argv[i] == '--extra-model-paths-config']
-        for i in indices:
-            load_extra_path_config(sys.argv[i])
+    if args.extra_model_paths_config:
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            load_extra_path_config(config_path)
 
-    port = 8188
-    try:
-        p_index = sys.argv.index('--port')
-        port = int(sys.argv[p_index + 1])
-    except:
-        pass
+    init_custom_nodes()
+    server.add_routes()
+    hijack_progress(server)
 
-    if '--quick-test-for-ci' in sys.argv:
+    threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
+
+    address = args.listen
+
+    dont_print = args.dont_print_server
+
+
+    if args.output_directory:
+        output_dir = os.path.abspath(args.output_directory)
+        print(f"Setting output directory to: {output_dir}")
+        folder_paths.set_output_directory(output_dir)
+
+    port = args.port
+
+    if args.quick_test_for_ci:
         exit(0)
 
     call_on_start = None
-    if "--windows-standalone-build" in sys.argv:
+    if args.windows_standalone_build:
         def startup_server(address, port):
             import webbrowser
             webbrowser.open("http://{}:{}".format(address, port))

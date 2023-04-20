@@ -1,6 +1,13 @@
 class ComfyApi extends EventTarget {
+	#registered = new Set();
+
 	constructor() {
 		super();
+	}
+
+	addEventListener(type, callback, options) {
+		super.addEventListener(type, callback, options);
+		this.#registered.add(type);
 	}
 
 	/**
@@ -82,7 +89,11 @@ class ComfyApi extends EventTarget {
 						this.dispatchEvent(new CustomEvent("executed", { detail: msg.data }));
 						break;
 					default:
-						throw new Error("Unknown message type");
+						if (this.#registered.has(msg.type)) {
+							this.dispatchEvent(new CustomEvent(msg.type, { detail: msg.data }));
+						} else {
+							throw new Error("Unknown message type");
+						}
 				}
 			} catch (error) {
 				console.warn("Unhandled message:", event.data);

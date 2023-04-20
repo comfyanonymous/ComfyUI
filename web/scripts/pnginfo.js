@@ -32,8 +32,9 @@ export function getPngMetadata(file) {
 					}
 					const keyword = String.fromCharCode(...pngData.slice(offset + 8, keyword_end));
 					// Get the text
-					const text = String.fromCharCode(...pngData.slice(keyword_end + 1, offset + 8 + length));
-					txt_chunks[keyword] = text;
+					const contentArraySegment = pngData.slice(keyword_end + 1, offset + 8 + length);
+					const contentJson = Array.from(contentArraySegment).map(s=>String.fromCharCode(s)).join('')
+					txt_chunks[keyword] = contentJson;
 				}
 
 				offset += 12 + length;
@@ -130,6 +131,7 @@ export async function importA1111(graph, parameters) {
 			}
 
 			function replaceEmbeddings(text) {
+				if(!embeddings.length) return text;
 				return text.replaceAll(
 					new RegExp(
 						"\\b(" + embeddings.map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\b|\\b") + ")\\b",

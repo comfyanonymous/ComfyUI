@@ -4,32 +4,35 @@ import os
 import sys
 import json
 import hashlib
-import copy
 import traceback
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
+import comfy.diffusers_convert
 import comfy.samplers
 import comfy.sd
 import comfy.utils
 
-import comfy_extras.clip_vision
+import comfy.clip_vision
 
-import model_management
+import comfy.model_management
 import importlib
 
 import folder_paths
 
 def before_node_execution():
-    model_management.throw_exception_if_processing_interrupted()
+    comfy.model_management.throw_exception_if_processing_interrupted()
 
 def interrupt_processing(value=True):
-    model_management.interrupt_current_processing(value)
+    comfy.model_management.interrupt_current_processing(value)
+
+MAX_RESOLUTION=8192
 
 class CLIPTextEncode:
     @classmethod
@@ -59,10 +62,10 @@ class ConditioningSetArea:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
-                              "width": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 64, "min": 64, "max": 4096, "step": 64}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 64}),
+                              "width": ("INT", {"default": 64, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 64, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
                               "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
@@ -195,7 +198,7 @@ class CheckpointLoader:
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
-    CATEGORY = "loaders"
+    CATEGORY = "advanced/loaders"
 
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = folder_paths.get_full_path("configs", config_name)
@@ -215,6 +218,45 @@ class CheckpointLoaderSimple:
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return out
+
+class DiffusersLoader:
+    @classmethod
+    def INPUT_TYPES(cls):
+        paths = []
+        for search_path in folder_paths.get_folder_paths("diffusers"):
+            if os.path.exists(search_path):
+                paths += next(os.walk(search_path))[1]
+        return {"required": {"model_path": (paths,), }}
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    FUNCTION = "load_checkpoint"
+
+    CATEGORY = "advanced/loaders"
+
+    def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
+        for search_path in folder_paths.get_folder_paths("diffusers"):
+            if os.path.exists(search_path):
+                paths = next(os.walk(search_path))[1]
+                if model_path in paths:
+                    model_path = os.path.join(search_path, model_path)
+                    break
+
+        return comfy.diffusers_convert.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+
+
+class unCLIPCheckpointLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+                             }}
+    RETURN_TYPES = ("MODEL", "CLIP", "VAE", "CLIP_VISION")
+    FUNCTION = "load_checkpoint"
+
+    CATEGORY = "loaders"
+
+    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
+        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
 
 class CLIPSetLastLayer:
@@ -239,8 +281,8 @@ class LoraLoader:
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
                               "lora_name": (folder_paths.get_filename_list("loras"), ),
-                              "strength_model": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "strength_clip": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
@@ -251,6 +293,22 @@ class LoraLoader:
         lora_path = folder_paths.get_full_path("loras", lora_name)
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora_path, strength_model, strength_clip)
         return (model_lora, clip_lora)
+
+class TomePatchModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "ratio": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "_for_testing"
+
+    def patch(self, model, ratio):
+        m = model.clone()
+        m.set_model_tomesd(ratio)
+        return (m, )
 
 class VAELoader:
     @classmethod
@@ -337,7 +395,7 @@ class CLIPLoader:
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip", clip_name)
-        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=CheckpointLoader.embedding_directory)
+        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
 class CLIPVisionLoader:
@@ -352,7 +410,7 @@ class CLIPVisionLoader:
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
-        clip_vision = comfy_extras.clip_vision.load(clip_path)
+        clip_vision = comfy.clip_vision.load(clip_path)
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -364,7 +422,7 @@ class CLIPVisionEncode:
     RETURN_TYPES = ("CLIP_VISION_OUTPUT",)
     FUNCTION = "encode"
 
-    CATEGORY = "conditioning/style_model"
+    CATEGORY = "conditioning"
 
     def encode(self, clip_vision, image):
         output = clip_vision.encode_image(image)
@@ -406,14 +464,86 @@ class StyleModelApply:
             c.append(n)
         return (c, )
 
+class unCLIPConditioning:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                             "noise_augmentation": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "apply_adm"
+
+    CATEGORY = "conditioning"
+
+    def apply_adm(self, conditioning, clip_vision_output, strength, noise_augmentation):
+        c = []
+        for t in conditioning:
+            o = t[1].copy()
+            x = (clip_vision_output, strength, noise_augmentation)
+            if "adm" in o:
+                o["adm"] = o["adm"][:] + [x]
+            else:
+                o["adm"] = [x]
+            n = [t[0], o]
+            c.append(n)
+        return (c, )
+
+class GLIGENLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "gligen_name": (folder_paths.get_filename_list("gligen"), )}}
+
+    RETURN_TYPES = ("GLIGEN",)
+    FUNCTION = "load_gligen"
+
+    CATEGORY = "_for_testing/gligen"
+
+    def load_gligen(self, gligen_name):
+        gligen_path = folder_paths.get_full_path("gligen", gligen_name)
+        gligen = comfy.sd.load_gligen(gligen_path)
+        return (gligen,)
+
+class GLIGENTextBoxApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_to": ("CONDITIONING", ),
+                              "clip": ("CLIP", ),
+                              "gligen_textbox_model": ("GLIGEN", ),
+                              "text": ("STRING", {"multiline": True}),
+                              "width": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
+                              "height": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "_for_testing/gligen"
+
+    def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
+        c = []
+        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled=True)
+        for t in conditioning_to:
+            n = [t[0], t[1].copy()]
+            position_params = [(cond_pooled, height // 8, width // 8, y // 8, x // 8)]
+            prev = []
+            if "gligen" in n[1]:
+                prev = n[1]['gligen'][2]
+
+            n[1]['gligen'] = ("position", gligen_textbox_model, prev + position_params)
+            c.append(n)
+        return (c, )
+
 class EmptyLatentImage:
     def __init__(self, device="cpu"):
         self.device = device
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+        return {"required": { "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
@@ -425,6 +555,24 @@ class EmptyLatentImage:
         return ({"samples":latent}, )
 
 
+class LatentFromBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "rotate"
+
+    CATEGORY = "latent"
+
+    def rotate(self, samples, batch_index):
+        s = samples.copy()
+        s_in = samples["samples"]
+        batch_index = min(s_in.shape[0] - 1, batch_index)
+        s["samples"] = s_in[batch_index:batch_index + 1].clone()
+        s["batch_index"] = batch_index
+        return (s,)
 
 class LatentUpscale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -433,8 +581,8 @@ class LatentUpscale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
+                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
@@ -495,9 +643,9 @@ class LatentComposite:
     def INPUT_TYPES(s):
         return {"required": { "samples_to": ("LATENT",),
                               "samples_from": ("LATENT",),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "feather": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "feather": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "composite"
@@ -536,10 +684,10 @@ class LatentCrop:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 64}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": 4096, "step": 8}),
+                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 64}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "crop"
@@ -595,12 +743,19 @@ class SetLatentNoiseMask:
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
     noise_mask = None
-    device = model_management.get_torch_device()
+    device = comfy.model_management.get_torch_device()
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
-        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=torch.manual_seed(seed), device="cpu")
+        batch_index = 0
+        if "batch_index" in latent:
+            batch_index = latent["batch_index"]
+
+        generator = torch.manual_seed(seed)
+        for i in range(batch_index):
+            noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
+        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
 
     if "noise_mask" in latent:
         noise_mask = latent['noise_mask']
@@ -611,7 +766,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
         noise_mask = noise_mask.to(device)
 
     real_model = None
-    model_management.load_model_gpu(model)
+    comfy.model_management.load_model_gpu(model)
     real_model = model.model
 
     noise = noise.to(device)
@@ -621,38 +776,41 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     negative_copy = []
 
     control_nets = []
+    def get_models(cond):
+        models = []
+        for c in cond:
+            if 'control' in c[1]:
+                models += [c[1]['control']]
+            if 'gligen' in c[1]:
+                models += [c[1]['gligen'][1]]
+        return models
+
     for p in positive:
         t = p[0]
         if t.shape[0] < noise.shape[0]:
             t = torch.cat([t] * noise.shape[0])
         t = t.to(device)
-        if 'control' in p[1]:
-            control_nets += [p[1]['control']]
         positive_copy += [[t] + p[1:]]
     for n in negative:
         t = n[0]
         if t.shape[0] < noise.shape[0]:
             t = torch.cat([t] * noise.shape[0])
         t = t.to(device)
-        if 'control' in n[1]:
-            control_nets += [n[1]['control']]
         negative_copy += [[t] + n[1:]]
 
-    control_net_models = []
-    for x in control_nets:
-        control_net_models += x.get_control_models()
-    model_management.load_controlnet_gpu(control_net_models)
+    models = get_models(positive) + get_models(negative)
+    comfy.model_management.load_controlnet_gpu(models)
 
     if sampler_name in comfy.samplers.KSampler.SAMPLERS:
-        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise)
+        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
     else:
         #other samplers
         pass
 
     samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
     samples = samples.cpu()
-    for c in control_nets:
-        c.cleanup()
+    for m in models:
+        m.cleanup()
 
     out = latent.copy()
     out["samples"] = samples
@@ -717,7 +875,7 @@ class KSamplerAdvanced:
 
 class SaveImage:
     def __init__(self):
-        self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
+        self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
 
     @classmethod
@@ -745,12 +903,19 @@ class SaveImage:
                 digits = 0
             return (digits, prefix)
 
+        def compute_vars(input):
+            input = input.replace("%width%", str(images[0].shape[1]))
+            input = input.replace("%height%", str(images[0].shape[0]))
+            return input
+
+        filename_prefix = compute_vars(filename_prefix)
+
         subfolder = os.path.dirname(os.path.normpath(filename_prefix))
         filename = os.path.basename(os.path.normpath(filename_prefix))
 
         full_output_folder = os.path.join(self.output_dir, subfolder)
 
-        if os.path.commonpath((self.output_dir, os.path.realpath(full_output_folder))) != self.output_dir:
+        if os.path.commonpath((self.output_dir, os.path.abspath(full_output_folder))) != self.output_dir:
             print("Saving image outside the output folder is not allowed.")
             return {}
 
@@ -761,9 +926,6 @@ class SaveImage:
         except FileNotFoundError:
             os.makedirs(full_output_folder, exist_ok=True)
             counter = 1
-
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
 
         results = list()
         for image in images:
@@ -777,19 +939,19 @@ class SaveImage:
                     metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, optimize=True)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
                 "type": self.type
-            });
+            })
             counter += 1
 
         return { "ui": { "images": results } }
 
 class PreviewImage(SaveImage):
     def __init__(self):
-        self.output_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
 
     @classmethod
@@ -800,13 +962,11 @@ class PreviewImage(SaveImage):
                 }
 
 class LoadImage:
-    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
     def INPUT_TYPES(s):
-        if not os.path.exists(s.input_dir):
-            os.makedirs(s.input_dir)
+        input_dir = folder_paths.get_input_directory()
         return {"required":
-                    {"image": (sorted(os.listdir(s.input_dir)), )},
+                    {"image": (sorted(os.listdir(input_dir)), )},
                 }
 
     CATEGORY = "image"
@@ -814,7 +974,8 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
     def load_image(self, image):
-        image_path = os.path.join(self.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         i = Image.open(image_path)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -828,28 +989,32 @@ class LoadImage:
 
     @classmethod
     def IS_CHANGED(s, image):
-        image_path = os.path.join(s.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
 
 class LoadImageMask:
-    input_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
     @classmethod
     def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
         return {"required":
-                    {"image": (sorted(os.listdir(s.input_dir)), ),
+                    {"image": (sorted(os.listdir(input_dir)), ),
                     "channel": (["alpha", "red", "green", "blue"], ),}
                 }
 
-    CATEGORY = "image"
+    CATEGORY = "mask"
 
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
     def load_image(self, image, channel):
-        image_path = os.path.join(self.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         i = Image.open(image_path)
+        if i.getbands() != ("R", "G", "B", "A"):
+            i = i.convert("RGBA")
         mask = None
         c = channel[0].upper()
         if c in i.getbands():
@@ -863,7 +1028,8 @@ class LoadImageMask:
 
     @classmethod
     def IS_CHANGED(s, image, channel):
-        image_path = os.path.join(s.input_dir, image)
+        input_dir = folder_paths.get_input_directory()
+        image_path = os.path.join(input_dir, image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
@@ -876,8 +1042,8 @@ class ImageScale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
-                              "height": ("INT", {"default": 512, "min": 1, "max": 4096, "step": 1}),
+                              "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
+                              "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
@@ -906,9 +1072,71 @@ class ImageInvert:
         return (s,)
 
 
+class ImagePadForOutpaint:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "left": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "top": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "right": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "bottom": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 64}),
+                "feathering": ("INT", {"default": 40, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "MASK")
+    FUNCTION = "expand_image"
+
+    CATEGORY = "image"
+
+    def expand_image(self, image, left, top, right, bottom, feathering):
+        d1, d2, d3, d4 = image.size()
+
+        new_image = torch.zeros(
+            (d1, d2 + top + bottom, d3 + left + right, d4),
+            dtype=torch.float32,
+        )
+        new_image[:, top:top + d2, left:left + d3, :] = image
+
+        mask = torch.ones(
+            (d2 + top + bottom, d3 + left + right),
+            dtype=torch.float32,
+        )
+
+        t = torch.zeros(
+            (d2, d3),
+            dtype=torch.float32
+        )
+
+        if feathering > 0 and feathering * 2 < d2 and feathering * 2 < d3:
+
+            for i in range(d2):
+                for j in range(d3):
+                    dt = i if top != 0 else d2
+                    db = d2 - i if bottom != 0 else d2
+
+                    dl = j if left != 0 else d3
+                    dr = d3 - j if right != 0 else d3
+
+                    d = min(dt, db, dl, dr)
+
+                    if d >= feathering:
+                        continue
+
+                    v = (feathering - d) / feathering
+
+                    t[i, j] = v * v
+
+        mask[top:top + d2, left:left + d3] = t
+
+        return (new_image, mask)
+
+
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
-    "CheckpointLoader": CheckpointLoader,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
     "CLIPTextEncode": CLIPTextEncode,
     "CLIPSetLastLayer": CLIPSetLastLayer,
@@ -918,12 +1146,14 @@ NODE_CLASS_MAPPINGS = {
     "VAELoader": VAELoader,
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
+    "LatentFromBatch": LatentFromBatch,
     "SaveImage": SaveImage,
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
+    "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "KSamplerAdvanced": KSamplerAdvanced,
@@ -936,6 +1166,7 @@ NODE_CLASS_MAPPINGS = {
     "CLIPLoader": CLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
     "StyleModelApply": StyleModelApply,
+    "unCLIPConditioning": unCLIPConditioning,
     "ControlNetApply": ControlNetApply,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
@@ -943,6 +1174,61 @@ NODE_CLASS_MAPPINGS = {
     "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
     "VAEEncodeTiled": VAEEncodeTiled,
+    "TomePatchModel": TomePatchModel,
+    "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
+    "GLIGENLoader": GLIGENLoader,
+    "GLIGENTextBoxApply": GLIGENTextBoxApply,
+
+    "CheckpointLoader": CheckpointLoader,
+    "DiffusersLoader": DiffusersLoader,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    # Sampling
+    "KSampler": "KSampler",
+    "KSamplerAdvanced": "KSampler (Advanced)",
+    # Loaders
+    "CheckpointLoader": "Load Checkpoint (With Config)",
+    "CheckpointLoaderSimple": "Load Checkpoint",
+    "VAELoader": "Load VAE",
+    "LoraLoader": "Load LoRA",
+    "CLIPLoader": "Load CLIP",
+    "ControlNetLoader": "Load ControlNet Model",
+    "DiffControlNetLoader": "Load ControlNet Model (diff)",
+    "StyleModelLoader": "Load Style Model",
+    "CLIPVisionLoader": "Load CLIP Vision",
+    "UpscaleModelLoader": "Load Upscale Model",
+    # Conditioning
+    "CLIPVisionEncode": "CLIP Vision Encode",
+    "StyleModelApply": "Apply Style Model",
+    "CLIPTextEncode": "CLIP Text Encode (Prompt)",
+    "CLIPSetLastLayer": "CLIP Set Last Layer",
+    "ConditioningCombine": "Conditioning (Combine)",
+    "ConditioningSetArea": "Conditioning (Set Area)",
+    "ControlNetApply": "Apply ControlNet",
+    # Latent
+    "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
+    "SetLatentNoiseMask": "Set Latent Noise Mask",
+    "VAEDecode": "VAE Decode",
+    "VAEEncode": "VAE Encode",
+    "LatentRotate": "Rotate Latent",
+    "LatentFlip": "Flip Latent",
+    "LatentCrop": "Crop Latent",
+    "EmptyLatentImage": "Empty Latent Image",
+    "LatentUpscale": "Upscale Latent",
+    "LatentComposite": "Latent Composite",
+    # Image
+    "SaveImage": "Save Image",
+    "PreviewImage": "Preview Image",
+    "LoadImage": "Load Image",
+    "LoadImageMask": "Load Image (as Mask)",
+    "ImageScale": "Upscale Image",
+    "ImageUpscaleWithModel": "Upscale Image (using Model)",
+    "ImageInvert": "Invert Image",
+    "ImagePadForOutpaint": "Pad Image for Outpainting",
+    # _for_testing
+    "VAEDecodeTiled": "VAE Decode (Tiled)",
+    "VAEEncodeTiled": "VAE Encode (Tiled)",
 }
 
 def load_custom_node(module_path):
@@ -960,6 +1246,8 @@ def load_custom_node(module_path):
         module_spec.loader.exec_module(module)
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
+            if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
+                NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
         else:
             print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
     except Exception as e:
@@ -967,16 +1255,19 @@ def load_custom_node(module_path):
         print(f"Cannot import {module_path} module for custom nodes:", e)
 
 def load_custom_nodes():
-    CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
-    possible_modules = os.listdir(CUSTOM_NODE_PATH)
-    if "__pycache__" in possible_modules:
-        possible_modules.remove("__pycache__")
+    node_paths = folder_paths.get_folder_paths("custom_nodes")
+    for custom_node_path in node_paths:
+        possible_modules = os.listdir(custom_node_path)
+        if "__pycache__" in possible_modules:
+            possible_modules.remove("__pycache__")
 
-    for possible_module in possible_modules:
-        module_path = os.path.join(CUSTOM_NODE_PATH, possible_module)
-        if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-        load_custom_node(module_path)
+        for possible_module in possible_modules:
+            module_path = os.path.join(custom_node_path, possible_module)
+            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+            load_custom_node(module_path)
 
-load_custom_nodes()
-
-load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
+def init_custom_nodes():
+    load_custom_nodes()
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))

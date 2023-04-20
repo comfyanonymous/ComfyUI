@@ -1,20 +1,51 @@
 import { ComfyWidgets } from "./widgets.js";
-import { ComfyUI } from "./ui.js";
+import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111 } from "./pnginfo.js";
 
-class ComfyApp {
+/** 
+ * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
+ */
+
+export class ComfyApp {
+	/**
+	 * List of entries to queue
+	 * @type {{number: number, batchCount: number}[]}
+	 */
+	#queueItems = [];
+	/**
+	 * If the queue is currently being processed
+	 * @type {boolean}
+	 */
+	#processingQueue = false;
+
 	constructor() {
 		this.ui = new ComfyUI(this);
+
+		/**
+		 * List of extensions that are registered with the app
+		 * @type {ComfyExtension[]}
+		 */
 		this.extensions = [];
+
+		/**
+		 * Stores the execution output data for each node
+		 * @type {Record<string, any>}
+		 */
 		this.nodeOutputs = {};
+
+		/**
+		 * If the shift key on the keyboard is pressed
+		 * @type {boolean}
+		 */
+		this.shiftDown = false;
 	}
 
 	/**
 	 * Invoke an extension callback
-	 * @param {string} method The extension callback to execute
-	 * @param  {...any} args Any arguments to pass to the callback
+	 * @param {keyof ComfyExtension} method The extension callback to execute
+	 * @param  {any[]} args Any arguments to pass to the callback
 	 * @returns
 	 */
 	#invokeExtensions(method, ...args) {
@@ -80,13 +111,66 @@ class ComfyApp {
 					img = this.imgs[this.overIndex];
 				}
 				if (img) {
-					options.unshift({
-						content: "Open Image",
-						callback: () => window.open(img.src, "_blank"),
-					});
+					options.unshift(
+						{
+							content: "Open Image",
+							callback: () => window.open(img.src, "_blank"),
+						},
+						{
+							content: "Save Image",
+							callback: () => {
+								const a = document.createElement("a");
+								a.href = img.src;
+								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								document.body.append(a);
+								a.click();
+								requestAnimationFrame(() => a.remove());
+							},
+						}
+					);
 				}
 			}
 		};
+	}
+
+	#addNodeKeyHandler(node) {
+		const app = this;
+		const origNodeOnKeyDown = node.prototype.onKeyDown;
+
+		node.prototype.onKeyDown = function(e) {
+			if (origNodeOnKeyDown && origNodeOnKeyDown.apply(this, e) === false) {
+				return false;
+			}
+
+			if (this.flags.collapsed || !this.imgs || this.imageIndex === null) {
+				return;
+			}
+
+			let handled = false;
+
+			if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+				if (e.key === "ArrowLeft") {
+					this.imageIndex -= 1;
+				} else if (e.key === "ArrowRight") {
+					this.imageIndex += 1;
+				}
+				this.imageIndex %= this.imgs.length;
+
+				if (this.imageIndex < 0) {
+					this.imageIndex = this.imgs.length + this.imageIndex;
+				}
+				handled = true;
+			} else if (e.key === "Escape") {
+				this.imageIndex = null;
+				handled = true;
+			}
+
+			if (handled === true) {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				return false;
+			}
+		}
 	}
 
 	/**
@@ -299,8 +383,20 @@ class ComfyApp {
 			if (n && n.onDragDrop && (await n.onDragDrop(event))) {
 				return;
 			}
-
+			// Dragging from Chrome->Firefox there is a file but its a bmp, so ignore that
+			if (event.dataTransfer.files.length && event.dataTransfer.files[0].type !== "image/bmp") {
 			await this.handleFile(event.dataTransfer.files[0]);
+			} else {
+				// Try loading the first URI in the transfer list
+				const validTypes = ["text/uri-list", "text/x-moz-url"];
+				const match = [...event.dataTransfer.types].find((t) => validTypes.find(v => t === v));
+				if (match) {
+					const uri = event.dataTransfer.getData(match)?.split("\n")?.[0];
+					if (uri) {
+						await this.handleFile(await (await fetch(uri)).blob());
+					}
+				}
+			}
 		});
 
 		// Always clear over node on drag leave
@@ -359,13 +455,157 @@ class ComfyApp {
 	}
 
 	/**
+	 * Handle mouse
+	 *
+	 * Move group by header
+	 */
+	#addProcessMouseHandler() {
+		const self = this;
+
+		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
+		LGraphCanvas.prototype.processMouseDown = function(e) {
+			const res = origProcessMouseDown.apply(this, arguments);
+
+			this.selected_group_moving = false;
+
+			if (this.selected_group && !this.selected_group_resizing) {
+				var font_size =
+					this.selected_group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
+				var height = font_size * 1.4;
+
+				// Move group by header
+				if (LiteGraph.isInsideRectangle(e.canvasX, e.canvasY, this.selected_group.pos[0], this.selected_group.pos[1], this.selected_group.size[0], height)) {
+					this.selected_group_moving = true;
+				}
+			}
+
+			return res;
+		}
+
+		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
+		LGraphCanvas.prototype.processMouseMove = function(e) {
+			const orig_selected_group = this.selected_group;
+
+			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
+				this.selected_group = null;
+			}
+
+			const res = origProcessMouseMove.apply(this, arguments);
+
+			if (orig_selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
+				this.selected_group = orig_selected_group;
+			}
+
+			return res;
+		};
+	}
+
+	/**
+	 * Handle keypress
+	 *
+	 * Ctrl + M mute/unmute selected nodes
+	 */
+	#addProcessKeyHandler() {
+		const self = this;
+		const origProcessKey = LGraphCanvas.prototype.processKey;
+		LGraphCanvas.prototype.processKey = function(e) {
+			const res = origProcessKey.apply(this, arguments);
+
+			if (res === false) {
+				return res;
+			}
+
+			if (!this.graph) {
+				return;
+			}
+
+			var block_default = false;
+
+			if (e.target.localName == "input") {
+				return;
+			}
+
+			if (e.type == "keydown") {
+				// Ctrl + M mute/unmute
+				if (e.keyCode == 77 && e.ctrlKey) {
+					if (this.selected_nodes) {
+						for (var i in this.selected_nodes) {
+							if (this.selected_nodes[i].mode === 2) { // never
+								this.selected_nodes[i].mode = 0; // always
+							} else {
+								this.selected_nodes[i].mode = 2; // never
+							}
+						}
+					}
+					block_default = true;
+				}
+			}
+
+			this.graph.change();
+
+			if (block_default) {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				return false;
+			}
+
+			return res;
+		};
+	}
+
+	/**
+	 * Draws group header bar
+	 */
+	#addDrawGroupsHandler() {
+		const self = this;
+
+		const origDrawGroups = LGraphCanvas.prototype.drawGroups;
+		LGraphCanvas.prototype.drawGroups = function(canvas, ctx) {
+			if (!this.graph) {
+				return;
+			}
+
+			var groups = this.graph._groups;
+
+			ctx.save();
+			ctx.globalAlpha = 0.7 * this.editor_alpha;
+
+			for (var i = 0; i < groups.length; ++i) {
+				var group = groups[i];
+
+				if (!LiteGraph.overlapBounding(this.visible_area, group._bounding)) {
+					continue;
+				} //out of the visible area
+
+				ctx.fillStyle = group.color || "#335";
+				ctx.strokeStyle = group.color || "#335";
+				var pos = group._pos;
+				var size = group._size;
+				ctx.globalAlpha = 0.25 * this.editor_alpha;
+				ctx.beginPath();
+				var font_size =
+					group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
+				ctx.rect(pos[0] + 0.5, pos[1] + 0.5, size[0], font_size * 1.4);
+				ctx.fill();
+				ctx.globalAlpha = this.editor_alpha;
+			}
+
+			ctx.restore();
+
+			const res = origDrawGroups.apply(this, arguments);
+			return res;
+		}
+	}
+
+	/**
 	 * Draws node highlights (executing, drag drop) and progress bar
 	 */
 	#addDrawNodeHandler() {
-		const orig = LGraphCanvas.prototype.drawNodeShape;
+		const origDrawNodeShape = LGraphCanvas.prototype.drawNodeShape;
 		const self = this;
+
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
-			const res = orig.apply(this, arguments);
+			const res = origDrawNodeShape.apply(this, arguments);
 
 			let color = null;
 			if (node.id === +self.runningNodeId) {
@@ -414,6 +654,21 @@ class ComfyApp {
 
 			return res;
 		};
+
+		const origDrawNode = LGraphCanvas.prototype.drawNode;
+		LGraphCanvas.prototype.drawNode = function (node, ctx) {
+			var editor_alpha = this.editor_alpha;
+
+			if (node.mode === 2) { // never
+				this.editor_alpha = 0.4;
+			}
+
+			const res = origDrawNode.apply(this, arguments);
+
+			this.editor_alpha = editor_alpha;
+
+			return res;
+		};
 	}
 
 	/**
@@ -445,6 +700,10 @@ class ComfyApp {
 
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
+			const node = this.graph.getNodeById(detail.node);
+			if (node?.onExecuted) {
+				node.onExecuted(detail.output);
+			}
 		});
 
 		api.init();
@@ -452,10 +711,10 @@ class ComfyApp {
 
 	#addKeyboardHandler() {
 		window.addEventListener("keydown", (e) => {
-			// Queue prompt using ctrl or command + enter
-			if ((e.ctrlKey || e.metaKey) && (e.key === "Enter" || e.keyCode === 13 || e.keyCode === 10)) {
-				this.queuePrompt(e.shiftKey ? -1 : 0);
-			}
+			this.shiftDown = e.shiftKey;
+		});
+		window.addEventListener("keyup", (e) => {
+			this.shiftDown = e.shiftKey;
 		});
 	}
 
@@ -481,11 +740,18 @@ class ComfyApp {
 
 		// Create and mount the LiteGraph in the DOM
 		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
+
+		this.#addProcessMouseHandler();
+		this.#addProcessKeyHandler();
 
 		this.graph = new LGraph();
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
+
+		LiteGraph.release_link_on_empty_shows_menu = true;
+		LiteGraph.alt_drag_do_clone_nodes = true;
 
 		this.graph.start();
 
@@ -511,7 +777,9 @@ class ComfyApp {
 				this.loadGraphData(workflow);
 				restored = true;
 			}
-		} catch (err) {}
+		} catch (err) {
+			console.error("Error loading previous workflow", err);
+		}
 
 		// We failed to restore a workflow so load the default
 		if (!restored) {
@@ -522,6 +790,7 @@ class ComfyApp {
 		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
 
 		this.#addDrawNodeHandler();
+		this.#addDrawGroupsHandler();
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
@@ -551,33 +820,38 @@ class ComfyApp {
 			const nodeData = defs[nodeId];
 			const node = Object.assign(
 				function ComfyNode() {
-					const inputs = nodeData["input"]["required"];
+					var inputs = nodeData["input"]["required"];
+					if (nodeData["input"]["optional"] != undefined){
+					    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
+					}
 					const config = { minWidth: 1, minHeight: 1 };
 					for (const inputName in inputs) {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
 
-						if (Array.isArray(type)) {
-							// Enums e.g. latent rotation
-							let defaultValue = type[0];
-							if (inputData[1] && inputData[1].default) {
-								defaultValue = inputData[1].default;
-							}
-							this.addWidget("combo", inputName, defaultValue, () => {}, { values: type });
-						} else if (`${type}:${inputName}` in widgets) {
-							// Support custom widgets by Type:Name
-							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
-						} else if (type in widgets) {
-							// Standard type widgets
-							Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-						} else {
-							// Node connection inputs
+						if(inputData[1]?.forceInput) {
 							this.addInput(inputName, type);
+						} else {
+							if (Array.isArray(type)) {
+								// Enums
+								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
+							} else if (`${type}:${inputName}` in widgets) {
+								// Support custom widgets by Type:Name
+								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+							} else if (type in widgets) {
+								// Standard type widgets
+								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
+							} else {
+								// Node connection inputs
+								this.addInput(inputName, type);
+							}
 						}
 					}
 
-					for (const output of nodeData["output"]) {
-						this.addOutput(output, output);
+					for (const o in nodeData["output"]) {
+						const output = nodeData["output"][o];
+						const outputName = nodeData["output_name"][o] || output;
+						this.addOutput(outputName, output);
 					}
 
 					const s = this.computeSize();
@@ -589,7 +863,7 @@ class ComfyApp {
 					app.#invokeExtensionsAsync("nodeCreated", this);
 				},
 				{
-					title: nodeData.name,
+					title: nodeData.display_name || nodeData.name,
 					comfyClass: nodeData.name,
 				}
 			);
@@ -597,6 +871,7 @@ class ComfyApp {
 
 			this.#addNodeContextMenuHandler(node);
 			this.#addDrawBackgroundHandler(node, app);
+			this.#addNodeKeyHandler(node);
 
 			await this.#invokeExtensionsAsync("beforeRegisterNodeDef", node, nodeData);
 			LiteGraph.registerNodeType(nodeId, node);
@@ -611,16 +886,68 @@ class ComfyApp {
 	 * @param {*} graphData A serialized graph object
 	 */
 	loadGraphData(graphData) {
+		this.clean();
+
 		if (!graphData) {
-			graphData = defaultGraph;
+			graphData = structuredClone(defaultGraph);
 		}
 
-		// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
+		const missingNodeTypes = [];
 		for (let n of graphData.nodes) {
+			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
+
+			// Find missing node types
+			if (!(n.type in LiteGraph.registered_node_types)) {
+				missingNodeTypes.push(n.type);
+			}
 		}
 
-		this.graph.configure(graphData);
+		try {
+			this.graph.configure(graphData);
+		} catch (error) {
+			let errorHint = [];
+			// Try extracting filename to see if it was caused by an extension script
+			const filename = error.fileName || (error.stack || "").match(/(\/extensions\/.*\.js)/)?.[1];
+			const pos = (filename || "").indexOf("/extensions/");
+			if (pos > -1) {
+				errorHint.push(
+					$el("span", { textContent: "This may be due to the following script:" }),
+					$el("br"),
+					$el("span", {
+						style: {
+							fontWeight: "bold",
+						},
+						textContent: filename.substring(pos),
+					})
+				);
+			}
+
+			// Show dialog to let the user know something went wrong loading the data
+			this.ui.dialog.show(
+				$el("div", [
+					$el("p", { textContent: "Loading aborted due to error reloading workflow data" }),
+					$el("pre", {
+						style: { padding: "5px", backgroundColor: "rgba(255,0,0,0.2)" },
+						textContent: error.toString(),
+					}),
+					$el("pre", {
+						style: {
+							padding: "5px",
+							color: "#ccc",
+							fontSize: "10px",
+							maxHeight: "50vh",
+							overflow: "auto",
+							backgroundColor: "rgba(0,0,0,0.2)",
+						},
+						textContent: error.stack || "No stacktrace available",
+					}),
+					...errorHint,
+				]).outerHTML
+			);
+
+			return;
+		}
 
 		for (const node of this.graph._nodes) {
 			const size = node.computeSize();
@@ -639,10 +966,27 @@ class ComfyApp {
 							}
 						}
 					}
+					if (node.type == "KSampler" || node.type == "KSamplerAdvanced" || node.type == "PrimitiveNode") {
+						if (widget.name == "control_after_generate") {
+							if (widget.value === true) {
+								widget.value = "randomize";
+							} else if (widget.value === false) {
+								widget.value = "fixed";
+							}
+						}
+					}
 				}
 			}
 
 			this.#invokeExtensions("loadedGraphNode", node);
+		}
+
+		if (missingNodeTypes.length) {
+			this.ui.dialog.show(
+				`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
+					(t) => `<li>${t}</li>`
+				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
+			);
 		}
 	}
 
@@ -653,11 +997,20 @@ class ComfyApp {
 	async graphToPrompt() {
 		const workflow = this.graph.serialize();
 		const output = {};
-		for (const n of workflow.nodes) {
-			const node = this.graph.getNodeById(n.id);
+		// Process nodes in order of execution
+		for (const node of this.graph.computeExecutionOrder(false)) {
+			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
-				// Don't serialize frontend only nodes
+				// Don't serialize frontend only nodes but let them make changes
+				if (node.applyToGraph) {
+					node.applyToGraph(workflow);
+				}
+				continue;
+			}
+
+			if (node.mode === 2) {
+				// Don't serialize muted nodes
 				continue;
 			}
 
@@ -681,7 +1034,11 @@ class ComfyApp {
 					let link = node.getInputLink(i);
 					while (parent && parent.isVirtualNode) {
 						link = parent.getInputLink(link.origin_slot);
-						parent = parent.getInputNode(link.origin_slot);
+						if (link) {
+							parent = parent.getInputNode(link.origin_slot);
+						} else {
+							parent = null;
+						}
 					}
 
 					if (link) {
@@ -696,35 +1053,63 @@ class ComfyApp {
 			};
 		}
 
+		// Remove inputs connected to removed nodes
+
+		for (const o in output) {
+			for (const i in output[o].inputs) {
+				if (Array.isArray(output[o].inputs[i])
+					&& output[o].inputs[i].length === 2
+					&& !output[output[o].inputs[i][0]]) {
+					delete output[o].inputs[i];
+				}
+			}
+		}
+
 		return { workflow, output };
 	}
 
 	async queuePrompt(number, batchCount = 1) {
-		for (let i = 0; i < batchCount; i++) {
-			const p = await this.graphToPrompt();
+		this.#queueItems.push({ number, batchCount });
 
-			try {
-				await api.queuePrompt(number, p);
-			} catch (error) {
-				this.ui.dialog.show(error.response || error.toString());
-				return;
-			}
+		// Only have one action process the items so each one gets a unique seed correctly
+		if (this.#processingQueue) {
+			return;
+		}
+	
+		this.#processingQueue = true;
+		try {
+			while (this.#queueItems.length) {
+				({ number, batchCount } = this.#queueItems.pop());
 
-			for (const n of p.workflow.nodes) {
-				const node = graph.getNodeById(n.id);
-				if (node.widgets) {
-					for (const widget of node.widgets) {
-						// Allow widgets to run callbacks after a prompt has been queued
-						// e.g. random seed after every gen
-						if (widget.afterQueued) {
-							widget.afterQueued();
+				for (let i = 0; i < batchCount; i++) {
+					const p = await this.graphToPrompt();
+
+					try {
+						await api.queuePrompt(number, p);
+					} catch (error) {
+						this.ui.dialog.show(error.response || error.toString());
+						break;
+					}
+
+					for (const n of p.workflow.nodes) {
+						const node = graph.getNodeById(n.id);
+						if (node.widgets) {
+							for (const widget of node.widgets) {
+								// Allow widgets to run callbacks after a prompt has been queued
+								// e.g. random seed after every gen
+								if (widget.afterQueued) {
+									widget.afterQueued();
+								}
+							}
 						}
 					}
+
+					this.canvas.draw(true, true);
+					await this.ui.queue.update();
 				}
 			}
-
-			this.canvas.draw(true, true);
-			await this.ui.queue.update();
+		} finally {
+			this.#processingQueue = false;
 		}
 	}
 
@@ -742,7 +1127,7 @@ class ComfyApp {
 					importA1111(this.graph, pngInfo.parameters);
 				}
 			}
-		} else if (file.type === "application/json" || file.name.endsWith(".json")) {
+		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = () => {
 				this.loadGraphData(JSON.parse(reader.result));
@@ -751,6 +1136,10 @@ class ComfyApp {
 		}
 	}
 
+	/**
+	 * Registers a Comfy web extension with the app
+	 * @param {ComfyExtension} extension
+	 */
 	registerExtension(extension) {
 		if (!extension.name) {
 			throw new Error("Extensions must have a 'name' property.");
@@ -759,6 +1148,38 @@ class ComfyApp {
 			throw new Error(`Extension named '${extension.name}' already registered.`);
 		}
 		this.extensions.push(extension);
+	}
+
+	/**
+	 * Refresh combo list on whole nodes
+	 */
+	async refreshComboInNodes() {
+		const defs = await api.getNodeDefs();
+
+		for(let nodeNum in this.graph._nodes) {
+			const node = this.graph._nodes[nodeNum];
+
+			const def = defs[node.type];
+
+			for(const widgetNum in node.widgets) {
+				const widget = node.widgets[widgetNum]
+
+				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
+					widget.options.values = def["input"]["required"][widget.name][0];
+
+					if(!widget.options.values.includes(widget.value)) {
+						widget.value = widget.options.values[0];
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Clean current state
+	 */
+	clean() {
+		this.nodeOutputs = {};
 	}
 }
 

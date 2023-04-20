@@ -7,16 +7,11 @@ from einops import rearrange
 from typing import Optional, Any
 
 from ldm.modules.attention import MemoryEfficientCrossAttention
-import model_management
+from comfy import model_management
 
-if model_management.xformers_enabled():
+if model_management.xformers_enabled_vae():
     import xformers
     import xformers.ops
-
-try:
-    OOM_EXCEPTION = torch.cuda.OutOfMemoryError
-except:
-    OOM_EXCEPTION = Exception
 
 def get_timestep_embedding(timesteps, embedding_dim):
     """
@@ -221,7 +216,7 @@ class AttnBlock(nn.Module):
                     r1[:, :, i:end] = torch.bmm(v, s2)
                     del s2
                 break
-            except OOM_EXCEPTION as e:
+            except model_management.OOM_EXCEPTION as e:
                 steps *= 2
                 if steps > 128:
                     raise e
@@ -369,7 +364,7 @@ class MemoryEfficientCrossAttentionWrapper(MemoryEfficientCrossAttention):
 
 def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
     assert attn_type in ["vanilla", "vanilla-xformers", "memory-efficient-cross-attn", "linear", "none"], f'attn_type {attn_type} unknown'
-    if model_management.xformers_enabled() and attn_type == "vanilla":
+    if model_management.xformers_enabled_vae() and attn_type == "vanilla":
         attn_type = "vanilla-xformers"
     if model_management.pytorch_attention_enabled() and attn_type == "vanilla":
         attn_type = "vanilla-pytorch"
@@ -616,19 +611,17 @@ class Encoder(nn.Module):
         x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
         already_padded = True
         # downsampling
-        hs = [self.conv_in(x)]
+        h = self.conv_in(x)
         for i_level in range(self.num_resolutions):
             for i_block in range(self.num_res_blocks):
-                h = self.down[i_level].block[i_block](hs[-1], temb)
+                h = self.down[i_level].block[i_block](h, temb)
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
-                hs.append(h)
             if i_level != self.num_resolutions-1:
-                hs.append(self.down[i_level].downsample(hs[-1], already_padded))
+                h = self.down[i_level].downsample(h, already_padded)
                 already_padded = False
 
         # middle
-        h = hs[-1]
         h = self.mid.block_1(h, temb)
         h = self.mid.attn_1(h)
         h = self.mid.block_2(h, temb)
