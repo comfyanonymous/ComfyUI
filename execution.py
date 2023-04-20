@@ -60,16 +60,14 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
                 executed += recursive_execute(server, prompt, outputs, input_unique_id, extra_data)
 
     input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
-    if server.client_id is not None:
-        server.last_node_id = unique_id
-        server.send_sync("executing", { "node": unique_id }, server.client_id)
+    server.last_node_id = unique_id
+    server.send_sync("executing", { "node": unique_id }, server.client_id)
     obj = class_def()
 
     nodes.before_node_execution()
     outputs[unique_id] = getattr(obj, obj.FUNCTION)(**input_data_all)
     if "ui" in outputs[unique_id]:
-        if server.client_id is not None:
-            server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
+        server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
         if "result" in outputs[unique_id]:
             outputs[unique_id] = outputs[unique_id]["result"]
     return executed + [unique_id]
@@ -200,8 +198,7 @@ class PromptExecutor:
                     self.old_prompt[x] = copy.deepcopy(prompt[x])
             finally:
                 self.server.last_node_id = None
-                if self.server.client_id is not None:
-                    self.server.send_sync("executing", { "node": None }, self.server.client_id)
+                self.server.send_sync("executing", { "node": None }, self.server.client_id)
 
         gc.collect()
         comfy.model_management.soft_empty_cache()
