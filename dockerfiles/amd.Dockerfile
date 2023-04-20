@@ -14,4 +14,4 @@ RUN pip install -r requirements.txt
 
 
 ENV CLI_ARGS=""
-CMD python main.py ${CLI_ARGS}
+CMD python -u main.py ${CLI_ARGS}
