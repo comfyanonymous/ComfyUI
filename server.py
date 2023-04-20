@@ -195,7 +195,7 @@ class PromptServer():
         
         @routes.get("/poll_messages")
         async def get_poll_messages(request):
-            return web.json_response(self.poll_messages))
+            return web.json_response(self.poll_messages)
 
         @routes.get("/queue")
         async def get_queue(request):
