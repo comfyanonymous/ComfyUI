@@ -68,6 +68,8 @@ class PromptServer():
         self.routes = routes
         self.last_node_id = None
         self.client_id = None
+        
+        self.poll_messages = []
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -189,6 +191,10 @@ class PromptServer():
         @routes.get("/history")
         async def get_history(request):
             return web.json_response(self.prompt_queue.get_history())
+        
+        @routes.get("/poll_messages")
+        async def get_poll_messages(request):
+            return web.json_response({k: v for v, k in enumerate(self.poll_messages)})
 
         @routes.get("/queue")
         async def get_queue(request):
@@ -280,6 +286,7 @@ class PromptServer():
 
     async def send(self, event, data, sid=None):
         message = {"type": event, "data": data}
+        self.poll_messages.append(message)
        
         if isinstance(message, str) == False:
             message = json.dumps(message)
