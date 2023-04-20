@@ -20,6 +20,12 @@ export class ComfyApp {
 	 */
 	#processingQueue = false;
 
+	/**
+	 * Content Clipboard
+	 * @type {serialized node object}
+	 */
+	static contentClipboard = null;
+
 	constructor() {
 		this.ui = new ComfyUI(this);
 
@@ -130,6 +136,49 @@ export class ComfyApp {
 					);
 				}
 			}
+
+			options.push(
+				{
+					content: "Copy (Clipspace)",
+					callback: (obj) => {
+						console.log(this);
+						var widgets = null;
+						if(this.widgets) {
+						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
+						}
+						ComfyApp.contentClipboard = { 'widgets': widgets, 'imgs': this.imgs, 'images': this.images };
+					}
+				},
+				{
+					content: "Paste (Clipspace)",
+					callback: () => {
+						if(ComfyApp.contentClipboard != null) {
+							console.log(ComfyApp.contentClipboard.widgets);
+							if(ComfyApp.contentClipboard.widgets != null) {
+								ComfyApp.contentClipboard.widgets.forEach(({ type, name, value }) => {
+									const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
+										if (prop) {
+										prop.value = value;
+									}
+								});
+							}
+
+							if(ComfyApp.contentClipboard.imgs != undefined && this.imgs != undefined) {
+								this.imgs = ComfyApp.contentClipboard.imgs;
+								this.images = ComfyApp.contentClipboard.images;
+								const index = this.widgets.findIndex(obj => obj.name === 'image');
+								if(index >= 0) {
+									let filename = `${this.images[0].filename} [${this.images[0].type}]`;
+									this.widgets[index].value = filename;
+									if(this.widgets_values != undefined) {
+										this.widgets_values[index] = filename;
+									}
+								}
+							}
+						}
+					}
+				}
+			);
 		};
 	}
 

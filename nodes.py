@@ -975,7 +975,7 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image, input_dir)
         i = Image.open(image_path)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -990,7 +990,7 @@ class LoadImage:
     @classmethod
     def IS_CHANGED(s, image):
         input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image, input_dir)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
@@ -1011,7 +1011,7 @@ class LoadImageMask:
     FUNCTION = "load_image"
     def load_image(self, image, channel):
         input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image, input_dir)
         i = Image.open(image_path)
         if i.getbands() != ("R", "G", "B", "A"):
             i = i.convert("RGBA")
@@ -1029,7 +1029,7 @@ class LoadImageMask:
     @classmethod
     def IS_CHANGED(s, image, channel):
         input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image, input_dir)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
