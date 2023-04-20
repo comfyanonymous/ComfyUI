@@ -299,6 +299,7 @@ class PromptServer():
             await self.sockets[sid].send_str(message)
 
     def send_sync(self, event, data, sid=None):
+        self.poll_messages.append({"type": event, "data": data, "sid": sid, "poll_id": poll_id++})
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
 
