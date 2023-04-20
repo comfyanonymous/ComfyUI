@@ -24,7 +24,7 @@ export class ComfyApp {
 	 * Content Clipboard
 	 * @type {serialized node object}
 	 */
-	static contentClipboard = null;
+	static clipspace = null;
 
 	constructor() {
 		this.ui = new ComfyUI(this);
@@ -146,16 +146,16 @@ export class ComfyApp {
 						if(this.widgets) {
 						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
 						}
-						ComfyApp.contentClipboard = { 'widgets': widgets, 'imgs': this.imgs, 'images': this.images };
+						ComfyApp.clipspace = { 'widgets': widgets, 'imgs': this.imgs, 'images': this.images };
 					}
 				},
 				{
 					content: "Paste (Clipspace)",
 					callback: () => {
-						if(ComfyApp.contentClipboard != null) {
-							console.log(ComfyApp.contentClipboard.widgets);
-							if(ComfyApp.contentClipboard.widgets != null) {
-								ComfyApp.contentClipboard.widgets.forEach(({ type, name, value }) => {
+						if(ComfyApp.clipspace != null) {
+							console.log(ComfyApp.clipspace.widgets);
+							if(ComfyApp.clipspace.widgets != null) {
+								ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 									const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
 										if (prop) {
 										prop.value = value;
@@ -163,9 +163,9 @@ export class ComfyApp {
 								});
 							}
 
-							if(ComfyApp.contentClipboard.imgs != undefined && this.imgs != undefined) {
-								this.imgs = ComfyApp.contentClipboard.imgs;
-								this.images = ComfyApp.contentClipboard.images;
+							if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined) {
+								this.imgs = ComfyApp.clipspace.imgs;
+								this.images = ComfyApp.clipspace.images;
 								const index = this.widgets.findIndex(obj => obj.name === 'image');
 								if(index >= 0) {
 									let filename = `${this.images[0].filename} [${this.images[0].type}]`;
