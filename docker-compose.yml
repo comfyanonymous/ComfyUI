@@ -5,8 +5,8 @@ name: "comfyui"
 x-base_service: &base_service
   image: comfyui:1
   build:
-    context: ..
-    dockerfile: docker/docker_files/default.Dockerfile
+    context: .
+    dockerfile: dockerfiles/default.Dockerfile
 
   environment:
     - CLI_ARGS=--listen --port 8188
@@ -14,10 +14,10 @@ x-base_service: &base_service
   ports:
     - "8188:8188"
   volumes:
-    - models:/opt/comfy_ui/models
-    - output:/opt/comfy_ui/output
-    - input:/opt/comfy_ui/input
-    - custom_nodes:/opt/comfy_ui/custom_nodes
+    - ./models:/opt/comfy_ui/models
+    - ./output:/opt/comfy_ui/output
+    - ./input:/opt/comfy_ui/input
+    - ./custom_nodes:/opt/comfy_ui/custom_nodes
 
 x-nvidia_docker: &nvidia_docker
   deploy:
@@ -30,8 +30,8 @@ x-nvidia_docker: &nvidia_docker
 
 x-base_service_amd: &amd_docker
   build:
-    context: ..
-    dockerfile: docker/docker_files/amd.Dockerfile
+    context: .
+    dockerfile: dockerfiles/amd.Dockerfile
 
   group_add:
     - video
@@ -65,10 +65,3 @@ services:
     profiles: ["cpu"]
     environment:
       - CLI_ARGS=--listen --port 8188 --cpu
-
-
-volumes:
-  models:
-  output:
-  input:
-  custom_nodes:
