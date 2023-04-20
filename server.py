@@ -287,7 +287,7 @@ class PromptServer():
 
     async def send(self, event, data, sid=None):
         message = {"type": event, "data": data}
-        self.poll_messages.append({"type": event, "data": data, "sid": sid, "poll_id": poll_id++})
+        self.poll_messages.append({"type": event, "data": data, "sid": sid, "poll_id": self.poll_id++})
        
         if isinstance(message, str) == False:
             message = json.dumps(message)
