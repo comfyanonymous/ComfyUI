@@ -30,8 +30,9 @@ class ComfyApi extends EventTarget {
 		let lastMessage = -1;
 		setInterval(async () => {
 			const poll_messages = await (await fetch("/poll_messages")).json();
-			if(lastMessage === -1) lastMessage = poll_messages.length -1;
-			for(let i = lastMessage; i<poll_messages.length; i++) {
+			if(poll_messages.length === 0) return;
+			if(lastMessage === -1) lastMessage = poll_messages.length - 2;
+			for(let i = lastMessage + 1; i<poll_messages.length; i++) {
 				const msg = poll_messages[i];
 				console.log('MSG', msg);
 				switch (msg.type) {
