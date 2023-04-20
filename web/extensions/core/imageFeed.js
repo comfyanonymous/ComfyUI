@@ -156,19 +156,33 @@ app.registerExtension({
                 popup.remove();
               });
               nextButton.addEventListener("click", () => {
+                next();
+              });
+              prevButton.addEventListener("click", () => {
+                prev();
+              });
+              function next(){
                 currentIndex--;
                 if (currentIndex < 0) {
                   currentIndex = allImages.length - 1;
                 }
                 popupImg.src = `/view?filename=${encodeURIComponent(allImages[currentIndex].filename)}&type=${allImages[currentIndex].type}&subfolder=${encodeURIComponent(allImages[currentIndex].subfolder)}`;
-              });
-              prevButton.addEventListener("click", () => {
+              }
+              function prev(){
                 currentIndex++;
                 if (currentIndex >= allImages.length) {
                   currentIndex = 0;
                 }
                 popupImg.src = `/view?filename=${encodeURIComponent(allImages[currentIndex].filename)}&type=${allImages[currentIndex].type}&subfolder=${encodeURIComponent(allImages[currentIndex].subfolder)}`;
-              });
+              }
+                document.addEventListener('keydown', function(event) {
+                    if (event.keyCode === 37) {
+                        prev();
+                    }
+                    else if (event.keyCode === 39) {
+                        next();
+                    }
+                });
               popup.addEventListener("click", (event) => {
                 if (event.target === popup) {
                   popup.remove();
