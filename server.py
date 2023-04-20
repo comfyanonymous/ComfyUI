@@ -69,6 +69,7 @@ class PromptServer():
         self.last_node_id = None
         self.client_id = None
         
+        self.poll_id = 0
         self.poll_messages = []
 
         @routes.get('/ws')
@@ -194,7 +195,7 @@ class PromptServer():
         
         @routes.get("/poll_messages")
         async def get_poll_messages(request):
-            return web.json_response({k: v for v, k in enumerate(self.poll_messages)})
+            return web.json_response(self.poll_messages))
 
         @routes.get("/queue")
         async def get_queue(request):
@@ -286,7 +287,7 @@ class PromptServer():
 
     async def send(self, event, data, sid=None):
         message = {"type": event, "data": data}
-        self.poll_messages.append({"type": event, "data": data, "sid": sid})
+        self.poll_messages.append({"type": event, "data": data, "sid": sid, "poll_id": poll_id++})
        
         if isinstance(message, str) == False:
             message = json.dumps(message)
