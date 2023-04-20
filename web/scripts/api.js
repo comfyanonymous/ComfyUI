@@ -21,8 +21,36 @@ class ComfyApi extends EventTarget {
 				this.dispatchEvent(new CustomEvent("status", { detail: status }));
 			} catch (error) {
 				this.dispatchEvent(new CustomEvent("status", { detail: null }));
+				
 			}
 		}, 1000);
+	}
+	
+	#pollMessageQueue() {
+		let lastMessage = -1;
+		setInterval(async () => {
+			const poll_messages = await (await fetch("/poll_messages")).json();
+			if(lastMessage === -1) lastMessage = poll_messages.length -1;
+			for(let i = lastMessage; i<poll_messages.length; i++) {
+				const msg = poll_messages[i];
+				console.log('MSG', msg);
+				switch (msg.type) {
+					case "status":
+						this.dispatchEvent(new CustomEvent("status", { detail: msg.data.status }));
+						break;
+					case "progress":
+						this.dispatchEvent(new CustomEvent("progress", { detail: msg.data }));
+						break;
+					case "executing":
+						this.dispatchEvent(new CustomEvent("executing", { detail: msg.data.node }));
+						break;
+					case "executed":
+						this.dispatchEvent(new CustomEvent("executed", { detail: msg.data }));
+						break;
+				}
+				lastMessage = i;
+			}
+		}, 3000)
 	}
 
 	/**
@@ -106,6 +134,7 @@ class ComfyApi extends EventTarget {
 	 */
 	init() {
 		this.#createSocket();
+		
 	}
 
 	/**
