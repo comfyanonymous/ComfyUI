@@ -146,7 +146,10 @@ export class ComfyApp {
 						if(this.widgets) {
 						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
 						}
-						ComfyApp.clipspace = { 'widgets': widgets, 'imgs': this.imgs, 'images': this.images };
+						
+						let img = new Image();
+						img.src = this.imgs[0].src;
+						ComfyApp.clipspace = { 'widgets': widgets, 'imgs': [img], 'images': this.images };
 					}
 				},
 				{
