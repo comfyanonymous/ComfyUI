@@ -498,7 +498,7 @@ class GLIGENLoader:
     RETURN_TYPES = ("GLIGEN",)
     FUNCTION = "load_gligen"
 
-    CATEGORY = "_for_testing/gligen"
+    CATEGORY = "loaders"
 
     def load_gligen(self, gligen_name):
         gligen_path = folder_paths.get_full_path("gligen", gligen_name)
@@ -520,7 +520,7 @@ class GLIGENTextBoxApply:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "_for_testing/gligen"
+    CATEGORY = "conditioning/gligen"
 
     def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
         c = []
