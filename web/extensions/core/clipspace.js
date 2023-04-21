@@ -117,6 +117,7 @@ class ClipspaceDialog extends ComfyDialog {
 					}
 
 					formData.append('image', blob, filename);
+					formData.append('original-imagepath', ComfyApp.clipspace.);
 					formData.append('type', "temp");
 					invalidateImage(item, formData);
 					this.close();

@@ -7,6 +7,8 @@ import execution
 import uuid
 import json
 import glob
+from PIL import Image
+
 try:
     import aiohttp
     from aiohttp import web
@@ -144,6 +146,47 @@ class PromptServer():
                     f.write(image.file.read())
                 
                 return web.json_response({"name" : filename})
+            else:
+                return web.Response(status=400)
+
+        @routes.post("/upload/mask")
+        async def upload_mask(request):
+            post = await request.post()
+            image = post.get("image")
+            original_image = post.get("original_image")
+
+            if post.get("type") is None:
+                upload_dir = folder_paths.get_input_directory()
+            elif post.get("type") == "input":
+                upload_dir = folder_paths.get_input_directory()
+            elif post.get("type") == "temp":
+                upload_dir = folder_paths.get_temp_directory()
+            elif post.get("type") == "output":
+                upload_dir = folder_paths.get_output_directory()
+
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir)
+
+            if image and image.file:
+                filename = image.filename
+                if not filename:
+                    return web.Response(status=400)
+
+                split = os.path.splitext(filename)
+                i = 1
+                while os.path.exists(os.path.join(upload_dir, filename)):
+                    filename = f"{split[0]} ({i}){split[1]}"
+                    i += 1
+
+                filepath = os.path.join(upload_dir, filename)
+
+                original_pil = Image.open(original_image)
+                mask_pil = Image.open(image.file)
+                alpha_channel = mask_pil.getchannel('A')
+                original_pil.putalpha(alpha_channel, (0, 0))
+                original_pil.save(filepath)
+
+                return web.json_response({"name": filename})
             else:
                 return web.Response(status=400)
 
