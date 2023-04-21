@@ -128,8 +128,13 @@ app.registerExtension({
 
             // Increment the weight
             const weightDelta = event.key === "ArrowUp" ? delta : -delta;
-            const updatedText = selectedText.replace(/(.*:)(\d+(\.\d+)?)(.*)/, (match, prefix, weight, _, suffix) => {
-                return prefix + incrementWeight(weight, weightDelta) + suffix;
+            const updatedText = selectedText.replace(/\((.*):(\d+(?:\.\d+)?)\)/, (match, text, weight) => {
+                weight = incrementWeight(weight, weightDelta);
+                if (weight == 1) {
+                    return text;
+                } else {
+                    return `(${text}:${weight})`;
+                }
             });
 
             inputField.setRangeText(updatedText, start, end, "select");
