@@ -47,7 +47,7 @@ class ComfyApi extends EventTarget {
 						this.dispatchEvent(new CustomEvent("executed", { detail: msg.data }));
 						break;
 				}
-				lastMessage = i;
+				lastMessage = msg.poll_id;
 			});
 		}, 2000)
 	}
