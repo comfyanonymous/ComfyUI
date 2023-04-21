@@ -160,51 +160,55 @@ export class ComfyApp {
 							'images': this.images
 							};
 					}
-				},
-				{
-					content: "Paste (Clipspace)",
-					callback: () => {
-						if(ComfyApp.clipspace != null) {
-							if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
-								ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
-									const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
-										if (prop) {
-										prop.value = value;
+				});
+
+			if(ComfyApp.clipspace != null) {
+				options.push(
+					{
+						content: "Paste (Clipspace)",
+						callback: () => {
+							if(ComfyApp.clipspace != null) {
+								if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
+									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
+											if (prop) {
+											prop.value = value;
+										}
+									});
+								}
+
+								// image paste
+								if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined && this.widgets != null) {
+									var filename = "";
+									if(this.images && ComfyApp.clipspace.images) {
+										this.images = ComfyApp.clipspace.images;
 									}
-								});
-							}
 
-							// image paste
-							if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined && this.widgets != null) {
-								var filename = "";
-								if(this.images && ComfyApp.clipspace.images) {
-									this.images = ComfyApp.clipspace.images;
-								}
-
-								if(ComfyApp.clipspace.images != undefined) {
-									filename = `${ComfyApp.clipspace.images[0].filename} [${ComfyApp.clipspace.images[0].type}]`;
-								}
-								else if(ComfyApp.clipspace.widgets != undefined) {
-									const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
-									if(index_in_clip >= 0) {
-										filename = `${ComfyApp.clipspace.widgets[index_in_clip].value}`;
+									if(ComfyApp.clipspace.images != undefined) {
+										filename = `${ComfyApp.clipspace.images[0].filename} [${ComfyApp.clipspace.images[0].type}]`;
 									}
-								}
+									else if(ComfyApp.clipspace.widgets != undefined) {
+										const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
+										if(index_in_clip >= 0) {
+											filename = `${ComfyApp.clipspace.widgets[index_in_clip].value}`;
+										}
+									}
 
-								const index = this.widgets.findIndex(obj => obj.name === 'image');
-								if(index >= 0 && filename != "" && ComfyApp.clipspace.imgs != undefined) {
-									this.imgs = ComfyApp.clipspace.imgs;
+									const index = this.widgets.findIndex(obj => obj.name === 'image');
+									if(index >= 0 && filename != "" && ComfyApp.clipspace.imgs != undefined) {
+										this.imgs = ComfyApp.clipspace.imgs;
 
-									this.widgets[index].value = filename;
-									if(this.widgets_values != undefined) {
-										this.widgets_values[index] = filename;
+										this.widgets[index].value = filename;
+										if(this.widgets_values != undefined) {
+											this.widgets_values[index] = filename;
+										}
 									}
 								}
 							}
 						}
 					}
-				}
-			);
+				);
+			}
 		};
 	}
 
