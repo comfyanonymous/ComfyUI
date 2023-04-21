@@ -4,9 +4,83 @@ import time
 supported_ckpt_extensions = set(['.ckpt', '.pth', '.safetensors'])
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
 
+def get_comfyui_root():
+    """Return absolute path of the current comfyui root.
+
+    This function gets the absolute path of the current comfyui root directory.
+
+    Returns:
+        str: The absolute path of the current comfyui root.
+
+    Raises:
+        None.
+
+    Example:
+        >>> get_comfyui_root()
+        '/path/to/comfyui/root'
+
+    """
+    root = os.path.dirname(os.path.realpath(__file__))
+    return os.getenv("COMFYUI_ROOT", root)
+
+
+def get_env_paths(env_name: str):
+    """Return list of path strings from given environment variable.
+
+    This function gets the path strings from the given environment variable and splits it using the os specific path
+    separator.
+
+    Args:
+        env_name (str): The name of the environment variable containing the paths.
+
+    Returns:
+        list: A list of path strings from the given environment variable. Empty list is returned when given environment
+        variable is not defined.
+
+    Raises:
+        None.
+
+    Example:
+        >>> os.environ['COMFYUI_CUSTOM_NODE_PATHS'] = "/pkg-a/custom_node:/pkg-b/nodes"
+        >>> get_env_paths('COMFYUI_CUSTOM_NODE_PATHS')
+        ['/pkg-a/custom_node', '/pkg-b/nodes']
+
+    """
+    try:
+        return os.getenv(env_name).split(os.pathsep)
+    except AttributeError:
+        return []
+
+
+def get_custom_node_paths():
+    """Return list of custom node paths.
+
+    This function returns a list of custom node paths by appending the default path and the paths available in the
+    given environment variable.
+
+    Args:
+        None.
+
+    Returns:
+        list: A list of custom node paths.
+
+    Raises:
+        None.
+
+    Example:
+        >>> os.environ['COMFYUI_CUSTOM_NODE_PATHS'] = "/pkg-a/custom_node:/pkg-b/nodes"
+        >>> get_custom_node_paths()
+        ['/path/to/current/directory/custom_nodes', '/pkg-a/custom_node', '/pkg-b/nodes']
+
+    """
+    all_paths = [os.path.join(base_path, "custom_nodes")]
+    all_paths.extend(get_env_paths("COMFYUI_CUSTOM_NODE_PATHS"))
+    return all_paths
+
+
 folder_names_and_paths = {}
 
-base_path = os.path.dirname(os.path.realpath(__file__))
+base_path = get_comfyui_root()
 models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_ckpt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
@@ -26,7 +100,7 @@ folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], suppor
 
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
-folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
+folder_names_and_paths["custom_nodes"] = (get_custom_node_paths(), [])
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
