@@ -23,17 +23,15 @@ class ComfyApi extends EventTarget {
 				this.dispatchEvent(new CustomEvent("status", { detail: null }));
 				
 			}
-		}, 1000);
+		}, 2000);
 	}
 	
 	#pollMessageQueue() {
 		let lastMessage = -1;
 		setInterval(async () => {
 			const poll_messages = await (await fetch("/poll_messages")).json();
-			if(poll_messages.length === 0) return;
-			if(lastMessage === -1) lastMessage = poll_messages.length - 2;
-			for(let i = lastMessage + 1; i<poll_messages.length; i++) {
-				const msg = poll_messages[i];
+			poll_messages.forEach(msg => {
+				if(lastMessage >= msg.poll_id) return;
 				console.log('MSG', msg);
 				switch (msg.type) {
 					case "status":
@@ -50,8 +48,8 @@ class ComfyApi extends EventTarget {
 						break;
 				}
 				lastMessage = i;
-			}
-		}, 1000)
+			});
+		}, 2000)
 	}
 
 	/**
