@@ -89,24 +89,17 @@ app.registerExtension({
                     end = nearestEnclosure.end;
                     selectedText = inputField.value.substring(start, end);
                 } else {
-                    // Select the current word, find the start and end of the word (first space before and after)
-                    const wordStart = inputField.value.substring(0, start).lastIndexOf(" ") + 1;
-                    const wordEnd = inputField.value.substring(end).indexOf(" ");
-                    // If there is no space after the word, select to the end of the string
-                    if (wordEnd === -1) {
-                        end = inputField.value.length;
-                    } else {
-                        end += wordEnd;
+                    // Select the current word, find the start and end of the word
+                    const delimiters = " .,\\/!?%^*;:{}=-_`~()\r\n\t";
+                    
+                    while (!delimiters.includes(inputField.value[start - 1]) && start > 0) {
+                        start--;
                     }
-                    start = wordStart;
+                    
+                    while (!delimiters.includes(inputField.value[end]) && end < inputField.value.length) {
+                        end++;
+                    }
 
-                    // Remove all punctuation at the end and beginning of the word
-                    while (inputField.value[start].match(/[.,\/#!$%\^&\*;:{}=\-_`~()]/)) {
-                        start++;
-                    }
-                    while (inputField.value[end - 1].match(/[.,\/#!$%\^&\*;:{}=\-_`~()]/)) {
-                        end--;
-                    }
                     selectedText = inputField.value.substring(start, end);
                     if (!selectedText) return;
                 }
@@ -135,8 +128,13 @@ app.registerExtension({
 
             // Increment the weight
             const weightDelta = event.key === "ArrowUp" ? delta : -delta;
-            const updatedText = selectedText.replace(/(.*:)(\d+(\.\d+)?)(.*)/, (match, prefix, weight, _, suffix) => {
-                return prefix + incrementWeight(weight, weightDelta) + suffix;
+            const updatedText = selectedText.replace(/\((.*):(\d+(?:\.\d+)?)\)/, (match, text, weight) => {
+                weight = incrementWeight(weight, weightDelta);
+                if (weight == 1) {
+                    return text;
+                } else {
+                    return `(${text}:${weight})`;
+                }
             });
 
             inputField.setRangeText(updatedText, start, end, "select");

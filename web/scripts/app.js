@@ -141,18 +141,22 @@ export class ComfyApp {
 				{
 					content: "Copy (Clipspace)",
 					callback: (obj) => {
-						console.log(this);
 						var widgets = null;
 						if(this.widgets) {
 						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
 						}
 						
 						let img = new Image();
-						img.src = this.imgs[0].src;
+						var imgs = undefined;
+						if(this.imgs != undefined) {
+							img.src = this.imgs[0].src;
+							imgs = [img];
+						}
+
 						ComfyApp.clipspace = {
 							'widgets': widgets,
-							'imgs': [img],
-							'original_imgs': [img],
+							'imgs': imgs,
+							'original_imgs': imgs,
 							'images': this.images
 							};
 					}
@@ -161,8 +165,7 @@ export class ComfyApp {
 					content: "Paste (Clipspace)",
 					callback: () => {
 						if(ComfyApp.clipspace != null) {
-							console.log(ComfyApp.clipspace.widgets);
-							if(ComfyApp.clipspace.widgets != null) {
+							if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
 								ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 									const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
 										if (prop) {
@@ -171,12 +174,27 @@ export class ComfyApp {
 								});
 							}
 
-							if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined) {
-								this.imgs = ComfyApp.clipspace.imgs;
-								this.images = ComfyApp.clipspace.images;
+							// image paste
+							if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined && this.widgets != null) {
+								var filename = "";
+								if(this.images && ComfyApp.clipspace.images) {
+									this.images = ComfyApp.clipspace.images;
+								}
+
+								if(ComfyApp.clipspace.images != undefined) {
+									filename = `${ComfyApp.clipspace.images[0].filename} [${ComfyApp.clipspace.images[0].type}]`;
+								}
+								else if(ComfyApp.clipspace.widgets != undefined) {
+									const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
+									if(index_in_clip >= 0) {
+										filename = `${ComfyApp.clipspace.widgets[index_in_clip].value}`;
+									}
+								}
+
 								const index = this.widgets.findIndex(obj => obj.name === 'image');
-								if(index >= 0) {
-									let filename = `${this.images[0].filename} [${this.images[0].type}]`;
+								if(index >= 0 && filename != "" && ComfyApp.clipspace.imgs != undefined) {
+									this.imgs = ComfyApp.clipspace.imgs;
+
 									this.widgets[index].value = filename;
 									if(this.widgets_values != undefined) {
 										this.widgets_values[index] = filename;
