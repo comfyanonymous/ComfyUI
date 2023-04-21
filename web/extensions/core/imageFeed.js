@@ -76,6 +76,26 @@ app.registerExtension({
         }
         var allImages = [];
         var alwaysYes = false;
+        var currentIndex = 0;
+        function refreshPopup(){
+            var currentPopup = document.querySelector('div[type="popup"]');
+            if (currentPopup){
+                if (currentIndex >= allImages.length){
+                    currentIndex--;
+                }
+                if (allImages.length == 0){
+                   currentPopup.remove();
+                }
+                else{
+                    var newFileName = allImages[currentIndex].filename;
+                    var newContainer = document.querySelector('div[type="container"]:has(img[filename="'+newFileName+'"])');
+                    var newImg = newContainer.querySelector('img');
+                    currentPopup.setAttribute("type", "removed");
+                    currentPopup.remove();
+                    newImg.click();
+                }
+            }
+        }
         function loadImages(detail) {
           const images = detail.output.images.filter(
             (img) => img.type === "output" && img.filename !== "_output_images_will_be_put_here"
@@ -83,16 +103,15 @@ app.registerExtension({
           allImages.push(...images);
           for (const src of images) {
             const imgContainer = document.createElement("div");
+            imgContainer.setAttribute("type", "container");
             imgContainer.style.cssText = "height: 120px; width: 120px; position: relative;";
-
             const imgDelete = document.createElement("button");
             imgDelete.innerHTML = "🗑️";
-            imgDelete.style.cssText =
-              "position: absolute; top: 0; right: 0; width: 20px; text-indent: -4px; right: 5px; height: 20px; cursor: pointer; position: absolute; top: 5px; font-size: 12px; line-height: 12px;";
-
+            imgDelete.style.cssText = "position: absolute; top: 0; right: 0; width: 20px; text-indent: -4px; right: 5px; height: 20px; cursor: pointer; position: absolute; top: 5px; font-size: 12px; line-height: 12px;";
             imgDelete.addEventListener("click", async () => {
               if (alwaysYes) {
                 deleteImage_func(src);
+                refreshPopup();
               } else {
                 Swal.fire({
                   title: 'Are you sure?',
@@ -113,32 +132,29 @@ app.registerExtension({
                 }).then((result) => {
                   if (result.isConfirmed) {
                     deleteImage_func(src);
+                    refreshPopup();
                   } else if (result.isDenied) {
                     alwaysYes = true;
                     deleteImage_func(src);
+                    refreshPopup();
                   }
                 })
               }
             });
-            function deleteImage_func(src_val){
-                api.deleteImage(src_val.filename);
-                let newAllImages = allImages.filter(image => image.filename !== src_val.filename);
-                allImages = newAllImages;
-                imgContainer.remove();
-            }
-
             const img = document.createElement("img");
             img.setAttribute("filename", src.filename);
             img.style.cssText = "height: 120px; width: 120px; object-fit: cover;";
             img.src = `/view?filename=${encodeURIComponent(src.filename)}&type=${src.type}&subfolder=${encodeURIComponent(src.subfolder)}`;
             img.addEventListener("click", () => {
               const popup = document.createElement("div");
+              popup.setAttribute("type", "popup");
               popup.style.cssText = "position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center; z-index: 999;";
 
               const popupImg = document.createElement("img");
+              popupImg.setAttribute("type", "popupImg");
               popupImg.src = img.src;
               popupImg.style.cssText = "max-height: 80vh; max-width: 80vw;";
-              let currentIndex = allImages.indexOf(src);
+              currentIndex = allImages.indexOf(src);
 
               const closeButton = document.createElement("button");
               closeButton.innerHTML = "❌";
@@ -175,14 +191,6 @@ app.registerExtension({
                 }
                 popupImg.src = `/view?filename=${encodeURIComponent(allImages[currentIndex].filename)}&type=${allImages[currentIndex].type}&subfolder=${encodeURIComponent(allImages[currentIndex].subfolder)}`;
               }
-                document.addEventListener('keydown', function(event) {
-                    if (event.keyCode === 37) {
-                        prev();
-                    }
-                    else if (event.keyCode === 39) {
-                        next();
-                    }
-                });
               popup.addEventListener("click", (event) => {
                 if (event.target === popup) {
                   popup.remove();
@@ -194,21 +202,59 @@ app.registerExtension({
               popup.append(prevButton);
               document.body.append(popup);
             });
-
-
             imgContainer.append(imgDelete);
             imgContainer.append(img);
             imageList.prepend(imgContainer);
           }
         }
-
-        // stop resize function
+        document.addEventListener('keydown', function(event) {
+            if (event.keyCode === 37) {
+                currentIndex++;
+                if (currentIndex >= allImages.length) {
+                  currentIndex = 0;
+                }
+                var popupImg = document.querySelector("img[type='popupImg']");
+                popupImg.src = `/view?filename=${encodeURIComponent(allImages[currentIndex].filename)}&type=${allImages[currentIndex].type}&subfolder=${encodeURIComponent(allImages[currentIndex].subfolder)}`;
+            }
+            else if (event.keyCode === 39) {
+                currentIndex--;
+                if (currentIndex < 0) {
+                  currentIndex = allImages.length - 1;
+                }
+                var popupImg = document.querySelector("img[type='popupImg']");
+                popupImg.src = `/view?filename=${encodeURIComponent(allImages[currentIndex].filename)}&type=${allImages[currentIndex].type}&subfolder=${encodeURIComponent(allImages[currentIndex].subfolder)}`;
+            } else if (event.keyCode === 46) { // delete
+                var currentPopup = document.querySelector('div[type="popup"]');
+                if (currentPopup){
+                    var srcToSearch = allImages[currentIndex].filename;
+                    var imgContainer = document.querySelector('div[type="container"]:has(img[filename="'+srcToSearch+'"])');
+                    var imgDelete = imgContainer.querySelector('button');
+                    imgDelete.click();
+                }
+            } else if (event.keyCode === 13) { // enter
+                downloadFile(`/view?filename=${encodeURIComponent(allImages[currentIndex].filename)}&type=${allImages[currentIndex].type}&subfolder=${encodeURIComponent(allImages[currentIndex].subfolder)}`, allImages[currentIndex].filename)
+            }
+        });
+        function deleteImage_func(src_val){
+            api.deleteImage(src_val.filename);
+            let newAllImages = allImages.filter(image => image.filename !== src_val.filename);
+            allImages = newAllImages;
+            var imgContainer = document.querySelector('div[type="container"]:has(img[filename="'+src_val.filename+'"])');
+            imgContainer.remove();
+        }
+        function downloadFile(url, filename) {
+          const link = document.createElement('a');
+          link.setAttribute('href', url);
+          link.setAttribute('download', filename);
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
         function stopResize() {
             document.removeEventListener("mousemove", resize);
             document.removeEventListener("mouseup", stopResize);
         }
-
-        // append imageList element to document
         document.body.append(imageList);
         const menu = document.createElement("div");
         Object.assign(menu.style, {
