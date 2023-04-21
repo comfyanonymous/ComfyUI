@@ -7,23 +7,6 @@ from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 
-class CFGDenoiser(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.inner_model = model
-
-    def forward(self, x, sigma, uncond, cond, cond_scale):
-        if len(uncond[0]) == len(cond[0]) and x.shape[0] * x.shape[2] * x.shape[3] < (96 * 96): #TODO check memory instead
-            x_in = torch.cat([x] * 2)
-            sigma_in = torch.cat([sigma] * 2)
-            cond_in = torch.cat([uncond, cond])
-            uncond, cond = self.inner_model(x_in, sigma_in, cond=cond_in).chunk(2)
-        else:
-            cond = self.inner_model(x, sigma, cond=cond)
-            uncond = self.inner_model(x, sigma, cond=uncond)
-        return uncond + (cond - uncond) * cond_scale
-
-
 #The main sampling function shared by all the samplers
 #Returns predicted noise
 def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
