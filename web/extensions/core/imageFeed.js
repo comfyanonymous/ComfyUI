@@ -88,7 +88,7 @@ app.registerExtension({
                 }
                 else{
                     var newFileName = allImages[currentIndex].filename;
-                    var newContainer = document.querySelector('div[type="container"]:has(img[filename="'+newFileName+'"])');
+                    var newContainer = document.querySelector('div[type="container"] img[filename="'+newFileName+'"]').parentElement;
                     var newImg = newContainer.querySelector('img');
                     currentPopup.setAttribute("type", "removed");
                     currentPopup.remove();
@@ -227,7 +227,7 @@ app.registerExtension({
                 var currentPopup = document.querySelector('div[type="popup"]');
                 if (currentPopup){
                     var srcToSearch = allImages[currentIndex].filename;
-                    var imgContainer = document.querySelector('div[type="container"]:has(img[filename="'+srcToSearch+'"])');
+                    var imgContainer = document.querySelector('div[type="container"] img[filename="'+srcToSearch+'"]').parentElement;
                     var imgDelete = imgContainer.querySelector('button');
                     imgDelete.click();
                 }
@@ -239,7 +239,7 @@ app.registerExtension({
             api.deleteImage(src_val.filename);
             let newAllImages = allImages.filter(image => image.filename !== src_val.filename);
             allImages = newAllImages;
-            var imgContainer = document.querySelector('div[type="container"]:has(img[filename="'+src_val.filename+'"])');
+            var imgContainer = document.querySelector('div[type="container"] img[filename="'+src_val.filename+'"]').parentElement;
             imgContainer.remove();
         }
         function downloadFile(url, filename) {
