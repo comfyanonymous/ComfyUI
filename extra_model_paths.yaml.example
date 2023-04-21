@@ -18,6 +18,7 @@ a111:
 #other_ui:
 #    base_path: path/to/ui
 #    checkpoints: models/checkpoints
-
+#    gligen: models/gligen
+#    custom_nodes: path/custom_nodes
 
 
