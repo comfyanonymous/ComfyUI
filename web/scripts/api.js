@@ -51,7 +51,7 @@ class ComfyApi extends EventTarget {
 				}
 				lastMessage = i;
 			}
-		}, 3000)
+		}, 1000)
 	}
 
 	/**
