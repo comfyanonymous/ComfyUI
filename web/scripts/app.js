@@ -149,7 +149,12 @@ export class ComfyApp {
 						
 						let img = new Image();
 						img.src = this.imgs[0].src;
-						ComfyApp.clipspace = { 'widgets': widgets, 'imgs': [img], 'images': this.images };
+						ComfyApp.clipspace = {
+							'widgets': widgets,
+							'imgs': [img],
+							'original_imgs': [img],
+							'images': this.images
+							};
 					}
 				},
 				{
