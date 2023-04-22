@@ -54,7 +54,7 @@ app.registerExtension({
 
 			this.slot_types_default_in[type].push(nodeId);
 		}
-		var maxNum = this.suggestionsNumber ? this.suggestionsNumber.value : 5;
+		var maxNum = this.suggestionsNumber.value;
 		this.setDefaults(maxNum);
 	},
 	setDefaults(maxNum) {
