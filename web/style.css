@@ -160,9 +160,9 @@ body {
 
 .comfy-list {
 	color: var(--descrip-text);
-	background-color: #333;
+	background-color: var(--comfy-menu-bg);
 	margin-bottom: 10px;
-	border-color: #4e4e4e;
+	border-color: var(--border-color);
 	border-style: solid;
 }
 
@@ -215,6 +215,14 @@ button.comfy-queue-btn {
 	font-family: sans-serif;
 	color: var(--descrip-text);
 	z-index: 99;
+}
+
+.comfy-modal.comfy-settings input[type="range"] {
+	vertical-align: middle;
+}
+
+.comfy-modal.comfy-settings input[type="range"] + input[type="number"] {
+	width: 3.5em;
 }
 
 .comfy-modal input,

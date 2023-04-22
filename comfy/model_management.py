@@ -176,7 +176,7 @@ def load_model_gpu(model):
         model_accelerated = True
     return current_loaded_model
 
-def load_controlnet_gpu(models):
+def load_controlnet_gpu(control_models):
     global current_gpu_controlnets
     global vram_state
     if vram_state == VRAMState.CPU:
@@ -185,6 +185,10 @@ def load_controlnet_gpu(models):
     if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
         #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
         return
+
+    models = []
+    for m in control_models:
+        models += m.get_models()
 
     for m in current_gpu_controlnets:
         if m not in models:
@@ -306,6 +310,15 @@ def should_use_fp16():
             return False
 
     return True
+
+def soft_empty_cache():
+    global xpu_available
+    if xpu_available:
+        torch.xpu.empty_cache()
+    elif torch.cuda.is_available():
+        if torch.version.cuda: #This seems to make things worse on ROCm so I only do it for cuda
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
 #TODO: might be cleaner to put this somewhere else
 import threading
