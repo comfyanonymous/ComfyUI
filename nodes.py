@@ -62,8 +62,8 @@ class ConditioningAverage :
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_from": ("CONDITIONING", ), "conditioning_to": ("CONDITIONING", ),
-                              "conditioning_from_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                              "conditioning_to_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.1})
+                              "conditioning_from_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.1}),
+                              #"conditioning_to_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.1})
                              }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "addWeighted"
@@ -78,7 +78,8 @@ class ConditioningAverage :
     #        c.append(n)
     #    return (c, )
 
-    def addWeighted(self, conditioning_from, conditioning_to, conditioning_from_strength, conditioning_to_strength):
+    def addWeighted(self, conditioning_from, conditioning_to, conditioning_from_strength):
+        conditioning_to_strength = (1-conditioning_from_strength)
         conditioning_from_tensor = conditioning_from[0][0]
         conditioning_to_tensor = conditioning_to[0][0]
         output = conditioning_from
