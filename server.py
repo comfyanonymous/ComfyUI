@@ -8,6 +8,7 @@ import uuid
 import json
 import glob
 from PIL import Image
+import numpy as np
 
 try:
     import aiohttp
@@ -112,19 +113,24 @@ class PromptServer():
             files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
             return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
 
+        def get_dir_by_type(dir_type):
+            if dir_type is None:
+                type_dir = folder_paths.get_input_directory()
+            elif dir_type == "input":
+                type_dir = folder_paths.get_input_directory()
+            elif dir_type == "temp":
+                type_dir = folder_paths.get_temp_directory()
+            elif dir_type == "output":
+                type_dir = folder_paths.get_output_directory()
+
+            return type_dir
+
         @routes.post("/upload/image")
         async def upload_image(request):
             post = await request.post()
             image = post.get("image")
 
-            if post.get("type") is None:
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "input":
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "temp":
-                upload_dir = folder_paths.get_temp_directory()
-            elif post.get("type") == "output":
-                upload_dir = folder_paths.get_output_directory()
+            upload_dir = get_dir_by_type(post.get("type"))
 
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
@@ -155,14 +161,7 @@ class PromptServer():
             image = post.get("image")
             original_image = post.get("original_image")
 
-            if post.get("type") is None:
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "input":
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "temp":
-                upload_dir = folder_paths.get_temp_directory()
-            elif post.get("type") == "output":
-                upload_dir = folder_paths.get_output_directory()
+            upload_dir = get_dir_by_type(post.get("type"))
 
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
@@ -180,10 +179,13 @@ class PromptServer():
 
                 filepath = os.path.join(upload_dir, filename)
 
-                original_pil = Image.open(original_image)
-                mask_pil = Image.open(image.file)
-                alpha_channel = mask_pil.getchannel('A')
-                original_pil.putalpha(alpha_channel, (0, 0))
+                original_pil = Image.open(original_image.file).convert('RGBA')
+                mask_pil = Image.open(image.file).convert('RGBA')
+
+                # alpha copy
+                new_alpha = mask_pil.getchannel('A')
+                original_pil.putalpha(new_alpha)
+
                 original_pil.save(filepath)
 
                 return web.json_response({"name": filename})
