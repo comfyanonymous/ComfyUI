@@ -13,3 +13,4 @@ venv38/
 *.ckpt
 *.safetensors
 models/
+custom_nodes/
