@@ -254,6 +254,29 @@ class ModelPatcher:
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         self.model_options["sampler_cfg_function"] = sampler_cfg_function
 
+
+    def set_model_patch(self, patch, name):
+        to = self.model_options["transformer_options"]
+        if "patches" not in to:
+            to["patches"] = {}
+        to["patches"][name] = to["patches"].get(name, []) + [patch]
+
+    def set_model_attn1_patch(self, patch):
+        self.set_model_patch(patch, "attn1_patch")
+
+    def set_model_attn2_patch(self, patch):
+        self.set_model_patch(patch, "attn2_patch")
+
+    def model_patches_to(self, device):
+        to = self.model_options["transformer_options"]
+        if "patches" in to:
+            patches = to["patches"]
+            for name in patches:
+                patch_list = patches[name]
+                for i in range(len(patch_list)):
+                    if hasattr(patch_list[i], "to"):
+                        patch_list[i] = patch_list[i].to(device)
+
     def model_dtype(self):
         return self.model.diffusion_model.dtype
 
