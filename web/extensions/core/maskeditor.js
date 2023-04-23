@@ -296,7 +296,7 @@ class MaskEditorDialog extends ComfyDialog {
 			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
-			if(diff > 20)
+			if(diff > 20 && !this.drawing_mode)
 				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.fillStyle = "rgb(0,0,0)";
@@ -333,11 +333,11 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 		else if(event.buttons === 2) {
 			event.preventDefault();
-			const maskRect = maskCanvas.getBoundingClientRect();
+			const maskRect = self.maskCanvas.getBoundingClientRect();
 			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
-			if(diff > 16 && !drawing_mode) // cannot tracking drawing_mode for touch event
+			if(diff > 20 && !drawing_mode) // cannot tracking drawing_mode for touch event
 				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.globalCompositeOperation = "destination-out";
@@ -373,9 +373,11 @@ class MaskEditorDialog extends ComfyDialog {
 	}
 
 	handleMouseDown(self, event) {
-		self.drawing_mode = true;
 		if (event.button == 0) {
-			const maskRect = maskCanvas.getBoundingClientRect();
+			self.drawing_mode = true;
+
+			event.preventDefault();
+			const maskRect = self.maskCanvas.getBoundingClientRect();
 			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
@@ -389,7 +391,10 @@ class MaskEditorDialog extends ComfyDialog {
 			self.lasttime = performance.now();
 		}
 		else if(event.button == 2) {
-			const maskRect = maskCanvas.getBoundingClientRect();
+			self.drawing_mode = true;
+
+			event.preventDefault();
+			const maskRect =  self.maskCanvas.getBoundingClientRect();
 			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
@@ -404,6 +409,7 @@ class MaskEditorDialog extends ComfyDialog {
 	}
 
 	handleMouseUp(self, event) {
+		event.preventDefault();
 		self.drawing_mode = false;
 	}
 
