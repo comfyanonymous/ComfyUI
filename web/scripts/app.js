@@ -20,6 +20,12 @@ export class ComfyApp {
 	 */
 	#processingQueue = false;
 
+	/**
+	 * Content Clipboard
+	 * @type {serialized node object}
+	 */
+	static clipspace = null;
+
 	constructor() {
 		this.ui = new ComfyUI(this);
 
@@ -129,6 +135,83 @@ export class ComfyApp {
 						}
 					);
 				}
+			}
+
+			options.push(
+				{
+					content: "Copy (Clipspace)",
+					callback: (obj) => {
+						var widgets = null;
+						if(this.widgets) {
+						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
+						}
+						
+						let img = new Image();
+						var imgs = undefined;
+						if(this.imgs != undefined) {
+							img.src = this.imgs[0].src;
+							imgs = [img];
+						}
+
+						ComfyApp.clipspace = {
+							'widgets': widgets,
+							'imgs': imgs,
+							'original_imgs': imgs,
+							'images': this.images
+							};
+					}
+				});
+
+			if(ComfyApp.clipspace != null) {
+				options.push(
+					{
+						content: "Paste (Clipspace)",
+						callback: () => {
+							if(ComfyApp.clipspace != null) {
+								if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
+									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
+											if (prop) {
+												prop.value = value;
+											}
+									});
+								}
+
+								// image paste
+								if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined && this.widgets != null) {
+									var filename = "";
+									if(this.images && ComfyApp.clipspace.images) {
+										this.images = ComfyApp.clipspace.images;
+									}
+
+									if(ComfyApp.clipspace.images != undefined) {
+										const clip_image = ComfyApp.clipspace.images[0];
+										if(clip_image.subfolder != '')
+											filename = `${clip_image.subfolder}/`;
+										filename += `${clip_image.filename} [${clip_image.type}]`;
+									}
+									else if(ComfyApp.clipspace.widgets != undefined) {
+										const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
+										if(index_in_clip >= 0) {
+											filename = `${ComfyApp.clipspace.widgets[index_in_clip].value}`;
+										}
+									}
+
+									const index = this.widgets.findIndex(obj => obj.name === 'image');
+									if(index >= 0 && filename != "" && ComfyApp.clipspace.imgs != undefined) {
+										this.imgs = ComfyApp.clipspace.imgs;
+
+										this.widgets[index].value = filename;
+										if(this.widgets_values != undefined) {
+											this.widgets_values[index] = filename;
+										}
+									}
+								}
+								this.trigger('changed');
+							}
+						}
+					}
+				);
 			}
 		};
 	}

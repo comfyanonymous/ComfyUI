@@ -11,6 +11,7 @@ import torch
 import nodes
 
 import comfy.model_management
+import folder_paths
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -250,7 +251,12 @@ def validate_inputs(prompt, item):
                     return (False, "Value bigger than max. {}, {}".format(class_type, x))
 
             if isinstance(type_input, list):
-                if val not in type_input:
+                is_annotated_path = val.endswith("[temp]") or val.endswith("[input]") or val.endswith("[output]")
+                if is_annotated_path:
+                    if not folder_paths.exists_annotated_filepath(val):
+                        return (False, "Invalid file path. {}, {}: {}".format(class_type, x, val))
+
+                elif val not in type_input:
                     return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
     return (True, "")
 
