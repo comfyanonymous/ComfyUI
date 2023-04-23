@@ -7,8 +7,8 @@ import comfy.utils
 import numpy as np
 import cv2
 import math
-from custom_nodes.facerestore.facelib.utils.face_restoration_helper import FaceRestoreHelper
-from custom_nodes.facerestore.facelib.detection.retinaface import retinaface
+from comfy_extras.facerestore.facelib.utils.face_restoration_helper import FaceRestoreHelper
+from comfy_extras.facerestore.facelib.detection.retinaface import retinaface
 from torchvision.transforms.functional import normalize
 
 def img2tensor(imgs, bgr2rgb=True, float32=True):

@@ -1217,9 +1217,23 @@ def load_custom_nodes():
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             load_custom_node(module_path)
 
+def load_comfy_extras_nodes():
+    node_paths = folder_paths.get_folder_paths("comfy_extras")
+    for comfy_extras_path in node_paths:
+        possible_modules = os.listdir(comfy_extras_path)
+        if "__pycache__" in possible_modules:
+            possible_modules.remove("__pycache__")
+
+        for possible_module in possible_modules:
+            module_path = os.path.join(comfy_extras_path, possible_module)
+            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+            load_custom_node(module_path)
+
+
 def init_custom_nodes():
+    load_comfy_extras_nodes()
     load_custom_nodes()
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "silver_custom.py"))
+    # load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
+    # load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
+    # load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
+    # load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "silver_custom.py"))

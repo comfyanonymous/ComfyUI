@@ -1,5 +1,4 @@
 import torch
-
 from nodes import MAX_RESOLUTION
 
 class LatentCompositeMasked:

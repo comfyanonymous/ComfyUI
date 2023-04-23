@@ -30,6 +30,7 @@ folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"),
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
+folder_names_and_paths["comfy_extras"] = ([os.path.join(base_path, "comfy_extras")], [])
 
 
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
