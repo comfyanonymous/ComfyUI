@@ -185,7 +185,10 @@ export class ComfyApp {
 									}
 
 									if(ComfyApp.clipspace.images != undefined) {
-										filename = `${ComfyApp.clipspace.images[0].filename} [${ComfyApp.clipspace.images[0].type}]`;
+										const clip_image = ComfyApp.clipspace.images[0];
+										if(clip_image.subfolder != '')
+											filename = `${clip_image.subfolder}/`;
+										filename += `${clip_image.filename} [${clip_image.type}]`;
 									}
 									else if(ComfyApp.clipspace.widgets != undefined) {
 										const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
