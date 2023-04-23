@@ -755,11 +755,18 @@ export class ComfyApp {
 
 		this.graph.start();
 
-		function resizeCanvas() {
-			canvasEl.width = canvasEl.offsetWidth;
-			canvasEl.height = canvasEl.offsetHeight;
+		const resizeCanvas = () => {
+			const sc = window.devicePixelRatio;
+			const w = canvasEl.offsetWidth;
+			const h = canvasEl.offsetHeight;
+			canvasEl.width = Math.floor(sc * w);
+			canvasEl.height = Math.floor(sc * h);
+			canvasEl.style.width = `${w}px`;
+			canvasEl.style.height = `${h}px`;
+			this.scale = window.devicePixelRatio;
+			this.ctx.scale(this.scale, this.scale);
 			canvas.draw(true, true);
-		}
+		};
 
 		// Ensure the canvas fills the window
 		resizeCanvas();

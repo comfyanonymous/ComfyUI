@@ -133,13 +133,13 @@ function addMultilineWidget(node, name, opts, app) {
 			const t = ctx.getTransform();
 			const margin = 10;
 			Object.assign(this.inputEl.style, {
-				left: `${t.a * margin + t.e}px`,
-				top: `${t.d * (y + widgetHeight - margin - 3) + t.f}px`,
-				width: `${(widgetWidth - margin * 2 - 3) * t.a}px`,
-				height: `${(this.parent.inputHeight - margin * 2 - 4) * t.d}px`,
+				left: `${(t.a * margin + t.e) / window.devicePixelRatio}px`,
+				top: `${(t.d * (y + widgetHeight - margin - 3) + t.f) / window.devicePixelRatio}px`,
+				width: `${(widgetWidth - margin * 2 - 3) * t.a / window.devicePixelRatio}px`,
+				height: `${(this.parent.inputHeight - margin * 2 - 4) * t.d / window.devicePixelRatio}px`,
 				position: "absolute",
 				zIndex: 1,
-				fontSize: `${t.d * 10.0}px`,
+				fontSize: `${t.d * 10.0 / window.devicePixelRatio}px`,
 			});
 			this.inputEl.hidden = !visible;
 		},
