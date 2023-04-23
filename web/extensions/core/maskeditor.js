@@ -77,8 +77,6 @@ class MaskEditorDialog extends ComfyDialog {
 		]);
 	}
 
-	static brush_size = 10;
-
 	createButtons() {
 		return [];
 //			$el("button", {
@@ -141,11 +139,17 @@ class MaskEditorDialog extends ComfyDialog {
 				self.backupCtx.clearRect(0, 0, self.backupCanvas.width, self.backupCanvas.height);
 			});
 
-		var plusButton = this.createLeftButton("Brush +", "70px", () => { MaskEditorDialog.brush_size = Math.min(MaskEditorDialog.brush_size+5, 100); });
-		var minusButton = this.createLeftButton("Brush -", "160px", () => { MaskEditorDialog.brush_size = Math.max(MaskEditorDialog.brush_size-5, 1); });
+		var plusButton = this.createLeftButton("Brush +", "70px", () => { self.brush_size = Math.min(self.brush_size+5, 100); });
+		var minusButton = this.createLeftButton("Brush -", "160px", () => { self.brush_size = Math.max(self.brush_size-5, 1); });
 
-		var saveButton = this.createRightButton("Save", "90px", () => { self.save(); });
-		var cancelButton = this.createRightButton("Cancel", "0px", () => { self.close(); });
+		var saveButton = this.createRightButton("Save", "90px", () => {
+				document.addEventListener('mouseup', this.handleMouseUp);
+				self.save(); 
+			});
+		var cancelButton = this.createRightButton("Cancel", "0px", () => {			
+				document.addEventListener('mouseup', this.handleMouseUp);
+				self.close(); 
+			});
 		
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
@@ -254,132 +258,153 @@ class MaskEditorDialog extends ComfyDialog {
 		this.image = orig_image;
 	}
 
+
 	setEventHandler(maskCanvas) {
-		const maskCtx = maskCanvas.getContext('2d');
-
-		var lastx = -1;
-		var lasty = -1;
-		var lasttime = 0;
-
-		function draw_point(event) {
-			if (event.button == 0) {
-				const maskRect = maskCanvas.getBoundingClientRect();
-				const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
-				const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
-
-				maskCtx.beginPath();
-				maskCtx.fillStyle = "rgb(0,0,0)";
-				maskCtx.globalCompositeOperation = "source-over";
-				maskCtx.arc(x, y, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
-				maskCtx.fill();
-				lastx = x;
-				lasty = y;
-				lasttime = performance.now();
-			}
-		}
-
-		function draw_move(event) {
-			if (event instanceof TouchEvent || event.buttons === 1) {
-				event.preventDefault();
-
-				var diff = performance.now() - lasttime;
-				
-				const maskRect = maskCanvas.getBoundingClientRect();
-				const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
-				const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
-
-				if(diff > 16)
-					requestAnimationFrame(() => {
-						maskCtx.beginPath();
-						maskCtx.fillStyle = "rgb(0,0,0)";
-						maskCtx.globalCompositeOperation = "source-over";
-						maskCtx.arc(x, y, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
-						maskCtx.fill();
-						lastx = x;
-						lasty = y;
-					});
-				else
-					requestAnimationFrame(() => {					
-						maskCtx.beginPath();
-						maskCtx.fillStyle = "rgb(0,0,0)";
-						maskCtx.globalCompositeOperation = "source-over";
-						
-						var dx = x - lastx;
-						var dy = y - lasty;
-
-						var distance = Math.sqrt(dx * dx + dy * dy);
-						var directionX = dx / distance;
-						var directionY = dy / distance;
-
-						for (var i = 0; i < distance; i++) {
-							var px = lastx + (directionX * i);
-							var py = lasty + (directionY * i);
-							maskCtx.arc(px, py, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
-							maskCtx.fill();
-						}
-						lastx = x;
-						lasty = y;
-					});
-
-				lasttime = performance.now();
-			}
-			else if(event.buttons === 2) {
-				event.preventDefault();
-				const maskRect = maskCanvas.getBoundingClientRect();
-				const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
-				const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
-
-				if(diff > 16)
-					requestAnimationFrame(() => {
-						maskCtx.beginPath();
-						maskCtx.globalCompositeOperation = "destination-out";
-						maskCtx.arc(x, y, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
-						maskCtx.fill();
-						lastx = x;
-						lasty = y;
-					});
-				else
-					requestAnimationFrame(() => {					
-						maskCtx.beginPath();
-						maskCtx.globalCompositeOperation = "destination-out";
-						
-						var dx = x - lastx;
-						var dy = y - lasty;
-
-						var distance = Math.sqrt(dx * dx + dy * dy);
-						var directionX = dx / distance;
-						var directionY = dy / distance;
-
-						for (var i = 0; i < distance; i++) {
-							var px = lastx + (directionX * i);
-							var py = lasty + (directionY * i);
-							maskCtx.arc(px, py, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
-							maskCtx.fill();
-						}
-						lastx = x;
-						lasty = y;
-					});
-
-				lasttime = performance.now();
-			}
-		}
-
-		function handleWheelEvent(event) {
-			if(event.deltaY < 0)
-				MaskEditorDialog.brush_size = Math.min(MaskEditorDialog.brush_size+2, 100);
-			else
-				MaskEditorDialog.brush_size = Math.max(MaskEditorDialog.brush_size-2, 1);
-		}
-
 		maskCanvas.addEventListener("contextmenu", (event) => {
 			event.preventDefault();
 		});
 
-		maskCanvas.addEventListener('wheel', handleWheelEvent);
-		maskCanvas.addEventListener('mousedown', draw_point);
-		maskCanvas.addEventListener('mousemove', draw_move);
-		maskCanvas.addEventListener('touchmove', draw_move);
+		const self = this;
+		maskCanvas.addEventListener('wheel', (event) => this.handleWheelEvent(self,event));
+		maskCanvas.addEventListener('mousedown', (event) => this.handleMouseDown(self,event));
+		document.addEventListener('mouseup', (event) => this.handleMouseUp(self,event));
+		maskCanvas.addEventListener('mousemove', (event) => this.draw_move(self,event));
+		maskCanvas.addEventListener('touchmove', (event) => this.draw_move(self,event));
 
+	}
+
+	brush_size = 10;
+	drawing_mode = false;
+	lastx = -1;
+	lasty = -1;
+	lasttime = 0;
+
+	handleWheelEvent(self, event) {
+		if(event.deltaY < 0)
+			self.brush_size = Math.min(self.brush_size+2, 100);
+		else
+			self.brush_size = Math.max(self.brush_size-2, 1);
+	}
+
+	draw_move(self, event) {
+		if (event instanceof TouchEvent || event.buttons === 1) {
+			event.preventDefault();
+
+			var diff = performance.now() - self.lasttime;
+
+			const maskRect = self.maskCanvas.getBoundingClientRect();
+			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
+			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
+
+			if(diff > 20)
+				requestAnimationFrame(() => {
+					self.maskCtx.beginPath();
+					self.maskCtx.fillStyle = "rgb(0,0,0)";
+					self.maskCtx.globalCompositeOperation = "source-over";
+					self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+					self.maskCtx.fill();
+					self.lastx = x;
+					self.lasty = y;
+				});
+			else
+				requestAnimationFrame(() => {					
+					self.maskCtx.beginPath();
+					self.maskCtx.fillStyle = "rgb(0,0,0)";
+					self.maskCtx.globalCompositeOperation = "source-over";
+					
+					var dx = x - self.lastx;
+					var dy = y - self.lasty;
+
+					var distance = Math.sqrt(dx * dx + dy * dy);
+					var directionX = dx / distance;
+					var directionY = dy / distance;
+
+					for (var i = 0; i < distance; i++) {
+						var px = self.lastx + (directionX * i);
+						var py = self.lasty + (directionY * i);
+						self.maskCtx.arc(px, py, this.brush_size, 0, Math.PI * 2, false);
+						self.maskCtx.fill();
+					}
+					self.lastx = x;
+					self.lasty = y;
+				});
+
+			self.lasttime = performance.now();
+		}
+		else if(event.buttons === 2) {
+			event.preventDefault();
+			const maskRect = maskCanvas.getBoundingClientRect();
+			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
+			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
+
+			if(diff > 16 && !drawing_mode) // cannot tracking drawing_mode for touch event
+				requestAnimationFrame(() => {
+					self.maskCtx.beginPath();
+					self.maskCtx.globalCompositeOperation = "destination-out";
+					self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+					self.maskCtx.fill();
+					self.lastx = x;
+					self.lasty = y;
+				});
+			else
+				requestAnimationFrame(() => {					
+					self.maskCtx.beginPath();
+					self.maskCtx.globalCompositeOperation = "destination-out";
+					
+					var dx = x - self.lastx;
+					var dy = y - self.lasty;
+
+					var distance = Math.sqrt(dx * dx + dy * dy);
+					var directionX = dx / distance;
+					var directionY = dy / distance;
+
+					for (var i = 0; i < distance; i++) {
+						var px = self.lastx + (directionX * i);
+						var py = self.lasty + (directionY * i);
+						self.maskCtx.arc(px, py, this.brush_size, 0, Math.PI * 2, false);
+						self.maskCtx.fill();
+					}
+					self.lastx = x;
+					self.lasty = y;
+				});
+
+				self.lasttime = performance.now();
+		}
+	}
+
+	handleMouseDown(self, event) {
+		self.drawing_mode = true;
+		if (event.button == 0) {
+			const maskRect = maskCanvas.getBoundingClientRect();
+			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
+			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
+
+			self.maskCtx.beginPath();
+			self.maskCtx.fillStyle = "rgb(0,0,0)";
+			self.maskCtx.globalCompositeOperation = "source-over";
+			self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+			self.maskCtx.fill();
+			self.lastx = x;
+			self.lasty = y;
+			self.lasttime = performance.now();
+		}
+		else if(event.button == 2) {
+			const maskRect = maskCanvas.getBoundingClientRect();
+			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
+			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
+
+			self.maskCtx.beginPath();
+			self.maskCtx.globalCompositeOperation = "destination-out";						
+			self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+			self.maskCtx.fill();
+			self.lastx = x;
+			self.lasty = y;
+			self.lasttime = performance.now();
+		}
+	}
+
+	handleMouseUp(self, event) {
+		self.drawing_mode = false;
 	}
 
 	save() {
