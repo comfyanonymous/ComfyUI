@@ -1,11 +1,14 @@
 import torch
 
-def load_torch_file(ckpt):
+def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
         import safetensors.torch
         sd = safetensors.torch.load_file(ckpt, device="cpu")
     else:
-        pl_sd = torch.load(ckpt, map_location="cpu")
+        if safe_load:
+            pl_sd = torch.load(ckpt, map_location="cpu", weights_only=True)
+        else:
+            pl_sd = torch.load(ckpt, map_location="cpu")
         if "global_step" in pl_sd:
             print(f"Global Step: {pl_sd['global_step']}")
         if "state_dict" in pl_sd:

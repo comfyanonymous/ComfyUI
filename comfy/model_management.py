@@ -133,6 +133,7 @@ def unload_model():
         #never unload models from GPU on high vram
         if vram_state != VRAMState.HIGH_VRAM:
             current_loaded_model.model.cpu()
+            current_loaded_model.model_patches_to("cpu")
         current_loaded_model.unpatch_model()
         current_loaded_model = None
 
@@ -156,6 +157,8 @@ def load_model_gpu(model):
     except Exception as e:
         model.unpatch_model()
         raise e
+
+    model.model_patches_to(get_torch_device())
     current_loaded_model = model
     if vram_state == VRAMState.CPU:
         pass
