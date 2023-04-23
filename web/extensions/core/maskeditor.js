@@ -67,14 +67,14 @@ function removeRGB(image, backupCanvas, backupCtx, maskCtx) {
 }
 
 class MaskEditorDialog extends ComfyDialog {
+	static instance = null;
 	constructor() {
 		super();
 		this.element = $el("div.comfy-modal", { parent: document.body }, 
-	[
-			$el("div.comfy-modal-content", 
-		[
-			...this.createButtons()]),
-		]);
+			[ $el("div.comfy-modal-content", 
+				[...this.createButtons()]),
+			]);
+		MaskEditorDialog.instance = this;
 	}
 
 	createButtons() {
@@ -142,14 +142,17 @@ class MaskEditorDialog extends ComfyDialog {
 		var plusButton = this.createLeftButton("Brush +", "70px", () => { self.brush_size = Math.min(self.brush_size+5, 100); });
 		var minusButton = this.createLeftButton("Brush -", "160px", () => { self.brush_size = Math.max(self.brush_size-5, 1); });
 
-		var saveButton = this.createRightButton("Save", "90px", () => {
-				document.addEventListener('mouseup', this.handleMouseUp);
-				self.save(); 
-			});
-		var cancelButton = this.createRightButton("Cancel", "0px", () => {			
-				document.addEventListener('mouseup', this.handleMouseUp);
-				self.close(); 
-			});
+		var saveButton = this.createRightButton("Save", "90px", () => { 
+			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
+			document.removeEventListener("keyup", MaskEditorDialog.handleKeyUp);
+			self.save(); 
+		});
+
+		var cancelButton = this.createRightButton("Cancel", "0px", () => { 			
+			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
+			document.removeEventListener("keyup", MaskEditorDialog.handleKeyUp);
+			self.close(); 
+		});
 		
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
@@ -267,10 +270,10 @@ class MaskEditorDialog extends ComfyDialog {
 		const self = this;
 		maskCanvas.addEventListener('wheel', (event) => this.handleWheelEvent(self,event));
 		maskCanvas.addEventListener('mousedown', (event) => this.handleMouseDown(self,event));
-		document.addEventListener('mouseup', (event) => this.handleMouseUp(self,event));
+		document.addEventListener('mouseup', MaskEditorDialog.handleMouseUp);
 		maskCanvas.addEventListener('mousemove', (event) => this.draw_move(self,event));
 		maskCanvas.addEventListener('touchmove', (event) => this.draw_move(self,event));
-
+		document.addEventListener('keyup', MaskEditorDialog.handleKeyUp);
 	}
 
 	brush_size = 10;
@@ -278,6 +281,20 @@ class MaskEditorDialog extends ComfyDialog {
 	lastx = -1;
 	lasty = -1;
 	lasttime = 0;
+
+	static handleKeyUp(event) {
+		const self = MaskEditorDialog.instance;
+		if (event.key === ']') {
+			self.brush_size = Math.min(self.brush_size+2, 100);
+		} else if (event.key === '[') {
+			self.brush_size = Math.max(self.brush_size-2, 1);
+		}
+	}
+
+	static handleMouseUp(event) {
+		event.preventDefault();
+		MaskEditorDialog.instance.drawing_mode = false;
+	}
 
 	handleWheelEvent(self, event) {
 		if(event.deltaY < 0)
@@ -406,11 +423,6 @@ class MaskEditorDialog extends ComfyDialog {
 			self.lasty = y;
 			self.lasttime = performance.now();
 		}
-	}
-
-	handleMouseUp(self, event) {
-		event.preventDefault();
-		self.drawing_mode = false;
 	}
 
 	save() {
