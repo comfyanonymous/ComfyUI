@@ -69,6 +69,46 @@ def get_directory_by_type(type_name):
     return None
 
 
+# determine base_dir rely on annotation if name is 'filename.ext [annotation]' format
+# otherwise use default_path as base_dir
+def touch_annotated_filepath(name):
+    if name.endswith("[output]"):
+        base_dir = get_output_directory()
+        name = name[:-9]
+    elif name.endswith("[input]"):
+        base_dir = get_input_directory()
+        name = name[:-8]
+    elif name.endswith("[temp]"):
+        base_dir = get_temp_directory()
+        name = name[:-7]
+    else:
+        return name, None
+
+    return name, base_dir
+
+
+def get_annotated_filepath(name, default_dir=None):
+    name, base_dir = touch_annotated_filepath(name)
+
+    if base_dir is None:
+        if default_dir is not None:
+            base_dir = default_dir
+        else:
+            base_dir = get_input_directory()  # fallback path
+
+    return os.path.join(base_dir, name)
+
+
+def exists_annotated_filepath(name):
+    name, base_dir = touch_annotated_filepath(name)
+
+    if base_dir is None:
+        base_dir = get_input_directory()  # fallback path
+
+    filepath = os.path.join(base_dir, name)
+    return os.path.exists(filepath)
+
+
 def add_model_folder_path(folder_name, full_folder_path):
     global folder_names_and_paths
     if folder_name in folder_names_and_paths:
