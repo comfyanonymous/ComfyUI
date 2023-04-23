@@ -172,7 +172,7 @@ export class ComfyApp {
 									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
 											if (prop) {
-												prop.value = value;
+												prop.callback(value);
 											}
 									});
 								}
