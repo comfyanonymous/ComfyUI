@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from comfy_extras.facerestore.facelib.detection.yolov5face.models.yolo import Model
+from comfy_extras.facerestore.facelib.detection.yolov5face.model.yolo import Model
 from comfy_extras.facerestore.facelib.detection.yolov5face.utils.datasets import letterbox
 from comfy_extras.facerestore.facelib.detection.yolov5face.utils.general import (
     check_img_size,
