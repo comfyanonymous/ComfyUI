@@ -11,7 +11,6 @@ import torch
 import nodes
 
 import comfy.model_management
-import folder_paths
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -250,14 +249,15 @@ def validate_inputs(prompt, item):
                 if "max" in info[1] and val > info[1]["max"]:
                     return (False, "Value bigger than max. {}, {}".format(class_type, x))
 
-            if isinstance(type_input, list):
-                is_annotated_path = val.endswith("[temp]") or val.endswith("[input]") or val.endswith("[output]")
-                if is_annotated_path:
-                    if not folder_paths.exists_annotated_filepath(val):
-                        return (False, "Invalid file path. {}, {}: {}".format(class_type, x, val))
-
-                elif val not in type_input:
-                    return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
+            if hasattr(obj_class, "VALIDATE_INPUTS"):
+                input_data_all = get_input_data(inputs, obj_class, unique_id)
+                ret = obj_class.VALIDATE_INPUTS(**input_data_all)
+                if ret != True:
+                    return (False, "{}, {}".format(class_type, ret))
+            else:
+                if isinstance(type_input, list):
+                    if val not in type_input:
+                        return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
     return (True, "")
 
 def validate_prompt(prompt):
@@ -279,7 +279,8 @@ def validate_prompt(prompt):
             m = validate_inputs(prompt, o)
             valid = m[0]
             reason = m[1]
-        except:
+        except Exception as e:
+            print(traceback.format_exc())
             valid = False
             reason = "Parsing error"
 

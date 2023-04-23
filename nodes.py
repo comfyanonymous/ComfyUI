@@ -974,8 +974,7 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
     def load_image(self, image):
-        input_dir = folder_paths.get_input_directory()
-        image_path = folder_paths.get_annotated_filepath(image, input_dir)
+        image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -989,20 +988,27 @@ class LoadImage:
 
     @classmethod
     def IS_CHANGED(s, image):
-        input_dir = folder_paths.get_input_directory()
-        image_path = folder_paths.get_annotated_filepath(image, input_dir)
+        image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
 
+    @classmethod
+    def VALIDATE_INPUTS(s, image):
+        if not folder_paths.exists_annotated_filepath(image):
+            return "Invalid image file: {}".format(image)
+
+        return True
+
 class LoadImageMask:
+    _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         return {"required":
                     {"image": (sorted(os.listdir(input_dir)), ),
-                    "channel": (["alpha", "red", "green", "blue"], ),}
+                    "channel": (s._color_channels, ),}
                 }
 
     CATEGORY = "mask"
@@ -1010,8 +1016,7 @@ class LoadImageMask:
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
     def load_image(self, image, channel):
-        input_dir = folder_paths.get_input_directory()
-        image_path = folder_paths.get_annotated_filepath(image, input_dir)
+        image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
         if i.getbands() != ("R", "G", "B", "A"):
             i = i.convert("RGBA")
@@ -1028,12 +1033,21 @@ class LoadImageMask:
 
     @classmethod
     def IS_CHANGED(s, image, channel):
-        input_dir = folder_paths.get_input_directory()
-        image_path = folder_paths.get_annotated_filepath(image, input_dir)
+        image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, image, channel):
+        if not folder_paths.exists_annotated_filepath(image):
+            return "Invalid image file: {}".format(image)
+
+        if channel not in s._color_channels:
+            return "Invalid color channel: {}".format(channel)
+
+        return True
 
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
