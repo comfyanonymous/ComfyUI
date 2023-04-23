@@ -77,6 +77,8 @@ class MaskEditorDialog extends ComfyDialog {
 		]);
 	}
 
+	static brush_size = 10;
+
 	createButtons() {
 		return [];
 //			$el("button", {
@@ -103,41 +105,55 @@ class MaskEditorDialog extends ComfyDialog {
 	clearMask(self) {
 	}
 
+	createButton(name,callback) {
+		var button = document.createElement("button");
+		button.innerText = name;
+		button.style.position = "absolute";
+		button.style.top = "5px";
+		button.addEventListener("click", callback);
+		return button;
+	}
+
+	createLeftButton(name,left,callback) {
+		var button = this.createButton(name,callback);
+		button.style.left = left;
+		return button;
+	}
+
+	createRightButton(name,right,callback) {
+		var button = this.createButton(name,callback);
+		button.style.right = right;
+		return button;
+	}
+
 	setlayout(imgCanvas, maskCanvas) {
 		const self = this;
 		var bottom_panel = document.createElement("div");
-		bottom_panel.style.position = "fixed";
+		bottom_panel.style.position = "relative";
 		bottom_panel.style.bottom = "0";
 		bottom_panel.style.left = "0";
 		bottom_panel.style.right = "0";
 		bottom_panel.style.height = "50px";
 
-		var clearButton = document.createElement("button");
-		clearButton.innerText = "Clear";
-		clearButton.style.position = "absolute";
-		clearButton.style.left = "20px";
-		clearButton.addEventListener("click", function() {
-			self.maskCtx.clearRect(0, 0, self.maskCanvas.width, self.maskCanvas.height);
-			self.backupCtx.clearRect(0, 0, self.backupCanvas.width, self.backupCanvas.height);
-		});
+		var clearButton = this.createLeftButton("Clear", "0px", 
+			() => {
+				self.maskCtx.clearRect(0, 0, self.maskCanvas.width, self.maskCanvas.height);
+				self.backupCtx.clearRect(0, 0, self.backupCanvas.width, self.backupCanvas.height);
+			});
 
-		var saveButton = document.createElement("button");
-		saveButton.innerText = "Save";
-		saveButton.style.position = "absolute";
-		saveButton.style.right = "110px";
-		saveButton.addEventListener("click", function() { self.save(); });
+		var plusButton = this.createLeftButton("Brush +", "70px", () => { MaskEditorDialog.brush_size = Math.min(MaskEditorDialog.brush_size+5, 100); });
+		var minusButton = this.createLeftButton("Brush -", "160px", () => { MaskEditorDialog.brush_size = Math.max(MaskEditorDialog.brush_size-5, 1); });
 
-		var cancelButton = document.createElement("button");
-		cancelButton.innerText = "Cancel";
-		cancelButton.style.position = "absolute";
-		cancelButton.style.right = "20px";
-		cancelButton.addEventListener("click", function() { self.close(); });
-
+		var saveButton = this.createRightButton("Save", "90px", () => { self.save(); });
+		var cancelButton = this.createRightButton("Cancel", "0px", () => { self.close(); });
+		
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
 		this.element.appendChild(bottom_panel);
 
 		bottom_panel.appendChild(clearButton);
+		bottom_panel.appendChild(plusButton);
+		bottom_panel.appendChild(minusButton);
 		bottom_panel.appendChild(saveButton);
 		bottom_panel.appendChild(cancelButton);
 
@@ -170,7 +186,6 @@ class MaskEditorDialog extends ComfyDialog {
 
 		// separate original_imgs and imgs
 		if(ComfyApp.clipspace.imgs[0] === ComfyApp.clipspace.original_imgs[0]) {
-			console.log(ComfyApp.clipspace.imgs[0]);
 			var copiedImage = new Image();
 			copiedImage.src = ComfyApp.clipspace.original_imgs[0].src;
 			ComfyApp.clipspace.imgs = [copiedImage];
@@ -191,7 +206,7 @@ class MaskEditorDialog extends ComfyDialog {
 		window.addEventListener("resize", () => {
 			// repositioning
 			imgCanvas.width = window.innerWidth - 250;
-			imgCanvas.height = window.innerHeight - 300;
+			imgCanvas.height = window.innerHeight - 200;
 
 			// redraw image
 			let drawWidth = orig_image.width;
@@ -240,11 +255,13 @@ class MaskEditorDialog extends ComfyDialog {
 	}
 
 	setEventHandler(maskCanvas) {
-		let brush_size = 10;
 		const maskCtx = maskCanvas.getContext('2d');
 
+		var lastx = -1;
+		var lasty = -1;
+		var lasttime = 0;
+
 		function draw_point(event) {
-			console.log(event.button);
 			if (event.button == 0) {
 				const maskRect = maskCanvas.getBoundingClientRect();
 				const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
@@ -253,23 +270,58 @@ class MaskEditorDialog extends ComfyDialog {
 				maskCtx.beginPath();
 				maskCtx.fillStyle = "rgb(0,0,0)";
 				maskCtx.globalCompositeOperation = "source-over";
-				maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+				maskCtx.arc(x, y, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
 				maskCtx.fill();
+				lastx = x;
+				lasty = y;
+				lasttime = performance.now();
 			}
 		}
 
 		function draw_move(event) {
-			if (event.buttons === 1) {
+			if (event instanceof TouchEvent || event.buttons === 1) {
 				event.preventDefault();
+
+				var diff = performance.now() - lasttime;
+				
 				const maskRect = maskCanvas.getBoundingClientRect();
 				const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 				const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
-				maskCtx.beginPath();
-				maskCtx.fillStyle = "rgb(0,0,0)";
-				maskCtx.globalCompositeOperation = "source-over";
-				maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
-				maskCtx.fill();
+				if(diff > 16)
+					requestAnimationFrame(() => {
+						maskCtx.beginPath();
+						maskCtx.fillStyle = "rgb(0,0,0)";
+						maskCtx.globalCompositeOperation = "source-over";
+						maskCtx.arc(x, y, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
+						maskCtx.fill();
+						lastx = x;
+						lasty = y;
+					});
+				else
+					requestAnimationFrame(() => {					
+						maskCtx.beginPath();
+						maskCtx.fillStyle = "rgb(0,0,0)";
+						maskCtx.globalCompositeOperation = "source-over";
+						
+						var dx = x - lastx;
+						var dy = y - lasty;
+
+						var distance = Math.sqrt(dx * dx + dy * dy);
+						var directionX = dx / distance;
+						var directionY = dy / distance;
+
+						for (var i = 0; i < distance; i++) {
+							var px = lastx + (directionX * i);
+							var py = lasty + (directionY * i);
+							maskCtx.arc(px, py, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
+							maskCtx.fill();
+						}
+						lastx = x;
+						lasty = y;
+					});
+
+				lasttime = performance.now();
 			}
 			else if(event.buttons === 2) {
 				event.preventDefault();
@@ -277,18 +329,46 @@ class MaskEditorDialog extends ComfyDialog {
 				const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 				const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
-				maskCtx.beginPath();
-				maskCtx.globalCompositeOperation = "destination-out";
-				maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
-				maskCtx.fill();
+				if(diff > 16)
+					requestAnimationFrame(() => {
+						maskCtx.beginPath();
+						maskCtx.globalCompositeOperation = "destination-out";
+						maskCtx.arc(x, y, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
+						maskCtx.fill();
+						lastx = x;
+						lasty = y;
+					});
+				else
+					requestAnimationFrame(() => {					
+						maskCtx.beginPath();
+						maskCtx.globalCompositeOperation = "destination-out";
+						
+						var dx = x - lastx;
+						var dy = y - lasty;
+
+						var distance = Math.sqrt(dx * dx + dy * dy);
+						var directionX = dx / distance;
+						var directionY = dy / distance;
+
+						for (var i = 0; i < distance; i++) {
+							var px = lastx + (directionX * i);
+							var py = lasty + (directionY * i);
+							maskCtx.arc(px, py, MaskEditorDialog.brush_size, 0, Math.PI * 2, false);
+							maskCtx.fill();
+						}
+						lastx = x;
+						lasty = y;
+					});
+
+				lasttime = performance.now();
 			}
 		}
 
 		function handleWheelEvent(event) {
 			if(event.deltaY < 0)
-				brush_size = Math.min(brush_size+2, 100);
+				MaskEditorDialog.brush_size = Math.min(MaskEditorDialog.brush_size+2, 100);
 			else
-				brush_size = Math.max(brush_size-2, 1);
+				MaskEditorDialog.brush_size = Math.max(MaskEditorDialog.brush_size-2, 1);
 		}
 
 		maskCanvas.addEventListener("contextmenu", (event) => {
