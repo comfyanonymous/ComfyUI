@@ -2,22 +2,21 @@ import torch
 import comfy.model_management
 
 
-def prepare_noise(latent, seed, disable_noise):
+def prepare_noise(latent, seed):
+    """creates random noise given a LATENT and a seed"""
     latent_image = latent["samples"]
-    if disable_noise:
-        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
-    else:
-        batch_index = 0
-        if "batch_index" in latent:
-            batch_index = latent["batch_index"]
+    batch_index = 0
+    if "batch_index" in latent:
+        batch_index = latent["batch_index"]
 
-        generator = torch.manual_seed(seed)
-        for i in range(batch_index):
-            noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
-        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
+    generator = torch.manual_seed(seed)
+    for i in range(batch_index):
+        noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
+    noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
     return noise
 
 def create_mask(latent, noise):
+    """creates a mask for a given LATENT and noise"""
     noise_mask = None
     device = comfy.model_management.get_torch_device()
     if "noise_mask" in latent:
@@ -30,6 +29,7 @@ def create_mask(latent, noise):
     return noise_mask
 
 def broadcast_cond(cond, noise):
+    """broadcasts conditioning to the noise batch size"""
     device = comfy.model_management.get_torch_device()
     copy = []
     for p in cond:
@@ -41,6 +41,7 @@ def broadcast_cond(cond, noise):
     return copy
 
 def load_c_nets(positive, negative):
+    """loads control nets in positive and negative conditioning"""
     def get_models(cond):
         models = []
         for c in cond:
@@ -53,10 +54,12 @@ def load_c_nets(positive, negative):
     return get_models(positive) + get_models(negative)
 
 def load_additional_models(positive, negative):
+    """loads additional models in positive and negative conditioning"""
     models = load_c_nets(positive, negative)
     comfy.model_management.load_controlnet_gpu(models)
     return models
 
 def cleanup_additional_models(models):
+    """cleanup additional models that were loaded"""
     for m in models:
         m.cleanup()
