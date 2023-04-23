@@ -172,8 +172,8 @@ export class ComfyApp {
 									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
 											if (prop) {
-											prop.value = value;
-										}
+												prop.value = value;
+											}
 									});
 								}
 
@@ -204,6 +204,7 @@ export class ComfyApp {
 										}
 									}
 								}
+								this.trigger('changed');
 							}
 						}
 					}
