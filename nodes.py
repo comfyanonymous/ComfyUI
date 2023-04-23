@@ -744,7 +744,11 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
 
-    noise = comfy.sample.prepare_noise(latent, seed, disable_noise)
+    if disable_noise:
+        noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+    else:
+        noise = comfy.sample.prepare_noise(latent, seed)
+
     noise_mask = comfy.sample.create_mask(latent, noise)
 
     real_model = None
