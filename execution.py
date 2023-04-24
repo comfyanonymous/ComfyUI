@@ -40,15 +40,13 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = unique_id
     return input_data_all
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     if unique_id in outputs:
-        return []
-
-    executed = []
+        return
 
     for x in inputs:
         input_data = inputs[x]
@@ -57,7 +55,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                executed += recursive_execute(server, prompt, outputs, input_unique_id, extra_data)
+                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed)
 
     input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
@@ -72,7 +70,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
             server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
         if "result" in outputs[unique_id]:
             outputs[unique_id] = outputs[unique_id]["result"]
-    return executed + [unique_id]
+    executed.add(unique_id)
 
 def recursive_will_execute(prompt, outputs, current_item):
     unique_id = current_item
@@ -158,7 +156,7 @@ class PromptExecutor:
                 recursive_output_delete_if_changed(prompt, self.old_prompt, self.outputs, x)
 
             current_outputs = set(self.outputs.keys())
-            executed = []
+            executed = set()
             try:
                 to_execute = []
                 for x in prompt:
@@ -181,12 +179,12 @@ class PromptExecutor:
                             except:
                                 valid = False
                             if valid:
-                                executed += recursive_execute(self.server, prompt, self.outputs, x, extra_data)
+                                recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed)
             except Exception as e:
                 print(traceback.format_exc())
                 to_delete = []
                 for o in self.outputs:
-                    if o not in current_outputs:
+                    if (o not in current_outputs) and (o not in executed):
                         to_delete += [o]
                         if o in self.old_prompt:
                             d = self.old_prompt.pop(o)
@@ -194,11 +192,9 @@ class PromptExecutor:
                 for o in to_delete:
                     d = self.outputs.pop(o)
                     del d
-            else:
-                executed = set(executed)
+            finally:
                 for x in executed:
                     self.old_prompt[x] = copy.deepcopy(prompt[x])
-            finally:
                 self.server.last_node_id = None
                 if self.server.client_id is not None:
                     self.server.send_sync("executing", { "node": None }, self.server.client_id)
