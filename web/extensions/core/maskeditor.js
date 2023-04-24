@@ -124,45 +124,80 @@ class MaskEditorDialog extends ComfyDialog {
 		return button;
 	}
 
+	createLeftSlider(self, name,left,callback) {
+		const divElement = document.createElement('div');
+		divElement.style.position = "absolute";
+		divElement.style.top = "5px";
+		divElement.style.left = left;
+		divElement.style.backgroundColor = 'Black';
+		divElement.style.paddingLeft = "10px";
+		divElement.style.paddingRight = "10px";
+		divElement.style.borderRadius = "10px";
+
+		self.brush_slider_input = document.createElement('input');
+		self.brush_slider_input.setAttribute('type', 'range');
+		self.brush_slider_input.setAttribute('min', '1');
+		self.brush_slider_input.setAttribute('max', '100');
+		self.brush_slider_input.setAttribute('value', '10');
+
+		const labelElement = document.createElement("label");
+		labelElement.innerHTML = `<font color='white' size='5px'>${name}</font>`;
+
+		divElement.appendChild(labelElement);
+		divElement.appendChild(self.brush_slider_input);
+
+		self.brush_slider_input.addEventListener("change", callback);
+
+		return divElement;
+	}
+
 	setlayout(imgCanvas, maskCanvas) {
 		const self = this;
+
+		// If it is specified as relative, using it only as a hidden placeholder for padding is recommended
+		// to prevent anomalies where it exceeds a certain size and goes outside of the window.
+		var placeholder = document.createElement("div");
+		placeholder.style.position = "relative";
+		placeholder.style.height = "50px";
+
 		var bottom_panel = document.createElement("div");
-		bottom_panel.style.position = "relative";
-		bottom_panel.style.bottom = "0";
+		bottom_panel.style.position = "absolute";
+		bottom_panel.style.bottom = "0px";
 		bottom_panel.style.left = "0";
 		bottom_panel.style.right = "0";
 		bottom_panel.style.height = "50px";
 
-		var clearButton = this.createLeftButton("Clear", "0px", 
+		var clearButton = this.createLeftButton("Clear", "280px",
 			() => {
 				self.maskCtx.clearRect(0, 0, self.maskCanvas.width, self.maskCanvas.height);
 				self.backupCtx.clearRect(0, 0, self.backupCanvas.width, self.backupCanvas.height);
 			});
 
-		var plusButton = this.createLeftButton("Brush +", "70px", () => { self.brush_size = Math.min(self.brush_size+5, 100); });
-		var minusButton = this.createLeftButton("Brush -", "160px", () => { self.brush_size = Math.max(self.brush_size-5, 1); });
-
-		var saveButton = this.createRightButton("Save", "90px", () => { 
+		var saveButton = this.createRightButton("Save", "110px", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
 			document.removeEventListener("keyup", MaskEditorDialog.handleKeyUp);
-			self.save(); 
-		});
+				self.save();
+			});
 
-		var cancelButton = this.createRightButton("Cancel", "0px", () => { 			
+		var cancelButton = this.createRightButton("Cancel", "20px", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
 			document.removeEventListener("keyup", MaskEditorDialog.handleKeyUp);
-			self.close(); 
+			self.close();
 		});
-		
+
+		var brush_size_slider = this.createLeftSlider(self, "Thickness", "20px", (event) => {
+			self.brush_size = event.target.value;
+		});
+
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
 		this.element.appendChild(bottom_panel);
+		this.element.appendChild(placeholder);
 
 		bottom_panel.appendChild(clearButton);
-		bottom_panel.appendChild(plusButton);
-		bottom_panel.appendChild(minusButton);
 		bottom_panel.appendChild(saveButton);
 		bottom_panel.appendChild(cancelButton);
+		bottom_panel.appendChild(brush_size_slider);
 
 		this.element.style.display = "block";
 		imgCanvas.style.position = "relative";
@@ -301,6 +336,10 @@ class MaskEditorDialog extends ComfyDialog {
 			self.brush_size = Math.min(self.brush_size+2, 100);
 		else
 			self.brush_size = Math.max(self.brush_size-2, 1);
+
+
+		self.brush_slider_input.value = self.brush_size;
+//		self.brush_slider_input.dispatchEvent(new Event('input'));
 	}
 
 	draw_move(self, event) {
