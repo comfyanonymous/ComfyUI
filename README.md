@@ -17,6 +17,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
+- [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
 - Loading full workflows (with seeds) from generated PNG files.
 - Saving/Loading workflows as Json files.
 - Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
