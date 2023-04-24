@@ -44,11 +44,10 @@ def get_models_from_cond(cond, model_type):
 
 def load_additional_models(positive, negative):
     """loads additional models in positive and negative conditioning"""
-    models = []
-    models += get_models_from_cond(positive, "control")
-    models += get_models_from_cond(negative, "control")
-    models += get_models_from_cond(positive, "gligen")
-    models += get_models_from_cond(negative, "gligen")
+    control_nets = get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control")
+    gligen = get_models_from_cond(positive, "gligen") + get_models_from_cond(negative, "gligen")
+    gligen = [x[1] for x in gligen]
+    models = control_nets + gligen
     comfy.model_management.load_controlnet_gpu(models)
     return models
 
