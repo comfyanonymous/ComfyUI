@@ -1,6 +1,7 @@
 import torch
 import contextlib
 import copy
+from tqdm.auto import tqdm
 
 import sd1_clip
 import sd2_clip
@@ -437,11 +438,16 @@ class VAE:
         self.device = device
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
+        it_1 = -(samples.shape[2] // -(tile_y * 2 - overlap)) * -(samples.shape[3] // -(tile_x // 2 - overlap))
+        it_2 = -(samples.shape[2] // -(tile_y // 2 - overlap)) * -(samples.shape[3] // -(tile_x * 2 - overlap))
+        it_3 = -(samples.shape[2] // -(tile_y - overlap)) * -(samples.shape[3] // -(tile_x - overlap))
+        pbar = tqdm(total=samples.shape[0] * (it_1 + it_2 + it_3))
+
         decode_fn = lambda a: (self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0)
         output = torch.clamp((
-            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8) +
-            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8) +
-             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8))
+            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8, pbar = pbar) +
+            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8, pbar = pbar) +
+             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8, pbar = pbar))
             / 3.0) / 2.0, min=0.0, max=1.0)
         return output
 
