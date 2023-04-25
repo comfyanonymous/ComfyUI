@@ -145,7 +145,7 @@ export class ComfyApp {
 						if(this.widgets) {
 						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
 						}
-						
+
 						let img = new Image();
 						var imgs = undefined;
 						if(this.imgs != undefined) {
@@ -172,7 +172,7 @@ export class ComfyApp {
 									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
 											if (prop) {
-												prop.value = value;
+												prop.callback(value);
 											}
 									});
 								}

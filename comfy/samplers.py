@@ -197,7 +197,15 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     transformer_options = model_options['transformer_options'].copy()
 
                 if patches is not None:
-                    transformer_options["patches"] = patches
+                    if "patches" in transformer_options:
+                        cur_patches = transformer_options["patches"].copy()
+                        for p in patches:
+                            if p in cur_patches:
+                                cur_patches[p] = cur_patches[p] + patches[p]
+                            else:
+                                cur_patches[p] = patches[p]
+                    else:
+                        transformer_options["patches"] = patches
 
                 c['transformer_options'] = transformer_options
 
