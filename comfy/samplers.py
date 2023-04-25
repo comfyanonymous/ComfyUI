@@ -429,7 +429,7 @@ class KSampler:
         self.denoise = denoise
         self.model_options = model_options
 
-    def _calculate_sigmas(self, steps):
+    def calculate_sigmas(self, steps):
         sigmas = None
 
         discard_penultimate_sigma = False
@@ -438,13 +438,13 @@ class KSampler:
             discard_penultimate_sigma = True
 
         if self.scheduler == "karras":
-            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max, device=self.device)
+            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
         elif self.scheduler == "normal":
-            sigmas = self.model_wrap.get_sigmas(steps).to(self.device)
+            sigmas = self.model_wrap.get_sigmas(steps)
         elif self.scheduler == "simple":
-            sigmas = simple_scheduler(self.model_wrap, steps).to(self.device)
+            sigmas = simple_scheduler(self.model_wrap, steps)
         elif self.scheduler == "ddim_uniform":
-            sigmas = ddim_scheduler(self.model_wrap, steps).to(self.device)
+            sigmas = ddim_scheduler(self.model_wrap, steps)
         else:
             print("error invalid scheduler", self.scheduler)
 
@@ -455,15 +455,16 @@ class KSampler:
     def set_steps(self, steps, denoise=None):
         self.steps = steps
         if denoise is None or denoise > 0.9999:
-            self.sigmas = self._calculate_sigmas(steps)
+            self.sigmas = self.calculate_sigmas(steps).to(self.device)
         else:
             new_steps = int(steps/denoise)
-            sigmas = self._calculate_sigmas(new_steps)
+            sigmas = self.calculate_sigmas(new_steps).to(self.device)
             self.sigmas = sigmas[-(steps + 1):]
 
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None):
-        sigmas = self.sigmas
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None):
+        if sigmas is None:
+            sigmas = self.sigmas
         sigma_min = self.sigma_min
 
         if last_step is not None and last_step < (len(sigmas) - 1):

@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "co
 
 import comfy.diffusers_convert
 import comfy.samplers
+import comfy.sample
 import comfy.sd
 import comfy.utils
 
@@ -171,24 +172,24 @@ class VAEEncodeForInpaint:
     def encode(self, vae, pixels, mask):
         x = (pixels.shape[1] // 64) * 64
         y = (pixels.shape[2] // 64) * 64
-        mask = torch.nn.functional.interpolate(mask[None,None,], size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")[0][0]
+        mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
 
         pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
             pixels = pixels[:,:x,:y,:]
-            mask = mask[:x,:y]
+            mask = mask[:,:,:x,:y]
 
         #grow mask by a few pixels to keep things seamless in latent space
         kernel_tensor = torch.ones((1, 1, 6, 6))
-        mask_erosion = torch.clamp(torch.nn.functional.conv2d((mask.round())[None], kernel_tensor, padding=3), 0, 1)
-        m = (1.0 - mask.round())
+        mask_erosion = torch.clamp(torch.nn.functional.conv2d(mask.round(), kernel_tensor, padding=3), 0, 1)
+        m = (1.0 - mask.round()).squeeze(1)
         for i in range(3):
             pixels[:,:,:,i] -= 0.5
             pixels[:,:,:,i] *= m
             pixels[:,:,:,i] += 0.5
         t = vae.encode(pixels)
 
-        return ({"samples":t, "noise_mask": (mask_erosion[0][:x,:y].round())}, )
+        return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
 
 class CheckpointLoader:
     @classmethod
@@ -739,79 +740,23 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask
         return (s,)
 
-
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    latent_image = latent["samples"]
-    noise_mask = None
     device = comfy.model_management.get_torch_device()
+    latent_image = latent["samples"]
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
-        batch_index = 0
-        if "batch_index" in latent:
-            batch_index = latent["batch_index"]
+        skip = latent["batch_index"] if "batch_index" in latent else 0
+        noise = comfy.sample.prepare_noise(latent_image, seed, skip)
 
-        generator = torch.manual_seed(seed)
-        for i in range(batch_index):
-            noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
-        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
-
+    noise_mask = None
     if "noise_mask" in latent:
-        noise_mask = latent['noise_mask']
-        noise_mask = torch.nn.functional.interpolate(noise_mask[None,None,], size=(noise.shape[2], noise.shape[3]), mode="bilinear")
-        noise_mask = noise_mask.round()
-        noise_mask = torch.cat([noise_mask] * noise.shape[1], dim=1)
-        noise_mask = torch.cat([noise_mask] * noise.shape[0])
-        noise_mask = noise_mask.to(device)
+        noise_mask = latent["noise_mask"]
 
-    real_model = None
-    comfy.model_management.load_model_gpu(model)
-    real_model = model.model
-
-    noise = noise.to(device)
-    latent_image = latent_image.to(device)
-
-    positive_copy = []
-    negative_copy = []
-
-    control_nets = []
-    def get_models(cond):
-        models = []
-        for c in cond:
-            if 'control' in c[1]:
-                models += [c[1]['control']]
-            if 'gligen' in c[1]:
-                models += [c[1]['gligen'][1]]
-        return models
-
-    for p in positive:
-        t = p[0]
-        if t.shape[0] < noise.shape[0]:
-            t = torch.cat([t] * noise.shape[0])
-        t = t.to(device)
-        positive_copy += [[t] + p[1:]]
-    for n in negative:
-        t = n[0]
-        if t.shape[0] < noise.shape[0]:
-            t = torch.cat([t] * noise.shape[0])
-        t = t.to(device)
-        negative_copy += [[t] + n[1:]]
-
-    models = get_models(positive) + get_models(negative)
-    comfy.model_management.load_controlnet_gpu(models)
-
-    if sampler_name in comfy.samplers.KSampler.SAMPLERS:
-        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
-    else:
-        #other samplers
-        pass
-
-    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
-    samples = samples.cpu()
-    for m in models:
-        m.cleanup()
-
+    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask)
     out = latent.copy()
     out["samples"] = samples
     return (out, )

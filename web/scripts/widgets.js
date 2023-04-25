@@ -270,6 +270,9 @@ export const ComfyWidgets = {
 				app.graph.setDirtyCanvas(true);
 			};
 			img.src = `/view?filename=${name}&type=input`;
+			if ((node.size[1] - node.imageOffset) < 100) {
+				node.size[1] = 250 + node.imageOffset;
+			}
 		}
 
 		// Add our own callback to the combo widget to render an image when it changes
