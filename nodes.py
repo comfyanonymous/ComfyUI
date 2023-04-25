@@ -85,6 +85,32 @@ class ConditioningSetArea:
             c.append(n)
         return (c, )
 
+class ConditioningSetMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "mask": ("MASK", ),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning, mask, strength, min_sigma=0.0, max_sigma=99.0):
+        c = []
+        if len(mask.shape) < 3:
+            mask = mask.unsqueeze(0)
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            _, h, w = mask.shape
+            n[1]['mask'] = mask
+            n[1]['strength'] = strength
+            n[1]['min_sigma'] = min_sigma
+            n[1]['max_sigma'] = max_sigma
+            c.append(n)
+        return (c, )
+
 class VAEDecode:
     def __init__(self, device="cpu"):
         self.device = device
@@ -1115,6 +1141,7 @@ NODE_CLASS_MAPPINGS = {
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
+    "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
@@ -1164,6 +1191,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
     "ConditioningSetArea": "Conditioning (Set Area)",
+    "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
