@@ -79,25 +79,6 @@ class MaskEditorDialog extends ComfyDialog {
 
 	createButtons() {
 		return [];
-//			$el("button", {
-//				type: "button",
-//				textContent: "Save",
-//				onclick: () => this.save(),
-//			}),
-//			$el("button", {
-//				type: "button",
-//				textContent: "Cancel",
-//				onclick: () => this.close(),
-//			}),
-//			$el("button", {
-//				type: "button",
-//				textContent: "Clear",
-//				onclick: () => {
-//					this.maskCtx.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
-//					this.backupCtx.clearRect(0, 0, this.backupCanvas.width, this.backupCanvas.height);
-//				},
-//			}),
-//		];
 	}
 
 	clearMask(self) {
