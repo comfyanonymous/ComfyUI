@@ -7,23 +7,6 @@ from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 
-class CFGDenoiser(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.inner_model = model
-
-    def forward(self, x, sigma, uncond, cond, cond_scale):
-        if len(uncond[0]) == len(cond[0]) and x.shape[0] * x.shape[2] * x.shape[3] < (96 * 96): #TODO check memory instead
-            x_in = torch.cat([x] * 2)
-            sigma_in = torch.cat([sigma] * 2)
-            cond_in = torch.cat([uncond, cond])
-            uncond, cond = self.inner_model(x_in, sigma_in, cond=cond_in).chunk(2)
-        else:
-            cond = self.inner_model(x, sigma, cond=cond)
-            uncond = self.inner_model(x, sigma, cond=uncond)
-        return uncond + (cond - uncond) * cond_scale
-
-
 #The main sampling function shared by all the samplers
 #Returns predicted noise
 def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
@@ -36,8 +19,8 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 strength = cond[1]['strength']
 
             adm_cond = None
-            if 'adm' in cond[1]:
-                adm_cond = cond[1]['adm']
+            if 'adm_encoded' in cond[1]:
+                adm_cond = cond[1]['adm_encoded']
 
             input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
             mult = torch.ones_like(input_x) * strength
@@ -70,7 +53,21 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
             control = None
             if 'control' in cond[1]:
                 control = cond[1]['control']
-            return (input_x, mult, conditionning, area, control)
+
+            patches = None
+            if 'gligen' in cond[1]:
+                gligen = cond[1]['gligen']
+                patches = {}
+                gligen_type = gligen[0]
+                gligen_model = gligen[1]
+                if gligen_type == "position":
+                    gligen_patch = gligen_model.set_position(input_x.shape, gligen[2], input_x.device)
+                else:
+                    gligen_patch = gligen_model.set_empty(input_x.shape, input_x.device)
+
+                patches['middle_patch'] = [gligen_patch]
+
+            return (input_x, mult, conditionning, area, control, patches)
 
         def cond_equal_size(c1, c2):
             if c1 is c2:
@@ -91,10 +88,19 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
         def can_concat_cond(c1, c2):
             if c1[0].shape != c2[0].shape:
                 return False
+
+            #control
             if (c1[4] is None) != (c2[4] is None):
                 return False
             if c1[4] is not None:
                 if c1[4] is not c2[4]:
+                    return False
+
+            #patches
+            if (c1[5] is None) != (c2[5] is None):
+                return False
+            if (c1[5] is not None):
+                if c1[5] is not c2[5]:
                     return False
 
             return cond_equal_size(c1[2], c2[2])
@@ -166,6 +172,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 cond_or_uncond = []
                 area = []
                 control = None
+                patches = None
                 for x in to_batch:
                     o = to_run.pop(x)
                     p = o[0]
@@ -175,6 +182,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     area += [p[3]]
                     cond_or_uncond += [o[1]]
                     control = p[4]
+                    patches = p[5]
 
                 batch_chunks = len(cond_or_uncond)
                 input_x = torch.cat(input_x)
@@ -184,8 +192,22 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 if control is not None:
                     c['control'] = control.get_control(input_x, timestep_, c['c_crossattn'], len(cond_or_uncond))
 
+                transformer_options = {}
                 if 'transformer_options' in model_options:
-                    c['transformer_options'] = model_options['transformer_options']
+                    transformer_options = model_options['transformer_options'].copy()
+
+                if patches is not None:
+                    if "patches" in transformer_options:
+                        cur_patches = transformer_options["patches"].copy()
+                        for p in patches:
+                            if p in cur_patches:
+                                cur_patches[p] = cur_patches[p] + patches[p]
+                            else:
+                                cur_patches[p] = patches[p]
+                    else:
+                        transformer_options["patches"] = patches
+
+                c['transformer_options'] = transformer_options
 
                 output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
                 del input_x
@@ -211,7 +233,10 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
         max_total_area = model_management.maximum_batch_area()
         cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
-        return uncond + (cond - uncond) * cond_scale
+        if "sampler_cfg_function" in model_options:
+            return model_options["sampler_cfg_function"](cond, uncond, cond_scale)
+        else:
+            return uncond + (cond - uncond) * cond_scale
 
 
 class CompVisVDenoiser(k_diffusion_external.DiscreteVDDPMDenoiser):
@@ -306,8 +331,7 @@ def create_cond_with_same_area_if_none(conds, c):
     n = c[1].copy()
     conds += [[smallest[0], n]]
 
-
-def apply_control_net_to_equal_area(conds, uncond):
+def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []
     cond_other = []
     uncond_cnets = []
@@ -315,15 +339,15 @@ def apply_control_net_to_equal_area(conds, uncond):
     for t in range(len(conds)):
         x = conds[t]
         if 'area' not in x[1]:
-            if 'control' in x[1] and x[1]['control'] is not None:
-                cond_cnets.append(x[1]['control'])
+            if name in x[1] and x[1][name] is not None:
+                cond_cnets.append(x[1][name])
             else:
                 cond_other.append((x, t))
     for t in range(len(uncond)):
         x = uncond[t]
         if 'area' not in x[1]:
-            if 'control' in x[1] and x[1]['control'] is not None:
-                uncond_cnets.append(x[1]['control'])
+            if name in x[1] and x[1][name] is not None:
+                uncond_cnets.append(x[1][name])
             else:
                 uncond_other.append((x, t))
 
@@ -333,14 +357,15 @@ def apply_control_net_to_equal_area(conds, uncond):
     for x in range(len(cond_cnets)):
         temp = uncond_other[x % len(uncond_other)]
         o = temp[0]
-        if 'control' in o[1] and o[1]['control'] is not None:
+        if name in o[1] and o[1][name] is not None:
             n = o[1].copy()
-            n['control'] = cond_cnets[x]
+            n[name] = uncond_fill_func(cond_cnets, x)
             uncond += [[o[0], n]]
         else:
             n = o[1].copy()
-            n['control'] = cond_cnets[x]
+            n[name] = uncond_fill_func(cond_cnets, x)
             uncond[temp[1]] = [o[0], n]
+
 
 def encode_adm(noise_augmentor, conds, batch_size, device):
     for t in range(len(conds)):
@@ -371,9 +396,10 @@ def encode_adm(noise_augmentor, conds, batch_size, device):
         else:
             adm_out = torch.zeros((1, noise_augmentor.time_embed.dim * 2), device=device)
         x[1] = x[1].copy()
-        x[1]["adm"] = torch.cat([adm_out] * batch_size)
+        x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size)
 
     return conds
+
 
 class KSampler:
     SCHEDULERS = ["karras", "normal", "simple", "ddim_uniform"]
@@ -403,7 +429,7 @@ class KSampler:
         self.denoise = denoise
         self.model_options = model_options
 
-    def _calculate_sigmas(self, steps):
+    def calculate_sigmas(self, steps):
         sigmas = None
 
         discard_penultimate_sigma = False
@@ -412,13 +438,13 @@ class KSampler:
             discard_penultimate_sigma = True
 
         if self.scheduler == "karras":
-            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max, device=self.device)
+            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
         elif self.scheduler == "normal":
-            sigmas = self.model_wrap.get_sigmas(steps).to(self.device)
+            sigmas = self.model_wrap.get_sigmas(steps)
         elif self.scheduler == "simple":
-            sigmas = simple_scheduler(self.model_wrap, steps).to(self.device)
+            sigmas = simple_scheduler(self.model_wrap, steps)
         elif self.scheduler == "ddim_uniform":
-            sigmas = ddim_scheduler(self.model_wrap, steps).to(self.device)
+            sigmas = ddim_scheduler(self.model_wrap, steps)
         else:
             print("error invalid scheduler", self.scheduler)
 
@@ -429,15 +455,16 @@ class KSampler:
     def set_steps(self, steps, denoise=None):
         self.steps = steps
         if denoise is None or denoise > 0.9999:
-            self.sigmas = self._calculate_sigmas(steps)
+            self.sigmas = self.calculate_sigmas(steps).to(self.device)
         else:
             new_steps = int(steps/denoise)
-            sigmas = self._calculate_sigmas(new_steps)
+            sigmas = self.calculate_sigmas(new_steps).to(self.device)
             self.sigmas = sigmas[-(steps + 1):]
 
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None):
-        sigmas = self.sigmas
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None):
+        if sigmas is None:
+            sigmas = self.sigmas
         sigma_min = self.sigma_min
 
         if last_step is not None and last_step < (len(sigmas) - 1):
@@ -463,7 +490,8 @@ class KSampler:
         for c in negative:
             create_cond_with_same_area_if_none(positive, c)
 
-        apply_control_net_to_equal_area(positive, negative)
+        apply_empty_x_to_equal_area(positive, negative, 'control', lambda cond_cnets, x: cond_cnets[x])
+        apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
         if self.model.model.diffusion_model.dtype == torch.float16:
             precision_scope = torch.autocast

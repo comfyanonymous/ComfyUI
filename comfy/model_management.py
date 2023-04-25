@@ -133,6 +133,7 @@ def unload_model():
         #never unload models from GPU on high vram
         if vram_state != VRAMState.HIGH_VRAM:
             current_loaded_model.model.cpu()
+            current_loaded_model.model_patches_to("cpu")
         current_loaded_model.unpatch_model()
         current_loaded_model = None
 
@@ -156,6 +157,8 @@ def load_model_gpu(model):
     except Exception as e:
         model.unpatch_model()
         raise e
+
+    model.model_patches_to(get_torch_device())
     current_loaded_model = model
     if vram_state == VRAMState.CPU:
         pass
@@ -176,7 +179,7 @@ def load_model_gpu(model):
         model_accelerated = True
     return current_loaded_model
 
-def load_controlnet_gpu(models):
+def load_controlnet_gpu(control_models):
     global current_gpu_controlnets
     global vram_state
     if vram_state == VRAMState.CPU:
@@ -185,6 +188,10 @@ def load_controlnet_gpu(models):
     if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
         #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
         return
+
+    models = []
+    for m in control_models:
+        models += m.get_models()
 
     for m in current_gpu_controlnets:
         if m not in models:
