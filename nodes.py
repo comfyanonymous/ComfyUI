@@ -172,16 +172,12 @@ class VAEEncodeForInpaint:
     def encode(self, vae, pixels, mask):
         x = (pixels.shape[1] // 64) * 64
         y = (pixels.shape[2] // 64) * 64
-        if len(mask.shape) < 3:
-            mask = mask.unsqueeze(0).unsqueeze(0)
-        elif len(mask.shape) < 4:
-            mask = mask.unsqueeze(1)
-        mask = torch.nn.functional.interpolate(mask, size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
+        mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
 
         pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
             pixels = pixels[:,:x,:y,:]
-            mask = mask[:,:x,:y,:]
+            mask = mask[:,:,:x,:y]
 
         #grow mask by a few pixels to keep things seamless in latent space
         kernel_tensor = torch.ones((1, 1, 6, 6))
@@ -193,7 +189,7 @@ class VAEEncodeForInpaint:
             pixels[:,:,:,i] += 0.5
         t = vae.encode(pixels)
 
-        return ({"samples":t, "noise_mask": (mask_erosion[:,:x,:y,:].round())}, )
+        return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
 
 class CheckpointLoader:
     @classmethod
