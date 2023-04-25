@@ -145,7 +145,7 @@ export class ComfyApp {
 						if(this.widgets) {
 						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
 						}
-
+						
 						let img = new Image();
 						var imgs = undefined;
 						if(this.imgs != undefined) {
