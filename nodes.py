@@ -752,31 +752,11 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
 
     noise_mask = None
     if "noise_mask" in latent:
-        noise_mask = comfy.sample.prepare_mask(latent["noise_mask"], noise)
+        noise_mask = latent["noise_mask"]
 
-    real_model = None
-    comfy.model_management.load_model_gpu(model)
-    real_model = model.model
-
-    noise = noise.to(device)
-    latent_image = latent_image.to(device)
-
-    positive_copy = comfy.sample.broadcast_cond(positive, noise)
-    negative_copy = comfy.sample.broadcast_cond(negative, noise)
-
-    models = comfy.sample.load_additional_models(positive, negative)
-
-    if sampler_name in comfy.samplers.KSampler.SAMPLERS:
-        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
-    else:
-        #other samplers
-        pass
-
-    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
-    samples = samples.cpu()
-    
-    comfy.sample.cleanup_additional_models(models)
-
+    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask)
     out = latent.copy()
     out["samples"] = samples
     return (out, )
