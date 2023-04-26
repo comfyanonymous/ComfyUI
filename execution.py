@@ -152,6 +152,15 @@ class PromptExecutor:
             self.server.client_id = None
 
         with torch.inference_mode():
+            #delete cached outputs if nodes don't exist for them
+            to_delete = []
+            for o in self.outputs:
+                if o not in prompt:
+                    to_delete += [o]
+            for o in to_delete:
+                d = self.outputs.pop(o)
+                del d
+
             for x in prompt:
                 recursive_output_delete_if_changed(prompt, self.old_prompt, self.outputs, x)
 
