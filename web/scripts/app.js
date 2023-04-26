@@ -168,15 +168,6 @@ export class ComfyApp {
 						content: "Paste (Clipspace)",
 						callback: () => {
 							if(ComfyApp.clipspace != null) {
-								if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
-									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
-										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
-											if (prop) {
-												prop.callback(value);
-											}
-									});
-								}
-
 								// image paste
 								if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined && this.widgets != null) {
 									var filename = "";
@@ -207,7 +198,16 @@ export class ComfyApp {
 										}
 									}
 								}
-								this.trigger('changed');
+
+								// ensure render after update widget_value
+								if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
+									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
+											if (prop && prop.type != 'button') {
+												prop.callback(value);
+											}
+									});
+								}
 							}
 						}
 					}

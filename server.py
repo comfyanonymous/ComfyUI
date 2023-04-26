@@ -196,8 +196,13 @@ class PromptServer():
         @routes.get("/view")
         async def view_image(request):
             if "filename" in request.rel_url.query:
-                type = request.rel_url.query.get("type", "output")
-                output_dir = folder_paths.get_directory_by_type(type)
+                filename = request.rel_url.query["filename"]
+                filename,output_dir = folder_paths.annotated_filepath(filename)
+
+                if output_dir is None:
+                    type = request.rel_url.query.get("type", "output")
+                    output_dir = folder_paths.get_directory_by_type(type)
+
                 if output_dir is None:
                     return web.Response(status=400)
 
@@ -207,9 +212,9 @@ class PromptServer():
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
-                filename = request.rel_url.query["filename"]
                 filename = os.path.basename(filename)
                 file = os.path.join(output_dir, filename)
+                print(f"{filename} / {file} / {os.path.isfile(file)}")
 
                 if os.path.isfile(file):
                     return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})

@@ -172,8 +172,8 @@ class MaskEditorDialog extends ComfyDialog {
 
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
+		this.element.appendChild(placeholder); // must below z-index than bottom_panel to avoid covering button
 		this.element.appendChild(bottom_panel);
-		this.element.appendChild(placeholder);
 
 		bottom_panel.appendChild(clearButton);
 		bottom_panel.appendChild(saveButton);
