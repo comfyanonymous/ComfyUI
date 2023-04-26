@@ -214,7 +214,6 @@ class PromptServer():
 
                 filename = os.path.basename(filename)
                 file = os.path.join(output_dir, filename)
-                print(f"{filename} / {file} / {os.path.isfile(file)}")
 
                 if os.path.isfile(file):
                     return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
