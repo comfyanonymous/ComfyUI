@@ -136,9 +136,11 @@ function addMultilineWidget(node, name, opts, app) {
 				left: `${t.a * margin + t.e}px`,
 				top: `${t.d * (y + widgetHeight - margin - 3) + t.f}px`,
 				width: `${(widgetWidth - margin * 2 - 3) * t.a}px`,
+				background: (!node.color)?'':node.color,
 				height: `${(this.parent.inputHeight - margin * 2 - 4) * t.d}px`,
 				position: "absolute",
-				zIndex: 1,
+				color: (!node.color)?'':'white',
+				zIndex: app.graph._nodes.indexOf(node),
 				fontSize: `${t.d * 10.0}px`,
 			});
 			this.inputEl.hidden = !visible;
