@@ -97,40 +97,44 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
 
     is_changed_old = ''
     is_changed = ''
+    to_delete = False
     if hasattr(class_def, 'IS_CHANGED'):
         if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
             is_changed_old = old_prompt[unique_id]['is_changed']
         if 'is_changed' not in prompt[unique_id]:
             input_data_all = get_input_data(inputs, class_def, unique_id, outputs)
             if input_data_all is not None:
-                is_changed = class_def.IS_CHANGED(**input_data_all)
-                prompt[unique_id]['is_changed'] = is_changed
+                try:
+                    is_changed = class_def.IS_CHANGED(**input_data_all)
+                    prompt[unique_id]['is_changed'] = is_changed
+                except:
+                    to_delete = True
         else:
             is_changed = prompt[unique_id]['is_changed']
 
     if unique_id not in outputs:
         return True
 
-    to_delete = False
-    if is_changed != is_changed_old:
-        to_delete = True
-    elif unique_id not in old_prompt:
-        to_delete = True
-    elif inputs == old_prompt[unique_id]['inputs']:
-        for x in inputs:
-            input_data = inputs[x]
+    if not to_delete:
+        if is_changed != is_changed_old:
+            to_delete = True
+        elif unique_id not in old_prompt:
+            to_delete = True
+        elif inputs == old_prompt[unique_id]['inputs']:
+            for x in inputs:
+                input_data = inputs[x]
 
-            if isinstance(input_data, list):
-                input_unique_id = input_data[0]
-                output_index = input_data[1]
-                if input_unique_id in outputs:
-                    to_delete = recursive_output_delete_if_changed(prompt, old_prompt, outputs, input_unique_id)
-                else:
-                    to_delete = True
-                if to_delete:
-                    break
-    else:
-        to_delete = True
+                if isinstance(input_data, list):
+                    input_unique_id = input_data[0]
+                    output_index = input_data[1]
+                    if input_unique_id in outputs:
+                        to_delete = recursive_output_delete_if_changed(prompt, old_prompt, outputs, input_unique_id)
+                    else:
+                        to_delete = True
+                    if to_delete:
+                        break
+        else:
+            to_delete = True
 
     if to_delete:
         d = outputs.pop(unique_id)
