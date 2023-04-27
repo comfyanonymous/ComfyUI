@@ -306,7 +306,9 @@ class MaskEditorDialog extends ComfyDialog {
 		document.addEventListener('mouseup', MaskEditorDialog.handleMouseUp);
 		maskCanvas.addEventListener('mousemove', (event) => this.draw_move(self,event));
 		maskCanvas.addEventListener('touchmove', (event) => this.draw_move(self,event));
-		document.addEventListener('keyup', MaskEditorDialog.handleKeyUp);
+		maskCanvas.addEventListener('mouseover', (event) => { this.brush.style.display = "block"; });
+		maskCanvas.addEventListener('mouseleave', (event) => { this.brush.style.display = "none"; });
+		document.addEventListener('keypress', MaskEditorDialog.handleKeyUp);
 	}
 
 	brush_size = 10;
@@ -335,9 +337,13 @@ class MaskEditorDialog extends ComfyDialog {
 		else
 			self.brush_size = Math.max(self.brush_size-2, 1);
 
-
 		self.brush_slider_input.value = self.brush_size;
-//		self.brush_slider_input.dispatchEvent(new Event('input'));
+
+		const brush = this.brush;
+		brush.style.width = (this.brush_size - 1) * 2 + "px";
+		brush.style.height = (this.brush_size - 1) * 2 + "px";
+		brush.style.left = (event.pageX - this.brush_size) + "px";
+		brush.style.top = (event.pageY - this.brush_size) + "px";
 	}
 
 	draw_move(self, event) {
