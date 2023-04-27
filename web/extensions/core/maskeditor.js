@@ -173,13 +173,13 @@ class MaskEditorDialog extends ComfyDialog {
 
 		var saveButton = this.createRightButton("Save", "110px", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
-			document.removeEventListener("keyup", MaskEditorDialog.handleKeyUp);
+			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
 				self.save();
 			});
 
 		var cancelButton = this.createRightButton("Cancel", "20px", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
-			document.removeEventListener("keyup", MaskEditorDialog.handleKeyUp);
+			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
 			self.close();
 		});
 
@@ -308,7 +308,7 @@ class MaskEditorDialog extends ComfyDialog {
 		maskCanvas.addEventListener('touchmove', (event) => this.draw_move(self,event));
 		maskCanvas.addEventListener('mouseover', (event) => { this.brush.style.display = "block"; });
 		maskCanvas.addEventListener('mouseleave', (event) => { this.brush.style.display = "none"; });
-		document.addEventListener('keypress', MaskEditorDialog.handleKeyUp);
+		document.addEventListener('keydown', MaskEditorDialog.handleKeyDown);
 	}
 
 	brush_size = 10;
@@ -317,7 +317,7 @@ class MaskEditorDialog extends ComfyDialog {
 	lasty = -1;
 	lasttime = 0;
 
-	static handleKeyUp(event) {
+	static handleKeyDown(event) {
 		const self = MaskEditorDialog.instance;
 		if (event.key === ']') {
 			self.brush_size = Math.min(self.brush_size+2, 100);
