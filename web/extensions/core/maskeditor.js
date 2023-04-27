@@ -185,6 +185,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 		var brush_size_slider = this.createLeftSlider(self, "Thickness", "20px", (event) => {
 			self.brush_size = event.target.value;
+			self.updateBrushPreview(self, null, null);
 		});
 
 		this.element.appendChild(imgCanvas);
@@ -322,11 +323,25 @@ class MaskEditorDialog extends ComfyDialog {
 		} else if (event.key === '[') {
 			self.brush_size = Math.max(self.brush_size-2, 1);
 		}
+
+		self.updateBrushPreview(self, null, null);
 	}
 
 	static handleMouseUp(event) {
 		event.preventDefault();
 		MaskEditorDialog.instance.drawing_mode = false;
+	}
+
+	updateBrushPreview(self) {
+		const brush = self.brush;
+
+		var centerX = self.cursorX;
+		var centerY = self.cursorY;
+
+		brush.style.width = (self.brush_size - 1) * 2 + "px";
+		brush.style.height = (self.brush_size - 1) * 2 + "px";
+		brush.style.left = (centerX - self.brush_size) + "px";
+		brush.style.top = (centerY - self.brush_size) + "px";
 	}
 
 	handleWheelEvent(self, event) {
@@ -337,19 +352,14 @@ class MaskEditorDialog extends ComfyDialog {
 
 		self.brush_slider_input.value = self.brush_size;
 
-		const brush = this.brush;
-		brush.style.width = (this.brush_size - 1) * 2 + "px";
-		brush.style.height = (this.brush_size - 1) * 2 + "px";
-		brush.style.left = (event.pageX - this.brush_size) + "px";
-		brush.style.top = (event.pageY - this.brush_size) + "px";
+		self.updateBrushPreview(self);
 	}
 
 	draw_move(self, event) {
-		const brush = this.brush;
-		brush.style.width = (this.brush_size - 1) * 2 + "px";
-		brush.style.height = (this.brush_size - 1) * 2 + "px";
-		brush.style.left = (event.pageX - this.brush_size) + "px";
-		brush.style.top = (event.pageY - this.brush_size) + "px";
+		this.cursorX = event.pageX;
+		this.cursorY = event.pageY;
+
+		this.updateBrushPreview(self);
 
 		if (event instanceof TouchEvent || event.buttons === 1) {
 			event.preventDefault();
