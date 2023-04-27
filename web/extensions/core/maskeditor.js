@@ -338,8 +338,8 @@ class MaskEditorDialog extends ComfyDialog {
 		var centerX = self.cursorX;
 		var centerY = self.cursorY;
 
-		brush.style.width = (self.brush_size - 1) * 2 + "px";
-		brush.style.height = (self.brush_size - 1) * 2 + "px";
+		brush.style.width = self.brush_size * 2 + "px";
+		brush.style.height = self.brush_siz * 2 + "px";
 		brush.style.left = (centerX - self.brush_size) + "px";
 		brush.style.top = (centerY - self.brush_size) + "px";
 	}
@@ -381,7 +381,7 @@ class MaskEditorDialog extends ComfyDialog {
 					self.lasty = y;
 				});
 			else
-				requestAnimationFrame(() => {					
+				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.fillStyle = "rgb(0,0,0)";
 					self.maskCtx.globalCompositeOperation = "source-over";
@@ -393,7 +393,7 @@ class MaskEditorDialog extends ComfyDialog {
 					var directionX = dx / distance;
 					var directionY = dy / distance;
 
-					for (var i = 0; i < distance; i++) {
+					for (var i = 0; i < distance; i+=5) {
 						var px = self.lastx + (directionX * i);
 						var py = self.lasty + (directionY * i);
 						self.maskCtx.arc(px, py, this.brush_size, 0, Math.PI * 2, false);
@@ -421,7 +421,7 @@ class MaskEditorDialog extends ComfyDialog {
 					self.lasty = y;
 				});
 			else
-				requestAnimationFrame(() => {					
+				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.globalCompositeOperation = "destination-out";
 					
@@ -432,7 +432,7 @@ class MaskEditorDialog extends ComfyDialog {
 					var directionX = dx / distance;
 					var directionY = dy / distance;
 
-					for (var i = 0; i < distance; i++) {
+					for (var i = 0; i < distance; i+=5) {
 						var px = self.lastx + (directionX * i);
 						var py = self.lasty + (directionY * i);
 						self.maskCtx.arc(px, py, this.brush_size, 0, Math.PI * 2, false);
@@ -473,7 +473,7 @@ class MaskEditorDialog extends ComfyDialog {
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
 			self.maskCtx.beginPath();
-			self.maskCtx.globalCompositeOperation = "destination-out";						
+			self.maskCtx.globalCompositeOperation = "destination-out";
 			self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
 			self.maskCtx.fill();
 			self.lastx = x;
