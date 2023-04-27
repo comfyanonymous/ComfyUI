@@ -324,7 +324,7 @@ class MaskEditorDialog extends ComfyDialog {
 			self.brush_size = Math.max(self.brush_size-2, 1);
 		}
 
-		self.updateBrushPreview(self, null, null);
+		self.updateBrushPreview(self);
 	}
 
 	static handleMouseUp(event) {
@@ -339,7 +339,7 @@ class MaskEditorDialog extends ComfyDialog {
 		var centerY = self.cursorY;
 
 		brush.style.width = self.brush_size * 2 + "px";
-		brush.style.height = self.brush_siz * 2 + "px";
+		brush.style.height = self.brush_size * 2 + "px";
 		brush.style.left = (centerX - self.brush_size) + "px";
 		brush.style.top = (centerY - self.brush_size) + "px";
 	}
@@ -359,7 +359,7 @@ class MaskEditorDialog extends ComfyDialog {
 		this.cursorX = event.pageX;
 		this.cursorY = event.pageY;
 
-		this.updateBrushPreview(self);
+		self.updateBrushPreview(self);
 
 		if (event instanceof TouchEvent || event.buttons === 1) {
 			event.preventDefault();
