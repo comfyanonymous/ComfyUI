@@ -8,7 +8,7 @@ import uuid
 import json
 import glob
 from PIL import Image
-import numpy as np
+from io import BytesIO
 
 try:
     import aiohttp
@@ -216,8 +216,45 @@ class PromptServer():
                 file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
-                    return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
-                
+                    if 'channel' not in request.rel_url.query:
+                        channel = 'rgba'
+                    else:
+                        channel = request.rel_url.query["channel"]
+
+                    if channel == 'rgb':
+                        with Image.open(file) as img:
+                            if img.mode == "RGBA":
+                                r, g, b, a = img.split()
+                                new_img = Image.merge('RGB', (r, g, b))
+                            else:
+                                new_img = img.convert("RGB")
+
+                            buffer = BytesIO()
+                            new_img.save(buffer, format='PNG')
+                            buffer.seek(0)
+
+                            return web.Response(body=buffer.read(), content_type='image/png',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+
+                    elif channel == 'a':
+                        with Image.open(file) as img:
+                            if img.mode == "RGBA":
+                                _, _, _, a = img.split()
+                            else:
+                                a = Image.new('L', img.size, 255)
+
+                            # alpha img
+                            alpha_img = Image.new('RGBA', img.size)
+                            alpha_img.putalpha(a)
+                            alpha_buffer = BytesIO()
+                            alpha_img.save(alpha_buffer, format='PNG')
+                            alpha_buffer.seek(0)
+
+                            return web.Response(body=alpha_buffer.read(), content_type='image/png',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                    else:
+                        return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
+
             return web.Response(status=404)
 
         @routes.get("/prompt")

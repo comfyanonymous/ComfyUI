@@ -45,7 +45,7 @@ async function uploadMask(filepath, formData) {
 	ComfyApp.clipspace.images = [filepath];
 }
 
-function removeRGB(image, backupCanvas, backupCtx, maskCtx) {
+function prepareRGB(image, backupCanvas, backupCtx) {
 	// paste mask data into alpha channel
 	backupCtx.drawImage(image, 0, 0, backupCanvas.width, backupCanvas.height);
 	const backupData = backupCtx.getImageData(0, 0, backupCanvas.width, backupCanvas.height);
@@ -218,18 +218,10 @@ class MaskEditorDialog extends ComfyDialog {
 		this.setlayout(imgCanvas, maskCanvas);
 
 		// prepare content
-
 		this.maskCanvas = maskCanvas;
 		this.backupCanvas = backupCanvas;
 		this.maskCtx = maskCanvas.getContext('2d');
 		this.backupCtx = backupCanvas.getContext('2d');
-
-		// separate original_imgs and imgs
-		if(ComfyApp.clipspace.imgs[0] === ComfyApp.clipspace.original_imgs[0]) {
-			var copiedImage = new Image();
-			copiedImage.src = ComfyApp.clipspace.original_imgs[0].src;
-			ComfyApp.clipspace.imgs = [copiedImage];
-		}
 
 		this.setImages(imgCanvas, backupCanvas);
 		this.setEventHandler(maskCanvas);
@@ -280,19 +272,25 @@ class MaskEditorDialog extends ComfyDialog {
 			backupCanvas.width = touched_image.width;
 			backupCanvas.height = touched_image.height;
 
-			removeRGB(touched_image, backupCanvas, backupCtx, maskCtx);
+			prepareRGB(touched_image, backupCanvas, backupCtx);
 		};
 
-		touched_image.src = ComfyApp.clipspace.imgs[0].src;
+		const alpha_url = new URL(ComfyApp.clipspace.imgs[0].src)
+		alpha_url.searchParams.delete('channel');
+		alpha_url.searchParams.set('channel', 'a');
+		touched_image.src = alpha_url;
 
 		// original image load
 		orig_image.onload = function() {
 			window.dispatchEvent(new Event('resize'));
 		};
 
-		orig_image.src = ComfyApp.clipspace.original_imgs[0].src;
+		const rgb_url = new URL(ComfyApp.clipspace.imgs[0].src);
+		rgb_url.searchParams.delete('channel');
+		rgb_url.searchParams.set('channel', 'rgb');
+		orig_image.src = rgb_url;
 		this.image = orig_image;
-	}
+	}g
 
 
 	setEventHandler(maskCanvas) {
@@ -523,7 +521,7 @@ class MaskEditorDialog extends ComfyDialog {
 		const dataURL = this.backupCanvas.toDataURL();
 		const blob = dataURLToBlob(dataURL);
 
-		const original_blob = loadedImageToBlob(ComfyApp.clipspace.original_imgs[0]);
+		const original_blob = loadedImageToBlob(this.image);
 
 		formData.append('image', blob, filename);
 		formData.append('original_image', original_blob);
