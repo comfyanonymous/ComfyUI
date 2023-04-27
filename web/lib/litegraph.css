@@ -56,7 +56,7 @@
 }
 
 .litegraph .litemenubar li {
-    font-size: 14px;
+    font-size: 16px;
     color: #999;
     display: inline-block;
     min-width: 50px;
@@ -87,7 +87,7 @@
 
 .litegraph .litemenu-entry,
 .litemenu-title {
-    font-size: 12px;
+    font-size: 16px;
     color: #aaa;
     padding: 0 0 0 4px;
     margin: 2px;
