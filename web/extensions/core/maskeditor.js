@@ -132,7 +132,7 @@ class MaskEditorDialog extends ComfyDialog {
 		return divElement;
 	}
 
-	setlayout(imgCanvas, maskCanvas) {
+	setLayout(imgCanvas, maskCanvas, cursorCanvas) {
 		const self = this;
 
 		// If it is specified as relative, using it only as a hidden placeholder for padding is recommended
@@ -171,6 +171,7 @@ class MaskEditorDialog extends ComfyDialog {
 		});
 
 		this.element.appendChild(imgCanvas);
+		this.element.appendChild(cursorCanvas);
 		this.element.appendChild(maskCanvas);
 		this.element.appendChild(placeholder); // must below z-index than bottom_panel to avoid covering button
 		this.element.appendChild(bottom_panel);
@@ -186,26 +187,29 @@ class MaskEditorDialog extends ComfyDialog {
 		imgCanvas.style.left = "0";
 
 		maskCanvas.style.position = "absolute";
+		cursorCanvas.style.position = "absolute";
 	}
 
 	show() {
 		// layout
 		const imgCanvas = document.createElement('canvas');
 		const maskCanvas = document.createElement('canvas');
+		const cursorCanvas = document.createElement('canvas');
 		const backupCanvas = document.createElement('canvas');
 
 		imgCanvas.id = "imageCanvas";
 		maskCanvas.id = "maskCanvas";
+		cursorCanvas.id = "cursorCanvas";
 		backupCanvas.id = "backupCanvas";
-
-		this.setlayout(imgCanvas, maskCanvas);
-
-		// prepare content
 
 		this.maskCanvas = maskCanvas;
 		this.backupCanvas = backupCanvas;
+		this.cursorCanvas = cursorCanvas;
 		this.maskCtx = maskCanvas.getContext('2d');
+		this.cursorCtx = cursorCanvas.getContext('2d');
 		this.backupCtx = backupCanvas.getContext('2d');
+
+		this.setLayout(imgCanvas, maskCanvas, cursorCanvas);
 
 		// separate original_imgs and imgs
 		if(ComfyApp.clipspace.imgs[0] === ComfyApp.clipspace.original_imgs[0]) {
@@ -214,14 +218,46 @@ class MaskEditorDialog extends ComfyDialog {
 			ComfyApp.clipspace.imgs = [copiedImage];
 		}
 
-		this.setImages(imgCanvas, backupCanvas);
+		this.setImages(imgCanvas, backupCanvas, cursorCanvas);
 		this.setEventHandler(maskCanvas);
 	}
 
-	setImages(imgCanvas, backupCanvas) {
+	invalidateCursorCanvas(self, update_brush_size_only, x, y) {
+		const ctx = self.cursorCtx;
+
+		if(self.cursorCtx.lastX == null) {
+			ctx.clearRect(0,0,self.cursorCanvas.width,self.cursorCanvas.height);
+		}
+		else {
+			const lastBrushSize = ctx.lastBrushSize;
+			const lastX = ctx.lastX;
+			const lastY = ctx.lastY;
+			ctx.clearRect(lastX - lastBrushSize - 10, lastY - lastBrushSize - 10, 2*lastBrushSize + 20, 2*lastBrushSize + 20);
+		}
+
+		if(update_brush_size_only) {
+			x = ctx.lastX;
+			y = ctx.lastY;
+		}
+
+		if(x != null && y != null) {
+			ctx.lastX = x;
+			ctx.lastY = y;
+			ctx.lastBrushSize = self.brush_size;
+
+			ctx.beginPath();
+			ctx.lineWidth = 2;
+			ctx.setLineDash([2, 2]);
+			ctx.arc(x, y, self.brush_size, 0, Math.PI * 2);
+			ctx.stroke();
+		}
+	}
+
+	setImages(imgCanvas, backupCanvas, cursorCanvas) {
 		const imgCtx = imgCanvas.getContext('2d');
 		const backupCtx = backupCanvas.getContext('2d');
 		const maskCtx = this.maskCtx;
+		const cursorCtx = this.cursorCtx;
 		const maskCanvas = this.maskCanvas;
 
 		// image load
@@ -248,10 +284,16 @@ class MaskEditorDialog extends ComfyDialog {
 
 			// update mask
 			backupCtx.drawImage(maskCanvas, 0, 0, maskCanvas.width, maskCanvas.height, 0, 0, backupCanvas.width, backupCanvas.height);
-			maskCanvas.width = drawWidth;
-			maskCanvas.height = drawHeight;
-			maskCanvas.style.top = imgCanvas.offsetTop + "px";
-			maskCanvas.style.left = imgCanvas.offsetLeft + "px";
+
+			cursorCanvas.width = maskCanvas.width = drawWidth;
+			cursorCanvas.height = maskCanvas.height = drawHeight;
+			cursorCanvas.style.top = maskCanvas.style.top = imgCanvas.offsetTop + "px";
+			cursorCanvas.style.left = maskCanvas.style.left = imgCanvas.offsetLeft + "px";
+
+			cursorCtx.lastX = null;
+			cursorCtx.lastY = null;
+			this.invalidateCursorCanvas(this, false, null, null);
+
 			maskCtx.drawImage(backupCanvas, 0, 0, backupCanvas.width, backupCanvas.height, 0, 0, maskCanvas.width, maskCanvas.height);
 		});
 
@@ -318,20 +360,21 @@ class MaskEditorDialog extends ComfyDialog {
 		else
 			self.brush_size = Math.max(self.brush_size-2, 1);
 
-
 		self.brush_slider_input.value = self.brush_size;
-//		self.brush_slider_input.dispatchEvent(new Event('input'));
+		self.invalidateCursorCanvas(self, true, null, null);
 	}
 
 	draw_move(self, event) {
+		const maskRect = self.maskCanvas.getBoundingClientRect();
+		const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
+		const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
+
+			self.invalidateCursorCanvas(self, false, x, y);
+
 		if (event instanceof TouchEvent || event.buttons === 1) {
 			event.preventDefault();
 
 			var diff = performance.now() - self.lasttime;
-
-			const maskRect = self.maskCanvas.getBoundingClientRect();
-			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
-			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
 			if(diff > 20 && !this.drawing_mode)
 				requestAnimationFrame(() => {
@@ -344,7 +387,7 @@ class MaskEditorDialog extends ComfyDialog {
 					self.lasty = y;
 				});
 			else
-				requestAnimationFrame(() => {					
+				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.fillStyle = "rgb(0,0,0)";
 					self.maskCtx.globalCompositeOperation = "source-over";
@@ -370,9 +413,6 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 		else if(event.buttons === 2) {
 			event.preventDefault();
-			const maskRect = self.maskCanvas.getBoundingClientRect();
-			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
-			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
 			if(diff > 20 && !drawing_mode) // cannot tracking drawing_mode for touch event
 				requestAnimationFrame(() => {
@@ -384,7 +424,7 @@ class MaskEditorDialog extends ComfyDialog {
 					self.lasty = y;
 				});
 			else
-				requestAnimationFrame(() => {					
+				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.globalCompositeOperation = "destination-out";
 					
@@ -436,7 +476,7 @@ class MaskEditorDialog extends ComfyDialog {
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
 			self.maskCtx.beginPath();
-			self.maskCtx.globalCompositeOperation = "destination-out";						
+			self.maskCtx.globalCompositeOperation = "destination-out";
 			self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
 			self.maskCtx.fill();
 			self.lastx = x;
