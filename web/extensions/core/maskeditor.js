@@ -151,7 +151,7 @@ class MaskEditorDialog extends ComfyDialog {
 		var brush = document.createElement("div");
 		brush.id = "brush";
 		brush.style.backgroundColor = "transparent";
-		brush.style.border = "1px dashed black";
+		brush.style.backdropFilter = "invert(1)"
 		brush.style.borderRadius = "50%";
 		brush.style.MozBorderRadius = "50%";
 		brush.style.WebkitBorderRadius = "50%";
