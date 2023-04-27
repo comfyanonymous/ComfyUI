@@ -367,8 +367,17 @@ class MaskEditorDialog extends ComfyDialog {
 			var diff = performance.now() - self.lasttime;
 
 			const maskRect = self.maskCanvas.getBoundingClientRect();
-			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
-			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
+
+			var x = event.offsetX;
+			var y = event.offsetY
+
+			if(event.offsetX == null) {
+				x = event.targetTouches[0].clientX - maskRect.left;
+			}
+
+			if(event.offsetY == null) {
+				y = event.targetTouches[0].clientY - maskRect.top;
+			}
 
 			if(diff > 20 && !this.drawing_mode)
 				requestAnimationFrame(() => {
