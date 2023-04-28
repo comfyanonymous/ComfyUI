@@ -1,3 +1,16 @@
+export function load_saved() {
+	try {
+		let rv = JSON.parse(localStorage.getItem("saved") || "{}");
+		return rv;
+	} catch (error) {
+		return {};
+	}
+}
+
+export function save_saved(list) {
+	localStorage.setItem('saved', JSON.stringify(list));
+}
+
 class ComfyApi extends EventTarget {
 	#registered = new Set();
 
@@ -231,10 +244,14 @@ class ComfyApi extends EventTarget {
 	 * @returns The items of the specified type grouped by their status
 	 */
 	async getItems(type) {
-		if (type === "queue") {
+		switch (type) {
+		case "queue":
 			return this.getQueue();
+		case "history":
+			return this.getHistory();
+		case "saved":
+			return this.getSaved();
 		}
-		return this.getHistory();
 	}
 
 	/**
@@ -280,6 +297,39 @@ class ComfyApi extends EventTarget {
 	async getSystemStats() {
 		const res = await this.fetchApi("/system_stats");
 		return await res.json();
+        }
+
+        /**
+	 * Gets prompts saved by the user
+	 * @returns Saved prompts with outputs
+	 */
+	async getSaved() {
+		// note that this could, and maybe should, be persisted
+		// server-side; however, the server doesn't have any persistence
+		// yet, so rather than add a dependency on sqlite or whatever
+		// I'll just use client storage for now
+		try {
+			const r = load_saved();
+			console.log("r is", r);
+			return { Saved: Object.values(r).map((i) => {
+				console.log(i);
+				i['remove'] = {
+                                        name: "Delete",
+                                        cb: () => {
+                                                let name = i.prompt[0];
+						let list = load_saved();
+						if (list.hasOwnProperty(name)) {
+							delete list[name];
+						}
+						save_saved(list);
+                                        },
+                                };
+				return i;
+			})};
+		} catch (error) {
+			console.error(error);
+			return { Saved: [] };
+		}
 	}
 
 	/**
