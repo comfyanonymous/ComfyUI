@@ -7,6 +7,8 @@ A powerful and modular stable diffusion GUI and backend.
 This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
 ### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
+### [Installing](#installing)
+
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Fully supports SD1.x and SD2.x
