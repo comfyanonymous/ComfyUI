@@ -21,10 +21,15 @@ accelerate_enabled = False
 xpu_available = False
 
 directml_enabled = False
-if args.directml:
+if args.directml is not None:
     import torch_directml
-    print("Using directml")
     directml_enabled = True
+    device_index = args.directml
+    if device_index < 0:
+        directml_device = torch_directml.device()
+    else:
+        directml_device = torch_directml.device(device_index)
+    print("Using directml with device:", torch_directml.device_name(device_index))
     # torch_directml.disable_tiled_resources(True)
 
 try:
@@ -226,7 +231,8 @@ def get_torch_device():
     global xpu_available
     global directml_enabled
     if directml_enabled:
-        return torch_directml.device()
+        global directml_device
+        return directml_device
     if vram_state == VRAMState.MPS:
         return torch.device("mps")
     if vram_state == VRAMState.CPU:
