@@ -21,15 +21,14 @@ if __name__ == "__main__":
 
 
 import yaml
-
 import execution
 import folder_paths
 import server
 from nodes import init_custom_nodes
 
 
-def prompt_worker(q, server):
-    e = execution.PromptExecutor(server)
+def prompt_worker(q, server, event_dispatcher):
+    e = execution.PromptExecutor(server, event_dispatcher)
     while True:
         item, item_id = q.get()
         e.execute(item[-2], item[-1])
@@ -93,7 +92,8 @@ if __name__ == "__main__":
     server.add_routes()
     hijack_progress(server)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
+    event_dispatcher = execution.EventDispatcher()
+    threading.Thread(target=prompt_worker, daemon=True, args=(q,server, event_dispatcher,)).start()
 
     address = args.listen
 

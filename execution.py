@@ -12,6 +12,25 @@ import nodes
 
 import comfy.model_management
 
+
+class EventDispatcher:
+    def __init__(self):
+        self.listeners = {}
+
+    def subscribe(self, event_name, callback):
+        if event_name not in self.listeners:
+            self.listeners[event_name] = []
+        self.listeners[event_name].append(callback)
+
+    def unsubscribe(self, event_name, callback):
+        if event_name in self.listeners:
+            self.listeners[event_name].remove(callback)
+
+    def emit(self, event_name, event_data, *args, **kwargs):
+        if event_name in self.listeners:
+            for callback in self.listeners[event_name]:
+                callback(event_name, event_data, *args, **kwargs)
+
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
@@ -40,7 +59,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = unique_id
     return input_data_all
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed):
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, event_dispatcher):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -55,16 +74,21 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed)
+                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, event_dispatcher)
 
     input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
         server.last_node_id = unique_id
         server.send_sync("executing", { "node": unique_id }, server.client_id)
-    obj = class_def()
+    obj = class_def(event_dispatcher=event_dispatcher)
 
     nodes.before_node_execution()
+    event_dispatcher.emit("node_started", {"event_type": "node_started", "unique_id": unique_id,
+                                           "class_type": prompt[unique_id]["class_type"]})
     outputs[unique_id] = getattr(obj, obj.FUNCTION)(**input_data_all)
+    event_dispatcher.emit("node_finished", {"event_type": "node_started", "unique_id": unique_id,
+                                            "class_type": prompt[unique_id]["class_type"]})
+
     if "ui" in outputs[unique_id]:
         if server.client_id is not None:
             server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
@@ -142,10 +166,11 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
     return to_delete
 
 class PromptExecutor:
-    def __init__(self, server):
+    def __init__(self, server, event_dispatcher):
         self.outputs = {}
         self.old_prompt = {}
         self.server = server
+        self.event_dispatcher = event_dispatcher
 
     def execute(self, prompt, extra_data={}):
         nodes.interrupt_processing(False)
@@ -192,7 +217,8 @@ class PromptExecutor:
                             except:
                                 valid = False
                             if valid:
-                                recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed)
+                                recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed,
+                                                  self.event_dispatcher)
             except Exception as e:
                 print(traceback.format_exc())
                 to_delete = []

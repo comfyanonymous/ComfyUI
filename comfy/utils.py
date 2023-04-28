@@ -22,8 +22,8 @@ def load_torch_file(ckpt, safe_load=False):
     return sd
 
 
-def save_latent(samples, filename_prefix):
-    filename = os.path.join(folder_paths.get_output_directory(), (filename_prefix + "_latent.npy"))
+def save_latent(samples, filename):
+    filename = os.path.join(folder_paths.get_output_directory(), filename)
     np.save(filename, samples)
 
 

@@ -36,6 +36,9 @@ def interrupt_processing(value=True):
 MAX_RESOLUTION=8192
 
 class CLIPTextEncode:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
@@ -48,6 +51,8 @@ class CLIPTextEncode:
         return ([[clip.encode(text), {}]], )
 
 class ConditioningCombine:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_1": ("CONDITIONING", ), "conditioning_2": ("CONDITIONING", )}}
@@ -60,6 +65,8 @@ class ConditioningCombine:
         return (conditioning_1 + conditioning_2, )
 
 class ConditioningSetArea:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -86,8 +93,9 @@ class ConditioningSetArea:
         return (c, )
 
 class VAEDecode:
-    def __init__(self, device="cpu"):
+    def __init__(self, device="cpu", event_dispatcher=None):
         self.device = device
+        self.event_dispatcher = event_dispatcher
 
     @classmethod
     def INPUT_TYPES(s):
@@ -101,7 +109,8 @@ class VAEDecode:
         return (vae.decode(samples["samples"]), )
 
 class VAEDecodeTiled:
-    def __init__(self, device="cpu"):
+    def __init__(self, device="cpu", event_dispatcher=None):
+        self.event_dispatcher = event_dispatcher
         self.device = device
 
     @classmethod
@@ -116,7 +125,8 @@ class VAEDecodeTiled:
         return (vae.decode_tiled(samples["samples"]), )
 
 class VAEEncode:
-    def __init__(self, device="cpu"):
+    def __init__(self, device="cpu", event_dispatcher=None):
+        self.event_dispatcher = event_dispatcher
         self.device = device
 
     @classmethod
@@ -138,8 +148,9 @@ class VAEEncode:
 
 
 class VAEEncodeTiled:
-    def __init__(self, device="cpu"):
+    def __init__(self, device="cpu", event_dispatcher=None):
         self.device = device
+        self.event_dispatcher = event_dispatcher
 
     @classmethod
     def INPUT_TYPES(s):
@@ -158,8 +169,9 @@ class VAEEncodeTiled:
 
         return ({"samples":t}, )
 class VAEEncodeForInpaint:
-    def __init__(self, device="cpu"):
+    def __init__(self, device="cpu", event_dispatcher=None):
         self.device = device
+        self.event_dispatcher = event_dispatcher
 
     @classmethod
     def INPUT_TYPES(s):
@@ -192,6 +204,9 @@ class VAEEncodeForInpaint:
         return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
 
 class CheckpointLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
@@ -207,6 +222,8 @@ class CheckpointLoader:
         return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 class CheckpointLoaderSimple:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
@@ -222,6 +239,8 @@ class CheckpointLoaderSimple:
         return out
 
 class DiffusersLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(cls):
         paths = []
@@ -246,6 +265,8 @@ class DiffusersLoader:
 
 
 class unCLIPCheckpointLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
@@ -261,6 +282,8 @@ class unCLIPCheckpointLoader:
         return out
 
 class CLIPSetLastLayer:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip": ("CLIP", ),
@@ -296,6 +319,8 @@ class LoraLoader:
         return (model_lora, clip_lora)
 
 class TomePatchModel:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
@@ -312,6 +337,8 @@ class TomePatchModel:
         return (m, )
 
 class VAELoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), )}}
@@ -327,6 +354,8 @@ class VAELoader:
         return (vae,)
 
 class ControlNetLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), )}}
@@ -342,6 +371,8 @@ class ControlNetLoader:
         return (controlnet,)
 
 class DiffControlNetLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
@@ -359,6 +390,8 @@ class DiffControlNetLoader:
 
 
 class ControlNetApply:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -385,6 +418,8 @@ class ControlNetApply:
         return (c, )
 
 class CLIPLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
@@ -400,6 +435,8 @@ class CLIPLoader:
         return (clip,)
 
 class CLIPVisionLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
@@ -415,6 +452,8 @@ class CLIPVisionLoader:
         return (clip_vision,)
 
 class CLIPVisionEncode:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
@@ -430,6 +469,8 @@ class CLIPVisionEncode:
         return (output,)
 
 class StyleModelLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), )}}
@@ -446,6 +487,8 @@ class StyleModelLoader:
 
 
 class StyleModelApply:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -466,6 +509,8 @@ class StyleModelApply:
         return (c, )
 
 class unCLIPConditioning:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -492,6 +537,8 @@ class unCLIPConditioning:
         return (c, )
 
 class GLIGENLoader:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "gligen_name": (folder_paths.get_filename_list("gligen"), )}}
@@ -507,6 +554,8 @@ class GLIGENLoader:
         return (gligen,)
 
 class GLIGENTextBoxApply:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_to": ("CONDITIONING", ),
@@ -538,8 +587,9 @@ class GLIGENTextBoxApply:
         return (c, )
 
 class EmptyLatentImage:
-    def __init__(self, device="cpu"):
+    def __init__(self, device="cpu", event_dispatcher=None):
         self.device = device
+        self.event_dispatcher = event_dispatcher
 
     @classmethod
     def INPUT_TYPES(s):
@@ -557,6 +607,8 @@ class EmptyLatentImage:
 
 
 class LatentFromBatch:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -576,6 +628,8 @@ class LatentFromBatch:
         return (s,)
 
 class LatentUpscale:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     upscale_methods = ["nearest-exact", "bilinear", "area"]
     crop_methods = ["disabled", "center"]
 
@@ -596,21 +650,29 @@ class LatentUpscale:
         return (s,)
 
 class SaveLatent:
-   @classmethod
-   def INPUT_TYPES(s):
-       return {"required": { "samples": ("LATENT",),
-                             "filename_prefix": ("STRING", {"default": "ComfyUI"})}}
-   RETURN_TYPES = ("LATENT",)
-   FUNCTION = "save"
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
 
-   CATEGORY = "latent"
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "filename": ("STRING", {"default": "ComfyUI_latent.npy"})}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "save"
 
-   def save(self, samples, filename_prefix):
-       s = samples.copy()
-       comfy.utils.save_latent(samples["samples"], filename_prefix)
-       return (samples,)
+    CATEGORY = "latent"
+
+    def save(self, samples, filename):
+        s = samples.copy()
+        comfy.utils.save_latent(samples["samples"], filename)
+
+        @clas
+
+        return (samples,)
 
 class LoadLatent:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "filename": ("STRING", {"default": "ComfyUI_latent.npy"})}}
@@ -623,6 +685,37 @@ class LoadLatent:
     def load(self, filename):
         derp = ({"samples": comfy.utils.load_latent(filename)},)
         return derp
+
+
+
+class MuxLatent:
+
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "latent1": ("LATENT",),
+                "latent2": ("LATENT",),
+                "weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+            }
+        }
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "interpolate"
+
+    CATEGORY = "latent"
+
+    def interpolate(self, latent1, latent2, weight):
+        # Ensure the latents have the same shape
+        if latent1["samples"].shape != latent2["samples"].shape:
+            raise ValueError("Latents must have the same shape")
+
+        # Interpolate the latents using the weight
+        interpolated_latent = latent1["samples"] * (1 - weight) + latent2["samples"] * weight
+
+        return ({"samples": interpolated_latent},)
 
 class LatentRotate:
     @classmethod
@@ -649,6 +742,8 @@ class LatentRotate:
         return (s,)
 
 class LatentFlip:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -711,6 +806,8 @@ class LatentComposite:
         return (samples_out,)
 
 class LatentCrop:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -754,6 +851,8 @@ class LatentCrop:
         return (s,)
 
 class SetLatentNoiseMask:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -791,6 +890,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     return (out, )
 
 class KSampler:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -815,6 +916,8 @@ class KSampler:
         return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
 
 class KSamplerAdvanced:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -848,9 +951,10 @@ class KSamplerAdvanced:
         return common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
 class SaveImage:
-    def __init__(self):
+    def __init__(self, event_dispatcher=None):
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
+        self.event_dispatcher = event_dispatcher
 
     @classmethod
     def INPUT_TYPES(s):
@@ -924,8 +1028,9 @@ class SaveImage:
         return { "ui": { "images": results } }
 
 class PreviewImage(SaveImage):
-    def __init__(self):
+    def __init__(self, event_dispatcher=None):
         self.output_dir = folder_paths.get_temp_directory()
+        self.event_dispatcher = event_dispatcher
         self.type = "temp"
 
     @classmethod
@@ -936,6 +1041,8 @@ class PreviewImage(SaveImage):
                 }
 
 class LoadImage:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
@@ -976,6 +1083,8 @@ class LoadImage:
         return True
 
 class LoadImageMask:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
     def INPUT_TYPES(s):
@@ -1024,6 +1133,8 @@ class LoadImageMask:
         return True
 
 class ImageScale:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
     upscale_methods = ["nearest-exact", "bilinear", "area"]
     crop_methods = ["disabled", "center"]
 
@@ -1045,6 +1156,8 @@ class ImageScale:
         return (s,)
 
 class ImageInvert:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1061,6 +1174,8 @@ class ImageInvert:
 
 
 class ImagePadForOutpaint:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1123,17 +1238,100 @@ class ImagePadForOutpaint:
         return (new_image, mask)
 
 class FrameCounter:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "frame": ("INT", {"default": 0})}}
+        return {
+            "required": {
+                "frame": ("INT", {"default": 0}),
+                "fired": ("BOOL", {"default": False}),
+            },
+        }
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return True
 
-    RETURN_TYPES = ("INT",)
+    RETURN_TYPES = ("text",)
     FUNCTION = "frame_counter"
 
     CATEGORY = "operations"
 
-    def frame_counter(self, frame):
+    def frame_counter(self, frame, fired):
+        if fired:
+            frame += 1
         return (frame,)
+
+class EventListener:
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "event_type": (["node_started", "node_finished"],),
+                "class_type": ("STRING", {"default": "KSampler"})
+            },
+        }
+
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return True
+
+    RETURN_TYPES = ("BOOL",)
+    RETURN_NAMES = ("fired",)
+
+    FUNCTION = "listen"
+
+    CATEGORY = "Events"
+
+    def listen(self, event_type, class_type):
+        self._fired = False
+
+        def event_listener(event, event_data):
+            print(f"Got an event of type {event_data['event_type']} with data {event_data}")
+            if (event_data["event_type"] == event_type and event_data["class_type"] == class_type):
+                self._fired = True
+
+        self.event_dispatcher.subscribe(event_type, event_listener)
+
+        return (self._fired,)
+
+class PrinterNode:
+
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {},
+            "optional": {
+                "text": ("text",),
+                "latent": ("LATENT",),
+            }
+        }
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return True
+
+    RETURN_TYPES = ()
+    FUNCTION = "print_value"
+    CATEGORY = "operations"
+    OUTPUT_NODE = True
+
+    def print_value(self, text=None, latent=None):
+        if latent is not None:
+            latent_hash = hashlib.sha256(latent["samples"].cpu().numpy().tobytes()).hexdigest()
+            print(f"Latent hash: {latent_hash}")
+            print(np.array2string(latent["samples"].cpu().numpy(), separator=', '))
+
+
+        print(text)
+        return {"ui": {"": text}}
+
 
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
@@ -1184,6 +1382,9 @@ NODE_CLASS_MAPPINGS = {
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
     "FrameCounter": FrameCounter,
+    "PrinterNode": PrinterNode,
+    "EventListener": EventListener,
+    "MuxLatent": MuxLatent,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1236,6 +1437,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VAEEncodeTiled": "VAE Encode (Tiled)",
     # operations
     "FrameCounter": "Frame Counter",
+    "PrinterNode": "Print",
+    "EventListener": "Event Listener",
+    "MuxLatent": "Mux Latent",
 }
 
 def load_custom_node(module_path):
