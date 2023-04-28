@@ -146,17 +146,23 @@ export class ComfyApp {
 						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
 						}
 						
-						let img = new Image();
 						var imgs = undefined;
+						var orig_imgs = undefined;
 						if(this.imgs != undefined) {
-							img.src = this.imgs[0].src;
-							imgs = [img];
+							imgs = [];
+							orig_imgs = [];
+
+							for (let i = 0; i < this.imgs.length; i++) {
+								imgs[i] = new Image();
+								imgs[i].src = this.imgs[i].src;
+								orig_imgs[i] = imgs[i];
+							}
 						}
 
 						ComfyApp.clipspace = {
 							'widgets': widgets,
 							'imgs': imgs,
-							'original_imgs': imgs,
+							'original_imgs': orig_imgs,
 							'images': this.images
 							};
 					}
