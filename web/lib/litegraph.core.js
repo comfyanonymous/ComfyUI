@@ -9953,11 +9953,11 @@ LGraphNode.prototype.executeAction = function(action)
                     }
 					break;
 				case "slider":
-					var range = w.options.max - w.options.min;
+					var old_value = w.value;
 					var nvalue = Math.clamp((x - 15) / (widget_width - 30), 0, 1);
 					if(w.options.read_only) break;
 					w.value = w.options.min + (w.options.max - w.options.min) * nvalue;
-					if (w.callback) {
+					if (old_value != w.value) {
 						setTimeout(function() {
 							inner_value_change(w, w.value);
 						}, 20);
@@ -10044,7 +10044,7 @@ LGraphNode.prototype.executeAction = function(action)
 						if (event.click_time < 200 && delta == 0) {
 							this.prompt("Value",w.value,function(v) {
 									// check if v is a valid equation or a number
-									  if (/^[0-9+\-*/()\s]+$/.test(v)) {
+									  if (/^[0-9+\-*/()\s]+|\d+\.\d+$/.test(v)) {
 										try {//solve the equation if possible
 									    		v = eval(v);
 										} catch (e) { }
