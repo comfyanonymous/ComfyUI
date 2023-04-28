@@ -17,11 +17,20 @@ export class ClipspaceDialog extends ComfyDialog {
 		ClipspaceDialog.items.push(item);
 	}
 
+	static invalidatePreview() {
+		const img_preview = document.getElementById("clipspace_preview");
+		img_preview.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+		img_preview.style.height = "100px";
+	}
+
 	constructor() {
 		super();
 		this.element =
 			$el("div.comfy-modal", { parent: document.body },
-				[$el("div.comfy-modal-content",[...this.createButtons()]),]
+				[$el("div.comfy-modal-content",[
+					this.createImgSelector(),
+					this.createImgPreview(),
+					...this.createButtons()]),]
 				);
 	}
 
@@ -47,8 +56,41 @@ export class ClipspaceDialog extends ComfyDialog {
 		return buttons;
 	}
 
+	createImgSelector() {
+		if(ComfyApp.clipspace.imgs != undefined) {
+			const combo_items = [];
+			const imgs = ComfyApp.clipspace.imgs;
+
+			for(let i=0; i < imgs.length; i++) {
+				combo_items.push($el("option", {value:i}, [`${i}`]));
+			}
+
+			const combo = $el("select",
+				{id:"clipspace_img_selector", onchange:(event) => {
+					ComfyApp.clipspace['selectedIndex'] = event.target.selectedIndex;
+					ClipspaceDialog.invalidatePreview();
+				} }, combo_items);
+			return combo;
+		}
+		else {
+			return [];
+		}
+	}
+
+	createImgPreview() {
+		if(ComfyApp.clipspace.imgs != undefined) {
+			return $el("img",{id:"clipspace_preview"});
+		}
+		else
+			return [];
+	}
+
 	show() {
 		ClipspaceDialog.is_opened = true;
+		const img_preview = document.getElementById("clipspace_preview");
+		img_preview.src = ComfyApp.clipspace.imgs[0].src;
+		img_preview.style.height = "100px";
+		
 		this.element.style.display = "block";
 	}
 }

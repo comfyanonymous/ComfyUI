@@ -163,7 +163,8 @@ export class ComfyApp {
 							'widgets': widgets,
 							'imgs': imgs,
 							'original_imgs': orig_imgs,
-							'images': this.images
+							'images': this.images,
+							'selectedIndex': 0
 							};
 					}
 				});

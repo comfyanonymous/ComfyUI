@@ -40,9 +40,11 @@ async function uploadMask(filepath, formData) {
 		console.error('Error:', error);
 	});
 
-	ComfyApp.clipspace.imgs[0] = new Image();
-	ComfyApp.clipspace.imgs[0].src = `view?filename=${filepath.filename}&type=${filepath.type}`;
+	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
+	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = `view?filename=${filepath.filename}&type=${filepath.type}`;
 	ComfyApp.clipspace.images = [filepath];
+
+	ClipspaceDialog.invalidatePreview();
 }
 
 function prepareRGB(image, backupCanvas, backupCtx) {
@@ -276,7 +278,7 @@ class MaskEditorDialog extends ComfyDialog {
 			prepareRGB(touched_image, backupCanvas, backupCtx);
 		};
 
-		const alpha_url = new URL(ComfyApp.clipspace.imgs[0].src)
+		const alpha_url = new URL(ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src)
 		alpha_url.searchParams.delete('channel');
 		alpha_url.searchParams.set('channel', 'a');
 		touched_image.src = alpha_url;
@@ -286,7 +288,7 @@ class MaskEditorDialog extends ComfyDialog {
 			window.dispatchEvent(new Event('resize'));
 		};
 
-		const rgb_url = new URL(ComfyApp.clipspace.imgs[0].src);
+		const rgb_url = new URL(ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src);
 		rgb_url.searchParams.delete('channel');
 		rgb_url.searchParams.set('channel', 'rgb');
 		orig_image.src = rgb_url;
