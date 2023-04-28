@@ -2,6 +2,7 @@ import os
 import torch
 import folder_paths
 import numpy as np
+from safetensors.torch import save_file, safe_open
 
 
 def load_torch_file(ckpt, safe_load=False):
@@ -25,6 +26,21 @@ def load_torch_file(ckpt, safe_load=False):
 def save_latent(samples, filename):
     filename = os.path.join(folder_paths.get_output_directory(), filename)
     np.save(filename, samples)
+
+
+def save_attention(attention, filename):
+    filename = os.path.join(folder_paths.get_output_directory(), filename)
+    save_file({"attention": attention}, filename)
+    print(f"Attention tensor saved to {filename}")
+
+
+def load_attention(filename):
+    tensors = {}
+    filename = os.path.join(folder_paths.get_output_directory(), filename)
+    with safe_open(filename, framework='pt', device=0) as f:
+        for k in f.keys():
+            tensors[k] = f.get_tensor(k)
+    return tensors['attention']
 
 
 def load_latent(filename):

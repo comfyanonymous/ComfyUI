@@ -590,8 +590,13 @@ def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=No
     t_fn = lambda sigma: sigma.log().neg()
     old_denoised = None
 
+    attention = None
     for i in trange(len(sigmas) - 1, disable=disable):
-        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        denoised, attn = model(x, sigmas[i] * s_in, **extra_args)
+        if attention is None:
+            attention = torch.empty((len(sigmas), *attn.shape), dtype=attn.dtype, device=attn.device)
+            attention[i] = attn
+
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
         t, t_next = t_fn(sigmas[i]), t_fn(sigmas[i + 1])
@@ -604,4 +609,4 @@ def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=No
             denoised_d = (1 + 1 / (2 * r)) * denoised - (1 / (2 * r)) * old_denoised
             x = (sigma_fn(t_next) / sigma_fn(t)) * x - (-h).expm1() * denoised_d
         old_denoised = denoised
-    return x
+    return x, attention

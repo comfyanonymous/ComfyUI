@@ -665,9 +665,6 @@ class SaveLatent:
     def save(self, samples, filename):
         s = samples.copy()
         comfy.utils.save_latent(samples["samples"], filename)
-
-        @clas
-
         return (samples,)
 
 class LoadLatent:
@@ -882,12 +879,12 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
-    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+    samples, attention = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask)
     out = latent.copy()
     out["samples"] = samples
-    return (out, )
+    return (out, attention)
 
 class KSampler:
     def __init__(self, event_dispatcher):
@@ -907,7 +904,7 @@ class KSampler:
                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                     }}
 
-    RETURN_TYPES = ("LATENT",)
+    RETURN_TYPES = ("LATENT","ATTENTION")
     FUNCTION = "sample"
 
     CATEGORY = "sampling"
@@ -1281,7 +1278,6 @@ class EventListener:
         return True
 
     RETURN_TYPES = ("BOOL",)
-    RETURN_NAMES = ("fired",)
 
     FUNCTION = "listen"
 
@@ -1299,7 +1295,7 @@ class EventListener:
 
         return (self._fired,)
 
-class PrinterNode:
+class PrintNode:
 
     def __init__(self, event_dispatcher):
         self.event_dispatcher = event_dispatcher
@@ -1310,6 +1306,7 @@ class PrinterNode:
             "required": {},
             "optional": {
                 "text": ("text",),
+                "attention": ("ATTENTION",),
                 "latent": ("LATENT",),
             }
         }
@@ -1322,15 +1319,68 @@ class PrinterNode:
     CATEGORY = "operations"
     OUTPUT_NODE = True
 
-    def print_value(self, text=None, latent=None):
+    def print_value(self, text=None, latent=None, attention=None):
         if latent is not None:
             latent_hash = hashlib.sha256(latent["samples"].cpu().numpy().tobytes()).hexdigest()
             print(f"Latent hash: {latent_hash}")
             print(np.array2string(latent["samples"].cpu().numpy(), separator=', '))
 
+        if attention is not None:
+            print(np.array2string(attention.cpu().numpy(), separator=', '))
 
-        print(text)
+        if text is not None:
+            print(text)
         return {"ui": {"": text}}
+
+class SaveAttention:
+    @classmethod
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "attention": ("ATTENTION",),
+                "filename": ("STRING", {"default": "attention.safetensor"}),
+            },
+        }
+
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return True
+
+    RETURN_TYPES = ()
+    FUNCTION = "save_attention"
+    CATEGORY = "operations"
+    OUTPUT_NODE = True
+
+    def save_attention(self, attention, filename):
+        comfy.utils.save_attention(attention, filename)
+        return {"ui": {"message": "Saved attention to " + filename}}
+
+
+
+class LoadAttention:
+    @classmethod
+    def __init__(self, event_dispatcher):
+        self.event_dispatcher = event_dispatcher
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "filename": ("STRING", {"default": "attention.safetensor"}),
+            },
+        }
+
+    RETURN_TYPES = ("ATTENTION",)
+    FUNCTION = "load_attention"
+    CATEGORY = "operations"
+
+    def load_attention(self, filename):
+        return (comfy.utils.load_attention(filename),)
+
 
 
 NODE_CLASS_MAPPINGS = {
@@ -1382,9 +1432,11 @@ NODE_CLASS_MAPPINGS = {
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
     "FrameCounter": FrameCounter,
-    "PrinterNode": PrinterNode,
+    "PrinterNode": PrintNode,
     "EventListener": EventListener,
     "MuxLatent": MuxLatent,
+    "SaveAttention": SaveAttention,
+    "LoadAttention": LoadAttention,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1440,6 +1492,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PrinterNode": "Print",
     "EventListener": "Event Listener",
     "MuxLatent": "Mux Latent",
+    "SaveAttention": "Save Attention",
+    "LoadAttention": "Load Attention",
 }
 
 def load_custom_node(module_path):
