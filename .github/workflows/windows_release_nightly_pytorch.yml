@@ -30,7 +30,7 @@ jobs:
             echo 'import site' >> ./python310._pth
             curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             ./python.exe get-pip.py
-            python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu118 -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
+            python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu121 -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
             ls ../temp_wheel_dir
             ./python.exe -s -m pip install --pre ../temp_wheel_dir/*
             sed -i '1i../ComfyUI' ./python310._pth
