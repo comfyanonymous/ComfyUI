@@ -1,4 +1,8 @@
+import os
 import torch
+import folder_paths
+import numpy as np
+
 
 def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
@@ -16,6 +20,16 @@ def load_torch_file(ckpt, safe_load=False):
         else:
             sd = pl_sd
     return sd
+
+
+def save_latent(samples, filename_prefix):
+    filename = os.path.join(folder_paths.get_output_directory(), (filename_prefix + "_latent.npy"))
+    np.save(filename, samples)
+
+
+def load_latent(filename):
+    filename = os.path.join(folder_paths.get_output_directory(), filename)
+    return torch.from_numpy(np.load(filename))
 
 def transformers_convert(sd, prefix_from, prefix_to, number):
     resblock_to_replace = {

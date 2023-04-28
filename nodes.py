@@ -595,6 +595,35 @@ class LatentUpscale:
         s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
+class SaveLatent:
+   @classmethod
+   def INPUT_TYPES(s):
+       return {"required": { "samples": ("LATENT",),
+                             "filename_prefix": ("STRING", {"default": "ComfyUI"})}}
+   RETURN_TYPES = ("LATENT",)
+   FUNCTION = "save"
+
+   CATEGORY = "latent"
+
+   def save(self, samples, filename_prefix):
+       s = samples.copy()
+       comfy.utils.save_latent(samples["samples"], filename_prefix)
+       return (samples,)
+
+class LoadLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "filename": ("STRING", {"default": "ComfyUI_latent.npy"})}}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "load"
+
+    CATEGORY = "latent"
+
+    def load(self, filename):
+        derp = ({"samples": comfy.utils.load_latent(filename)},)
+        return derp
+
 class LatentRotate:
     @classmethod
     def INPUT_TYPES(s):
@@ -1093,6 +1122,18 @@ class ImagePadForOutpaint:
 
         return (new_image, mask)
 
+class FrameCounter:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "frame": ("INT", {"default": 0})}}
+
+    RETURN_TYPES = ("INT",)
+    FUNCTION = "frame_counter"
+
+    CATEGORY = "operations"
+
+    def frame_counter(self, frame):
+        return (frame,)
 
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
@@ -1121,6 +1162,8 @@ NODE_CLASS_MAPPINGS = {
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
+    "SaveLatent": SaveLatent,
+    "LoadLatent": LoadLatent,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
@@ -1140,6 +1183,7 @@ NODE_CLASS_MAPPINGS = {
 
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
+    "FrameCounter": FrameCounter,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1176,6 +1220,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "EmptyLatentImage": "Empty Latent Image",
     "LatentUpscale": "Upscale Latent",
     "LatentComposite": "Latent Composite",
+    "SaveLatent": "Save Latent",
+    "LoadLatent": "Load Latent",
     # Image
     "SaveImage": "Save Image",
     "PreviewImage": "Preview Image",
@@ -1188,6 +1234,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
+    # operations
+    "FrameCounter": "Frame Counter",
 }
 
 def load_custom_node(module_path):
