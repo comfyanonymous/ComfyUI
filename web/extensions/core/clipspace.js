@@ -35,7 +35,6 @@ export class ClipspaceDialog extends ComfyDialog {
             // allow reconstruct controls when copying from non-image to image content.
             const children = $el("div.comfy-modal-content",[
                                 self.createImgSettings(),
-//                                self.createImgPreview(),
                                 ...self.createButtons()
                                 ]);
 
@@ -47,6 +46,10 @@ export class ClipspaceDialog extends ComfyDialog {
             else {
                 // new
                 self.element = $el("div.comfy-modal", { parent: document.body }, [children,]);
+            }
+
+            if(self.element.children[0].children.length <= 1) {
+                self.element.children[0].appendChild($el("p", {}, ["Unable to find the features to edit content of a format stored in the current Clipspace."]));
             }
 
             ClipspaceDialog.invalidatePreview();
