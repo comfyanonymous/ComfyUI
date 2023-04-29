@@ -7,23 +7,6 @@ from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 
-class CFGDenoiser(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.inner_model = model
-
-    def forward(self, x, sigma, uncond, cond, cond_scale):
-        if len(uncond[0]) == len(cond[0]) and x.shape[0] * x.shape[2] * x.shape[3] < (96 * 96): #TODO check memory instead
-            x_in = torch.cat([x] * 2)
-            sigma_in = torch.cat([sigma] * 2)
-            cond_in = torch.cat([uncond, cond])
-            uncond, cond = self.inner_model(x_in, sigma_in, cond=cond_in).chunk(2)
-        else:
-            cond = self.inner_model(x, sigma, cond=cond)
-            uncond = self.inner_model(x, sigma, cond=uncond)
-        return uncond + (cond - uncond) * cond_scale
-
-
 #The main sampling function shared by all the samplers
 #Returns predicted noise
 def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
@@ -214,7 +197,15 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     transformer_options = model_options['transformer_options'].copy()
 
                 if patches is not None:
-                    transformer_options["patches"] = patches
+                    if "patches" in transformer_options:
+                        cur_patches = transformer_options["patches"].copy()
+                        for p in patches:
+                            if p in cur_patches:
+                                cur_patches[p] = cur_patches[p] + patches[p]
+                            else:
+                                cur_patches[p] = patches[p]
+                    else:
+                        transformer_options["patches"] = patches
 
                 c['transformer_options'] = transformer_options
 
@@ -438,7 +429,7 @@ class KSampler:
         self.denoise = denoise
         self.model_options = model_options
 
-    def _calculate_sigmas(self, steps):
+    def calculate_sigmas(self, steps):
         sigmas = None
 
         discard_penultimate_sigma = False
@@ -447,13 +438,13 @@ class KSampler:
             discard_penultimate_sigma = True
 
         if self.scheduler == "karras":
-            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max, device=self.device)
+            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
         elif self.scheduler == "normal":
-            sigmas = self.model_wrap.get_sigmas(steps).to(self.device)
+            sigmas = self.model_wrap.get_sigmas(steps)
         elif self.scheduler == "simple":
-            sigmas = simple_scheduler(self.model_wrap, steps).to(self.device)
+            sigmas = simple_scheduler(self.model_wrap, steps)
         elif self.scheduler == "ddim_uniform":
-            sigmas = ddim_scheduler(self.model_wrap, steps).to(self.device)
+            sigmas = ddim_scheduler(self.model_wrap, steps)
         else:
             print("error invalid scheduler", self.scheduler)
 
@@ -464,15 +455,16 @@ class KSampler:
     def set_steps(self, steps, denoise=None):
         self.steps = steps
         if denoise is None or denoise > 0.9999:
-            self.sigmas = self._calculate_sigmas(steps)
+            self.sigmas = self.calculate_sigmas(steps).to(self.device)
         else:
             new_steps = int(steps/denoise)
-            sigmas = self._calculate_sigmas(new_steps)
+            sigmas = self.calculate_sigmas(new_steps).to(self.device)
             self.sigmas = sigmas[-(steps + 1):]
 
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None):
-        sigmas = self.sigmas
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None):
+        if sigmas is None:
+            sigmas = self.sigmas
         sigma_min = self.sigma_min
 
         if last_step is not None and last_step < (len(sigmas) - 1):
@@ -535,9 +527,9 @@ class KSampler:
 
         with precision_scope(model_management.get_autocast_device(self.device)):
             if self.sampler == "uni_pc":
-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
+                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, callback=callback)
             elif self.sampler == "uni_pc_bh2":
-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
+                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, callback=callback, variant='bh2')
             elif self.sampler == "ddim":
                 timesteps = []
                 for s in range(sigmas.shape[0]):
@@ -545,6 +537,11 @@ class KSampler:
                 noise_mask = None
                 if denoise_mask is not None:
                     noise_mask = 1.0 - denoise_mask
+
+                ddim_callback = None
+                if callback is not None:
+                    ddim_callback = lambda pred_x0, i: callback(i, pred_x0, None)
+
                 sampler = DDIMSampler(self.model, device=self.device)
                 sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
                 z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
@@ -558,6 +555,7 @@ class KSampler:
                                                      eta=0.0,
                                                      x_T=z_enc,
                                                      x0=latent_image,
+                                                     img_callback=ddim_callback,
                                                      denoise_function=sampling_function,
                                                      extra_args=extra_args,
                                                      mask=noise_mask,
@@ -571,13 +569,17 @@ class KSampler:
 
                 noise = noise * sigmas[0]
 
+                k_callback = None
+                if callback is not None:
+                    k_callback = lambda x: callback(x["i"], x["denoised"], x["x"])
+
                 if latent_image is not None:
                     noise += latent_image
                 if self.sampler == "dpm_fast":
-                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
+                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args, callback=k_callback)
                 elif self.sampler == "dpm_adaptive":
-                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
+                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback)
                 else:
-                    samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args)
+                    samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args, callback=k_callback)
 
         return samples.to(torch.float32)

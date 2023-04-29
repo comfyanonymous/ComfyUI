@@ -136,9 +136,11 @@ function addMultilineWidget(node, name, opts, app) {
 				left: `${t.a * margin + t.e}px`,
 				top: `${t.d * (y + widgetHeight - margin - 3) + t.f}px`,
 				width: `${(widgetWidth - margin * 2 - 3) * t.a}px`,
+				background: (!node.color)?'':node.color,
 				height: `${(this.parent.inputHeight - margin * 2 - 4) * t.d}px`,
 				position: "absolute",
-				zIndex: 1,
+				color: (!node.color)?'':'white',
+				zIndex: app.graph._nodes.indexOf(node),
 				fontSize: `${t.d * 10.0}px`,
 			});
 			this.inputEl.hidden = !visible;
@@ -270,6 +272,9 @@ export const ComfyWidgets = {
 				app.graph.setDirtyCanvas(true);
 			};
 			img.src = `/view?filename=${name}&type=input`;
+			if ((node.size[1] - node.imageOffset) < 100) {
+				node.size[1] = 250 + node.imageOffset;
+			}
 		}
 
 		// Add our own callback to the combo widget to render an image when it changes
