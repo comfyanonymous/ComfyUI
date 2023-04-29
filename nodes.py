@@ -90,6 +90,7 @@ class ConditioningSetMask:
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
                               "mask": ("MASK", ),
+                              "set_area_to_bounds": ([False, True],),
                               "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
                              }}
     RETURN_TYPES = ("CONDITIONING",)
@@ -97,7 +98,7 @@ class ConditioningSetMask:
 
     CATEGORY = "conditioning"
 
-    def append(self, conditioning, mask, strength, min_sigma=0.0, max_sigma=99.0):
+    def append(self, conditioning, mask, set_area_to_bounds, strength, min_sigma=0.0, max_sigma=99.0):
         c = []
         if len(mask.shape) < 3:
             mask = mask.unsqueeze(0)
@@ -105,6 +106,7 @@ class ConditioningSetMask:
             n = [t[0], t[1].copy()]
             _, h, w = mask.shape
             n[1]['mask'] = mask
+            n[1]['set_area_to_bounds'] = set_area_to_bounds
             n[1]['strength'] = strength
             n[1]['min_sigma'] = min_sigma
             n[1]['max_sigma'] = max_sigma
