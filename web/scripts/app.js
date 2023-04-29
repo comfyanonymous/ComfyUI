@@ -224,12 +224,14 @@ export class ComfyApp {
 									}
 
                                     // for Load Image node.
-                                    const index = this.widgets.findIndex(obj => obj.name === 'image');
-									if(index >= 0 && filename != "") {
-										this.widgets[index].value = filename;
-										if(this.widgets_values != undefined) {
-											this.widgets_values[index] = filename;
-										}
+                                    if(this.widgets) {
+                                        const index = this.widgets.findIndex(obj => obj.name === 'image');
+                                        if(index >= 0 && filename != "") {
+                                            this.widgets[index].value = filename;
+                                            if(this.widgets_values != undefined) {
+                                                this.widgets_values[index] = filename;
+                                            }
+                                        }
 									}
 								}
 
