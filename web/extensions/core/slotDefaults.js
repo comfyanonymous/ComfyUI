@@ -6,6 +6,7 @@ app.registerExtension({
 	name: "Comfy.SlotDefaults",
 	suggestionsNumber: null,
 	init() {
+		LiteGraph.search_filter_enabled = true;
 		LiteGraph.middle_click_slot_add_default_node = true;
 		this.suggestionsNumber = app.ui.settings.addSetting({
 			id: "Comfy.NodeSuggestions.number",
@@ -43,6 +44,14 @@ app.registerExtension({
 			}
 			if (this.slot_types_default_out[type].includes(nodeId)) continue;
 			this.slot_types_default_out[type].push(nodeId);
+
+			// Input types have to be stored as lower case
+			// Store each node that can handle this input type
+			const lowerType = type.toLocaleLowerCase();
+			if (!(lowerType in LiteGraph.registered_slot_in_types)) {
+				LiteGraph.registered_slot_in_types[lowerType] = { nodes: [] };
+			}
+			LiteGraph.registered_slot_in_types[lowerType].nodes.push(nodeType.comfyClass);
 		} 
 
 		var outputs = nodeData["output"];
@@ -53,6 +62,16 @@ app.registerExtension({
 			}
 
 			this.slot_types_default_in[type].push(nodeId);
+
+			// Store each node that can handle this output type
+			if (!(type in LiteGraph.registered_slot_out_types)) {
+				LiteGraph.registered_slot_out_types[type] = { nodes: [] };
+			}
+			LiteGraph.registered_slot_out_types[type].nodes.push(nodeType.comfyClass);
+
+			if(!LiteGraph.slot_types_out.includes(type)) {
+				LiteGraph.slot_types_out.push(type);
+			}
 		}
 		var maxNum = this.suggestionsNumber.value;
 		this.setDefaults(maxNum);
