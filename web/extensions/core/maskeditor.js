@@ -42,7 +42,7 @@ async function uploadMask(filepath, formData) {
 
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = `view?filename=${filepath.filename}&type=${filepath.type}`;
-	ComfyApp.clipspace.images = [filepath];
+	ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;
 
 	ClipspaceDialog.invalidatePreview();
 }
@@ -562,6 +562,7 @@ app.registerExtension({
 				dlg.show();
 			};
 
-		ClipspaceDialog.registerButton("MaskEditor", callback);
+        const context_predicate = () => ComfyApp.clipspace && ComfyApp.clipspace.imgs && ComfyApp.clipspace.imgs.length > 0
+        ClipspaceDialog.registerButton("MaskEditor", context_predicate, callback);
 	}
 });

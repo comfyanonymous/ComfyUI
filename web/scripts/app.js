@@ -25,6 +25,7 @@ export class ComfyApp {
 	 * @type {serialized node object}
 	 */
 	static clipspace = null;
+	static clipspace_invalidate_handler = null;
 
 	constructor() {
 		this.ui = new ComfyUI(this);
@@ -164,8 +165,13 @@ export class ComfyApp {
 							'imgs': imgs,
 							'original_imgs': orig_imgs,
 							'images': this.images,
-							'selectedIndex': 0
+							'selectedIndex': 0,
+							'img_paste_mode': 'all'
 							};
+
+                        if(ComfyApp.clipspace_invalidate_handler) {
+                            ComfyApp.clipspace_invalidate_handler();
+                        }
 					}
 				});
 
@@ -174,31 +180,52 @@ export class ComfyApp {
 					{
 						content: "Paste (Clipspace)",
 						callback: () => {
-							if(ComfyApp.clipspace != null) {
+							if(ComfyApp.clipspace) {
 								// image paste
-								if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined && this.widgets != null) {
+								if(ComfyApp.clipspace.imgs && this.imgs) {
 									var filename = "";
 									if(this.images && ComfyApp.clipspace.images) {
-										this.images = ComfyApp.clipspace.images;
+									    if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+									        app.nodeOutputs[this.id + ""].images = this.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+
+                                        }
+                                        else
+										    app.nodeOutputs[this.id + ""].images = this.images = ComfyApp.clipspace.images;
 									}
 
-									if(ComfyApp.clipspace.images != undefined) {
-										const clip_image = ComfyApp.clipspace.images[0];
+                                    if(ComfyApp.clipspace.imgs) {
+                                        // deep-copy to cut link with clipspace
+									    if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+									        const img = new Image();
+									        img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+									        this.imgs = [img];
+                                        }
+                                        else {
+                                            const imgs = [];
+                                            for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
+                                                imgs[i] = new Image();
+                                                imgs[i].src = ComfyApp.clipspace.imgs[i].src;
+                                                this.imgs = imgs;
+                                            }
+                                        }
+                                    }
+
+									if(ComfyApp.clipspace.images) {
+										const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
 										if(clip_image.subfolder != '')
 											filename = `${clip_image.subfolder}/`;
 										filename += `${clip_image.filename} [${clip_image.type}]`;
 									}
-									else if(ComfyApp.clipspace.widgets != undefined) {
+									else if(ComfyApp.clipspace.widgets) {
 										const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
 										if(index_in_clip >= 0) {
 											filename = `${ComfyApp.clipspace.widgets[index_in_clip].value}`;
 										}
 									}
 
-									const index = this.widgets.findIndex(obj => obj.name === 'image');
-									if(index >= 0 && filename != "" && ComfyApp.clipspace.imgs != undefined) {
-										this.imgs = ComfyApp.clipspace.imgs;
-
+                                    // for Load Image node.
+                                    const index = this.widgets.findIndex(obj => obj.name === 'image');
+									if(index >= 0 && filename != "") {
 										this.widgets[index].value = filename;
 										if(this.widgets_values != undefined) {
 											this.widgets_values[index] = filename;
@@ -207,7 +234,7 @@ export class ComfyApp {
 								}
 
 								// ensure render after update widget_value
-								if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
+								if(ComfyApp.clipspace.widgets && this.widgets) {
 									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
 											if (prop && prop.type != 'button') {
@@ -216,6 +243,8 @@ export class ComfyApp {
 									});
 								}
 							}
+
+							app.graph.setDirtyCanvas(true);
 						}
 					}
 				);
