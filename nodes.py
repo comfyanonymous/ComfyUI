@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "co
 
 import comfy.diffusers_convert
 import comfy.samplers
+import comfy.sample
 import comfy.sd
 import comfy.utils
 
@@ -171,24 +172,24 @@ class VAEEncodeForInpaint:
     def encode(self, vae, pixels, mask):
         x = (pixels.shape[1] // 64) * 64
         y = (pixels.shape[2] // 64) * 64
-        mask = torch.nn.functional.interpolate(mask[None,None,], size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")[0][0]
+        mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
 
         pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
             pixels = pixels[:,:x,:y,:]
-            mask = mask[:x,:y]
+            mask = mask[:,:,:x,:y]
 
         #grow mask by a few pixels to keep things seamless in latent space
         kernel_tensor = torch.ones((1, 1, 6, 6))
-        mask_erosion = torch.clamp(torch.nn.functional.conv2d((mask.round())[None], kernel_tensor, padding=3), 0, 1)
-        m = (1.0 - mask.round())
+        mask_erosion = torch.clamp(torch.nn.functional.conv2d(mask.round(), kernel_tensor, padding=3), 0, 1)
+        m = (1.0 - mask.round()).squeeze(1)
         for i in range(3):
             pixels[:,:,:,i] -= 0.5
             pixels[:,:,:,i] *= m
             pixels[:,:,:,i] += 0.5
         t = vae.encode(pixels)
 
-        return ({"samples":t, "noise_mask": (mask_erosion[0][:x,:y].round())}, )
+        return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
 
 class CheckpointLoader:
     @classmethod
@@ -490,6 +491,51 @@ class unCLIPConditioning:
             c.append(n)
         return (c, )
 
+class GLIGENLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "gligen_name": (folder_paths.get_filename_list("gligen"), )}}
+
+    RETURN_TYPES = ("GLIGEN",)
+    FUNCTION = "load_gligen"
+
+    CATEGORY = "loaders"
+
+    def load_gligen(self, gligen_name):
+        gligen_path = folder_paths.get_full_path("gligen", gligen_name)
+        gligen = comfy.sd.load_gligen(gligen_path)
+        return (gligen,)
+
+class GLIGENTextBoxApply:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_to": ("CONDITIONING", ),
+                              "clip": ("CLIP", ),
+                              "gligen_textbox_model": ("GLIGEN", ),
+                              "text": ("STRING", {"multiline": True}),
+                              "width": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
+                              "height": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
+                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning/gligen"
+
+    def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
+        c = []
+        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled=True)
+        for t in conditioning_to:
+            n = [t[0], t[1].copy()]
+            position_params = [(cond_pooled, height // 8, width // 8, y // 8, x // 8)]
+            prev = []
+            if "gligen" in n[1]:
+                prev = n[1]['gligen'][2]
+
+            n[1]['gligen'] = ("position", gligen_textbox_model, prev + position_params)
+            c.append(n)
+        return (c, )
 
 class EmptyLatentImage:
     def __init__(self, device="cpu"):
@@ -510,6 +556,24 @@ class EmptyLatentImage:
         return ({"samples":latent}, )
 
 
+class LatentFromBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "rotate"
+
+    CATEGORY = "latent"
+
+    def rotate(self, samples, batch_index):
+        s = samples.copy()
+        s_in = samples["samples"]
+        batch_index = min(s_in.shape[0] - 1, batch_index)
+        s["samples"] = s_in[batch_index:batch_index + 1].clone()
+        s["batch_index"] = batch_index
+        return (s,)
 
 class LatentUpscale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -676,69 +740,23 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask
         return (s,)
 
-
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    latent_image = latent["samples"]
-    noise_mask = None
     device = comfy.model_management.get_torch_device()
+    latent_image = latent["samples"]
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
-        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=torch.manual_seed(seed), device="cpu")
+        skip = latent["batch_index"] if "batch_index" in latent else 0
+        noise = comfy.sample.prepare_noise(latent_image, seed, skip)
 
+    noise_mask = None
     if "noise_mask" in latent:
-        noise_mask = latent['noise_mask']
-        noise_mask = torch.nn.functional.interpolate(noise_mask[None,None,], size=(noise.shape[2], noise.shape[3]), mode="bilinear")
-        noise_mask = noise_mask.round()
-        noise_mask = torch.cat([noise_mask] * noise.shape[1], dim=1)
-        noise_mask = torch.cat([noise_mask] * noise.shape[0])
-        noise_mask = noise_mask.to(device)
+        noise_mask = latent["noise_mask"]
 
-    real_model = None
-    comfy.model_management.load_model_gpu(model)
-    real_model = model.model
-
-    noise = noise.to(device)
-    latent_image = latent_image.to(device)
-
-    positive_copy = []
-    negative_copy = []
-
-    control_nets = []
-    for p in positive:
-        t = p[0]
-        if t.shape[0] < noise.shape[0]:
-            t = torch.cat([t] * noise.shape[0])
-        t = t.to(device)
-        if 'control' in p[1]:
-            control_nets += [p[1]['control']]
-        positive_copy += [[t] + p[1:]]
-    for n in negative:
-        t = n[0]
-        if t.shape[0] < noise.shape[0]:
-            t = torch.cat([t] * noise.shape[0])
-        t = t.to(device)
-        if 'control' in n[1]:
-            control_nets += [n[1]['control']]
-        negative_copy += [[t] + n[1:]]
-
-    control_net_models = []
-    for x in control_nets:
-        control_net_models += x.get_control_models()
-    comfy.model_management.load_controlnet_gpu(control_net_models)
-
-    if sampler_name in comfy.samplers.KSampler.SAMPLERS:
-        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
-    else:
-        #other samplers
-        pass
-
-    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
-    samples = samples.cpu()
-    for c in control_nets:
-        c.cleanup()
-
+    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask)
     out = latent.copy()
     out["samples"] = samples
     return (out, )
@@ -901,8 +919,7 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
     def load_image(self, image):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -916,20 +933,27 @@ class LoadImage:
 
     @classmethod
     def IS_CHANGED(s, image):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
 
+    @classmethod
+    def VALIDATE_INPUTS(s, image):
+        if not folder_paths.exists_annotated_filepath(image):
+            return "Invalid image file: {}".format(image)
+
+        return True
+
 class LoadImageMask:
+    _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         return {"required":
                     {"image": (sorted(os.listdir(input_dir)), ),
-                    "channel": (["alpha", "red", "green", "blue"], ),}
+                    "channel": (s._color_channels, ),}
                 }
 
     CATEGORY = "mask"
@@ -937,8 +961,7 @@ class LoadImageMask:
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
     def load_image(self, image, channel):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
         if i.getbands() != ("R", "G", "B", "A"):
             i = i.convert("RGBA")
@@ -955,12 +978,21 @@ class LoadImageMask:
 
     @classmethod
     def IS_CHANGED(s, image, channel):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, image, channel):
+        if not folder_paths.exists_annotated_filepath(image):
+            return "Invalid image file: {}".format(image)
+
+        if channel not in s._color_channels:
+            return "Invalid color channel: {}".format(channel)
+
+        return True
 
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -1073,6 +1105,7 @@ NODE_CLASS_MAPPINGS = {
     "VAELoader": VAELoader,
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
+    "LatentFromBatch": LatentFromBatch,
     "SaveImage": SaveImage,
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
@@ -1102,6 +1135,9 @@ NODE_CLASS_MAPPINGS = {
     "VAEEncodeTiled": VAEEncodeTiled,
     "TomePatchModel": TomePatchModel,
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
+    "GLIGENLoader": GLIGENLoader,
+    "GLIGENTextBoxApply": GLIGENTextBoxApply,
+
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
 }
@@ -1191,6 +1227,7 @@ def load_custom_nodes():
 
 def init_custom_nodes():
     load_custom_nodes()
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
