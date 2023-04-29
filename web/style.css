@@ -120,13 +120,22 @@ body {
 .comfy-menu > button,
 .comfy-menu-btns button,
 .comfy-menu .comfy-list button,
-.comfy-modal button{
+.comfy-modal button {
 	color: var(--input-text);
 	background-color: var(--comfy-input-bg);
 	border-radius: 8px;
 	border-color: var(--border-color);
 	border-style: solid;
 	margin-top: 2px;
+}
+
+.comfy-menu > button:hover,
+.comfy-menu-btns button:hover,
+.comfy-menu .comfy-list button:hover,
+.comfy-modal button:hover,
+.comfy-settings-btn:hover {
+	filter: brightness(1.2);
+	cursor: pointer;
 }
 
 .comfy-menu span.drag-handle {
@@ -285,3 +294,6 @@ button.comfy-queue-btn {
 	right: 2px;
  }
  
+ .litecontextmenu {
+	z-index: 9999 !important;
+}
