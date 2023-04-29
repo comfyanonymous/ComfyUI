@@ -34,13 +34,16 @@ if args.directml is not None:
 
 try:
     import torch
-    try:
-        import intel_extension_for_pytorch as ipex
-        if torch.xpu.is_available():
-            xpu_available = True
-            total_vram = torch.xpu.get_device_properties(torch.xpu.current_device()).total_memory / (1024 * 1024)
-    except:
-        total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
+    if directml_enabled:
+        total_vram = 4097 #TODO
+    else:
+        try:
+            import intel_extension_for_pytorch as ipex
+            if torch.xpu.is_available():
+                xpu_available = True
+                total_vram = torch.xpu.get_device_properties(torch.xpu.current_device()).total_memory / (1024 * 1024)
+        except:
+            total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
     total_ram = psutil.virtual_memory().total / (1024 * 1024)
     if not args.normalvram and not args.cpu:
         if total_vram <= 4096:
