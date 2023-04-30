@@ -59,6 +59,27 @@ class ConditioningCombine:
     def combine(self, conditioning_1, conditioning_2):
         return (conditioning_1 + conditioning_2, )
 
+class ConditioningAverage :
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_from": ("CONDITIONING", ), "conditioning_to": ("CONDITIONING", ),
+                              "conditioning_from_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.1})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "addWeighted"
+
+    CATEGORY = "conditioning"
+
+    def addWeighted(self, conditioning_from, conditioning_to, conditioning_from_strength):
+        out = []
+        for i in range(min(len(conditioning_from),len(conditioning_to))):
+            t0 = conditioning_from[i]
+            t1 = conditioning_to[i]
+            tw = torch.mul(t0[0],(1-conditioning_from_strength)) + torch.mul(t1[0],conditioning_from_strength)
+            n = [tw, t0[1].copy()]
+            out.append(n)
+        return (out, )
+
 class ConditioningSetArea:
     @classmethod
     def INPUT_TYPES(s):
@@ -1143,6 +1164,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
     "ImagePadForOutpaint": ImagePadForOutpaint,
+    "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetMask": ConditioningSetMask,
@@ -1194,6 +1216,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPTextEncode": "CLIP Text Encode (Prompt)",
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
+    "ConditioningAverage ": "Conditioning (Average)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
