@@ -96,6 +96,8 @@ def _query_chunk_attention(
     summarize_chunk: SummarizeChunk,
     kv_chunk_size: int,
     return_attention: bool,
+    attention_to_mux: Optional[Tensor] = None,
+    attention_weight: float = 0.0,
 ) -> Tensor:
     batch_x_heads, k_channels_per_head, k_tokens = key_t.shape
     _, _, v_channels_per_head = value.shape
@@ -140,6 +142,8 @@ def _get_attention_scores_no_kv_chunking(
     scale: float,
     upcast_attention: bool,
     return_attention: bool,
+    attention_to_mux: Optional[Tensor] = None,
+    attention_weight: float = 0.0,
 ) -> Tensor:
     if upcast_attention:
         with torch.autocast(enabled=False, device_type = 'cuda'):
@@ -172,6 +176,11 @@ def _get_attention_scores_no_kv_chunking(
         attn_scores /= summed
         attn_probs = attn_scores
 
+    if attention_to_mux is not None:
+        attention_to_mux = attention_to_mux.to(attn_probs.device)
+        attn_probs = attn_probs * (1 - attention_weight) + attention_to_mux * attention_weight
+        print(f"muxed attention with weight {attention_weight}")
+
     hidden_states_slice = torch.bmm(attn_probs, value)
 
     if return_attention:
@@ -193,6 +202,8 @@ def efficient_dot_product_attention(
     use_checkpoint=True,
     upcast_attention=False,
     return_attention=False,
+    attention_to_mux: Optional[Tensor] = None,
+    attention_weight: float = 0.0,
 ):
     """Computes efficient dot-product attention given query, transposed key, and value.
       This is efficient version of attention presented in
@@ -235,6 +246,8 @@ def efficient_dot_product_attention(
         scale=scale,
         upcast_attention=upcast_attention,
         return_attention=return_attention,
+        attention_to_mux=attention_to_mux,
+        attention_weight=attention_weight,
     ) if k_tokens <= kv_chunk_size else (
         # fast-path for when there's just 1 key-value chunk per query chunk (this is just sliced attention btw)
         partial(
@@ -242,6 +255,8 @@ def efficient_dot_product_attention(
             kv_chunk_size=kv_chunk_size,
             summarize_chunk=summarize_chunk,
             return_attention=return_attention,
+            attention_to_mux=attention_to_mux,
+            attention_weight=attention_weight,
         )
     )
 

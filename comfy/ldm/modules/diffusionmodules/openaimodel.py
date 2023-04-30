@@ -6,17 +6,10 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ldm.modules.diffusionmodules.util import (
-    checkpoint,
-    conv_nd,
-    linear,
-    avg_pool_nd,
-    zero_module,
-    normalization,
-    timestep_embedding,
-)
-from ldm.modules.attention import SpatialTransformer
-from ldm.util import exists
+from comfy.ldm.modules.attention import SpatialTransformer
+from comfy.ldm.modules.diffusionmodules.util import (checkpoint, conv_nd, linear, avg_pool_nd, zero_module,
+                                                     normalization, timestep_embedding)
+from comfy.ldm.util import exists
 
 
 # dummy replace
@@ -81,7 +74,7 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
-                if transformer_options.get("attention", False):
+                if transformer_options.get("return_attention", False):
                     x, attention = layer(x, context, transformer_options)
                 else:
                     x = layer(x, context, transformer_options)
@@ -825,6 +818,7 @@ class UNetModel(nn.Module):
         h = x.type(self.dtype)
         input_and_output_options = transformer_options.copy()
         input_and_output_options["return_attention"] = False  # No attention to be had in the input blocks
+        input_and_output_options["middle_block_step"] = None
 
         for id, module in enumerate(self.input_blocks):
             h = module(h, emb, context, input_and_output_options)
@@ -835,7 +829,9 @@ class UNetModel(nn.Module):
             hs.append(h)
 
         attention_tensors = []
+        num_attention_blocks = 0
         for i, module in enumerate(self.middle_block):
+            transformer_options["middle_block_step"] = num_attention_blocks
             if isinstance(module, AttentionBlock):
                 if transformer_options.get("return_attention", False):
                     h, attention = module(h, emb, context, transformer_options)
@@ -845,10 +841,14 @@ class UNetModel(nn.Module):
                     #     h = h * combined_attention
                 else:
                     h = module(h, emb, context, transformer_options)
+                num_attention_blocks += 1
             elif isinstance(module, SpatialTransformer):
                 if transformer_options.get("return_attention", False):
                     h, attention = module(h, context, transformer_options)
                     attention_tensors.append(attention)
+                else:
+                    h = module(h, context, transformer_options)
+                num_attention_blocks += 1
             elif isinstance(module, TimestepBlock):
                h = module(h, emb)
             else:

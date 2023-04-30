@@ -2,8 +2,7 @@ import os
 import torch
 import folder_paths
 import numpy as np
-from safetensors.torch import save_file, safe_open
-
+import joblib
 
 def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
@@ -28,20 +27,25 @@ def save_latent(samples, filename):
     np.save(filename, samples)
 
 
+# attention[a][b][c][d]
+# a: number of steps/sigma in this diffusion process
+# b: number of SpatialTransformer or AttentionBlocks used in the middle blocks of the latent diffusion model
+# c: number of transformer layers in the SpatialTransformer or AttentionBlocks
+# d: attn1, attn2
 def save_attention(attention, filename):
     filename = os.path.join(folder_paths.get_output_directory(), filename)
-    save_file({"attention": attention}, filename)
+    joblib.dump(attention, filename)
     print(f"Attention tensor saved to {filename}")
 
 
+# returns attention[a][b][c][d]
+# a: number of steps/sigma in this diffusion process
+# b: number of SpatialTransformer or AttentionBlocks used in the middle blocks of the latent diffusion model
+# c: number of transformer layers in the SpatialTransformer or AttentionBlocks
+# d: attn1, attn2
 def load_attention(filename):
-    tensors = {}
     filename = os.path.join(folder_paths.get_output_directory(), filename)
-    with safe_open(filename, framework='pt', device=0) as f:
-        for k in f.keys():
-            tensors[k] = f.get_tensor(k)
-    return tensors['attention']
-
+    return joblib.load(filename)
 
 def load_latent(filename):
     filename = os.path.join(folder_paths.get_output_directory(), filename)

@@ -58,13 +58,12 @@ def cleanup_additional_models(models):
 
 def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0,
            disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None,
-           sigmas=None, callback=None, attention=None):
+           sigmas=None, callback=None, attention=None, attention_weight=0.0):
     device = comfy.model_management.get_torch_device()
 
     if noise_mask is not None:
         noise_mask = prepare_mask(noise_mask, noise.shape, device)
 
-    real_model = None
     comfy.model_management.load_model_gpu(model)
     real_model = model.model
 
@@ -79,12 +78,16 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler,
                                       denoise=denoise, model_options=model.model_options)
 
+    transformer_options = model.model_options['transformer_options']
+    if transformer_options is not None and attention is not None and attention_weight > 0.0:
+        transformer_options['attention'] = attention
+        transformer_options['attention_weight'] = attention_weight
+
     samples, attention = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image,
                                         start_step=start_step, last_step=last_step,
                                         force_full_denoise=force_full_denoise, denoise_mask=noise_mask,
-                                        sigmas=sigmas, callback=callback, attention=attention)
+                                        sigmas=sigmas, callback=callback)
     samples = samples.cpu()
-    attention = attention.cpu()
 
     cleanup_additional_models(models)
     return samples, attention

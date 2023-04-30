@@ -9,3 +9,4 @@ pytorch_lightning
 aiohttp
 accelerate
 pyyaml
+joblib

@@ -846,7 +846,7 @@ class LatentDiffusion(DDPM):
                 c = self.q_sample(x_start=c, t=tc, noise=torch.randn_like(c.float()))
         return self.p_losses(x, c, t, *args, **kwargs)
 
-    def apply_model(self, x_noisy, t, cond, return_ids=False):
+    def apply_model(self, x_noisy, t, cond, return_ids=False, return_attention=False):
         if isinstance(cond, dict):
             # hybrid case, cond is expected to be a dict
             pass
@@ -859,7 +859,12 @@ class LatentDiffusion(DDPM):
         x_recon, attn = self.model(x_noisy, t, **cond)
 
         if isinstance(x_recon, tuple) and not return_ids:
-            return x_recon[0]
+            x_recon = x_recon[0]
+        else:
+            x_recon = x_recon
+
+        if return_attention:
+            return x_recon, attn
         else:
             return x_recon
 

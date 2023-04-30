@@ -163,7 +163,8 @@ class CrossAttentionBirchSan(nn.Module):
             nn.Dropout(dropout)
         )
 
-    def forward(self, x, context=None, value=None, mask=None, return_attention=False):
+    def forward(self, x, context=None, value=None, mask=None, return_attention=False, attention_to_mux=None,
+                attention_weight=0.0):
         query = self.to_q(x)
         context = default(context, x)
         key = self.to_k(context)
@@ -228,6 +229,8 @@ class CrossAttentionBirchSan(nn.Module):
             use_checkpoint=self.training,
             upcast_attention=upcast_attention,
             return_attention=return_attention,
+            attention_to_mux=attention_to_mux,
+            attention_weight=attention_weight,
         )
         if return_attention:
             hidden_states, attention = output
@@ -559,14 +562,43 @@ class BasicTransformerBlock(nn.Module):
             for p in patch:
                 n, context_attn1, value_attn1 = p(current_index, n, context_attn1, value_attn1)
 
+        attn1_to_mux = None
+        attn2_to_mux = None
+        attention_weight = 0
+        if transformer_options.get("middle_block_step", None) is not None:
+            if transformer_options.get("attention_weight", 0.0) > 0.0:
+                attentions_to_mux_array = transformer_options.get("attention", None)
+                if attentions_to_mux_array is not None:
+                    a = transformer_options["attention_step"]
+                    b = transformer_options["middle_block_step"]
+                    c = transformer_options["transformer_block_step"]
+                    attn1_to_mux = attentions_to_mux_array[a][b][c][0]
+                    attn2_to_mux = attentions_to_mux_array[a][b][c][1]
+                    attention_weight = transformer_options["attention_weight"]
+
         if "tomesd" in transformer_options:
             m, u = tomesd.get_functions(x, transformer_options["tomesd"]["ratio"], transformer_options["original_shape"])
             n = u(self.attn1(m(n), context=context_attn1, value=value_attn1))
         else:
             if return_attention:
-                n, attn1_weights = self.attn1(n, context=context_attn1, value=value_attn1, return_attention=True)
+                n, attn1_weights = self.attn1(n, context=context_attn1, value=value_attn1, return_attention=True,
+                                              attention_to_mux=attn1_to_mux, attention_weight=attention_weight)
             else:
-                n = self.attn1(n, context=context_attn1, value=value_attn1)
+                n = self.attn1(n, context=context_attn1, value=value_attn1, attention_to_mux=attn1_to_mux,
+                               attention_weight=attention_weight)
+
+        # Interpolate n with attn1_to_mux
+        # if transformer_options.get("middle_block_step", None) is not None:
+        #     if transformer_options.get("attention_weight", 0.0) > 0.0:
+        #         attentions_to_mux_array = transformer_options.get("attention", None)
+        #         if attentions_to_mux_array is not None:
+        #             a = transformer_options["attention_step"]
+        #             b = transformer_options["middle_block_step"]
+        #             c = transformer_options["transformer_block_step"]
+        #             attn1_to_mux = attentions_to_mux_array[a][b][c][0]
+        #             attention_weight = transformer_options["attention_weight"]
+        #             n = n * (1 - attention_weight) + attn1_to_mux * attention_weight
+        #             print(f"muxed n with attn1_to_mux")
 
         x += n
         if "middle_patch" in transformer_patches:
@@ -586,9 +618,24 @@ class BasicTransformerBlock(nn.Module):
 
 
         if return_attention:
-            n, attn2_weights = self.attn2(n, context=context_attn2, value=value_attn2, return_attention=True)
+            n, attn2_weights = self.attn2(n, context=context_attn2, value=value_attn2, return_attention=True,
+                                          attention_to_mux=attn2_to_mux, attention_weight=attention_weight)
         else:
-            n = self.attn2(n, context=context_attn2, value=value_attn2)
+            n = self.attn2(n, context=context_attn2, value=value_attn2, attention_to_mux=attn2_to_mux,
+                           attention_weight=attention_weight)
+
+        # Interpolate n with attn2_to_mux
+        # if transformer_options.get("middle_block_step", None) is not None:
+        #     if transformer_options.get("attention_weight", 0.0) > 0.0:
+        #         attentions_to_mux_array = transformer_options.get("attention", None)
+        #         if attentions_to_mux_array is not None:
+        #             a = transformer_options["attention_step"]
+        #             b = transformer_options["middle_block_step"]
+        #             c = transformer_options["transformer_block_step"]
+        #             attn2_to_mux = attentions_to_mux_array[a][b][c][1]
+        #             attention_weight = transformer_options["attention_weight"]
+        #             n = n * (1 - attention_weight) + attn2_to_mux * attention_weight
+        #             print(f"muxed n with attn2_to_mux")
 
         x += n
         x = self.ff(self.norm3(x)) + x
@@ -597,7 +644,7 @@ class BasicTransformerBlock(nn.Module):
             transformer_options["current_index"] += 1
 
         if return_attention:
-            return x, (attn1_weights, attn2_weights)
+            return x, (attn1_weights.cpu(), attn2_weights.cpu())
         else:
             return x
 
@@ -660,6 +707,7 @@ class SpatialTransformer(nn.Module):
 
         attention_tensors = []
         for i, block in enumerate(self.transformer_blocks):
+            transformer_options["transformer_block_step"] = i
             if transformer_options.get("return_attention", False):
                 x, attention = block(x, context=context[i], transformer_options=transformer_options)
                 attention_tensors.append(attention)

@@ -590,14 +590,11 @@ def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=No
     t_fn = lambda sigma: sigma.log().neg()
     old_denoised = None
 
-    attention_out = None
+    attention_out = []
     for i in trange(len(sigmas) - 1, disable=disable):
-        if attention is not None:
-            extra_args['attention'] = attention[i]
+        extra_args['model_options']['transformer_options']['attention_step'] = i
         denoised, attn = model(x, sigmas[i] * s_in, **extra_args)
-        if attention_out is None:
-            attention_out = torch.empty((len(sigmas), *attn.shape), dtype=attn.dtype, device=attn.device)
-            attention_out[i] = attn
+        attention_out.append(attn)
 
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})

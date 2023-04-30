@@ -866,7 +866,8 @@ class SetLatentNoiseMask:
         return (s,)
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0,
-                    disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, attention=None):
+                    disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, attention=None,
+                    attention_weight=0.0):
     device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
 
@@ -880,9 +881,16 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
-    samples, attention = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
-                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, attention=attention)
+    samples, attention = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative,
+                                  latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_step,
+                                  last_step=last_step, force_full_denoise=force_full_denoise, noise_mask=noise_mask,
+                                  attention=attention, attention_weight=attention_weight)
+
+    # attention[a][b][c][d]
+    # a: number of steps/sigma in this diffusion process
+    # b: number of SpatialTransformer or AttentionBlocks used in the middle blocks of the latent diffusion model
+    # c: number of transformer layers in the SpatialTransformer or AttentionBlocks
+    # d: attn1, attn2
     out = latent.copy()
     out["samples"] = samples
     return (out, attention)
@@ -906,6 +914,7 @@ class KSampler:
                     },
                 "optional": {
                     "attention": ("ATTENTION",),
+                    "attention_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
                 }
             }
 
@@ -915,10 +924,11 @@ class KSampler:
     CATEGORY = "sampling"
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
-               denoise=1.0, attention=None):
+               denoise=1.0, attention=None, attention_weight=0.0):
         model.model_options["transformer_options"]["return_attention"] = True
+
         return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
-                               denoise=denoise, attention=attention)
+                               denoise=denoise, attention=attention, attention_weight=attention_weight)
 
 class KSamplerAdvanced:
     def __init__(self, event_dispatcher):
@@ -1338,8 +1348,19 @@ class PrintNode:
             print(f"Latent hash: {latent_hash}")
             print(np.array2string(latent["samples"].cpu().numpy(), separator=', '))
 
+        # attention[a][b][c][d]
+        # a: number of steps/sigma in this diffusion process
+        # b: number of SpatialTransformer or AttentionBlocks used in the middle blocks of the latent diffusion model
+        # c: number of transformer layers in the SpatialTransformer or AttentionBlocks
+        # d: attn1, attn2
         if attention is not None:
-            print(np.array2string(attention.cpu().numpy(), separator=', '))
+            print(f'attention has {len(attention)} steps')
+            print(f'each step has {len(attention[0])} transformer blocks')
+            print(f'each block has {len(attention[0][0])} transformer layers')
+            print(f'each transformer layer has {len(attention[0][0][0])} attention tensors (attn1, attn2)')
+            print(f'the shape of the attention tensors is {attention[0][0][0][0].shape}')
+            print(f'the first value of the first attention tensor is {attention[0][0][0][0][:1]}')
+
 
         if text is not None:
             print(text)
@@ -1368,6 +1389,11 @@ class SaveAttention:
     CATEGORY = "operations"
     OUTPUT_NODE = True
 
+    # attention[a][b][c][d]
+    # a: number of steps/sigma in this diffusion process
+    # b: number of SpatialTransformer or AttentionBlocks used in the middle blocks of the latent diffusion model
+    # c: number of transformer layers in the SpatialTransformer or AttentionBlocks
+    # d: attn1, attn2
     def save_attention(self, attention, filename):
         comfy.utils.save_attention(attention, filename)
         return {"ui": {"message": "Saved attention to " + filename}}

@@ -9,8 +9,8 @@ from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 
 #The main sampling function shared by all the samplers
 #Returns predicted noise
-def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={},
-                      attention=None, attention_weight=0.5):
+def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
+
         def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
@@ -127,7 +127,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
             return out
 
         def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in,
-                                   model_options, attention=None, attention_weight=0.5):
+                                   model_options):
             out_cond = torch.zeros_like(x_in)
             out_count = torch.ones_like(x_in)/100000.0
 
@@ -136,6 +136,10 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
             COND = 0
             UNCOND = 1
+
+            transformer_options = {}
+            if 'transformer_options' in model_options:
+                transformer_options = model_options['transformer_options'].copy()
 
             to_run = []
             for x in cond:
@@ -199,9 +203,6 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 #     mixed_attention = attention_weight * torch.cat(attention) + (1 - attention_weight) * generated_attention
                 #     c['c_crossattn'] = [mixed_attention]
 
-                transformer_options = {}
-                if 'transformer_options' in model_options:
-                    transformer_options = model_options['transformer_options'].copy()
 
                 if patches is not None:
                     if "patches" in transformer_options:
@@ -217,7 +218,11 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 # transformer_options['return_attention'] = True
                 c['transformer_options'] = transformer_options
 
-                output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
+                if transformer_options.get("return_attention", False):
+                    output, attn = model_function(input_x, timestep_, cond=c, return_attention=True)
+                    output = output.chunk(batch_chunks)
+                else:
+                    output = model_function(input_x, timestep_, cond=c, return_attention=False).chunk(batch_chunks)
                 del input_x
 
                 model_management.throw_exception_if_processing_interrupted()
@@ -236,17 +241,24 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
             out_uncond /= out_uncond_count
             del out_uncond_count
 
-            return out_cond, out_uncond
+            if transformer_options.get("return_attention", False):
+                return out_cond, out_uncond, attn
+            else:
+                return out_cond, out_uncond
 
 
         max_total_area = model_management.maximum_batch_area()
-        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat,
-                                              model_options, attention=attention)
+        cond, uncond, attn = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area,
+                                                    cond_concat, model_options)
         if "sampler_cfg_function" in model_options:
-            return model_options["sampler_cfg_function"](cond, uncond, cond_scale), cond[0] # cond[0] is attention
+            retval = model_options["sampler_cfg_function"](cond, uncond, cond_scale), attn
         else:
-            return uncond + (cond - uncond) * cond_scale, cond[0] # cond[0] is attention
+            retval = uncond + (cond - uncond) * cond_scale, attn
 
+        if model_options["transformer_options"].get("return_attention", False):
+            return retval
+        else:
+            return retval, attn
 
 class CompVisVDenoiser(k_diffusion_external.DiscreteVDDPMDenoiser):
     def __init__(self, model, quantize=False, device='cpu'):
@@ -263,7 +275,7 @@ class CFGNoisePredictor(torch.nn.Module):
         self.alphas_cumprod = model.alphas_cumprod
     def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}, attention=None):
         out, attn = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat,
-                                      model_options=model_options, attention=attention)
+                                      model_options=model_options)
         return out, attn
 
 
@@ -594,6 +606,6 @@ class KSampler:
                     samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback)
                 else:
                     samples, attention = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k,
-                                        noise, sigmas, extra_args=extra_args, callback=k_callback, attention=attention)
+                                        noise, sigmas, extra_args=extra_args, callback=k_callback)
 
         return samples.to(torch.float32), attention
