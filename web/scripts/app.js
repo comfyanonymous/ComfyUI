@@ -144,7 +144,7 @@ export class ComfyApp {
 					callback: (obj) => {
 						var widgets = null;
 						if(this.widgets) {
-						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
+							widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
 						}
 						
 						var imgs = undefined;
@@ -166,12 +166,12 @@ export class ComfyApp {
 							'original_imgs': orig_imgs,
 							'images': this.images,
 							'selectedIndex': 0,
-							'img_paste_mode': 'all'
+							'img_paste_mode': 'selected' // reset to default im_paste_mode state on copy action
 							};
 
-                        if(ComfyApp.clipspace_invalidate_handler) {
-                            ComfyApp.clipspace_invalidate_handler();
-                        }
+						if(ComfyApp.clipspace_invalidate_handler) {
+							ComfyApp.clipspace_invalidate_handler();
+						}
 					}
 				});
 
@@ -185,30 +185,30 @@ export class ComfyApp {
 								if(ComfyApp.clipspace.imgs && this.imgs) {
 									var filename = "";
 									if(this.images && ComfyApp.clipspace.images) {
-									    if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-									        app.nodeOutputs[this.id + ""].images = this.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+										if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+											app.nodeOutputs[this.id + ""].images = this.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
 
-                                        }
-                                        else
-										    app.nodeOutputs[this.id + ""].images = this.images = ComfyApp.clipspace.images;
+										}
+										else
+											app.nodeOutputs[this.id + ""].images = this.images = ComfyApp.clipspace.images;
 									}
 
-                                    if(ComfyApp.clipspace.imgs) {
-                                        // deep-copy to cut link with clipspace
-									    if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-									        const img = new Image();
-									        img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
-									        this.imgs = [img];
-                                        }
-                                        else {
-                                            const imgs = [];
-                                            for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
-                                                imgs[i] = new Image();
-                                                imgs[i].src = ComfyApp.clipspace.imgs[i].src;
-                                                this.imgs = imgs;
-                                            }
-                                        }
-                                    }
+									if(ComfyApp.clipspace.imgs) {
+										// deep-copy to cut link with clipspace
+										if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+												const img = new Image();
+												img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+												this.imgs = [img];
+										}
+										else {
+											const imgs = [];
+											for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
+												imgs[i] = new Image();
+												imgs[i].src = ComfyApp.clipspace.imgs[i].src;
+												this.imgs = imgs;
+											}
+										}
+									}
 
 									if(ComfyApp.clipspace.images) {
 										const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
@@ -223,15 +223,15 @@ export class ComfyApp {
 										}
 									}
 
-                                    // for Load Image node.
-                                    if(this.widgets) {
-                                        const index = this.widgets.findIndex(obj => obj.name === 'image');
-                                        if(index >= 0 && filename != "") {
-                                            this.widgets[index].value = filename;
-                                            if(this.widgets_values != undefined) {
-                                                this.widgets_values[index] = filename;
-                                            }
-                                        }
+									// for Load Image node.
+									if(this.widgets) {
+										const index = this.widgets.findIndex(obj => obj.name === 'image');
+										if(index >= 0 && filename != "") {
+											this.widgets[index].value = filename;
+											if(this.widgets_values != undefined) {
+												this.widgets_values[index] = filename;
+											}
+										}
 									}
 								}
 
