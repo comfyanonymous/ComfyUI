@@ -5880,10 +5880,10 @@ LGraphNode.prototype.executeAction = function(action)
                         node.resizable !== false &&
                         isInsideRectangle( e.canvasX,
                             e.canvasY,
-                            node.pos[0] + node.size[0] - 5,
-                            node.pos[1] + node.size[1] - 5,
-                            10,
-                            10
+                            node.pos[0] + node.size[0] - 15,
+                            node.pos[1] + node.size[1] - 15,
+                            20,
+                            20
                         )
                     ) {
 						this.graph.beforeChange();
@@ -6428,10 +6428,10 @@ LGraphNode.prototype.executeAction = function(action)
                         isInsideRectangle(
                             e.canvasX,
                             e.canvasY,
-                            node.pos[0] + node.size[0] - 5,
-                            node.pos[1] + node.size[1] - 5,
-                            5,
-                            5
+                            node.pos[0] + node.size[0] - 15,
+                            node.pos[1] + node.size[1] - 15,
+                            15,
+                            15
                         )
                     ) {
                         this.canvas.style.cursor = "se-resize";
