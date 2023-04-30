@@ -80,8 +80,38 @@ class ConditioningSetArea:
             n = [t[0], t[1].copy()]
             n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
             n[1]['strength'] = strength
+            n[1]['set_area_to_bounds'] = False
             n[1]['min_sigma'] = min_sigma
             n[1]['max_sigma'] = max_sigma
+            c.append(n)
+        return (c, )
+
+class ConditioningSetMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "mask": ("MASK", ),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                              "set_cond_area": (["default", "mask bounds"],),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning, mask, set_cond_area, strength):
+        c = []
+        set_area_to_bounds = False
+        if set_cond_area != "default":
+            set_area_to_bounds = True
+        if len(mask.shape) < 3:
+            mask = mask.unsqueeze(0)
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            _, h, w = mask.shape
+            n[1]['mask'] = mask
+            n[1]['set_area_to_bounds'] = set_area_to_bounds
+            n[1]['mask_strength'] = strength
             c.append(n)
         return (c, )
 
@@ -1115,6 +1145,7 @@ NODE_CLASS_MAPPINGS = {
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
+    "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
@@ -1164,6 +1195,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
     "ConditioningSetArea": "Conditioning (Set Area)",
+    "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
