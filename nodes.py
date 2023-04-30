@@ -65,6 +65,36 @@ class ConditioningCombine:
     def combine(self, conditioning_1, conditioning_2):
         return (conditioning_1 + conditioning_2, )
 
+class ConditioningAverage :
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_to": ("CONDITIONING", ), "conditioning_from": ("CONDITIONING", ),
+                              "conditioning_to_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "addWeighted"
+
+    CATEGORY = "conditioning"
+
+    def addWeighted(self, conditioning_to, conditioning_from, conditioning_to_strength):
+        out = []
+
+        if len(conditioning_from) > 1:
+            print("Warning: ConditioningAverage conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
+
+        cond_from = conditioning_from[0][0]
+
+        for i in range(len(conditioning_to)):
+            t1 = conditioning_to[i][0]
+            t0 = cond_from[:,:t1.shape[1]]
+            if t0.shape[1] < t1.shape[1]:
+                t0 = torch.cat([t0] + [torch.zeros((1, (t1.shape[1] - t0.shape[1]), t1.shape[2]))], dim=1)
+
+            tw = torch.mul(t1, conditioning_to_strength) + torch.mul(t0, (1.0 - conditioning_to_strength))
+            n = [tw, conditioning_to[i][1].copy()]
+            out.append(n)
+        return (out, )
+
 class ConditioningSetArea:
     def __init__(self, event_dispatcher):
         self.event_dispatcher = event_dispatcher
@@ -88,8 +118,38 @@ class ConditioningSetArea:
             n = [t[0], t[1].copy()]
             n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
             n[1]['strength'] = strength
+            n[1]['set_area_to_bounds'] = False
             n[1]['min_sigma'] = min_sigma
             n[1]['max_sigma'] = max_sigma
+            c.append(n)
+        return (c, )
+
+class ConditioningSetMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "mask": ("MASK", ),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                              "set_cond_area": (["default", "mask bounds"],),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning, mask, set_cond_area, strength):
+        c = []
+        set_area_to_bounds = False
+        if set_cond_area != "default":
+            set_area_to_bounds = True
+        if len(mask.shape) < 3:
+            mask = mask.unsqueeze(0)
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            _, h, w = mask.shape
+            n[1]['mask'] = mask
+            n[1]['set_area_to_bounds'] = set_area_to_bounds
+            n[1]['mask_strength'] = strength
             c.append(n)
         return (c, )
 
@@ -1217,8 +1277,10 @@ NODE_CLASS_MAPPINGS = {
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
     "ImagePadForOutpaint": ImagePadForOutpaint,
+    "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
+    "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
@@ -1267,7 +1329,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPTextEncode": "CLIP Text Encode (Prompt)",
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
+    "ConditioningAverage ": "Conditioning (Average)",
     "ConditioningSetArea": "Conditioning (Set Area)",
+    "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",

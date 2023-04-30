@@ -46,6 +46,8 @@ jobs:
             mkdir update
             cp -r ComfyUI/.ci/update_windows/* ./update/
             cp -r ComfyUI/.ci/windows_base_files/* ./
+            cp -r ComfyUI/.ci/nightly/update_windows/* ./update/
+            cp -r ComfyUI/.ci/nightly/windows_base_files/* ./
 
             cd ..
 
