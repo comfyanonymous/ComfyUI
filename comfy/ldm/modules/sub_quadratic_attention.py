@@ -95,6 +95,7 @@ def _query_chunk_attention(
     value: Tensor,
     summarize_chunk: SummarizeChunk,
     kv_chunk_size: int,
+    return_attention: bool,
 ) -> Tensor:
     batch_x_heads, k_channels_per_head, k_tokens = key_t.shape
     _, _, v_channels_per_head = value.shape
@@ -125,7 +126,11 @@ def _query_chunk_attention(
 
     all_values = chunk_values.sum(dim=0)
     all_weights = torch.unsqueeze(chunk_weights, -1).sum(dim=0)
-    return all_values / all_weights
+
+    if return_attention:
+        return all_values / all_weights, chunk_weights
+    else:
+        return all_values / all_weights
 
 # TODO: refactor CrossAttention#get_attention_scores to share code with this
 def _get_attention_scores_no_kv_chunking(
@@ -134,6 +139,7 @@ def _get_attention_scores_no_kv_chunking(
     value: Tensor,
     scale: float,
     upcast_attention: bool,
+    return_attention: bool,
 ) -> Tensor:
     if upcast_attention:
         with torch.autocast(enabled=False, device_type = 'cuda'):
@@ -167,7 +173,11 @@ def _get_attention_scores_no_kv_chunking(
         attn_probs = attn_scores
 
     hidden_states_slice = torch.bmm(attn_probs, value)
-    return hidden_states_slice
+
+    if return_attention:
+        return hidden_states_slice, attn_probs
+    else:
+        return hidden_states_slice
 
 class ScannedChunk(NamedTuple):
     chunk_idx: int
@@ -182,6 +192,7 @@ def efficient_dot_product_attention(
     kv_chunk_size_min: Optional[int] = None,
     use_checkpoint=True,
     upcast_attention=False,
+    return_attention=False,
 ):
     """Computes efficient dot-product attention given query, transposed key, and value.
       This is efficient version of attention presented in
@@ -197,6 +208,8 @@ def efficient_dot_product_attention(
         kv_chunk_size: Optional[int]: key/value chunks size. if None: defaults to sqrt(key_tokens)
         kv_chunk_size_min: Optional[int]: key/value minimum chunk size. only considered when kv_chunk_size is None. changes `sqrt(key_tokens)` into `max(sqrt(key_tokens), kv_chunk_size_min)`, to ensure our chunk sizes don't get too small (smaller chunks = more chunks = less concurrent work done).
         use_checkpoint: bool: whether to use checkpointing (recommended True for training, False for inference)
+        upcast_attention: bool: whether to upcast attention to fp32  (?) #
+        return_attention: bool: whether to return attention weights
       Returns:
         Output of shape `[batch * num_heads, query_tokens, channels_per_head]`.
       """
@@ -220,13 +233,15 @@ def efficient_dot_product_attention(
     compute_query_chunk_attn: ComputeQueryChunkAttn = partial(
         _get_attention_scores_no_kv_chunking,
         scale=scale,
-        upcast_attention=upcast_attention
+        upcast_attention=upcast_attention,
+        return_attention=return_attention,
     ) if k_tokens <= kv_chunk_size else (
         # fast-path for when there's just 1 key-value chunk per query chunk (this is just sliced attention btw)
         partial(
             _query_chunk_attention,
             kv_chunk_size=kv_chunk_size,
             summarize_chunk=summarize_chunk,
+            return_attention=return_attention,
         )
     )
 
@@ -236,15 +251,25 @@ def efficient_dot_product_attention(
             query=query,
             key_t=key_t,
             value=value,
+            return_attention=return_attention,
         )
     
     # TODO: maybe we should use torch.empty_like(query) to allocate storage in-advance,
     # and pass slices to be mutated, instead of torch.cat()ing the returned slices
-    res = torch.cat([
+    results = [
         compute_query_chunk_attn(
             query=get_query_chunk(i * query_chunk_size),
             key_t=key_t,
             value=value,
+            return_attention=return_attention,
         ) for i in range(math.ceil(q_tokens / query_chunk_size))
-    ], dim=1)
-    return res
+    ]
+
+    res = torch.cat([result[0] if return_attention else result for result in results], dim=1)
+
+    if return_attention:
+        attn_weights = [result[1] for result in results]
+        return res, attn_weights
+    else:
+        return res
+

@@ -582,7 +582,7 @@ def sample_dpmpp_sde(model, x, sigmas, extra_args=None, callback=None, disable=N
 
 
 @torch.no_grad()
-def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=None):
+def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=None, attention=None):
     """DPM-Solver++(2M)."""
     extra_args = {} if extra_args is None else extra_args
     s_in = x.new_ones([x.shape[0]])
@@ -590,12 +590,14 @@ def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=No
     t_fn = lambda sigma: sigma.log().neg()
     old_denoised = None
 
-    attention = None
+    attention_out = None
     for i in trange(len(sigmas) - 1, disable=disable):
+        if attention is not None:
+            extra_args['attention'] = attention[i]
         denoised, attn = model(x, sigmas[i] * s_in, **extra_args)
-        if attention is None:
-            attention = torch.empty((len(sigmas), *attn.shape), dtype=attn.dtype, device=attn.device)
-            attention[i] = attn
+        if attention_out is None:
+            attention_out = torch.empty((len(sigmas), *attn.shape), dtype=attn.dtype, device=attn.device)
+            attention_out[i] = attn
 
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
@@ -609,4 +611,4 @@ def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=No
             denoised_d = (1 + 1 / (2 * r)) * denoised - (1 / (2 * r)) * old_denoised
             x = (sigma_fn(t_next) / sigma_fn(t)) * x - (-h).expm1() * denoised_d
         old_denoised = denoised
-    return x, attention
+    return x, attention_out

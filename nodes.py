@@ -865,7 +865,8 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask
         return (s,)
 
-def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0,
+                    disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, attention=None):
     device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
 
@@ -881,7 +882,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
 
     samples, attention = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask)
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, attention=attention)
     out = latent.copy()
     out["samples"] = samples
     return (out, attention)
@@ -902,15 +903,22 @@ class KSampler:
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                    }}
+                    },
+                "optional": {
+                    "attention": ("ATTENTION",),
+                }
+            }
 
     RETURN_TYPES = ("LATENT","ATTENTION")
     FUNCTION = "sample"
 
     CATEGORY = "sampling"
 
-    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
-        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
+    def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+               denoise=1.0, attention=None):
+        model.model_options["transformer_options"]["return_attention"] = True
+        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                               denoise=denoise, attention=attention)
 
 class KSamplerAdvanced:
     def __init__(self, event_dispatcher):
@@ -931,14 +939,19 @@ class KSamplerAdvanced:
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
                     "return_with_leftover_noise": (["disable", "enable"], ),
-                    }}
+                    },
+                "optional": {
+                    "attention": ("ATTENTION",),
+                }
+            }
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "sample"
 
     CATEGORY = "sampling"
 
-    def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, start_at_step, end_at_step, return_with_leftover_noise, denoise=1.0):
+    def sample(self, model, add_noise, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative,
+               latent_image, start_at_step, end_at_step, return_with_leftover_noise, denoise=1.0, attention=None):
         force_full_denoise = True
         if return_with_leftover_noise == "enable":
             force_full_denoise = False

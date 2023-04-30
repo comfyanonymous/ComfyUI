@@ -163,9 +163,7 @@ class CrossAttentionBirchSan(nn.Module):
             nn.Dropout(dropout)
         )
 
-    def forward(self, x, context=None, value=None, mask=None):
-        h = self.heads
-
+    def forward(self, x, context=None, value=None, mask=None, return_attention=False):
         query = self.to_q(x)
         context = default(context, x)
         key = self.to_k(context)
@@ -220,7 +218,7 @@ class CrossAttentionBirchSan(nn.Module):
             kv_chunk_size = kv_chunk_size_x
             kv_chunk_size_min = kv_chunk_size_min_x
 
-        hidden_states = efficient_dot_product_attention(
+        output = efficient_dot_product_attention(
             query,
             key_t,
             value,
@@ -229,7 +227,12 @@ class CrossAttentionBirchSan(nn.Module):
             kv_chunk_size_min=kv_chunk_size_min,
             use_checkpoint=self.training,
             upcast_attention=upcast_attention,
+            return_attention=return_attention,
         )
+        if return_attention:
+            hidden_states, attention = output
+        else:
+            hidden_states = output
 
         hidden_states = hidden_states.to(dtype)
 
@@ -239,7 +242,10 @@ class CrossAttentionBirchSan(nn.Module):
         hidden_states = out_proj(hidden_states)
         hidden_states = dropout(hidden_states)
 
-        return hidden_states
+        if return_attention:
+            return hidden_states, attention
+        else:
+            return hidden_states
 
 
 class CrossAttentionDoggettx(nn.Module):
@@ -358,7 +364,7 @@ class CrossAttention(nn.Module):
             nn.Dropout(dropout)
         )
 
-    def forward(self, x, context=None, value=None, mask=None):
+    def forward(self, x, context=None, value=None, mask=None, return_attention=False):
         h = self.heads
 
         q = self.to_q(x)
@@ -393,7 +399,13 @@ class CrossAttention(nn.Module):
 
         out = einsum('b i j, b j d -> b i d', sim, v)
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
-        return self.to_out(out)
+        out = self.to_out(out)
+
+        if return_attention:
+            sim = rearrange(sim, '(b h) i j -> b h i j', h=h)
+            return out, sim
+        else:
+            return out
 
 class MemoryEfficientCrossAttention(nn.Module):
     # https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223
@@ -523,6 +535,7 @@ class BasicTransformerBlock(nn.Module):
         return checkpoint(self._forward, (x, context, transformer_options), self.parameters(), self.checkpoint)
 
     def _forward(self, x, context=None, transformer_options={}):
+        return_attention = transformer_options.get("return_attention", False)
         current_index = None
         if "current_index" in transformer_options:
             current_index = transformer_options["current_index"]
@@ -550,7 +563,10 @@ class BasicTransformerBlock(nn.Module):
             m, u = tomesd.get_functions(x, transformer_options["tomesd"]["ratio"], transformer_options["original_shape"])
             n = u(self.attn1(m(n), context=context_attn1, value=value_attn1))
         else:
-            n = self.attn1(n, context=context_attn1, value=value_attn1)
+            if return_attention:
+                n, attn1_weights = self.attn1(n, context=context_attn1, value=value_attn1, return_attention=True)
+            else:
+                n = self.attn1(n, context=context_attn1, value=value_attn1)
 
         x += n
         if "middle_patch" in transformer_patches:
@@ -568,14 +584,22 @@ class BasicTransformerBlock(nn.Module):
             for p in patch:
                 n, context_attn2, value_attn2 = p(current_index, n, context_attn2, value_attn2)
 
-        n = self.attn2(n, context=context_attn2, value=value_attn2)
+
+        if return_attention:
+            n, attn2_weights = self.attn2(n, context=context_attn2, value=value_attn2, return_attention=True)
+        else:
+            n = self.attn2(n, context=context_attn2, value=value_attn2)
 
         x += n
         x = self.ff(self.norm3(x)) + x
 
         if current_index is not None:
             transformer_options["current_index"] += 1
-        return x
+
+        if return_attention:
+            return x, (attn1_weights, attn2_weights)
+        else:
+            return x
 
 
 class SpatialTransformer(nn.Module):
@@ -633,12 +657,24 @@ class SpatialTransformer(nn.Module):
         x = rearrange(x, 'b c h w -> b (h w) c').contiguous()
         if self.use_linear:
             x = self.proj_in(x)
+
+        attention_tensors = []
         for i, block in enumerate(self.transformer_blocks):
-            x = block(x, context=context[i], transformer_options=transformer_options)
+            if transformer_options.get("return_attention", False):
+                x, attention = block(x, context=context[i], transformer_options=transformer_options)
+                attention_tensors.append(attention)
+            else:
+                x = block(x, context=context[i], transformer_options=transformer_options)
+
         if self.use_linear:
             x = self.proj_out(x)
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w).contiguous()
+
         if not self.use_linear:
             x = self.proj_out(x)
-        return x + x_in
+
+        if transformer_options.get("return_attention", False):
+            return x + x_in, attention_tensors
+        else:
+            return x + x_in
 

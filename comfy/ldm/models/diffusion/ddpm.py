@@ -856,7 +856,7 @@ class LatentDiffusion(DDPM):
             key = 'c_concat' if self.model.conditioning_key == 'concat' else 'c_crossattn'
             cond = {key: cond}
 
-        x_recon = self.model(x_noisy, t, **cond)
+        x_recon, attn = self.model(x_noisy, t, **cond)
 
         if isinstance(x_recon, tuple) and not return_ids:
             return x_recon[0]
@@ -1318,6 +1318,7 @@ class DiffusionWrapper(torch.nn.Module):
         assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm', 'hybrid-adm', 'crossattn-adm']
 
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None, c_adm=None, control=None, transformer_options={}):
+        return_attention = transformer_options.get("return_attention", False)
         if self.conditioning_key is None:
             out = self.diffusion_model(x, t, control=control, transformer_options=transformer_options)
         elif self.conditioning_key == 'concat':
@@ -1334,7 +1335,8 @@ class DiffusionWrapper(torch.nn.Module):
                 # an error: RuntimeError: forward() is missing value for argument 'argument_3'.
                 out = self.scripted_diffusion_model(x, t, cc, control=control, transformer_options=transformer_options)
             else:
-                out = self.diffusion_model(x, t, context=cc, control=control, transformer_options=transformer_options)
+                out, attn = self.diffusion_model(x, t, context=cc, control=control,
+                                                      transformer_options=transformer_options)
         elif self.conditioning_key == 'hybrid':
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
@@ -1354,7 +1356,10 @@ class DiffusionWrapper(torch.nn.Module):
         else:
             raise NotImplementedError()
 
-        return out
+        if return_attention:
+            return out, attn
+        else:
+            return out
 
 
 class LatentUpscaleDiffusion(LatentDiffusion):

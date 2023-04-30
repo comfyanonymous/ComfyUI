@@ -81,7 +81,10 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context, transformer_options)
+                if transformer_options.get("attention", False):
+                    x, attention = layer(x, context, transformer_options)
+                else:
+                    x = layer(x, context, transformer_options)
             else:
                 x = layer(x)
         return x
@@ -310,17 +313,26 @@ class AttentionBlock(nn.Module):
 
         self.proj_out = zero_module(conv_nd(1, channels, channels, 1))
 
-    def forward(self, x):
-        return checkpoint(self._forward, (x,), self.parameters(), True)   # TODO: check checkpoint usage, is True # TODO: fix the .half call!!!
+    def forward(self, x, return_attention=False):
+        return checkpoint(self._forward, (x, return_attention), self.parameters(), True)   # TODO: check checkpoint usage, is True # TODO: fix the .half call!!!
         #return pt_checkpoint(self._forward, x)  # pytorch
 
-    def _forward(self, x):
+    def _forward(self, x, return_attention=False):
         b, c, *spatial = x.shape
         x = x.reshape(b, c, -1)
         qkv = self.qkv(self.norm(x))
-        h = self.attention(qkv)
+
+        if return_attention:
+            h, attention_weights = self.attention(qkv, return_attention=True)
+        else:
+            h = self.attention(qkv)
+
         h = self.proj_out(h)
-        return (x + h).reshape(b, c, *spatial)
+        h = (x + h).reshape(b, c, *spatial)
+        if return_attention:
+            return h, attention_weights
+        else:
+            return h
 
 
 def count_flops_attn(model, _x, y):
@@ -352,7 +364,7 @@ class QKVAttentionLegacy(nn.Module):
         super().__init__()
         self.n_heads = n_heads
 
-    def forward(self, qkv):
+    def forward(self, qkv, return_attention=False):
         """
         Apply QKV attention.
         :param qkv: an [N x (H * 3 * C) x T] tensor of Qs, Ks, and Vs.
@@ -368,7 +380,12 @@ class QKVAttentionLegacy(nn.Module):
         )  # More stable with f16 than dividing afterwards
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
         a = th.einsum("bts,bcs->bct", weight, v)
-        return a.reshape(bs, -1, length)
+        a = a.reshape(bs, -1, length)
+
+        if return_attention:
+            return a, weight
+        else:
+            return a
 
     @staticmethod
     def count_flops(model, _x, y):
@@ -384,7 +401,7 @@ class QKVAttention(nn.Module):
         super().__init__()
         self.n_heads = n_heads
 
-    def forward(self, qkv):
+    def forward(self, qkv, return_attention=False):
         """
         Apply QKV attention.
         :param qkv: an [N x (3 * H * C) x T] tensor of Qs, Ks, and Vs.
@@ -402,7 +419,12 @@ class QKVAttention(nn.Module):
         )  # More stable with f16 than dividing afterwards
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
         a = th.einsum("bts,bcs->bct", weight, v.reshape(bs * self.n_heads, ch, length))
-        return a.reshape(bs, -1, length)
+        a = a.reshape(bs, -1, length)
+
+        if return_attention:
+            return a, weight
+        else:
+            return a
 
     @staticmethod
     def count_flops(model, _x, y):
@@ -772,13 +794,18 @@ class UNetModel(nn.Module):
         self.middle_block.apply(convert_module_to_f32)
         self.output_blocks.apply(convert_module_to_f32)
 
-    def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={},
+                input_attention=None, attention_weight=None, **kwargs):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
         :param timesteps: a 1-D batch of timesteps.
         :param context: conditioning plugged in via crossattn
         :param y: an [N] Tensor of labels, if class-conditional.
+        :param control: a dictionary of control parameters for the model.
+        :param transformer_options: a dictionary of options to pass to the transformer
+        :param input_attention: an optional Tensor of attentions to weight to the attention block
+        :param attention_weight: the weight with which to mux the input attention
         :return: an [N x C x ...] Tensor of outputs.
         """
         transformer_options["original_shape"] = list(x.shape)
@@ -796,14 +823,37 @@ class UNetModel(nn.Module):
             emb = emb + self.label_emb(y)
 
         h = x.type(self.dtype)
+        input_and_output_options = transformer_options.copy()
+        input_and_output_options["return_attention"] = False  # No attention to be had in the input blocks
+
         for id, module in enumerate(self.input_blocks):
-            h = module(h, emb, context, transformer_options)
+            h = module(h, emb, context, input_and_output_options)
             if control is not None and 'input' in control and len(control['input']) > 0:
                 ctrl = control['input'].pop()
                 if ctrl is not None:
                     h += ctrl
             hs.append(h)
-        h = self.middle_block(h, emb, context, transformer_options)
+
+        attention_tensors = []
+        for i, module in enumerate(self.middle_block):
+            if isinstance(module, AttentionBlock):
+                if transformer_options.get("return_attention", False):
+                    h, attention = module(h, emb, context, transformer_options)
+                    attention_tensors.append(attention)
+                    # if input_attention is not None and attention_weight is not None:
+                    #     combined_attention = attention_weight * input_attention + (1 - attention_weight) * attention
+                    #     h = h * combined_attention
+                else:
+                    h = module(h, emb, context, transformer_options)
+            elif isinstance(module, SpatialTransformer):
+                if transformer_options.get("return_attention", False):
+                    h, attention = module(h, context, transformer_options)
+                    attention_tensors.append(attention)
+            elif isinstance(module, TimestepBlock):
+               h = module(h, emb)
+            else:
+                h = module(h)
+
         if control is not None and 'middle' in control and len(control['middle']) > 0:
             h += control['middle'].pop()
 
@@ -815,9 +865,9 @@ class UNetModel(nn.Module):
                     hsp += ctrl
             h = th.cat([h, hsp], dim=1)
             del hsp
-            h = module(h, emb, context, transformer_options)
+            h = module(h, emb, context, input_and_output_options)
         h = h.type(x.dtype)
         if self.predict_codebook_ids:
-            return self.id_predictor(h)
+            return self.id_predictor(h), attention_tensors
         else:
-            return self.out(h)
+            return self.out(h), attention_tensors

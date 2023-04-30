@@ -9,7 +9,8 @@ from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 
 #The main sampling function shared by all the samplers
 #Returns predicted noise
-def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
+def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={},
+                      attention=None, attention_weight=0.5):
         def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
@@ -125,7 +126,8 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 out['c_adm'] = torch.cat(c_adm)
             return out
 
-        def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in, model_options):
+        def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in,
+                                   model_options, attention=None, attention_weight=0.5):
             out_cond = torch.zeros_like(x_in)
             out_count = torch.ones_like(x_in)/100000.0
 
@@ -192,6 +194,11 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 if control is not None:
                     c['control'] = control.get_control(input_x, timestep_, c['c_crossattn'], len(cond_or_uncond))
 
+                # if attention is not None:
+                #     generated_attention = c['c_crossattn'][0]
+                #     mixed_attention = attention_weight * torch.cat(attention) + (1 - attention_weight) * generated_attention
+                #     c['c_crossattn'] = [mixed_attention]
+
                 transformer_options = {}
                 if 'transformer_options' in model_options:
                     transformer_options = model_options['transformer_options'].copy()
@@ -207,6 +214,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     else:
                         transformer_options["patches"] = patches
 
+                # transformer_options['return_attention'] = True
                 c['transformer_options'] = transformer_options
 
                 output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
@@ -232,7 +240,8 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
 
         max_total_area = model_management.maximum_batch_area()
-        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
+        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat,
+                                              model_options, attention=attention)
         if "sampler_cfg_function" in model_options:
             return model_options["sampler_cfg_function"](cond, uncond, cond_scale), cond[0] # cond[0] is attention
         else:
@@ -252,8 +261,9 @@ class CFGNoisePredictor(torch.nn.Module):
         super().__init__()
         self.inner_model = model
         self.alphas_cumprod = model.alphas_cumprod
-    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}):
-        out, attn = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat, model_options=model_options)
+    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}, attention=None):
+        out, attn = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat,
+                                      model_options=model_options, attention=attention)
         return out, attn
 
 
@@ -261,11 +271,13 @@ class KSamplerX0Inpaint(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.inner_model = model
-    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={}):
+    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={},
+                attention=None):
         if denoise_mask is not None:
             latent_mask = 1. - denoise_mask
             x = x * denoise_mask + (self.latent_image + self.noise * sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1))) * latent_mask
-        out, attn = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat, model_options=model_options)
+        out, attn = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat,
+                                     model_options=model_options, attention=attention)
         if denoise_mask is not None:
             out *= denoise_mask
 
@@ -462,7 +474,8 @@ class KSampler:
             self.sigmas = sigmas[-(steps + 1):]
 
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None):
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None,
+               force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, attention=None):
         if sigmas is None:
             sigmas = self.sigmas
         sigma_min = self.sigma_min
@@ -580,6 +593,7 @@ class KSampler:
                 elif self.sampler == "dpm_adaptive":
                     samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback)
                 else:
-                    samples, attention = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args, callback=k_callback)
+                    samples, attention = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k,
+                                        noise, sigmas, extra_args=extra_args, callback=k_callback, attention=attention)
 
         return samples.to(torch.float32), attention
