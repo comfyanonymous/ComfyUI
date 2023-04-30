@@ -71,16 +71,14 @@ class ConditioningAverage :
     CATEGORY = "conditioning"
 
     def addWeighted(self, conditioning_from, conditioning_to, conditioning_from_strength):
-        conditioning_to_strength = (1-conditioning_from_strength)
-        conditioning_from_tensor = conditioning_from[0][0]
-        conditioning_to_tensor = conditioning_to[0][0]
-        output = conditioning_from
-        if conditioning_from_tensor.shape[0] > conditioning_to_tensor.shape[1]:
-            conditioning_to_tensor = torch.cat((conditioning_to_tensor, torch.zeros((1, conditioning_from_tensor.shape[1] - conditioning_to_tensor.shape[1], conditioning_from_tensor.shape[1].value))), dim=1)
-        elif conditioning_to_tensor.shape[1] > conditioning_from_tensor.shape[1]:
-            conditioning_from_tensor = torch.cat((conditioning_from_tensor, torch.zeros((1, conditioning_to_tensor.shape[1] - conditioning_from_tensor.shape[1], conditioning_to_tensor.shape[1].value))), dim=1)
-        output[0][0] = ((conditioning_from_tensor * conditioning_from_strength) + (conditioning_to_tensor * conditioning_to_strength))
-        return (output, )
+        out = []
+        for i in range(min(len(conditioning_from),len(conditioning_to))):
+            t0 = conditioning_from[i]
+            t1 = conditioning_to[i]
+            tw = torch.mul(t0[0],(1-conditioning_from_strength)) + torch.mul(t1[0],conditioning_from_strength)
+            n = [tw, t0[1].copy()]
+            out.append(n)
+        return (out, )
 
 class ConditioningSetArea:
     @classmethod
