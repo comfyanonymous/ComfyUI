@@ -98,7 +98,7 @@ class ConditioningSetMask:
 
     CATEGORY = "conditioning"
 
-    def append(self, conditioning, mask, set_area_to_bounds, strength, min_sigma=0.0, max_sigma=99.0):
+    def append(self, conditioning, mask, set_area_to_bounds, strength):
         c = []
         if len(mask.shape) < 3:
             mask = mask.unsqueeze(0)
@@ -107,9 +107,7 @@ class ConditioningSetMask:
             _, h, w = mask.shape
             n[1]['mask'] = mask
             n[1]['set_area_to_bounds'] = set_area_to_bounds
-            n[1]['strength'] = strength
-            n[1]['min_sigma'] = min_sigma
-            n[1]['max_sigma'] = max_sigma
+            n[1]['mask_strength'] = strength
             c.append(n)
         return (c, )
 
