@@ -9,6 +9,7 @@ import traceback
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
+import torch.nn.functional as F
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
@@ -649,70 +650,6 @@ class LatentUpscale:
         s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
-class SaveLatent:
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT",),
-                              "filename": ("STRING", {"default": "ComfyUI_latent.npy"})}}
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "save"
-
-    CATEGORY = "latent"
-
-    def save(self, samples, filename):
-        s = samples.copy()
-        comfy.utils.save_latent(samples["samples"], filename)
-        return (samples,)
-
-class LoadLatent:
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "filename": ("STRING", {"default": "ComfyUI_latent.npy"})}}
-
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "load"
-
-    CATEGORY = "latent"
-
-    def load(self, filename):
-        derp = ({"samples": comfy.utils.load_latent(filename)},)
-        return derp
-
-
-
-class MuxLatent:
-
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "latent1": ("LATENT",),
-                "latent2": ("LATENT",),
-                "weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
-            }
-        }
-
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "interpolate"
-
-    CATEGORY = "latent"
-
-    def interpolate(self, latent1, latent2, weight):
-        # Ensure the latents have the same shape
-        if latent1["samples"].shape != latent2["samples"].shape:
-            raise ValueError("Latents must have the same shape")
-
-        # Interpolate the latents using the weight
-        interpolated_latent = latent1["samples"] * (1 - weight) + latent2["samples"] * weight
-
-        return ({"samples": interpolated_latent},)
 
 class LatentRotate:
     @classmethod
@@ -914,7 +851,7 @@ class KSampler:
                     },
                 "optional": {
                     "attention": ("ATTENTION",),
-                    "attention_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "attention_weight": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 20.0, "step": 0.5}),
                 }
             }
 
@@ -1257,168 +1194,7 @@ class ImagePadForOutpaint:
 
         return (new_image, mask)
 
-class FrameCounter:
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
 
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "frame": ("INT", {"default": 0}),
-                "fired": ("BOOL", {"default": False}),
-            },
-        }
-    @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
-        return True
-
-    RETURN_TYPES = ("text",)
-    FUNCTION = "frame_counter"
-
-    CATEGORY = "operations"
-
-    def frame_counter(self, frame, fired):
-        if fired:
-            frame += 1
-        return (frame,)
-
-class EventListener:
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "event_type": (["node_started", "node_finished"],),
-                "class_type": ("STRING", {"default": "KSampler"})
-            },
-        }
-
-    @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
-        return True
-
-    RETURN_TYPES = ("BOOL",)
-
-    FUNCTION = "listen"
-
-    CATEGORY = "Events"
-
-    def listen(self, event_type, class_type):
-        self._fired = False
-
-        def event_listener(event, event_data):
-            print(f"Got an event of type {event_data['event_type']} with data {event_data}")
-            if (event_data["event_type"] == event_type and event_data["class_type"] == class_type):
-                self._fired = True
-
-        self.event_dispatcher.subscribe(event_type, event_listener)
-
-        return (self._fired,)
-
-class PrintNode:
-
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {},
-            "optional": {
-                "text": ("text",),
-                "attention": ("ATTENTION",),
-                "latent": ("LATENT",),
-            }
-        }
-    @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
-        return True
-
-    RETURN_TYPES = ()
-    FUNCTION = "print_value"
-    CATEGORY = "operations"
-    OUTPUT_NODE = True
-
-    def print_value(self, text=None, latent=None, attention=None):
-        if latent is not None:
-            latent_hash = hashlib.sha256(latent["samples"].cpu().numpy().tobytes()).hexdigest()
-            print(f"Latent hash: {latent_hash}")
-            print(np.array2string(latent["samples"].cpu().numpy(), separator=', '))
-
-        # attention[a][b][c][d]
-        # a: number of steps/sigma in this diffusion process
-        # b: number of SpatialTransformer or AttentionBlocks used in the middle blocks of the latent diffusion model
-        # c: number of transformer layers in the SpatialTransformer or AttentionBlocks
-        # d: attn1, attn2
-        if attention is not None:
-            print(f'attention has {len(attention)} steps')
-            print(f'each step has {len(attention[0])} transformer blocks')
-            print(f'each block has {len(attention[0][0])} transformer layers')
-            print(f'each transformer layer has {len(attention[0][0][0])} attention tensors (attn1, attn2)')
-            print(f'the shape of the attention tensors is {attention[0][0][0][0].shape}')
-            print(f'the first value of the first attention tensor is {attention[0][0][0][0][:1]}')
-
-
-        if text is not None:
-            print(text)
-        return {"ui": {"": text}}
-
-class SaveAttention:
-    @classmethod
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "attention": ("ATTENTION",),
-                "filename": ("STRING", {"default": "attention.safetensor"}),
-            },
-        }
-
-    @classmethod
-    def IS_CHANGED(cls, *args, **kwargs):
-        return True
-
-    RETURN_TYPES = ()
-    FUNCTION = "save_attention"
-    CATEGORY = "operations"
-    OUTPUT_NODE = True
-
-    # attention[a][b][c][d]
-    # a: number of steps/sigma in this diffusion process
-    # b: number of SpatialTransformer or AttentionBlocks used in the middle blocks of the latent diffusion model
-    # c: number of transformer layers in the SpatialTransformer or AttentionBlocks
-    # d: attn1, attn2
-    def save_attention(self, attention, filename):
-        comfy.utils.save_attention(attention, filename)
-        return {"ui": {"message": "Saved attention to " + filename}}
-
-
-
-class LoadAttention:
-    @classmethod
-    def __init__(self, event_dispatcher):
-        self.event_dispatcher = event_dispatcher
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "filename": ("STRING", {"default": "attention.safetensor"}),
-            },
-        }
-
-    RETURN_TYPES = ("ATTENTION",)
-    FUNCTION = "load_attention"
-    CATEGORY = "operations"
-
-    def load_attention(self, filename):
-        return (comfy.utils.load_attention(filename),)
 
 
 
@@ -1449,8 +1225,6 @@ NODE_CLASS_MAPPINGS = {
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
-    "SaveLatent": SaveLatent,
-    "LoadLatent": LoadLatent,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
@@ -1470,12 +1244,6 @@ NODE_CLASS_MAPPINGS = {
 
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
-    "FrameCounter": FrameCounter,
-    "PrinterNode": PrintNode,
-    "EventListener": EventListener,
-    "MuxLatent": MuxLatent,
-    "SaveAttention": SaveAttention,
-    "LoadAttention": LoadAttention,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1512,8 +1280,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "EmptyLatentImage": "Empty Latent Image",
     "LatentUpscale": "Upscale Latent",
     "LatentComposite": "Latent Composite",
-    "SaveLatent": "Save Latent",
-    "LoadLatent": "Load Latent",
     # Image
     "SaveImage": "Save Image",
     "PreviewImage": "Preview Image",
@@ -1526,13 +1292,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
-    # operations
-    "FrameCounter": "Frame Counter",
-    "PrinterNode": "Print",
-    "EventListener": "Event Listener",
-    "MuxLatent": "Mux Latent",
-    "SaveAttention": "Save Attention",
-    "LoadAttention": "Load Attention",
 }
 
 def load_custom_node(module_path):
