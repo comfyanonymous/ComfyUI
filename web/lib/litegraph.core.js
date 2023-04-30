@@ -3628,6 +3628,18 @@
         return size;
     };
 
+    LGraphNode.prototype.inResizeCorner = function(canvasX, canvasY) {
+        var rows = this.outputs ? this.outputs.length : 1;
+        var outputs_offset = (this.constructor.slot_start_y || 0) + rows * LiteGraph.NODE_SLOT_HEIGHT;
+        return isInsideRectangle(canvasX,
+            canvasY,
+            this.pos[0] + this.size[0] - 15,
+            this.pos[1] + Math.max(this.size[1] - 15, outputs_offset),
+            20,
+            20
+        );
+    }
+
     /**
      * returns all the info available about a property of this node.
      *
@@ -5877,14 +5889,7 @@ LGraphNode.prototype.executeAction = function(action)
                 if ( !this.connecting_node && !node.flags.collapsed && !this.live_mode ) {
                     //Search for corner for resize
                     if ( !skip_action &&
-                        node.resizable !== false &&
-                        isInsideRectangle( e.canvasX,
-                            e.canvasY,
-                            node.pos[0] + node.size[0] - 15,
-                            node.pos[1] + node.size[1] - 15,
-                            20,
-                            20
-                        )
+                        node.resizable !== false && node.inResizeCorner(e.canvasX, e.canvasY)
                     ) {
 						this.graph.beforeChange();
                         this.resizing_node = node;
@@ -6424,16 +6429,7 @@ LGraphNode.prototype.executeAction = function(action)
 
                 //Search for corner
                 if (this.canvas) {
-                    if (
-                        isInsideRectangle(
-                            e.canvasX,
-                            e.canvasY,
-                            node.pos[0] + node.size[0] - 15,
-                            node.pos[1] + node.size[1] - 15,
-                            15,
-                            15
-                        )
-                    ) {
+                    if (node.inResizeCorner(e.canvasX, e.canvasY)) {
                         this.canvas.style.cursor = "se-resize";
                     } else {
                         this.canvas.style.cursor = "crosshair";
