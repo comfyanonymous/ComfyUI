@@ -971,8 +971,10 @@ export class ComfyApp {
 	loadGraphData(graphData) {
 		this.clean();
 
+		let reset_invalid_values = false;
 		if (!graphData) {
 			graphData = structuredClone(defaultGraph);
+			reset_invalid_values = true;
 		}
 
 		const missingNodeTypes = [];
@@ -1055,6 +1057,13 @@ export class ComfyApp {
 								widget.value = "randomize";
 							} else if (widget.value === false) {
 								widget.value = "fixed";
+							}
+						}
+					}
+					if (reset_invalid_values) {
+						if (widget.type == "combo") {
+							if (!widget.options.values.includes(widget.value) && widget.options.values.length > 0) {
+								widget.value = widget.options.values[0];
 							}
 						}
 					}
