@@ -257,8 +257,11 @@ button.comfy-queue-btn {
 	}
 }
 
+/* Input popup */
+
 .graphdialog {
 	min-height: 1em;
+	background-color: var(--comfy-menu-bg);
 }
 
 .graphdialog .name {
@@ -282,18 +285,37 @@ button.comfy-queue-btn {
 	border-radius: 12px 0 0 12px;
 }
 
+/* Context menu */
+
 .litegraph .litemenu-entry.has_submenu {
 	position: relative;
 	padding-right: 20px;
- }
+}
 
- .litemenu-entry.has_submenu::after {
+.litemenu-entry.has_submenu::after {
 	content: ">";
 	position: absolute;
 	top: 0;
 	right: 2px;
- }
- 
- .litecontextmenu {
+}
+
+.litecontextmenu {
 	z-index: 9999 !important;
+}
+
+.litegraph.litecontextmenu {
+	background-color: var(--comfy-menu-bg) !important;
+	filter: brightness(95%);
+	color: var(--input-text) !important;
+}
+
+.litegraph.litecontextmenu .litemenu-entry:hover:not(.disabled):not(.separator) {
+	background-color: var(--comfy-menu-bg) !important;
+	filter: brightness(155%);
+	color: var(--input-text) !important;
+}
+
+.litegraph.litecontextmenu .litemenu-entry.submenu {
+	background-color: var(--comfy-menu-bg) !important;
+	color: var(--input-text) !important;
 }
