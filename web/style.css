@@ -299,23 +299,52 @@ button.comfy-queue-btn {
 	right: 2px;
 }
 
-.litecontextmenu {
+.litegraph.litecontextmenu,
+.litegraph.litecontextmenu.dark {
 	z-index: 9999 !important;
-}
-
-.litegraph.litecontextmenu {
 	background-color: var(--comfy-menu-bg) !important;
 	filter: brightness(95%);
-	color: var(--input-text) !important;
 }
 
 .litegraph.litecontextmenu .litemenu-entry:hover:not(.disabled):not(.separator) {
 	background-color: var(--comfy-menu-bg) !important;
 	filter: brightness(155%);
+	color: var(--input-text);
+}
+
+.litegraph.litecontextmenu .litemenu-entry.submenu,
+.litegraph.litecontextmenu.dark .litemenu-entry.submenu {
+	background-color: var(--comfy-menu-bg) !important;
+	color: var(--input-text);
+}
+
+.litegraph.litecontextmenu input {
+	background-color: var(--comfy-input-bg) !important;
 	color: var(--input-text) !important;
 }
 
-.litegraph.litecontextmenu .litemenu-entry.submenu {
+/* Search box */
+
+.litegraph.litesearchbox {
+	z-index: 9999 !important;
 	background-color: var(--comfy-menu-bg) !important;
-	color: var(--input-text) !important;
+	overflow: hidden;
+}
+
+.litegraph.litesearchbox input,
+.litegraph.litesearchbox select {
+	background-color: var(--comfy-input-bg) !important;
+	color: var(--input-text);
+}
+
+.litegraph.lite-search-item {
+	color: var(--input-text);
+	background-color: var(--comfy-input-bg);
+	filter: brightness(80%);
+	padding-left: 0.2em;
+}
+
+.litegraph.lite-search-item.generic_type {
+	color: var(--input-text);
+	filter: brightness(50%);
 }
