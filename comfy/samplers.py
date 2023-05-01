@@ -643,7 +643,8 @@ class KSampler:
                                                      extra_args=extra_args,
                                                      mask=noise_mask,
                                                      to_zero=sigmas[-1]==0,
-                                                     end_step=sigmas.shape[0] - 1)
+                                                     end_step=sigmas.shape[0] - 1,
+                                                     disable_pbar=disable_pbar)
 
             else:
                 extra_args["denoise_mask"] = denoise_mask
