@@ -37,6 +37,7 @@ folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetwo
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+prompt_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "prompts")
 
 if not os.path.exists(input_directory):
     os.makedirs(input_directory)

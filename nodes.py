@@ -42,14 +42,20 @@ class CLIPTextEncode:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
+        return {
+                "required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )},
+                "optional": {"external_text": ("text",)}
+        }
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip, text):
-        return ([[clip.encode(text), {}]], )
+    def encode(self, clip, text, external_text=None):
+        if external_text is not None:
+            return ([[clip.encode(external_text), {}]], )
+        else:
+            return ([[clip.encode(text), {}]], )
 
 class ConditioningCombine:
     def __init__(self, event_dispatcher):
