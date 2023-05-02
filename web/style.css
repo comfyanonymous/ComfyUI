@@ -120,13 +120,22 @@ body {
 .comfy-menu > button,
 .comfy-menu-btns button,
 .comfy-menu .comfy-list button,
-.comfy-modal button{
+.comfy-modal button {
 	color: var(--input-text);
 	background-color: var(--comfy-input-bg);
 	border-radius: 8px;
 	border-color: var(--border-color);
 	border-style: solid;
 	margin-top: 2px;
+}
+
+.comfy-menu > button:hover,
+.comfy-menu-btns button:hover,
+.comfy-menu .comfy-list button:hover,
+.comfy-modal button:hover,
+.comfy-settings-btn:hover {
+	filter: brightness(1.2);
+	cursor: pointer;
 }
 
 .comfy-menu span.drag-handle {
@@ -248,8 +257,11 @@ button.comfy-queue-btn {
 	}
 }
 
+/* Input popup */
+
 .graphdialog {
 	min-height: 1em;
+	background-color: var(--comfy-menu-bg);
 }
 
 .graphdialog .name {
@@ -273,15 +285,66 @@ button.comfy-queue-btn {
 	border-radius: 12px 0 0 12px;
 }
 
+/* Context menu */
+
 .litegraph .litemenu-entry.has_submenu {
 	position: relative;
 	padding-right: 20px;
- }
+}
 
- .litemenu-entry.has_submenu::after {
+.litemenu-entry.has_submenu::after {
 	content: ">";
 	position: absolute;
 	top: 0;
 	right: 2px;
- }
- 
+}
+
+.litegraph.litecontextmenu,
+.litegraph.litecontextmenu.dark {
+	z-index: 9999 !important;
+	background-color: var(--comfy-menu-bg) !important;
+	filter: brightness(95%);
+}
+
+.litegraph.litecontextmenu .litemenu-entry:hover:not(.disabled):not(.separator) {
+	background-color: var(--comfy-menu-bg) !important;
+	filter: brightness(155%);
+	color: var(--input-text);
+}
+
+.litegraph.litecontextmenu .litemenu-entry.submenu,
+.litegraph.litecontextmenu.dark .litemenu-entry.submenu {
+	background-color: var(--comfy-menu-bg) !important;
+	color: var(--input-text);
+}
+
+.litegraph.litecontextmenu input {
+	background-color: var(--comfy-input-bg) !important;
+	color: var(--input-text) !important;
+}
+
+/* Search box */
+
+.litegraph.litesearchbox {
+	z-index: 9999 !important;
+	background-color: var(--comfy-menu-bg) !important;
+	overflow: hidden;
+}
+
+.litegraph.litesearchbox input,
+.litegraph.litesearchbox select {
+	background-color: var(--comfy-input-bg) !important;
+	color: var(--input-text);
+}
+
+.litegraph.lite-search-item {
+	color: var(--input-text);
+	background-color: var(--comfy-input-bg);
+	filter: brightness(80%);
+	padding-left: 0.2em;
+}
+
+.litegraph.lite-search-item.generic_type {
+	color: var(--input-text);
+	filter: brightness(50%);
+}

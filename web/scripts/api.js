@@ -35,7 +35,7 @@ class ComfyApi extends EventTarget {
 		}
 
 		let opened = false;
-		let existingSession = sessionStorage["Comfy.SessionId"] || "";
+		let existingSession = window.name;
 		if (existingSession) {
 			existingSession = "?clientId=" + existingSession;
 		}
@@ -75,7 +75,7 @@ class ComfyApi extends EventTarget {
 					case "status":
 						if (msg.data.sid) {
 							this.clientId = msg.data.sid;
-							sessionStorage["Comfy.SessionId"] = this.clientId;
+							window.name = this.clientId;
 						}
 						this.dispatchEvent(new CustomEvent("status", { detail: msg.data.status }));
 						break;

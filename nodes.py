@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "co
 
 import comfy.diffusers_convert
 import comfy.samplers
+import comfy.sample
 import comfy.sd
 import comfy.utils
 
@@ -58,6 +59,36 @@ class ConditioningCombine:
     def combine(self, conditioning_1, conditioning_2):
         return (conditioning_1 + conditioning_2, )
 
+class ConditioningAverage :
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning_to": ("CONDITIONING", ), "conditioning_from": ("CONDITIONING", ),
+                              "conditioning_to_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "addWeighted"
+
+    CATEGORY = "conditioning"
+
+    def addWeighted(self, conditioning_to, conditioning_from, conditioning_to_strength):
+        out = []
+
+        if len(conditioning_from) > 1:
+            print("Warning: ConditioningAverage conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
+
+        cond_from = conditioning_from[0][0]
+
+        for i in range(len(conditioning_to)):
+            t1 = conditioning_to[i][0]
+            t0 = cond_from[:,:t1.shape[1]]
+            if t0.shape[1] < t1.shape[1]:
+                t0 = torch.cat([t0] + [torch.zeros((1, (t1.shape[1] - t0.shape[1]), t1.shape[2]))], dim=1)
+
+            tw = torch.mul(t1, conditioning_to_strength) + torch.mul(t0, (1.0 - conditioning_to_strength))
+            n = [tw, conditioning_to[i][1].copy()]
+            out.append(n)
+        return (out, )
+
 class ConditioningSetArea:
     @classmethod
     def INPUT_TYPES(s):
@@ -79,8 +110,38 @@ class ConditioningSetArea:
             n = [t[0], t[1].copy()]
             n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
             n[1]['strength'] = strength
+            n[1]['set_area_to_bounds'] = False
             n[1]['min_sigma'] = min_sigma
             n[1]['max_sigma'] = max_sigma
+            c.append(n)
+        return (c, )
+
+class ConditioningSetMask:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "mask": ("MASK", ),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                              "set_cond_area": (["default", "mask bounds"],),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning, mask, set_cond_area, strength):
+        c = []
+        set_area_to_bounds = False
+        if set_cond_area != "default":
+            set_area_to_bounds = True
+        if len(mask.shape) < 3:
+            mask = mask.unsqueeze(0)
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            _, h, w = mask.shape
+            n[1]['mask'] = mask
+            n[1]['set_area_to_bounds'] = set_area_to_bounds
+            n[1]['mask_strength'] = strength
             c.append(n)
         return (c, )
 
@@ -171,24 +232,24 @@ class VAEEncodeForInpaint:
     def encode(self, vae, pixels, mask):
         x = (pixels.shape[1] // 64) * 64
         y = (pixels.shape[2] // 64) * 64
-        mask = torch.nn.functional.interpolate(mask[None,None,], size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")[0][0]
+        mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
 
         pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
             pixels = pixels[:,:x,:y,:]
-            mask = mask[:x,:y]
+            mask = mask[:,:,:x,:y]
 
         #grow mask by a few pixels to keep things seamless in latent space
         kernel_tensor = torch.ones((1, 1, 6, 6))
-        mask_erosion = torch.clamp(torch.nn.functional.conv2d((mask.round())[None], kernel_tensor, padding=3), 0, 1)
-        m = (1.0 - mask.round())
+        mask_erosion = torch.clamp(torch.nn.functional.conv2d(mask.round(), kernel_tensor, padding=3), 0, 1)
+        m = (1.0 - mask.round()).squeeze(1)
         for i in range(3):
             pixels[:,:,:,i] -= 0.5
             pixels[:,:,:,i] *= m
             pixels[:,:,:,i] += 0.5
         t = vae.encode(pixels)
 
-        return ({"samples":t, "noise_mask": (mask_erosion[0][:x,:y].round())}, )
+        return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
 
 class CheckpointLoader:
     @classmethod
@@ -574,7 +635,7 @@ class GLIGENLoader:
     RETURN_TYPES = ("GLIGEN",)
     FUNCTION = "load_gligen"
 
-    CATEGORY = "_for_testing/gligen"
+    CATEGORY = "loaders"
 
     def load_gligen(self, gligen_name):
         gligen_path = folder_paths.get_full_path("gligen", gligen_name)
@@ -596,7 +657,7 @@ class GLIGENTextBoxApply:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "append"
 
-    CATEGORY = "_for_testing/gligen"
+    CATEGORY = "conditioning/gligen"
 
     def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
         c = []
@@ -815,79 +876,23 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask
         return (s,)
 
-
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    latent_image = latent["samples"]
-    noise_mask = None
     device = comfy.model_management.get_torch_device()
+    latent_image = latent["samples"]
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
-        batch_index = 0
-        if "batch_index" in latent:
-            batch_index = latent["batch_index"]
+        skip = latent["batch_index"] if "batch_index" in latent else 0
+        noise = comfy.sample.prepare_noise(latent_image, seed, skip)
 
-        generator = torch.manual_seed(seed)
-        for i in range(batch_index):
-            noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
-        noise = torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
-
+    noise_mask = None
     if "noise_mask" in latent:
-        noise_mask = latent['noise_mask']
-        noise_mask = torch.nn.functional.interpolate(noise_mask[None,None,], size=(noise.shape[2], noise.shape[3]), mode="bilinear")
-        noise_mask = noise_mask.round()
-        noise_mask = torch.cat([noise_mask] * noise.shape[1], dim=1)
-        noise_mask = torch.cat([noise_mask] * noise.shape[0])
-        noise_mask = noise_mask.to(device)
+        noise_mask = latent["noise_mask"]
 
-    real_model = None
-    comfy.model_management.load_model_gpu(model)
-    real_model = model.model
-
-    noise = noise.to(device)
-    latent_image = latent_image.to(device)
-
-    positive_copy = []
-    negative_copy = []
-
-    control_nets = []
-    def get_models(cond):
-        models = []
-        for c in cond:
-            if 'control' in c[1]:
-                models += [c[1]['control']]
-            if 'gligen' in c[1]:
-                models += [c[1]['gligen'][1]]
-        return models
-
-    for p in positive:
-        t = p[0]
-        if t.shape[0] < noise.shape[0]:
-            t = torch.cat([t] * noise.shape[0])
-        t = t.to(device)
-        positive_copy += [[t] + p[1:]]
-    for n in negative:
-        t = n[0]
-        if t.shape[0] < noise.shape[0]:
-            t = torch.cat([t] * noise.shape[0])
-        t = t.to(device)
-        negative_copy += [[t] + n[1:]]
-
-    models = get_models(positive) + get_models(negative)
-    comfy.model_management.load_controlnet_gpu(models)
-
-    if sampler_name in comfy.samplers.KSampler.SAMPLERS:
-        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
-    else:
-        #other samplers
-        pass
-
-    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
-    samples = samples.cpu()
-    for m in models:
-        m.cleanup()
-
+    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+                                  denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask)
     out = latent.copy()
     out["samples"] = samples
     return (out, )
@@ -1050,8 +1055,7 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
     def load_image(self, image):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -1065,20 +1069,27 @@ class LoadImage:
 
     @classmethod
     def IS_CHANGED(s, image):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
 
+    @classmethod
+    def VALIDATE_INPUTS(s, image):
+        if not folder_paths.exists_annotated_filepath(image):
+            return "Invalid image file: {}".format(image)
+
+        return True
+
 class LoadImageMask:
+    _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         return {"required":
                     {"image": (sorted(os.listdir(input_dir)), ),
-                    "channel": (["alpha", "red", "green", "blue"], ),}
+                    "channel": (s._color_channels, ),}
                 }
 
     CATEGORY = "mask"
@@ -1086,8 +1097,7 @@ class LoadImageMask:
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
     def load_image(self, image, channel):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
         if i.getbands() != ("R", "G", "B", "A"):
             i = i.convert("RGBA")
@@ -1104,12 +1114,21 @@ class LoadImageMask:
 
     @classmethod
     def IS_CHANGED(s, image, channel):
-        input_dir = folder_paths.get_input_directory()
-        image_path = os.path.join(input_dir, image)
+        image_path = folder_paths.get_annotated_filepath(image)
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, image, channel):
+        if not folder_paths.exists_annotated_filepath(image):
+            return "Invalid image file: {}".format(image)
+
+        if channel not in s._color_channels:
+            return "Invalid color channel: {}".format(channel)
+
+        return True
 
 class ImageScale:
     upscale_methods = ["nearest-exact", "bilinear", "area"]
@@ -1230,8 +1249,10 @@ NODE_CLASS_MAPPINGS = {
     "ImageScale": ImageScale,
     "ImageInvert": ImageInvert,
     "ImagePadForOutpaint": ImagePadForOutpaint,
+    "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningSetArea": ConditioningSetArea,
+    "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
@@ -1281,7 +1302,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPTextEncode": "CLIP Text Encode (Prompt)",
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
+    "ConditioningAverage ": "Conditioning (Average)",
     "ConditioningSetArea": "Conditioning (Set Area)",
+    "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
@@ -1345,6 +1368,7 @@ def load_custom_nodes():
 
 def init_custom_nodes():
     load_custom_nodes()
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
