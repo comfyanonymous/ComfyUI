@@ -108,7 +108,6 @@ class Upsample(nn.Module):
             self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
 
     def forward(self, x, output_shape=None):
-        print("upsample", output_shape)
         assert x.shape[1] == self.channels
         if self.dims == 3:
             shape = [x.shape[2], x.shape[3] * 2, x.shape[4] * 2]
