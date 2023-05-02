@@ -42,7 +42,9 @@ async function uploadMask(filepath, formData) {
 
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = `view?filename=${filepath.filename}&type=${filepath.type}`;
-	ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;
+
+	if(ComfyApp.clipspace.images)
+		ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;
 
 	ClipspaceDialog.invalidatePreview();
 }
@@ -527,7 +529,7 @@ class MaskEditorDialog extends ComfyDialog {
 			{
 				"filename": filename,
 				"subfolder": "",
-				"type": "temp",
+				"type": "clipspace",
 			};
 
 		if(ComfyApp.clipspace.images)
@@ -547,7 +549,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 		formData.append('image', blob, filename);
 		formData.append('original_image', original_blob);
-		formData.append('type', "temp");
+		formData.append('type', "clipspace");
 
 		uploadMask(item, formData);
 		this.close();

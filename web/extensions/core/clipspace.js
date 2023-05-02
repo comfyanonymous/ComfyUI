@@ -118,8 +118,7 @@ export class ClipspaceDialog extends ComfyDialog {
 						]);
 
 			const td = $el("td", {align:'center', width:'100px', height:'100px', colSpan:'2'},
-								[ $el("img",{id:"clipspace_preview"},[]) ]
-							);
+								[ $el("img",{id:"clipspace_preview", ondragstart:() => false},[]) ]);
 
 			const row3 =
 				$el("tr", {}, [td]);
@@ -133,7 +132,7 @@ export class ClipspaceDialog extends ComfyDialog {
 
 	createImgPreview() {
 		if(ComfyApp.clipspace.imgs) {
-			return $el("img",{id:"clipspace_preview"});
+			return $el("img",{id:"clipspace_preview", ondragstart:() => false});
 		}
 		else
 			return [];

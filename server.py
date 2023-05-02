@@ -118,6 +118,8 @@ class PromptServer():
                 type_dir = folder_paths.get_input_directory()
             elif dir_type == "input":
                 type_dir = folder_paths.get_input_directory()
+            elif dir_type == "clipspace":
+                type_dir = folder_paths.get_clipspace_directory()
             elif dir_type == "temp":
                 type_dir = folder_paths.get_temp_directory()
             elif dir_type == "output":

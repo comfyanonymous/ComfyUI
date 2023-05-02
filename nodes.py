@@ -970,8 +970,9 @@ class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
+        input_dir = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(os.listdir(input_dir)), )},
+                    {"image": (sorted(input_dir), )},
                 }
 
     CATEGORY = "image"

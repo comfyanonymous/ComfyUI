@@ -219,7 +219,11 @@ export class ComfyApp {
 									else if(ComfyApp.clipspace.widgets) {
 										const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
 										if(index_in_clip >= 0) {
-											filename = `${ComfyApp.clipspace.widgets[index_in_clip].value}`;
+											const item = ComfyApp.clipspace.widgets[index_in_clip].value;
+											if(item.type)
+												filename = `${item.filename} [${item.type}]`;
+											else
+												filename = item.filename;
 										}
 									}
 
