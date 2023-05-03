@@ -4,7 +4,6 @@ from comfy import model_management
 import torch
 import comfy.utils
 import folder_paths
-from tqdm.auto import tqdm
 
 class UpscaleModelLoader:
     @classmethod
