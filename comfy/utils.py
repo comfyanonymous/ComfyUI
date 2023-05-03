@@ -62,6 +62,12 @@ def common_upscale(samples, width, height, upscale_method, crop):
             s = samples
         return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
 
+def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
+    it_1 = -(height // -(tile_y * 2 - overlap)) * -(width // -(tile_x // 2 - overlap))
+    it_2 = -(height // -(tile_y // 2 - overlap)) * -(width // -(tile_x * 2 - overlap))
+    it_3 = -(height // -(tile_y - overlap)) * -(width // -(tile_x - overlap))
+    return it_1 + it_2 + it_3
+
 @torch.inference_mode()
 def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, pbar = None):
     output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device="cpu")
