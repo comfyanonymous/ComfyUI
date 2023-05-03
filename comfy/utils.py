@@ -86,3 +86,26 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
 
         output[b:b+1] = out/out_div
     return output
+
+
+PROGRESS_BAR_HOOK = None
+def set_progress_bar_global_hook(function):
+    global PROGRESS_BAR_HOOK
+    PROGRESS_BAR_HOOK = function
+
+class ProgressBar:
+    def __init__(self, total):
+        global PROGRESS_BAR_HOOK
+        self.total = total
+        self.current = 0
+        self.hook = PROGRESS_BAR_HOOK
+
+    def update_absolute(self, value):
+        if value > self.total:
+            value = self.total
+        self.current = value
+        if self.hook is not None:
+            self.hook(self.current, self.total)
+
+    def update(self, value):
+        self.update_absolute(self.current + value)
