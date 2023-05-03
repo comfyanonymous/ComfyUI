@@ -37,7 +37,12 @@ class ImageUpscaleWithModel:
         device = model_management.get_torch_device()
         upscale_model.to(device)
         in_img = image.movedim(-1,-3).to(device)
-        s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=128 + 64, tile_y=128 + 64, overlap = 8, upscale_amount=upscale_model.scale)
+
+        tile = 128 + 64
+        overlap = 8
+        steps = -(in_img.shape[2] // -(tile - overlap)) * -(in_img.shape[3] // -(tile - overlap))
+        pbar = comfy.utils.ProgressBar(steps)
+        s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
         upscale_model.cpu()
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         return (s,)
