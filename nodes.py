@@ -816,8 +816,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
         noise_mask = latent["noise_mask"]
 
     pbar = comfy.utils.ProgressBar(steps)
-    def callback(step, x0, x):
-        pbar.update_absolute(step + 1)
+    def callback(step, x0, x, total_steps):
+        pbar.update_absolute(step + 1, total_steps)
 
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
