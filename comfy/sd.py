@@ -1,7 +1,6 @@
 import torch
 import contextlib
 import copy
-from tqdm.auto import tqdm
 
 import sd1_clip
 import sd2_clip
