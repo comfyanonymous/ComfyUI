@@ -40,7 +40,7 @@ class ImageUpscaleWithModel:
 
         tile = 128 + 64
         overlap = 8
-        steps = -(in_img.shape[2] // -(tile - overlap)) * -(in_img.shape[3] // -(tile - overlap))
+        steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
         pbar = comfy.utils.ProgressBar(steps)
         s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
         upscale_model.cpu()
