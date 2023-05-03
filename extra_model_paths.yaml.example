@@ -13,6 +13,7 @@ a111:
                   models/ESRGAN
                   models/SwinIR
     embeddings: embeddings
+    hypernetworks: models/hypernetworks
     controlnet: models/ControlNet
 
 #other_ui:

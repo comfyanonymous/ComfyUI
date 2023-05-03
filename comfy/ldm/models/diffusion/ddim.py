@@ -81,6 +81,7 @@ class DDIMSampler(object):
                       extra_args=None,
                       to_zero=True,
                       end_step=None,
+                      disable_pbar=False,
                       **kwargs
                       ):
         self.make_schedule_timesteps(ddim_timesteps=ddim_timesteps, ddim_eta=eta, verbose=verbose)
@@ -103,7 +104,8 @@ class DDIMSampler(object):
                                                     denoise_function=denoise_function,
                                                     extra_args=extra_args,
                                                     to_zero=to_zero,
-                                                    end_step=end_step
+                                                    end_step=end_step,
+                                                    disable_pbar=disable_pbar
                                                     )
         return samples, intermediates
 
@@ -185,7 +187,7 @@ class DDIMSampler(object):
                       mask=None, x0=None, img_callback=None, log_every_t=100,
                       temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
                       unconditional_guidance_scale=1., unconditional_conditioning=None, dynamic_threshold=None,
-                      ucg_schedule=None, denoise_function=None, extra_args=None, to_zero=True, end_step=None):
+                      ucg_schedule=None, denoise_function=None, extra_args=None, to_zero=True, end_step=None, disable_pbar=False):
         device = self.model.betas.device
         b = shape[0]
         if x_T is None:
@@ -204,7 +206,7 @@ class DDIMSampler(object):
         total_steps = timesteps if ddim_use_original_steps else timesteps.shape[0]
         # print(f"Running DDIM Sampling with {total_steps} timesteps")
 
-        iterator = tqdm(time_range[:end_step], desc='DDIM Sampler', total=end_step)
+        iterator = tqdm(time_range[:end_step], desc='DDIM Sampler', total=end_step, disable=disable_pbar)
 
         for i, step in enumerate(iterator):
             index = total_steps - i - 1

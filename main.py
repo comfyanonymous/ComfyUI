@@ -5,6 +5,7 @@ import shutil
 import threading
 
 from comfy.cli_args import args
+import comfy.utils
 
 if os.name == "nt":
     import logging
@@ -39,14 +40,9 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
 
 def hijack_progress(server):
-    from tqdm.auto import tqdm
-    orig_func = getattr(tqdm, "update")
-    def wrapped_func(*args, **kwargs):
-        pbar = args[0]
-        v = orig_func(*args, **kwargs)
-        server.send_sync("progress", { "value": pbar.n, "max": pbar.total}, server.client_id)            
-        return v
-    setattr(tqdm, "update", wrapped_func)
+    def hook(value, total):
+        server.send_sync("progress", { "value": value, "max": total}, server.client_id)
+    comfy.utils.set_progress_bar_global_hook(hook)
 
 def cleanup_temp():
     temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
