@@ -100,7 +100,9 @@ class ProgressBar:
         self.current = 0
         self.hook = PROGRESS_BAR_HOOK
 
-    def update_absolute(self, value):
+    def update_absolute(self, value, total=None):
+        if total is not None:
+            self.total = total
         if value > self.total:
             value = self.total
         self.current = value
