@@ -7,6 +7,8 @@ A powerful and modular stable diffusion GUI and backend.
 This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
 ### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
+### [Installing ComfyUI](#installing)
+
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Fully supports SD1.x and SD2.x
@@ -17,6 +19,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
 - Embeddings/Textual inversion
 - [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
+- [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
 - Loading full workflows (with seeds) from generated PNG files.
 - Saving/Loading workflows as Json files.
 - Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
