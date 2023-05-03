@@ -41,8 +41,8 @@ class ImageUpscaleWithModel:
 
         tile = 128 + 64
         overlap = 8
-        its = -(in_img.shape[2] // -(tile - overlap)) * -(in_img.shape[3] // -(tile - overlap))
-        pbar = tqdm(total=its)
+        steps = -(in_img.shape[2] // -(tile - overlap)) * -(in_img.shape[3] // -(tile - overlap))
+        pbar = comfy.utils.ProgressBar(steps)
         s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
         upscale_model.cpu()
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
