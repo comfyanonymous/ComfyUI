@@ -231,6 +231,11 @@ export class ComfyApp {
 									if(this.widgets) {
 										const index = this.widgets.findIndex(obj => obj.name === 'image');
 										if(index >= 0 && filename != "") {
+											const postfix = ' [clipspace]';
+											if(filename.endsWith(postfix) && this.widgets[index].options.base_dir == 'input') {
+												filename = "clipspace/" + filename.slice(0, filename.indexOf(postfix));
+											}
+
 											this.widgets[index].value = filename;
 											if(this.widgets_values != undefined) {
 												this.widgets_values[index] = filename;

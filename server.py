@@ -201,6 +201,14 @@ class PromptServer():
                 filename = request.rel_url.query["filename"]
                 filename,output_dir = folder_paths.annotated_filepath(filename)
 
+                if request.rel_url.query.get("type", "input") and filename.startswith("clipspace/"):
+                    output_dir = folder_paths.get_clipspace_directory()
+                    filename = filename[10:]
+
+                # validation for security: prevent accessing arbitrary path
+                if filename[0] == '/' or '..' in filename:
+                    return web.Response(status=400)
+
                 if output_dir is None:
                     type = request.rel_url.query.get("type", "output")
                     output_dir = folder_paths.get_directory_by_type(type)
