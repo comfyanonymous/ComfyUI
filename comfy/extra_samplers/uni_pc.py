@@ -767,7 +767,7 @@ class UniPC:
                                 model_x = self.model_fn(x, vec_t)
                             model_prev_list[-1] = model_x
                 if callback is not None:
-                    callback(step_index, model_prev_list[-1], x)
+                    callback(step_index, model_prev_list[-1], x, steps)
         else:
             raise NotImplementedError()
         if denoise_to_zero:
