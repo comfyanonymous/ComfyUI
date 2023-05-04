@@ -107,7 +107,7 @@ if __name__ == "__main__":
         exit(0)
 
     call_on_start = None
-    if args.windows_standalone_build:
+    if args.windows_standalone_build and not args.disable_new_tab:
         def startup_server(address, port):
             import webbrowser
             webbrowser.open("http://{}:{}".format(address, port))

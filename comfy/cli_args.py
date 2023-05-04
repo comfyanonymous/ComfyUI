@@ -11,6 +11,7 @@ parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID"
 parser.add_argument("--dont-upcast-attention", action="store_true", help="Disable upcasting of attention. Can boost speed but increase the chances of black images.")
 parser.add_argument("--force-fp32", action="store_true", help="Force fp32 (If this makes your GPU work better please report it).")
 parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
+parser.add_argument("--disable-new-tab", type=bool, const = True, nargs="?", help="Disable creating a new browser window/tab when starting--reuse an existing browser tab.")
 
 attn_group = parser.add_mutually_exclusive_group()
 attn_group.add_argument("--use-split-cross-attention", action="store_true", help="Use the split cross attention optimization instead of the sub-quadratic one. Ignored when xformers is used.")
