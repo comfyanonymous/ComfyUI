@@ -263,6 +263,34 @@ export class ComfyApp {
 	 */
 	#addDrawBackgroundHandler(node) {
 		const app = this;
+
+		function getImageTop(node) {
+			let shiftY;
+			if (node.imageOffset != null) {
+				shiftY = node.imageOffset;
+			} else {
+				if (node.widgets?.length) {
+					const w = node.widgets[node.widgets.length - 1];
+					shiftY = w.last_y;
+					if (w.computeSize) {
+						shiftY += w.computeSize()[1] + 4;
+					} else {
+						shiftY += LiteGraph.NODE_WIDGET_HEIGHT + 4;
+					}
+				} else {
+					shiftY = node.computeSize()[1];
+				}
+			}
+			return shiftY;
+		}
+
+		node.prototype.setSizeForImage = function () {
+			const minHeight = getImageTop(this) + 220;
+			if (this.size[1] < minHeight) {
+				this.setSize([this.size[0], minHeight]);
+			}
+		};
+
 		node.prototype.onDrawBackground = function (ctx) {
 			if (!this.flags.collapsed) {
 				const output = app.nodeOutputs[this.id + ""];
@@ -283,9 +311,7 @@ export class ComfyApp {
 						).then((imgs) => {
 							if (this.images === output.images) {
 								this.imgs = imgs.filter(Boolean);
-								if (this.size[1] < 100) {
-									this.size[1] = 250;
-								}
+								this.setSizeForImage?.();
 								app.graph.setDirtyCanvas(true);
 							}
 						});
@@ -310,12 +336,7 @@ export class ComfyApp {
 						this.imageIndex = imageIndex = 0;
 					}
 
-					let shiftY;
-					if (this.imageOffset != null) {
-						shiftY = this.imageOffset;
-					} else {
-						shiftY = this.computeSize()[1];
-					}
+					const shiftY = getImageTop(this);
 
 					let dw = this.size[0];
 					let dh = this.size[1];
