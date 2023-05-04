@@ -2,8 +2,8 @@ import torch
 import contextlib
 import copy
 
-import sd1_clip
-import sd2_clip
+from . import sd1_clip
+from . import sd2_clip
 from comfy import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL
@@ -446,10 +446,10 @@ class CLIP:
         else:
             params = {}
 
-        if self.target_clip == "ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder":
+        if self.target_clip.endswith("FrozenOpenCLIPEmbedder"):
             clip = sd2_clip.SD2ClipModel
             tokenizer = sd2_clip.SD2Tokenizer
-        elif self.target_clip == "ldm.modules.encoders.modules.FrozenCLIPEmbedder":
+        elif self.target_clip.endswith("FrozenCLIPEmbedder"):
             clip = sd1_clip.SD1ClipModel
             tokenizer = sd1_clip.SD1Tokenizer
 
@@ -896,9 +896,9 @@ def load_clip(ckpt_path, embedding_directory=None):
     clip_data = utils.load_torch_file(ckpt_path)
     config = {}
     if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
     else:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
     clip = CLIP(config=config, embedding_directory=embedding_directory)
     clip.load_from_state_dict(clip_data)
     return clip
@@ -974,9 +974,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if output_clip:
         clip_config = {}
         if "cond_stage_model.model.transformer.resblocks.22.attn.out_proj.weight" in sd_keys:
-            clip_config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+            clip_config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
         else:
-            clip_config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+            clip_config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
         clip = CLIP(config=clip_config, embedding_directory=embedding_directory)
         w.cond_stage_model = clip.cond_stage_model
         load_state_dict_to = [w]
@@ -997,7 +997,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             noise_schedule_config["timesteps"] = sd[noise_aug_key].shape[0]
             noise_schedule_config["beta_schedule"] = "squaredcos_cap_v2"
             params["noise_schedule_config"] = noise_schedule_config
-            noise_aug_config['target'] = "ldm.modules.encoders.noise_aug_modules.CLIPEmbeddingNoiseAugmentation"
+            noise_aug_config['target'] = "comfy.ldm.modules.encoders.noise_aug_modules.CLIPEmbeddingNoiseAugmentation"
             if size == 1280: #h
                 params["timestep_dim"] = 1024
             elif size == 1024: #l
@@ -1049,19 +1049,19 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     unet_config["in_channels"] = sd['model.diffusion_model.input_blocks.0.0.weight'].shape[1]
     unet_config["context_dim"] = sd['model.diffusion_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'].shape[1]
 
-    sd_config["unet_config"] = {"target": "ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
-    model_config = {"target": "ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
+    sd_config["unet_config"] = {"target": "comfy.ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
+    model_config = {"target": "comfy.ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
 
     if noise_aug_config is not None: #SD2.x unclip model
         sd_config["noise_aug_config"] = noise_aug_config
         sd_config["image_size"] = 96
         sd_config["embedding_dropout"] = 0.25
         sd_config["conditioning_key"] = 'crossattn-adm'
-        model_config["target"] = "ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
+        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
     elif unet_config["in_channels"] > 4: #inpainting model
         sd_config["conditioning_key"] = "hybrid"
         sd_config["finetune_keys"] = None
-        model_config["target"] = "ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
+        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
     else:
         sd_config["conditioning_key"] = "crossattn"
 
