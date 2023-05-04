@@ -40,15 +40,13 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = unique_id
     return input_data_all
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     if unique_id in outputs:
-        return []
-
-    executed = []
+        return
 
     for x in inputs:
         input_data = inputs[x]
@@ -57,7 +55,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                executed += recursive_execute(server, prompt, outputs, input_unique_id, extra_data)
+                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed)
 
     input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
@@ -72,7 +70,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data={}):
             server.send_sync("executed", { "node": unique_id, "output": outputs[unique_id]["ui"] }, server.client_id)
         if "result" in outputs[unique_id]:
             outputs[unique_id] = outputs[unique_id]["result"]
-    return executed + [unique_id]
+    executed.add(unique_id)
 
 def recursive_will_execute(prompt, outputs, current_item):
     unique_id = current_item
@@ -99,40 +97,44 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
 
     is_changed_old = ''
     is_changed = ''
+    to_delete = False
     if hasattr(class_def, 'IS_CHANGED'):
         if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
             is_changed_old = old_prompt[unique_id]['is_changed']
         if 'is_changed' not in prompt[unique_id]:
             input_data_all = get_input_data(inputs, class_def, unique_id, outputs)
             if input_data_all is not None:
-                is_changed = class_def.IS_CHANGED(**input_data_all)
-                prompt[unique_id]['is_changed'] = is_changed
+                try:
+                    is_changed = class_def.IS_CHANGED(**input_data_all)
+                    prompt[unique_id]['is_changed'] = is_changed
+                except:
+                    to_delete = True
         else:
             is_changed = prompt[unique_id]['is_changed']
 
     if unique_id not in outputs:
         return True
 
-    to_delete = False
-    if is_changed != is_changed_old:
-        to_delete = True
-    elif unique_id not in old_prompt:
-        to_delete = True
-    elif inputs == old_prompt[unique_id]['inputs']:
-        for x in inputs:
-            input_data = inputs[x]
+    if not to_delete:
+        if is_changed != is_changed_old:
+            to_delete = True
+        elif unique_id not in old_prompt:
+            to_delete = True
+        elif inputs == old_prompt[unique_id]['inputs']:
+            for x in inputs:
+                input_data = inputs[x]
 
-            if isinstance(input_data, list):
-                input_unique_id = input_data[0]
-                output_index = input_data[1]
-                if input_unique_id in outputs:
-                    to_delete = recursive_output_delete_if_changed(prompt, old_prompt, outputs, input_unique_id)
-                else:
-                    to_delete = True
-                if to_delete:
-                    break
-    else:
-        to_delete = True
+                if isinstance(input_data, list):
+                    input_unique_id = input_data[0]
+                    output_index = input_data[1]
+                    if input_unique_id in outputs:
+                        to_delete = recursive_output_delete_if_changed(prompt, old_prompt, outputs, input_unique_id)
+                    else:
+                        to_delete = True
+                    if to_delete:
+                        break
+        else:
+            to_delete = True
 
     if to_delete:
         d = outputs.pop(unique_id)
@@ -154,11 +156,20 @@ class PromptExecutor:
             self.server.client_id = None
 
         with torch.inference_mode():
+            #delete cached outputs if nodes don't exist for them
+            to_delete = []
+            for o in self.outputs:
+                if o not in prompt:
+                    to_delete += [o]
+            for o in to_delete:
+                d = self.outputs.pop(o)
+                del d
+
             for x in prompt:
                 recursive_output_delete_if_changed(prompt, self.old_prompt, self.outputs, x)
 
             current_outputs = set(self.outputs.keys())
-            executed = []
+            executed = set()
             try:
                 to_execute = []
                 for x in prompt:
@@ -181,12 +192,12 @@ class PromptExecutor:
                             except:
                                 valid = False
                             if valid:
-                                executed += recursive_execute(self.server, prompt, self.outputs, x, extra_data)
+                                recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed)
             except Exception as e:
                 print(traceback.format_exc())
                 to_delete = []
                 for o in self.outputs:
-                    if o not in current_outputs:
+                    if (o not in current_outputs) and (o not in executed):
                         to_delete += [o]
                         if o in self.old_prompt:
                             d = self.old_prompt.pop(o)
@@ -194,11 +205,9 @@ class PromptExecutor:
                 for o in to_delete:
                     d = self.outputs.pop(o)
                     del d
-            else:
-                executed = set(executed)
+            finally:
                 for x in executed:
                     self.old_prompt[x] = copy.deepcopy(prompt[x])
-            finally:
                 self.server.last_node_id = None
                 if self.server.client_id is not None:
                     self.server.send_sync("executing", { "node": None }, self.server.client_id)
@@ -249,9 +258,15 @@ def validate_inputs(prompt, item):
                 if "max" in info[1] and val > info[1]["max"]:
                     return (False, "Value bigger than max. {}, {}".format(class_type, x))
 
-            if isinstance(type_input, list):
-                if val not in type_input:
-                    return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
+            if hasattr(obj_class, "VALIDATE_INPUTS"):
+                input_data_all = get_input_data(inputs, obj_class, unique_id)
+                ret = obj_class.VALIDATE_INPUTS(**input_data_all)
+                if ret != True:
+                    return (False, "{}, {}".format(class_type, ret))
+            else:
+                if isinstance(type_input, list):
+                    if val not in type_input:
+                        return (False, "Value not in list. {}, {}: {} not in {}".format(class_type, x, val, type_input))
     return (True, "")
 
 def validate_prompt(prompt):
@@ -273,7 +288,8 @@ def validate_prompt(prompt):
             m = validate_inputs(prompt, o)
             valid = m[0]
             reason = m[1]
-        except:
+        except Exception as e:
+            print(traceback.format_exc())
             valid = False
             reason = "Parsing error"
 
