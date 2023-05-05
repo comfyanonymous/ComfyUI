@@ -6,7 +6,7 @@ import numpy as np
 from einops import rearrange
 from typing import Optional, Any
 
-from ldm.modules.attention import MemoryEfficientCrossAttention
+from ..attention import MemoryEfficientCrossAttention
 from comfy import model_management
 
 if model_management.xformers_enabled_vae():

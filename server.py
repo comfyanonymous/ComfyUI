@@ -112,13 +112,20 @@ class PromptServer():
 
         @routes.post("/upload/image")
         async def upload_image(request):
-            upload_dir = folder_paths.get_input_directory()
+            post = await request.post()
+            image = post.get("image")
+
+            if post.get("type") is None:
+                upload_dir = folder_paths.get_input_directory()
+            elif post.get("type") == "input":
+                upload_dir = folder_paths.get_input_directory()
+            elif post.get("type") == "temp":
+                upload_dir = folder_paths.get_temp_directory()
+            elif post.get("type") == "output":
+                upload_dir = folder_paths.get_output_directory()
 
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
-            
-            post = await request.post()
-            image = post.get("image")
 
             if image and image.file:
                 filename = image.filename
