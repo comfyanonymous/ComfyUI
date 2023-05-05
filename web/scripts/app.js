@@ -718,7 +718,7 @@ export class ComfyApp {
 						-6 - LiteGraph.NODE_TITLE_HEIGHT,
 						12 + size[0] + 1,
 						12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
-						[this.round_radius * 2,2,this.round_radius * 2,2]
+						[this.round_radius * 2, this.round_radius * 2, 2, 2]
 				);
 				else if (shape == LiteGraph.CIRCLE_SHAPE)
 					ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
