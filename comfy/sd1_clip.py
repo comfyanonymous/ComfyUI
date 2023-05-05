@@ -191,10 +191,19 @@ def safe_load_embed_zip(embed_path):
                 del embed
                 return out
 
+def expand_directory_list(directories):
+    dirs = set()
+    for x in directories:
+        dirs.add(x)
+        for root, subdir, file in os.walk(x, followlinks=True):
+            dirs.add(root)
+    return list(dirs)
 
 def load_embed(embedding_name, embedding_directory):
     if isinstance(embedding_directory, str):
         embedding_directory = [embedding_directory]
+
+    embedding_directory = expand_directory_list(embedding_directory)
 
     valid_file = None
     for embed_dir in embedding_directory:
