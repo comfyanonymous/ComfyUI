@@ -1,6 +1,6 @@
 import torch
 from torch import nn, einsum
-from ldm.modules.attention import CrossAttention
+from .ldm.modules.attention import CrossAttention
 from inspect import isfunction
 
 
