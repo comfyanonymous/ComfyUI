@@ -201,6 +201,9 @@ def load_controlnet_gpu(control_models):
         return
 
     if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
+        for m in control_models:
+            if hasattr(m, 'set_lowvram'):
+                m.set_lowvram(True)
         #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
         return
 
