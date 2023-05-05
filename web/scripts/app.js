@@ -1323,12 +1323,17 @@ export class ComfyApp {
 
 			for(const widgetNum in node.widgets) {
 				const widget = node.widgets[widgetNum]
-
 				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
-					widget.options.values = def["input"]["required"][widget.name][0];
+					if(def["input"]["required"][widget.name][0] == "FILE_COMBO") {
+						console.log(widget.options.values = def["input"]["required"][widget.name][1].files);
+						widget.options.values = def["input"]["required"][widget.name][1].files;
+					}
+					else
+						widget.options.values = def["input"]["required"][widget.name][0];
 
 					if(!widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
+						widget.callback(widget.value);
 					}
 				}
 			}
