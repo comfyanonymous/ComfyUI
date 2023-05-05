@@ -2,8 +2,8 @@ import torch
 import contextlib
 import copy
 
-import sd1_clip
-import sd2_clip
+from . import sd1_clip
+from . import sd2_clip
 from comfy import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL
@@ -495,10 +495,10 @@ class CLIP:
         else:
             params = {}
 
-        if self.target_clip == "ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder":
+        if self.target_clip.endswith("FrozenOpenCLIPEmbedder"):
             clip = sd2_clip.SD2ClipModel
             tokenizer = sd2_clip.SD2Tokenizer
-        elif self.target_clip == "ldm.modules.encoders.modules.FrozenCLIPEmbedder":
+        elif self.target_clip.endswith("FrozenCLIPEmbedder"):
             clip = sd1_clip.SD1ClipModel
             tokenizer = sd1_clip.SD1Tokenizer
 
@@ -563,11 +563,16 @@ class VAE:
         self.device = device
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
+        steps = samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
+        steps += samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = utils.ProgressBar(steps)
+
         decode_fn = lambda a: (self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0)
         output = torch.clamp((
-            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8) +
-            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8) +
-             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8))
+            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8, pbar = pbar) +
+            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8, pbar = pbar) +
+             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8, pbar = pbar))
             / 3.0) / 2.0, min=0.0, max=1.0)
         return output
 
@@ -611,9 +616,15 @@ class VAE:
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
-        samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4)
-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4)
+
+        steps = pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
+        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = utils.ProgressBar(steps)
+
+        samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
         samples /= 3.0
         self.first_stage_model = self.first_stage_model.cpu()
         samples = samples.cpu()
@@ -934,9 +945,9 @@ def load_clip(ckpt_path, embedding_directory=None):
     clip_data = utils.load_torch_file(ckpt_path)
     config = {}
     if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
     else:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
     clip = CLIP(config=config, embedding_directory=embedding_directory)
     clip.load_from_state_dict(clip_data)
     return clip
@@ -1012,9 +1023,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if output_clip:
         clip_config = {}
         if "cond_stage_model.model.transformer.resblocks.22.attn.out_proj.weight" in sd_keys:
-            clip_config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+            clip_config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
         else:
-            clip_config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+            clip_config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
         clip = CLIP(config=clip_config, embedding_directory=embedding_directory)
         w.cond_stage_model = clip.cond_stage_model
         load_state_dict_to = [w]
@@ -1035,7 +1046,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             noise_schedule_config["timesteps"] = sd[noise_aug_key].shape[0]
             noise_schedule_config["beta_schedule"] = "squaredcos_cap_v2"
             params["noise_schedule_config"] = noise_schedule_config
-            noise_aug_config['target'] = "ldm.modules.encoders.noise_aug_modules.CLIPEmbeddingNoiseAugmentation"
+            noise_aug_config['target'] = "comfy.ldm.modules.encoders.noise_aug_modules.CLIPEmbeddingNoiseAugmentation"
             if size == 1280: #h
                 params["timestep_dim"] = 1024
             elif size == 1024: #l
@@ -1087,19 +1098,19 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     unet_config["in_channels"] = sd['model.diffusion_model.input_blocks.0.0.weight'].shape[1]
     unet_config["context_dim"] = sd['model.diffusion_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'].shape[1]
 
-    sd_config["unet_config"] = {"target": "ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
-    model_config = {"target": "ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
+    sd_config["unet_config"] = {"target": "comfy.ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
+    model_config = {"target": "comfy.ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
 
     if noise_aug_config is not None: #SD2.x unclip model
         sd_config["noise_aug_config"] = noise_aug_config
         sd_config["image_size"] = 96
         sd_config["embedding_dropout"] = 0.25
         sd_config["conditioning_key"] = 'crossattn-adm'
-        model_config["target"] = "ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
+        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
     elif unet_config["in_channels"] > 4: #inpainting model
         sd_config["conditioning_key"] = "hybrid"
         sd_config["finetune_keys"] = None
-        model_config["target"] = "ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
+        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
     else:
         sd_config["conditioning_key"] = "crossattn"
 

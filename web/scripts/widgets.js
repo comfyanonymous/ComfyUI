@@ -261,20 +261,13 @@ export const ComfyWidgets = {
 		let uploadWidget;
 
 		function showImage(name) {
-			// Position the image somewhere sensible
-			if (!node.imageOffset) {
-				node.imageOffset = uploadWidget.last_y ? uploadWidget.last_y + 25 : 75;
-			}
-
 			const img = new Image();
 			img.onload = () => {
 				node.imgs = [img];
 				app.graph.setDirtyCanvas(true);
 			};
 			img.src = `/view?filename=${name}&type=input`;
-			if ((node.size[1] - node.imageOffset) < 100) {
-				node.size[1] = 250 + node.imageOffset;
-			}
+			node.setSizeForImage?.();
 		}
 
 		// Add our own callback to the combo widget to render an image when it changes

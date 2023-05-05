@@ -623,7 +623,8 @@ class KSampler:
 
                 ddim_callback = None
                 if callback is not None:
-                    ddim_callback = lambda pred_x0, i: callback(i, pred_x0, None)
+                    total_steps = len(timesteps) - 1
+                    ddim_callback = lambda pred_x0, i: callback(i, pred_x0, None, total_steps)
 
                 sampler = DDIMSampler(self.model, device=self.device)
                 sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
@@ -654,13 +655,14 @@ class KSampler:
                 noise = noise * sigmas[0]
 
                 k_callback = None
+                total_steps = len(sigmas) - 1
                 if callback is not None:
-                    k_callback = lambda x: callback(x["i"], x["denoised"], x["x"])
+                    k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
                 if latent_image is not None:
                     noise += latent_image
                 if self.sampler == "dpm_fast":
-                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
+                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
                 elif self.sampler == "dpm_adaptive":
                     samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback, disable=disable_pbar)
                 else:
