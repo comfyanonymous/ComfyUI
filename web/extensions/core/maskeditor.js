@@ -117,7 +117,7 @@ class MaskEditorDialog extends ComfyDialog {
 		divElement.style.borderRadius = "8px";
 		divElement.style.borderColor = "var(--border-color)";
 		divElement.style.borderStyle = "solid";
-		divElement.style.fontSize = "20px";
+		divElement.style.fontSize = "15px";
 		divElement.style.height = "21px";
 		divElement.style.padding = "1px 6px";
 		divElement.style.display = "flex";
@@ -151,8 +151,8 @@ class MaskEditorDialog extends ComfyDialog {
 		var bottom_panel = document.createElement("div");
 		bottom_panel.style.position = "absolute";
 		bottom_panel.style.bottom = "0px";
-		bottom_panel.style.left = "0";
-		bottom_panel.style.right = "0";
+		bottom_panel.style.left = "20px";
+		bottom_panel.style.right = "20px";
 		bottom_panel.style.height = "50px";
 
 		var brush = document.createElement("div");
