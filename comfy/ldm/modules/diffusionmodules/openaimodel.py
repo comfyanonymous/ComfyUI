@@ -6,7 +6,7 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ldm.modules.diffusionmodules.util import (
+from .util import (
     checkpoint,
     conv_nd,
     linear,
@@ -15,8 +15,8 @@ from ldm.modules.diffusionmodules.util import (
     normalization,
     timestep_embedding,
 )
-from ldm.modules.attention import SpatialTransformer
-from ldm.util import exists
+from ..attention import SpatialTransformer
+from comfy.ldm.util import exists
 
 
 # dummy replace
@@ -76,16 +76,31 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
     support it as an extra input.
     """
 
-    def forward(self, x, emb, context=None, transformer_options={}):
+    def forward(self, x, emb, context=None, transformer_options={}, output_shape=None):
         for layer in self:
             if isinstance(layer, TimestepBlock):
                 x = layer(x, emb)
             elif isinstance(layer, SpatialTransformer):
                 x = layer(x, context, transformer_options)
+            elif isinstance(layer, Upsample):
+                x = layer(x, output_shape=output_shape)
             else:
                 x = layer(x)
         return x
 
+#This is needed because accelerate makes a copy of transformer_options which breaks "current_index"
+def forward_timestep_embed(ts, x, emb, context=None, transformer_options={}, output_shape=None):
+    for layer in ts:
+        if isinstance(layer, TimestepBlock):
+            x = layer(x, emb)
+        elif isinstance(layer, SpatialTransformer):
+            x = layer(x, context, transformer_options)
+            transformer_options["current_index"] += 1
+        elif isinstance(layer, Upsample):
+            x = layer(x, output_shape=output_shape)
+        else:
+            x = layer(x)
+    return x
 
 class Upsample(nn.Module):
     """
@@ -105,14 +120,20 @@ class Upsample(nn.Module):
         if use_conv:
             self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
 
-    def forward(self, x):
+    def forward(self, x, output_shape=None):
         assert x.shape[1] == self.channels
         if self.dims == 3:
-            x = F.interpolate(
-                x, (x.shape[2], x.shape[3] * 2, x.shape[4] * 2), mode="nearest"
-            )
+            shape = [x.shape[2], x.shape[3] * 2, x.shape[4] * 2]
+            if output_shape is not None:
+                shape[1] = output_shape[3]
+                shape[2] = output_shape[4]
         else:
-            x = F.interpolate(x, scale_factor=2, mode="nearest")
+            shape = [x.shape[2] * 2, x.shape[3] * 2]
+            if output_shape is not None:
+                shape[0] = output_shape[2]
+                shape[1] = output_shape[3]
+
+        x = F.interpolate(x, size=shape, mode="nearest")
         if self.use_conv:
             x = self.conv(x)
         return x
@@ -797,13 +818,13 @@ class UNetModel(nn.Module):
 
         h = x.type(self.dtype)
         for id, module in enumerate(self.input_blocks):
-            h = module(h, emb, context, transformer_options)
+            h = forward_timestep_embed(module, h, emb, context, transformer_options)
             if control is not None and 'input' in control and len(control['input']) > 0:
                 ctrl = control['input'].pop()
                 if ctrl is not None:
                     h += ctrl
             hs.append(h)
-        h = self.middle_block(h, emb, context, transformer_options)
+        h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options)
         if control is not None and 'middle' in control and len(control['middle']) > 0:
             h += control['middle'].pop()
 
@@ -813,9 +834,14 @@ class UNetModel(nn.Module):
                 ctrl = control['output'].pop()
                 if ctrl is not None:
                     hsp += ctrl
+
             h = th.cat([h, hsp], dim=1)
             del hsp
-            h = module(h, emb, context, transformer_options)
+            if len(hs) > 0:
+                output_shape = hs[-1].shape
+            else:
+                output_shape = None
+            h = forward_timestep_embed(module, h, emb, context, transformer_options, output_shape)
         h = h.type(x.dtype)
         if self.predict_codebook_ids:
             return self.id_predictor(h)

@@ -6,7 +6,7 @@ from torch import nn, einsum
 from einops import rearrange, repeat
 from typing import Optional, Any
 
-from ldm.modules.diffusionmodules.util import checkpoint
+from .diffusionmodules.util import checkpoint
 from .sub_quadratic_attention import efficient_dot_product_attention
 
 from comfy import model_management
@@ -21,7 +21,7 @@ if model_management.xformers_enabled():
 import os
 _ATTN_PRECISION = os.environ.get("ATTN_PRECISION", "fp32")
 
-from cli_args import args
+from comfy.cli_args import args
 
 def exists(val):
     return val is not None
@@ -572,9 +572,6 @@ class BasicTransformerBlock(nn.Module):
 
         x += n
         x = self.ff(self.norm3(x)) + x
-
-        if current_index is not None:
-            transformer_options["current_index"] += 1
         return x
 
 

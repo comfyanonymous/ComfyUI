@@ -232,9 +232,26 @@ app.registerExtension({
 				"name": "My Color Palette",
 				"colors": {
 					"node_slot": {
+					},
+					"litegraph_base": {
+					},
+					"comfy_base": {
 					}
 				}
 			};
+
+			// Copy over missing keys from default color palette
+			const defaultColorPalette = colorPalettes[defaultColorPaletteId];
+			for (const key in defaultColorPalette.colors.litegraph_base) {
+				if (!colorPalette.colors.litegraph_base[key]) {
+					colorPalette.colors.litegraph_base[key] = "";
+				}
+			}
+			for (const key in defaultColorPalette.colors.comfy_base) {
+				if (!colorPalette.colors.comfy_base[key]) {
+					colorPalette.colors.comfy_base[key] = "";
+				}
+			}
 
 			return completeColorPalette(colorPalette);
 		};
