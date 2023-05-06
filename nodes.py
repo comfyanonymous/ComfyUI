@@ -563,16 +563,21 @@ class LatentFromBatch:
                               "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
                               }}
     RETURN_TYPES = ("LATENT",)
-    FUNCTION = "rotate"
+    FUNCTION = "frombatch"
 
     CATEGORY = "latent"
 
-    def rotate(self, samples, batch_index):
+    def frombatch(self, samples, batch_index):
         s = samples.copy()
         s_in = samples["samples"]
         batch_index = min(s_in.shape[0] - 1, batch_index)
         s["samples"] = s_in[batch_index:batch_index + 1].clone()
-        s["batch_index"] = batch_index
+        if "noise_mask" in samples:
+            s["noise_mask"] = samples["noise_mask"][batch_index:batch_index + 1].clone()
+        if "batch_index" not in s:
+            s["batch_index"] = [batch_index]
+        else:
+            s["batch_index"] = samples["batch_index"][batch_index:batch_index + 1]
         return (s,)
 
 class LatentUpscale:
@@ -747,8 +752,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
-        skip = latent["batch_index"] if "batch_index" in latent else 0
-        noise = comfy.sample.prepare_noise(latent_image, seed, skip)
+        batch_inds = latent["batch_index"] if "batch_index" in latent else None
+        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
 
     noise_mask = None
     if "noise_mask" in latent:
