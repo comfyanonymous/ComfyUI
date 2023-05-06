@@ -572,9 +572,6 @@ class BasicTransformerBlock(nn.Module):
 
         x += n
         x = self.ff(self.norm3(x)) + x
-
-        if current_index is not None:
-            transformer_options["current_index"] += 1
         return x
 
 
