@@ -88,45 +88,48 @@ class MaskEditorDialog extends ComfyDialog {
 	clearMask(self) {
 	}
 
-	createButton(name,callback) {
+	createButton(name, callback) {
 		var button = document.createElement("button");
 		button.innerText = name;
-		button.style.position = "absolute";
-		button.style.top = "5px";
 		button.addEventListener("click", callback);
 		return button;
 	}
-
-	createLeftButton(name,left,callback) {
-		var button = this.createButton(name,callback);
-		button.style.left = left;
+	createLeftButton(name, callback) {
+		var button = this.createButton(name, callback);
+		button.style.cssFloat = "left";
+		button.style.marginRight = "4px";
 		return button;
 	}
-
-	createRightButton(name,right,callback) {
-		var button = this.createButton(name,callback);
-		button.style.right = right;
+	createRightButton(name, callback) {
+		var button = this.createButton(name, callback);
+		button.style.cssFloat = "right";
+		button.style.marginLeft = "4px";
 		return button;
 	}
-
-	createLeftSlider(self, name,left,callback) {
+	createLeftSlider(self, name, callback) {
 		const divElement = document.createElement('div');
-		divElement.style.position = "absolute";
-		divElement.style.top = "5px";
-		divElement.style.left = left;
-		divElement.style.backgroundColor = 'Black';
-		divElement.style.paddingLeft = "10px";
-		divElement.style.paddingRight = "10px";
-		divElement.style.borderRadius = "10px";
-
+		divElement.id = "maskeditor-slider";
+		divElement.style.cssFloat = "left";
+		divElement.style.fontFamily = "sans-serif";
+		divElement.style.marginRight = "4px";
+		divElement.style.color = "var(--input-text)";
+		divElement.style.backgroundColor = "var(--comfy-input-bg)";
+		divElement.style.borderRadius = "8px";
+		divElement.style.borderColor = "var(--border-color)";
+		divElement.style.borderStyle = "solid";
+		divElement.style.fontSize = "20px";
+		divElement.style.height = "21px";
+		divElement.style.padding = "1px 6px";
+		divElement.style.display = "flex";
+		divElement.style.position = "relative";
+		divElement.style.top = "2px";
 		self.brush_slider_input = document.createElement('input');
 		self.brush_slider_input.setAttribute('type', 'range');
 		self.brush_slider_input.setAttribute('min', '1');
 		self.brush_slider_input.setAttribute('max', '100');
 		self.brush_slider_input.setAttribute('value', '10');
-
 		const labelElement = document.createElement("label");
-		labelElement.innerHTML = `<font color='white' size='5px'>${name}</font>`;
+		labelElement.textContent = name;
 
 		divElement.appendChild(labelElement);
 		divElement.appendChild(self.brush_slider_input);
