@@ -173,28 +173,25 @@ class MaskEditorDialog extends ComfyDialog {
 		this.element.appendChild(bottom_panel);
 		document.body.appendChild(brush);
 
-		var clearButton = this.createLeftButton("Clear", "280px",
+		var brush_size_slider = this.createLeftSlider(self, "Thickness", (event) => {
+			self.brush_size = event.target.value;
+			self.updateBrushPreview(self, null, null);
+		});
+		var clearButton = this.createLeftButton("Clear",
 			() => {
 				self.maskCtx.clearRect(0, 0, self.maskCanvas.width, self.maskCanvas.height);
 				self.backupCtx.clearRect(0, 0, self.backupCanvas.width, self.backupCanvas.height);
 			});
-
-		var saveButton = this.createRightButton("Save", "110px", () => {
-			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
-			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
-				self.save();
-			});
-
-		var cancelButton = this.createRightButton("Cancel", "20px", () => {
+		var cancelButton = this.createRightButton("Cancel", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
 			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
 			self.close();
 		});
-
-		var brush_size_slider = this.createLeftSlider(self, "Thickness", "20px", (event) => {
-			self.brush_size = event.target.value;
-			self.updateBrushPreview(self, null, null);
-		});
+		var saveButton = this.createRightButton("Save", () => {
+			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
+			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
+				self.save();
+			});
 
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
