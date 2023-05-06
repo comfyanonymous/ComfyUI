@@ -312,7 +312,12 @@ def maximum_batch_area():
         return 0
 
     memory_free = get_free_memory() / (1024 * 1024)
-    area = ((memory_free - 1024) * 0.9) / (0.6)
+    if xformers_enabled():
+        #TODO: this needs to be tweaked
+        area = 50 * memory_free
+    else:
+        #TODO: this formula is because AMD sucks and has memory management issues which might be fixed in the future
+        area = ((memory_free - 1024) * 0.9) / (0.6)
     return int(max(area, 0))
 
 def cpu_mode():
