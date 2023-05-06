@@ -12,7 +12,7 @@ class LatentRebatch:
 
     FUNCTION = "rebatch"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/batch"
 
     @staticmethod
     def get_batch(latents, list_ind, offset):
