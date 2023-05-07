@@ -361,14 +361,14 @@ class MaskEditorDialog extends ComfyDialog {
 	}
 
 	draw_move(self, event) {
+		event.preventDefault();
+
 		this.cursorX = event.pageX;
 		this.cursorY = event.pageY;
 
 		self.updateBrushPreview(self);
 
-		if (event instanceof TouchEvent || event.buttons === 1) {
-			event.preventDefault();
-
+		if (event instanceof TouchEvent || event.buttons == 1) {
 			var diff = performance.now() - self.lasttime;
 
 			const maskRect = self.maskCanvas.getBoundingClientRect();
@@ -385,8 +385,15 @@ class MaskEditorDialog extends ComfyDialog {
 			}
 
 			var brush_size = this.brush_size;
-			if(event instanceof PointerEvent && event.pointerType != 'mouse') {
+			if(event instanceof PointerEvent && event.pointerType == 'pen') {
 				brush_size *= event.pressure;
+				this.last_pressure = event.pressure;
+			}
+			else if(event instanceof TouchEvent && diff < 20){
+				brush_size *= this.last_pressure;
+			}
+			else {
+				brush_size = this.brush_size;
 			}
 
 			if(diff > 20 && !this.drawing_mode)
@@ -424,15 +431,21 @@ class MaskEditorDialog extends ComfyDialog {
 
 			self.lasttime = performance.now();
 		}
-		else if(event.buttons === 2) {
-			event.preventDefault();
+		else if(event.buttons == 2 || event.buttons == 5 || event.buttons == 32) {
 			const maskRect = self.maskCanvas.getBoundingClientRect();
 			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
 			var brush_size = this.brush_size;
-			if(event instanceof PointerEvent && event.pointerType != 'mouse') {
+			if(event instanceof PointerEvent && event.pointerType == 'pen') {
 				brush_size *= event.pressure;
+				this.last_pressure = event.pressure;
+			}
+			else if(event instanceof TouchEvent && diff < 20){
+				brush_size *= this.last_pressure;
+			}
+			else {
+				brush_size = this.brush_size;
 			}
 
 			if(diff > 20 && !drawing_mode) // cannot tracking drawing_mode for touch event
@@ -470,13 +483,14 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 	}
 
-	handlePointerDown(self, event) {
+	handlePointerDown(self, event) {		
 		var brush_size = this.brush_size;
-		if(event instanceof PointerEvent && event.pointerType != 'mouse') {
+		if(event instanceof PointerEvent && event.pointerType == 'pen') {
 			brush_size *= event.pressure;
+			this.last_pressure = event.pressure;
 		}
 
-		if (event.buttons == 1) {
+		if (event.button == 0) {
 			self.drawing_mode = true;
 
 			event.preventDefault();
@@ -493,7 +507,7 @@ class MaskEditorDialog extends ComfyDialog {
 			self.lasty = y;
 			self.lasttime = performance.now();
 		}
-		else if(event.button == 2) {
+		else if(event.button == 2 || event.button == 5) {
 			self.drawing_mode = true;
 
 			event.preventDefault();
