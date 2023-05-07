@@ -56,6 +56,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Q | Toggle visibility of the queue |
 | H | Toggle visibility of history |
 | R | Refresh graph |
+| Double-Click LMB | Open node quick search palette |
 
 Ctrl can also be replaced with Cmd instead for MacOS users
 
