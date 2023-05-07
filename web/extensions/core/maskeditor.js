@@ -306,12 +306,12 @@ class MaskEditorDialog extends ComfyDialog {
 
 		const self = this;
 		maskCanvas.addEventListener('wheel', (event) => this.handleWheelEvent(self,event));
-		maskCanvas.addEventListener('mousedown', (event) => this.handleMouseDown(self,event));
-		document.addEventListener('mouseup', MaskEditorDialog.handleMouseUp);
-		maskCanvas.addEventListener('mousemove', (event) => this.draw_move(self,event));
+		maskCanvas.addEventListener('pointerdown', (event) => this.handlePointerDown(self,event));
+		document.addEventListener('pointerup', MaskEditorDialog.handlePointerUp);
+		maskCanvas.addEventListener('pointermove', (event) => this.draw_move(self,event));
 		maskCanvas.addEventListener('touchmove', (event) => this.draw_move(self,event));
-		maskCanvas.addEventListener('mouseover', (event) => { this.brush.style.display = "block"; });
-		maskCanvas.addEventListener('mouseleave', (event) => { this.brush.style.display = "none"; });
+		maskCanvas.addEventListener('pointerover', (event) => { this.brush.style.display = "block"; });
+		maskCanvas.addEventListener('pointerleave', (event) => { this.brush.style.display = "none"; });
 		document.addEventListener('keydown', MaskEditorDialog.handleKeyDown);
 	}
 
@@ -332,7 +332,7 @@ class MaskEditorDialog extends ComfyDialog {
 		self.updateBrushPreview(self);
 	}
 
-	static handleMouseUp(event) {
+	static handlePointerUp(event) {
 		event.preventDefault();
 		MaskEditorDialog.instance.drawing_mode = false;
 	}
@@ -384,12 +384,17 @@ class MaskEditorDialog extends ComfyDialog {
 				y = event.targetTouches[0].clientY - maskRect.top;
 			}
 
+			var brush_size = this.brush_size;
+			if(event instanceof PointerEvent && event.pointerType != 'mouse') {
+				brush_size *= event.pressure;
+			}
+
 			if(diff > 20 && !this.drawing_mode)
 				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.fillStyle = "rgb(0,0,0)";
 					self.maskCtx.globalCompositeOperation = "source-over";
-					self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+					self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
 					self.maskCtx.fill();
 					self.lastx = x;
 					self.lasty = y;
@@ -399,7 +404,7 @@ class MaskEditorDialog extends ComfyDialog {
 					self.maskCtx.beginPath();
 					self.maskCtx.fillStyle = "rgb(0,0,0)";
 					self.maskCtx.globalCompositeOperation = "source-over";
-					
+
 					var dx = x - self.lastx;
 					var dy = y - self.lasty;
 
@@ -410,7 +415,7 @@ class MaskEditorDialog extends ComfyDialog {
 					for (var i = 0; i < distance; i+=5) {
 						var px = self.lastx + (directionX * i);
 						var py = self.lasty + (directionY * i);
-						self.maskCtx.arc(px, py, this.brush_size, 0, Math.PI * 2, false);
+						self.maskCtx.arc(px, py, brush_size, 0, Math.PI * 2, false);
 						self.maskCtx.fill();
 					}
 					self.lastx = x;
@@ -425,11 +430,16 @@ class MaskEditorDialog extends ComfyDialog {
 			const x = event.offsetX || event.targetTouches[0].clientX - maskRect.left;
 			const y = event.offsetY || event.targetTouches[0].clientY - maskRect.top;
 
+			var brush_size = this.brush_size;
+			if(event instanceof PointerEvent && event.pointerType != 'mouse') {
+				brush_size *= event.pressure;
+			}
+
 			if(diff > 20 && !drawing_mode) // cannot tracking drawing_mode for touch event
 				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.globalCompositeOperation = "destination-out";
-					self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+					self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
 					self.maskCtx.fill();
 					self.lastx = x;
 					self.lasty = y;
@@ -449,7 +459,7 @@ class MaskEditorDialog extends ComfyDialog {
 					for (var i = 0; i < distance; i+=5) {
 						var px = self.lastx + (directionX * i);
 						var py = self.lasty + (directionY * i);
-						self.maskCtx.arc(px, py, this.brush_size, 0, Math.PI * 2, false);
+						self.maskCtx.arc(px, py, brush_size, 0, Math.PI * 2, false);
 						self.maskCtx.fill();
 					}
 					self.lastx = x;
@@ -460,8 +470,13 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 	}
 
-	handleMouseDown(self, event) {
-		if (event.button == 0) {
+	handlePointerDown(self, event) {
+		var brush_size = this.brush_size;
+		if(event instanceof PointerEvent && event.pointerType != 'mouse') {
+			brush_size *= event.pressure;
+		}
+
+		if (event.buttons == 1) {
 			self.drawing_mode = true;
 
 			event.preventDefault();
@@ -472,7 +487,7 @@ class MaskEditorDialog extends ComfyDialog {
 			self.maskCtx.beginPath();
 			self.maskCtx.fillStyle = "rgb(0,0,0)";
 			self.maskCtx.globalCompositeOperation = "source-over";
-			self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+			self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
 			self.maskCtx.fill();
 			self.lastx = x;
 			self.lasty = y;
@@ -488,7 +503,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 			self.maskCtx.beginPath();
 			self.maskCtx.globalCompositeOperation = "destination-out";
-			self.maskCtx.arc(x, y, this.brush_size, 0, Math.PI * 2, false);
+			self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
 			self.maskCtx.fill();
 			self.lastx = x;
 			self.lasty = y;
