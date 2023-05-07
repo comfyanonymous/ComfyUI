@@ -310,9 +310,7 @@ class ComfyApi extends EventTarget {
 		// I'll just use client storage for now
 		try {
 			const r = load_saved();
-			console.log("r is", r);
 			return { Saved: Object.values(r).map((i) => {
-				console.log(i);
 				i['remove'] = {
                                         name: "Delete",
                                         cb: () => {
