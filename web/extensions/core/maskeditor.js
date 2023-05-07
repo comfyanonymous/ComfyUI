@@ -390,6 +390,7 @@ class MaskEditorDialog extends ComfyDialog {
 				this.last_pressure = event.pressure;
 			}
 			else if(event instanceof TouchEvent && diff < 20){
+				// The firing interval of PointerEvents in Pen is unreliable, so it is supplemented by TouchEvents.
 				brush_size *= this.last_pressure;
 			}
 			else {
@@ -483,7 +484,7 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 	}
 
-	handlePointerDown(self, event) {		
+	handlePointerDown(self, event) {
 		var brush_size = this.brush_size;
 		if(event instanceof PointerEvent && event.pointerType == 'pen') {
 			brush_size *= event.pressure;
@@ -511,7 +512,6 @@ class MaskEditorDialog extends ComfyDialog {
 			self.lasty = y;
 			self.lasttime = performance.now();
 		}
-
 	}
 
 	save() {
@@ -583,7 +583,7 @@ app.registerExtension({
 				dlg.show();
 			};
 
-        const context_predicate = () => ComfyApp.clipspace && ComfyApp.clipspace.imgs && ComfyApp.clipspace.imgs.length > 0
-        ClipspaceDialog.registerButton("MaskEditor", context_predicate, callback);
+		const context_predicate = () => ComfyApp.clipspace && ComfyApp.clipspace.imgs && ComfyApp.clipspace.imgs.length > 0
+		ClipspaceDialog.registerButton("MaskEditor", context_predicate, callback);
 	}
 });
