@@ -973,8 +973,9 @@ class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
+        input_dir = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(os.listdir(input_dir)), )},
+                    {"image": ("FILE_COMBO", {"base_dir": "input", "files": sorted(input_dir)}, )},
                 }
 
     CATEGORY = "image"
@@ -1014,9 +1015,10 @@ class LoadImageMask:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
+        input_dir = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(os.listdir(input_dir)), ),
-                    "channel": (s._color_channels, ),}
+                    {"image": ("FILE_COMBO", {"base_dir": "input", "files": sorted(input_dir)}, ),
+                     "channel": (s._color_channels, ), }
                 }
 
     CATEGORY = "mask"

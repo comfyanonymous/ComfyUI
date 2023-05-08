@@ -256,6 +256,20 @@ export const ComfyWidgets = {
 		}
 		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
 	},
+	FILE_COMBO(node, inputName, inputData) {
+		const base_dir = inputData[1].base_dir;
+		let defaultValue = inputData[1].files[0];
+
+		const files = []
+		for(let i in inputData[1].files) {
+			files[i] = inputData[1].files[i];
+			const postfix = ' [clipspace]';
+			if(base_dir == 'input' && files[i].endsWith(postfix))
+				files[i] = "clipspace/" + files[i].slice(0, files[i].indexOf(postfix));
+		}
+
+		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { base_dir:base_dir, values: files }) };
+	},
 	IMAGEUPLOAD(node, inputName, inputData, app) {
 		const imageWidget = node.widgets.find((w) => w.name === "image");
 		let uploadWidget;
