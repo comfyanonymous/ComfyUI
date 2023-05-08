@@ -368,7 +368,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 		self.updateBrushPreview(self);
 
-		if (event instanceof TouchEvent || event.buttons == 1) {
+		if (window.TouchEvent && event instanceof TouchEvent || event.buttons == 1) {
 			var diff = performance.now() - self.lasttime;
 
 			const maskRect = self.maskCanvas.getBoundingClientRect();
@@ -389,7 +389,7 @@ class MaskEditorDialog extends ComfyDialog {
 				brush_size *= event.pressure;
 				this.last_pressure = event.pressure;
 			}
-			else if(event instanceof TouchEvent && diff < 20){
+			else if(window.TouchEvent && event instanceof TouchEvent && diff < 20){
 				// The firing interval of PointerEvents in Pen is unreliable, so it is supplemented by TouchEvents.
 				brush_size *= this.last_pressure;
 			}
@@ -442,7 +442,7 @@ class MaskEditorDialog extends ComfyDialog {
 				brush_size *= event.pressure;
 				this.last_pressure = event.pressure;
 			}
-			else if(event instanceof TouchEvent && diff < 20){
+			else if(window.TouchEvent && event instanceof TouchEvent && diff < 20){
 				brush_size *= this.last_pressure;
 			}
 			else {
