@@ -7,6 +7,9 @@ import execution
 import uuid
 import json
 import glob
+from PIL import Image
+from io import BytesIO
+
 try:
     import aiohttp
     from aiohttp import web
@@ -110,19 +113,26 @@ class PromptServer():
             files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
             return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
 
+        def get_dir_by_type(dir_type):
+            if dir_type is None:
+                type_dir = folder_paths.get_input_directory()
+            elif dir_type == "input":
+                type_dir = folder_paths.get_input_directory()
+            elif dir_type == "clipspace":
+                type_dir = folder_paths.get_clipspace_directory()
+            elif dir_type == "temp":
+                type_dir = folder_paths.get_temp_directory()
+            elif dir_type == "output":
+                type_dir = folder_paths.get_output_directory()
+
+            return type_dir
+
         @routes.post("/upload/image")
         async def upload_image(request):
             post = await request.post()
             image = post.get("image")
 
-            if post.get("type") is None:
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "input":
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "temp":
-                upload_dir = folder_paths.get_temp_directory()
-            elif post.get("type") == "output":
-                upload_dir = folder_paths.get_output_directory()
+            upload_dir = get_dir_by_type(post.get("type"))
 
             if not os.path.exists(upload_dir):
                 os.makedirs(upload_dir)
@@ -147,12 +157,62 @@ class PromptServer():
             else:
                 return web.Response(status=400)
 
+        @routes.post("/upload/mask")
+        async def upload_mask(request):
+            post = await request.post()
+            image = post.get("image")
+            original_image = post.get("original_image")
+
+            upload_dir = get_dir_by_type(post.get("type"))
+
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir)
+
+            if image and image.file:
+                filename = image.filename
+                if not filename:
+                    return web.Response(status=400)
+
+                split = os.path.splitext(filename)
+                i = 1
+                while os.path.exists(os.path.join(upload_dir, filename)):
+                    filename = f"{split[0]} ({i}){split[1]}"
+                    i += 1
+
+                filepath = os.path.join(upload_dir, filename)
+
+                original_pil = Image.open(original_image.file).convert('RGBA')
+                mask_pil = Image.open(image.file).convert('RGBA')
+
+                # alpha copy
+                new_alpha = mask_pil.getchannel('A')
+                original_pil.putalpha(new_alpha)
+
+                original_pil.save(filepath)
+
+                return web.json_response({"name": filename})
+            else:
+                return web.Response(status=400)
+
 
         @routes.get("/view")
         async def view_image(request):
             if "filename" in request.rel_url.query:
-                type = request.rel_url.query.get("type", "output")
-                output_dir = folder_paths.get_directory_by_type(type)
+                filename = request.rel_url.query["filename"]
+                filename,output_dir = folder_paths.annotated_filepath(filename)
+
+                if request.rel_url.query.get("type", "input") and filename.startswith("clipspace/"):
+                    output_dir = folder_paths.get_clipspace_directory()
+                    filename = filename[10:]
+
+                # validation for security: prevent accessing arbitrary path
+                if filename[0] == '/' or '..' in filename:
+                    return web.Response(status=400)
+
+                if output_dir is None:
+                    type = request.rel_url.query.get("type", "output")
+                    output_dir = folder_paths.get_directory_by_type(type)
+
                 if output_dir is None:
                     return web.Response(status=400)
 
@@ -162,13 +222,49 @@ class PromptServer():
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
-                filename = request.rel_url.query["filename"]
                 filename = os.path.basename(filename)
                 file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
-                    return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
-                
+                    if 'channel' not in request.rel_url.query:
+                        channel = 'rgba'
+                    else:
+                        channel = request.rel_url.query["channel"]
+
+                    if channel == 'rgb':
+                        with Image.open(file) as img:
+                            if img.mode == "RGBA":
+                                r, g, b, a = img.split()
+                                new_img = Image.merge('RGB', (r, g, b))
+                            else:
+                                new_img = img.convert("RGB")
+
+                            buffer = BytesIO()
+                            new_img.save(buffer, format='PNG')
+                            buffer.seek(0)
+
+                            return web.Response(body=buffer.read(), content_type='image/png',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+
+                    elif channel == 'a':
+                        with Image.open(file) as img:
+                            if img.mode == "RGBA":
+                                _, _, _, a = img.split()
+                            else:
+                                a = Image.new('L', img.size, 255)
+
+                            # alpha img
+                            alpha_img = Image.new('RGBA', img.size)
+                            alpha_img.putalpha(a)
+                            alpha_buffer = BytesIO()
+                            alpha_img.save(alpha_buffer, format='PNG')
+                            alpha_buffer.seek(0)
+
+                            return web.Response(body=alpha_buffer.read(), content_type='image/png',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                    else:
+                        return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
+
             return web.Response(status=404)
 
         @routes.get("/prompt")
