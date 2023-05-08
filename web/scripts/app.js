@@ -183,7 +183,6 @@ export class ComfyApp {
 							if(ComfyApp.clipspace) {
 								// image paste
 								if(ComfyApp.clipspace.imgs && this.imgs) {
-									var filename = "";
 									if(this.images && ComfyApp.clipspace.images) {
 										if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
 											app.nodeOutputs[this.id + ""].images = this.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
@@ -209,49 +208,25 @@ export class ComfyApp {
 											}
 										}
 									}
-
-									if(ComfyApp.clipspace.images) {
-										const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
-										if(clip_image.subfolder != '')
-											filename = `${clip_image.subfolder}/`;
-										filename += `${clip_image.filename} [${clip_image.type}]`;
-									}
-									else if(ComfyApp.clipspace.widgets) {
-										const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
-										if(index_in_clip >= 0) {
-											const item = ComfyApp.clipspace.widgets[index_in_clip].value;
-											if(item.type)
-												filename = `${item.filename} [${item.type}]`;
-											else
-												filename = item.filename;
-										}
-									}
-
-									// for Load Image node.
-									if(this.widgets) {
-										const index = this.widgets.findIndex(obj => obj.name === 'image');
-										if(index >= 0 && filename != "") {
-											const postfix = ' [clipspace]';
-											if(filename.endsWith(postfix) && this.widgets[index].options.base_dir == 'input') {
-												filename = "clipspace/" + filename.slice(0, filename.indexOf(postfix));
-											}
-
-											this.widgets[index].value = filename;
-											if(this.widgets_values != undefined) {
-												this.widgets_values[index] = filename;
-											}
-										}
-									}
 								}
 
-								// ensure render after update widget_value
-								if(ComfyApp.clipspace.widgets && this.widgets) {
-									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
-										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
-											if (prop && prop.type != 'button') {
-												prop.callback(value);
-											}
-									});
+								if(this.widgets) {
+									if(ComfyApp.clipspace.images) {
+										const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
+										const index = this.widgets.findIndex(obj => obj.name === 'image');
+										if(index >= 0) {
+											this.widgets[index].value = clip_image;
+										}
+									}
+									if(ComfyApp.clipspace.widgets) {
+										ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+											const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
+												if (prop && prop.type != 'button') {
+													prop.value = value;
+													prop.callback(value);
+												}
+										});
+									}
 								}
 							}
 
@@ -1323,12 +1298,7 @@ export class ComfyApp {
 			for(const widgetNum in node.widgets) {
 				const widget = node.widgets[widgetNum]
 				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
-					if(def["input"]["required"][widget.name][0] == "FILE_COMBO") {
-						console.log(widget.options.values = def["input"]["required"][widget.name][1].files);
-						widget.options.values = def["input"]["required"][widget.name][1].files;
-					}
-					else
-						widget.options.values = def["input"]["required"][widget.name][0];
+					widget.options.values = def["input"]["required"][widget.name][0];
 
 					if(!widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
