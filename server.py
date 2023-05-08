@@ -179,7 +179,7 @@ class PromptServer():
                 # alpha copy
                 new_alpha = mask_pil.getchannel('A')
                 original_pil.putalpha(new_alpha)
-                original_pil.save(filepath)
+                original_pil.save(filepath, compress_level=4)
 
             return image_upload(post, image_save_function)
 
