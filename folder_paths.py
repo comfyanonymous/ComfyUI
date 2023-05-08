@@ -57,10 +57,6 @@ def get_input_directory():
     global input_directory
     return input_directory
 
-def get_clipspace_directory():
-    global input_directory
-    return input_directory+"/clipspace"
-
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name):
@@ -70,8 +66,6 @@ def get_directory_by_type(type_name):
         return get_temp_directory()
     if type_name == "input":
         return get_input_directory()
-    if type_name == "clipspace":
-        return get_clipspace_directory()
     return None
 
 
@@ -87,9 +81,6 @@ def annotated_filepath(name):
     elif name.endswith("[temp]"):
         base_dir = get_temp_directory()
         name = name[:-7]
-    elif name.endswith("[clipspace]"):
-        base_dir = get_clipspace_directory()
-        name = name[:-12]
     else:
         return name, None
 
