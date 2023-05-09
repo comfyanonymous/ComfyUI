@@ -266,9 +266,45 @@ export const ComfyWidgets = {
 				node.imgs = [img];
 				app.graph.setDirtyCanvas(true);
 			};
-			img.src = `/view?filename=${name}&type=input`;
+			let folder_separator = name.lastIndexOf("/");
+			let subfolder = "";
+			if (folder_separator > -1) {
+				subfolder = name.substring(0, folder_separator);
+				name = name.substring(folder_separator + 1);
+			}
+			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}`;
 			node.setSizeForImage?.();
 		}
+
+		var default_value = imageWidget.value;
+		Object.defineProperty(imageWidget, "value", {
+			set : function(value) {
+				this._real_value = value;
+			},
+
+			get : function() {
+				let value = "";
+				if (this._real_value) {
+					value = this._real_value;
+				} else {
+					return default_value;
+				}
+
+				if (value.filename) {
+					let real_value = value;
+					value = "";
+					if (real_value.subfolder) {
+						value = real_value.subfolder + "/";
+					}
+
+					value += real_value.filename;
+
+					if(real_value.type && real_value.type !== "input")
+						value += ` [${real_value.type}]`;
+				}
+				return value;
+			}
+		});
 
 		// Add our own callback to the combo widget to render an image when it changes
 		const cb = node.callback;

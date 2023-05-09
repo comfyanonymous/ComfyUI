@@ -201,6 +201,9 @@ def load_controlnet_gpu(control_models):
         return
 
     if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
+        for m in control_models:
+            if hasattr(m, 'set_lowvram'):
+                m.set_lowvram(True)
         #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
         return
 
@@ -272,7 +275,16 @@ def xformers_enabled_vae():
     return XFORMERS_ENABLED_VAE
 
 def pytorch_attention_enabled():
+    global ENABLE_PYTORCH_ATTENTION
     return ENABLE_PYTORCH_ATTENTION
+
+def pytorch_attention_flash_attention():
+    global ENABLE_PYTORCH_ATTENTION
+    if ENABLE_PYTORCH_ATTENTION:
+        #TODO: more reliable way of checking for flash attention?
+        if torch.version.cuda: #pytorch flash attention only works on Nvidia
+            return True
+    return False
 
 def get_free_memory(dev=None, torch_free_too=False):
     global xpu_available
@@ -309,7 +321,12 @@ def maximum_batch_area():
         return 0
 
     memory_free = get_free_memory() / (1024 * 1024)
-    area = ((memory_free - 1024) * 0.9) / (0.6)
+    if xformers_enabled() or pytorch_attention_flash_attention():
+        #TODO: this needs to be tweaked
+        area = 20 * memory_free
+    else:
+        #TODO: this formula is because AMD sucks and has memory management issues which might be fixed in the future
+        area = ((memory_free - 1024) * 0.9) / (0.6)
     return int(max(area, 0))
 
 def cpu_mode():

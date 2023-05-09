@@ -105,15 +105,13 @@ class ConditioningSetArea:
 
     CATEGORY = "conditioning"
 
-    def append(self, conditioning, width, height, x, y, strength, min_sigma=0.0, max_sigma=99.0):
+    def append(self, conditioning, width, height, x, y, strength):
         c = []
         for t in conditioning:
             n = [t[0], t[1].copy()]
             n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
             n[1]['strength'] = strength
             n[1]['set_area_to_bounds'] = False
-            n[1]['min_sigma'] = min_sigma
-            n[1]['max_sigma'] = max_sigma
             c.append(n)
         return (c, )
 
@@ -445,7 +443,6 @@ class ControlNetApply:
     def apply_controlnet(self, conditioning, control_net, image, strength):
         c = []
         control_hint = image.movedim(-1,1)
-        print(control_hint.shape)
         for t in conditioning:
             n = [t[0], t[1].copy()]
             c_net = control_net.copy().set_cond_hint(control_hint, strength)
@@ -975,8 +972,9 @@ class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(os.listdir(input_dir)), )},
+                    {"image": (sorted(files), )},
                 }
 
     CATEGORY = "image"
@@ -1016,9 +1014,10 @@ class LoadImageMask:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(os.listdir(input_dir)), ),
-                    "channel": (s._color_channels, ),}
+                    {"image": (sorted(files), ),
+                     "channel": (s._color_channels, ), }
                 }
 
     CATEGORY = "mask"
