@@ -362,19 +362,8 @@ def resolve_cond_masks(conditions, h, w, device):
                 else:
                     box = boxes[0]
                     H, W, Y, X = (box[3] - box[1] + 1, box[2] - box[0] + 1, box[1], box[0])
-                    # Make sure the height and width are divisible by 8
-                    if X % 8 != 0:
-                        newx = X // 8 * 8
-                        W = W + (X - newx)
-                        X = newx
-                    if Y % 8 != 0:
-                        newy = Y // 8 * 8
-                        H = H + (Y - newy)
-                        Y = newy
-                    if H % 8 != 0:
-                        H = H + (8 - (H % 8))
-                    if W % 8 != 0:
-                        W = W + (8 - (W % 8))
+                    H = max(8, H)
+                    W = max(8, W)
                     area = (int(H), int(W), int(Y), int(X))
                     modified['area'] = area
 
