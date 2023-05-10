@@ -312,7 +312,7 @@ class PromptServer():
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
-                    self.prompt_queue.put((number, id(prompt), prompt, extra_data))
+                    self.prompt_queue.put((number, id(prompt), prompt, extra_data, valid[2]))
                 else:
                     resp_code = 400
                     out_string = valid[1]
