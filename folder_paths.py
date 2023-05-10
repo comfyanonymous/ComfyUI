@@ -139,12 +139,21 @@ def get_full_path(folder_name, filename):
             return full_path
 
 
+filename_list_cache = {}
+
+
+def clear_cache():
+    filename_list_cache = {}
+
+
 def get_filename_list(folder_name):
-    global folder_names_and_paths
-    output_list = set()
-    folders = folder_names_and_paths[folder_name]
-    for x in folders[0]:
-        output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
-    return sorted(list(output_list))
+    global folder_names_and_paths, cache
 
+    if folder_name not in filename_list_cache:
+        output_list = set()
+        folders = folder_names_and_paths[folder_name]
+        for x in folders[0]:
+            output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
+        filename_list_cache[folder_name] = sorted(list(output_list))
 
+    return filename_list_cache[folder_name]
