@@ -151,6 +151,7 @@ class PromptServer():
                 i = 1
                 while os.path.exists(filepath):
                     filename = f"{split[0]} ({i}){split[1]}"
+                    filepath = os.path.join(full_output_folder, filename)
                     i += 1
 
                 if image_save_function is not None:
