@@ -1267,6 +1267,12 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(reader.result));
 			};
 			reader.readAsText(file);
+		} else if (file.type === "text/plain" || file.name?.endsWith(".txt")) {
+			const reader = new FileReader();
+			reader.onload = () => {
+                importA1111(this.graph, reader.result);
+			};
+			reader.readAsText(file);
 		}
 	}
 

@@ -48,7 +48,10 @@ export function getPngMetadata(file) {
 }
 
 export async function importA1111(graph, parameters) {
-	const p = parameters.lastIndexOf("\nSteps:");
+	var p = parameters.lastIndexOf("Steps:");
+    if (p > -1) {
+        p = parameters.substr(0, p).lastIndexOf("\n");
+    }
 	if (p > -1) {
 		const embeddings = await api.getEmbeddings();
 		const opts = parameters
