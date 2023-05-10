@@ -194,7 +194,10 @@ class PromptExecutor:
                             if valid:
                                 recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed)
             except Exception as e:
-                print(traceback.format_exc())
+                if isinstance(e, comfy.model_management.InterruptProcessingException):
+                    print("Processing interrupted")
+                else:
+                    print(traceback.format_exc())
                 to_delete = []
                 for o in self.outputs:
                     if (o not in current_outputs) and (o not in executed):
