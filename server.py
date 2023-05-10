@@ -81,7 +81,7 @@ class PromptServer():
                 # Reusing existing session, remove old
                 self.sockets.pop(sid, None)
             else:
-                sid = uuid.uuid4().hex      
+                sid = uuid.uuid4().hex
 
             self.sockets[sid] = ws
 
@@ -313,7 +313,9 @@ class PromptServer():
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
-                    self.prompt_queue.put((number, id(prompt), prompt, extra_data, valid[2]))
+                    prompt_id = str(uuid.uuid4())
+                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, valid[2]))
+                    return web.json_response({"prompt_id": prompt_id})
                 else:
                     resp_code = 400
                     out_string = valid[1]
