@@ -185,7 +185,11 @@ class PromptExecutor:
                 if isinstance(e, comfy.model_management.InterruptProcessingException):
                     print("Processing interrupted")
                 else:
-                    print(traceback.format_exc())
+                    message = str(traceback.format_exc())
+                    print(message)
+                    if self.server.client_id is not None:
+                        self.server.send_sync("execution_error", { "message": message }, self.server.client_id)
+
                 to_delete = []
                 for o in self.outputs:
                     if (o not in current_outputs) and (o not in executed):
