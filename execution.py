@@ -169,6 +169,8 @@ class PromptExecutor:
                 recursive_output_delete_if_changed(prompt, self.old_prompt, self.outputs, x)
 
             current_outputs = set(self.outputs.keys())
+            if self.server.client_id is not None:
+                self.server.send_sync("execution_cached", { "nodes": list(current_outputs) }, self.server.client_id)
             executed = set()
             try:
                 to_execute = []
