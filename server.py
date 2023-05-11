@@ -140,7 +140,7 @@ class PromptServer():
 
             return type_dir, dir_type
 
-        def image_upload(post, image_save_function=None):
+        async def image_upload(post, image_save_function=None):
             image = post.get("image")
             overwrite = post.get("overwrite")
 

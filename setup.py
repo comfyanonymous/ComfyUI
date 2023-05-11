@@ -40,12 +40,7 @@ This includes macOS MPS support.
 """
 cpu_torch_index_nightlies = "https://download.pytorch.org/whl/nightly/cpu"
 
-"""
-The xformers dependency and version string.
-This should be updated whenever another pre-release of xformers is supported. The current build was retrieved from
-https://pypi.org/project/xformers/0.0.17rc482/#history.
-"""
-xformers_dep = "xformers==0.0.17rc482"
+# xformers not required for new torch
 
 
 def _is_nvidia() -> bool:
@@ -100,7 +95,6 @@ def dependencies() -> [str]:
     # prefer nvidia over AMD because AM5/iGPU systems will have a valid ROCm device
     if _is_nvidia():
         index_urls += [nvidia_torch_index]
-        _dependencies += [xformers_dep]
     elif _is_amd():
         index_urls += [amd_torch_index]
     else:
@@ -137,10 +131,10 @@ setup(
     description="",
     author="",
     version=version,
-    python_requires=">=3.9,<3.11",
+    python_requires=">=3.9,<=3.11",
     # todo: figure out how to include the web directory to eventually let main live inside the package
     # todo: see https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/ for more about adding plugins
-    packages=find_packages(where="./", include=['comfy', 'comfy_extras']),
+    packages=find_packages(where=".", include=['comfy', 'comfy_extras']),
     install_requires=dependencies(),
     entry_points={
         'console_scripts': [
