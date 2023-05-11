@@ -127,6 +127,7 @@ class PromptServer():
 
         def image_upload(post, image_save_function=None):
             image = post.get("image")
+            overwrite = post.get("overwrite")
 
             image_upload_type = post.get("type")
             upload_dir = get_dir_by_type(image_upload_type)
@@ -148,11 +149,14 @@ class PromptServer():
                 split = os.path.splitext(filename)
                 filepath = os.path.join(full_output_folder, filename)
 
-                i = 1
-                while os.path.exists(filepath):
-                    filename = f"{split[0]} ({i}){split[1]}"
-                    filepath = os.path.join(full_output_folder, filename)
-                    i += 1
+                if overwrite is not None and (overwrite == "true" or overwrite == "1"):
+                    pass
+                else:
+                    i = 1
+                    while os.path.exists(filepath):
+                        filename = f"{split[0]} ({i}){split[1]}"
+                        filepath = os.path.join(full_output_folder, filename)
+                        i += 1
 
                 if image_save_function is not None:
                     image_save_function(image, post, filepath)
