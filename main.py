@@ -33,7 +33,7 @@ def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
     while True:
         item, item_id = q.get()
-        e.execute(item[-3], item[-2], item[-1])
+        e.execute(item[2], item[1], item[3], item[4])
         q.task_done(item_id, e.outputs)
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):

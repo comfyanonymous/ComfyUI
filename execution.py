@@ -147,7 +147,7 @@ class PromptExecutor:
         self.old_prompt = {}
         self.server = server
 
-    def execute(self, prompt, extra_data={}, execute_outputs=[]):
+    def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
 
         if "client_id" in extra_data:
@@ -170,7 +170,7 @@ class PromptExecutor:
 
             current_outputs = set(self.outputs.keys())
             if self.server.client_id is not None:
-                self.server.send_sync("execution_cached", { "nodes": list(current_outputs) }, self.server.client_id)
+                self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
             executed = set()
             try:
                 to_execute = []
@@ -190,7 +190,7 @@ class PromptExecutor:
                     message = str(traceback.format_exc())
                     print(message)
                     if self.server.client_id is not None:
-                        self.server.send_sync("execution_error", { "message": message }, self.server.client_id)
+                        self.server.send_sync("execution_error", { "message": message, "prompt_id": prompt_id }, self.server.client_id)
 
                 to_delete = []
                 for o in self.outputs:
@@ -207,7 +207,7 @@ class PromptExecutor:
                     self.old_prompt[x] = copy.deepcopy(prompt[x])
                 self.server.last_node_id = None
                 if self.server.client_id is not None:
-                    self.server.send_sync("executing", { "node": None }, self.server.client_id)
+                    self.server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, self.server.client_id)
 
         gc.collect()
         comfy.model_management.soft_empty_cache()
