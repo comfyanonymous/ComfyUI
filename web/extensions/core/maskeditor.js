@@ -174,7 +174,7 @@ class MaskEditorDialog extends ComfyDialog {
 		brush.style.MozBorderRadius = "50%";
 		brush.style.WebkitBorderRadius = "50%";
 		brush.style.position = "absolute";
-		brush.style.zIndex = 100;
+		brush.style.zIndex = 8889;
 		brush.style.pointerEvents = "none";
 		this.brush = brush;
 		this.element.appendChild(imgCanvas);
