@@ -51,106 +51,105 @@ export class ComfyApp {
 		this.shiftDown = false;
 	}
 
-    static isImageNode(node) {
-        console.log(node);
-        return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
-    }
+	static isImageNode(node) {
+		return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
+	}
 
-    static onClipspaceEditorSaved() {
-        if(ComfyApp.clipspace_return_node) {
-            ComfyApp.pasteToClipspace(ComfyApp.clipspace_return_node);
-            ComfyApp.clipspace_return_node = null;
-        }
-    }
+	static onClipspaceEditorClosed(save_mode) {
+		if(ComfyApp.clipspace_return_node) {
+			if(save_mode)
+				ComfyApp.pasteToClipspace(ComfyApp.clipspace_return_node);
+			ComfyApp.clipspace_return_node = null;
+		}
+	}
 
-    static copyToClipspace(node) {
-        var widgets = null;
-        if(node.widgets) {
-            widgets = node.widgets.map(({ type, name, value }) => ({ type, name, value }));
-        }
+	static copyToClipspace(node) {
+		var widgets = null;
+		if(node.widgets) {
+			widgets = node.widgets.map(({ type, name, value }) => ({ type, name, value }));
+		}
 
-        var imgs = undefined;
-        var orig_imgs = undefined;
-        if(node.imgs != undefined) {
-            imgs = [];
-            orig_imgs = [];
+		var imgs = undefined;
+		var orig_imgs = undefined;
+		if(node.imgs != undefined) {
+			imgs = [];
+			orig_imgs = [];
 
-            for (let i = 0; i < node.imgs.length; i++) {
-                imgs[i] = new Image();
-                imgs[i].src = node.imgs[i].src;
-                orig_imgs[i] = imgs[i];
-            }
-        }
+			for (let i = 0; i < node.imgs.length; i++) {
+				imgs[i] = new Image();
+				imgs[i].src = node.imgs[i].src;
+				orig_imgs[i] = imgs[i];
+			}
+		}
 
-        ComfyApp.clipspace = {
-            'widgets': widgets,
-            'imgs': imgs,
-            'original_imgs': orig_imgs,
-            'images': node.images,
-            'selectedIndex': 0,
-            'img_paste_mode': 'selected' // reset to default im_paste_mode state on copy action
-            };
+		ComfyApp.clipspace = {
+			'widgets': widgets,
+			'imgs': imgs,
+			'original_imgs': orig_imgs,
+			'images': node.images,
+			'selectedIndex': 0,
+			'img_paste_mode': 'selected' // reset to default im_paste_mode state on copy action
+		};
 
-        ComfyApp.clipspace_return_node = null;
+		ComfyApp.clipspace_return_node = null;
 
-        if(ComfyApp.clipspace_invalidate_handler) {
-            ComfyApp.clipspace_invalidate_handler();
-        }
-    }
+		if(ComfyApp.clipspace_invalidate_handler) {
+			ComfyApp.clipspace_invalidate_handler();
+		}
+	}
 
-    static pasteToClipspace(node) {
-        if(ComfyApp.clipspace) {
-            // image paste
-            if(ComfyApp.clipspace.imgs && node.imgs) {
-                if(node.images && ComfyApp.clipspace.images) {
-                    if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-                        app.nodeOutputs[node.id + ""].images = node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+	static pasteToClipspace(node) {
+		if(ComfyApp.clipspace) {
+			// image paste
+			if(ComfyApp.clipspace.imgs && node.imgs) {
+				if(node.images && ComfyApp.clipspace.images) {
+					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+						app.nodeOutputs[node.id + ""].images = node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+					}
+					else
+						app.nodeOutputs[node.id + ""].images = node.images = ComfyApp.clipspace.images;
+				}
 
-                    }
-                    else
-                        app.nodeOutputs[node.id + ""].images = node.images = ComfyApp.clipspace.images;
-                }
+				if(ComfyApp.clipspace.imgs) {
+					// deep-copy to cut link with clipspace
+					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+						const img = new Image();
+						img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+						node.imgs = [img];
+					}
+					else {
+						const imgs = [];
+						for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
+							imgs[i] = new Image();
+							imgs[i].src = ComfyApp.clipspace.imgs[i].src;
+							node.imgs = imgs;
+						}
+					}
+				}
+			}
 
-                if(ComfyApp.clipspace.imgs) {
-                    // deep-copy to cut link with clipspace
-                    if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-                            const img = new Image();
-                            img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
-                            node.imgs = [img];
-                    }
-                    else {
-                        const imgs = [];
-                        for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
-                            imgs[i] = new Image();
-                            imgs[i].src = ComfyApp.clipspace.imgs[i].src;
-                            node.imgs = imgs;
-                        }
-                    }
-                }
-            }
+			if(node.widgets) {
+				if(ComfyApp.clipspace.images) {
+					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
+					const index = node.widgets.findIndex(obj => obj.name === 'image');
+					if(index >= 0) {
+						node.widgets[index].value = clip_image;
+					}
+				}
+				if(ComfyApp.clipspace.widgets) {
+					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
+						if (prop && prop.type != 'button') {
+							prop.value = value;
+							prop.callback(value);
+						}
+					});
+				}
+			}
 
-            if(node.widgets) {
-                if(ComfyApp.clipspace.images) {
-                    const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
-                    const index = node.widgets.findIndex(obj => obj.name === 'image');
-                    if(index >= 0) {
-                        node.widgets[index].value = clip_image;
-                    }
-                }
-                if(ComfyApp.clipspace.widgets) {
-                    ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
-                        const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
-                            if (prop && prop.type != 'button') {
-                                prop.value = value;
-                                prop.callback(value);
-                            }
-                    });
-                }
-            }
-
-            app.graph.setDirtyCanvas(true);
-        }
-    }
+			app.graph.setDirtyCanvas(true);
+		}
+	}
 
 	/**
 	 * Invoke an extension callback
@@ -241,32 +240,31 @@ export class ComfyApp {
 				}
 			}
 
-			options.push(
-				{
-					content: "Copy (Clipspace)",
-					callback: (obj) => { ComfyApp.copyToClipspace(this); }
-				});
+			// prevent conflict of clipspace content
+			if(!ComfyApp.clipspace_return_node) {
+				options.push({
+						content: "Copy (Clipspace)",
+						callback: (obj) => { ComfyApp.copyToClipspace(this); }
+					});
 
-			if(ComfyApp.clipspace != null) {
-				options.push(
-					{
-						content: "Paste (Clipspace)",
-						callback: () => { ComfyApp.pasteToClipspace(this); }
-					}
-				);
+				if(ComfyApp.clipspace != null) {
+					options.push({
+							content: "Paste (Clipspace)",
+							callback: () => { ComfyApp.pasteToClipspace(this); }
+						});
+				}
+
+				if(ComfyApp.isImageNode(this)) {
+					options.push({
+							content: "Open in MaskEditor",
+							callback: (obj) => {
+								ComfyApp.copyToClipspace(this);
+								ComfyApp.clipspace_return_node = this;
+								ComfyApp.open_maskeditor();
+							}
+						});
+				}
 			}
-
-		    if(ComfyApp.isImageNode(this)) {
-                options.push(
-                    {
-                        content: "Open in MaskEditor",
-                        callback: (obj) => {
-                            ComfyApp.copyToClipspace(this);
-                            ComfyApp.clipspace_return_node = this;
-                            ComfyApp.open_maskeditor();
-                        }
-                    });
-		    }
 		};
 	}
 
