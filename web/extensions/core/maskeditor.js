@@ -187,7 +187,13 @@ class MaskEditorDialog extends ComfyDialog {
 			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
 			self.close();
 		});
-		var saveButton = this.createRightButton("Save", () => {
+
+        var save_button_title = "Save";
+		if(ComfyApp.clipspace_return_node) {
+            save_button_title = "Save to node";
+		}
+
+		var saveButton = this.createRightButton(save_button_title, () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
 			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
 				self.save();

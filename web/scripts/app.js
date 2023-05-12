@@ -59,6 +59,7 @@ export class ComfyApp {
     static onClipspaceEditorSaved() {
         if(ComfyApp.clipspace_return_node) {
             ComfyApp.pasteToClipspace(ComfyApp.clipspace_return_node);
+            ComfyApp.clipspace_return_node = null;
         }
     }
 
