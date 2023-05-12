@@ -583,7 +583,7 @@ class VAE:
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
-    print(current_batch_size, target_batch_size)
+    #print(current_batch_size, target_batch_size)
     if current_batch_size == 1:
         return tensor
 
