@@ -514,7 +514,7 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 	}
 
-	save() {
+	async save() {
 		const backupCtx = this.backupCanvas.getContext('2d', {willReadFrequently:true});
 
 		backupCtx.clearRect(0,0,this.backupCanvas.width,this.backupCanvas.height);
@@ -570,21 +570,22 @@ class MaskEditorDialog extends ComfyDialog {
 		formData.append('type', "input");
 		formData.append('subfolder', "clipspace");
 
-		uploadMask(item, formData);
+		await uploadMask(item, formData);
 		this.close();
+		ComfyApp.onClipspaceEditorSaved();
 	}
 }
 
 app.registerExtension({
 	name: "Comfy.MaskEditor",
 	init(app) {
-		const callback =
+		ComfyApp.open_maskeditor =
 			function () {
 				let dlg = new MaskEditorDialog(app);
 				dlg.show();
 			};
 
 		const context_predicate = () => ComfyApp.clipspace && ComfyApp.clipspace.imgs && ComfyApp.clipspace.imgs.length > 0
-		ClipspaceDialog.registerButton("MaskEditor", context_predicate, callback);
+		ClipspaceDialog.registerButton("MaskEditor", context_predicate, ComfyApp.open_maskeditor);
 	}
 });
