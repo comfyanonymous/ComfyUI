@@ -363,7 +363,7 @@ class PromptServer():
     def add_routes(self):
         self.app.add_routes(self.routes)
         self.app.add_routes([
-            web.static('/', self.web_root),
+            web.static('/', self.web_root, follow_symlinks=True),
         ])
 
     def get_queue_info(self):
