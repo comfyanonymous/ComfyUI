@@ -101,7 +101,7 @@ def get_output_data(obj, input_data_all):
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed):
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -116,19 +116,19 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed)
+                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id)
 
     input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
         server.last_node_id = unique_id
-        server.send_sync("executing", { "node": unique_id }, server.client_id)
+        server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id }, server.client_id)
     obj = class_def()
 
     output_data, output_ui = get_output_data(obj, input_data_all)
     outputs[unique_id] = output_data
     if len(output_ui) > 0:
         if server.client_id is not None:
-            server.send_sync("executed", { "node": unique_id, "output": output_ui }, server.client_id)
+            server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
     executed.add(unique_id)
 
 def recursive_will_execute(prompt, outputs, current_item):
@@ -215,6 +215,9 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
+        if self.server.client_id is not None:
+            self.server.send_sync("execution_start", { "prompt_id": prompt_id}, self.server.client_id)
+
         with torch.inference_mode():
             #delete cached outputs if nodes don't exist for them
             to_delete = []
@@ -242,7 +245,7 @@ class PromptExecutor:
                     to_execute = sorted(list(map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
                     x = to_execute.pop(0)[-1]
 
-                    recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed)
+                    recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed, prompt_id)
             except Exception as e:
                 if isinstance(e, comfy.model_management.InterruptProcessingException):
                     print("Processing interrupted")
