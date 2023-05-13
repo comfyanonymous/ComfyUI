@@ -250,10 +250,10 @@ class MaskEditorDialog extends ComfyDialog {
 			const observer = new MutationObserver(function(mutations) {
 			mutations.forEach(function(mutation) {
 					if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-						if(self.last_style && self.last_style != 'none')
+						if(self.last_display_style && self.last_display_style != 'none')
 							ComfyApp.onClipspaceEditorClosed();
 
-						self.last_style = self.element.style;
+						self.last_display_style = self.element.style.display;
 					}
 				});
 			});
@@ -620,8 +620,8 @@ class MaskEditorDialog extends ComfyDialog {
 		formData.append('subfolder', "clipspace");
 
 		await uploadMask(item, formData);
+		ComfyApp.onClipspaceEditorSave();
 		this.close();
-		ComfyApp.onClipspaceEditorClosed(true);
 	}
 }
 
