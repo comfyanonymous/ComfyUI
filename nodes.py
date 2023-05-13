@@ -629,18 +629,57 @@ class LatentFromBatch:
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
                               "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              "length": ("INT", {"default": 1, "min": 1, "max": 64}),
                               }}
     RETURN_TYPES = ("LATENT",)
-    FUNCTION = "rotate"
+    FUNCTION = "frombatch"
 
-    CATEGORY = "latent"
+    CATEGORY = "latent/batch"
 
-    def rotate(self, samples, batch_index):
+    def frombatch(self, samples, batch_index, length):
         s = samples.copy()
         s_in = samples["samples"]
         batch_index = min(s_in.shape[0] - 1, batch_index)
-        s["samples"] = s_in[batch_index:batch_index + 1].clone()
-        s["batch_index"] = batch_index
+        length = min(s_in.shape[0] - batch_index, length)
+        s["samples"] = s_in[batch_index:batch_index + length].clone()
+        if "noise_mask" in samples:
+            masks = samples["noise_mask"]
+            if masks.shape[0] == 1:
+                s["noise_mask"] = masks.clone()
+            else:
+                if masks.shape[0] < s_in.shape[0]:
+                    masks = masks.repeat(math.ceil(s_in.shape[0] / masks.shape[0]), 1, 1, 1)[:s_in.shape[0]]
+                s["noise_mask"] = masks[batch_index:batch_index + length].clone()
+        if "batch_index" not in s:
+            s["batch_index"] = [x for x in range(batch_index, batch_index+length)]
+        else:
+            s["batch_index"] = samples["batch_index"][batch_index:batch_index + length]
+        return (s,)
+    
+class RepeatLatentBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",),
+                              "amount": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              }}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "repeat"
+
+    CATEGORY = "latent/batch"
+
+    def repeat(self, samples, amount):
+        s = samples.copy()
+        s_in = samples["samples"]
+        
+        s["samples"] = s_in.repeat((amount, 1,1,1))
+        if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
+            masks = samples["noise_mask"]
+            if masks.shape[0] < s_in.shape[0]:
+                masks = masks.repeat(math.ceil(s_in.shape[0] / masks.shape[0]), 1, 1, 1)[:s_in.shape[0]]
+            s["noise_mask"] = samples["noise_mask"].repeat((amount, 1,1,1))
+        if "batch_index" in s:
+            offset = max(s["batch_index"]) - min(s["batch_index"]) + 1
+            s["batch_index"] = s["batch_index"] + [x + (i * offset) for i in range(1, amount) for x in s["batch_index"]]
         return (s,)
 
 class LatentUpscale:
@@ -805,8 +844,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
-        skip = latent["batch_index"] if "batch_index" in latent else 0
-        noise = comfy.sample.prepare_noise(latent_image, seed, skip)
+        batch_inds = latent["batch_index"] if "batch_index" in latent else None
+        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
 
     noise_mask = None
     if "noise_mask" in latent:
@@ -1170,6 +1209,7 @@ NODE_CLASS_MAPPINGS = {
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
     "LatentFromBatch": LatentFromBatch,
+    "RepeatLatentBatch": RepeatLatentBatch,
     "SaveImage": SaveImage,
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
@@ -1244,6 +1284,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "EmptyLatentImage": "Empty Latent Image",
     "LatentUpscale": "Upscale Latent",
     "LatentComposite": "Latent Composite",
+    "LatentFromBatch" : "Latent From Batch",
+    "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
     "SaveImage": "Save Image",
     "PreviewImage": "Preview Image",
@@ -1299,3 +1341,4 @@ def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
