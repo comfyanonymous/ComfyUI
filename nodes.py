@@ -795,7 +795,7 @@ class SetLatentNoiseMask:
 
     def set_mask(self, samples, mask):
         s = samples.copy()
-        s["noise_mask"] = mask
+        s["noise_mask"] = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
         return (s,)
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
