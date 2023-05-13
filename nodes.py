@@ -1341,7 +1341,7 @@ def load_custom_nodes():
 
     slow_nodes = list(filter(lambda a: a[0] > 1.0, node_import_times))
     if len(slow_nodes) > 0:
-        print("\nDetected some custom nodes that were slow to import:")
+        print("\nImport times for custom nodes:")
         for n in sorted(slow_nodes):
             print("{:6.1f} seconds to import:".format(n[0]), n[1])
         print()
