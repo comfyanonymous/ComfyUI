@@ -976,7 +976,8 @@ export class ComfyApp {
 					for (const o in nodeData["output"]) {
 						const output = nodeData["output"][o];
 						const outputName = nodeData["output_name"][o] || output;
-						this.addOutput(outputName, output);
+						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+						this.addOutput(outputName, output, { shape: outputShape });
 					}
 
 					const s = this.computeSize();
