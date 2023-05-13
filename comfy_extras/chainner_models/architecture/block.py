@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Literal
+try:
+    from typing import Literal
+except ImportError:
+    from typing_extensions import Literal
 
 import torch
 import torch.nn as nn

@@ -3628,6 +3628,18 @@
         return size;
     };
 
+    LGraphNode.prototype.inResizeCorner = function(canvasX, canvasY) {
+        var rows = this.outputs ? this.outputs.length : 1;
+        var outputs_offset = (this.constructor.slot_start_y || 0) + rows * LiteGraph.NODE_SLOT_HEIGHT;
+        return isInsideRectangle(canvasX,
+            canvasY,
+            this.pos[0] + this.size[0] - 15,
+            this.pos[1] + Math.max(this.size[1] - 15, outputs_offset),
+            20,
+            20
+        );
+    }
+
     /**
      * returns all the info available about a property of this node.
      *
@@ -5877,14 +5889,7 @@ LGraphNode.prototype.executeAction = function(action)
                 if ( !this.connecting_node && !node.flags.collapsed && !this.live_mode ) {
                     //Search for corner for resize
                     if ( !skip_action &&
-                        node.resizable !== false &&
-                        isInsideRectangle( e.canvasX,
-                            e.canvasY,
-                            node.pos[0] + node.size[0] - 5,
-                            node.pos[1] + node.size[1] - 5,
-                            10,
-                            10
-                        )
+                        node.resizable !== false && node.inResizeCorner(e.canvasX, e.canvasY)
                     ) {
 						this.graph.beforeChange();
                         this.resizing_node = node;
@@ -6424,16 +6429,7 @@ LGraphNode.prototype.executeAction = function(action)
 
                 //Search for corner
                 if (this.canvas) {
-                    if (
-                        isInsideRectangle(
-                            e.canvasX,
-                            e.canvasY,
-                            node.pos[0] + node.size[0] - 5,
-                            node.pos[1] + node.size[1] - 5,
-                            5,
-                            5
-                        )
-                    ) {
+                    if (node.inResizeCorner(e.canvasX, e.canvasY)) {
                         this.canvas.style.cursor = "se-resize";
                     } else {
                         this.canvas.style.cursor = "crosshair";
@@ -9953,11 +9949,11 @@ LGraphNode.prototype.executeAction = function(action)
                     }
 					break;
 				case "slider":
-					var range = w.options.max - w.options.min;
+					var old_value = w.value;
 					var nvalue = Math.clamp((x - 15) / (widget_width - 30), 0, 1);
 					if(w.options.read_only) break;
 					w.value = w.options.min + (w.options.max - w.options.min) * nvalue;
-					if (w.callback) {
+					if (old_value != w.value) {
 						setTimeout(function() {
 							inner_value_change(w, w.value);
 						}, 20);
@@ -10044,7 +10040,7 @@ LGraphNode.prototype.executeAction = function(action)
 						if (event.click_time < 200 && delta == 0) {
 							this.prompt("Value",w.value,function(v) {
 									// check if v is a valid equation or a number
-									  if (/^[0-9+\-*/()\s]+$/.test(v)) {
+									  if (/^[0-9+\-*/()\s]+|\d+\.\d+$/.test(v)) {
 										try {//solve the equation if possible
 									    		v = eval(v);
 										} catch (e) { }

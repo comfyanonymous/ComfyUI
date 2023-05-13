@@ -3,11 +3,11 @@ import torch
 import torch.nn.functional as F
 from contextlib import contextmanager
 
-from ldm.modules.diffusionmodules.model import Encoder, Decoder
-from ldm.modules.distributions.distributions import DiagonalGaussianDistribution
+from comfy.ldm.modules.diffusionmodules.model import Encoder, Decoder
+from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
-from ldm.util import instantiate_from_config
-from ldm.modules.ema import LitEma
+from comfy.ldm.util import instantiate_from_config
+from comfy.ldm.modules.ema import LitEma
 
 # class AutoencoderKL(pl.LightningModule):
 class AutoencoderKL(torch.nn.Module):
