@@ -378,6 +378,8 @@ class MaskEditorDialog extends ComfyDialog {
 			self.brush_size = Math.min(self.brush_size+2, 100);
 		} else if (event.key === '[') {
 			self.brush_size = Math.max(self.brush_size-2, 1);
+		} else if(event.key === 'Enter') {
+			self.save();
 		}
 
 		self.updateBrushPreview(self);
