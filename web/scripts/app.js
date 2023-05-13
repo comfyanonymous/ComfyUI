@@ -84,12 +84,17 @@ export class ComfyApp {
 			}
 		}
 
+		var selectedIndex = 0;
+		if(node.imageIndex) {
+			selectedIndex = node.imageIndex;
+		}
+
 		ComfyApp.clipspace = {
 			'widgets': widgets,
 			'imgs': imgs,
 			'original_imgs': orig_imgs,
 			'images': node.images,
-			'selectedIndex': 0,
+			'selectedIndex': selectedIndex,
 			'img_paste_mode': 'selected' // reset to default im_paste_mode state on copy action
 		};
 
@@ -118,6 +123,7 @@ export class ComfyApp {
 						const img = new Image();
 						img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
 						node.imgs = [img];
+						node.imageIndex = 0;
 					}
 					else {
 						const imgs = [];
