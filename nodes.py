@@ -6,6 +6,7 @@ import json
 import hashlib
 import traceback
 import math
+import time
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
@@ -1325,6 +1326,7 @@ def load_custom_node(module_path):
 
 def load_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
+    node_import_times = []
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
         if "__pycache__" in possible_modules:
@@ -1333,7 +1335,16 @@ def load_custom_nodes():
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+            time_before = time.time()
             load_custom_node(module_path)
+            node_import_times.append((time.time() - time_before, module_path))
+
+    slow_nodes = list(filter(lambda a: a[0] > 1.0, node_import_times))
+    if len(slow_nodes) > 0:
+        print("\nDetected some custom nodes that were slow to import, if this is one of yours please improve it if you can:")
+        for n in sorted(slow_nodes):
+            print("{:6.1f} seconds to import:".format(n[0]), n[1])
+        print()
 
 def init_custom_nodes():
     load_custom_nodes()
