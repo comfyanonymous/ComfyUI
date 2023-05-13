@@ -250,8 +250,9 @@ class MaskEditorDialog extends ComfyDialog {
 			const observer = new MutationObserver(function(mutations) {
 			mutations.forEach(function(mutation) {
 					if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-						if(self.last_display_style && self.last_display_style != 'none')
+						if(self.last_display_style && self.last_display_style != 'none' && self.element.style.display == 'none') {
 							ComfyApp.onClipspaceEditorClosed();
+						}
 
 						self.last_display_style = self.element.style.display;
 					}
@@ -270,6 +271,7 @@ class MaskEditorDialog extends ComfyDialog {
 		else {
 			this.saveButton.innerText = "Save";
 		}
+		this.saveButton.disabled = false;
 
 		this.element.style.display = "block";
 		this.element.style.zIndex = 8888; // NOTE: alert dialog must be high priority.
@@ -619,6 +621,8 @@ class MaskEditorDialog extends ComfyDialog {
 		formData.append('type', "input");
 		formData.append('subfolder', "clipspace");
 
+		this.saveButton.innerText = "Saving...";
+		this.saveButton.disabled = true;
 		await uploadMask(item, formData);
 		ComfyApp.onClipspaceEditorSave();
 		this.close();
