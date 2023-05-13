@@ -115,22 +115,23 @@ class PromptServer():
 
         def get_dir_by_type(dir_type):
             if dir_type is None:
-                type_dir = folder_paths.get_input_directory()
-            elif dir_type == "input":
+                dir_type = "input"
+
+            if dir_type == "input":
                 type_dir = folder_paths.get_input_directory()
             elif dir_type == "temp":
                 type_dir = folder_paths.get_temp_directory()
             elif dir_type == "output":
                 type_dir = folder_paths.get_output_directory()
 
-            return type_dir
+            return type_dir, dir_type
 
         def image_upload(post, image_save_function=None):
             image = post.get("image")
             overwrite = post.get("overwrite")
 
             image_upload_type = post.get("type")
-            upload_dir = get_dir_by_type(image_upload_type)
+            upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
 
             if image and image.file:
                 filename = image.filename
