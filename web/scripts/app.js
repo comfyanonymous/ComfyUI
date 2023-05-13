@@ -55,12 +55,15 @@ export class ComfyApp {
 		return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
 	}
 
-	static onClipspaceEditorClosed(save_mode) {
+	static onClipspaceEditorSave() {
 		if(ComfyApp.clipspace_return_node) {
 			if(save_mode)
 				ComfyApp.pasteToClipspace(ComfyApp.clipspace_return_node);
-			ComfyApp.clipspace_return_node = null;
 		}
+	}
+
+	static onClipspaceEditorClosed() {
+		ComfyApp.clipspace_return_node = null;
 	}
 
 	static copyToClipspace(node) {

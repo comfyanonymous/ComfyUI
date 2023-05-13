@@ -195,7 +195,6 @@ class MaskEditorDialog extends ComfyDialog {
 		var cancelButton = this.createRightButton("Cancel", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
 			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
-			ComfyApp.onClipspaceEditorClosed(false);
 			self.close();
 		});
 
@@ -245,6 +244,22 @@ class MaskEditorDialog extends ComfyDialog {
 			this.setEventHandler(maskCanvas);
 
 			this.is_layout_created = true;
+
+			// replacement of onClose hook since close is not real close
+			const self = this;
+			const observer = new MutationObserver(function(mutations) {
+			mutations.forEach(function(mutation) {
+					if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+						if(self.last_style && self.last_style != 'none')
+							ComfyApp.onClipspaceEditorClosed();
+
+						self.last_style = self.element.style;
+					}
+				});
+			});
+
+			const config = { attributes: true };
+			observer.observe(this.element, config);
 		}
 
 		this.setImages(this.imgCanvas, this.backupCanvas);
