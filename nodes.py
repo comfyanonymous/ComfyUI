@@ -1318,11 +1318,14 @@ def load_custom_node(module_path):
             NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
+            return True
         else:
             print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
+            return False
     except Exception as e:
         print(traceback.format_exc())
         print(f"Cannot import {module_path} module for custom nodes:", e)
+        return False
 
 def load_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -1336,13 +1339,17 @@ def load_custom_nodes():
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             time_before = time.time()
-            load_custom_node(module_path)
-            node_import_times.append((time.time() - time_before, module_path))
+            success = load_custom_node(module_path)
+            node_import_times.append((time.time() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")
         for n in sorted(node_import_times):
-            print("{:6.1f} seconds to import:".format(n[0]), n[1])
+            if n[2]:
+                import_message = ""
+            else:
+                import_message = " (IMPORT FAILED)"
+            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 
 def init_custom_nodes():
