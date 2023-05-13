@@ -1341,15 +1341,15 @@ def load_custom_nodes():
 
     slow_nodes = list(filter(lambda a: a[0] > 1.0, node_import_times))
     if len(slow_nodes) > 0:
-        print("\nDetected some custom nodes that were slow to import, if this is one of yours please improve it if you can:")
+        print("\nDetected some custom nodes that were slow to import:")
         for n in sorted(slow_nodes):
             print("{:6.1f} seconds to import:".format(n[0]), n[1])
         print()
 
 def init_custom_nodes():
-    load_custom_nodes()
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
+    load_custom_nodes()
