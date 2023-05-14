@@ -1222,7 +1222,7 @@ export class ComfyApp {
 					try {
 						await api.queuePrompt(number, p);
 					} catch (error) {
-						this.ui.dialog.show(error.response || error.toString());
+						this.ui.dialog.show(error.response.error || error.toString());
 						break;
 					}
 
