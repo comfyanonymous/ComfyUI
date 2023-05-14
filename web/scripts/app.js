@@ -57,7 +57,7 @@ export class ComfyApp {
 
 	static onClipspaceEditorSave() {
 		if(ComfyApp.clipspace_return_node) {
-			ComfyApp.pasteToClipspace(ComfyApp.clipspace_return_node);
+			ComfyApp.pasteFromClipspace(ComfyApp.clipspace_return_node);
 		}
 	}
 
@@ -105,7 +105,7 @@ export class ComfyApp {
 		}
 	}
 
-	static pasteToClipspace(node) {
+	static pasteFromClipspace(node) {
 		if(ComfyApp.clipspace) {
 			// image paste
 			if(ComfyApp.clipspace.imgs && node.imgs) {
@@ -258,7 +258,7 @@ export class ComfyApp {
 				if(ComfyApp.clipspace != null) {
 					options.push({
 							content: "Paste (Clipspace)",
-							callback: () => { ComfyApp.pasteToClipspace(this); }
+							callback: () => { ComfyApp.pasteFromClipspace(this); }
 						});
 				}
 
