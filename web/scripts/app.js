@@ -1195,7 +1195,14 @@ export class ComfyApp {
 				for (const i in widgets) {
 					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+                        let widgetValue = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+
+                        if (widget.__rangeData) {
+                          console.error("SETRANGE", widget.name, widget.__rangeData)
+                            widgetValue = widget.__rangeData;
+                        }
+
+						inputs[widget.name] = widgetValue
 					}
 				}
 			}

@@ -139,12 +139,21 @@ def get_full_path(folder_name, filename):
             return full_path
 
 
+path_cache_dict = {}
+
+def clear_cache():
+    global path_cache_dict
+    path_cache_dict = {}
+
+
 def get_filename_list(folder_name):
-    global folder_names_and_paths
-    output_list = set()
-    folders = folder_names_and_paths[folder_name]
-    for x in folders[0]:
-        output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
-    return sorted(list(output_list))
+    global folder_names_and_paths, path_cache_dict
+    print("RecursiveWalk! " + folder_name)
+    if folder_name not in path_cache_dict:
+        output_list = set()
+        folders = folder_names_and_paths[folder_name]
+        for x in folders[0]:
+            output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
+        path_cache_dict[folder_name] = sorted(list(output_list))
 
-
+    return path_cache_dict[folder_name]

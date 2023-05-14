@@ -7,7 +7,7 @@ class LatentRebatch:
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64}),
                               }}
     RETURN_TYPES = ("LATENT",)
-    INPUT_IS_LIST = True
+    INPUTS_ARE_LISTS = True
     OUTPUT_IS_LIST = (True, )
 
     FUNCTION = "rebatch"

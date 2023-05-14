@@ -264,6 +264,7 @@ class PromptServer():
         @routes.get("/object_info")
         async def get_object_info(request):
             out = {}
+            folder_paths.clear_cache()
             for x in nodes.NODE_CLASS_MAPPINGS:
                 obj_class = nodes.NODE_CLASS_MAPPINGS[x]
                 info = {}

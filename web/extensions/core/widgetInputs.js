@@ -195,6 +195,8 @@ app.registerExtension({
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
+                this.properties ||= {}
+                this.properties.isRange = false;
 			}
 
 			applyToGraph() {
@@ -210,6 +212,13 @@ app.registerExtension({
 						const widget = node.widgets.find((w) => w.name === widgetName);
 						if (widget) {
 							widget.value = this.widgets[0].value;
+                          if (this.properties.isRange) {
+                            console.error("RANGE")
+                                widget.__rangeData = { __inputType__: "list", values: [widget.value, widget.value + 256] }
+                          }
+                          else {
+                                widget.__rangeData = undefined
+                          }
 							if (widget.callback) {
 								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
 							}
@@ -303,6 +312,8 @@ app.registerExtension({
 				if (widget.type === "number") {
 					addValueControlWidget(this, widget, "fixed");
 				}
+
+                const isRangeWidget = this.addWidget("toggle", "isRange", this.properties.isRange, "isRange");
 
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
