@@ -6,6 +6,7 @@ import threading
 import heapq
 import traceback
 import gc
+import time
 
 import torch
 import nodes
@@ -215,6 +216,7 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
+        execution_start_time = time.perf_counter()
         if self.server.client_id is not None:
             self.server.send_sync("execution_start", { "prompt_id": prompt_id}, self.server.client_id)
 
@@ -272,6 +274,7 @@ class PromptExecutor:
                 if self.server.client_id is not None:
                     self.server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, self.server.client_id)
 
+        print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
         gc.collect()
         comfy.model_management.soft_empty_cache()
 
