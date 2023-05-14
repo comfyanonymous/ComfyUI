@@ -1170,6 +1170,10 @@ export class ComfyApp {
 	async graphToPrompt() {
 		const workflow = this.graph.serialize();
 		const output = {};
+		let totalExecuted = 0;
+		let totalCombinatorialNodes = 0;
+		let executionFactor = 1;
+
 		// Process nodes in order of execution
 		for (const node of this.graph.computeExecutionOrder(false)) {
 			const n = workflow.nodes.find((n) => n.id === node.id);
@@ -1195,14 +1199,13 @@ export class ComfyApp {
 				for (const i in widgets) {
 					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
-                        let widgetValue = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
-
-                        if (widget.__rangeData) {
-                          console.error("SETRANGE", widget.name, widget.__rangeData)
-                            widgetValue = widget.__rangeData;
-                        }
-
-						inputs[widget.name] = widgetValue
+						const widgetValue = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+						inputs[widget.name] = widgetValue;
+						if (typeof widgetValue === "object" && widgetValue.__inputType__) {
+							totalCombinatorialNodes += 1;
+							executionFactor *= widgetValue.values.length;
+						}
+						totalExecuted += executionFactor;
 					}
 				}
 			}
@@ -1245,7 +1248,7 @@ export class ComfyApp {
 			}
 		}
 
-		return { workflow, output };
+		return { prompt: { workflow, output }, totalCombinatorialNodes, totalExecuted };
 	}
 
 	async queuePrompt(number, batchCount = 1) {
@@ -1262,7 +1265,11 @@ export class ComfyApp {
 				({ number, batchCount } = this.#queueItems.pop());
 
 				for (let i = 0; i < batchCount; i++) {
-					const p = await this.graphToPrompt();
+					const result = await this.graphToPrompt();
+					if (result.totalExecuted > 128 && !confirm("You are about to execute " + result.totalExecuted + " nodes total across " + result.totalCombinatorialNodes + " combinatorial axes. Are you sure you want to do this?")) {
+						continue
+					}
+					const p = result.prompt;
 
 					try {
 						await api.queuePrompt(number, p);

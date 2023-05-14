@@ -195,8 +195,20 @@ app.registerExtension({
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
-                this.properties ||= {}
-                this.properties.isRange = false;
+				this.properties ||= {}
+				this.properties.isRange = false;
+				this.properties.rangeMin = 0;
+				this.properties.rangeMax = 1024;
+				this.properties.rangeSteps = 2;
+			}
+
+			getRange(min, max, steps) {
+				const range = [];
+				const stepSize = (max - min) / (steps - 1);
+				for (let i = 0; i < steps; i++) {
+					range.push(Math.round((min + i * stepSize) * 100) / 100);
+				}
+				return range;
 			}
 
 			applyToGraph() {
@@ -212,15 +224,12 @@ app.registerExtension({
 						const widget = node.widgets.find((w) => w.name === widgetName);
 						if (widget) {
 							widget.value = this.widgets[0].value;
-                          if (this.properties.isRange) {
-                            console.error("RANGE")
-                                widget.__rangeData = { __inputType__: "list", values: [widget.value, widget.value + 256] }
-                          }
-                          else {
-                                widget.__rangeData = undefined
-                          }
 							if (widget.callback) {
 								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
+							}
+							if (widget.type === "number" && this.properties.isRange) {
+								const values = this.getRange(this.properties.rangeMin, this.properties.rangeMax, this.properties.rangeSteps);
+								widget.value = { __inputType__: "combinatorial", values: values }
 							}
 						}
 					}
@@ -311,9 +320,11 @@ app.registerExtension({
 
 				if (widget.type === "number") {
 					addValueControlWidget(this, widget, "fixed");
+					this.addWidget("toggle", "Enable Range", this.properties.isRange, "isRange");
+					this.addWidget("number", "Range Min.", this.properties.rangeMin, "rangeMin");
+					this.addWidget("number", "Range Max.", this.properties.rangeMax, "rangeMax");
+					this.addWidget("number", "Range Steps", this.properties.rangeSteps, "rangeSteps", { min: 1, max: 128, step: 10 });
 				}
-
-                const isRangeWidget = this.addWidget("toggle", "isRange", this.properties.isRange, "isRange");
 
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
