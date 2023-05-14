@@ -1266,7 +1266,8 @@ export class ComfyApp {
 
 				for (let i = 0; i < batchCount; i++) {
 					const result = await this.graphToPrompt();
-					if (result.totalExecuted > 128 && !confirm("You are about to execute " + result.totalExecuted + " nodes total across " + result.totalCombinatorialNodes + " combinatorial axes. Are you sure you want to do this?")) {
+					const warnExecutedAmount = 256;
+					if (result.totalExecuted > warnExecutedAmount && !confirm("You are about to execute " + result.totalExecuted + " nodes total across " + result.totalCombinatorialNodes + " combinatorial axes. Are you sure you want to do this?")) {
 						continue
 					}
 					const p = result.prompt;

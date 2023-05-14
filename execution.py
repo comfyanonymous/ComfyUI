@@ -35,12 +35,7 @@ def get_input_data_batches(input_data_all):
 
     batches = []
 
-    print("GET" + str(input_data_all))
-    print("ALL " + str(index_to_values))
-    print("INPS " + str(input_to_index))
-
     for combination in list(itertools.product(*index_to_values)):
-        print("COMBO " + str(combination))
         batch = {}
         for input_name, value in input_data_all.items():
             if isinstance(value, dict) and "combinatorial" in value:
@@ -102,7 +97,6 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                     input_data_all[x] = [extra_data['extra_pnginfo']]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
-    print("=== GetInputData: " + str(inputs))
 
     input_data_all_batches = get_input_data_batches(input_data_all)
 
@@ -139,11 +133,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
             s.append(st)
         return "( " + ", ".join(s) + " )"
 
-    print("+++ Obj: " + str(obj))
-    print("+++ Inputs: " + format_dict(input_data_all))
     max_len_input = max(len(x) for x in input_data_all.values())
-    print("MaxLen " + str(max_len_input))
-    print("0 " + str(slice_lists_into_dict(input_data_all, 0)))
 
     results = []
     if inputs_are_lists:
@@ -161,10 +151,8 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
     all_outputs = []
     all_outputs_ui = []
     total_batches = len(input_data_all_batches)
-    print("TOTAL: " + str(total_batches))
 
-    for i, batch in enumerate(input_data_all_batches):
-        print("***** BATCH: " + str(i))
+    for batch_num, batch in enumerate(input_data_all_batches):
         return_values = map_node_over_list(obj, batch, obj.FUNCTION, allow_interrupt=True)
 
         uis = []
@@ -193,21 +181,20 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
                 else:
                     output.append([o[i] for o in results])
 
-        output_ui = dict()
+        output_ui = None
         if len(uis) > 0:
             output_ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
 
         # update the UI after each batch finishes
-        if len(output_ui) > 0:
-            if server.client_id is not None:
-                message = {
-                    "node": unique_id,
-                    "output": output_ui,
-                    "prompt_id": prompt_id,
-                    "batch": i,
-                    "total_batches": total_batches
-                }
-                server.send_sync("executed", message, server.client_id)
+        if server.client_id is not None:
+            message = {
+                "node": unique_id,
+                "output": output_ui,
+                "prompt_id": prompt_id,
+                "batch_num": batch_num,
+                "total_batches": total_batches
+            }
+            server.send_sync("executed", message, server.client_id)
 
         all_outputs.append(output)
         all_outputs_ui.append(output_ui)
@@ -234,7 +221,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     input_data_all_batches = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
         server.last_node_id = unique_id
-        server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id }, server.client_id)
+        server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id, "total_batches": len(input_data_all_batches) }, server.client_id)
     obj = class_def()
 
     output_data_from_batches, output_ui_from_batches = get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id)
@@ -413,6 +400,8 @@ def get_raw_inputs(raw_val):
 
 def clamp_input(val, info, class_type, obj_class, x):
     if is_combinatorial_input(val):
+        if len(val["values"]) == 0:
+            return (False, "Combinatorial input has no values in its list. {}, {}".format(class_type, x))
         for i, val_choice in enumerate(val["values"]):
             r = clamp_input(val_choice, info, class_type, obj_class, x)
             if r[0] == False:

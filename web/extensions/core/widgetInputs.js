@@ -196,19 +196,17 @@ app.registerExtension({
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
 				this.properties ||= {}
-				this.properties.isRange = false;
-				this.properties.rangeMin = 0;
-				this.properties.rangeMax = 1024;
+				this.properties.enableRange = false;
+				this.properties.rangeStepBy = 64;
 				this.properties.rangeSteps = 2;
 			}
 
-			getRange(min, max, steps) {
-				const range = [];
-				const stepSize = (max - min) / (steps - 1);
+			getRange(min, stepBy, steps) {
+				let result = [];
 				for (let i = 0; i < steps; i++) {
-					range.push(Math.round((min + i * stepSize) * 100) / 100);
+					result.push(min + i * stepBy);
 				}
-				return range;
+				return result;
 			}
 
 			applyToGraph() {
@@ -227,8 +225,9 @@ app.registerExtension({
 							if (widget.callback) {
 								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
 							}
-							if (widget.type === "number" && this.properties.isRange) {
-								const values = this.getRange(this.properties.rangeMin, this.properties.rangeMax, this.properties.rangeSteps);
+							const isNumberWidget = widget.type === "number" || widget.origType === "number";
+							if (isNumberWidget && this.properties.enableRange) {
+								const values = this.getRange(widget.value, this.properties.rangeStepBy, this.properties.rangeSteps);
 								widget.value = { __inputType__: "combinatorial", values: values }
 							}
 						}
@@ -297,6 +296,15 @@ app.registerExtension({
 				this.#createWidget(widget.config, theirNode, widget.name);
 			}
 
+			onPropertyChanged(property, value) {
+				if (property === "enableRange") {
+					if (this.stepByWidget)
+						this.stepByWidget.disabled = !value
+					if (this.stepsWidget)
+						this.stepsWidget.disabled = !value
+				}
+			}
+
 			#createWidget(inputData, node, widgetName) {
 				let type = inputData[0];
 
@@ -320,10 +328,11 @@ app.registerExtension({
 
 				if (widget.type === "number") {
 					addValueControlWidget(this, widget, "fixed");
-					this.addWidget("toggle", "Enable Range", this.properties.isRange, "isRange");
-					this.addWidget("number", "Range Min.", this.properties.rangeMin, "rangeMin");
-					this.addWidget("number", "Range Max.", this.properties.rangeMax, "rangeMax");
-					this.addWidget("number", "Range Steps", this.properties.rangeSteps, "rangeSteps", { min: 1, max: 128, step: 10 });
+					this.addWidget("toggle", "Enable Range", this.properties.enableRange, "enableRange");
+					this.stepByWidget = this.addWidget("number", "Range Step By", this.properties.rangeStepBy, "rangeStepBy");
+					this.stepByWidget.disabled = !this.properties.enableRange;
+					this.stepsWidget = this.addWidget("number", "Range Steps", this.properties.rangeSteps, "rangeSteps", { min: 1, max: 128, step: 10 });
+					this.stepsWidget.disabled = !this.properties.enableRange;
 				}
 
 				// When our value changes, update other widgets to reflect our changes
