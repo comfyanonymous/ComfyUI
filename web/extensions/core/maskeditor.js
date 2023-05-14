@@ -72,20 +72,27 @@ function prepareRGB(image, backupCanvas, backupCtx) {
 
 class MaskEditorDialog extends ComfyDialog {
 	static instance = null;
+
+	static getInstance() {
+		if(!MaskEditorDialog.instance) {
+			MaskEditorDialog.instance = new MaskEditorDialog(app);
+		}
+
+		return MaskEditorDialog.instance;
+	}
+
+	is_layout_created =  false;
+
 	constructor() {
 		super();
 		this.element = $el("div.comfy-modal", { parent: document.body }, 
 			[ $el("div.comfy-modal-content", 
 				[...this.createButtons()]),
 			]);
-		MaskEditorDialog.instance = this;
 	}
 
 	createButtons() {
 		return [];
-	}
-
-	clearMask(self) {
 	}
 
 	createButton(name, callback) {
@@ -94,18 +101,21 @@ class MaskEditorDialog extends ComfyDialog {
 		button.addEventListener("click", callback);
 		return button;
 	}
+
 	createLeftButton(name, callback) {
 		var button = this.createButton(name, callback);
 		button.style.cssFloat = "left";
 		button.style.marginRight = "4px";
 		return button;
 	}
+
 	createRightButton(name, callback) {
 		var button = this.createButton(name, callback);
 		button.style.cssFloat = "right";
 		button.style.marginLeft = "4px";
 		return button;
 	}
+
 	createLeftSlider(self, name, callback) {
 		const divElement = document.createElement('div');
 		divElement.id = "maskeditor-slider";
@@ -164,7 +174,7 @@ class MaskEditorDialog extends ComfyDialog {
 		brush.style.MozBorderRadius = "50%";
 		brush.style.WebkitBorderRadius = "50%";
 		brush.style.position = "absolute";
-		brush.style.zIndex = 100;
+		brush.style.zIndex = 8889;
 		brush.style.pointerEvents = "none";
 		this.brush = brush;
 		this.element.appendChild(imgCanvas);
@@ -187,7 +197,8 @@ class MaskEditorDialog extends ComfyDialog {
 			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
 			self.close();
 		});
-		var saveButton = this.createRightButton("Save", () => {
+
+		this.saveButton = this.createRightButton("Save", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
 			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
 				self.save();
@@ -199,11 +210,10 @@ class MaskEditorDialog extends ComfyDialog {
 		this.element.appendChild(bottom_panel);
 
 		bottom_panel.appendChild(clearButton);
-		bottom_panel.appendChild(saveButton);
+		bottom_panel.appendChild(this.saveButton);
 		bottom_panel.appendChild(cancelButton);
 		bottom_panel.appendChild(brush_size_slider);
 
-		this.element.style.display = "block";
 		imgCanvas.style.position = "relative";
 		imgCanvas.style.top = "200";
 		imgCanvas.style.left = "0";
@@ -212,25 +222,63 @@ class MaskEditorDialog extends ComfyDialog {
 	}
 
 	show() {
-		// layout
-		const imgCanvas = document.createElement('canvas');
-		const maskCanvas = document.createElement('canvas');
-		const backupCanvas = document.createElement('canvas');
+		if(!this.is_layout_created) {
+			// layout
+			const imgCanvas = document.createElement('canvas');
+			const maskCanvas = document.createElement('canvas');
+			const backupCanvas = document.createElement('canvas');
 
-		imgCanvas.id = "imageCanvas";
-		maskCanvas.id = "maskCanvas";
-		backupCanvas.id = "backupCanvas";
+			imgCanvas.id = "imageCanvas";
+			maskCanvas.id = "maskCanvas";
+			backupCanvas.id = "backupCanvas";
 
-		this.setlayout(imgCanvas, maskCanvas);
+			this.setlayout(imgCanvas, maskCanvas);
 
-		// prepare content
-		this.maskCanvas = maskCanvas;
-		this.backupCanvas = backupCanvas;
-		this.maskCtx = maskCanvas.getContext('2d');
-		this.backupCtx = backupCanvas.getContext('2d');
+			// prepare content
+			this.imgCanvas = imgCanvas;
+			this.maskCanvas = maskCanvas;
+			this.backupCanvas = backupCanvas;
+			this.maskCtx = maskCanvas.getContext('2d');
+			this.backupCtx = backupCanvas.getContext('2d');
 
-		this.setImages(imgCanvas, backupCanvas);
-		this.setEventHandler(maskCanvas);
+			this.setEventHandler(maskCanvas);
+
+			this.is_layout_created = true;
+
+			// replacement of onClose hook since close is not real close
+			const self = this;
+			const observer = new MutationObserver(function(mutations) {
+			mutations.forEach(function(mutation) {
+					if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+						if(self.last_display_style && self.last_display_style != 'none' && self.element.style.display == 'none') {
+							ComfyApp.onClipspaceEditorClosed();
+						}
+
+						self.last_display_style = self.element.style.display;
+					}
+				});
+			});
+
+			const config = { attributes: true };
+			observer.observe(this.element, config);
+		}
+
+		this.setImages(this.imgCanvas, this.backupCanvas);
+
+		if(ComfyApp.clipspace_return_node) {
+			this.saveButton.innerText = "Save to node";
+		}
+		else {
+			this.saveButton.innerText = "Save";
+		}
+		this.saveButton.disabled = false;
+
+		this.element.style.display = "block";
+		this.element.style.zIndex = 8888; // NOTE: alert dialog must be high priority.
+	}
+
+	isOpened() {
+		return this.element.style.display == "block";
 	}
 
 	setImages(imgCanvas, backupCanvas) {
@@ -238,6 +286,10 @@ class MaskEditorDialog extends ComfyDialog {
 		const backupCtx = backupCanvas.getContext('2d');
 		const maskCtx = this.maskCtx;
 		const maskCanvas = this.maskCanvas;
+
+		backupCtx.clearRect(0,0,this.backupCanvas.width,this.backupCanvas.height);
+		imgCtx.clearRect(0,0,this.imgCanvas.width,this.imgCanvas.height);
+		maskCtx.clearRect(0,0,this.maskCanvas.width,this.maskCanvas.height);
 
 		// image load
 		const orig_image = new Image();
@@ -296,8 +348,7 @@ class MaskEditorDialog extends ComfyDialog {
 		rgb_url.searchParams.set('channel', 'rgb');
 		orig_image.src = rgb_url;
 		this.image = orig_image;
-	}g
-
+	}
 
 	setEventHandler(maskCanvas) {
 		maskCanvas.addEventListener("contextmenu", (event) => {
@@ -327,6 +378,8 @@ class MaskEditorDialog extends ComfyDialog {
 			self.brush_size = Math.min(self.brush_size+2, 100);
 		} else if (event.key === '[') {
 			self.brush_size = Math.max(self.brush_size-2, 1);
+		} else if(event.key === 'Enter') {
+			self.save();
 		}
 
 		self.updateBrushPreview(self);
@@ -514,7 +567,7 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 	}
 
-	save() {
+	async save() {
 		const backupCtx = this.backupCanvas.getContext('2d', {willReadFrequently:true});
 
 		backupCtx.clearRect(0,0,this.backupCanvas.width,this.backupCanvas.height);
@@ -570,7 +623,10 @@ class MaskEditorDialog extends ComfyDialog {
 		formData.append('type', "input");
 		formData.append('subfolder', "clipspace");
 
-		uploadMask(item, formData);
+		this.saveButton.innerText = "Saving...";
+		this.saveButton.disabled = true;
+		await uploadMask(item, formData);
+		ComfyApp.onClipspaceEditorSave();
 		this.close();
 	}
 }
@@ -578,13 +634,15 @@ class MaskEditorDialog extends ComfyDialog {
 app.registerExtension({
 	name: "Comfy.MaskEditor",
 	init(app) {
-		const callback =
+		ComfyApp.open_maskeditor =
 			function () {
-				let dlg = new MaskEditorDialog(app);
-				dlg.show();
+				const dlg = MaskEditorDialog.getInstance();
+				if(!dlg.isOpened()) {
+					dlg.show();
+				}
 			};
 
 		const context_predicate = () => ComfyApp.clipspace && ComfyApp.clipspace.imgs && ComfyApp.clipspace.imgs.length > 0
-		ClipspaceDialog.registerButton("MaskEditor", context_predicate, callback);
+		ClipspaceDialog.registerButton("MaskEditor", context_predicate, ComfyApp.open_maskeditor);
 	}
 });
