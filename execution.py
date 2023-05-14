@@ -428,7 +428,7 @@ def clamp_input(val, info, class_type, obj_class, x):
 
 def validate_inputs(prompt, item, validated):
     unique_id = item
-    if unique_id in validated:
+    if unique_id in validated:
         return validated[unique_id]
 
     inputs = prompt[unique_id]['inputs']
@@ -557,7 +557,7 @@ class PromptQueue:
             prompt = self.currently_running.pop(item_id)
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
-                self.history[prompt[1]]["outputs"][o] = outputs[o]
+            self.history[prompt[1]]["outputs"][o] = outputs[o]
             self.server.queue_updated()
 
     def get_current_queue(self):
