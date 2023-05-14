@@ -14,6 +14,7 @@ import nodes
 
 import comfy.model_management
 
+
 def get_input_data_batches(input_data_all):
     """Given input data that can contain combinatorial input values, returns all
     the possible batches that can be made by combining the different input
@@ -22,8 +23,14 @@ def get_input_data_batches(input_data_all):
     input_to_index = {}
     index_to_values = []
 
+    # Sort by input name first so the order which batch inputs are applied can
+    # be easily calculated (node execution first, then alphabetical input name
+    # second)
+    sorted_input_names = sorted(input_data_all.keys())
+
     i = 0
-    for input_name, value in input_data_all.items():
+    for input_name in sorted_input_names:
+        value = input_data_all[input_name]
         if isinstance(value, dict) and "combinatorial" in value:
             input_to_index[input_name] = i
             index_to_values.append(value["values"])
