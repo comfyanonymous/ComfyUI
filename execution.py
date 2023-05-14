@@ -40,7 +40,7 @@ def get_input_data_batches(input_data_all):
         for input_name, value in input_data_all.items():
             if isinstance(value, dict) and "combinatorial" in value:
                 combination_index = input_to_index[input_name]
-                batch[input_name] = [combination[combination_index]] #
+                batch[input_name] = [combination[combination_index]]
             else:
                 # already made into a list by get_input_data
                 batch[input_name] = value
@@ -140,7 +140,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         if allow_interrupt:
             nodes.before_node_execution()
         results.append(getattr(obj, func)(**input_data_all))
-    else: 
+    else:
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
@@ -428,7 +428,7 @@ def clamp_input(val, info, class_type, obj_class, x):
 
 def validate_inputs(prompt, item, validated):
     unique_id = item
-    if unique_id in validated:
+    if unique_id in validated:
         return validated[unique_id]
 
     inputs = prompt[unique_id]['inputs']
