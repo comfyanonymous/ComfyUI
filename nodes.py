@@ -146,9 +146,6 @@ class ConditioningSetMask:
         return (c, )
 
 class VAEDecode:
-    def __init__(self, device="cpu"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
@@ -161,9 +158,6 @@ class VAEDecode:
         return (vae.decode(samples["samples"]), )
 
 class VAEDecodeTiled:
-    def __init__(self, device="cpu"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
@@ -176,9 +170,6 @@ class VAEDecodeTiled:
         return (vae.decode_tiled(samples["samples"]), )
 
 class VAEEncode:
-    def __init__(self, device="cpu"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", )}}
@@ -203,9 +194,6 @@ class VAEEncode:
         return ({"samples":t}, )
 
 class VAEEncodeTiled:
-    def __init__(self, device="cpu"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", )}}
@@ -220,9 +208,6 @@ class VAEEncodeTiled:
         return ({"samples":t}, )
 
 class VAEEncodeForInpaint:
-    def __init__(self, device="cpu"):
-        self.device = device
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", ), "mask": ("MASK", ), "grow_mask_by": ("INT", {"default": 6, "min": 0, "max": 64, "step": 1}),}}
