@@ -1,7 +1,6 @@
 from .k_diffusion import sampling as k_diffusion_sampling
 from .k_diffusion import external as k_diffusion_external
 from .extra_samplers import uni_pc
-import os
 import torch
 import contextlib
 from diffusers import LMSDiscreteScheduler
@@ -9,7 +8,7 @@ from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 import math
-from aitemplate.compiler import Model
+
 def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
     return abs(a*b) // math.gcd(a, b)
 
@@ -532,24 +531,11 @@ class AITemplateModelWrapper:
             shape[1] = height
             shape[2] = width
             ys.append(torch.empty(shape).cuda().half())
-        # print(inputs["input0"].shape)
-        # print(inputs["input1"].shape)
-        # print(inputs["input2"].shape)
-        # print(ys)
         self.unet_ait_exe.run_with_tensors(inputs, ys, graph_mode=False)
         noise_pred = ys[0].permute((0, 3, 1, 2)).float()
         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
         noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
         return noise_pred
-
-def init_ait_module(
-    model_name,
-    workdir,
-):
-    mod = Model(os.path.join(workdir, model_name, "test.so"))
-    return mod
-
-
 
 class KSampler:
     SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform"]
