@@ -355,32 +355,30 @@ export class ComfyApp {
 			if (!this.flags.collapsed) {
 				// Outputs returned by the frontend for each node are a list, one for each combinatorial batch run.
 				// With no combinatorial outputs, it's a list of length 1.
-				// For now select only the first batch output.
-				const batchOutputs = app.nodeOutputs[this.id + ""];
-				if (batchOutputs && batchOutputs.length > 0) {
-					const output = batchOutputs[0];
-					if (output && output.images) {
-						if (this.images !== output.images) {
-							this.images = output.images;
-							this.imgs = null;
-							this.imageIndex = null;
-							Promise.all(
-								output.images.map((src) => {
-									return new Promise((r) => {
-										const img = new Image();
-										img.onload = () => r(img);
-										img.onerror = () => r(null);
-										img.src = "/view?" + new URLSearchParams(src).toString();
-									});
-								})
-							).then((imgs) => {
-								if (this.images === output.images) {
-									this.imgs = imgs.filter(Boolean);
-									this.setSizeForImage?.();
-									app.graph.setDirtyCanvas(true);
-								}
-							});
-						}
+				const outputs = app.nodeOutputs[this.id + ""]
+				if (outputs && this.batchOutputs !== outputs) {
+                  this.batchOutputs = outputs;
+					const batchImages = outputs.filter(Boolean).flatMap(o => o.images || []);
+					if (this.images !== batchImages) {
+						this.images = batchImages;
+						this.imgs = null;
+						this.imageIndex = null;
+						Promise.all(
+							batchImages.map((src) => {
+								return new Promise((r) => {
+									const img = new Image();
+									img.onload = () => r(img);
+									img.onerror = () => r(null);
+									img.src = "/view?" + new URLSearchParams(src).toString();
+								});
+							})
+						).then((imgs) => {
+							if (this.images === batchImages) {
+								this.imgs = imgs.filter(Boolean);
+								this.setSizeForImage?.();
+								app.graph.setDirtyCanvas(true);
+							}
+						});
 					}
 				}
 

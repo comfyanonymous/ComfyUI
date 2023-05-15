@@ -192,19 +192,19 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
         if len(uis) > 0:
             output_ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
 
+        all_outputs.append(output)
+        all_outputs_ui.append(output_ui)
+
         # update the UI after each batch finishes
         if server.client_id is not None:
             message = {
                 "node": unique_id,
-                "output": output_ui,
+                "output": all_outputs_ui, # list of outputs so far
                 "prompt_id": prompt_id,
                 "batch_num": batch_num,
                 "total_batches": total_batches
             }
             server.send_sync("executed", message, server.client_id)
-
-        all_outputs.append(output)
-        all_outputs_ui.append(output_ui)
 
     return all_outputs, all_outputs_ui
 
