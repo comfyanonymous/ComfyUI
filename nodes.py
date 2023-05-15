@@ -282,7 +282,10 @@ class DiffusersLoader:
         paths = []
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
-                paths += next(os.walk(search_path))[1]
+                for root, subdir, files in os.walk(search_path, followlinks=True):
+                    if "model_index.json" in files:
+                        paths.append(os.path.relpath(root, start=search_path))
+
         return {"required": {"model_path": (paths,), }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
@@ -292,9 +295,9 @@ class DiffusersLoader:
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
         for search_path in folder_paths.get_folder_paths("diffusers"):
             if os.path.exists(search_path):
-                paths = next(os.walk(search_path))[1]
-                if model_path in paths:
-                    model_path = os.path.join(search_path, model_path)
+                path = os.path.join(search_path, model_path)
+                if os.path.exists(path):
+                    model_path = path
                     break
 
         return comfy.diffusers_convert.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
