@@ -23,9 +23,9 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, TypeVar, U
 
 import numpy as np
 
-from dtype import dtype_str_to_enum
-from misc import is_linux, is_windows
-from torch_utils import torch_dtype_to_string
+from .dtype import dtype_str_to_enum
+from .misc import is_linux, is_windows
+from .torch_utils import torch_dtype_to_string
 
 # Controls how many runtimes will be used in ModelContainer by default.
 # See the runtime README.md for more information on the Model/ModelContainer
