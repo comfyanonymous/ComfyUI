@@ -2,6 +2,7 @@ import os
 
 supported_ckpt_extensions = set(['.ckpt', '.pth'])
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth'])
+supported_ait_extensions = set(['.so'])
 try:
     import safetensors.torch
     supported_ckpt_extensions.add('.safetensors')
@@ -16,7 +17,7 @@ base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_ckpt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
-
+folder_names_and_paths["aitemplate"] = ([os.path.join(models_dir, "aitemplate")], supported_ait_extensions)
 folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
 folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
 folder_names_and_paths["clip"] = ([os.path.join(models_dir, "clip")], supported_pt_extensions)

@@ -1,13 +1,15 @@
 from .k_diffusion import sampling as k_diffusion_sampling
 from .k_diffusion import external as k_diffusion_external
 from .extra_samplers import uni_pc
+import os
 import torch
 import contextlib
+from diffusers import LMSDiscreteScheduler
 from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 import math
-
+from aitemplate.compiler import Model
 def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
     return abs(a*b) // math.gcd(a, b)
 
@@ -493,6 +495,61 @@ def encode_adm(noise_augmentor, conds, batch_size, device):
 
     return conds
 
+class AITemplateModelWrapper:
+    def __init__(self, unet_ait_exe, alphas_cumprod, guidance_scale):
+        self.unet_ait_exe = unet_ait_exe
+        self.alphas_cumprod = alphas_cumprod
+        self.guidance_scale = guidance_scale
+
+    def apply_model(self, *args, **kwargs):
+        if len(args) == 3:
+            encoder_hidden_states = args[-1]
+            args = args[:2]
+        if kwargs.get("cond", None) is not None:
+            encoder_hidden_states = kwargs.pop("cond")
+        encoder_hidden_states = encoder_hidden_states[0][0]
+        encoder_hidden_states = torch.cat([encoder_hidden_states] * 2)
+        latent_model_input, timesteps = args
+        timesteps_pt = timesteps.expand(2)
+        if latent_model_input.shape[0] < 2:
+            latent_model_input = torch.cat([latent_model_input] * 2)
+        height = latent_model_input.shape[2]
+        width = latent_model_input.shape[3]
+
+        inputs = {
+            "input0": latent_model_input.permute((0, 2, 3, 1))
+            .contiguous()
+            .cuda()
+            .half(),
+            "input1": timesteps_pt.cuda().half(),
+            "input2": encoder_hidden_states.cuda().half(),
+        }
+        ys = []
+        num_outputs = len(self.unet_ait_exe.get_output_name_to_index_map())
+        for i in range(num_outputs):
+            shape = self.unet_ait_exe.get_output_maximum_shape(i)
+            shape[0] = 2
+            shape[1] = height
+            shape[2] = width
+            ys.append(torch.empty(shape).cuda().half())
+        # print(inputs["input0"].shape)
+        # print(inputs["input1"].shape)
+        # print(inputs["input2"].shape)
+        # print(ys)
+        self.unet_ait_exe.run_with_tensors(inputs, ys, graph_mode=False)
+        noise_pred = ys[0].permute((0, 3, 1, 2)).float()
+        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+        noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
+        return noise_pred
+
+def init_ait_module(
+    model_name,
+    workdir,
+):
+    mod = Model(os.path.join(workdir, model_name, "test.so"))
+    return mod
+
+
 
 class KSampler:
     SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform"]
@@ -500,14 +557,28 @@ class KSampler:
                 "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde",
                 "dpmpp_2m", "ddim", "uni_pc", "uni_pc_bh2"]
 
-    def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
+    def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}, aitemplate=None, cfg=None):
         self.model = model
-        self.model_denoise = CFGNoisePredictor(self.model)
-        if self.model.parameterization == "v":
+        if aitemplate:
+            scheduler = LMSDiscreteScheduler.from_config({
+                "beta_end": 0.012,
+                "beta_schedule": "scaled_linear",
+                "beta_start": 0.00085,
+                "num_train_timesteps": 1000,
+                "set_alpha_to_one": False,
+                "skip_prk_steps": True,
+                "steps_offset": 1,
+                "trained_betas": None,
+                "clip_sample": False
+                })
+            self.model_denoise = AITemplateModelWrapper(aitemplate, scheduler.alphas_cumprod, cfg)
+        else:
+            self.model_denoise = CFGNoisePredictor(self.model)
+        if not isinstance(self.model_denoise, AITemplateModelWrapper) and self.model.parameterization == "v":
             self.model_wrap = CompVisVDenoiser(self.model_denoise, quantize=True)
+            self.model_wrap.parameterization = self.model.parameterization
         else:
             self.model_wrap = k_diffusion_external.CompVisDenoiser(self.model_denoise, quantize=True)
-        self.model_wrap.parameterization = self.model.parameterization
         self.model_k = KSamplerX0Inpaint(self.model_wrap)
         self.device = device
         if scheduler not in self.SCHEDULERS:
@@ -589,19 +660,21 @@ class KSampler:
         apply_empty_x_to_equal_area(positive, negative, 'control', lambda cond_cnets, x: cond_cnets[x])
         apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
-        if self.model.model.diffusion_model.dtype == torch.float16:
+        if isinstance(self.model_denoise, AITemplateModelWrapper):
+            precision_scope = torch.autocast
+        elif self.model.model.diffusion_model.dtype == torch.float16:
             precision_scope = torch.autocast
         else:
             precision_scope = contextlib.nullcontext
 
-        if hasattr(self.model, 'noise_augmentor'): #unclip
+        if not isinstance(self.model_denoise, AITemplateModelWrapper) and hasattr(self.model, 'noise_augmentor'): #unclip
             positive = encode_adm(self.model.noise_augmentor, positive, noise.shape[0], self.device)
             negative = encode_adm(self.model.noise_augmentor, negative, noise.shape[0], self.device)
 
         extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options}
 
         cond_concat = None
-        if hasattr(self.model, 'concat_keys'): #inpaint
+        if not isinstance(self.model_denoise, AITemplateModelWrapper) and hasattr(self.model, 'concat_keys'): #inpaint
             cond_concat = []
             for ck in self.model.concat_keys:
                 if denoise_mask is not None:
