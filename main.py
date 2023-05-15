@@ -34,7 +34,7 @@ def prompt_worker(q, server):
     while True:
         item, item_id = q.get()
         e.execute(item[2], item[1], item[3], item[4])
-        q.task_done(item_id, e.outputs)
+        q.task_done(item_id, e.outputs_ui)
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())

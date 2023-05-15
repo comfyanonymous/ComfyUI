@@ -102,7 +102,7 @@ def get_output_data(obj, input_data_all):
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id):
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -117,7 +117,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id)
+                recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui)
 
     input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
     if server.client_id is not None:
@@ -128,6 +128,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     output_data, output_ui = get_output_data(obj, input_data_all)
     outputs[unique_id] = output_data
     if len(output_ui) > 0:
+        outputs_ui[unique_id] = output_ui
         if server.client_id is not None:
             server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
     executed.add(unique_id)
@@ -205,6 +206,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
 class PromptExecutor:
     def __init__(self, server):
         self.outputs = {}
+        self.outputs_ui = {}
         self.old_prompt = {}
         self.server = server
 
@@ -234,6 +236,11 @@ class PromptExecutor:
                 recursive_output_delete_if_changed(prompt, self.old_prompt, self.outputs, x)
 
             current_outputs = set(self.outputs.keys())
+            for x in list(self.outputs_ui.keys()):
+                if x not in current_outputs:
+                    d = self.outputs_ui.pop(x)
+                    del d
+
             if self.server.client_id is not None:
                 self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
             executed = set()
@@ -247,7 +254,7 @@ class PromptExecutor:
                     to_execute = sorted(list(map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
                     x = to_execute.pop(0)[-1]
 
-                    recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed, prompt_id)
+                    recursive_execute(self.server, prompt, self.outputs, x, extra_data, executed, prompt_id, self.outputs_ui)
             except Exception as e:
                 if isinstance(e, comfy.model_management.InterruptProcessingException):
                     print("Processing interrupted")
@@ -413,8 +420,7 @@ class PromptQueue:
             prompt = self.currently_running.pop(item_id)
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
-                if "ui" in outputs[o]:
-                    self.history[prompt[1]]["outputs"][o] = outputs[o]["ui"]
+                self.history[prompt[1]]["outputs"][o] = outputs[o]
             self.server.queue_updated()
 
     def get_current_queue(self):
