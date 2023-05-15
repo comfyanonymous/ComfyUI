@@ -353,8 +353,6 @@ export class ComfyApp {
 
 		node.prototype.onDrawBackground = function (ctx) {
 			if (!this.flags.collapsed) {
-				// Outputs returned by the frontend for each node are a list, one for each combinatorial batch run.
-				// With no combinatorial outputs, it's a list of length 1.
 				const outputs = app.nodeOutputs[this.id + ""]
 				if (outputs && this.batchOutputs !== outputs) {
                   this.batchOutputs = outputs;

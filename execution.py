@@ -195,11 +195,15 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
         all_outputs.append(output)
         all_outputs_ui.append(output_ui)
 
+        outputs_ui_to_send = None
+        if any(all_outputs_ui):
+            outputs_ui_to_send = all_outputs_ui
+
         # update the UI after each batch finishes
         if server.client_id is not None:
             message = {
                 "node": unique_id,
-                "output": all_outputs_ui, # list of outputs so far
+                "output": outputs_ui_to_send,
                 "prompt_id": prompt_id,
                 "batch_num": batch_num,
                 "total_batches": total_batches
@@ -233,7 +237,10 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
 
     output_data_from_batches, output_ui_from_batches = get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id)
     outputs[unique_id] = output_data_from_batches
-    outputs_ui[unique_id] = output_ui_from_batches
+    if any(output_ui_from_batches):
+        outputs_ui[unique_id] = output_ui_from_batches
+    elif unique_id in outputs_ui:
+        outputs_ui.pop(unique_id)
     executed.add(unique_id)
 
 def recursive_will_execute(prompt, outputs, current_item):
