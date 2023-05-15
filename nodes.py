@@ -7,7 +7,7 @@ import hashlib
 import traceback
 import math
 import time
-from aitemplate.compiler import Model
+from comfy.aitemplate.model import Model
 from diffusers import LMSDiscreteScheduler
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
