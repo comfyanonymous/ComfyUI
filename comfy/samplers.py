@@ -3,7 +3,6 @@ from .k_diffusion import external as k_diffusion_external
 from .extra_samplers import uni_pc
 import torch
 import contextlib
-from diffusers import LMSDiscreteScheduler
 from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
@@ -546,25 +545,15 @@ class KSampler:
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}, aitemplate=None, cfg=None):
         self.model = model
         if aitemplate:
-            scheduler = LMSDiscreteScheduler.from_config({
-                "beta_end": 0.012,
-                "beta_schedule": "scaled_linear",
-                "beta_start": 0.00085,
-                "num_train_timesteps": 1000,
-                "set_alpha_to_one": False,
-                "skip_prk_steps": True,
-                "steps_offset": 1,
-                "trained_betas": None,
-                "clip_sample": False
-                })
-            self.model_denoise = AITemplateModelWrapper(aitemplate, scheduler.alphas_cumprod, cfg)
+            alphas_cumprod = model.alphas_cumprod.to(device)
+            self.model_denoise = AITemplateModelWrapper(aitemplate, alphas_cumprod, cfg)
         else:
             self.model_denoise = CFGNoisePredictor(self.model)
-        if not isinstance(self.model_denoise, AITemplateModelWrapper) and self.model.parameterization == "v":
+        if self.model.parameterization == "v":
             self.model_wrap = CompVisVDenoiser(self.model_denoise, quantize=True)
-            self.model_wrap.parameterization = self.model.parameterization
         else:
             self.model_wrap = k_diffusion_external.CompVisDenoiser(self.model_denoise, quantize=True)
+        self.model_wrap.parameterization = self.model.parameterization
         self.model_k = KSamplerX0Inpaint(self.model_wrap)
         self.device = device
         if scheduler not in self.SCHEDULERS:
@@ -646,21 +635,19 @@ class KSampler:
         apply_empty_x_to_equal_area(positive, negative, 'control', lambda cond_cnets, x: cond_cnets[x])
         apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
-        if isinstance(self.model_denoise, AITemplateModelWrapper):
-            precision_scope = torch.autocast
-        elif self.model.model.diffusion_model.dtype == torch.float16:
+        if self.model.model.diffusion_model.dtype == torch.float16:
             precision_scope = torch.autocast
         else:
             precision_scope = contextlib.nullcontext
 
-        if not isinstance(self.model_denoise, AITemplateModelWrapper) and hasattr(self.model, 'noise_augmentor'): #unclip
+        if hasattr(self.model, 'noise_augmentor'): #unclip
             positive = encode_adm(self.model.noise_augmentor, positive, noise.shape[0], self.device)
             negative = encode_adm(self.model.noise_augmentor, negative, noise.shape[0], self.device)
 
         extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options}
 
         cond_concat = None
-        if not isinstance(self.model_denoise, AITemplateModelWrapper) and hasattr(self.model, 'concat_keys'): #inpaint
+        if hasattr(self.model, 'concat_keys'): #inpaint
             cond_concat = []
             for ck in self.model.concat_keys:
                 if denoise_mask is not None:

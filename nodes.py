@@ -350,13 +350,12 @@ class AITemplateLoader:
     def load_aitemplate(self, model, aitemplate_module):
         aitemplate_path = folder_paths.get_full_path("aitemplate", aitemplate_module)
         aitemplate = Model(aitemplate_path)
-        model = self.convert_ldm_unet_checkpoint(model.model.state_dict())
-        unet_params_ait = self.map_unet_state_dict(model)
+        unet_params_ait = self.map_unet_state_dict(self.convert_ldm_unet_checkpoint(model.model.state_dict()))
         print("Setting constants")
         aitemplate.set_many_constants_with_tensors(unet_params_ait)
         print("Folding constants")
         aitemplate.fold_constants()
-        return (aitemplate,)
+        return ((aitemplate,model),)
     #=================#
     # UNet Conversion #
     #=================#
@@ -1201,7 +1200,8 @@ class KSamplerAITemplate:
     CATEGORY = "sampling"
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
-        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, aitemplate=model)
+        aitemplate, model = model
+        return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, aitemplate=aitemplate)
 
 
 class KSamplerAdvanced:
