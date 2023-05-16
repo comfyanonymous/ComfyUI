@@ -305,7 +305,10 @@ class SaveLatent:
                 metadata[x] = json.dumps(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
-        sft.save_file(samples, os.path.join(full_output_folder, file), metadata=metadata)
+        file = os.path.join(full_output_folder, file)
+
+        print(file)
+        sft.save_file(samples, file, metadata=metadata)
 
         return {}
 
@@ -315,7 +318,7 @@ class LoadLatent:
 
     @classmethod
     def INPUT_TYPES(s):
-        files = [f for f in os.listdir(s.input_dir) if os.path.isfile(os.path.join(s.input_dir, f))]
+        files = [f for f in os.listdir(s.input_dir) if os.path.isfile(os.path.join(s.input_dir, f)) and f.endswith(".latent")]
         return {"required": {"latent": [sorted(files), ]}, }
 
     CATEGORY = "_for_testing"
@@ -327,7 +330,7 @@ class LoadLatent:
         file = folder_paths.get_annotated_filepath(latent, self.input_dir)
 
         latent = sft.load_file(file, device="cpu")
-        
+
         return (latent, )
 
 
