@@ -368,6 +368,7 @@ class PromptServer():
 
         @routes.post("/clipspace/paste")
         async def clipspace_copy(request):
+            # todo...
             import execution
             json_data = await request.json()
             id = json_data['node_id']
