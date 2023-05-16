@@ -19,7 +19,6 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 
 		var v = valueControl.value;
 
-		console.log(targetWidget);
 		if (targetWidget.type == "combo" && v !== "fixed") {
 			let current_index = targetWidget.options.values.indexOf(targetWidget.value);
 			let current_length = targetWidget.options.values.length;
