@@ -902,7 +902,9 @@ export class ComfyApp {
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
-		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		const mainCanvas = document.createElement("canvas")
+		mainCanvas.style.touchAction = "none"
+		const canvasEl = (this.canvasEl = Object.assign(mainCanvas, { id: "graph-canvas" }));
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
