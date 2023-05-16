@@ -294,7 +294,7 @@ class SaveLatent:
             os.makedirs(full_output_folder, exist_ok=True)
             counter = 1
 
-        # save
+        # support save metadata for latent sharing
         prompt_info = ""
         if prompt is not None:
             prompt_info = json.dumps(prompt)
@@ -307,7 +307,6 @@ class SaveLatent:
         file = f"{filename}_{counter:05}_.latent"
         file = os.path.join(full_output_folder, file)
 
-        print(file)
         sft.save_file(samples, file, metadata=metadata)
 
         return {}
