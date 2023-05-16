@@ -19,35 +19,61 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 
 		var v = valueControl.value;
 
-		let min = targetWidget.options.min;
-		let max = targetWidget.options.max;
-		// limit to something that javascript can handle
-		max = Math.min(1125899906842624, max);
-		min = Math.max(-1125899906842624, min);
-		let range = (max - min) / (targetWidget.options.step / 10);
+		console.log(targetWidget);
+		if (targetWidget.type == "combo" && v !== "fixed") {
+			let current_index = targetWidget.options.values.indexOf(targetWidget.value);
+			let current_length = targetWidget.options.values.length;
 
-		//adjust values based on valueControl Behaviour
-		switch (v) {
-			case "fixed":
-				break;
-			case "increment":
-				targetWidget.value += targetWidget.options.step / 10;
-				break;
-			case "decrement":
-				targetWidget.value -= targetWidget.options.step / 10;
-				break;
-			case "randomize":
-				targetWidget.value = Math.floor(Math.random() * range) * (targetWidget.options.step / 10) + min;
-			default:
-				break;
+			switch (v) {
+				case "increment":
+					current_index += 1;
+					break;
+				case "decrement":
+					current_index -= 1;
+					break;
+				case "randomize":
+					current_index = Math.floor(Math.random() * current_length);
+				default:
+					break;
+			}
+			current_index = Math.max(0, current_index);
+			current_index = Math.min(current_length - 1, current_index);
+			if (current_index >= 0) {
+				let value = targetWidget.options.values[current_index];
+				targetWidget.value = value;
+				targetWidget.callback(value);
+			}
+		} else { //number
+			let min = targetWidget.options.min;
+			let max = targetWidget.options.max;
+			// limit to something that javascript can handle
+			max = Math.min(1125899906842624, max);
+			min = Math.max(-1125899906842624, min);
+			let range = (max - min) / (targetWidget.options.step / 10);
+
+			//adjust values based on valueControl Behaviour
+			switch (v) {
+				case "fixed":
+					break;
+				case "increment":
+					targetWidget.value += targetWidget.options.step / 10;
+					break;
+				case "decrement":
+					targetWidget.value -= targetWidget.options.step / 10;
+					break;
+				case "randomize":
+					targetWidget.value = Math.floor(Math.random() * range) * (targetWidget.options.step / 10) + min;
+				default:
+					break;
+			}
+		/*check if values are over or under their respective
+		* ranges and set them to min or max.*/
+			if (targetWidget.value < min)
+				targetWidget.value = min;
+
+			if (targetWidget.value > max)
+				targetWidget.value = max;
 		}
-	/*check if values are over or under their respective
-	 * ranges and set them to min or max.*/
-		if (targetWidget.value < min)
-			targetWidget.value = min;
-
-		if (targetWidget.value > max)
-			targetWidget.value = max;
 	}
 	return valueControl;	
 };
