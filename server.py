@@ -359,21 +359,7 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-
-        @routes.post("/clipspace/copy")
-        async def clipspace_copy(request):
-            import execution
-            json_data = await request.json()
-            self.clipspace = execution.outputs[json_data['node_id']]
-
-        @routes.post("/clipspace/paste")
-        async def clipspace_copy(request):
-            # todo...
-            import execution
-            json_data = await request.json()
-            id = json_data['node_id']
-            print(self.clipspace)
-
+        
     def add_routes(self):
         self.app.add_routes(self.routes)
         self.app.add_routes([
