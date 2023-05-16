@@ -305,7 +305,7 @@ class SaveLatent:
                 metadata[x] = json.dumps(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
-        sft.save_file(samples, file, metadata=metadata)
+        sft.save_file(samples, os.path.join(full_output_folder, file), metadata=metadata)
 
         return {}
 
@@ -326,12 +326,9 @@ class LoadLatent:
     def load(self, latent):
         file = folder_paths.get_annotated_filepath(latent, self.input_dir)
 
-        samples = sft.load_file(file, device="cpu")
-        print(samples.keys())
-
-        # print(f"latent meta: {loaded_metadata}")
-
-        return (samples, )
+        latent = sft.load_file(file, device="cpu")
+        
+        return (latent, )
 
 
 class CheckpointLoader:
