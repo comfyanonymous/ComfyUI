@@ -301,7 +301,7 @@ class SavePreviewLatent(SaveLatent):
     def INPUT_TYPES(s):
         return {"required": {"samples": ("LATENT", ),
                              "filename_prefix": ("STRING", {"default": "latents/ComfyUI"}), },
-                "optional": {"image": ("IMAGE", ), },
+                "optional": {"image_opt": ("IMAGE", ), },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
     RETURN_TYPES = ()
