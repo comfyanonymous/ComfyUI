@@ -274,7 +274,7 @@ class SaveLatent:
         if prompt is not None:
             prompt_info = json.dumps(prompt)
 
-        metadata = {"workflow": prompt_info}
+        metadata = {"prompt": prompt_info}
         if extra_pnginfo is not None:
             for x in extra_pnginfo:
                 metadata[x] = json.dumps(extra_pnginfo[x])

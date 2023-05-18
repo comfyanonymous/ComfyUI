@@ -47,6 +47,22 @@ export function getPngMetadata(file) {
 	});
 }
 
+export function getLatentMetadata(file) {
+	return new Promise((r) => {
+		const reader = new FileReader();
+		reader.onload = (event) => {
+			const safetensorsData = new Uint8Array(event.target.result);
+			const dataView = new DataView(safetensorsData.buffer);
+			let header_size = dataView.getUint32(0, true);
+			let offset = 8;
+			let header = JSON.parse(String.fromCharCode(...safetensorsData.slice(offset, offset + header_size)));
+			r(header.__metadata__);
+		};
+
+		reader.readAsArrayBuffer(file);
+	});
+}
+
 export async function importA1111(graph, parameters) {
 	const p = parameters.lastIndexOf("\nSteps:");
 	if (p > -1) {

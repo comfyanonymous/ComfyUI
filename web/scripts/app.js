@@ -2,7 +2,7 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, importA1111 } from "./pnginfo.js";
+import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
 /** 
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -1308,6 +1308,11 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(reader.result));
 			};
 			reader.readAsText(file);
+		} else if (file.name?.endsWith(".latent")) {
+			const info = await getLatentMetadata(file);
+			if (info.workflow) {
+				this.loadGraphData(JSON.parse(info.workflow));
+			}
 		}
 	}
 
