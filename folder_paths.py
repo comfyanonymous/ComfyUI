@@ -147,4 +147,37 @@ def get_filename_list(folder_name):
         output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
     return sorted(list(output_list))
 
+def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height=0):
+    def map_filename(filename):
+        prefix_len = len(os.path.basename(filename_prefix))
+        prefix = filename[:prefix_len + 1]
+        try:
+            digits = int(filename[prefix_len + 1:].split('_')[0])
+        except:
+            digits = 0
+        return (digits, prefix)
 
+    def compute_vars(input, image_width, image_height):
+        input = input.replace("%width%", str(image_width))
+        input = input.replace("%height%", str(image_height))
+        return input
+
+    filename_prefix = compute_vars(filename_prefix, image_width, image_height)
+
+    subfolder = os.path.dirname(os.path.normpath(filename_prefix))
+    filename = os.path.basename(os.path.normpath(filename_prefix))
+
+    full_output_folder = os.path.join(output_dir, subfolder)
+
+    if os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) != output_dir:
+        print("Saving image outside the output folder is not allowed.")
+        return {}
+
+    try:
+        counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
+    except ValueError:
+        counter = 1
+    except FileNotFoundError:
+        os.makedirs(full_output_folder, exist_ok=True)
+        counter = 1
+    return full_output_folder, filename, counter, subfolder, filename_prefix
