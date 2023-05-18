@@ -465,7 +465,7 @@ export class ComfyUI {
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
-			accept: ".json,image/png",
+			accept: ".json,image/png,.latent",
 			style: { display: "none" },
 			parent: document.body,
 			onchange: () => {
