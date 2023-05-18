@@ -11,6 +11,7 @@ import time
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
+import safetensors.torch
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
@@ -29,7 +30,6 @@ import importlib
 
 import folder_paths
 
-import safetensors.torch as sft
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -307,7 +307,10 @@ class SaveLatent:
         file = f"{filename}_{counter:05}_.latent"
         file = os.path.join(full_output_folder, file)
 
-        sft.save_file(samples, file, metadata=metadata)
+        output = {}
+        output["latent_tensor"] = samples["samples"]
+
+        safetensors.torch.save_file(output, file, metadata=metadata)
 
         return {}
 
@@ -328,9 +331,10 @@ class LoadLatent:
     def load(self, latent):
         file = folder_paths.get_annotated_filepath(latent, self.input_dir)
 
-        latent = sft.load_file(file, device="cpu")
+        latent = safetensors.torch.load_file(file, device="cpu")
+        samples = {"samples": latent["latent_tensor"]}
 
-        return (latent, )
+        return (samples, )
 
 
 class CheckpointLoader:
