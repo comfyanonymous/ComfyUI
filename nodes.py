@@ -335,7 +335,7 @@ class SavePreviewLatent(SaveLatent):
         upper_bound = 512
 
         if image is None:
-            image = comfy.utils.latent_to_rgb(latent_tensor)
+            image = comfy.utils.latent_to_rgb(latent_tensor).convert("P", palette=Image.ADAPTIVE, colors=256)
 
             min_size = min(image.size[0], image.size[1])
             max_size = max(image.size[0], image.size[1])
@@ -351,7 +351,7 @@ class SavePreviewLatent(SaveLatent):
             w = int(image.size[0] * scale_factor)
             h = int(image.size[1] * scale_factor)
 
-            image = image.resize((w, h))
+            image = image.resize((w, h), resample=Image.NEAREST)
 
         else:
             # don't resize if provide preview image intentionally
