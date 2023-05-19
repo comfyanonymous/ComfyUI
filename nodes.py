@@ -305,7 +305,7 @@ class LoadLatent:
     def load(self, latent):
         latent_path = folder_paths.get_annotated_filepath(latent)
         latent = safetensors.torch.load_file(latent_path, device="cpu")
-        samples = {"samples": latent["latent_tensor"]}
+        samples = {"samples": latent["latent_tensor"].float()}
         return (samples, )
 
     @classmethod
