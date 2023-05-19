@@ -8,7 +8,7 @@ import traceback
 import math
 import time
 
-from PIL import Image
+from PIL import Image, ImageDraw
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
@@ -327,24 +327,64 @@ class SavePreviewLatent(SaveLatent):
                 metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
         exif_bytes = piexif.dump(exif_data)
-        image.save(image_path, format='png', exif=exif_bytes, pnginfo=metadata)
+        image.save(image_path, format='png', exif=exif_bytes, pnginfo=metadata, optimize=True)
 
     @staticmethod
-    def load_preview(image):
+    def prepare_preview(image, latent_tensor):
+        lower_bound = 128
+        upper_bound = 512
+
         if image is None:
-            comfy_path = os.path.dirname(__file__)
-            image_path = os.path.join(comfy_path, "logo.png")
-            return Image.open(image_path)
+            image = comfy.utils.latent_to_rgb(latent_tensor)
+
+            min_size = min(image.size[0], image.size[1])
+            max_size = max(image.size[0], image.size[1])
+
+            scale_factor = 1
+            if max_size > upper_bound:
+                scale_factor = upper_bound/max_size
+
+            # prevent too small preview
+            if min_size*scale_factor < lower_bound:
+                scale_factor = lower_bound/min_size
+
+            w = int(image.size[0] * scale_factor)
+            h = int(image.size[1] * scale_factor)
+
+            image = image.resize((w, h))
+
         else:
+            # don't resize if provide preview image intentionally
             i = 255. * image[0].cpu().numpy()
             image = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            return image
 
-    def save_preview_latent(self, samples, filename_prefix="ComfyUI", image=None, prompt=None, extra_pnginfo=None):
+        return SavePreviewLatent.attach_format_text(image)
+
+    @staticmethod
+    def attach_format_text(image):
+        width_a, height_a = image.size
+
+        letter_image = Image.open("misc/latent.png")
+        width_b, height_b = letter_image.size
+
+        new_width = max(width_a, width_b)
+        new_height = height_a + height_b
+
+        new_image = Image.new('RGB', (new_width, new_height), (0, 0, 0))
+
+        offset_x = (new_width - width_b) // 2
+        offset_y = (height_a + (new_height - height_a - height_b) // 2)
+        new_image.paste(letter_image, (offset_x, offset_y))
+
+        new_image.paste(image, (0, 0))
+
+        return new_image
+
+    def save_preview_latent(self, samples, filename_prefix="ComfyUI", image_opt=None, prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
 
         # load preview
-        preview = SavePreviewLatent.load_preview(image)
+        preview = SavePreviewLatent.prepare_preview(image_opt, samples['samples'])
 
         # support save metadata for latent sharing
         file = f"{filename}_{counter:05}_.latent.png"
