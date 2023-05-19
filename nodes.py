@@ -392,7 +392,7 @@ class LoadLatent:
 
         if latent.endswith(".latent"):
             latent = safetensors.torch.load_file(latent_path, device="cpu")
-            samples = {"samples": latent["latent_tensor"]}
+            samples = {"samples": latent["latent_tensor"].float()}
         else:
             samples = LoadLatent.load_preview_latent(latent_path)
 
