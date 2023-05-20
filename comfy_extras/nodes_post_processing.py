@@ -59,6 +59,12 @@ class Blend:
     def g(self, x):
         return torch.where(x <= 0.25, ((16 * x - 12) * x + 4) * x, torch.sqrt(x))
 
+def gaussian_kernel(kernel_size: int, sigma: float):
+    x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size), torch.linspace(-1, 1, kernel_size), indexing="ij")
+    d = torch.sqrt(x * x + y * y)
+    g = torch.exp(-(d * d) / (2.0 * sigma * sigma))
+    return g / g.sum()
+
 class Blur:
     def __init__(self):
         pass
@@ -88,12 +94,6 @@ class Blur:
 
     CATEGORY = "image/postprocessing"
 
-    def gaussian_kernel(self, kernel_size: int, sigma: float):
-        x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size), torch.linspace(-1, 1, kernel_size), indexing="ij")
-        d = torch.sqrt(x * x + y * y)
-        g = torch.exp(-(d * d) / (2.0 * sigma * sigma))
-        return g / g.sum()
-
     def blur(self, image: torch.Tensor, blur_radius: int, sigma: float):
         if blur_radius == 0:
             return (image,)
@@ -101,10 +101,11 @@ class Blur:
         batch_size, height, width, channels = image.shape
 
         kernel_size = blur_radius * 2 + 1
-        kernel = self.gaussian_kernel(kernel_size, sigma).repeat(channels, 1, 1).unsqueeze(1)
+        kernel = gaussian_kernel(kernel_size, sigma).repeat(channels, 1, 1).unsqueeze(1)
 
         image = image.permute(0, 3, 1, 2) # Torch wants (B, C, H, W) we use (B, H, W, C)
-        blurred = F.conv2d(image, kernel, padding=kernel_size // 2, groups=channels)
+        padded_image = F.pad(image, (blur_radius,blur_radius,blur_radius,blur_radius), 'reflect')
+        blurred = F.conv2d(image, kernel, padding=kernel_size // 2, groups=channels)[:,:,blur_radius:-blur_radius, blur_radius:-blur_radius]
         blurred = blurred.permute(0, 2, 3, 1)
 
         return (blurred,)
@@ -167,9 +168,15 @@ class Sharpen:
                     "max": 31,
                     "step": 1
                 }),
-                "alpha": ("FLOAT", {
+                "sigma": ("FLOAT", {
                     "default": 1.0,
                     "min": 0.1,
+                    "max": 10.0,
+                    "step": 0.1
+                }),
+                "alpha": ("FLOAT", {
+                    "default": 1.0,
+                    "min": 0.0,
                     "max": 5.0,
                     "step": 0.1
                 }),
@@ -181,21 +188,21 @@ class Sharpen:
 
     CATEGORY = "image/postprocessing"
 
-    def sharpen(self, image: torch.Tensor, sharpen_radius: int, alpha: float):
+    def sharpen(self, image: torch.Tensor, sharpen_radius: int, sigma:float, alpha: float):
         if sharpen_radius == 0:
             return (image,)
 
         batch_size, height, width, channels = image.shape
 
         kernel_size = sharpen_radius * 2 + 1
-        kernel = torch.ones((kernel_size, kernel_size), dtype=torch.float32) * -1
+        kernel = gaussian_kernel(kernel_size, sigma) * -(alpha*10)
         center = kernel_size // 2
-        kernel[center, center] = kernel_size**2
-        kernel *= alpha
+        kernel[center, center] = kernel[center, center] - kernel.sum() + 1.0
         kernel = kernel.repeat(channels, 1, 1).unsqueeze(1)
 
         tensor_image = image.permute(0, 3, 1, 2) # Torch wants (B, C, H, W) we use (B, H, W, C)
-        sharpened = F.conv2d(tensor_image, kernel, padding=center, groups=channels)
+        tensor_image = F.pad(tensor_image, (sharpen_radius,sharpen_radius,sharpen_radius,sharpen_radius), 'reflect')
+        sharpened = F.conv2d(tensor_image, kernel, padding=center, groups=channels)[:,:,sharpen_radius:-sharpen_radius, sharpen_radius:-sharpen_radius]
         sharpened = sharpened.permute(0, 2, 3, 1)
 
         result = torch.clamp(sharpened, 0, 1)
