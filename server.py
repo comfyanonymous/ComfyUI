@@ -22,6 +22,7 @@ except ImportError:
 
 import mimetypes
 from comfy.cli_args import args
+from comfy.samplers import KSampler
 
 
 @web.middleware
@@ -107,6 +108,16 @@ class PromptServer():
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0].lower(), embeddings)))
+
+        @routes.get("/checkpoints")
+        def get_checkpoints(self):
+            checkpoints = folder_paths.get_filename_list("checkpoints")
+            return web.json_response(list(map(lambda a: a.lower(), checkpoints)))
+        
+        @routes.get("/samplers")
+        def get_samplers(self):
+            samplers = KSampler.SAMPLERS
+            return web.json_response(samplers)
 
         @routes.get("/extensions")
         async def get_extensions(request):
