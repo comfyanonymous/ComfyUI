@@ -191,7 +191,7 @@ class ComfyApi extends EventTarget {
 
 		if (res.status !== 200) {
 			throw {
-				response: await res.text(),
+				response: await res.json(),
 			};
 		}
 	}

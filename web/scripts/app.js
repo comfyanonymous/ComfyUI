@@ -2,7 +2,7 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, importA1111 } from "./pnginfo.js";
+import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
 /** 
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -26,6 +26,8 @@ export class ComfyApp {
 	 */
 	static clipspace = null;
 	static clipspace_invalidate_handler = null;
+	static open_maskeditor = null;
+	static clipspace_return_node = null;
 
 	constructor() {
 		this.ui = new ComfyUI(this);
@@ -47,6 +49,114 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+	}
+
+	static isImageNode(node) {
+		return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
+	}
+
+	static onClipspaceEditorSave() {
+		if(ComfyApp.clipspace_return_node) {
+			ComfyApp.pasteFromClipspace(ComfyApp.clipspace_return_node);
+		}
+	}
+
+	static onClipspaceEditorClosed() {
+		ComfyApp.clipspace_return_node = null;
+	}
+
+	static copyToClipspace(node) {
+		var widgets = null;
+		if(node.widgets) {
+			widgets = node.widgets.map(({ type, name, value }) => ({ type, name, value }));
+		}
+
+		var imgs = undefined;
+		var orig_imgs = undefined;
+		if(node.imgs != undefined) {
+			imgs = [];
+			orig_imgs = [];
+
+			for (let i = 0; i < node.imgs.length; i++) {
+				imgs[i] = new Image();
+				imgs[i].src = node.imgs[i].src;
+				orig_imgs[i] = imgs[i];
+			}
+		}
+
+		var selectedIndex = 0;
+		if(node.imageIndex) {
+			selectedIndex = node.imageIndex;
+		}
+
+		ComfyApp.clipspace = {
+			'widgets': widgets,
+			'imgs': imgs,
+			'original_imgs': orig_imgs,
+			'images': node.images,
+			'selectedIndex': selectedIndex,
+			'img_paste_mode': 'selected' // reset to default im_paste_mode state on copy action
+		};
+
+		ComfyApp.clipspace_return_node = null;
+
+		if(ComfyApp.clipspace_invalidate_handler) {
+			ComfyApp.clipspace_invalidate_handler();
+		}
+	}
+
+	static pasteFromClipspace(node) {
+		if(ComfyApp.clipspace) {
+			// image paste
+			if(ComfyApp.clipspace.imgs && node.imgs) {
+				if(node.images && ComfyApp.clipspace.images) {
+					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+						app.nodeOutputs[node.id + ""].images = node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+					}
+					else
+						app.nodeOutputs[node.id + ""].images = node.images = ComfyApp.clipspace.images;
+				}
+
+				if(ComfyApp.clipspace.imgs) {
+					// deep-copy to cut link with clipspace
+					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+						const img = new Image();
+						img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+						node.imgs = [img];
+						node.imageIndex = 0;
+					}
+					else {
+						const imgs = [];
+						for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
+							imgs[i] = new Image();
+							imgs[i].src = ComfyApp.clipspace.imgs[i].src;
+							node.imgs = imgs;
+						}
+					}
+				}
+			}
+
+			if(node.widgets) {
+				if(ComfyApp.clipspace.images) {
+					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
+					const index = node.widgets.findIndex(obj => obj.name === 'image');
+					if(index >= 0) {
+						node.widgets[index].value = clip_image;
+					}
+				}
+				if(ComfyApp.clipspace.widgets) {
+					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
+						if (prop && prop.type != 'button') {
+							prop.value = value;
+							prop.callback(value);
+						}
+					});
+				}
+			}
+
+			app.graph.setDirtyCanvas(true);
+		}
 	}
 
 	/**
@@ -138,102 +248,30 @@ export class ComfyApp {
 				}
 			}
 
-			options.push(
-				{
-					content: "Copy (Clipspace)",
-					callback: (obj) => {
-						var widgets = null;
-						if(this.widgets) {
-							widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
-						}
-						
-						var imgs = undefined;
-						var orig_imgs = undefined;
-						if(this.imgs != undefined) {
-							imgs = [];
-							orig_imgs = [];
+			// prevent conflict of clipspace content
+			if(!ComfyApp.clipspace_return_node) {
+				options.push({
+						content: "Copy (Clipspace)",
+						callback: (obj) => { ComfyApp.copyToClipspace(this); }
+					});
 
-							for (let i = 0; i < this.imgs.length; i++) {
-								imgs[i] = new Image();
-								imgs[i].src = this.imgs[i].src;
-								orig_imgs[i] = imgs[i];
+				if(ComfyApp.clipspace != null) {
+					options.push({
+							content: "Paste (Clipspace)",
+							callback: () => { ComfyApp.pasteFromClipspace(this); }
+						});
+				}
+
+				if(ComfyApp.isImageNode(this)) {
+					options.push({
+							content: "Open in MaskEditor",
+							callback: (obj) => {
+								ComfyApp.copyToClipspace(this);
+								ComfyApp.clipspace_return_node = this;
+								ComfyApp.open_maskeditor();
 							}
-						}
-
-						ComfyApp.clipspace = {
-							'widgets': widgets,
-							'imgs': imgs,
-							'original_imgs': orig_imgs,
-							'images': this.images,
-							'selectedIndex': 0,
-							'img_paste_mode': 'selected' // reset to default im_paste_mode state on copy action
-							};
-
-						if(ComfyApp.clipspace_invalidate_handler) {
-							ComfyApp.clipspace_invalidate_handler();
-						}
-					}
-				});
-
-			if(ComfyApp.clipspace != null) {
-				options.push(
-					{
-						content: "Paste (Clipspace)",
-						callback: () => {
-							if(ComfyApp.clipspace) {
-								// image paste
-								if(ComfyApp.clipspace.imgs && this.imgs) {
-									if(this.images && ComfyApp.clipspace.images) {
-										if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-											app.nodeOutputs[this.id + ""].images = this.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
-
-										}
-										else
-											app.nodeOutputs[this.id + ""].images = this.images = ComfyApp.clipspace.images;
-									}
-
-									if(ComfyApp.clipspace.imgs) {
-										// deep-copy to cut link with clipspace
-										if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-												const img = new Image();
-												img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
-												this.imgs = [img];
-										}
-										else {
-											const imgs = [];
-											for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
-												imgs[i] = new Image();
-												imgs[i].src = ComfyApp.clipspace.imgs[i].src;
-												this.imgs = imgs;
-											}
-										}
-									}
-								}
-
-								if(this.widgets) {
-									if(ComfyApp.clipspace.images) {
-										const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
-										const index = this.widgets.findIndex(obj => obj.name === 'image');
-										if(index >= 0) {
-											this.widgets[index].value = clip_image;
-										}
-									}
-									if(ComfyApp.clipspace.widgets) {
-										ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
-											const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
-												if (prop && prop.type != 'button') {
-													prop.value = value;
-													prop.callback(value);
-												}
-										});
-									}
-								}
-							}
-
-							app.graph.setDirtyCanvas(true);
-						}
-					}
-				);
+						});
+				}
 			}
 		};
 	}
@@ -864,7 +902,9 @@ export class ComfyApp {
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
-		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		const mainCanvas = document.createElement("canvas")
+		mainCanvas.style.touchAction = "none"
+		const canvasEl = (this.canvasEl = Object.assign(mainCanvas, { id: "graph-canvas" }));
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
@@ -976,7 +1016,8 @@ export class ComfyApp {
 					for (const o in nodeData["output"]) {
 						const output = nodeData["output"][o];
 						const outputName = nodeData["output_name"][o] || output;
-						this.addOutput(outputName, output);
+						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+						this.addOutput(outputName, output, { shape: outputShape });
 					}
 
 					const s = this.computeSize();
@@ -1221,7 +1262,7 @@ export class ComfyApp {
 					try {
 						await api.queuePrompt(number, p);
 					} catch (error) {
-						this.ui.dialog.show(error.response || error.toString());
+						this.ui.dialog.show(error.response.error || error.toString());
 						break;
 					}
 
@@ -1267,6 +1308,11 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(reader.result));
 			};
 			reader.readAsText(file);
+		} else if (file.name?.endsWith(".latent")) {
+			const info = await getLatentMetadata(file);
+			if (info.workflow) {
+				this.loadGraphData(JSON.parse(info.workflow));
+			}
 		}
 	}
 
