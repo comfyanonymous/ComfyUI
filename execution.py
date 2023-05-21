@@ -127,9 +127,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     output_data, output_ui = get_output_data(obj, input_data_all)
     outputs[unique_id] = output_data
     if len(output_ui) > 0:
-        outputs_ui[unique_id] = output_ui
-        if server.client_id is not None:
-            server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
+        outputs_ui[unique_id] = output_u
+        server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
     executed.add(unique_id)
 
 def recursive_will_execute(prompt, outputs, current_item):
