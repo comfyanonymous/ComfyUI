@@ -159,6 +159,19 @@ export const defaultGraph = {
                         ],
                         outputs: [{ name: "IMAGE", type: "IMAGE", links: [16, 17], slot_index: 0 }],
                         properties: {}
+                },
+                {
+                        "id": 15,
+                        "type": "Note",
+                        "pos": [780, 60],
+                        "size": [460, 70],
+                        "flags": {},
+                        "order": 2,
+                        "mode": 0,
+                        "properties": {"text": ""},
+                        "widgets_values": ["Visit \n  https://comfyanonymous.github.io/ComfyUI_examples/\nfor more examples."],
+                        "color": "#432",
+                        "bgcolor": "#653"
                 }
         ],
         links: [
