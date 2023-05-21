@@ -328,9 +328,9 @@ def validate_inputs(prompt, item, validated):
 
             if len(info) > 1:
                 if "min" in info[1] and val < info[1]["min"]:
-                    return (False, "Value smaller than min. {}, {}".format(class_type, x))
+                    return (False, "Value {} smaller than min of {}. {}, {}".format(val, info[1]["min"], class_type, x))
                 if "max" in info[1] and val > info[1]["max"]:
-                    return (False, "Value bigger than max. {}, {}".format(class_type, x))
+                    return (False, "Value {} bigger than max of {}. {}, {}".format(val, info[1]["max"], class_type, x))
 
             if hasattr(obj_class, "VALIDATE_INPUTS"):
                 input_data_all = get_input_data(inputs, obj_class, unique_id)
