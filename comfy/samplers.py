@@ -495,10 +495,10 @@ def encode_adm(noise_augmentor, conds, batch_size, device):
 
 
 class KSampler:
-    SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform"]
+    SCHEDULERS = ["normal", "karras", "exponential", "simple", "ddim_uniform"]
     SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
                 "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde",
-                "dpmpp_2m", "ddim", "uni_pc", "uni_pc_bh2"]
+                "dpmpp_2m", "dpmpp_2m_sde", "ddim", "uni_pc", "uni_pc_bh2"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
@@ -532,6 +532,8 @@ class KSampler:
 
         if self.scheduler == "karras":
             sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
+        elif self.scheduler == "exponential":
+            sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
         elif self.scheduler == "normal":
             sigmas = self.model_wrap.get_sigmas(steps)
         elif self.scheduler == "simple":
