@@ -336,9 +336,9 @@ class PromptServer():
                     return web.json_response({"prompt_id": prompt_id})
                 else:
                     print("invalid prompt:", valid[1])
-                    return web.json_response({"error": valid[1]}, status=400)
+                    return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
-                return web.json_response({"error": "no prompt"}, status=400)
+                return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
 
         @routes.post("/queue")
         async def post_queue(request):
