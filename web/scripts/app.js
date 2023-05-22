@@ -921,9 +921,8 @@ export class ComfyApp {
 		this.graph.start();
 
 		function resizeCanvas() {
-			canvasEl.width = canvasEl.offsetWidth * window.devicePixelRatio;
-			canvasEl.height = canvasEl.offsetHeight * window.devicePixelRatio;
-			canvasEl.getContext("2d").scale(window.devicePixelRatio, window.devicePixelRatio);
+			canvasEl.width = canvasEl.offsetWidth;
+			canvasEl.height = canvasEl.offsetHeight;
 			canvas.draw(true, true);
 		}
 
