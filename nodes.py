@@ -7,16 +7,15 @@ import hashlib
 import traceback
 import math
 import time
-from comfy.aitemplate.model import Model
-from diffusers import LMSDiscreteScheduler
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
+import safetensors.torch
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
-
+from comfy.aitemplate.model import Model
 import comfy.diffusers_convert
 import comfy.samplers
 import comfy.sample
@@ -29,6 +28,7 @@ import comfy.model_management
 import importlib
 
 import folder_paths
+
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -246,6 +246,81 @@ class VAEEncodeForInpaint:
         t = vae.encode(pixels)
 
         return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
+
+
+class SaveLatent:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT", ),
+                              "filename_prefix": ("STRING", {"default": "latents/ComfyUI"})},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                }
+    RETURN_TYPES = ()
+    FUNCTION = "save"
+
+    OUTPUT_NODE = True
+
+    CATEGORY = "_for_testing"
+
+    def save(self, samples, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
+
+        # support save metadata for latent sharing
+        prompt_info = ""
+        if prompt is not None:
+            prompt_info = json.dumps(prompt)
+
+        metadata = {"prompt": prompt_info}
+        if extra_pnginfo is not None:
+            for x in extra_pnginfo:
+                metadata[x] = json.dumps(extra_pnginfo[x])
+
+        file = f"{filename}_{counter:05}_.latent"
+        file = os.path.join(full_output_folder, file)
+
+        output = {}
+        output["latent_tensor"] = samples["samples"]
+
+        safetensors.torch.save_file(output, file, metadata=metadata)
+
+        return {}
+
+
+class LoadLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
+        return {"required": {"latent": [sorted(files), ]}, }
+
+    CATEGORY = "_for_testing"
+
+    RETURN_TYPES = ("LATENT", )
+    FUNCTION = "load"
+
+    def load(self, latent):
+        latent_path = folder_paths.get_annotated_filepath(latent)
+        latent = safetensors.torch.load_file(latent_path, device="cpu")
+        samples = {"samples": latent["latent_tensor"].float()}
+        return (samples, )
+
+    @classmethod
+    def IS_CHANGED(s, latent):
+        image_path = folder_paths.get_annotated_filepath(latent)
+        m = hashlib.sha256()
+        with open(image_path, 'rb') as f:
+            m.update(f.read())
+        return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, latent):
+        if not folder_paths.exists_annotated_filepath(latent):
+            return "Invalid latent file: {}".format(latent)
+        return True
+
 
 class CheckpointLoader:
     @classmethod
@@ -1258,39 +1333,7 @@ class SaveImage:
     CATEGORY = "image"
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-        def map_filename(filename):
-            prefix_len = len(os.path.basename(filename_prefix))
-            prefix = filename[:prefix_len + 1]
-            try:
-                digits = int(filename[prefix_len + 1:].split('_')[0])
-            except:
-                digits = 0
-            return (digits, prefix)
-
-        def compute_vars(input):
-            input = input.replace("%width%", str(images[0].shape[1]))
-            input = input.replace("%height%", str(images[0].shape[0]))
-            return input
-
-        filename_prefix = compute_vars(filename_prefix)
-
-        subfolder = os.path.dirname(os.path.normpath(filename_prefix))
-        filename = os.path.basename(os.path.normpath(filename_prefix))
-
-        full_output_folder = os.path.join(self.output_dir, subfolder)
-
-        if os.path.commonpath((self.output_dir, os.path.abspath(full_output_folder))) != self.output_dir:
-            print("Saving image outside the output folder is not allowed.")
-            return {}
-
-        try:
-            counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
-        except ValueError:
-            counter = 1
-        except FileNotFoundError:
-            os.makedirs(full_output_folder, exist_ok=True)
-            counter = 1
-
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -1341,6 +1384,7 @@ class LoadImage:
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
+        i = ImageOps.exif_transpose(i)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
@@ -1384,6 +1428,7 @@ class LoadImageMask:
     def load_image(self, image, channel):
         image_path = folder_paths.get_annotated_filepath(image)
         i = Image.open(image_path)
+        i = ImageOps.exif_transpose(i)
         if i.getbands() != ("R", "G", "B", "A"):
             i = i.convert("RGBA")
         mask = None
@@ -1566,6 +1611,9 @@ NODE_CLASS_MAPPINGS = {
 
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
+
+    "LoadLatent": LoadLatent,
+    "SaveLatent": SaveLatent
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {

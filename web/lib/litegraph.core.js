@@ -9734,7 +9734,7 @@ LGraphNode.prototype.executeAction = function(action)
                     if (show_text) {
                         ctx.textAlign = "center";
                         ctx.fillStyle = text_color;
-                        ctx.fillText(w.name, widget_width * 0.5, y + H * 0.7);
+                        ctx.fillText(w.label || w.name, widget_width * 0.5, y + H * 0.7);
                     }
                     break;
                 case "toggle":
@@ -9755,8 +9755,9 @@ LGraphNode.prototype.executeAction = function(action)
                     ctx.fill();
                     if (show_text) {
                         ctx.fillStyle = secondary_text_color;
-                        if (w.name != null) {
-                            ctx.fillText(w.name, margin * 2, y + H * 0.7);
+                        const label = w.label || w.name;    
+                        if (label != null) {
+                            ctx.fillText(label, margin * 2, y + H * 0.7);
                         }
                         ctx.fillStyle = w.value ? text_color : secondary_text_color;
                         ctx.textAlign = "right";
@@ -9791,7 +9792,7 @@ LGraphNode.prototype.executeAction = function(action)
                         ctx.textAlign = "center";
                         ctx.fillStyle = text_color;
                         ctx.fillText(
-                            w.name + "  " + Number(w.value).toFixed(3),
+                            w.label || w.name + "  " + Number(w.value).toFixed(3),
                             widget_width * 0.5,
                             y + H * 0.7
                         );
@@ -9826,7 +9827,7 @@ LGraphNode.prototype.executeAction = function(action)
 							ctx.fill();
 						}
                         ctx.fillStyle = secondary_text_color;
-                        ctx.fillText(w.name, margin * 2 + 5, y + H * 0.7);
+                        ctx.fillText(w.label || w.name, margin * 2 + 5, y + H * 0.7);
                         ctx.fillStyle = text_color;
                         ctx.textAlign = "right";
                         if (w.type == "number") {
@@ -9878,8 +9879,9 @@ LGraphNode.prototype.executeAction = function(action)
 
 	                    //ctx.stroke();
                         ctx.fillStyle = secondary_text_color;
-                        if (w.name != null) {
-                            ctx.fillText(w.name, margin * 2, y + H * 0.7);
+                        const label = w.label || w.name;	
+                        if (label != null) {
+                            ctx.fillText(label, margin * 2, y + H * 0.7);
                         }
                         ctx.fillStyle = text_color;
                         ctx.textAlign = "right";
