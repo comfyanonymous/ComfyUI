@@ -879,7 +879,7 @@ class RepeatLatentBatch:
         return (s,)
 
 class LatentUpscale:
-    upscale_methods = ["nearest-exact", "bilinear", "area"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bislerp"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
