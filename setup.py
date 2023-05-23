@@ -88,6 +88,7 @@ def _is_amd() -> bool:
 
 def dependencies() -> [str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
+    # todo: also add all plugin dependencies
     _alternative_indices = [amd_torch_index, nvidia_torch_index, cpu_torch_index_nightlies]
     session = PipSession()
 

@@ -1,3 +1,5 @@
+import os.path
+
 import torch
 import math
 import struct
@@ -379,3 +381,7 @@ class ProgressBar:
 
     def update(self, value):
         self.update_absolute(self.current + value)
+
+
+def get_project_root() -> str:
+    return os.path.join(os.path.dirname(__file__), "..")

@@ -1,11 +1,11 @@
-torch>=1.13.0
-torchvision
-torchaudio
+torch==2.0.0
+torchaudio==2.0.0
+torchvision==0.15.1
 torchdiffeq>=0.2.3
 torchsde>=0.2.5
 einops>=0.6.0
 open-clip-torch>=2.16.0
-transformers>=4.25.1
+transformers>=4.29.1
 safetensors>=0.3.0
 pytorch-lightning>=2.0.0
 aiohttp>=3.8.4
@@ -25,3 +25,6 @@ importlib_resources
 Pillow
 scipy
 tqdm
+diffusers>=0.16.1
+protobuf==3.20.3
+rembg[gpu]
