@@ -374,6 +374,7 @@ def validate_prompt(prompt):
             print(traceback.format_exc())
             valid = False
             reason = "Parsing error"
+            node_id = None
 
         if valid == True:
             good_outputs.add(o)
@@ -381,9 +382,10 @@ def validate_prompt(prompt):
             print("Failed to validate prompt for output {} {}".format(o, reason))
             print("output will be ignored")
             errors += [(o, reason)]
-            if node_id not in node_errors:
-                node_errors[node_id] = {"message": reason, "dependent_outputs": []}
-            node_errors[node_id]["dependent_outputs"].append(o)
+            if node_id is not None:
+                if node_id not in node_errors:
+                    node_errors[node_id] = {"message": reason, "dependent_outputs": []}
+                node_errors[node_id]["dependent_outputs"].append(o)
 
     if len(good_outputs) == 0:
         errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
