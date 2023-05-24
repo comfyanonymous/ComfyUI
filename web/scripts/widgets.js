@@ -160,15 +160,15 @@ function addMultilineWidget(node, name, opts, app) {
 			const transform = new DOMMatrix()
 				.scaleSelf(elRect.width / ctx.canvas.width, elRect.height / ctx.canvas.height)
 				.multiplySelf(ctx.getTransform())
-				.translateSelf(margin / window.devicePixelRatio, (margin + y) / window.devicePixelRatio);
+				.translateSelf(margin, margin + y);
 
 			Object.assign(this.inputEl.style, {
 				transformOrigin: "0 0",
 				transform: transform,
 				left: "0px",
 				top: "0px",
-				width: `${(widgetWidth - (margin * 2)) / window.devicePixelRatio}px`,
-				height: `${(this.parent.inputHeight - (margin * 2)) / window.devicePixelRatio}px`,
+				width: `${widgetWidth - (margin * 2)}px`,
+				height: `${this.parent.inputHeight - (margin * 2)}px`,
 				position: "absolute",
 				background: (!node.color)?'':node.color,
 				color: (!node.color)?'':'white',
