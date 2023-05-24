@@ -6,6 +6,10 @@ import contextlib
 from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
+import math
+
+def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
+    return abs(a*b) // math.gcd(a, b)
 
 #The main sampling function shared by all the samplers
 #Returns predicted noise
@@ -90,8 +94,16 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
             if c1.keys() != c2.keys():
                 return False
             if 'c_crossattn' in c1:
-                if c1['c_crossattn'].shape != c2['c_crossattn'].shape:
-                    return False
+                s1 = c1['c_crossattn'].shape
+                s2 = c2['c_crossattn'].shape
+                if s1 != s2:
+                    if s1[0] != s2[0] or s1[2] != s2[2]: #these 2 cases should not happen
+                        return False
+
+                    mult_min = lcm(s1[1], s2[1])
+                    diff = mult_min // min(s1[1], s2[1])
+                    if diff > 4: #arbitrary limit on the padding because it's probably going to impact performance negatively if it's too much
+                        return False
             if 'c_concat' in c1:
                 if c1['c_concat'].shape != c2['c_concat'].shape:
                     return False
@@ -124,16 +136,28 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
             c_crossattn = []
             c_concat = []
             c_adm = []
+            crossattn_max_len = 0
             for x in c_list:
                 if 'c_crossattn' in x:
-                    c_crossattn.append(x['c_crossattn'])
+                    c = x['c_crossattn']
+                    if crossattn_max_len == 0:
+                        crossattn_max_len = c.shape[1]
+                    else:
+                        crossattn_max_len = lcm(crossattn_max_len, c.shape[1])
+                    c_crossattn.append(c)
                 if 'c_concat' in x:
                     c_concat.append(x['c_concat'])
                 if 'c_adm' in x:
                     c_adm.append(x['c_adm'])
             out = {}
-            if len(c_crossattn) > 0:
-                out['c_crossattn'] = [torch.cat(c_crossattn)]
+            c_crossattn_out = []
+            for c in c_crossattn:
+                if c.shape[1] < crossattn_max_len:
+                    c = c.repeat(1, crossattn_max_len // c.shape[1], 1) #padding with repeat doesn't change result
+                c_crossattn_out.append(c)
+
+            if len(c_crossattn_out) > 0:
+                out['c_crossattn'] = [torch.cat(c_crossattn_out)]
             if len(c_concat) > 0:
                 out['c_concat'] = [torch.cat(c_concat)]
             if len(c_adm) > 0:
@@ -362,19 +386,8 @@ def resolve_cond_masks(conditions, h, w, device):
                 else:
                     box = boxes[0]
                     H, W, Y, X = (box[3] - box[1] + 1, box[2] - box[0] + 1, box[1], box[0])
-                    # Make sure the height and width are divisible by 8
-                    if X % 8 != 0:
-                        newx = X // 8 * 8
-                        W = W + (X - newx)
-                        X = newx
-                    if Y % 8 != 0:
-                        newy = Y // 8 * 8
-                        H = H + (Y - newy)
-                        Y = newy
-                    if H % 8 != 0:
-                        H = H + (8 - (H % 8))
-                    if W % 8 != 0:
-                        W = W + (8 - (W % 8))
+                    H = max(8, H)
+                    W = max(8, W)
                     area = (int(H), int(W), int(Y), int(X))
                     modified['area'] = area
 
@@ -482,10 +495,10 @@ def encode_adm(noise_augmentor, conds, batch_size, device):
 
 
 class KSampler:
-    SCHEDULERS = ["karras", "normal", "simple", "ddim_uniform"]
+    SCHEDULERS = ["normal", "karras", "exponential", "simple", "ddim_uniform"]
     SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
                 "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde",
-                "dpmpp_2m", "ddim", "uni_pc", "uni_pc_bh2"]
+                "dpmpp_2m", "dpmpp_2m_sde", "ddim", "uni_pc", "uni_pc_bh2"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
@@ -519,6 +532,8 @@ class KSampler:
 
         if self.scheduler == "karras":
             sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
+        elif self.scheduler == "exponential":
+            sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
         elif self.scheduler == "normal":
             sigmas = self.model_wrap.get_sigmas(steps)
         elif self.scheduler == "simple":

@@ -33,8 +33,8 @@ def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
     while True:
         item, item_id = q.get()
-        e.execute(item[-2], item[-1])
-        q.task_done(item_id, e.outputs)
+        e.execute(item[2], item[1], item[3], item[4])
+        q.task_done(item_id, e.outputs_ui)
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
@@ -91,23 +91,16 @@ if __name__ == "__main__":
 
     threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
 
-    address = args.listen
-
-    dont_print = args.dont_print_server
-
-
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         print(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
-    port = args.port
-
     if args.quick_test_for_ci:
         exit(0)
 
     call_on_start = None
-    if args.windows_standalone_build:
+    if args.auto_launch:
         def startup_server(address, port):
             import webbrowser
             webbrowser.open("http://{}:{}".format(address, port))
@@ -115,10 +108,10 @@ if __name__ == "__main__":
 
     if os.name == "nt":
         try:
-            loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
+            loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
         except KeyboardInterrupt:
             pass
     else:
-        loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
+        loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
 
     cleanup_temp()

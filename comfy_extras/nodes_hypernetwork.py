@@ -18,6 +18,7 @@ def load_hypernetwork_patch(path, strength):
         "swish": torch.nn.Hardswish,
         "tanh": torch.nn.Tanh,
         "sigmoid": torch.nn.Sigmoid,
+        "softsign": torch.nn.Softsign,
     }
 
     if activation_func not in valid_activation:

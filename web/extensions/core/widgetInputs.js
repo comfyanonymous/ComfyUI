@@ -300,7 +300,7 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "number") {
+				if (widget.type === "number" || widget.type === "combo") {
 					addValueControlWidget(this, widget, "fixed");
 				}
 

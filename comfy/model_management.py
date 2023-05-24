@@ -1,6 +1,6 @@
 import psutil
 from enum import Enum
-from cli_args import args
+from comfy.cli_args import args
 
 class VRAMState(Enum):
     CPU = 0
@@ -127,6 +127,32 @@ if args.cpu:
 
 print(f"Set vram state to: {vram_state.name}")
 
+def get_torch_device():
+    global xpu_available
+    global directml_enabled
+    if directml_enabled:
+        global directml_device
+        return directml_device
+    if vram_state == VRAMState.MPS:
+        return torch.device("mps")
+    if vram_state == VRAMState.CPU:
+        return torch.device("cpu")
+    else:
+        if xpu_available:
+            return torch.device("xpu")
+        else:
+            return torch.cuda.current_device()
+
+def get_torch_device_name(device):
+    if hasattr(device, 'type'):
+        return "{}".format(device.type)
+    return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
+
+try:
+    print("Using device:", get_torch_device_name(get_torch_device()))
+except:
+    print("Could not pick default device.")
+
 
 current_loaded_model = None
 current_gpu_controlnets = []
@@ -201,6 +227,9 @@ def load_controlnet_gpu(control_models):
         return
 
     if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
+        for m in control_models:
+            if hasattr(m, 'set_lowvram'):
+                m.set_lowvram(True)
         #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
         return
 
@@ -230,22 +259,6 @@ def unload_if_low_vram(model):
         return model.cpu()
     return model
 
-def get_torch_device():
-    global xpu_available
-    global directml_enabled
-    if directml_enabled:
-        global directml_device
-        return directml_device
-    if vram_state == VRAMState.MPS:
-        return torch.device("mps")
-    if vram_state == VRAMState.CPU:
-        return torch.device("cpu")
-    else:
-        if xpu_available:
-            return torch.device("xpu")
-        else:
-            return torch.cuda.current_device()
-
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
         return dev.type
@@ -272,7 +285,16 @@ def xformers_enabled_vae():
     return XFORMERS_ENABLED_VAE
 
 def pytorch_attention_enabled():
+    global ENABLE_PYTORCH_ATTENTION
     return ENABLE_PYTORCH_ATTENTION
+
+def pytorch_attention_flash_attention():
+    global ENABLE_PYTORCH_ATTENTION
+    if ENABLE_PYTORCH_ATTENTION:
+        #TODO: more reliable way of checking for flash attention?
+        if torch.version.cuda: #pytorch flash attention only works on Nvidia
+            return True
+    return False
 
 def get_free_memory(dev=None, torch_free_too=False):
     global xpu_available
@@ -309,7 +331,12 @@ def maximum_batch_area():
         return 0
 
     memory_free = get_free_memory() / (1024 * 1024)
-    area = ((memory_free - 1024) * 0.9) / (0.6)
+    if xformers_enabled() or pytorch_attention_flash_attention():
+        #TODO: this needs to be tweaked
+        area = 20 * memory_free
+    else:
+        #TODO: this formula is because AMD sucks and has memory management issues which might be fixed in the future
+        area = ((memory_free - 1024) * 0.9) / (0.6)
     return int(max(area, 0))
 
 def cpu_mode():

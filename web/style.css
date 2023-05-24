@@ -39,6 +39,8 @@ body {
 	padding: 2px;
 	resize: none;
 	border: none;
+	box-sizing: border-box;
+	font-size: 10px;
 }
 
 .comfy-modal {

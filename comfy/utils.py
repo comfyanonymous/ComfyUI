@@ -46,6 +46,72 @@ def transformers_convert(sd, prefix_from, prefix_to, number):
                     sd[k_to] = weights[shape_from*x:shape_from*(x + 1)]
     return sd
 
+#slow and inefficient, should be optimized
+def bislerp(samples, width, height):
+    shape = list(samples.shape)
+    width_scale = (shape[3]) / (width )
+    height_scale = (shape[2]) / (height )
+
+    shape[3] = width
+    shape[2] = height
+    out1 = torch.empty(shape, dtype=samples.dtype, layout=samples.layout, device=samples.device)
+
+    def algorithm(in1, in2, t):
+        dims = in1.shape
+        val = t
+
+        #flatten to batches
+        low = in1.reshape(dims[0], -1)
+        high = in2.reshape(dims[0], -1)
+
+        low_weight = torch.norm(low, dim=1, keepdim=True)
+        low_weight[low_weight == 0] = 0.0000000001
+        low_norm = low/low_weight
+        high_weight = torch.norm(high, dim=1, keepdim=True)
+        high_weight[high_weight == 0] = 0.0000000001
+        high_norm = high/high_weight
+
+        dot_prod = (low_norm*high_norm).sum(1)
+        dot_prod[dot_prod > 0.9995] = 0.9995
+        dot_prod[dot_prod < -0.9995] = -0.9995
+        omega = torch.acos(dot_prod)
+        so = torch.sin(omega)
+        res = (torch.sin((1.0-val)*omega)/so).unsqueeze(1)*low_norm + (torch.sin(val*omega)/so).unsqueeze(1) * high_norm
+        res *= (low_weight * (1.0-val) + high_weight * val)
+        return res.reshape(dims)
+
+    for x_dest in range(shape[3]):
+        for y_dest in range(shape[2]):
+            y = (y_dest + 0.5) * height_scale - 0.5
+            x = (x_dest + 0.5) * width_scale - 0.5
+
+            x1 = max(math.floor(x), 0)
+            x2 = min(x1 + 1, samples.shape[3] - 1)
+            wx = x - math.floor(x)
+
+            y1 = max(math.floor(y), 0)
+            y2 = min(y1 + 1, samples.shape[2] - 1)
+            wy = y - math.floor(y)
+
+            in1 = samples[:,:,y1,x1]
+            in2 = samples[:,:,y1,x2]
+            in3 = samples[:,:,y2,x1]
+            in4 = samples[:,:,y2,x2]
+
+            if (x1 == x2) and (y1 == y2):
+                out_value = in1
+            elif (x1 == x2):
+                out_value = algorithm(in1, in3, wy)
+            elif (y1 == y2):
+                out_value = algorithm(in1, in2, wx)
+            else:
+                o1 = algorithm(in1, in2, wx)
+                o2 = algorithm(in3, in4, wx)
+                out_value = algorithm(o1, o2, wy)
+
+            out1[:,:,y_dest,x_dest] = out_value
+    return out1
+
 def common_upscale(samples, width, height, upscale_method, crop):
         if crop == "center":
             old_width = samples.shape[3]
@@ -61,7 +127,11 @@ def common_upscale(samples, width, height, upscale_method, crop):
             s = samples[:,:,y:old_height-y,x:old_width-x]
         else:
             s = samples
-        return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+
+        if upscale_method == "bislerp":
+            return bislerp(s, width, height)
+        else:
+            return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
 
 def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return math.ceil((height / (tile_y - overlap))) * math.ceil((width / (tile_x - overlap)))
