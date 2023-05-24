@@ -101,7 +101,7 @@ body {
 
 .comfy-menu button,
 .comfy-modal button {
-	font-size: 20px;
+	font-size: 12px;
 }
 
 .comfy-menu-btns {
@@ -248,7 +248,7 @@ button.comfy-queue-btn {
 
 @media only screen and (max-height: 850px) {
 	.comfy-menu {
-		top: 0 !important;
+		top: auto !important;
 		bottom: 0 !important;
 		left: auto !important;
 		right: 0 !important;
