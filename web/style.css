@@ -228,6 +228,14 @@ button.comfy-queue-btn {
 	z-index: 99;
 }
 
+.comfy-modal.comfy-settings input[type="range"] {
+	vertical-align: middle;
+}
+
+.comfy-modal.comfy-settings input[type="range"] + input[type="number"] {
+	width: 3.5em;
+}
+
 .comfy-modal input,
 .comfy-modal select {
 	color: var(--input-text);
@@ -240,9 +248,9 @@ button.comfy-queue-btn {
 
 @media only screen and (max-height: 850px) {
 	.comfy-menu {
-		top: auto !important;
+		top: 0 !important;
 		bottom: 0 !important;
-		left: 0 !important;
+		left: auto !important;
 		right: 0 !important;
 		border-radius: 0px;
 	}
