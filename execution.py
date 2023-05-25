@@ -554,8 +554,8 @@ def validate_prompt(prompt):
         errors_list = "\n".join(errors_list)
 
         error = {
-            "type": "prompt_no_good_outputs",
-            "message": "Prompt has no properly connected outputs",
+            "type": "prompt_outputs_failed_validation",
+            "message": "Prompt outputs failed validation",
             "details": errors_list,
             "extra_info": {}
         }
