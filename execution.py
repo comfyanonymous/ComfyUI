@@ -365,6 +365,8 @@ def validate_inputs(prompt, item, validated):
                     "message": "Exception when validating node",
                     "details": str(ex),
                     "extra_info": {
+                        "input_name": x,
+                        "input_config": info,
                         "error_type": error_type,
                         "traceback": traceback.format_tb(tb)
                     }
