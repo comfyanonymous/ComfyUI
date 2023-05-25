@@ -771,16 +771,25 @@ export class ComfyApp {
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
 			const res = origDrawNodeShape.apply(this, arguments);
 
+			const nodeErrors = self.lastPromptError?.node_errors[node.id];
+
 			let color = null;
+			let lineWidth = 1;
 			if (node.id === +self.runningNodeId) {
 				color = "#0f0";
 			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
 				color = "dodgerblue";
 			}
+			else if (self.lastPromptError != null && nodeErrors?.errors) {
+				color = "red";
+				lineWidth = 2;
+			}
+
+			self.graphTime = Date.now()
 
 			if (color) {
 				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
-				ctx.lineWidth = 1;
+				ctx.lineWidth = lineWidth;
 				ctx.globalAlpha = 0.8;
 				ctx.beginPath();
 				if (shape == LiteGraph.BOX_SHAPE)
@@ -807,11 +816,28 @@ export class ComfyApp {
 				ctx.stroke();
 				ctx.strokeStyle = fgcolor;
 				ctx.globalAlpha = 1;
+			}
 
-				if (self.progress) {
-					ctx.fillStyle = "green";
-					ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
-					ctx.fillStyle = bgcolor;
+			if (self.progress && node.id === +self.runningNodeId) {
+				ctx.fillStyle = "green";
+				ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
+				ctx.fillStyle = bgcolor;
+			}
+
+			// Highlight inputs that failed validation
+			if (nodeErrors) {
+				ctx.lineWidth = 2;
+				ctx.strokeStyle = "red";
+				for (const error of nodeErrors.errors) {
+					if (error.extra_info && error.extra_info.input_name) {
+						const inputIndex = node.findInputSlot(error.extra_info.input_name)
+						if (inputIndex !== -1) {
+							let pos = node.getConnectionPos(true, inputIndex);
+							ctx.beginPath();
+							ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 12, 0, 2 * Math.PI, false)
+							ctx.stroke();
+						}
+					}
 				}
 			}
 
@@ -1243,6 +1269,31 @@ export class ComfyApp {
 		return { workflow, output };
 	}
 
+	#formatError(error) {
+		if (error == null) {
+			return "(unknown error)"
+		}
+		else if (typeof error === "string") {
+			return error;
+		}
+		else if (error.stack && error.message) {
+			return error.toString()
+		}
+		else if (error.response) {
+			let message = error.response.error.message;
+			if (error.response.error.details)
+			message += ": " + error.response.error.details;
+			for (const [nodeID, nodeError] of Object.entries(error.response.node_errors)) {
+			message += "\n" + nodeError.class_type + ":"
+				for (const errorReason of nodeError.errors) {
+					message += "\n    - " + errorReason.message + ": " + errorReason.details
+				}
+			}
+			return message
+		}
+		return "(unknown error)"
+	}
+
 	async queuePrompt(number, batchCount = 1) {
 		this.#queueItems.push({ number, batchCount });
 
@@ -1250,8 +1301,10 @@ export class ComfyApp {
 		if (this.#processingQueue) {
 			return;
 		}
-	
+
 		this.#processingQueue = true;
+		this.lastPromptError = null;
+
 		try {
 			while (this.#queueItems.length) {
 				({ number, batchCount } = this.#queueItems.pop());
@@ -1262,7 +1315,12 @@ export class ComfyApp {
 					try {
 						await api.queuePrompt(number, p);
 					} catch (error) {
-						this.ui.dialog.show(error.response.error || error.toString());
+						const formattedError = this.#formatError(error)
+						this.ui.dialog.show(formattedError);
+						if (error.response) {
+							this.lastPromptError = error.response;
+							this.canvas.draw(true, true);
+						}
 						break;
 					}
 
@@ -1360,6 +1418,8 @@ export class ComfyApp {
 	 */
 	clean() {
 		this.nodeOutputs = {};
+		this.lastPromptError = null;
+		this.graphTime = null
 	}
 }
 
