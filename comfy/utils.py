@@ -1,6 +1,5 @@
 import torch
 import math
-import einops
 
 def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
@@ -104,12 +103,12 @@ def bislerp(samples, width, height):
     coords_2 = coords_2.expand((n, c, h, -1))
     ratios = ratios.expand((n, 1, h, -1))
 
-    pass_1 = einops.rearrange(samples.gather(-1,coords_1), 'n c h w -> (n h w) c')
-    pass_2 = einops.rearrange(samples.gather(-1,coords_2), 'n c h w -> (n h w) c')
-    ratios = einops.rearrange(ratios, 'n c h w -> (n h w) c')
+    pass_1 = samples.gather(-1,coords_1).movedim(1, -1).reshape((-1,c))
+    pass_2 = samples.gather(-1,coords_2).movedim(1, -1).reshape((-1,c))
+    ratios = ratios.movedim(1, -1).reshape((-1,1))
 
     result = slerp(pass_1, pass_2, ratios)
-    result = einops.rearrange(result, '(n h w) c -> n c h w',n=n, h=h, w=w_new)
+    result = result.reshape(n, h, w_new, c).movedim(-1, 1)
 
     #linear h
     ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new)
@@ -117,12 +116,12 @@ def bislerp(samples, width, height):
     coords_2 = coords_2.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
     ratios = ratios.reshape((1,1,-1,1)).expand((n, 1, -1, w_new))
 
-    pass_1 = einops.rearrange(result.gather(-2,coords_1), 'n c h w -> (n h w) c')
-    pass_2 = einops.rearrange(result.gather(-2,coords_2), 'n c h w -> (n h w) c')
-    ratios = einops.rearrange(ratios, 'n c h w -> (n h w) c')
+    pass_1 = result.gather(-2,coords_1).movedim(1, -1).reshape((-1,c))
+    pass_2 = result.gather(-2,coords_2).movedim(1, -1).reshape((-1,c))
+    ratios = ratios.movedim(1, -1).reshape((-1,1))
 
     result = slerp(pass_1, pass_2, ratios)
-    result = einops.rearrange(result, '(n h w) c -> n c h w',n=n, h=h_new, w=w_new)
+    result = result.reshape(n, h_new, w_new, c).movedim(-1, 1)
     return result
 
 def common_upscale(samples, width, height, upscale_method, crop):
