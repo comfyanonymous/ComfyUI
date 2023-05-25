@@ -98,29 +98,27 @@ def bislerp(samples, width, height):
     n,c,h,w = samples.shape
     h_new, w_new = (height, width)
     
-    #linear h
-    ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new)
+    #linear w
+    ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new)
+    coords_1 = coords_1.expand((n, c, h, -1))
+    coords_2 = coords_2.expand((n, c, h, -1))
+    ratios = ratios.expand((n, 1, h, -1))
 
-    coords_1 = coords_1.reshape((1,1,-1,1)).expand((n, c, -1, w))
-    coords_2 = coords_2.reshape((1,1,-1,1)).expand((n, c, -1, w))
-    ratios = ratios.reshape((1,1,-1,1)).expand((n, 1, -1, w))
-
-    pass_1 = einops.rearrange(samples.gather(-2,coords_1), 'n c h w -> (n h w) c')
-    pass_2 = einops.rearrange(samples.gather(-2,coords_2), 'n c h w -> (n h w) c')
+    pass_1 = einops.rearrange(samples.gather(-1,coords_1), 'n c h w -> (n h w) c')
+    pass_2 = einops.rearrange(samples.gather(-1,coords_2), 'n c h w -> (n h w) c')
     ratios = einops.rearrange(ratios, 'n c h w -> (n h w) c')
 
     result = slerp(pass_1, pass_2, ratios)
-    result = einops.rearrange(result, '(n h w) c -> n c h w',n=n, h=h_new, w=w)
+    result = einops.rearrange(result, '(n h w) c -> n c h w',n=n, h=h, w=w_new)
 
-    #linear w
-    ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new)
+    #linear h
+    ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new)
+    coords_1 = coords_1.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
+    coords_2 = coords_2.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
+    ratios = ratios.reshape((1,1,-1,1)).expand((n, 1, -1, w_new))
 
-    coords_1 = coords_1.expand((n, c, h_new, -1))
-    coords_2 = coords_2.expand((n, c, h_new, -1))
-    ratios = ratios.expand((n, 1, h_new, -1))
-
-    pass_1 = einops.rearrange(result.gather(-1,coords_1), 'n c h w -> (n h w) c')
-    pass_2 = einops.rearrange(result.gather(-1,coords_2), 'n c h w -> (n h w) c')
+    pass_1 = einops.rearrange(result.gather(-2,coords_1), 'n c h w -> (n h w) c')
+    pass_2 = einops.rearrange(result.gather(-2,coords_2), 'n c h w -> (n h w) c')
     ratios = einops.rearrange(ratios, 'n c h w -> (n h w) c')
 
     result = slerp(pass_1, pass_2, ratios)
