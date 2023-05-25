@@ -103,7 +103,9 @@ def get_output_data(obj, input_data_all):
     return output, ui
 
 def format_value(x):
-    if isinstance(x, (int, float, bool, str)):
+    if x is None:
+        return None
+    elif isinstance(x, (int, float, bool, str)):
         return x
     else:
         return str(x)
