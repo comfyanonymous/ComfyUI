@@ -258,27 +258,31 @@ class PromptExecutor:
         self.old_prompt = {}
         self.server = server
 
-    def handle_execution_error(self, prompt_id, current_outputs, executed, error, ex):
+    def handle_execution_error(self, prompt_id, prompt, current_outputs, executed, error, ex):
+        node_id = error["node_id"]
+        class_type = prompt[node_id]["class_type"]
+
         # First, send back the status to the frontend depending
         # on the exception type
         if isinstance(ex, comfy.model_management.InterruptProcessingException):
             mes = {
                 "prompt_id": prompt_id,
+                "node_id": node_id,
+                "node_type": class_type,
                 "executed": list(executed),
-
-                "node_id": error["node_id"],
             }
             self.server.send_sync("execution_interrupted", mes, self.server.client_id)
         else:
             if self.server.client_id is not None:
                 mes = {
                     "prompt_id": prompt_id,
+                    "node_id": node_id,
+                    "node_type": class_type,
                     "executed": list(executed),
 
                     "message": error["message"],
                     "exception_type": error["exception_type"],
                     "traceback": error["traceback"],
-                    "node_id": error["node_id"],
                     "current_inputs": error["current_inputs"],
                     "current_outputs": error["current_outputs"],
                 }
@@ -346,7 +350,7 @@ class PromptExecutor:
                 # error was raised
                 success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui)
                 if success is not True:
-                    self.handle_execution_error(prompt_id, current_outputs, executed, error, ex)
+                    self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
 
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])

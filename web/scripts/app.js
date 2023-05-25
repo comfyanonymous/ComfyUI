@@ -784,8 +784,10 @@ export class ComfyApp {
 				color = "red";
 				lineWidth = 2;
 			}
-
-			self.graphTime = Date.now()
+			else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
+				color = "#f0f";
+				lineWidth = 2;
+			}
 
 			if (color) {
 				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
@@ -893,6 +895,17 @@ export class ComfyApp {
 			if (node?.onExecuted) {
 				node.onExecuted(detail.output);
 			}
+		});
+
+		api.addEventListener("execution_start", ({ detail }) => {
+			this.lastExecutionError = null
+		});
+
+		api.addEventListener("execution_error", ({ detail }) => {
+			this.lastExecutionError = detail;
+			const formattedError = this.#formatExecutionError(detail);
+			this.ui.dialog.show(formattedError);
+			this.canvas.draw(true, true);
 		});
 
 		api.init();
@@ -1269,7 +1282,7 @@ export class ComfyApp {
 		return { workflow, output };
 	}
 
-	#formatError(error) {
+	#formatPromptError(error) {
 		if (error == null) {
 			return "(unknown error)"
 		}
@@ -1294,6 +1307,18 @@ export class ComfyApp {
 		return "(unknown error)"
 	}
 
+	#formatExecutionError(error) {
+		if (error == null) {
+			return "(unknown error)"
+		}
+
+		const traceback = error.traceback.join("")
+		const nodeId = error.node_id
+		const nodeType = error.node_type
+
+		return `Error occurred when executing ${nodeType}:\n\n${error.message}\n\n${traceback}`
+	}
+
 	async queuePrompt(number, batchCount = 1) {
 		this.#queueItems.push({ number, batchCount });
 
@@ -1315,7 +1340,7 @@ export class ComfyApp {
 					try {
 						await api.queuePrompt(number, p);
 					} catch (error) {
-						const formattedError = this.#formatError(error)
+						const formattedError = this.#formatPromptError(error)
 						this.ui.dialog.show(formattedError);
 						if (error.response) {
 							this.lastPromptError = error.response;
@@ -1419,7 +1444,7 @@ export class ComfyApp {
 	clean() {
 		this.nodeOutputs = {};
 		this.lastPromptError = null;
-		this.graphTime = null
+		this.lastExecutionError = null;
 	}
 }
 
