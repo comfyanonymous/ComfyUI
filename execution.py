@@ -499,9 +499,7 @@ def validate_inputs(prompt, item, validated):
                     if r is not True:
                         details = f"{x}"
                         if r is not False:
-                            details += f": {str(r)}"
-                        else:
-                            details += "."
+                            details += f" - {str(r)}"
 
                         error = {
                             "type": "custom_validation_failed",
