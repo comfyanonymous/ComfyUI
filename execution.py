@@ -424,7 +424,8 @@ def validate_inputs(prompt, item, validated):
                     "extra_info": {
                         "input_name": x,
                         "input_config": info,
-                        "received_type": received_type
+                        "received_type": received_type,
+                        "linked_node": val
                     }
                 }
                 errors.append(error)
@@ -440,28 +441,44 @@ def validate_inputs(prompt, item, validated):
                 valid = False
                 exception_type = full_type_name(typ)
                 reasons = [{
-                    "type": "exception_during_validation",
-                    "message": "Exception when validating node",
+                    "type": "exception_during_inner_validation",
+                    "message": "Exception when validating inner node",
                     "details": str(ex),
                     "extra_info": {
                         "input_name": x,
                         "input_config": info,
                         "exception_type": exception_type,
-                        "traceback": traceback.format_tb(tb)
+                        "traceback": traceback.format_tb(tb),
+                        "linked_node": val
                     }
                 }]
                 validated[o_id] = (False, reasons, o_id)
                 continue
         else:
-            if type_input == "INT":
-                val = int(val)
-                inputs[x] = val
-            if type_input == "FLOAT":
-                val = float(val)
-                inputs[x] = val
-            if type_input == "STRING":
-                val = str(val)
-                inputs[x] = val
+            try:
+                if type_input == "INT":
+                    val = int(val)
+                    inputs[x] = val
+                if type_input == "FLOAT":
+                    val = float(val)
+                    inputs[x] = val
+                if type_input == "STRING":
+                    val = str(val)
+                    inputs[x] = val
+            except Exception as ex:
+                error = {
+                    "type": "invalid_input_type",
+                    "message": f"Failed to convert an input value to a {type_input} value",
+                    "details": f"{x}, {val}, {ex}",
+                    "extra_info": {
+                        "input_name": x,
+                        "input_config": info,
+                        "received_value": val,
+                        "exception_message": str(ex)
+                    }
+                }
+                errors.append(error)
+                continue
 
             if len(info) > 1:
                 if "min" in info[1] and val < info[1]["min"]:
