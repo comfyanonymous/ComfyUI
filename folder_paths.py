@@ -1,14 +1,7 @@
 import os
 
-supported_ckpt_extensions = set(['.ckpt', '.pth'])
-supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth'])
-try:
-    import safetensors.torch
-    supported_ckpt_extensions.add('.safetensors')
-    supported_pt_extensions.add('.safetensors')
-except:
-    print("Could not import safetensors, safetensors support disabled.")
-
+supported_ckpt_extensions = set(['.ckpt', '.pth', '.safetensors'])
+supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
 
 folder_names_and_paths = {}
 
