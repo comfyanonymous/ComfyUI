@@ -447,6 +447,7 @@ def validate_inputs(prompt, item, validated):
                     "extra_info": {
                         "input_name": x,
                         "input_config": info,
+                        "exception_message": str(ex),
                         "exception_type": exception_type,
                         "traceback": traceback.format_tb(tb),
                         "linked_node": val
