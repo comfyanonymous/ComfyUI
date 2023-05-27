@@ -426,6 +426,9 @@ class LoraLoader:
     CATEGORY = "loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+        if strength_model == 0 and strength_clip == 0:
+            return (model, clip)
+
         lora_path = folder_paths.get_full_path("loras", lora_name)
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora_path, strength_model, strength_clip)
         return (model_lora, clip_lora)
@@ -507,6 +510,9 @@ class ControlNetApply:
     CATEGORY = "conditioning"
 
     def apply_controlnet(self, conditioning, control_net, image, strength):
+        if strength == 0:
+            return (conditioning, )
+
         c = []
         control_hint = image.movedim(-1,1)
         for t in conditioning:
@@ -613,6 +619,9 @@ class unCLIPConditioning:
     CATEGORY = "conditioning"
 
     def apply_adm(self, conditioning, clip_vision_output, strength, noise_augmentation):
+        if strength == 0:
+            return (conditioning, )
+
         c = []
         for t in conditioning:
             o = t[1].copy()
