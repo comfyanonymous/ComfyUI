@@ -72,7 +72,7 @@ class MaskToImage:
     FUNCTION = "mask_to_image"
 
     def mask_to_image(self, mask):
-        result = mask[None, :, :, None].expand(-1, -1, -1, 3)
+        result = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
         return (result,)
 
 class ImageToMask:
