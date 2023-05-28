@@ -194,11 +194,11 @@ class MaskComposite:
         elif operation == "subtract":
             output[top:bottom, left:right] = destination_portion - source_portion
         elif operation == "and":
-            output[top:bottom, left:right] = torch.bitwise_and(destination_portion.bool(), source_portion.bool()).float()
+            output[top:bottom, left:right] = torch.bitwise_and(destination_portion.round().bool(), source_portion.round().bool()).float()
         elif operation == "or":
-            output[top:bottom, left:right] = torch.bitwise_or(destination_portion.bool(), source_portion.bool()).float()
+            output[top:bottom, left:right] = torch.bitwise_or(destination_portion.round().bool(), source_portion.round().bool()).float()
         elif operation == "xor":
-            output[top:bottom, left:right] = torch.bitwise_xor(destination_portion.bool(), source_portion.bool()).float()
+            output[top:bottom, left:right] = torch.bitwise_xor(destination_portion.round().bool(), source_portion.round().bool()).float()
 
         output = torch.clamp(output, 0.0, 1.0)
 
