@@ -353,6 +353,7 @@ class PromptExecutor:
                 success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui)
                 if success is not True:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
+                    break
 
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
