@@ -1316,7 +1316,7 @@ export class ComfyApp {
 		const nodeId = error.node_id
 		const nodeType = error.node_type
 
-		return `Error occurred when executing ${nodeType}:\n\n${error.message}\n\n${traceback}`
+		return `Error occurred when executing ${nodeType}:\n\n${error.exception_message}\n\n${traceback}`
 	}
 
 	async queuePrompt(number, batchCount = 1) {
