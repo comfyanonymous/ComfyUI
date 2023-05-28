@@ -17,7 +17,7 @@ import safetensors.torch
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
-import comfy.diffusers_convert
+import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
 import comfy.sd
@@ -377,7 +377,7 @@ class DiffusersLoader:
                     model_path = path
                     break
 
-        return comfy.diffusers_convert.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return comfy.diffusers_load.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
