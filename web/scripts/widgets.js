@@ -246,55 +246,217 @@ function addMultilineWidget(node, name, opts, app) {
 	return { minWidth: 400, minHeight: 200, widget };
 }
 
-export const ComfyWidgets = {
-	"INT:seed": seedWidget,
-	"INT:noise_seed": seedWidget,
-	FLOAT(node, inputName, inputData) {
-		const { val, config } = getNumberDefaults(inputData, 0.5);
-		return { widget: node.addWidget("number", inputName, val, () => {}, config) };
-	},
-	INT(node, inputName, inputData) {
-		const { val, config } = getNumberDefaults(inputData, 1);
-		Object.assign(config, { precision: 0 });
-		return {
-			widget: node.addWidget(
-				"number",
-				inputName,
-				val,
-				function (v) {
-					const s = this.options.step / 10;
-					this.value = Math.round(v / s) * s;
-				},
-				config
-			),
-		};
-	},
-	STRING(node, inputName, inputData, app) {
-		const defaultVal = inputData[1].default || "";
-		const multiline = !!inputData[1].multiline;
+const FLOAT = (node, inputName, inputData) => {
+	const { val, config } = getNumberDefaults(inputData, 0.5);
+	return { widget: node.addWidget("number", inputName, val, () => {}, config) };
+}
 
-		if (multiline) {
-			return addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
-		} else {
-			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
-		}
-	},
-	COMBO(node, inputName, inputData) {
-		const type = inputData[0];
-		let defaultValue = type[0];
-		if (inputData[1] && inputData[1].default) {
-			defaultValue = inputData[1].default;
-		}
+const INT = (node, inputName, inputData) => {
+	const { val, config } = getNumberDefaults(inputData, 1);
+	Object.assign(config, { precision: 0 });
+	return {
+		widget: node.addWidget(
+			"number",
+			inputName,
+			val,
+			function (v) {
+				const s = this.options.step / 10;
+				this.value = Math.round(v / s) * s;
+			},
+			config
+		),
+	};
+}
+
+const STRING = (node, inputName, inputData, nodeData, app) => {
+	const defaultVal = inputData[1].default || "";
+	const multiline = !!inputData[1].multiline;
+
+	if (multiline) {
+		return addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
+	} else {
+		return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
+	}
+}
+
+const COMBO = (node, inputName, inputData, nodeData) => {
+	const type = inputData[0];
+	let defaultValue = type[0];
+	if (inputData[1] && inputData[1].default) {
+		defaultValue = inputData[1].default;
+	}
+
+	if (nodeData["input_is_list"]) {
+		defaultValue = [defaultValue]
+		const widget = node.addWidget("text", inputName, defaultValue, () => {}, { values: type })
+		widget.disabled = true;
+		return { widget };
+	}
+	else {
 		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
-	},
-	IMAGEUPLOAD(node, inputName, inputData, app) {
-		const imageWidget = node.widgets.find((w) => w.name === "image");
-		let uploadWidget;
+	}
+}
 
-		function showImage(name) {
+const IMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
+	const imageWidget = node.widgets.find((w) => w.name === "image");
+	let uploadWidget;
+
+	function showImage(name) {
+		const img = new Image();
+		img.onload = () => {
+			node.imgs = [img];
+			app.graph.setDirtyCanvas(true);
+		};
+		let folder_separator = name.lastIndexOf("/");
+		let subfolder = "";
+		if (folder_separator > -1) {
+			subfolder = name.substring(0, folder_separator);
+			name = name.substring(folder_separator + 1);
+		}
+		img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}`;
+		node.setSizeForImage?.();
+	}
+
+	var default_value = imageWidget.value;
+	Object.defineProperty(imageWidget, "value", {
+		set : function(value) {
+			this._real_value = value;
+		},
+
+		get : function() {
+			let value = "";
+			if (this._real_value) {
+				value = this._real_value;
+			} else {
+				return default_value;
+			}
+
+			if (value.filename) {
+				let real_value = value;
+				value = "";
+				if (real_value.subfolder) {
+					value = real_value.subfolder + "/";
+				}
+
+				value += real_value.filename;
+
+				if(real_value.type && real_value.type !== "input")
+					value += ` [${real_value.type}]`;
+			}
+			return value;
+		}
+	});
+
+	// Add our own callback to the combo widget to render an image when it changes
+	const cb = node.callback;
+	imageWidget.callback = function () {
+		showImage(imageWidget.value);
+		if (cb) {
+			return cb.apply(this, arguments);
+		}
+	};
+
+	// On load if we have a value then render the image
+	// The value isnt set immediately so we need to wait a moment
+	// No change callbacks seem to be fired on initial setting of the value
+	requestAnimationFrame(() => {
+		if (imageWidget.value) {
+			showImage(imageWidget.value);
+		}
+	});
+
+	async function uploadFile(file, updateNode) {
+		try {
+			// Wrap file in formdata so it includes filename
+			const body = new FormData();
+			body.append("image", file);
+			const resp = await fetch("/upload/image", {
+				method: "POST",
+				body,
+			});
+
+			if (resp.status === 200) {
+				const data = await resp.json();
+				// Add the file as an option and update the widget value
+				if (!imageWidget.options.values.includes(data.name)) {
+					imageWidget.options.values.push(data.name);
+				}
+
+				if (updateNode) {
+					showImage(data.name);
+
+					imageWidget.value = data.name;
+				}
+			} else {
+				alert(resp.status + " - " + resp.statusText);
+			}
+		} catch (error) {
+			alert(error);
+		}
+	}
+
+	const fileInput = document.createElement("input");
+	Object.assign(fileInput, {
+		type: "file",
+		accept: "image/jpeg,image/png,image/webp",
+		style: "display: none",
+		onchange: async () => {
+			if (fileInput.files.length) {
+				await uploadFile(fileInput.files[0], true);
+			}
+		},
+	});
+	document.body.append(fileInput);
+
+	// Create the button widget for selecting the files
+	uploadWidget = node.addWidget("button", "choose file to upload", "image", () => {
+		fileInput.value = null;
+		fileInput.click();
+	});
+	uploadWidget.serialize = false;
+
+	// Add handler to check if an image is being dragged over our node
+	node.onDragOver = function (e) {
+		if (e.dataTransfer && e.dataTransfer.items) {
+			const image = [...e.dataTransfer.items].find((f) => f.kind === "file" && f.type.startsWith("image/"));
+			return !!image;
+		}
+
+		return false;
+	};
+
+	// On drop upload files
+	node.onDragDrop = function (e) {
+		console.log("onDragDrop called");
+		let handled = false;
+		for (const file of e.dataTransfer.files) {
+			if (file.type.startsWith("image/")) {
+				uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
+				handled = true;
+			}
+		}
+
+		return handled;
+	};
+
+	return { widget: uploadWidget };
+}
+
+const MULTIIMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
+	const imagesWidget = node.widgets.find((w) => w.name === "images");
+	let uploadWidget;
+	let clearWidget;
+
+	function showImages(names) {
+		node.imgs = []
+
+		for (const name of names) {
 			const img = new Image();
 			img.onload = () => {
-				node.imgs = [img];
+				// TODO await this?
+				node.imgs.push(img)
+				node.imageIndex = null;
+				node.setSizeForImage?.();
 				app.graph.setDirtyCanvas(true);
 			};
 			let folder_separator = name.lastIndexOf("/");
@@ -306,21 +468,20 @@ export const ComfyWidgets = {
 			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`;
 			node.setSizeForImage?.();
 		}
+	}
 
-		var default_value = imageWidget.value;
-		Object.defineProperty(imageWidget, "value", {
-			set : function(value) {
-				this._real_value = value;
-			},
+	var default_value = imagesWidget.value;
+	Object.defineProperty(imagesWidget, "value", {
+		set : function(value) {
+			this._real_value = value;
+		},
 
-			get : function() {
-				let value = "";
-				if (this._real_value) {
-					value = this._real_value;
-				} else {
-					return default_value;
-				}
+		get : function() {
+			this._real_value ||= []
 
+			const result = []
+
+			for (const value of this._real_value) {
 				if (value.filename) {
 					let real_value = value;
 					value = "";
@@ -333,29 +494,35 @@ export const ComfyWidgets = {
 					if(real_value.type && real_value.type !== "input")
 						value += ` [${real_value.type}]`;
 				}
-				return value;
-			}
-		});
 
-		// Add our own callback to the combo widget to render an image when it changes
-		const cb = node.callback;
-		imageWidget.callback = function () {
-			showImage(imageWidget.value);
-			if (cb) {
-				return cb.apply(this, arguments);
+				result.push(value)
 			}
-		};
 
-		// On load if we have a value then render the image
-		// The value isnt set immediately so we need to wait a moment
-		// No change callbacks seem to be fired on initial setting of the value
-		requestAnimationFrame(() => {
-			if (imageWidget.value) {
-				showImage(imageWidget.value);
-			}
-		});
+			this._real_value = result
+			return this._real_value;
+		}
+	});
 
-		async function uploadFile(file, updateNode) {
+	// Add our own callback to the combo widget to render an image when it changes
+	const cb = node.callback;
+	imagesWidget.callback = function () {
+		showImages(imagesWidget.value);
+		if (cb) {
+			return cb.apply(this, arguments);
+		}
+	};
+
+	// On load if we have a value then render the image
+	// The value isnt set immediately so we need to wait a moment
+	// No change callbacks seem to be fired on initial setting of the value
+	requestAnimationFrame(() => {
+		if (Array.isArray(imagesWidget.value) && imagesWidget.value.length > 0) {
+			showImages(imagesWidget.value);
+		}
+	});
+
+	async function uploadFiles(files, updateNode) {
+		for (const file of files) {
 			try {
 				// Wrap file in formdata so it includes filename
 				const body = new FormData();
@@ -368,14 +535,12 @@ export const ComfyWidgets = {
 				if (resp.status === 200) {
 					const data = await resp.json();
 					// Add the file as an option and update the widget value
-					if (!imageWidget.options.values.includes(data.name)) {
-						imageWidget.options.values.push(data.name);
+					if (!imagesWidget.options.values.includes(data.name)) {
+						imagesWidget.options.values.push(data.name);
 					}
 
 					if (updateNode) {
-						showImage(data.name);
-
-						imageWidget.value = data.name;
+						imagesWidget.value.push(data.name)
 					}
 				} else {
 					alert(resp.status + " - " + resp.statusText);
@@ -385,49 +550,72 @@ export const ComfyWidgets = {
 			}
 		}
 
-		const fileInput = document.createElement("input");
-		Object.assign(fileInput, {
-			type: "file",
-			accept: "image/jpeg,image/png,image/webp",
-			style: "display: none",
-			onchange: async () => {
-				if (fileInput.files.length) {
-					await uploadFile(fileInput.files[0], true);
-				}
-			},
-		});
-		document.body.append(fileInput);
+		if (updateNode) {
+			showImages(imagesWidget.value);
+		}
+	}
 
-		// Create the button widget for selecting the files
-		uploadWidget = node.addWidget("button", "choose file to upload", "image", () => {
-			fileInput.click();
-		});
-		uploadWidget.serialize = false;
-
-		// Add handler to check if an image is being dragged over our node
-		node.onDragOver = function (e) {
-			if (e.dataTransfer && e.dataTransfer.items) {
-				const image = [...e.dataTransfer.items].find((f) => f.kind === "file" && f.type.startsWith("image/"));
-				return !!image;
+	const fileInput = document.createElement("input");
+	Object.assign(fileInput, {
+		type: "file",
+		multiple: "multiple",
+		accept: "image/jpeg,image/png,image/webp",
+		style: "display: none",
+		onchange: async () => {
+			if (fileInput.files.length) {
+				await uploadFiles(fileInput.files, true);
 			}
+		},
+	});
+	document.body.append(fileInput);
 
-			return false;
-		};
+	// Create the button widget for selecting the files
+	uploadWidget = node.addWidget("button", "choose files to upload", "images", () => {
+		fileInput.value = null;
+		fileInput.click();
+	});
+	uploadWidget.serialize = false;
 
-		// On drop upload files
-		node.onDragDrop = function (e) {
-			console.log("onDragDrop called");
-			let handled = false;
-			for (const file of e.dataTransfer.files) {
-				if (file.type.startsWith("image/")) {
-					uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
-					handled = true;
-				}
+	clearWidget = node.addWidget("button", "clear all uploads", "images", () => {
+		imagesWidget.value = []
+		showImages(imagesWidget.value);
+	});
+	clearWidget.serialize = false;
+
+	// Add handler to check if an image is being dragged over our node
+	node.onDragOver = function (e) {
+		if (e.dataTransfer && e.dataTransfer.items) {
+			const image = [...e.dataTransfer.items].find((f) => f.kind === "file" && f.type.startsWith("image/"));
+			return !!image;
+		}
+
+		return false;
+	};
+
+	// On drop upload files
+	node.onDragDrop = function (e) {
+		console.log("onDragDrop called");
+		let handled = false;
+		for (const file of e.dataTransfer.files) {
+			if (file.type.startsWith("image/")) {
+				uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
+				handled = true;
 			}
+		}
 
-			return handled;
-		};
+		return handled;
+	};
 
-		return { widget: uploadWidget };
-	},
+	return { widget: uploadWidget };
+}
+
+export const ComfyWidgets = {
+	"INT:seed": seedWidget,
+	"INT:noise_seed": seedWidget,
+	FLOAT,
+	INT,
+	STRING,
+	COMBO,
+	IMAGEUPLOAD,
+	MULTIIMAGEUPLOAD,
 };

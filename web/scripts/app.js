@@ -1110,22 +1110,23 @@ export class ComfyApp {
 					for (const inputName in inputs) {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
+						const inputShape = nodeData["input_is_list"] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
 
 						if(inputData[1]?.forceInput) {
-							this.addInput(inputName, type);
+							this.addInput(inputName, type, { shape: inputShape });
 						} else {
 							if (Array.isArray(type)) {
 								// Enums
-								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
+								Object.assign(config, widgets.COMBO(this, inputName, inputData, nodeData, app) || {});
 							} else if (`${type}:${inputName}` in widgets) {
 								// Support custom widgets by Type:Name
-								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, nodeData, app) || {});
 							} else if (type in widgets) {
 								// Standard type widgets
-								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
+								Object.assign(config, widgets[type](this, inputName, inputData, nodeData, app) || {});
 							} else {
 								// Node connection inputs
-								this.addInput(inputName, type);
+								this.addInput(inputName, type, { shape: inputShape });
 							}
 						}
 					}
@@ -1133,7 +1134,7 @@ export class ComfyApp {
 					for (const o in nodeData["output"]) {
 						const output = nodeData["output"][o];
 						const outputName = nodeData["output_name"][o] || output;
-						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
 						this.addOutput(outputName, output, { shape: outputShape });
 					}
 
