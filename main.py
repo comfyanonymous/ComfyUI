@@ -35,7 +35,7 @@ def prompt_worker(q, server):
         execution_start_time = time.perf_counter()
         prompt_id = item[1]
         e.execute(item[2], prompt_id, item[3], item[4])
-        q.task_done(item_id, e.outputs_ui)
+        q.task_done(item_id, e.outputs_ui, e.outputs_sync)
         if server.client_id is not None:
             server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
 

@@ -228,7 +228,7 @@ app.registerExtension({
 					const linkInfo = app.graph.links[l];
 					const node = this.graph.getNodeById(linkInfo.target_id);
 					const input = node.inputs[linkInfo.target_slot];
-					const widgetName = input.widget.name;
+					const widgetName = input.widget?.name;
 					if (widgetName) {
 						const widget = node.widgets.find((w) => w.name === widgetName);
 						if (widget) {

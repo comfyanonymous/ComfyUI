@@ -26,7 +26,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
         else:
-            if ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]):
+            if ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]) or ("hidden" in valid_inputs and x in valid_inputs["hidden"]):
                 input_data_all[x] = [input_data]
 
     if "hidden" in valid_inputs:
@@ -72,6 +72,7 @@ def get_output_data(obj, input_data_all):
     
     results = []
     uis = []
+    sync_results = []
     return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
 
     for r in return_values:
@@ -80,6 +81,8 @@ def get_output_data(obj, input_data_all):
                 uis.append(r['ui'])
             if 'result' in r:
                 results.append(r['result'])
+            if 'sync_result' in r:
+                sync_results.append(r['sync_result'])
         else:
             results.append(r)
     
@@ -100,7 +103,7 @@ def get_output_data(obj, input_data_all):
     ui = dict()    
     if len(uis) > 0:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
-    return output, ui
+    return output, ui, sync_results
 
 def format_value(x):
     if x is None:
@@ -110,7 +113,7 @@ def format_value(x):
     else:
         return str(x)
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, outputs_sync, object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -125,7 +128,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, object_storage)
+                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, outputs_sync, object_storage)
                 if result[0] is not True:
                     # Another node failed further upstream
                     return result
@@ -142,12 +145,14 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             obj = class_def()
             object_storage[(unique_id, class_type)] = obj
 
-        output_data, output_ui = get_output_data(obj, input_data_all)
+        output_data, output_ui, output_sync = get_output_data(obj, input_data_all)
         outputs[unique_id] = output_data
         if len(output_ui) > 0:
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:
                 server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
+        if len(output_sync) > 0:
+            outputs_sync[unique_id] = output_sync
     except comfy.model_management.InterruptProcessingException as iex:
         print("Processing interrupted")
 
@@ -262,6 +267,7 @@ class PromptExecutor:
         self.outputs = {}
         self.object_storage = {}
         self.outputs_ui = {}
+        self.outputs_sync = {}
         self.old_prompt = {}
         self.server = server
 
@@ -347,6 +353,10 @@ class PromptExecutor:
                 if x not in current_outputs:
                     d = self.outputs_ui.pop(x)
                     del d
+            for x in list(self.outputs_sync.keys()):
+                if x not in current_outputs:
+                    d = self.outputs_sync.pop(x)
+                    del d
 
             if self.server.client_id is not None:
                 self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
@@ -365,7 +375,7 @@ class PromptExecutor:
                 # This call shouldn't raise anything if there's an error deep in
                 # the actual SD code, instead it will report the node where the
                 # error was raised
-                success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.object_storage)
+                success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.outputs_sync, self.object_storage)
                 if success is not True:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
@@ -682,6 +692,7 @@ class PromptQueue:
         self.queue = []
         self.currently_running = {}
         self.history = {}
+        self.futures = {}
         server.prompt_queue = self
 
     def put(self, item):
@@ -696,18 +707,25 @@ class PromptQueue:
                 self.not_empty.wait()
             item = heapq.heappop(self.queue)
             i = self.task_counter
+            if len(item) > 5:
+                future = item[5]
+                item = item[:5]
+                self.futures[i] = future
             self.currently_running[i] = copy.deepcopy(item)
             self.task_counter += 1
             self.server.queue_updated()
             return (item, i)
 
-    def task_done(self, item_id, outputs):
+    def task_done(self, item_id, outputs_ui, outputs_sync):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
-            for o in outputs:
-                self.history[prompt[1]]["outputs"][o] = outputs[o]
+            for o in outputs_ui:
+                self.history[prompt[1]]["outputs"][o] = outputs_ui[o]
             self.server.queue_updated()
+            if item_id in self.futures:
+                self.futures[item_id].set_result(outputs_sync)
+                del self.futures[item_id]
 
     def get_current_queue(self):
         with self.mutex:

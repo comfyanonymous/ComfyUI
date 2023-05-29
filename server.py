@@ -10,6 +10,7 @@ import glob
 import struct
 from PIL import Image
 from io import BytesIO
+import copy
 
 try:
     import aiohttp
@@ -451,6 +452,64 @@ class PromptServer():
             else:
                 return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
 
+        def merge_dict_recursive(dict1, dict2):
+            """
+            Recursively merges two dictionaries, concatenating arrays instead of overwriting them.
+            """
+            for key in dict2:
+                if key in dict1:
+                    if isinstance(dict1[key], dict) and isinstance(dict2[key], dict):
+                        merge_dict_recursive(dict1[key], dict2[key])
+                    elif isinstance(dict1[key], list) and isinstance(dict2[key], list):
+                        dict1[key].extend(dict2[key])
+                    else:
+                        dict1[key] = dict2[key]
+                else:
+                    dict1[key] = dict2[key]
+            return dict1
+
+        @routes.post("/prompt_sync")
+        async def post_prompt_sync(request):
+            print("got prompt_sync")
+            resp_code = 200
+            out_string = ""
+            json_data =  await request.json()
+
+            if "number" in json_data:
+                number = float(json_data['number'])
+            else:
+                number = self.number
+                if "front" in json_data:
+                    if json_data['front']:
+                        number = -number
+
+                self.number += 1
+
+            if "prompt" in json_data:
+                prompt = json_data["prompt"]
+                valid = execution.validate_prompt(prompt)
+                extra_data = {}
+                if "extra_data" in json_data:
+                    extra_data = json_data["extra_data"]
+
+                if "client_id" in json_data:
+                    extra_data["client_id"] = json_data["client_id"]
+                if valid[0]:
+                    prompt_id = str(uuid.uuid4())
+                    future = asyncio.get_running_loop().create_future()
+                    outputs_to_execute = valid[2]
+                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, future))
+                    sync_result = await future
+                    result = {}
+                    for _, (node_id, v) in enumerate(sync_result.items()):
+                        for i, item in enumerate(v):
+                            result = merge_dict_recursive(result, copy.deepcopy(item))
+                    out_string = json.dumps(result)
+                    return web.json_response(result, status=resp_code)
+                else:
+                    return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
+
+        
         @routes.post("/queue")
         async def post_queue(request):
             json_data =  await request.json()
@@ -549,6 +608,8 @@ class PromptServer():
 
         if address == '':
             address = '0.0.0.0'
+        self.address = address
+        self.port = port
         if verbose:
             print("Starting server\n")
             print("To see the GUI go to: http://{}:{}".format(address, port))
