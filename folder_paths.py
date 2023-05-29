@@ -126,11 +126,13 @@ def filter_files_extensions(files, extensions):
 def get_full_path(folder_name, filename):
     global folder_names_and_paths
     folders = folder_names_and_paths[folder_name]
+    filename = os.path.relpath(os.path.join("/", filename), "/")
     for x in folders[0]:
         full_path = os.path.join(x, filename)
         if os.path.isfile(full_path):
             return full_path
 
+    return None
 
 def get_filename_list(folder_name):
     global folder_names_and_paths
