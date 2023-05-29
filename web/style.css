@@ -357,6 +357,10 @@ button.comfy-queue-btn {
 	filter: brightness(50%);
 }
 
+.litegraph .dialog {
+    z-index: 1;
+}
+
 .litegraph .dialog.multiimageupload_dialog {
     font-family: Arial;
     display: inline-block;
