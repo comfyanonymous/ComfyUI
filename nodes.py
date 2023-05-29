@@ -1138,8 +1138,6 @@ class LoadImageBatch:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_images"
 
-    OUTPUT_IS_LIST = (True, True, )
-
     def load_images(self, images):
         output_images = []
         output_masks = []
@@ -1180,7 +1178,7 @@ class LoadImageBatch:
             output_images.append(image)
             output_masks.append(mask)
 
-        return (output_images, output_masks, )
+        return (torch.cat(output_images), torch.cat(output_masks), )
 
     @classmethod
     def IS_CHANGED(s, images):
