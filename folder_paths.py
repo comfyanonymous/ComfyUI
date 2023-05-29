@@ -31,6 +31,8 @@ output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ou
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
 
+filename_list_cache = {}
+
 if not os.path.exists(input_directory):
     os.makedirs(input_directory)
 
@@ -111,12 +113,18 @@ def get_folder_paths(folder_name):
     return folder_names_and_paths[folder_name][0][:]
 
 def recursive_search(directory):
+    if not os.path.isdir(directory):
+        return [], {}
     result = []
+    dirs = {directory: os.path.getmtime(directory)}
     for root, subdir, file in os.walk(directory, followlinks=True):
         for filepath in file:
             #we os.path,join directory with a blank string to generate a path separator at the end.
             result.append(os.path.join(root, filepath).replace(os.path.join(directory,''),''))
-    return result
+        for d in subdir:
+            path = os.path.join(root, d)
+            dirs[path] = os.path.getmtime(path)
+    return result, dirs
 
 def filter_files_extensions(files, extensions):
     return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
@@ -136,13 +144,44 @@ def get_full_path(folder_name, filename):
 
     return None
 
-def get_filename_list(folder_name):
+def get_filename_list_(folder_name):
     global folder_names_and_paths
     output_list = set()
     folders = folder_names_and_paths[folder_name]
+    output_folders = {}
     for x in folders[0]:
-        output_list.update(filter_files_extensions(recursive_search(x), folders[1]))
-    return sorted(list(output_list))
+        files, folders_all = recursive_search(x)
+        output_list.update(filter_files_extensions(files, folders[1]))
+        output_folders = {**output_folders, **folders_all}
+
+    return (sorted(list(output_list)), output_folders)
+
+def cached_filename_list_(folder_name):
+    global filename_list_cache
+    global folder_names_and_paths
+    if folder_name not in filename_list_cache:
+        return None
+    out = filename_list_cache[folder_name]
+    for x in out[1]:
+        time_modified = out[1][x]
+        folder = x
+        if os.path.getmtime(folder) != time_modified:
+            return None
+
+    folders = folder_names_and_paths[folder_name]
+    for x in folders[0]:
+        if x not in out[1]:
+            return None
+
+    return out
+
+def get_filename_list(folder_name):
+    out = cached_filename_list_(folder_name)
+    if out is None:
+        out = get_filename_list_(folder_name)
+        global filename_list_cache
+        filename_list_cache[folder_name] = out
+    return out[0]
 
 def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height=0):
     def map_filename(filename):
