@@ -268,7 +268,7 @@ const INT = (node, inputName, inputData) => {
 	};
 }
 
-const STRING = (node, inputName, inputData, nodeData, app) => {
+const STRING = (node, inputName, inputData, app) => {
 	const defaultVal = inputData[1].default || "";
 	const multiline = !!inputData[1].multiline;
 
@@ -279,14 +279,15 @@ const STRING = (node, inputName, inputData, nodeData, app) => {
 	}
 }
 
-const COMBO = (node, inputName, inputData, nodeData) => {
+const COMBO = (node, inputName, inputData) => {
 	const type = inputData[0];
 	let defaultValue = type[0];
-	if (inputData[1] && inputData[1].default) {
-		defaultValue = inputData[1].default;
+    let options = inputData[1] || {}
+	if (options.default) {
+		defaultValue = options.default
 	}
 
-	if (nodeData["input_is_list"]) {
+	if (options.is_list) {
 		defaultValue = [defaultValue]
 		const widget = node.addWidget("text", inputName, defaultValue, () => {}, { values: type })
 		widget.disabled = true;
@@ -297,7 +298,7 @@ const COMBO = (node, inputName, inputData, nodeData) => {
 	}
 }
 
-const IMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
+const IMAGEUPLOAD = (node, inputName, inputData, app) => {
 	const imageWidget = node.widgets.find((w) => w.name === "image");
 	let uploadWidget;
 
@@ -412,8 +413,7 @@ const IMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
 	uploadWidget = node.addWidget("button", "choose file to upload", "image", () => {
 		fileInput.value = null;
 		fileInput.click();
-	});
-	uploadWidget.serialize = false;
+	}, { serialize: false });
 
 	// Add handler to check if an image is being dragged over our node
 	node.onDragOver = function (e) {
@@ -442,8 +442,14 @@ const IMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
 	return { widget: uploadWidget };
 }
 
-const MULTIIMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
-	const imagesWidget = node.widgets.find((w) => w.name === "images");
+const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
+	const imagesWidget = node.addWidget("text", inputName, inputData, () => {})
+
+	imagesWidget._filepaths = []
+	if (inputData[1] && inputData[1].filepaths) {
+		imagesWidget._filepaths = inputData[1].filepaths
+	}
+
 	let uploadWidget;
 	let clearWidget;
 
@@ -534,11 +540,6 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
 
 				if (resp.status === 200) {
 					const data = await resp.json();
-					// Add the file as an option and update the widget value
-					if (!imagesWidget.options.values.includes(data.name)) {
-						imagesWidget.options.values.push(data.name);
-					}
-
 					if (updateNode) {
 						imagesWidget.value.push(data.name)
 					}
@@ -573,14 +574,12 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, nodeData, app) => {
 	uploadWidget = node.addWidget("button", "choose files to upload", "images", () => {
 		fileInput.value = null;
 		fileInput.click();
-	});
-	uploadWidget.serialize = false;
+	}, { serialize: false });
 
 	clearWidget = node.addWidget("button", "clear all uploads", "images", () => {
 		imagesWidget.value = []
 		showImages(imagesWidget.value);
-	});
-	clearWidget.serialize = false;
+	}, { serialize: false });
 
 	// Add handler to check if an image is being dragged over our node
 	node.onDragOver = function (e) {

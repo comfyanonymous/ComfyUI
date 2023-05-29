@@ -3,11 +3,10 @@ import torch
 class LatentRebatch:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "latents": ("LATENT",),
+        return {"required": { "latents": ("LATENT", { "is_list": True }),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64}),
                               }}
-    RETURN_TYPES = ("LATENT",)
-    INPUT_IS_LIST = True
+    RETURN_TYPES = ("LATENT", )
     OUTPUT_IS_LIST = (True, )
 
     FUNCTION = "rebatch"
@@ -54,8 +53,6 @@ class LatentRebatch:
         return result
 
     def rebatch(self, latents, batch_size):
-        batch_size = batch_size[0]
-
         output_list = []
         current_batch = (None, None, None)
         processed = 0

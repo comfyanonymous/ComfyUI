@@ -13,21 +13,44 @@ import nodes
 
 import comfy.model_management
 
+def slice_lists_into_dict(d, i):
+    """
+    get a slice of inputs, repeat last input when list isn't long enough
+    d={ "seed": [ 1, 2, 3 ], "steps": [ 4, 8 ] }, i=2 -> { "seed": 3, "steps": 8 }
+    """
+    d_new = {}
+    for k, v in d.items():
+        d_new[k] = v[i if len(v) > i else -1]
+    return d_new
+
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
+    required = valid_inputs.get("required", {})
+    optional = valid_inputs.get("optional", {})
     for x in inputs:
         input_data = inputs[x]
-        if isinstance(input_data, list):
-            input_unique_id = input_data[0]
-            output_index = input_data[1]
+        input_type = input_data["type"]
+
+        input_def = required.get(x)
+        if input_def is None:
+            input_def = optional.get(x)
+
+        use_value_as_list = input_def is not None and len(input_def) > 1 and input_def[1].get("is_list", False)
+
+        if input_type == "link":
+            input_unique_id = input_data["origin_id"]
+            output_index = input_data["origin_slot"]
             if input_unique_id not in outputs:
                 return None
             obj = outputs[input_unique_id][output_index]
+            if use_value_as_list:
+                obj = [obj]
             input_data_all[x] = obj
         else:
-            if ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]):
-                input_data_all[x] = [input_data]
+            value = input_data["value"]
+            if input_def is not None:
+                input_data_all[x] = [value]
 
     if "hidden" in valid_inputs:
         h = valid_inputs["hidden"]
@@ -39,37 +62,23 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                     input_data_all[x] = [extra_data['extra_pnginfo']]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
+
     return input_data_all
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
-    # check if node wants the lists
-    intput_is_list = False
-    if hasattr(obj, "INPUT_IS_LIST"):
-        intput_is_list = obj.INPUT_IS_LIST
-
-    max_len_input = max([len(x) for x in input_data_all.values()])
-     
-    # get a slice of inputs, repeat last input when list isn't long enough
-    def slice_dict(d, i):
-        d_new = dict()
-        for k,v in d.items():
-            d_new[k] = v[i if len(v) > i else -1]
-        return d_new
-    
     results = []
-    if intput_is_list:
+    max_len_input = max([len(x) for x in input_data_all.values()])
+
+    for i in range(max_len_input):
         if allow_interrupt:
             nodes.before_node_execution()
-        results.append(getattr(obj, func)(**input_data_all))
-    else: 
-        for i in range(max_len_input):
-            if allow_interrupt:
-                nodes.before_node_execution()
-            results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
+
+        args = slice_lists_into_dict(input_data_all, i)
+        results.append(getattr(obj, func)(**args))
+
     return results
 
 def get_output_data(obj, input_data_all):
-    
     results = []
     uis = []
     return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
@@ -120,10 +129,10 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
 
     for x in inputs:
         input_data = inputs[x]
+        input_type = input_data["type"]
 
-        if isinstance(input_data, list):
-            input_unique_id = input_data[0]
-            output_index = input_data[1]
+        if input_type == "link":
+            input_unique_id = input_data["origin_id"]
             if input_unique_id not in outputs:
                 result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui)
                 if result[0] is not True:
@@ -192,9 +201,9 @@ def recursive_will_execute(prompt, outputs, current_item):
 
     for x in inputs:
         input_data = inputs[x]
-        if isinstance(input_data, list):
-            input_unique_id = input_data[0]
-            output_index = input_data[1]
+        input_type = input_data["type"]
+        if input_type == "link":
+            input_unique_id = input_data["origin_id"]
             if input_unique_id not in outputs:
                 will_execute += recursive_will_execute(prompt, outputs, input_unique_id)
 
@@ -235,10 +244,10 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         elif inputs == old_prompt[unique_id]['inputs']:
             for x in inputs:
                 input_data = inputs[x]
+                input_type = input_data["type"]
 
-                if isinstance(input_data, list):
-                    input_unique_id = input_data[0]
-                    output_index = input_data[1]
+                if input_type == "link":
+                    input_unique_id = input_data["origin_id"]
                     if input_unique_id in outputs:
                         to_delete = recursive_output_delete_if_changed(prompt, old_prompt, outputs, input_unique_id)
                     else:
@@ -366,6 +375,150 @@ class PromptExecutor:
         comfy.model_management.soft_empty_cache()
 
 
+def validate_link(prompt, x, val, info, validated):
+    type_input = info[0]
+
+    o_id = val.get("origin_id", None)
+    o_slot = val.get("origin_slot", None)
+
+    if o_id is None or o_slot is None:
+        error = {
+            "type": "bad_linked_input",
+            "message": "Bad linked input, must be a dictionary like { type: 'link', origin_id: 1, origin_slot: 1 }",
+            "details": f"{x}",
+            "extra_info": {
+                "input_name": x,
+                "input_config": info,
+                "received_value": val
+            }
+        }
+        return (False, error)
+
+    o_class_type = prompt[o_id]['class_type']
+    r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
+    if r[o_slot] != type_input:
+        received_type = r[val[1]]
+        details = f"{x}, {received_type} != {type_input}"
+        error = {
+            "type": "return_type_mismatch",
+            "message": "Return type mismatch between linked nodes",
+            "details": details,
+            "extra_info": {
+                "input_name": x,
+                "input_config": info,
+                "received_type": received_type,
+                "linked_node": val
+            }
+        }
+        return (False, error)
+    try:
+        r = validate_inputs(prompt, o_id, validated)
+        if r[0] is False:
+            # `r` will be set in `validated[o_id]` already
+            return (False, None)
+    except Exception as ex:
+        typ, _, tb = sys.exc_info()
+        exception_type = full_type_name(typ)
+        reasons = [{
+            "type": "exception_during_inner_validation",
+            "message": "Exception when validating inner node",
+            "details": str(ex),
+            "extra_info": {
+                "input_name": x,
+                "input_config": info,
+                "exception_message": str(ex),
+                "exception_type": exception_type,
+                "traceback": traceback.format_tb(tb),
+                "linked_node": val,
+                "linked_node_inputs": prompt[o_id]
+            }
+        }]
+        validated[o_id] = (False, reasons, o_id)
+        return (False, None)
+
+    return (True, val)
+
+
+def validate_value(inputs, unique_id, x, val, info, obj_class):
+    type_input = info[0]
+    result_val = val
+
+    try:
+        if type_input == "INT":
+            result_val = int(val)
+        if type_input == "FLOAT":
+            result_val = float(val)
+        if type_input == "STRING":
+            result_val = str(val)
+    except Exception as ex:
+        error = {
+            "type": "invalid_input_type",
+            "message": f"Failed to convert an input value to a {type_input} value",
+            "details": f"{x}, {val}, {ex}",
+            "extra_info": {
+                "input_name": x,
+                "input_config": info,
+                "received_value": val,
+                "exception_message": str(ex)
+            }
+        }
+        return (False, error)
+
+    if len(info) > 1:
+        if "min" in info[1] and val < info[1]["min"]:
+            error = {
+                "type": "value_smaller_than_min",
+                "message": "Value {} smaller than min of {}".format(val, info[1]["min"]),
+                "details": f"{x}",
+                "extra_info": {
+                    "input_name": x,
+                    "input_config": info,
+                    "received_value": val,
+                }
+            }
+            return (False, error)
+        if "max" in info[1] and val > info[1]["max"]:
+            error = {
+                "type": "value_bigger_than_max",
+                "message": "Value {} bigger than max of {}".format(val, info[1]["max"]),
+                "details": f"{x}",
+                "extra_info": {
+                    "input_name": x,
+                    "input_config": info,
+                    "received_value": val,
+                }
+            }
+            return (False, error)
+    else:
+        # Validate combo widget
+        if isinstance(type_input, list):
+            if val not in type_input:
+                input_config = info
+                list_info = ""
+
+                # Don't send back gigantic lists like if they're lots of
+                # scanned model filepaths
+                if len(type_input) > 20:
+                    list_info = f"(list of length {len(type_input)})"
+                    input_config = None
+                else:
+                    list_info = str(type_input)
+
+                error = {
+                    "type": "value_not_in_list",
+                    "message": "Value not in list",
+                    "details": f"{x}: '{val}' not in {list_info}",
+                    "extra_info": {
+                        "input_name": x,
+                        "input_config": input_config,
+                        "received_value": val,
+                    }
+                }
+                return (False, error)
+
+    return (True, result_val)
+
+
 def validate_inputs(prompt, item, validated):
     unique_id = item
     if unique_id in validated:
@@ -396,168 +549,84 @@ def validate_inputs(prompt, item, validated):
 
         val = inputs[x]
         info = required_inputs[x]
-        type_input = info[0]
-        if isinstance(val, list):
-            if len(val) != 2:
-                error = {
-                    "type": "bad_linked_input",
-                    "message": "Bad linked input, must be a length-2 list of [node_id, slot_index]",
-                    "details": f"{x}",
-                    "extra_info": {
-                        "input_name": x,
-                        "input_config": info,
-                        "received_value": val
-                    }
+
+        input_type = None
+        if isinstance(val, dict):
+            input_type = val.get("type", None)
+
+        if input_type not in ["link", "value"]:
+            error = {
+                "type": "bad_input_format",
+                "message": "Bad input format, must be a dictionary with 'type' set to 'link' or 'value'",
+                "details": f"{x}",
+                "extra_info": {
+                    "input_name": x,
+                    "input_config": info,
+                    "received_value": val
                 }
-                errors.append(error)
+            }
+            errors.append(error)
+            continue
+
+        if input_type == "link":
+            result = validate_link(prompt, x, val, info, validated)
+            if result[0] is False:
+                valid = False
+                if result[1] is not None:
+                    errors.append(result[1])
                 continue
 
-            o_id = val[0]
-            o_class_type = prompt[o_id]['class_type']
-            r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            if r[val[1]] != type_input:
-                received_type = r[val[1]]
-                details = f"{x}, {received_type} != {type_input}"
+            inputs[x] = result[1]
+
+        elif input_type == "value":
+            inner_val = val.get("value", None)
+            if inner_val is None:
                 error = {
-                    "type": "return_type_mismatch",
-                    "message": "Return type mismatch between linked nodes",
-                    "details": details,
-                    "extra_info": {
-                        "input_name": x,
-                        "input_config": info,
-                        "received_type": received_type,
-                        "linked_node": val
-                    }
-                }
-                errors.append(error)
-                continue
-            try:
-                r = validate_inputs(prompt, o_id, validated)
-                if r[0] is False:
-                    # `r` will be set in `validated[o_id]` already
-                    valid = False
-                    continue
-            except Exception as ex:
-                typ, _, tb = sys.exc_info()
-                valid = False
-                exception_type = full_type_name(typ)
-                reasons = [{
-                    "type": "exception_during_inner_validation",
-                    "message": "Exception when validating inner node",
-                    "details": str(ex),
-                    "extra_info": {
-                        "input_name": x,
-                        "input_config": info,
-                        "exception_message": str(ex),
-                        "exception_type": exception_type,
-                        "traceback": traceback.format_tb(tb),
-                        "linked_node": val
-                    }
-                }]
-                validated[o_id] = (False, reasons, o_id)
-                continue
-        else:
-            try:
-                if type_input == "INT":
-                    val = int(val)
-                    inputs[x] = val
-                if type_input == "FLOAT":
-                    val = float(val)
-                    inputs[x] = val
-                if type_input == "STRING":
-                    val = str(val)
-                    inputs[x] = val
-            except Exception as ex:
-                error = {
-                    "type": "invalid_input_type",
-                    "message": f"Failed to convert an input value to a {type_input} value",
-                    "details": f"{x}, {val}, {ex}",
+                    "type": "bad_value_input",
+                    "message": "Bad value input, must be a dictionary like { type: 'value', value: 42 }",
+                    "details": f"{x}, {val}",
                     "extra_info": {
                         "input_name": x,
                         "input_config": info,
                         "received_value": val,
-                        "exception_message": str(ex)
+                    }
+                }
+                return (False, error)
+
+            result = validate_value(inputs, unique_id, x, inner_val, info, obj_class)
+
+            if result[0] is False:
+                errors.append(result[1])
+                continue
+
+            inputs[x] = { "type": "value", "value": result[1] }
+
+    if hasattr(obj_class, "VALIDATE_INPUTS"):
+        input_data_all = get_input_data(inputs, obj_class, unique_id)
+        #ret = obj_class.VALIDATE_INPUTS(**input_data_all)
+        ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
+        for i, r in enumerate(ret):
+            if r is not True:
+                details = ""
+                if r is not False:
+                    details += str(r)
+
+                input_data_formatted = {}
+                if input_data_all is not None:
+                    input_data_formatted = {}
+                    for name, inputList in input_data_all.items():
+                        input_data_formatted[name] = [format_value(x) for x in inputList]
+
+                error = {
+                    "type": "custom_validation_failed",
+                    "message": "Custom validation failed for node",
+                    "details": details,
+                    "extra_info": {
+                        "input_config": info,
+                        "received_inputs": input_data_formatted,
                     }
                 }
                 errors.append(error)
-                continue
-
-            if len(info) > 1:
-                if "min" in info[1] and val < info[1]["min"]:
-                    error = {
-                        "type": "value_smaller_than_min",
-                        "message": "Value {} smaller than min of {}".format(val, info[1]["min"]),
-                        "details": f"{x}",
-                        "extra_info": {
-                            "input_name": x,
-                            "input_config": info,
-                            "received_value": val,
-                        }
-                    }
-                    errors.append(error)
-                    continue
-                if "max" in info[1] and val > info[1]["max"]:
-                    error = {
-                        "type": "value_bigger_than_max",
-                        "message": "Value {} bigger than max of {}".format(val, info[1]["max"]),
-                        "details": f"{x}",
-                        "extra_info": {
-                            "input_name": x,
-                            "input_config": info,
-                            "received_value": val,
-                        }
-                    }
-                    errors.append(error)
-                    continue
-
-            if hasattr(obj_class, "VALIDATE_INPUTS"):
-                input_data_all = get_input_data(inputs, obj_class, unique_id)
-                #ret = obj_class.VALIDATE_INPUTS(**input_data_all)
-                ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
-                for i, r in enumerate(ret):
-                    if r is not True:
-                        details = f"{x}"
-                        if r is not False:
-                            details += f" - {str(r)}"
-
-                        error = {
-                            "type": "custom_validation_failed",
-                            "message": "Custom validation failed for node",
-                            "details": details,
-                            "extra_info": {
-                                "input_name": x,
-                                "input_config": info,
-                                "received_value": val,
-                            }
-                        }
-                        errors.append(error)
-                        continue
-            else:
-                if isinstance(type_input, list):
-                    if val not in type_input:
-                        input_config = info
-                        list_info = ""
-
-                        # Don't send back gigantic lists like if they're lots of
-                        # scanned model filepaths
-                        if len(type_input) > 20:
-                            list_info = f"(list of length {len(type_input)})"
-                            input_config = None
-                        else:
-                            list_info = str(type_input)
-
-                        error = {
-                            "type": "value_not_in_list",
-                            "message": "Value not in list",
-                            "details": f"{x}: '{val}' not in {list_info}",
-                            "extra_info": {
-                                "input_name": x,
-                                "input_config": input_config,
-                                "received_value": val,
-                            }
-                        }
-                        errors.append(error)
-                        continue
 
     if len(errors) > 0 or valid is not True:
         ret = (False, errors, unique_id)
@@ -644,7 +713,7 @@ def validate_prompt(prompt):
                     node_errors[node_id]["dependent_outputs"].append(o)
             print("Output will be ignored")
 
-    if len(good_outputs) == 0:
+    if len(good_outputs) == 0 or node_errors:
         errors_list = []
         for o, errors in errors:
             for error in errors:

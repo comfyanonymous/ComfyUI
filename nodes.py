@@ -1085,7 +1085,7 @@ class LoadImage:
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(files), { "forceInput": True })},
+                    {"image": (sorted(files), )},
                 }
 
     CATEGORY = "image"
@@ -1127,7 +1127,7 @@ class LoadImageBatch:
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"images": (sorted(files), )},
+                    {"images": ("MULTIIMAGEUPLOAD", { "filepaths": sorted(files) } )},
                 }
 
     CATEGORY = "image"
@@ -1135,7 +1135,6 @@ class LoadImageBatch:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_images"
 
-    INPUT_IS_LIST = True
     OUTPUT_IS_LIST = (True, True, )
 
     def load_images(self, images):
@@ -1437,6 +1436,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
     "LoadImageMask": "Load Image (as Mask)",
+    "LoadImageBatch": "Load Image Batch",
     "ImageScale": "Upscale Image",
     "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",

@@ -1110,20 +1110,21 @@ export class ComfyApp {
 					for (const inputName in inputs) {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
-						const inputShape = nodeData["input_is_list"] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
+						const options = inputData[1] || {};
+						const inputShape = options.is_list ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
 
 						if(inputData[1]?.forceInput) {
 							this.addInput(inputName, type, { shape: inputShape });
 						} else {
 							if (Array.isArray(type)) {
 								// Enums
-								Object.assign(config, widgets.COMBO(this, inputName, inputData, nodeData, app) || {});
+								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
 							} else if (`${type}:${inputName}` in widgets) {
 								// Support custom widgets by Type:Name
-								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, nodeData, app) || {});
+								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
 							} else if (type in widgets) {
 								// Standard type widgets
-								Object.assign(config, widgets[type](this, inputName, inputData, nodeData, app) || {});
+								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
 							} else {
 								// Node connection inputs
 								this.addInput(inputName, type, { shape: inputShape });
@@ -1313,7 +1314,8 @@ export class ComfyApp {
 				for (const i in widgets) {
 					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+						const value = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+						inputs[widget.name] = { type: "value", value }
 					}
 				}
 			}
@@ -1333,7 +1335,11 @@ export class ComfyApp {
 					}
 
 					if (link) {
-						inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+						inputs[node.inputs[i].name] = {
+							type: "link",
+							origin_id: String(link.origin_id),
+							origin_slot: parseInt(link.origin_slot)
+						};
 					}
 				}
 			}
@@ -1377,6 +1383,9 @@ export class ComfyApp {
 			message += "\n" + nodeError.class_type + ":"
 				for (const errorReason of nodeError.errors) {
 					message += "\n    - " + errorReason.message + ": " + errorReason.details
+					if (errorReason.extra_info?.traceback) {
+						message += "\n" + errorReason.extra_info.traceback.join("")
+					}
 				}
 			}
 			return message

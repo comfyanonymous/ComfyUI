@@ -10,9 +10,6 @@ app.registerExtension({
 		case "LoadImageMask":
 			nodeData.input.required.upload = ["IMAGEUPLOAD"];
 			break;
-		case "LoadImageBatch":
-			nodeData.input.required.upload = ["MULTIIMAGEUPLOAD"];
-			break;
 		}
 	},
 });
