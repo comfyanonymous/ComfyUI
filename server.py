@@ -22,7 +22,7 @@ except ImportError:
 
 import mimetypes
 from comfy.cli_args import args
-
+import comfy.utils
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -256,6 +256,29 @@ class PromptServer():
                         return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
 
             return web.Response(status=404)
+
+        @routes.get("/view_metadata/{folder_name}")
+        async def view_metadata(request):
+            folder_name = request.match_info.get("folder_name", None)
+            if folder_name is None:
+                return web.Response(status=404)
+            if not "filename" in request.rel_url.query:
+                return web.Response(status=404)
+
+            filename = request.rel_url.query["filename"]
+            if not filename.endswith(".safetensors"):
+                return web.Response(status=404)
+
+            safetensors_path = folder_paths.get_full_path(folder_name, filename)
+            if safetensors_path is None:
+                return web.Response(status=404)
+            out = comfy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
+            if out is None:
+                return web.Response(status=404)
+            dt = json.loads(out)
+            if not "__metadata__" in dt:
+                return web.Response(status=404)
+            return web.json_response(dt["__metadata__"])
 
         @routes.get("/prompt")
         async def get_prompt(request):

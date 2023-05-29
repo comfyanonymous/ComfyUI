@@ -1,5 +1,6 @@
 import torch
 import math
+import struct
 
 def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
@@ -49,6 +50,14 @@ def transformers_convert(sd, prefix_from, prefix_to, number):
                     k_to = "{}.encoder.layers.{}.{}.{}".format(prefix_to, resblock, p[x], y)
                     sd[k_to] = weights[shape_from*x:shape_from*(x + 1)]
     return sd
+
+def safetensors_header(safetensors_path, max_size=100*1024*1024):
+    with open(safetensors_path, "rb") as f:
+        header = f.read(8)
+        length_of_header = struct.unpack('<Q', header)[0]
+        if length_of_header > max_size:
+            return None
+        return f.read(length_of_header)
 
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
