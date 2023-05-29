@@ -359,10 +359,10 @@ button.comfy-queue-btn {
 
 .litegraph .dialog {
     z-index: 1;
+    font-family: Arial;
 }
 
 .litegraph .dialog.multiimageupload_dialog {
-    font-family: Arial;
     display: inline-block;
     text-align: right;
 	color: #AAA;
