@@ -356,3 +356,154 @@ button.comfy-queue-btn {
 	color: var(--input-text);
 	filter: brightness(50%);
 }
+
+.litegraph .dialog.multiimageupload_dialog {
+    font-family: Arial;
+    display: inline-block;
+    text-align: right;
+	color: #AAA;
+    top: 10%;
+    left: calc(50% - 400px);
+    width: 800px;
+    height: calc(100% - (10% * 2));
+    max-width: initial;
+    min-width: 200px;
+	max-height: initial;
+    min-height: 20px;
+    padding: 4px;
+    margin: auto;
+	overflow: hidden;
+	cursor: pointer;
+	border-radius: 3px;
+}
+
+.litegraph .dialog select {
+	margin-right: 20px;
+	padding-left: 4px;
+    font-size: 12pt;
+	background-color: #1c1c1c;
+    color: #ccc;
+    border: 0;
+}
+
+.multiimageupload_dialog {
+    position: fixed;
+	padding: 4px;
+}
+
+.multiimageupload_dialog .root {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+}
+
+.multiimageupload_dialog .left {
+    width: 50%;
+    overflow-y: auto;
+    border-right: 2px solid #555;
+}
+
+.multiimageupload_dialog .right {
+    width: 50%;
+}
+
+.multiimageupload_preview img {
+    width: 300px;
+    height: 300px;
+    object-fit: contain;
+    display: block;
+    margin-left: 16px;
+    margin-bottom: 8px;
+}
+
+.multiimageupload_preview .bar {
+    display: flex;
+    padding: 0.5rem 0rem 0.5rem 1rem;
+}
+
+.multiimageupload_preview select {
+    max-width: 250px;
+}
+
+.multiimageupload_dialog :disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.multiimageupload_dialog:hover {
+	background-color: #333;
+}
+
+.multiimageupload_dialog.extra {
+    margin-top: 8px;
+}
+
+.multiimageupload_dialog span.name {
+	font-size: 1.3em;
+	padding-left: 4px;
+}
+
+.multiimageupload_dialog span.type {
+	opacity: 0.5;
+	margin-right: 20px;
+	padding-left: 4px;
+}
+
+.multiimageupload_dialog span.label {
+	display: inline-block;
+	width: 60px;
+	padding:  0px 10px;
+}
+
+.multiimageupload_dialog input {
+	width: 140px;
+	color: #999;
+	background-color: #1A1A1A;
+	border-radius: 4px;
+	border: 0;
+	margin-right: 10px;
+	padding: 4px;
+	padding-left: 10px;
+}
+
+.multiimageupload_dialog button {
+	background-color: #1c1c1c;
+	color: #aaa;
+	border: 0;
+	border-radius: 2px;
+	padding: 4px 10px;
+	cursor: pointer;
+}
+
+.multiimageupload_dialog.extra {
+	color: #ccc;
+}
+
+.multiimageupload_dialog.extra input {
+	background-color: #111;
+}
+
+.multiimageupload_image {
+	padding: 4px;
+    display: flex;
+    flex-direction: column;
+}
+
+.multiimageupload_image .bar {
+	padding: 4px;
+    display: flex;
+    flex-direction: row;
+}
+
+.multiimageupload_image .bar span {
+    margin: auto;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.multiimageupload_image img {
+    width: 300px;
+    height: 300px;
+    object-fit: contain;
+}

@@ -442,38 +442,41 @@ const IMAGEUPLOAD = (node, inputName, inputData, app) => {
 	return { widget: uploadWidget };
 }
 
+async function loadImageAsync(imageURL) {
+    return new Promise((resolve) => {
+        const e = new Image();
+        e.setAttribute('crossorigin', 'anonymous');
+        e.addEventListener("load", () => { resolve(e); });
+        e.src = imageURL;
+        return e;
+    });
+}
+
 const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 	const imagesWidget = node.addWidget("text", inputName, inputData, () => {})
 	imagesWidget.disabled = true;
 
-	imagesWidget._filepaths = []
+	imagesWidget._filepaths = {}
 	if (inputData[1] && inputData[1].filepaths) {
 		imagesWidget._filepaths = inputData[1].filepaths
 	}
 
-	let uploadWidget;
-	let clearWidget;
-
-	function showImages(names) {
+	async function showImages(names) {
 		node.imgs = []
 
 		for (const name of names) {
-			const img = new Image();
-			img.onload = () => {
-				// TODO await this?
-				node.imgs.push(img)
-				node.imageIndex = null;
-				node.setSizeForImage?.();
-				app.graph.setDirtyCanvas(true);
-			};
 			let folder_separator = name.lastIndexOf("/");
 			let subfolder = "";
 			if (folder_separator > -1) {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`;
+			const src = `/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`;
+			const img = await loadImageAsync(src);
+			node.imgs.push(img)
+			node.imageIndex = null;
 			node.setSizeForImage?.();
+			app.graph.setDirtyCanvas(true);
 		}
 	}
 
@@ -512,19 +515,20 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 
 	// Add our own callback to the combo widget to render an image when it changes
 	const cb = node.callback;
-	imagesWidget.callback = function () {
-		showImages(imagesWidget.value);
-		if (cb) {
-			return cb.apply(this, arguments);
-		}
+	imagesWidget.callback = () => {
+		showImages(imagesWidget.value).then(() => {
+			if (cb) {
+				return cb.apply(this, arguments);
+			}
+		})
 	};
 
 	// On load if we have a value then render the image
 	// The value isnt set immediately so we need to wait a moment
 	// No change callbacks seem to be fired on initial setting of the value
-	requestAnimationFrame(() => {
+	requestAnimationFrame(async () => {
 		if (Array.isArray(imagesWidget.value) && imagesWidget.value.length > 0) {
-			showImages(imagesWidget.value);
+			await showImages(imagesWidget.value);
 		}
 	});
 
@@ -553,7 +557,7 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 		}
 
 		if (updateNode) {
-			showImages(imagesWidget.value);
+			await showImages(imagesWidget.value);
 		}
 	}
 
@@ -572,12 +576,168 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 	document.body.append(fileInput);
 
 	// Create the button widget for selecting the files
-	uploadWidget = node.addWidget("button", "choose files to upload", "images", () => {
+	const pickWidget = node.addWidget("button", "pick files from ComfyUI folders", "images", () => {
+		const graphCanvas = LiteGraph.LGraphCanvas.active_canvas
+		if (graphCanvas == null)
+			return;
+
+		const panel = graphCanvas.createPanel("Pick Images", { closable: true });
+        panel.node = node;
+        panel.classList.add("multiimageupload_dialog");
+        const swap = (arr, i, j) => {
+            const temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+
+		const rootHtml = `
+<div class="left">
+</div>
+<div class="right">
+</div>
+`;
+		const rootElem = panel.addHTML(rootHtml, "root");
+		const left = rootElem.querySelector('.left')
+		const right = rootElem.querySelector('.right')
+
+		const previewHtml = `
+<img class="image-preview" src="" />
+<div class="bar">
+	<select class='folder-type'>
+       <option value="output">Output</option>
+       <option value="input">Input</option>
+	</select>
+	<select class='image-path'></select>
+</div>
+<div class="bar">
+    <button class="add-image">Add</button>
+</div>`;
+		const previewElem = document.createElement("div");
+		previewElem.innerHTML = previewHtml;
+		previewElem.className = "multiimageupload_preview";
+		right.appendChild(previewElem);
+
+		const folderTypeSel = previewElem.querySelector('.folder-type');
+		const imagePathSel = previewElem.querySelector('.image-path');
+		const imagePreview = previewElem.querySelector('.image-preview');
+
+		imagePathSel.addEventListener("change", (event) => {
+			const filename = event.target.value;
+			const type = folderTypeSel.value;
+			imagePreview.src = `/view?filename=${filename}&type=${type}`
+		});
+
+		folderTypeSel.addEventListener("change", (event) => {
+			imagePathSel.innerHTML = "";
+			const filepaths = imagesWidget._filepaths[event.target.value];
+			if (filepaths == null)
+				return;
+
+			for (const filepath of filepaths) {
+				const filename = filepath.split('\\').pop().split('/').pop();
+				const opt = document.createElement('option');
+				opt.value = filepath
+				opt.innerHTML = filename
+				imagePathSel.appendChild(opt);
+			}
+
+			imagePathSel.value = filepaths[0]
+			imagePathSel.dispatchEvent(new Event('change'));
+		});
+
+		folderTypeSel.value = "output";
+		folderTypeSel.dispatchEvent(new Event('change'));
+
+		const addButton = previewElem.querySelector('.add-image');
+		addButton.addEventListener("click", async (event) => {
+			const filename = imagePathSel.value;
+			const type = folderTypeSel.value;
+			const value = `${filename} [${type}]`;
+			imagesWidget._real_value.push(value)
+			imagesWidget.value = imagesWidget._real_value
+			await showImages(imagesWidget.value);
+			inner_refresh();
+		})
+
+		const clearButton = panel.addButton("Clear", () => {
+			imagesWidget.value = []
+			showImages(imagesWidget.value);
+			inner_refresh();
+		})
+		clearButton.style.display = "block";
+		clearButton.style.marginLeft = "initial";
+
+		const inner_refresh = () => {
+			left.innerHTML = ""
+            graphCanvas.draw(true);
+
+			if (node.imgs) {
+				for (let i = 0; i < imagesWidget.value.length; i++) {
+                    const imagePath = imagesWidget.value[i];
+                    const img = node.imgs[i];
+                    if (!imagePath || !img)
+                        continue;
+					const html = `
+<img src="${img.src}" />
+<div class="bar">
+    <button class="delete">&#10005;</button>
+    <button class="move_up">↑</button>
+    <button class="move_down">↓</button>
+    <span class='image-path'></span>
+    <span class='type'></span>
+</div>`;
+                    const elem = document.createElement("div");
+                    elem.innerHTML = html;
+                    elem.className = "multiimageupload_image";
+                    left.appendChild(elem);
+
+                    elem.dataset["imagePath"] = imagePath
+                    elem.dataset["imageIndex"] = "" + i;
+                    elem.querySelector(".image-path").innerText = imagePath
+                    elem.querySelector(".type").innerText = ""
+                    elem.querySelector(".delete").addEventListener("click", function(e) {
+                        const imageIndex = +this.parentNode.parentNode.dataset["imageIndex"]
+                        imagesWidget._real_value.splice(imageIndex, 1)
+                        imagesWidget.value = imagesWidget._real_value
+                        node.imgs.splice(imageIndex, 1);
+                        node.imageIndex = null;
+                        node.setSizeForImage?.();
+                        inner_refresh();
+                    });
+                    const move_up = elem.querySelector(".move_up");
+                    move_up.disabled = i <= 0;
+                    move_up.addEventListener("click", function(e) {
+                        const imageIndex = +this.parentNode.parentNode.dataset["imageIndex"]
+                        if (imageIndex < 0)
+                            return;
+                        swap(imagesWidget.value, imageIndex, imageIndex - 1);
+                        swap(node.imgs, imageIndex, imageIndex - 1);
+                        inner_refresh();
+                    });
+                    const move_down = elem.querySelector(".move_down")
+                    move_down.disabled = i >= imagesWidget.value.length - 1;
+                    move_down.addEventListener("click", function(e) {
+                        const imageIndex = +this.parentNode.parentNode.dataset["imageIndex"]
+                        if (imageIndex > imagesWidget.value.length - 1)
+                            return;
+                        swap(imagesWidget.value, imageIndex, imageIndex + 1);
+                        swap(node.imgs, imageIndex, imageIndex + 1);
+                        inner_refresh();
+                    });
+                }
+            }
+        }
+
+        inner_refresh();
+        document.body.appendChild(panel);
+	}, { serialize: false });
+
+	const uploadWidget = node.addWidget("button", "choose files to upload", "images", () => {
 		fileInput.value = null;
 		fileInput.click();
 	}, { serialize: false });
 
-	clearWidget = node.addWidget("button", "clear all uploads", "images", () => {
+	const clearWidget = node.addWidget("button", "clear all uploads", "images", () => {
 		imagesWidget.value = []
 		showImages(imagesWidget.value);
 	}, { serialize: false });

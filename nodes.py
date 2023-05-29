@@ -1125,9 +1125,12 @@ class LoadImageBatch:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        output_dir = folder_paths.get_output_directory()
+        file_dict = {}
+        file_dict["input"] = sorted(f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)))
+        file_dict["output"] = sorted(f for f in os.listdir(output_dir) if os.path.isfile(os.path.join(output_dir, f)))
         return {"required":
-                    {"images": ("MULTIIMAGEUPLOAD", { "filepaths": sorted(files) } )},
+                    {"images": ("MULTIIMAGEUPLOAD", { "filepaths": file_dict } )},
                 }
 
     CATEGORY = "image"
@@ -1141,12 +1144,31 @@ class LoadImageBatch:
         output_images = []
         output_masks = []
 
-        for i in range(len(images)):
-            image_path = folder_paths.get_annotated_filepath(images[i])
+        loaded_images = []
 
+        for idx in range(len(images)):
+            image_path = folder_paths.get_annotated_filepath(images[idx])
             i = Image.open(image_path)
             i = ImageOps.exif_transpose(i)
+            loaded_images.append(i)
+
+        min_size = float('inf')
+        min_image = None
+
+        for image in loaded_images:
+            size = image.size[0] * image.size[1]
+            if size < min_size:
+                min_size = size
+                min_image = image
+
+        for idx in range(len(images)):
+            i = loaded_images[idx]
+
+            if i != min_image:
+                i = i.resize(min_image.size)
+
             image = i.convert("RGB")
+
             image = np.array(image).astype(np.float32) / 255.0
             image = torch.from_numpy(image)[None,]
             if 'A' in i.getbands():
@@ -1258,7 +1280,6 @@ class ImageScale:
         return (s,)
 
 class ImageInvert:
-
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",)}}
@@ -1274,7 +1295,6 @@ class ImageInvert:
 
 
 class ImagePadForOutpaint:
-
     @classmethod
     def INPUT_TYPES(s):
         return {
