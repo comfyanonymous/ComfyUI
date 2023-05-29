@@ -444,6 +444,7 @@ const IMAGEUPLOAD = (node, inputName, inputData, app) => {
 
 const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 	const imagesWidget = node.addWidget("text", inputName, inputData, () => {})
+	imagesWidget.disabled = true;
 
 	imagesWidget._filepaths = []
 	if (inputData[1] && inputData[1].filepaths) {
@@ -592,14 +593,13 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 	};
 
 	// On drop upload files
-	node.onDragDrop = function (e) {
+	node.onDragDrop = async (e) => {
 		console.log("onDragDrop called");
 		let handled = false;
-		for (const file of e.dataTransfer.files) {
-			if (file.type.startsWith("image/")) {
-				uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
-				handled = true;
-			}
+		const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith("image/"))
+		if (files) {
+			await uploadFiles(files, true);
+			handled = true;
 		}
 
 		return handled;
