@@ -125,6 +125,8 @@ def filter_files_extensions(files, extensions):
 
 def get_full_path(folder_name, filename):
     global folder_names_and_paths
+    if folder_name not in folder_names_and_paths:
+        return None
     folders = folder_names_and_paths[folder_name]
     filename = os.path.relpath(os.path.join("/", filename), "/")
     for x in folders[0]:
