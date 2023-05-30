@@ -1424,6 +1424,11 @@ export class ComfyApp {
 
 			const def = defs[node.type];
 
+			// HOTFIX: The current patch is designed to prevent the rest of the code from breaking due to primitive nodes,
+			//         and additional work is needed to consider the primitive logic in the refresh logic.
+			if(!def)
+				continue;
+
 			for(const widgetNum in node.widgets) {
 				const widget = node.widgets[widgetNum]
 				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
