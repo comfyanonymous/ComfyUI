@@ -286,15 +286,29 @@ def model_lora_keys(model, key_map={}):
 
     return key_map
 
+
 class ModelPatcher:
-    def __init__(self, model):
+    def __init__(self, model, size=0):
+        self.size = size
         self.model = model
         self.patches = []
         self.backup = {}
         self.model_options = {"transformer_options":{}}
+        self.model_size()
+
+    def model_size(self):
+        if self.size > 0:
+            return self.size
+        model_sd = self.model.state_dict()
+        size = 0
+        for k in model_sd:
+            t = model_sd[k]
+            size += t.nelement() * t.element_size()
+        self.size = size
+        return size
 
     def clone(self):
-        n = ModelPatcher(self.model)
+        n = ModelPatcher(self.model, self.size)
         n.patches = self.patches[:]
         n.model_options = copy.deepcopy(self.model_options)
         return n
