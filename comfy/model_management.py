@@ -15,9 +15,8 @@ vram_state = VRAMState.NORMAL_VRAM
 set_vram_to = VRAMState.NORMAL_VRAM
 
 total_vram = 0
-total_vram_available_mb = -1
 
-accelerate_enabled = False
+lowvram_available = True
 xpu_available = False
 
 directml_enabled = False
@@ -31,11 +30,12 @@ if args.directml is not None:
         directml_device = torch_directml.device(device_index)
     print("Using directml with device:", torch_directml.device_name(device_index))
     # torch_directml.disable_tiled_resources(True)
+    lowvram_available = False #TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
 try:
     import torch
     if directml_enabled:
-        total_vram = 4097 #TODO
+        pass #TODO
     else:
         try:
             import intel_extension_for_pytorch as ipex
@@ -46,7 +46,7 @@ try:
             total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
     total_ram = psutil.virtual_memory().total / (1024 * 1024)
     if not args.normalvram and not args.cpu:
-        if total_vram <= 4096:
+        if lowvram_available and total_vram <= 4096:
             print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
             set_vram_to = VRAMState.LOW_VRAM
         elif total_vram > total_ram * 1.1 and total_vram > 14336:
@@ -92,6 +92,7 @@ if ENABLE_PYTORCH_ATTENTION:
 
 if args.lowvram:
     set_vram_to = VRAMState.LOW_VRAM
+    lowvram_available = True
 elif args.novram:
     set_vram_to = VRAMState.NO_VRAM
 elif args.highvram:
@@ -103,18 +104,18 @@ if args.force_fp32:
     FORCE_FP32 = True
 
 
-if set_vram_to in (VRAMState.LOW_VRAM, VRAMState.NO_VRAM):
+
+if lowvram_available:
     try:
         import accelerate
-        accelerate_enabled = True
-        vram_state = set_vram_to
+        if set_vram_to in (VRAMState.LOW_VRAM, VRAMState.NO_VRAM):
+            vram_state = set_vram_to
     except Exception as e:
         import traceback
         print(traceback.format_exc())
-        print("ERROR: COULD NOT ENABLE LOW VRAM MODE.")
+        print("ERROR: LOW VRAM MODE NEEDS accelerate.")
+        lowvram_available = False
 
-    total_vram_available_mb = (total_vram - 1024) // 2
-    total_vram_available_mb = int(max(256, total_vram_available_mb))
 
 try:
     if torch.backends.mps.is_available():
@@ -199,22 +200,33 @@ def load_model_gpu(model):
         model.unpatch_model()
         raise e
 
-    model.model_patches_to(get_torch_device())
+    torch_dev = get_torch_device()
+    model.model_patches_to(torch_dev)
+
+    vram_set_state = vram_state
+    if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
+        model_size = model.model_size()
+        current_free_mem = get_free_memory(torch_dev)
+        lowvram_model_memory = int(max(256 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.2 ))
+        if model_size > (current_free_mem - (512 * 1024 * 1024)): #only switch to lowvram if really necessary
+            vram_set_state = VRAMState.LOW_VRAM
+
     current_loaded_model = model
-    if vram_state == VRAMState.CPU:
+
+    if vram_set_state == VRAMState.CPU:
         pass
-    elif vram_state == VRAMState.MPS:
+    elif vram_set_state == VRAMState.MPS:
         mps_device = torch.device("mps")
         real_model.to(mps_device)
         pass
-    elif vram_state == VRAMState.NORMAL_VRAM or vram_state == VRAMState.HIGH_VRAM:
+    elif vram_set_state == VRAMState.NORMAL_VRAM or vram_set_state == VRAMState.HIGH_VRAM:
         model_accelerated = False
         real_model.to(get_torch_device())
     else:
-        if vram_state == VRAMState.NO_VRAM:
+        if vram_set_state == VRAMState.NO_VRAM:
             device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
-        elif vram_state == VRAMState.LOW_VRAM:
-            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(total_vram_available_mb), "cpu": "16GiB"})
+        elif vram_set_state == VRAMState.LOW_VRAM:
+            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(lowvram_model_memory // (1024 * 1024)), "cpu": "16GiB"})
 
         accelerate.dispatch_model(real_model, device_map=device_map, main_device=get_torch_device())
         model_accelerated = True
