@@ -743,7 +743,7 @@ def load_controlnet(ckpt_path, model=None):
                                         use_spatial_transformer=True,
                                         transformer_depth=1,
                                         context_dim=context_dim,
-                                        use_checkpoint=True,
+                                        use_checkpoint=False,
                                         legacy=False,
                                         use_fp16=use_fp16)
     else:
@@ -760,7 +760,7 @@ def load_controlnet(ckpt_path, model=None):
                                         use_linear_in_transformer=True,
                                         transformer_depth=1,
                                         context_dim=context_dim,
-                                        use_checkpoint=True,
+                                        use_checkpoint=False,
                                         legacy=False,
                                         use_fp16=use_fp16)
     if pth:
@@ -1045,7 +1045,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     }
 
     unet_config = {
-        "use_checkpoint": True,
+        "use_checkpoint": False,
         "image_size": 32,
         "out_channels": 4,
         "attention_resolutions": [
