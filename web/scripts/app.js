@@ -1010,7 +1010,7 @@ export class ComfyApp {
 		const app = this;
 		// Load node definitions from the backend
 		const defs = await api.getNodeDefs();
-		this.registerNodesFromDefs(defs);
+		await this.registerNodesFromDefs(defs);
 		await this.#invokeExtensionsAsync("registerCustomNodes");
 	}
 
