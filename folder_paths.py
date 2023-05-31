@@ -154,7 +154,8 @@ def get_filename_list_(folder_name):
         output_list.update(filter_files_extensions(files, folders[1]))
         output_folders = {**output_folders, **folders_all}
 
-    return (sorted(list(output_list)), output_folders)
+    result = [x for x in output_list if x is not None]
+    return (sorted(result), output_folders)
 
 def cached_filename_list_(folder_name):
     global filename_list_cache
