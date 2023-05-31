@@ -75,7 +75,6 @@ class ComfyApi extends EventTarget {
 					const view = new DataView(event.data);
 					const eventType = view.getUint32(0);
 					const buffer = event.data.slice(4);
-					console.error("BINARY", eventType);
 					switch (eventType) {
 					case 1:
 						const view2 = new DataView(event.data);
@@ -89,8 +88,8 @@ class ComfyApi extends EventTarget {
 							case 2:
 								imageMime = "image/png"
 						}
-						const jpegBlob = new Blob([buffer.slice(4)], { type: imageMime });
-						this.dispatchEvent(new CustomEvent("b_preview", { detail: jpegBlob }));
+						const imageBlob = new Blob([buffer.slice(4)], { type: imageMime });
+						this.dispatchEvent(new CustomEvent("b_preview", { detail: imageBlob }));
 						break;
 					default:
 						throw new Error(`Unknown binary websocket message of type ${eventType}`);
