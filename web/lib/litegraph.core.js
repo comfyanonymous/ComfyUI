@@ -7140,6 +7140,8 @@ LGraphNode.prototype.executeAction = function(action)
         var selected_nodes_array = [];
         for (var i in this.selected_nodes) {
             var node = this.selected_nodes[i];
+            if (!node.clonable)
+                continue;
             node._relative_id = index;
             selected_nodes_array.push(node);
             index += 1;
@@ -14408,6 +14410,10 @@ if (typeof exports != "undefined") {
         this.size = [140, 80];
         this.properties = { enabled: true };
         this.enabled = true;
+		// TEMP: Until ID reassignment is implemented
+		if (LiteGraph.use_uuids) {
+			this.clonable = false;
+		}
 
         //create inner graph
         this.subgraph = new LiteGraph.LGraph();
