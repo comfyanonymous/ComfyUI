@@ -3,6 +3,7 @@ import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { locateUpstreamNode, promptToGraphVis } from "./graphUtils.js";
 
 /** 
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -49,6 +50,12 @@ export class ComfyApp {
 		 * @type {Record<string, Image>}
 		 */
 		this.nodePreviewImages = {};
+
+		 * Stores `true` for nodes that are executing (the node or its parent subgraphs)
+		 * @type {Set<string>}
+		 */
+		this.nodesExecuting = new Set();
+
 
 		/**
 		 * If the shift key on the keyboard is pressed
@@ -835,7 +842,8 @@ export class ComfyApp {
 
 			let color = null;
 			let lineWidth = 1;
-			if (node.id === +self.runningNodeId) {
+			const isExecuting = self.nodesExecuting.has(String(node.id))
+			if (isExecuting) {
 				color = "#0f0";
 			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
 				color = "dodgerblue";
@@ -880,7 +888,7 @@ export class ComfyApp {
 				ctx.globalAlpha = 1;
 			}
 
-			if (self.progress && node.id === +self.runningNodeId) {
+			if (self.progress && isExecuting) {
 				ctx.fillStyle = "green";
 				ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
 				ctx.fillStyle = bgcolor;
@@ -946,22 +954,36 @@ export class ComfyApp {
 		api.addEventListener("executing", ({ detail }) => {
 			this.progress = null;
 			this.runningNodeId = detail;
+			this.nodesExecuting.clear();
+			if (this.runningNodeId != null) {
+				let nodeId = parseInt(this.runningNodeId)
+				if (isNaN(nodeId)) {
+					// UUID instead of a numeric string
+					nodeId = this.runningNodeId;
+				}
+				let node = this.graph.getNodeByIdRecursive(nodeId)
+				while (node) {
+					this.nodesExecuting.add(String(node.id));
+					node = node.graph?._subgraph_node
+				}
+				console.warn(this.nodesExecuting, "EXEC", nodeId)
+			}
 			this.graph.setDirtyCanvas(true, false);
 			delete this.nodePreviewImages[this.runningNodeId]
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
-			const node = this.graph.getNodeById(detail.node);
-			if (node) {
-				if (node.onExecuted)
-					node.onExecuted(detail.output);
+			const node = this.graph.getNodeByIdRecursive(detail.node);
+			if (node?.onExecuted) {
+				node.onExecuted(detail.output);
 			}
 		});
 
 		api.addEventListener("execution_start", ({ detail }) => {
 			this.runningNodeId = null;
 			this.lastExecutionError = null
+			this.nodesExecuting.clear();
 		});
 
 		api.addEventListener("execution_error", ({ detail }) => {
@@ -1011,6 +1033,10 @@ export class ComfyApp {
 	 * Set up the app on the page
 	 */
 	async setup() {
+		LiteGraph.use_uuids = true;
+		LiteGraph.registered_node_types["graph/input"].skip_list = true;
+		LiteGraph.registered_node_types["graph/output"].skip_list = true;
+
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
@@ -1280,15 +1306,58 @@ export class ComfyApp {
 		}
 	}
 
+	async serializeWidgetValues(node) {
+		const widgets = node.widgets;
+		const widgetValues = {}
+
+		// Store all widget values
+		if (widgets) {
+			for (const i in widgets) {
+				const widget = widgets[i];
+				if (!widget.options || widget.options.serialize !== false) {
+					widgetValues[widget.name] = widget.serializeValue ? await widget.serializeValue(node, i) : widget.value;
+				}
+			}
+		}
+
+		return widgetValues
+	}
+
+	serializeNodeLinks(node) {
+		if (!node.inputs)
+			return {}
+
+		const nodeLinks = {}
+
+		// Find a ComfyUI node upstream following before any number of litegraph nodes
+		const test = (node) => node.comfyClass != null;
+
+		// Store links between ComfyUI and litegraph nodes
+		for (let i = 0; i < node.inputs.length; i++) {
+			const [comfyUINode, linkLeadingTo] = locateUpstreamNode(test, node, i)
+			if (comfyUINode) {
+				console.debug("[serializeNodeLinks] final link", comfyUINode.id, "-->", node.id)
+				const input = node.inputs[i]
+				if (!(input.name in nodeLinks))
+					nodeLinks[input.name] = [String(linkLeadingTo.origin_id), linkLeadingTo.origin_slot];
+			}
+			else {
+				console.warn("[serializeNodeLinks] Didn't find upstream link!", node.id, node.type, node.title)
+			}
+		}
+
+		return nodeLinks
+	}
+
 	/**
 	 * Converts the current graph workflow for sending to the API
 	 * @returns The workflow and node links
 	 */
-	async graphToPrompt() {
-		const workflow = this.graph.serialize();
+	async graphToPrompt(graph) {
+		const workflow = graph.serialize();
 		const output = {};
 		// Process nodes in order of execution
-		for (const node of this.graph.computeExecutionOrder(false)) {
+		for (const node of graph.computeExecutionOrderRecursive(false)) {
 			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
@@ -1299,46 +1368,23 @@ export class ComfyApp {
 				continue;
 			}
 
+			if (node.comfyClass == null) {
+				// Skip built-in nodes (like Subgraph)
+				continue
+			}
+
 			if (node.mode === 2) {
 				// Don't serialize muted nodes
 				continue;
 			}
 
 			const inputs = {};
-			const widgets = node.widgets;
 
-			// Store all widget values
-			if (widgets) {
-				for (const i in widgets) {
-					const widget = widgets[i];
-					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
-					}
-				}
-			}
-
-			// Store all node links
-			for (let i in node.inputs) {
-				let parent = node.getInputNode(i);
-				if (parent) {
-					let link = node.getInputLink(i);
-					while (parent && parent.isVirtualNode) {
-						link = parent.getInputLink(link.origin_slot);
-						if (link) {
-							parent = parent.getInputNode(link.origin_slot);
-						} else {
-							parent = null;
-						}
-					}
-
-					if (link) {
-						inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
-					}
-				}
-			}
+			const widgetValues = await this.serializeWidgetValues(node);
+			const links = this.serializeNodeLinks(node);
 
 			output[String(node.id)] = {
-				inputs,
+				inputs: { ...widgetValues, ...links },
 				class_type: node.comfyClass,
 			};
 		}
@@ -1411,7 +1457,7 @@ export class ComfyApp {
 				({ number, batchCount } = this.#queueItems.pop());
 
 				for (let i = 0; i < batchCount; i++) {
-					const p = await this.graphToPrompt();
+					const p = await this.graphToPrompt(this.graph);
 
 					try {
 						await api.queuePrompt(number, p);
@@ -1422,11 +1468,12 @@ export class ComfyApp {
 							this.lastPromptError = error.response;
 							this.canvas.draw(true, true);
 						}
+						console.error(p);
+						console.error(promptToGraphVis(p));
 						break;
 					}
 
-					for (const n of p.workflow.nodes) {
-						const node = graph.getNodeById(n.id);
+					for (const node of graph.computeExecutionOrderRecursive(false)) {
 						if (node.widgets) {
 							for (const widget of node.widgets) {
 								// Allow widgets to run callbacks after a prompt has been queued
@@ -1525,6 +1572,7 @@ export class ComfyApp {
 	clean() {
 		this.nodeOutputs = {};
 		this.nodePreviewImages = {}
+		this.nodesExecuting = new Set();
 		this.lastPromptError = null;
 		this.lastExecutionError = null;
 		this.runningNodeId = null;
