@@ -17,17 +17,17 @@ config:
     # Extra paths to scan for model files.
     extra_model_paths:
       a1111:
-        checkpoints: models/Stable-diffusion
-        vae: models/VAE
         hypernetworks: models/hypernetworks
         base_path: path/to/stable-diffusion-webui/
-        upscale_models: |
-          models/ESRGAN
-          models/SwinIR
+        embeddings: embeddings
         controlnet: models/ControlNet
         configs: models/Stable-diffusion
         loras: models/Lora
-        embeddings: embeddings
+        vae: models/VAE
+        checkpoints: models/Stable-diffusion
+        upscale_models: |
+          models/ESRGAN
+          models/SwinIR
 
     # Set the ComfyUI output directory. Leave empty to use the default.
     # Type: str
@@ -70,8 +70,8 @@ config:
     # Type of cross attention to use
     # Choices:
     #  - (empty): Don't use cross-attention.
-    #  - split: By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.
-    #  - pytorch: Used to force normal vram use if lowvram gets automatically enabled.
+    #  - split: Use the split cross attention optimization instead of the sub-quadratic one. Ignored when xformers is used.
+    #  - pytorch: Use the new pytorch 2.0 cross attention function.
     cross_attention:
 
     # Disable xformers.

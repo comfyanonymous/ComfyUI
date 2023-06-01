@@ -302,8 +302,8 @@ CONFIG_OPTIONS = [
         OptionInfo("directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1,
                    help="Use torch-directml."),
         OptionInfoEnum("cross-attention", [
-            OptionInfoEnumChoice("split", option_name="use-split-cross-attention", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory."),
-            OptionInfoEnumChoice("pytorch", option_name="use-pytorch-cross-attention", help="Used to force normal vram use if lowvram gets automatically enabled."),
+            OptionInfoEnumChoice("split", option_name="use-split-cross-attention", help="Use the split cross attention optimization instead of the sub-quadratic one. Ignored when xformers is used."),
+            OptionInfoEnumChoice("pytorch", option_name="use-pytorch-cross-attention", help="Use the new pytorch 2.0 cross attention function."),
         ], help="Type of cross attention to use", empty_help="Don't use cross-attention."),
         OptionInfoFlag("disable-xformers",
                        help="Disable xformers."),
