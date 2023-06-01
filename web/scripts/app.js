@@ -1010,6 +1010,11 @@ export class ComfyApp {
 		const app = this;
 		// Load node definitions from the backend
 		const defs = await api.getNodeDefs();
+		await this.registerNodesFromDefs(defs);
+		await this.#invokeExtensionsAsync("registerCustomNodes");
+	}
+
+    async registerNodesFromDefs(defs) {
 		await this.#invokeExtensionsAsync("addCustomNodeDefs", defs);
 
 		// Generate list of known widgets
@@ -1082,8 +1087,6 @@ export class ComfyApp {
 			LiteGraph.registerNodeType(nodeId, node);
 			node.category = nodeData.category;
 		}
-
-		await this.#invokeExtensionsAsync("registerCustomNodes");
 	}
 
 	/**
