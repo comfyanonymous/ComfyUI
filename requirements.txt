@@ -8,5 +8,6 @@ safetensors>=0.3.0
 pytorch_lightning
 aiohttp
 accelerate
+pyyaml
 ruamel.yaml
 pytest
