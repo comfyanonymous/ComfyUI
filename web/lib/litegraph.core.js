@@ -7140,8 +7140,8 @@ LGraphNode.prototype.executeAction = function(action)
         var selected_nodes_array = [];
         for (var i in this.selected_nodes) {
             var node = this.selected_nodes[i];
-            if (!node.clonable)
-                continue;
+			if (node.clonable === false)
+				continue;
             node._relative_id = index;
             selected_nodes_array.push(node);
             index += 1;
@@ -13014,7 +13014,7 @@ LGraphNode.prototype.executeAction = function(action)
 		var newSelected = {};
 		
 		var fApplyMultiNode = function(node){
-			if (node.clonable == false) {
+			if (node.clonable === false) {
 				return;
 			}
 			var newnode = node.clone();
@@ -14410,10 +14410,6 @@ if (typeof exports != "undefined") {
         this.size = [140, 80];
         this.properties = { enabled: true };
         this.enabled = true;
-		// TEMP: Until ID reassignment is implemented
-		if (LiteGraph.use_uuids) {
-			this.clonable = false;
-		}
 
         //create inner graph
         this.subgraph = new LiteGraph.LGraph();
@@ -14685,9 +14681,92 @@ if (typeof exports != "undefined") {
     };
     //no need to define node.configure, the default method detects node.subgraph and passes the object to node.subgraph.configure()
 
+    Subgraph.prototype.reassignSubgraphUUIDs = function(graph) {
+        const idMap = { nodeIDs: {}, linkIDs: {} }
+
+        for (const node of graph.nodes) {
+            const oldID = node.id
+            const newID = LiteGraph.uuidv4()
+            node.id = newID
+
+            if (idMap.nodeIDs[oldID] || idMap.nodeIDs[newID]) {
+                throw new Error(`New/old node UUID wasn't unique in changed map! ${oldID} ${newID}`)
+            }
+
+            idMap.nodeIDs[oldID] = newID
+            idMap.nodeIDs[newID] = oldID
+        }
+
+        for (const link of graph.links) {
+            const oldID = link[0]
+            const newID = LiteGraph.uuidv4();
+            link[0] = newID
+
+            if (idMap.linkIDs[oldID] || idMap.linkIDs[newID]) {
+                throw new Error(`New/old link UUID wasn't unique in changed map! ${oldID} ${newID}`)
+            }
+
+            idMap.linkIDs[oldID] = newID
+            idMap.linkIDs[newID] = oldID
+
+            const nodeFrom = link[1]
+            const nodeTo = link[3]
+
+            if (!idMap.nodeIDs[nodeFrom]) {
+                throw new Error(`Old node UUID not found in mapping! ${nodeFrom}`)
+            }
+
+            link[1] = idMap.nodeIDs[nodeFrom]
+
+            if (!idMap.nodeIDs[nodeTo]) {
+                throw new Error(`Old node UUID not found in mapping! ${nodeTo}`)
+            }
+
+            link[3] = idMap.nodeIDs[nodeTo]
+        }
+
+        // Reconnect links
+        for (const node of graph.nodes) {
+			if (node.inputs) {
+				for (const input of node.inputs) {
+					if (input.link) {
+						input.link = idMap.linkIDs[input.link]
+					}
+				}
+			}
+			if (node.outputs) {
+				for (const output of node.outputs) {
+					if (output.links) {
+						output.links = output.links.map(l => idMap.linkIDs[l]);
+					}
+				}
+			}
+        }
+
+        // Recurse!
+        for (const node of graph.nodes) {
+            if (node.type === "graph/subgraph") {
+                const merge = reassignGraphUUIDs(node.subgraph);
+                idMap.nodeIDs.assign(merge.nodeIDs)
+                idMap.linkIDs.assign(merge.linkIDs)
+            }
+        }
+    };
+
     Subgraph.prototype.clone = function() {
         var node = LiteGraph.createNode(this.type);
         var data = this.serialize();
+
+        if (LiteGraph.use_uuids) {
+            // LGraph.serialize() seems to reuse objects in the original graph. But we
+            // need to change node IDs here, so clone it first.
+            const subgraph = LiteGraph.cloneObject(data.subgraph)
+
+            this.reassignSubgraphUUIDs(subgraph);
+
+            data.subgraph = subgraph;
+        }
+
         delete data["id"];
         delete data["inputs"];
         delete data["outputs"];
