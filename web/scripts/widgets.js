@@ -581,9 +581,15 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 		if (graphCanvas == null)
 			return;
 
-		const panel = graphCanvas.createPanel("Pick Images", { closable: true });
-        panel.node = node;
-        panel.classList.add("multiimageupload_dialog");
+		if (imagesWidget.panel != null)
+			return
+
+		imagesWidget.panel = graphCanvas.createPanel("Pick Images", { closable: true });
+		imagesWidget.panel.onClose = () => {
+			imagesWidget.panel = null;
+		}
+        imagesWidget.panel.node = node;
+        imagesWidget.panel.classList.add("multiimageupload_dialog");
         const swap = (arr, i, j) => {
             const temp = arr[i];
             arr[i] = arr[j];
@@ -596,7 +602,7 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 <div class="right">
 </div>
 `;
-		const rootElem = panel.addHTML(rootHtml, "root");
+		const rootElem = imagesWidget.panel.addHTML(rootHtml, "root");
 		const left = rootElem.querySelector('.left')
 		const right = rootElem.querySelector('.right')
 
@@ -659,13 +665,23 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 			inner_refresh();
 		})
 
-		const clearButton = panel.addButton("Clear", () => {
+		imagesWidget.panel.footer.style.display = "flex";
+
+		const clearButton = imagesWidget.panel.addButton("Clear", () => {
 			imagesWidget.value = []
 			showImages(imagesWidget.value);
 			inner_refresh();
 		})
 		clearButton.style.display = "block";
 		clearButton.style.marginLeft = "initial";
+		clearButton.style.height = "28px";
+
+		const okButton = imagesWidget.panel.addButton("OK", () => {
+			imagesWidget.panel.close();
+		})
+		okButton.style.display = "block";
+		okButton.style.height = "28px";
+		okButton.style.marginLeft = "auto";
 
 		const inner_refresh = () => {
 			left.innerHTML = ""
@@ -729,7 +745,7 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
         }
 
         inner_refresh();
-        document.body.appendChild(panel);
+        document.body.appendChild(imagesWidget.panel);
 	}, { serialize: false });
 
 	const uploadWidget = node.addWidget("button", "choose files to upload", "images", () => {
