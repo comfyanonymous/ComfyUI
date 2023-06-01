@@ -601,6 +601,7 @@ def broadcast_image_to(tensor, target_batch_size, batched_number):
 
 class ControlNet:
     def __init__(self, control_model, device=None):
+        self.aitemplate = None
         self.control_model = control_model
         self.cond_hint_original = None
         self.cond_hint = None
@@ -609,6 +610,31 @@ class ControlNet:
             device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
+
+    def aitemplate_controlnet(
+        self, latent_model_input, timesteps, encoder_hidden_states, controlnet_cond
+    ):
+        if self.aitemplate is None:
+            raise RuntimeError("No aitemplate loaded")
+        batch = latent_model_input.shape[0]
+        timesteps_pt = timesteps.expand(batch * 2)
+        inputs = {
+            "input0": latent_model_input.permute((0, 2, 3, 1))
+            .contiguous()
+            .cuda()
+            .half(),
+            "input1": timesteps_pt.cuda().half(),
+            "input2": encoder_hidden_states.cuda().half(),
+            "input3": controlnet_cond.permute((0, 2, 3, 1)).contiguous().cuda().half(),
+        }
+        ys = []
+        num_outputs = len(self.aitemplate.get_output_name_to_index_map())
+        for i in range(num_outputs):
+            shape = self.aitemplate.get_output_maximum_shape(i)
+            ys.append(torch.empty(shape).cuda().half())
+        self.aitemplate.run_with_tensors(inputs, ys, graph_mode=False)
+        return ys
+
 
     def get_control(self, x_noisy, t, cond_txt, batched_number):
         control_prev = None
@@ -623,16 +649,18 @@ class ControlNet:
             self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").to(self.control_model.dtype).to(self.device)
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
+        if self.aitemplate is None:
+            if self.control_model.dtype == torch.float16:
+                precision_scope = torch.autocast
+            else:
+                precision_scope = contextlib.nullcontext
 
-        if self.control_model.dtype == torch.float16:
-            precision_scope = torch.autocast
+            with precision_scope(model_management.get_autocast_device(self.device)):
+                self.control_model = model_management.load_if_low_vram(self.control_model)
+                control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
+                self.control_model = model_management.unload_if_low_vram(self.control_model)
         else:
-            precision_scope = contextlib.nullcontext
-
-        with precision_scope(model_management.get_autocast_device(self.device)):
-            self.control_model = model_management.load_if_low_vram(self.control_model)
-            control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=cond_txt)
-            self.control_model = model_management.unload_if_low_vram(self.control_model)
+            control = self.aitemplate_controlnet(x_noisy, t, cond_txt, self.cond_hint)
         out = {'middle':[], 'output': []}
         autocast_enabled = torch.is_autocast_enabled()
 

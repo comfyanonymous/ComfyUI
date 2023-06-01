@@ -505,11 +505,16 @@ class AITemplateModelWrapper(torch.nn.Module):
         timesteps_pt = t
         latent_model_input = x
         encoder_hidden_states = None
+        down_block_residuals = None
+        mid_block_residual = None
         #TODO: verify this is correct/match DiffusionWrapper (ddpm.py)
         if 'c_crossattn' in cond:
             encoder_hidden_states = cond['c_crossattn']
         if 'c_concat' in cond:
             encoder_hidden_states = cond['c_concat']
+        if "control" in cond:
+            down_block_residuals = cond["control"]["output"]
+            mid_block_residual = cond["control"]["middle"][0]
         if encoder_hidden_states is None:
             raise f"conditioning missing, it should be one of these {cond.keys()}"
         if type(encoder_hidden_states) is list:
@@ -525,6 +530,10 @@ class AITemplateModelWrapper(torch.nn.Module):
             "input1": timesteps_pt.cuda().half(),
             "input2": encoder_hidden_states.cuda().half(),
         }
+        if down_block_residuals is not None and mid_block_residual is not None:
+            for i, y in enumerate(down_block_residuals):
+                inputs[f"down_block_residual_{i}"] = y.permute((0, 2, 3, 1)).contiguous().cuda().half()
+            inputs["mid_block_residual"] = mid_block_residual.permute((0, 2, 3, 1)).contiguous().cuda().half()
         ys = []
         num_outputs = len(self.unet_ait_exe.get_output_name_to_index_map())
         for i in range(num_outputs):
