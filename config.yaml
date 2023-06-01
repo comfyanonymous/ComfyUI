@@ -17,17 +17,17 @@ config:
     # Extra paths to scan for model files.
     extra_model_paths:
       a1111:
-        base_path: path/to/stable-diffusion-webui/
         checkpoints: models/Stable-diffusion
-        configs: models/Stable-diffusion
         vae: models/VAE
-        loras: models/Lora
+        hypernetworks: models/hypernetworks
+        base_path: path/to/stable-diffusion-webui/
         upscale_models: |
           models/ESRGAN
           models/SwinIR
-        embeddings: embeddings
-        hypernetworks: models/hypernetworks
         controlnet: models/ControlNet
+        configs: models/Stable-diffusion
+        loras: models/Lora
+        embeddings: embeddings
 
     # Set the ComfyUI output directory. Leave empty to use the default.
     # Type: str
