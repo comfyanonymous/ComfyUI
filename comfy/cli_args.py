@@ -1,3 +1,4 @@
+import sys
 import os.path
 import pprint
 import argparse
@@ -19,7 +20,7 @@ class AbstractOptionInfo:
     name: str
     raw_output: bool
 
-    def add_argument(self, parser):
+    def add_argument(self, parser, suppress):
         """
         Adds an argument to the argparse parser
         """
@@ -67,8 +68,11 @@ class OptionInfo(AbstractOptionInfo):
     def __repr__(self):
         return f'OptionInfo(\'{self.name}\', {pprint.pformat(self.parser_args)})'
 
-    def add_argument(self, parser):
-        parser.add_argument(f"--{self.name}", **self.parser_args)
+    def add_argument(self, parser, suppress=False):
+        parser_args = dict(self.parser_args)
+        if suppress:
+            parser_args["default"] = argparse.SUPPRESS
+        parser.add_argument(f"--{self.name}", **parser_args)
 
     def get_arg_defaults(self, parser):
         return { self.name: parser.get_default(self.name) }
@@ -99,8 +103,11 @@ class OptionInfoFlag(AbstractOptionInfo):
     def __repr__(self):
         return f'OptionInfoFlag(\'{self.name}\', {pprint.pformat(self.parser_args)})'
 
-    def add_argument(self, parser):
-        parser.add_argument(f"--{self.name}", action="store_true", **self.parser_args)
+    def add_argument(self, parser, suppress):
+        parser_args = dict(self.parser_args)
+        if suppress:
+            parser_args["default"] = argparse.SUPPRESS
+        parser.add_argument(f"--{self.name}", action="store_true", **parser_args)
 
     def get_arg_defaults(self, parser):
         return { self.name.replace("-", "_"): parser.get_default(self.name) or False }
@@ -132,13 +139,19 @@ class OptionInfoEnum(AbstractOptionInfo):
     def __repr__(self):
         return f'OptionInfoEnum(\'{self.name}\', {pprint.pformat(self.options)})'
 
-    def add_argument(self, parser):
+    def add_argument(self, parser, suppress):
         group = parser.add_mutually_exclusive_group()
+        default = None
+        if suppress:
+            default = argparse.SUPPRESS
         for option in self.options:
-            group.add_argument(f"--{option.option_name}", action="store_true", help=option.help)
+            group.add_argument(f"--{option.option_name}", action="store_true", help=option.help, default=default)
 
     def get_arg_defaults(self, parser):
-        return {} # treat as no flag in the group being passed
+        result = {}
+        for option in self.options:
+            result[option.option_name.replace("-", "_")] = False
+        return result
 
     def get_help(self):
         if self.help is None:
@@ -197,7 +210,7 @@ class OptionInfoRaw:
         self.parser_args = {}
         self.raw_output = True
 
-    def add_argument(self, parser):
+    def add_argument(self, parser, suppress):
         pass
 
     def get_help(self):
@@ -267,12 +280,12 @@ CONFIG_OPTIONS = [
 # Config parser
 #
 
-def make_config_parser(option_infos):
+def make_config_parser(option_infos, suppress=False):
     parser = argparse.ArgumentParser()
 
     for category, options in option_infos:
         for option in options:
-            option.add_argument(parser)
+            option.add_argument(parser, suppress)
 
     return parser
 
@@ -402,10 +415,18 @@ class ComfyConfigLoader:
         with open(self.config_path, 'w') as f:
             yaml.dump(options, f)
 
-    def get_cli_arguments(self):
-        return vars(self.parser.parse_args())
+    def get_cli_arguments(self, argv):
+        # first parse regularly and exit if an error is found
+        self.parser.parse_args(argv)
 
-    def parse_args(self):
+        # now create another parser that suppresses missing arguments (not
+        # user-specified) such that only the arguments passed will be put in the
+        # namespace. Without this every argument set in the config will be
+        # overridden because they're all present in the argparse.Namespace
+        suppressed_parser = make_config_parser(self.option_infos, suppress=True)
+        return vars(suppressed_parser.parse_args(argv))
+
+    def parse_args(self, argv):
         defaults = self.get_arg_defaults()
 
         if not os.path.isfile(self.config_path):
@@ -417,7 +438,7 @@ class ComfyConfigLoader:
         config_options = dict(merge_dicts(defaults, config_options))
         self.save_config(config_options)
 
-        cli_args = self.get_cli_arguments()
+        cli_args = self.get_cli_arguments(argv)
 
         args = dict(merge_dicts(config_options, cli_args))
         return argparse.Namespace(**args)
@@ -427,7 +448,7 @@ class ComfyConfigLoader:
 #
 
 config_loader = ComfyConfigLoader(folder_paths.default_config_path)
-args = config_loader.parse_args()
+args = config_loader.parse_args(sys.argv[1:])
 
 if args.windows_standalone_build:
     args.auto_launch = True
