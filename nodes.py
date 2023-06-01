@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "co
 from comfy.aitemplate.model import Model
 from comfy.ckpt_convert import convert_ldm_unet_checkpoint
 import comfy.diffusers_convert
+import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
 import comfy.sd
@@ -377,7 +378,7 @@ class DiffusersLoader:
                     model_path = path
                     break
 
-        return comfy.diffusers_convert.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return comfy.diffusers_load.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
@@ -527,6 +528,9 @@ class LoraLoader:
     CATEGORY = "loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+        if strength_model == 0 and strength_clip == 0:
+            return (model, clip)
+
         lora_path = folder_paths.get_full_path("loras", lora_name)
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora_path, strength_model, strength_clip)
         return (model_lora, clip_lora)
@@ -608,6 +612,9 @@ class ControlNetApply:
     CATEGORY = "conditioning"
 
     def apply_controlnet(self, conditioning, control_net, image, strength):
+        if strength == 0:
+            return (conditioning, )
+
         c = []
         control_hint = image.movedim(-1,1)
         for t in conditioning:
@@ -714,6 +721,9 @@ class unCLIPConditioning:
     CATEGORY = "conditioning"
 
     def apply_adm(self, conditioning, clip_vision_output, strength, noise_augmentation):
+        if strength == 0:
+            return (conditioning, )
+
         c = []
         for t in conditioning:
             o = t[1].copy()
@@ -850,7 +860,7 @@ class RepeatLatentBatch:
         return (s,)
 
 class LatentUpscale:
-    upscale_methods = ["nearest-exact", "bilinear", "area"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bislerp"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
@@ -867,6 +877,25 @@ class LatentUpscale:
     def upscale(self, samples, upscale_method, width, height, crop):
         s = samples.copy()
         s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
+        return (s,)
+
+class LatentUpscaleBy:
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bislerp"]
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
+                              "scale_by": ("FLOAT", {"default": 1.5, "min": 0.01, "max": 8.0, "step": 0.01}),}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "upscale"
+
+    CATEGORY = "latent"
+
+    def upscale(self, samples, upscale_method, scale_by):
+        s = samples.copy()
+        width = round(samples["samples"].shape[3] * scale_by)
+        height = round(samples["samples"].shape[2] * scale_by)
+        s["samples"] = comfy.utils.common_upscale(samples["samples"], width, height, upscale_method, "disabled")
         return (s,)
 
 class LatentRotate:
@@ -1372,6 +1401,7 @@ NODE_CLASS_MAPPINGS = {
     "VAELoader": VAELoader,
     "EmptyLatentImage": EmptyLatentImage,
     "LatentUpscale": LatentUpscale,
+    "LatentUpscaleBy": LatentUpscaleBy,
     "LatentFromBatch": LatentFromBatch,
     "RepeatLatentBatch": RepeatLatentBatch,
     "SaveImage": SaveImage,
@@ -1456,6 +1486,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentCrop": "Crop Latent",
     "EmptyLatentImage": "Empty Latent Image",
     "LatentUpscale": "Upscale Latent",
+    "LatentUpscaleBy": "Upscale Latent By",
     "LatentComposite": "Latent Composite",
     "LatentFromBatch" : "Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
