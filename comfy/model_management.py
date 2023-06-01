@@ -207,7 +207,7 @@ def load_model_gpu(model):
     if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
         model_size = model.model_size()
         current_free_mem = get_free_memory(torch_dev)
-        lowvram_model_memory = int(max(256 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.2 ))
+        lowvram_model_memory = int(max(256 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.3 ))
         if model_size > (current_free_mem - (512 * 1024 * 1024)): #only switch to lowvram if really necessary
             vram_set_state = VRAMState.LOW_VRAM
 
