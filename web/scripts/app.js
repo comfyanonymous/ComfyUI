@@ -1340,8 +1340,14 @@ export class ComfyApp {
 				for (let i = 0; i < batchCount; i++) {
 					const p = await this.graphToPrompt();
 
+					const settings = {};
+					for(let key in localStorage) {
+						if(key.startsWith("Comfy.Settings"))
+							settings[key.slice(15)] = localStorage[key];
+					}
+
 					try {
-						await api.queuePrompt(number, p);
+						await api.queuePrompt(number, p, settings);
 					} catch (error) {
 						const formattedError = this.#formatPromptError(error)
 						this.ui.dialog.show(formattedError);
