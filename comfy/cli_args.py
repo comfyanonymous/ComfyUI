@@ -74,7 +74,13 @@ class OptionInfo(AbstractOptionInfo):
         return { self.name: parser.get_default(self.name) }
 
     def get_help(self):
-        return self.parser_args.get("help")
+        help = self.parser_args.get("help")
+        if help is None:
+            return None
+        type = self.parser_args.get("type")
+        if type:
+            help += f"\nType: {type.__name__}"
+        return help
 
     def convert_to_args_array(self, value):
         if value is not None:
@@ -97,10 +103,14 @@ class OptionInfoFlag(AbstractOptionInfo):
         parser.add_argument(f"--{self.name}", action="store_true", **self.parser_args)
 
     def get_arg_defaults(self, parser):
-        return { self.name: parser.get_default(self.name) or False }
+        return { self.name.replace("-", "_"): parser.get_default(self.name) or False }
 
     def get_help(self):
-        return self.parser_args.get("help")
+        help = self.parser_args.get("help")
+        if help is None:
+            return None
+        help += "\nType: bool"
+        return help
 
     def convert_to_args_array(self, value):
         if value:
@@ -111,12 +121,13 @@ class OptionInfoFlag(AbstractOptionInfo):
         return args.get(self.name.replace("-", "_"), parser.get_default(self.name) or False)
 
 class OptionInfoEnum(AbstractOptionInfo):
-    def __init__(self, name, options, help=None):
+    def __init__(self, name, options, help=None, empty_help=None):
         self.name = name
         self.options = options
         self.help = help
+        self.empty_help = empty_help
         self.parser_args = {}
-        self.raw_output = False
+        self.raw_output = True
 
     def __repr__(self):
         return f'OptionInfoEnum(\'{self.name}\', {pprint.pformat(self.options)})'
@@ -130,13 +141,27 @@ class OptionInfoEnum(AbstractOptionInfo):
         return {} # treat as no flag in the group being passed
 
     def get_help(self):
-        return self.help
+        if self.help is None:
+            return None
+        help = self.help + "\nChoices:"
+
+        help += "\n - (empty)"
+        if self.empty_help is not None:
+            help += f": {self.empty_help}"
+
+        for option in self.options:
+            help += f"\n - {option.name}"
+            if option.help:
+                help += f": {option.help}"
+
+        return help
 
     def convert_to_args_array(self, file_value):
+        affected_options = [o.option_name.replace("-", "_") for o in self.options]
         for option in self.options:
             if option.name == file_value:
-                return [f"--{option.option_name}"]
-        return []
+                return ({ option.option_name: True }, affected_options)
+        return ({}, affected_options)
 
     def convert_to_file_option(self, parser, args):
         for option in self.options:
@@ -182,11 +207,14 @@ class OptionInfoRaw:
         return { self.name: {} }
 
     def convert_to_args_array(self, value):
-        return value
+        return { self.name: value }
 
     def convert_to_file_option(self, parser, args):
         return args.get(self.name.replace("-", "_"), {})
 
+#
+# Config options
+#
 
 CONFIG_OPTIONS = [
     ("network", [
@@ -198,7 +226,7 @@ CONFIG_OPTIONS = [
     ]),
     ("files", [
         OptionInfoRaw("extra-model-paths-config", help="Extra paths to scan for model files."),
-        OptionInfo("output-directory", type=str, default=None, help="Set the ComfyUI output directory."),
+        OptionInfo("output-directory", type=str, default=None, help="Set the ComfyUI output directory. Leave empty to use the default."),
     ]),
     ("behavior", [
         OptionInfoFlag("auto-launch",
@@ -212,7 +240,7 @@ CONFIG_OPTIONS = [
     ]),
     ("pytorch", [
         OptionInfo("cuda-device", type=int, default=None, metavar="DEVICE_ID",
-                   help="Set the id of the cuda device this instance will use."),
+                   help="Set the id of the cuda device this instance will use, or leave empty to autodetect."),
         OptionInfoFlag("dont-upcast-attention",
                        help="Disable upcasting of attention. Can boost speed but increase the chances of black images."),
         OptionInfoFlag("force-fp32",
@@ -222,7 +250,7 @@ CONFIG_OPTIONS = [
         OptionInfoEnum("cross-attention", [
             OptionInfoEnumChoice("split", option_name="use-split-cross-attention", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory."),
             OptionInfoEnumChoice("pytorch", option_name="use-pytorch-cross-attention", help="Used to force normal vram use if lowvram gets automatically enabled."),
-        ], help="Type of cross attention to use"),
+        ], help="Type of cross attention to use", empty_help="Don't use cross-attention."),
         OptionInfoFlag("disable-xformers",
                        help="Disable xformers."),
         OptionInfoEnum("vram", [
@@ -231,10 +259,13 @@ CONFIG_OPTIONS = [
             OptionInfoEnumChoice("lowvram", help="Split the unet in parts to use less vram."),
             OptionInfoEnumChoice("novram", help="When lowvram isn't enough."),
             OptionInfoEnumChoice("cpu", help="To use the CPU for everything (slow).")
-        ], help="Determines how VRAM is used.")
+        ], help="Determines how VRAM is used.", empty_help="Autodetect the optional VRAM settings based on hardware.")
     ])
 ]
 
+#
+# Config parser
+#
 
 def make_config_parser(option_infos):
     parser = argparse.ArgumentParser()
@@ -259,6 +290,22 @@ def merge_dicts(dict1, dict2):
             yield (k, dict1[k])
         else:
             yield (k, dict2[k])
+
+def recursive_delete_comment_attribs(d):
+    if isinstance(d, dict):
+        for k, v in d.items():
+            recursive_delete_comment_attribs(k)
+            recursive_delete_comment_attribs(v)
+    elif isinstance(d, list):
+        for elem in d:
+            recursive_delete_comment_attribs(elem)
+    try:
+         # literal scalarstring might have comment associated with them
+         attr = 'comment' if isinstance(d, ruamel.yaml.scalarstring.ScalarString) \
+                  else ruamel.yaml.comments.Comment.attrib
+         delattr(d, attr)
+    except AttributeError:
+        pass
 
 class ComfyConfigLoader:
     def __init__(self, config_path):
@@ -295,17 +342,33 @@ class ComfyConfigLoader:
                     option_info = next((o for o in options if o.name == kebab_k), None)
                     if option_info is not None:
                         known_args = option_info.convert_to_args_array(v)
+                        affected_options = [k]
+                        if isinstance(known_args, tuple):
+                            # Enum options can affect more than one flag in the
+                            # CLI args, so have to check multiple items in the
+                            # namespace argparse returns
+                            affected_options = known_args[1]
+                            known_args = known_args[0]
+
                         if option_info.raw_output:
-                            parsed = argparse.Namespace(**{ k: known_args })
+                            converted = {}
+                            for k, v in known_args.items():
+                                converted[k.replace("-", "_")] = v
+                            parsed = argparse.Namespace(**converted)
                             rest = None
                         else:
                             parsed, rest = self.parser.parse_known_args(known_args)
-                        print("---------------------")
-                        print(option_info.name)
-                        print(known_args)
-                        item = vars(parsed).get(k)
-                        if item is not None:
-                            config[k] = v
+
+                        parsed_vars = vars(parsed)
+
+                        # parse_known_args returns *all* options configured even
+                        # if they're not found in the argstring. So have to pick
+                        # out only the args affected by this option.
+                        for ka in affected_options:
+                            underscore_ka = ka.replace("-", "_")
+                            item = parsed_vars.get(underscore_ka)
+                            if item is not None:
+                                config[ka] = item
 
                         if rest:
                             print(f"Warning: unparsed args - {pprint.pformat(rest)}")
@@ -315,15 +378,22 @@ class ComfyConfigLoader:
     def convert_args_to_options(self, args):
         if isinstance(args, argparse.Namespace):
             args = vars(args)
+
+        # strip previous YAML comments
+        recursive_delete_comment_attribs(args)
+
         config = {}
         for category, options in self.option_infos:
             d = CM()
+            first = True
             for option in options:
                 k = option.name.replace('-', '_')
                 d[k] = option.convert_to_file_option(self.parser, args)
                 help = option.get_help()
                 if help is not None:
-                    d.yaml_set_comment_before_after_key(k, "\n" + help, indent=4)
+                    help_string = "\n" + help
+                    d.yaml_set_comment_before_after_key(k, help_string, indent=4)
+                first = False
             config[category] = d
         return { "config": config }
 
@@ -348,20 +418,16 @@ class ComfyConfigLoader:
         self.save_config(config_options)
 
         cli_args = self.get_cli_arguments()
-        print(cli_args)
 
         args = dict(merge_dicts(config_options, cli_args))
         return argparse.Namespace(**args)
 
+#
+# Load config and CLI args
+#
 
 config_loader = ComfyConfigLoader(folder_paths.default_config_path)
 args = config_loader.parse_args()
 
 if args.windows_standalone_build:
     args.auto_launch = True
-
-
-import pprint; pprint.pp(args)
-import pprint; pprint.pp(config_loader.convert_args_to_options(args))
-
-exit(1)
