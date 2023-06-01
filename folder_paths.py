@@ -181,7 +181,7 @@ def get_filename_list(folder_name):
         out = get_filename_list_(folder_name)
         global filename_list_cache
         filename_list_cache[folder_name] = out
-    return out[0]
+    return list(out[0])
 
 def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height=0):
     def map_filename(filename):
