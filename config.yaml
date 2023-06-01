@@ -15,7 +15,7 @@ config:
   files:
 
     # Extra paths to scan for model files.
-    extra_model_paths_config:
+    extra_model_paths:
       a111:
         base_path: path/to/stable-diffusion-webui/
         checkpoints: models/Stable-diffusion

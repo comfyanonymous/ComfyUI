@@ -3,9 +3,12 @@ import itertools
 import os
 import shutil
 import threading
+import pprint
 
 from comfy.cli_args import args
 import comfy.utils
+
+print("Configuration: " + str(vars(args)))
 
 if os.name == "nt":
     import logging
@@ -82,8 +85,8 @@ if __name__ == "__main__":
     if os.path.isfile(extra_model_paths_config_path):
         load_extra_path_config_file(extra_model_paths_config_path)
 
-    if args.extra_model_paths_config:
-        load_extra_path_config(args.extra_model_paths_config)
+    if args.extra_model_paths:
+        load_extra_path_config(args.extra_model_paths)
 
     init_custom_nodes()
     server.add_routes()

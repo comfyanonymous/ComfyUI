@@ -59,6 +59,15 @@ class AbstractOptionInfo:
         """
         pass
 
+    def validate(self, config_options, cli_args):
+        """
+        Modifies config_options to fix inconsistencies
+
+        Example: config sets an enum value, cli args sets another, the flags
+        should be removed from config_options
+        """
+        pass
+
 class OptionInfo(AbstractOptionInfo):
     def __init__(self, name, **parser_args):
         self.name = name
@@ -94,6 +103,9 @@ class OptionInfo(AbstractOptionInfo):
     def convert_to_file_option(self, parser, args):
         return args.get(self.name.replace("-", "_"), parser.get_default(self.name))
 
+    def validate(self, config_options, cli_args):
+        pass
+
 class OptionInfoFlag(AbstractOptionInfo):
     def __init__(self, name, **parser_args):
         self.name = name
@@ -126,6 +138,9 @@ class OptionInfoFlag(AbstractOptionInfo):
 
     def convert_to_file_option(self, parser, args):
         return args.get(self.name.replace("-", "_"), parser.get_default(self.name) or False)
+
+    def validate(self, config_options, cli_args):
+        pass
 
 class OptionInfoEnum(AbstractOptionInfo):
     def __init__(self, name, options, help=None, empty_help=None):
@@ -182,6 +197,12 @@ class OptionInfoEnum(AbstractOptionInfo):
                 return option.name
         return None
 
+    def validate(self, config_options, cli_args):
+        set_by_cli = any(o for o in self.options if cli_args.get(o.option_name.replace("-", "_")) is not None)
+        if set_by_cli:
+            for option in self.options:
+                config_options[option.option_name.replace("-", "_")] = False
+
 class OptionInfoEnumChoice:
     name: str
     option_name: str
@@ -225,6 +246,9 @@ class OptionInfoRaw:
     def convert_to_file_option(self, parser, args):
         return args.get(self.name.replace("-", "_"), {})
 
+    def validate(self, config_options, cli_args):
+        pass
+
 #
 # Config options
 #
@@ -238,7 +262,7 @@ CONFIG_OPTIONS = [
                    help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'."),
     ]),
     ("files", [
-        OptionInfoRaw("extra-model-paths-config", help="Extra paths to scan for model files."),
+        OptionInfoRaw("extra-model-paths", help="Extra paths to scan for model files."),
         OptionInfo("output-directory", type=str, default=None, help="Set the ComfyUI output directory. Leave empty to use the default."),
     ]),
     ("behavior", [
@@ -321,8 +345,7 @@ def recursive_delete_comment_attribs(d):
         pass
 
 class ComfyConfigLoader:
-    def __init__(self, config_path):
-        self.config_path = config_path
+    def __init__(self):
         self.option_infos = CONFIG_OPTIONS
         self.parser = make_config_parser(self.option_infos)
 
@@ -338,9 +361,8 @@ class ComfyConfigLoader:
 
         return defaults
 
-    def load_from_file(self, yaml_path):
-        with open(yaml_path, 'r') as stream:
-            raw_config = yaml.load(stream)
+    def load_from_string(self, raw_config):
+        raw_config = yaml.load(raw_config)
 
         config = {}
         root = raw_config.get("config", {})
@@ -410,9 +432,9 @@ class ComfyConfigLoader:
             config[category] = d
         return { "config": config }
 
-    def save_config(self, args):
+    def save_config(self, config_path, args):
         options = self.convert_args_to_options(args)
-        with open(self.config_path, 'w') as f:
+        with open(config_path, 'w') as f:
             yaml.dump(options, f)
 
     def get_cli_arguments(self, argv):
@@ -426,29 +448,41 @@ class ComfyConfigLoader:
         suppressed_parser = make_config_parser(self.option_infos, suppress=True)
         return vars(suppressed_parser.parse_args(argv))
 
-    def parse_args(self, argv):
+    def parse_args_with_file(self, yaml_path, argv):
+        if not os.path.isfile(yaml_path):
+            print(f"Warning: no config file at path '{yaml_path}', creating it")
+            raw_config = "{}"
+        else:
+            with open(yaml_path, 'r') as stream:
+                raw_config = stream.read()
+        return self.parse_args_with_string(raw_config, argv, save_config_file=yaml_path)
+
+    def parse_args_with_string(self, config_string, argv, save_config_file=None):
         defaults = self.get_arg_defaults()
 
-        if not os.path.isfile(self.config_path):
-            print(f"Warning: no config file at path '{self.config_path}', creating it")
-            config_options = {}
-        else:
-            config_options = self.load_from_file(self.config_path)
-
+        config_options = self.load_from_string(config_string)
         config_options = dict(merge_dicts(defaults, config_options))
-        self.save_config(config_options)
+        if save_config_file:
+            self.save_config(save_config_file, config_options)
 
         cli_args = self.get_cli_arguments(argv)
+
+        for category, options in self.option_infos:
+            for option in options:
+                option.validate(config_options, cli_args)
 
         args = dict(merge_dicts(config_options, cli_args))
         return argparse.Namespace(**args)
 
-#
-# Load config and CLI args
-#
+args = {}
 
-config_loader = ComfyConfigLoader(folder_paths.default_config_path)
-args = config_loader.parse_args(sys.argv[1:])
+if "pytest" not in sys.modules:
+    #
+    # Load config and CLI args
+    #
 
-if args.windows_standalone_build:
-    args.auto_launch = True
+    config_loader = ComfyConfigLoader()
+    args = config_loader.parse_args_with_file(folder_paths.default_config_path, sys.argv[1:])
+
+    if args.windows_standalone_build:
+        args.auto_launch = True
