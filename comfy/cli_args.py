@@ -4,6 +4,7 @@ import pprint
 import argparse
 import ruamel.yaml
 import folder_paths
+import copy
 
 yaml = ruamel.yaml.YAML()
 yaml.default_flow_style = False
@@ -225,9 +226,10 @@ class OptionInfoRaw:
     Raw YAML input and output, ignores argparse entirely
     """
 
-    def __init__(self, name, help=None):
+    def __init__(self, name, help=None, default=None):
         self.name = name
         self.help = help
+        self.default = default or {}
         self.parser_args = {}
         self.raw_output = True
 
@@ -238,13 +240,13 @@ class OptionInfoRaw:
         return self.help
 
     def get_arg_defaults(self, parser):
-        return { self.name: {} }
+        return { self.name: copy.copy(self.default) }
 
     def convert_to_args_array(self, value):
         return { self.name: value }
 
     def convert_to_file_option(self, parser, args):
-        return args.get(self.name.replace("-", "_"), {})
+        return args.get(self.name.replace("-", "_"), copy.copy(self.default))
 
     def validate(self, config_options, cli_args):
         pass
@@ -252,6 +254,21 @@ class OptionInfoRaw:
 #
 # Config options
 #
+
+DEFAULT_EXTRA_MODEL_PATHS_CONFIG = yaml.load("""
+a1111:
+  base_path: path/to/stable-diffusion-webui/
+  checkpoints: models/Stable-diffusion
+  configs: models/Stable-diffusion
+  vae: models/VAE
+  loras: models/Lora
+  upscale_models: |
+    models/ESRGAN
+    models/SwinIR
+  embeddings: embeddings
+  hypernetworks: models/hypernetworks
+  controlnet: models/ControlNet
+""")
 
 CONFIG_OPTIONS = [
     ("network", [
@@ -262,7 +279,7 @@ CONFIG_OPTIONS = [
                    help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'."),
     ]),
     ("files", [
-        OptionInfoRaw("extra-model-paths", help="Extra paths to scan for model files."),
+        OptionInfoRaw("extra-model-paths", help="Extra paths to scan for model files.", default=DEFAULT_EXTRA_MODEL_PATHS_CONFIG),
         OptionInfo("output-directory", type=str, default=None, help="Set the ComfyUI output directory. Leave empty to use the default."),
     ]),
     ("behavior", [
@@ -362,7 +379,7 @@ class ComfyConfigLoader:
         return defaults
 
     def load_from_string(self, raw_config):
-        raw_config = yaml.load(raw_config)
+        raw_config = yaml.load(raw_config) or {}
 
         config = {}
         root = raw_config.get("config", {})

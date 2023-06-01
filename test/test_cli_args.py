@@ -10,6 +10,10 @@ def test_defaults():
     assert args.listen == "127.0.0.1"
     assert args.novram == False
 
+    extra_paths = args.extra_model_paths.get("a1111")
+    assert extra_paths is not None
+    assert extra_paths.get("base_path") == "path/to/stable-diffusion-webui/"
+
 
 def test_config():
     config = """
