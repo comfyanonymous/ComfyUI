@@ -7,6 +7,7 @@ import execution
 import uuid
 import json
 import glob
+import torch
 from PIL import Image
 from io import BytesIO
 
@@ -23,6 +24,7 @@ except ImportError:
 import mimetypes
 from comfy.cli_args import args
 import comfy.utils
+import comfy.model_management
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -279,6 +281,28 @@ class PromptServer():
             if not "__metadata__" in dt:
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
+
+        @routes.get("/system_stats")
+        async def get_queue(request):
+            device_index = comfy.model_management.get_torch_device()
+            device = torch.device(device_index)
+            device_name = comfy.model_management.get_torch_device_name(device_index)
+            vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            system_stats = {
+                "devices": [
+                    {
+                        "name": device_name,
+                        "type": device.type,
+                        "index": device.index,
+                        "vram_total": vram_total,
+                        "vram_free": vram_free,
+                        "torch_vram_total": torch_vram_total,
+                        "torch_vram_free": torch_vram_free,
+                    }
+                ]
+            }
+            return web.json_response(system_stats)
 
         @routes.get("/prompt")
         async def get_prompt(request):
