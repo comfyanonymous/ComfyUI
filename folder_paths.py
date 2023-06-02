@@ -173,8 +173,9 @@ def cached_filename_list_(folder_name):
 
     folders = folder_names_and_paths[folder_name]
     for x in folders[0]:
-        if x not in out[1]:
-            return None
+        if os.path.isdir(x):
+            if x not in out[1]:
+                return None
 
     return out
 
