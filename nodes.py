@@ -1369,6 +1369,28 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VAEEncodeTiled": "VAE Encode (Tiled)",
 }
 
+def get_node_info(node_class):
+    global NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+
+    obj_class = NODE_CLASS_MAPPINGS[node_class]
+    info = {}
+    info['input'] = obj_class.INPUT_TYPES()
+    info['output'] = obj_class.RETURN_TYPES
+    info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
+    info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
+    info['name'] = node_class
+    info['display_name'] = NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
+    info['description'] = ''
+    info['category'] = 'sd'
+    if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
+        info['output_node'] = True
+    else:
+        info['output_node'] = False
+
+    if hasattr(obj_class, 'CATEGORY'):
+        info['category'] = obj_class.CATEGORY
+    return info
+
 def load_custom_node(module_path):
     module_name = os.path.basename(module_path)
     if os.path.isfile(module_path):

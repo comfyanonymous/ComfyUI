@@ -138,7 +138,8 @@ class ComfyApi extends EventTarget {
 	 */
 	async getNodeDefs() {
 		const resp = await fetch("object_info", { cache: "no-store" });
-		return await resp.json();
+		const json = await resp.json();
+		return json["object_info"];
 	}
 
 	/**

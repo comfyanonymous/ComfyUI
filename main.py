@@ -26,6 +26,7 @@ import yaml
 import execution
 import folder_paths
 import server
+import nodes
 from nodes import init_custom_nodes
 
 
@@ -88,6 +89,8 @@ if __name__ == "__main__":
     init_custom_nodes()
     server.add_routes()
     hijack_progress(server)
+
+    server.load_node_info()
 
     threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
 
