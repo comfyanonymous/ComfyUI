@@ -7,7 +7,6 @@ import execution
 import uuid
 import json
 import glob
-import torch
 from PIL import Image
 from io import BytesIO
 
@@ -284,9 +283,8 @@ class PromptServer():
 
         @routes.get("/system_stats")
         async def get_queue(request):
-            device_index = comfy.model_management.get_torch_device()
-            device = torch.device(device_index)
-            device_name = comfy.model_management.get_torch_device_name(device_index)
+            device = comfy.model_management.get_torch_device()
+            device_name = comfy.model_management.get_torch_device_name(device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
             system_stats = {
