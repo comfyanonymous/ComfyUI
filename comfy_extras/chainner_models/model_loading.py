@@ -6,6 +6,7 @@ from .architecture.face.restoreformer_arch import RestoreFormer
 from .architecture.HAT import HAT
 from .architecture.LaMa import LaMa
 from .architecture.MAT import MAT
+from .architecture.OmniSR.OmniSR import OmniSR
 from .architecture.RRDB import RRDBNet as ESRGAN
 from .architecture.SPSR import SPSRNet as SPSR
 from .architecture.SRVGG import SRVGGNetCompact as RealESRGANv2
@@ -32,6 +33,7 @@ def load_state_dict(state_dict) -> PyTorchModel:
         state_dict = state_dict["params"]
 
     state_dict_keys = list(state_dict.keys())
+
     # SRVGGNet Real-ESRGAN (v2)
     if "body.0.weight" in state_dict_keys and "body.1.weight" in state_dict_keys:
         model = RealESRGANv2(state_dict)
@@ -79,6 +81,9 @@ def load_state_dict(state_dict) -> PyTorchModel:
     # MAT
     elif "synthesis.first_stage.conv_first.conv.resample_filter" in state_dict_keys:
         model = MAT(state_dict)
+    # Omni-SR
+    elif "residual_layer.0.residual_layer.0.layer.0.fn.0.weight" in state_dict_keys:
+        model = OmniSR(state_dict)
     # Regular ESRGAN, "new-arch" ESRGAN, Real-ESRGAN v1
     else:
         try:

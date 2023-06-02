@@ -22,7 +22,7 @@ except ImportError:
 
 import mimetypes
 from comfy.cli_args import args
-
+import comfy.utils
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -257,6 +257,29 @@ class PromptServer():
 
             return web.Response(status=404)
 
+        @routes.get("/view_metadata/{folder_name}")
+        async def view_metadata(request):
+            folder_name = request.match_info.get("folder_name", None)
+            if folder_name is None:
+                return web.Response(status=404)
+            if not "filename" in request.rel_url.query:
+                return web.Response(status=404)
+
+            filename = request.rel_url.query["filename"]
+            if not filename.endswith(".safetensors"):
+                return web.Response(status=404)
+
+            safetensors_path = folder_paths.get_full_path(folder_name, filename)
+            if safetensors_path is None:
+                return web.Response(status=404)
+            out = comfy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
+            if out is None:
+                return web.Response(status=404)
+            dt = json.loads(out)
+            if not "__metadata__" in dt:
+                return web.Response(status=404)
+            return web.json_response(dt["__metadata__"])
+
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
@@ -272,6 +295,11 @@ class PromptServer():
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = ''
             info['category'] = 'sd'
+            if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
+                info['output_node'] = True
+            else:
+                info['output_node'] = False
+
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
             return info
@@ -333,12 +361,12 @@ class PromptServer():
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
-                    return web.json_response({"prompt_id": prompt_id})
+                    return web.json_response({"prompt_id": prompt_id, "number": number})
                 else:
                     print("invalid prompt:", valid[1])
-                    return web.json_response({"error": valid[1]}, status=400)
+                    return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
-                return web.json_response({"error": "no prompt"}, status=400)
+                return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
 
         @routes.post("/queue")
         async def post_queue(request):

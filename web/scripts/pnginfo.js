@@ -69,6 +69,7 @@ export async function importA1111(graph, parameters) {
 		const embeddings = await api.getEmbeddings();
 		const opts = parameters
 			.substr(p)
+			.split("\n")[1]
 			.split(",")
 			.reduce((p, n) => {
 				const s = n.split(":");
