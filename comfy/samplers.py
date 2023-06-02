@@ -510,6 +510,7 @@ class AITemplateModelWrapper(torch.nn.Module):
         #TODO: verify this is correct/match DiffusionWrapper (ddpm.py)
         if 'c_crossattn' in cond:
             encoder_hidden_states = cond['c_crossattn']
+            encoder_hidden_states = torch.cat(encoder_hidden_states, 1)
         if 'c_concat' in cond:
             encoder_hidden_states = cond['c_concat']
         if "control" in cond:
@@ -517,8 +518,6 @@ class AITemplateModelWrapper(torch.nn.Module):
             mid_block_residual = cond["control"]["middle"][0]
         if encoder_hidden_states is None:
             raise f"conditioning missing, it should be one of these {cond.keys()}"
-        if type(encoder_hidden_states) is list:
-            encoder_hidden_states = encoder_hidden_states[0]
         height = latent_model_input.shape[2]
         width = latent_model_input.shape[3]
 
