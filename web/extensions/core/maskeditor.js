@@ -314,11 +314,11 @@ class MaskEditorDialog extends ComfyDialog {
 			imgCtx.drawImage(orig_image, 0, 0, drawWidth, drawHeight);
 
 			// update mask
-			backupCtx.drawImage(maskCanvas, 0, 0, maskCanvas.width, maskCanvas.height, 0, 0, backupCanvas.width, backupCanvas.height);
 			maskCanvas.width = drawWidth;
 			maskCanvas.height = drawHeight;
 			maskCanvas.style.top = imgCanvas.offsetTop + "px";
 			maskCanvas.style.left = imgCanvas.offsetLeft + "px";
+			backupCtx.drawImage(maskCanvas, 0, 0, maskCanvas.width, maskCanvas.height, 0, 0, backupCanvas.width, backupCanvas.height);
 			maskCtx.drawImage(backupCanvas, 0, 0, backupCanvas.width, backupCanvas.height, 0, 0, maskCanvas.width, maskCanvas.height);
 		});
 
