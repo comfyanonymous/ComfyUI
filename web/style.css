@@ -336,6 +336,7 @@ button.comfy-queue-btn {
 	z-index: 9999 !important;
 	background-color: var(--comfy-menu-bg) !important;
 	overflow: hidden;
+	display: block;
 }
 
 .litegraph.litesearchbox input,
