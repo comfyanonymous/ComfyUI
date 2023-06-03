@@ -1,18 +1,25 @@
 import psutil
 from enum import Enum
 from comfy.cli_args import args
+import torch
 
 class VRAMState(Enum):
-    CPU = 0
+    DISABLED = 0
     NO_VRAM = 1
     LOW_VRAM = 2
     NORMAL_VRAM = 3
     HIGH_VRAM = 4
-    MPS = 5
+    SHARED = 5
+
+class CPUState(Enum):
+    GPU = 0
+    CPU = 1
+    MPS = 2
 
 # Determine VRAM State
 vram_state = VRAMState.NORMAL_VRAM
 set_vram_to = VRAMState.NORMAL_VRAM
+cpu_state = CPUState.GPU
 
 total_vram = 0
 
@@ -33,27 +40,76 @@ if args.directml is not None:
     lowvram_available = False #TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
 try:
-    import torch
-    if directml_enabled:
-        pass #TODO
-    else:
-        try:
-            import intel_extension_for_pytorch as ipex
-            if torch.xpu.is_available():
-                xpu_available = True
-                total_vram = torch.xpu.get_device_properties(torch.xpu.current_device()).total_memory / (1024 * 1024)
-        except:
-            total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
-    total_ram = psutil.virtual_memory().total / (1024 * 1024)
-    if not args.normalvram and not args.cpu:
-        if lowvram_available and total_vram <= 4096:
-            print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
-            set_vram_to = VRAMState.LOW_VRAM
-        elif total_vram > total_ram * 1.1 and total_vram > 14336:
-            print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
-            vram_state = VRAMState.HIGH_VRAM
+    import intel_extension_for_pytorch as ipex
+    if torch.xpu.is_available():
+        xpu_available = True
 except:
     pass
+
+try:
+    if torch.backends.mps.is_available():
+        cpu_state = CPUState.MPS
+except:
+    pass
+
+if args.cpu:
+    cpu_state = CPUState.CPU
+
+def get_torch_device():
+    global xpu_available
+    global directml_enabled
+    global cpu_state
+    if directml_enabled:
+        global directml_device
+        return directml_device
+    if cpu_state == CPUState.MPS:
+        return torch.device("mps")
+    if cpu_state == CPUState.CPU:
+        return torch.device("cpu")
+    else:
+        if xpu_available:
+            return torch.device("xpu")
+        else:
+            return torch.device(torch.cuda.current_device())
+
+def get_total_memory(dev=None, torch_total_too=False):
+    global xpu_available
+    global directml_enabled
+    if dev is None:
+        dev = get_torch_device()
+
+    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
+        mem_total = psutil.virtual_memory().total
+        mem_total_torch = mem_total
+    else:
+        if directml_enabled:
+            mem_total = 1024 * 1024 * 1024 #TODO
+            mem_total_torch = mem_total
+        elif xpu_available:
+            mem_total = torch.xpu.get_device_properties(dev).total_memory
+            mem_total_torch = mem_total
+        else:
+            stats = torch.cuda.memory_stats(dev)
+            mem_reserved = stats['reserved_bytes.all.current']
+            _, mem_total_cuda = torch.cuda.mem_get_info(dev)
+            mem_total_torch = mem_reserved
+            mem_total = mem_total_cuda
+
+    if torch_total_too:
+        return (mem_total, mem_total_torch)
+    else:
+        return mem_total
+
+total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
+total_ram = psutil.virtual_memory().total / (1024 * 1024)
+print("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
+if not args.normalvram and not args.cpu:
+    if lowvram_available and total_vram <= 4096:
+        print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
+        set_vram_to = VRAMState.LOW_VRAM
+    elif total_vram > total_ram * 1.1 and total_vram > 14336:
+        print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
+        vram_state = VRAMState.HIGH_VRAM
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
@@ -103,8 +159,6 @@ if args.force_fp32:
     print("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
 
-
-
 if lowvram_available:
     try:
         import accelerate
@@ -117,40 +171,26 @@ if lowvram_available:
         lowvram_available = False
 
 
-try:
-    if torch.backends.mps.is_available():
-        vram_state = VRAMState.MPS
-except:
-    pass
+if cpu_state != CPUState.GPU:
+    vram_state = VRAMState.DISABLED
 
-if args.cpu:
-    vram_state = VRAMState.CPU
+if cpu_state == CPUState.MPS:
+    vram_state = VRAMState.SHARED
 
 print(f"Set vram state to: {vram_state.name}")
 
-def get_torch_device():
-    global xpu_available
-    global directml_enabled
-    if directml_enabled:
-        global directml_device
-        return directml_device
-    if vram_state == VRAMState.MPS:
-        return torch.device("mps")
-    if vram_state == VRAMState.CPU:
-        return torch.device("cpu")
-    else:
-        if xpu_available:
-            return torch.device("xpu")
-        else:
-            return torch.cuda.current_device()
 
 def get_torch_device_name(device):
     if hasattr(device, 'type'):
-        return "{}".format(device.type)
-    return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
+        if device.type == "cuda":
+            return "{} {}".format(device, torch.cuda.get_device_name(device))
+        else:
+            return "{}".format(device.type)
+    else:
+        return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-    print("Using device:", get_torch_device_name(get_torch_device()))
+    print("Device:", get_torch_device_name(get_torch_device()))
 except:
     print("Could not pick default device.")
 
@@ -213,13 +253,9 @@ def load_model_gpu(model):
 
     current_loaded_model = model
 
-    if vram_set_state == VRAMState.CPU:
+    if vram_set_state == VRAMState.DISABLED:
         pass
-    elif vram_set_state == VRAMState.MPS:
-        mps_device = torch.device("mps")
-        real_model.to(mps_device)
-        pass
-    elif vram_set_state == VRAMState.NORMAL_VRAM or vram_set_state == VRAMState.HIGH_VRAM:
+    elif vram_set_state == VRAMState.NORMAL_VRAM or vram_set_state == VRAMState.HIGH_VRAM or vram_set_state == VRAMState.SHARED:
         model_accelerated = False
         real_model.to(get_torch_device())
     else:
@@ -235,7 +271,7 @@ def load_model_gpu(model):
 def load_controlnet_gpu(control_models):
     global current_gpu_controlnets
     global vram_state
-    if vram_state == VRAMState.CPU:
+    if vram_state == VRAMState.DISABLED:
         return
 
     if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
@@ -280,7 +316,8 @@ def get_autocast_device(dev):
 def xformers_enabled():
     global xpu_available
     global directml_enabled
-    if vram_state == VRAMState.CPU:
+    global cpu_state
+    if cpu_state != CPUState.GPU:
         return False
     if xpu_available:
         return False
@@ -352,12 +389,12 @@ def maximum_batch_area():
     return int(max(area, 0))
 
 def cpu_mode():
-    global vram_state
-    return vram_state == VRAMState.CPU
+    global cpu_state
+    return cpu_state == CPUState.CPU
 
 def mps_mode():
-    global vram_state
-    return vram_state == VRAMState.MPS
+    global cpu_state
+    return cpu_state == CPUState.MPS
 
 def should_use_fp16():
     global xpu_available
@@ -389,8 +426,8 @@ def should_use_fp16():
 
 def soft_empty_cache():
     global xpu_available
-    global vram_state
-    if vram_state == VRAMState.MPS:
+    global cpu_state
+    if cpu_state == CPUState.MPS:
         torch.mps.empty_cache()
     elif xpu_available:
         torch.xpu.empty_cache()

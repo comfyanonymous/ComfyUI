@@ -23,6 +23,7 @@ except ImportError:
 import mimetypes
 from comfy.cli_args import args
 import comfy.utils
+import comfy.model_management
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -280,6 +281,27 @@ class PromptServer():
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
 
+        @routes.get("/system_stats")
+        async def get_queue(request):
+            device = comfy.model_management.get_torch_device()
+            device_name = comfy.model_management.get_torch_device_name(device)
+            vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            system_stats = {
+                "devices": [
+                    {
+                        "name": device_name,
+                        "type": device.type,
+                        "index": device.index,
+                        "vram_total": vram_total,
+                        "vram_free": vram_free,
+                        "torch_vram_total": torch_vram_total,
+                        "torch_vram_free": torch_vram_free,
+                    }
+                ]
+            }
+            return web.json_response(system_stats)
+
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
@@ -363,7 +385,7 @@ class PromptServer():
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, settings))
-                    return web.json_response({"prompt_id": prompt_id})
+                    return web.json_response({"prompt_id": prompt_id, "number": number})
                 else:
                     print("invalid prompt:", valid[1])
                     return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)

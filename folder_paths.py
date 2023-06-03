@@ -1,4 +1,5 @@
 import os
+import time
 
 supported_ckpt_extensions = set(['.ckpt', '.pth', '.safetensors'])
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
@@ -154,7 +155,7 @@ def get_filename_list_(folder_name):
         output_list.update(filter_files_extensions(files, folders[1]))
         output_folders = {**output_folders, **folders_all}
 
-    return (sorted(list(output_list)), output_folders)
+    return (sorted(list(output_list)), output_folders, time.perf_counter())
 
 def cached_filename_list_(folder_name):
     global filename_list_cache
@@ -162,6 +163,8 @@ def cached_filename_list_(folder_name):
     if folder_name not in filename_list_cache:
         return None
     out = filename_list_cache[folder_name]
+    if time.perf_counter() < (out[2] + 0.5):
+        return out
     for x in out[1]:
         time_modified = out[1][x]
         folder = x
@@ -170,8 +173,9 @@ def cached_filename_list_(folder_name):
 
     folders = folder_names_and_paths[folder_name]
     for x in folders[0]:
-        if x not in out[1]:
-            return None
+        if os.path.isdir(x):
+            if x not in out[1]:
+                return None
 
     return out
 
