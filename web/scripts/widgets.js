@@ -303,7 +303,7 @@ export const ComfyWidgets = {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}&preview=jpeg`;
+			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}&preview=${app.preview_format}`;
 			node.setSizeForImage?.();
 		}
 

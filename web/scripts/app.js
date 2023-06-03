@@ -49,6 +49,12 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+
+		/**
+		 * file format for preview
+		 * @type {string}
+		 */
+		this.preview_format = "jpeg";
 	}
 
 	static isImageNode(node) {
@@ -371,7 +377,7 @@ export class ComfyApp {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
-									img.src = "/view?" + new URLSearchParams(src).toString() + "&preview=jpeg";
+									img.src = "/view?" + new URLSearchParams(src).toString() + "&preview="+app.preview_format;
 								});
 							})
 						).then((imgs) => {
