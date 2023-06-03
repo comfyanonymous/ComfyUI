@@ -14,6 +14,7 @@ from .t2i_adapter import adapter
 from . import utils
 from . import clip_vision
 from . import gligen
+from . import diffusers_convert
 
 def load_torch_file(ckpt):
     if ckpt.lower().endswith(".safetensors"):
@@ -324,15 +325,29 @@ def model_lora_keys(model, key_map={}):
 
     return key_map
 
+
 class ModelPatcher:
-    def __init__(self, model):
+    def __init__(self, model, size=0):
+        self.size = size
         self.model = model
         self.patches = []
         self.backup = {}
         self.model_options = {"transformer_options":{}}
+        self.model_size()
+
+    def model_size(self):
+        if self.size > 0:
+            return self.size
+        model_sd = self.model.state_dict()
+        size = 0
+        for k in model_sd:
+            t = model_sd[k]
+            size += t.nelement() * t.element_size()
+        self.size = size
+        return size
 
     def clone(self):
-        n = ModelPatcher(self.model)
+        n = ModelPatcher(self.model, self.size)
         n.patches = self.patches[:]
         n.model_options = copy.deepcopy(self.model_options)
         return n
@@ -553,10 +568,16 @@ class VAE:
         if config is None:
             #default SD1.x/SD2.x VAE parameters
             ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
-            self.first_stage_model = AutoencoderKL(ddconfig, {'target': 'torch.nn.Identity'}, 4, monitor="val/rec_loss", ckpt_path=ckpt_path)
+            self.first_stage_model = AutoencoderKL(ddconfig, {'target': 'torch.nn.Identity'}, 4, monitor="val/rec_loss")
         else:
-            self.first_stage_model = AutoencoderKL(**(config['params']), ckpt_path=ckpt_path)
+            self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
+        if ckpt_path is not None:
+            sd = utils.load_torch_file(ckpt_path)
+            if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
+                sd = diffusers_convert.convert_vae_state_dict(sd)
+            self.first_stage_model.load_state_dict(sd, strict=False)
+
         self.scale_factor = scale_factor
         if device is None:
             device = model_management.get_torch_device()
@@ -630,12 +651,9 @@ class VAE:
         samples = samples.cpu()
         return samples
 
-def resize_image_to(tensor, target_latent_tensor, batched_number):
-    tensor = utils.common_upscale(tensor, target_latent_tensor.shape[3] * 8, target_latent_tensor.shape[2] * 8, 'nearest-exact', "center")
-    target_batch_size = target_latent_tensor.shape[0]
-
+def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
-    print(current_batch_size, target_batch_size)
+    #print(current_batch_size, target_batch_size)
     if current_batch_size == 1:
         return tensor
 
@@ -652,7 +670,7 @@ def resize_image_to(tensor, target_latent_tensor, batched_number):
         return torch.cat([tensor] * batched_number, dim=0)
 
 class ControlNet:
-    def __init__(self, control_model, device=None):
+    def __init__(self, control_model, global_average_pooling=False, device=None):
         self.control_model = control_model
         self.cond_hint_original = None
         self.cond_hint = None
@@ -661,6 +679,7 @@ class ControlNet:
             device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
+        self.global_average_pooling = global_average_pooling
 
     def get_control(self, x_noisy, t, cond_txt, batched_number):
         control_prev = None
@@ -672,7 +691,9 @@ class ControlNet:
             if self.cond_hint is not None:
                 del self.cond_hint
             self.cond_hint = None
-            self.cond_hint = resize_image_to(self.cond_hint_original, x_noisy, batched_number).to(self.control_model.dtype).to(self.device)
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").to(self.control_model.dtype).to(self.device)
+        if x_noisy.shape[0] != self.cond_hint.shape[0]:
+            self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
         if self.control_model.dtype == torch.float16:
             precision_scope = torch.autocast
@@ -694,6 +715,9 @@ class ControlNet:
                 key = 'output'
                 index = i
             x = control[i]
+            if self.global_average_pooling:
+                x = torch.mean(x, dim=(2, 3), keepdim=True).repeat(1, 1, x.shape[2], x.shape[3])
+
             x *= self.strength
             if x.dtype != output_dtype and not autocast_enabled:
                 x = x.to(output_dtype)
@@ -724,7 +748,7 @@ class ControlNet:
             self.cond_hint = None
 
     def copy(self):
-        c = ControlNet(self.control_model)
+        c = ControlNet(self.control_model, global_average_pooling=self.global_average_pooling)
         c.cond_hint_original = self.cond_hint_original
         c.strength = self.strength
         return c
@@ -772,7 +796,7 @@ def load_controlnet(ckpt_path, model=None):
                                         use_spatial_transformer=True,
                                         transformer_depth=1,
                                         context_dim=context_dim,
-                                        use_checkpoint=True,
+                                        use_checkpoint=False,
                                         legacy=False,
                                         use_fp16=use_fp16)
     else:
@@ -789,7 +813,7 @@ def load_controlnet(ckpt_path, model=None):
                                         use_linear_in_transformer=True,
                                         transformer_depth=1,
                                         context_dim=context_dim,
-                                        use_checkpoint=True,
+                                        use_checkpoint=False,
                                         legacy=False,
                                         use_fp16=use_fp16)
     if pth:
@@ -819,7 +843,11 @@ def load_controlnet(ckpt_path, model=None):
     if use_fp16:
         control_model = control_model.half()
 
-    control = ControlNet(control_model)
+    global_average_pooling = False
+    if ckpt_path.endswith("_shuffle.pth") or ckpt_path.endswith("_shuffle.safetensors") or ckpt_path.endswith("_shuffle_fp16.safetensors"): #TODO: smarter way of enabling global_average_pooling
+        global_average_pooling = True
+
+    control = ControlNet(control_model, global_average_pooling=global_average_pooling)
     return control
 
 class T2IAdapter:
@@ -843,10 +871,14 @@ class T2IAdapter:
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
                 del self.cond_hint
+            self.control_input = None
             self.cond_hint = None
-            self.cond_hint = resize_image_to(self.cond_hint_original, x_noisy, batched_number).float().to(self.device)
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").float().to(self.device)
             if self.channels_in == 1 and self.cond_hint.shape[1] > 1:
                 self.cond_hint = torch.mean(self.cond_hint, 1, keepdim=True)
+        if x_noisy.shape[0] != self.cond_hint.shape[0]:
+            self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
+        if self.control_input is None:
             self.t2i_model.to(self.device)
             self.control_input = self.t2i_model(self.cond_hint)
             self.t2i_model.cpu()
@@ -1070,7 +1102,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     }
 
     unet_config = {
-        "use_checkpoint": True,
+        "use_checkpoint": False,
         "image_size": 32,
         "out_channels": 4,
         "attention_resolutions": [

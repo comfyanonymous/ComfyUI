@@ -72,7 +72,7 @@ class MaskToImage:
     FUNCTION = "mask_to_image"
 
     def mask_to_image(self, mask):
-        result = mask[None, :, :, None].expand(-1, -1, -1, 3)
+        result = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
         return (result,)
 
 class ImageToMask:
@@ -167,7 +167,7 @@ class MaskComposite:
                 "source": ("MASK",),
                 "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
                 "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
-                "operation": (["multiply", "add", "subtract"],),
+                "operation": (["multiply", "add", "subtract", "and", "or", "xor"],),
             }
         }
 
@@ -193,6 +193,12 @@ class MaskComposite:
             output[top:bottom, left:right] = destination_portion + source_portion
         elif operation == "subtract":
             output[top:bottom, left:right] = destination_portion - source_portion
+        elif operation == "and":
+            output[top:bottom, left:right] = torch.bitwise_and(destination_portion.round().bool(), source_portion.round().bool()).float()
+        elif operation == "or":
+            output[top:bottom, left:right] = torch.bitwise_or(destination_portion.round().bool(), source_portion.round().bool()).float()
+        elif operation == "xor":
+            output[top:bottom, left:right] = torch.bitwise_xor(destination_portion.round().bool(), source_portion.round().bool()).float()
 
         output = torch.clamp(output, 0.0, 1.0)
 

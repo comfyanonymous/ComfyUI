@@ -39,6 +39,8 @@ body {
 	padding: 2px;
 	resize: none;
 	border: none;
+	box-sizing: border-box;
+	font-size: 10px;
 }
 
 .comfy-modal {
@@ -287,6 +289,11 @@ button.comfy-queue-btn {
 
 /* Context menu */
 
+.litegraph .dialog {
+	 z-index: 1;
+	 font-family: Arial;
+}
+
 .litegraph .litemenu-entry.has_submenu {
 	position: relative;
 	padding-right: 20px;
@@ -329,6 +336,7 @@ button.comfy-queue-btn {
 	z-index: 9999 !important;
 	background-color: var(--comfy-menu-bg) !important;
 	overflow: hidden;
+	display: block;
 }
 
 .litegraph.litesearchbox input,

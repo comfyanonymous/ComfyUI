@@ -2,7 +2,7 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, importA1111 } from "./pnginfo.js";
+import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
 /** 
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -25,6 +25,9 @@ export class ComfyApp {
 	 * @type {serialized node object}
 	 */
 	static clipspace = null;
+	static clipspace_invalidate_handler = null;
+	static open_maskeditor = null;
+	static clipspace_return_node = null;
 
 	constructor() {
 		this.ui = new ComfyUI(this);
@@ -46,6 +49,114 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+	}
+
+	static isImageNode(node) {
+		return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
+	}
+
+	static onClipspaceEditorSave() {
+		if(ComfyApp.clipspace_return_node) {
+			ComfyApp.pasteFromClipspace(ComfyApp.clipspace_return_node);
+		}
+	}
+
+	static onClipspaceEditorClosed() {
+		ComfyApp.clipspace_return_node = null;
+	}
+
+	static copyToClipspace(node) {
+		var widgets = null;
+		if(node.widgets) {
+			widgets = node.widgets.map(({ type, name, value }) => ({ type, name, value }));
+		}
+
+		var imgs = undefined;
+		var orig_imgs = undefined;
+		if(node.imgs != undefined) {
+			imgs = [];
+			orig_imgs = [];
+
+			for (let i = 0; i < node.imgs.length; i++) {
+				imgs[i] = new Image();
+				imgs[i].src = node.imgs[i].src;
+				orig_imgs[i] = imgs[i];
+			}
+		}
+
+		var selectedIndex = 0;
+		if(node.imageIndex) {
+			selectedIndex = node.imageIndex;
+		}
+
+		ComfyApp.clipspace = {
+			'widgets': widgets,
+			'imgs': imgs,
+			'original_imgs': orig_imgs,
+			'images': node.images,
+			'selectedIndex': selectedIndex,
+			'img_paste_mode': 'selected' // reset to default im_paste_mode state on copy action
+		};
+
+		ComfyApp.clipspace_return_node = null;
+
+		if(ComfyApp.clipspace_invalidate_handler) {
+			ComfyApp.clipspace_invalidate_handler();
+		}
+	}
+
+	static pasteFromClipspace(node) {
+		if(ComfyApp.clipspace) {
+			// image paste
+			if(ComfyApp.clipspace.imgs && node.imgs) {
+				if(node.images && ComfyApp.clipspace.images) {
+					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+						app.nodeOutputs[node.id + ""].images = node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+					}
+					else
+						app.nodeOutputs[node.id + ""].images = node.images = ComfyApp.clipspace.images;
+				}
+
+				if(ComfyApp.clipspace.imgs) {
+					// deep-copy to cut link with clipspace
+					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+						const img = new Image();
+						img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+						node.imgs = [img];
+						node.imageIndex = 0;
+					}
+					else {
+						const imgs = [];
+						for(let i=0; i<ComfyApp.clipspace.imgs.length; i++) {
+							imgs[i] = new Image();
+							imgs[i].src = ComfyApp.clipspace.imgs[i].src;
+							node.imgs = imgs;
+						}
+					}
+				}
+			}
+
+			if(node.widgets) {
+				if(ComfyApp.clipspace.images) {
+					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
+					const index = node.widgets.findIndex(obj => obj.name === 'image');
+					if(index >= 0) {
+						node.widgets[index].value = clip_image;
+					}
+				}
+				if(ComfyApp.clipspace.widgets) {
+					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
+						if (prop && prop.type != 'button') {
+							prop.value = value;
+							prop.callback(value);
+						}
+					});
+				}
+			}
+
+			app.graph.setDirtyCanvas(true);
+		}
 	}
 
 	/**
@@ -137,81 +248,30 @@ export class ComfyApp {
 				}
 			}
 
-			options.push(
-				{
-					content: "Copy (Clipspace)",
-					callback: (obj) => {
-						var widgets = null;
-						if(this.widgets) {
-						    widgets = this.widgets.map(({ type, name, value }) => ({ type, name, value }));
-						}
-						
-						let img = new Image();
-						var imgs = undefined;
-						if(this.imgs != undefined) {
-							img.src = this.imgs[0].src;
-							imgs = [img];
-						}
+			// prevent conflict of clipspace content
+			if(!ComfyApp.clipspace_return_node) {
+				options.push({
+						content: "Copy (Clipspace)",
+						callback: (obj) => { ComfyApp.copyToClipspace(this); }
+					});
 
-						ComfyApp.clipspace = {
-							'widgets': widgets,
-							'imgs': imgs,
-							'original_imgs': imgs,
-							'images': this.images
-							};
-					}
-				});
+				if(ComfyApp.clipspace != null) {
+					options.push({
+							content: "Paste (Clipspace)",
+							callback: () => { ComfyApp.pasteFromClipspace(this); }
+						});
+				}
 
-			if(ComfyApp.clipspace != null) {
-				options.push(
-					{
-						content: "Paste (Clipspace)",
-						callback: () => {
-							if(ComfyApp.clipspace != null) {
-								if(ComfyApp.clipspace.widgets != null && this.widgets != null) {
-									ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
-										const prop = Object.values(this.widgets).find(obj => obj.type === type && obj.name === name);
-											if (prop) {
-												prop.callback(value);
-											}
-									});
-								}
-
-								// image paste
-								if(ComfyApp.clipspace.imgs != undefined && this.imgs != undefined && this.widgets != null) {
-									var filename = "";
-									if(this.images && ComfyApp.clipspace.images) {
-										this.images = ComfyApp.clipspace.images;
-									}
-
-									if(ComfyApp.clipspace.images != undefined) {
-										const clip_image = ComfyApp.clipspace.images[0];
-										if(clip_image.subfolder != '')
-											filename = `${clip_image.subfolder}/`;
-										filename += `${clip_image.filename} [${clip_image.type}]`;
-									}
-									else if(ComfyApp.clipspace.widgets != undefined) {
-										const index_in_clip = ComfyApp.clipspace.widgets.findIndex(obj => obj.name === 'image');
-										if(index_in_clip >= 0) {
-											filename = `${ComfyApp.clipspace.widgets[index_in_clip].value}`;
-										}
-									}
-
-									const index = this.widgets.findIndex(obj => obj.name === 'image');
-									if(index >= 0 && filename != "" && ComfyApp.clipspace.imgs != undefined) {
-										this.imgs = ComfyApp.clipspace.imgs;
-
-										this.widgets[index].value = filename;
-										if(this.widgets_values != undefined) {
-											this.widgets_values[index] = filename;
-										}
-									}
-								}
-								this.trigger('changed');
+				if(ComfyApp.isImageNode(this)) {
+					options.push({
+							content: "Open in MaskEditor",
+							callback: (obj) => {
+								ComfyApp.copyToClipspace(this);
+								ComfyApp.clipspace_return_node = this;
+								ComfyApp.open_maskeditor();
 							}
-						}
-					}
-				);
+						});
+				}
 			}
 		};
 	}
@@ -711,16 +771,27 @@ export class ComfyApp {
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
 			const res = origDrawNodeShape.apply(this, arguments);
 
+			const nodeErrors = self.lastPromptError?.node_errors[node.id];
+
 			let color = null;
+			let lineWidth = 1;
 			if (node.id === +self.runningNodeId) {
 				color = "#0f0";
 			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
 				color = "dodgerblue";
 			}
+			else if (self.lastPromptError != null && nodeErrors?.errors) {
+				color = "red";
+				lineWidth = 2;
+			}
+			else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
+				color = "#f0f";
+				lineWidth = 2;
+			}
 
 			if (color) {
 				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
-				ctx.lineWidth = 1;
+				ctx.lineWidth = lineWidth;
 				ctx.globalAlpha = 0.8;
 				ctx.beginPath();
 				if (shape == LiteGraph.BOX_SHAPE)
@@ -747,11 +818,28 @@ export class ComfyApp {
 				ctx.stroke();
 				ctx.strokeStyle = fgcolor;
 				ctx.globalAlpha = 1;
+			}
 
-				if (self.progress) {
-					ctx.fillStyle = "green";
-					ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
-					ctx.fillStyle = bgcolor;
+			if (self.progress && node.id === +self.runningNodeId) {
+				ctx.fillStyle = "green";
+				ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
+				ctx.fillStyle = bgcolor;
+			}
+
+			// Highlight inputs that failed validation
+			if (nodeErrors) {
+				ctx.lineWidth = 2;
+				ctx.strokeStyle = "red";
+				for (const error of nodeErrors.errors) {
+					if (error.extra_info && error.extra_info.input_name) {
+						const inputIndex = node.findInputSlot(error.extra_info.input_name)
+						if (inputIndex !== -1) {
+							let pos = node.getConnectionPos(true, inputIndex);
+							ctx.beginPath();
+							ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 12, 0, 2 * Math.PI, false)
+							ctx.stroke();
+						}
+					}
 				}
 			}
 
@@ -809,6 +897,17 @@ export class ComfyApp {
 			}
 		});
 
+		api.addEventListener("execution_start", ({ detail }) => {
+			this.lastExecutionError = null
+		});
+
+		api.addEventListener("execution_error", ({ detail }) => {
+			this.lastExecutionError = detail;
+			const formattedError = this.#formatExecutionError(detail);
+			this.ui.dialog.show(formattedError);
+			this.canvas.draw(true, true);
+		});
+
 		api.init();
 	}
 
@@ -842,7 +941,9 @@ export class ComfyApp {
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
-		const canvasEl = (this.canvasEl = Object.assign(document.createElement("canvas"), { id: "graph-canvas" }));
+		const mainCanvas = document.createElement("canvas")
+		mainCanvas.style.touchAction = "none"
+		const canvasEl = (this.canvasEl = Object.assign(mainCanvas, { id: "graph-canvas" }));
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
@@ -909,6 +1010,11 @@ export class ComfyApp {
 		const app = this;
 		// Load node definitions from the backend
 		const defs = await api.getNodeDefs();
+		await this.registerNodesFromDefs(defs);
+		await this.#invokeExtensionsAsync("registerCustomNodes");
+	}
+
+    async registerNodesFromDefs(defs) {
 		await this.#invokeExtensionsAsync("addCustomNodeDefs", defs);
 
 		// Generate list of known widgets
@@ -954,7 +1060,8 @@ export class ComfyApp {
 					for (const o in nodeData["output"]) {
 						const output = nodeData["output"][o];
 						const outputName = nodeData["output_name"][o] || output;
-						this.addOutput(outputName, output);
+						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+						this.addOutput(outputName, output, { shape: outputShape });
 					}
 
 					const s = this.computeSize();
@@ -980,8 +1087,6 @@ export class ComfyApp {
 			LiteGraph.registerNodeType(nodeId, node);
 			node.category = nodeData.category;
 		}
-
-		await this.#invokeExtensionsAsync("registerCustomNodes");
 	}
 
 	/**
@@ -1180,6 +1285,43 @@ export class ComfyApp {
 		return { workflow, output };
 	}
 
+	#formatPromptError(error) {
+		if (error == null) {
+			return "(unknown error)"
+		}
+		else if (typeof error === "string") {
+			return error;
+		}
+		else if (error.stack && error.message) {
+			return error.toString()
+		}
+		else if (error.response) {
+			let message = error.response.error.message;
+			if (error.response.error.details)
+			message += ": " + error.response.error.details;
+			for (const [nodeID, nodeError] of Object.entries(error.response.node_errors)) {
+			message += "\n" + nodeError.class_type + ":"
+				for (const errorReason of nodeError.errors) {
+					message += "\n    - " + errorReason.message + ": " + errorReason.details
+				}
+			}
+			return message
+		}
+		return "(unknown error)"
+	}
+
+	#formatExecutionError(error) {
+		if (error == null) {
+			return "(unknown error)"
+		}
+
+		const traceback = error.traceback.join("")
+		const nodeId = error.node_id
+		const nodeType = error.node_type
+
+		return `Error occurred when executing ${nodeType}:\n\n${error.exception_message}\n\n${traceback}`
+	}
+
 	async queuePrompt(number, batchCount = 1) {
 		this.#queueItems.push({ number, batchCount });
 
@@ -1187,8 +1329,10 @@ export class ComfyApp {
 		if (this.#processingQueue) {
 			return;
 		}
-	
+
 		this.#processingQueue = true;
+		this.lastPromptError = null;
+
 		try {
 			while (this.#queueItems.length) {
 				({ number, batchCount } = this.#queueItems.pop());
@@ -1199,7 +1343,12 @@ export class ComfyApp {
 					try {
 						await api.queuePrompt(number, p);
 					} catch (error) {
-						this.ui.dialog.show(error.response || error.toString());
+						const formattedError = this.#formatPromptError(error)
+						this.ui.dialog.show(formattedError);
+						if (error.response) {
+							this.lastPromptError = error.response;
+							this.canvas.draw(true, true);
+						}
 						break;
 					}
 
@@ -1245,6 +1394,11 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(reader.result));
 			};
 			reader.readAsText(file);
+		} else if (file.name?.endsWith(".latent")) {
+			const info = await getLatentMetadata(file);
+			if (info.workflow) {
+				this.loadGraphData(JSON.parse(info.workflow));
+			}
 		}
 	}
 
@@ -1273,14 +1427,19 @@ export class ComfyApp {
 
 			const def = defs[node.type];
 
+			// HOTFIX: The current patch is designed to prevent the rest of the code from breaking due to primitive nodes,
+			//         and additional work is needed to consider the primitive logic in the refresh logic.
+			if(!def)
+				continue;
+
 			for(const widgetNum in node.widgets) {
 				const widget = node.widgets[widgetNum]
-
 				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
 					widget.options.values = def["input"]["required"][widget.name][0];
 
-					if(!widget.options.values.includes(widget.value)) {
+					if(widget.name != 'image' && !widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
+						widget.callback(widget.value);
 					}
 				}
 			}
@@ -1292,6 +1451,8 @@ export class ComfyApp {
 	 */
 	clean() {
 		this.nodeOutputs = {};
+		this.lastPromptError = null;
+		this.lastExecutionError = null;
 	}
 }
 

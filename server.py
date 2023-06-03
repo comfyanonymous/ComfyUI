@@ -7,6 +7,9 @@ import execution
 import uuid
 import json
 import glob
+from PIL import Image
+from io import BytesIO
+
 try:
     import aiohttp
     from aiohttp import web
@@ -19,7 +22,8 @@ except ImportError:
 
 import mimetypes
 from comfy.cli_args import args
-
+import comfy.utils
+import comfy.model_management
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -78,7 +82,7 @@ class PromptServer():
                 # Reusing existing session, remove old
                 self.sockets.pop(sid, None)
             else:
-                sid = uuid.uuid4().hex      
+                sid = uuid.uuid4().hex
 
             self.sockets[sid] = ws
 
@@ -110,49 +114,96 @@ class PromptServer():
             files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
             return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
 
-        @routes.post("/upload/image")
-        async def upload_image(request):
-            post = await request.post()
+        def get_dir_by_type(dir_type):
+            if dir_type is None:
+                dir_type = "input"
+
+            if dir_type == "input":
+                type_dir = folder_paths.get_input_directory()
+            elif dir_type == "temp":
+                type_dir = folder_paths.get_temp_directory()
+            elif dir_type == "output":
+                type_dir = folder_paths.get_output_directory()
+
+            return type_dir, dir_type
+
+        def image_upload(post, image_save_function=None):
             image = post.get("image")
+            overwrite = post.get("overwrite")
 
-            if post.get("type") is None:
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "input":
-                upload_dir = folder_paths.get_input_directory()
-            elif post.get("type") == "temp":
-                upload_dir = folder_paths.get_temp_directory()
-            elif post.get("type") == "output":
-                upload_dir = folder_paths.get_output_directory()
-
-            if not os.path.exists(upload_dir):
-                os.makedirs(upload_dir)
+            image_upload_type = post.get("type")
+            upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
 
             if image and image.file:
                 filename = image.filename
                 if not filename:
                     return web.Response(status=400)
 
+                subfolder = post.get("subfolder", "")
+                full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
+
+                if os.path.commonpath((upload_dir, os.path.abspath(full_output_folder))) != upload_dir:
+                    return web.Response(status=400)
+
+                if not os.path.exists(full_output_folder):
+                    os.makedirs(full_output_folder)
+
                 split = os.path.splitext(filename)
-                i = 1
-                while os.path.exists(os.path.join(upload_dir, filename)):
-                    filename = f"{split[0]} ({i}){split[1]}"
-                    i += 1
+                filepath = os.path.join(full_output_folder, filename)
 
-                filepath = os.path.join(upload_dir, filename)
+                if overwrite is not None and (overwrite == "true" or overwrite == "1"):
+                    pass
+                else:
+                    i = 1
+                    while os.path.exists(filepath):
+                        filename = f"{split[0]} ({i}){split[1]}"
+                        filepath = os.path.join(full_output_folder, filename)
+                        i += 1
 
-                with open(filepath, "wb") as f:
-                    f.write(image.file.read())
-                
-                return web.json_response({"name" : filename})
+                if image_save_function is not None:
+                    image_save_function(image, post, filepath)
+                else:
+                    with open(filepath, "wb") as f:
+                        f.write(image.file.read())
+
+                return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
             else:
                 return web.Response(status=400)
 
+        @routes.post("/upload/image")
+        async def upload_image(request):
+            post = await request.post()
+            return image_upload(post)
+
+        @routes.post("/upload/mask")
+        async def upload_mask(request):
+            post = await request.post()
+
+            def image_save_function(image, post, filepath):
+                original_pil = Image.open(post.get("original_image").file).convert('RGBA')
+                mask_pil = Image.open(image.file).convert('RGBA')
+
+                # alpha copy
+                new_alpha = mask_pil.getchannel('A')
+                original_pil.putalpha(new_alpha)
+                original_pil.save(filepath, compress_level=4)
+
+            return image_upload(post, image_save_function)
 
         @routes.get("/view")
         async def view_image(request):
             if "filename" in request.rel_url.query:
-                type = request.rel_url.query.get("type", "output")
-                output_dir = folder_paths.get_directory_by_type(type)
+                filename = request.rel_url.query["filename"]
+                filename,output_dir = folder_paths.annotated_filepath(filename)
+
+                # validation for security: prevent accessing arbitrary path
+                if filename[0] == '/' or '..' in filename:
+                    return web.Response(status=400)
+
+                if output_dir is None:
+                    type = request.rel_url.query.get("type", "output")
+                    output_dir = folder_paths.get_directory_by_type(type)
+
                 if output_dir is None:
                     return web.Response(status=400)
 
@@ -162,35 +213,132 @@ class PromptServer():
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
-                filename = request.rel_url.query["filename"]
                 filename = os.path.basename(filename)
                 file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
-                    return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
-                
+                    if 'channel' not in request.rel_url.query:
+                        channel = 'rgba'
+                    else:
+                        channel = request.rel_url.query["channel"]
+
+                    if channel == 'rgb':
+                        with Image.open(file) as img:
+                            if img.mode == "RGBA":
+                                r, g, b, a = img.split()
+                                new_img = Image.merge('RGB', (r, g, b))
+                            else:
+                                new_img = img.convert("RGB")
+
+                            buffer = BytesIO()
+                            new_img.save(buffer, format='PNG')
+                            buffer.seek(0)
+
+                            return web.Response(body=buffer.read(), content_type='image/png',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+
+                    elif channel == 'a':
+                        with Image.open(file) as img:
+                            if img.mode == "RGBA":
+                                _, _, _, a = img.split()
+                            else:
+                                a = Image.new('L', img.size, 255)
+
+                            # alpha img
+                            alpha_img = Image.new('RGBA', img.size)
+                            alpha_img.putalpha(a)
+                            alpha_buffer = BytesIO()
+                            alpha_img.save(alpha_buffer, format='PNG')
+                            alpha_buffer.seek(0)
+
+                            return web.Response(body=alpha_buffer.read(), content_type='image/png',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                    else:
+                        return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
+
             return web.Response(status=404)
+
+        @routes.get("/view_metadata/{folder_name}")
+        async def view_metadata(request):
+            folder_name = request.match_info.get("folder_name", None)
+            if folder_name is None:
+                return web.Response(status=404)
+            if not "filename" in request.rel_url.query:
+                return web.Response(status=404)
+
+            filename = request.rel_url.query["filename"]
+            if not filename.endswith(".safetensors"):
+                return web.Response(status=404)
+
+            safetensors_path = folder_paths.get_full_path(folder_name, filename)
+            if safetensors_path is None:
+                return web.Response(status=404)
+            out = comfy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
+            if out is None:
+                return web.Response(status=404)
+            dt = json.loads(out)
+            if not "__metadata__" in dt:
+                return web.Response(status=404)
+            return web.json_response(dt["__metadata__"])
+
+        @routes.get("/system_stats")
+        async def get_queue(request):
+            device = comfy.model_management.get_torch_device()
+            device_name = comfy.model_management.get_torch_device_name(device)
+            vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            system_stats = {
+                "devices": [
+                    {
+                        "name": device_name,
+                        "type": device.type,
+                        "index": device.index,
+                        "vram_total": vram_total,
+                        "vram_free": vram_free,
+                        "torch_vram_total": torch_vram_total,
+                        "torch_vram_free": torch_vram_free,
+                    }
+                ]
+            }
+            return web.json_response(system_stats)
 
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
 
+        def node_info(node_class):
+            obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
+            info = {}
+            info['input'] = obj_class.INPUT_TYPES()
+            info['output'] = obj_class.RETURN_TYPES
+            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
+            info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
+            info['name'] = node_class
+            info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
+            info['description'] = ''
+            info['category'] = 'sd'
+            if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
+                info['output_node'] = True
+            else:
+                info['output_node'] = False
+
+            if hasattr(obj_class, 'CATEGORY'):
+                info['category'] = obj_class.CATEGORY
+            return info
+
         @routes.get("/object_info")
         async def get_object_info(request):
             out = {}
             for x in nodes.NODE_CLASS_MAPPINGS:
-                obj_class = nodes.NODE_CLASS_MAPPINGS[x]
-                info = {}
-                info['input'] = obj_class.INPUT_TYPES()
-                info['output'] = obj_class.RETURN_TYPES
-                info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
-                info['name'] = x
-                info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[x] if x in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else x
-                info['description'] = ''
-                info['category'] = 'sd'
-                if hasattr(obj_class, 'CATEGORY'):
-                    info['category'] = obj_class.CATEGORY
-                out[x] = info
+                out[x] = node_info(x)
+            return web.json_response(out)
+
+        @routes.get("/object_info/{node_class}")
+        async def get_object_info_node(request):
+            node_class = request.match_info.get("node_class", None)
+            out = {}
+            if (node_class is not None) and (node_class in nodes.NODE_CLASS_MAPPINGS):
+                out[node_class] = node_info(node_class)
             return web.json_response(out)
 
         @routes.get("/history")
@@ -232,14 +380,16 @@ class PromptServer():
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
-                    self.prompt_queue.put((number, id(prompt), prompt, extra_data))
+                    prompt_id = str(uuid.uuid4())
+                    outputs_to_execute = valid[2]
+                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
+                    return web.json_response({"prompt_id": prompt_id, "number": number})
                 else:
-                    resp_code = 400
-                    out_string = valid[1]
                     print("invalid prompt:", valid[1])
+                    return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
+            else:
+                return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
 
-            return web.Response(body=out_string, status=resp_code)
-        
         @routes.post("/queue")
         async def post_queue(request):
             json_data =  await request.json()
@@ -249,9 +399,9 @@ class PromptServer():
             if "delete" in json_data:
                 to_delete = json_data['delete']
                 for id_to_delete in to_delete:
-                    delete_func = lambda a: a[1] == int(id_to_delete)
+                    delete_func = lambda a: a[1] == id_to_delete
                     self.prompt_queue.delete_queue_item(delete_func)
-                    
+
             return web.Response(status=200)
 
         @routes.post("/interrupt")
@@ -275,7 +425,7 @@ class PromptServer():
     def add_routes(self):
         self.app.add_routes(self.routes)
         self.app.add_routes([
-            web.static('/', self.web_root),
+            web.static('/', self.web_root, follow_symlinks=True),
         ])
 
     def get_queue_info(self):

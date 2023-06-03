@@ -56,7 +56,12 @@ class Downsample(nn.Module):
 
     def forward(self, x):
         assert x.shape[1] == self.channels
-        return self.op(x)
+        if not self.use_conv:
+            padding = [x.shape[2] % 2, x.shape[3] % 2]
+            self.op.padding = padding
+
+        x = self.op(x)
+        return x
 
 
 class ResnetBlock(nn.Module):

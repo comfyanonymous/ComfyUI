@@ -17,7 +17,7 @@ class UpscaleModelLoader:
 
     def load_model(self, model_name):
         model_path = folder_paths.get_full_path("upscale_models", model_name)
-        sd = comfy.utils.load_torch_file(model_path)
+        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
         out = model_loading.load_state_dict(sd).eval()
         return (out, )
 

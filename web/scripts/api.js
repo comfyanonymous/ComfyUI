@@ -88,6 +88,12 @@ class ComfyApi extends EventTarget {
 					case "executed":
 						this.dispatchEvent(new CustomEvent("executed", { detail: msg.data }));
 						break;
+					case "execution_start":
+						this.dispatchEvent(new CustomEvent("execution_start", { detail: msg.data }));
+						break;
+					case "execution_error":
+						this.dispatchEvent(new CustomEvent("execution_error", { detail: msg.data }));
+						break;
 					default:
 						if (this.#registered.has(msg.type)) {
 							this.dispatchEvent(new CustomEvent(msg.type, { detail: msg.data }));
@@ -163,7 +169,7 @@ class ComfyApi extends EventTarget {
 
 		if (res.status !== 200) {
 			throw {
-				response: await res.text(),
+				response: await res.json(),
 			};
 		}
 	}
