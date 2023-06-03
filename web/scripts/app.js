@@ -231,14 +231,20 @@ export class ComfyApp {
 					options.unshift(
 						{
 							content: "Open Image",
-							callback: () => window.open(img.src, "_blank"),
+							callback: () => {
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								window.open(url, "_blank")
+							},
 						},
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
-								a.href = img.src;
-								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								a.href = url;
+								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
 								a.click();
 								requestAnimationFrame(() => a.remove());
@@ -365,7 +371,7 @@ export class ComfyApp {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
-									img.src = "/view?" + new URLSearchParams(src).toString();
+									img.src = "/view?" + new URLSearchParams(src).toString() + "&preview=jpeg";
 								});
 							})
 						).then((imgs) => {
