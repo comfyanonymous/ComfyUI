@@ -24,13 +24,14 @@ if __name__ == "__main__":
 import yaml
 
 import execution
+import worklist_execution
 import folder_paths
 import server
 from nodes import init_custom_nodes
 
 
 def prompt_worker(q, server):
-    e = execution.PromptExecutor(server)
+    e = worklist_execution.PromptExecutor(server)
     while True:
         item, item_id = q.get()
         e.execute(item[2], item[1], item[3], item[4])
