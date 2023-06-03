@@ -7294,10 +7294,6 @@ LGraphNode.prototype.executeAction = function(action)
         if (this.onShowNodePanel) {
             this.onShowNodePanel(n);
         }
-		else
-		{
-			this.showShowNodePanel(n);
-		}
 
         if (this.onNodeDblClicked) {
             this.onNodeDblClicked(n);
@@ -13070,6 +13066,10 @@ LGraphNode.prototype.executeAction = function(action)
                     content: "Properties",
                     has_submenu: true,
                     callback: LGraphCanvas.onShowMenuNodeProperties
+                },
+                {
+                    content: "Properties Panel",
+                    callback: function(item, options, e, menu, node) { LGraphCanvas.active_canvas.showShowNodePanel(node) }
                 },
                 null,
                 {
