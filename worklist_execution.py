@@ -81,7 +81,12 @@ def exception_helper(unique_id, input_data_all, executed, outputs, task):
         return executed, False, error_details, ex
 
 
-def is_incomplete_input_slots(inputs, outputs):
+def is_incomplete_input_slots(class_def, inputs, outputs):
+    required_inputs = set(class_def.INPUT_TYPES().get("required", []))
+
+    if len(required_inputs - inputs.keys()) > 0:
+        return True
+
     for x in inputs:
         input_data = inputs[x]
 
@@ -150,7 +155,7 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
         if unique_id in outputs:
             continue
 
-        if is_incomplete_input_slots(inputs, outputs):
+        if is_incomplete_input_slots(class_def, inputs, outputs):
             continue
 
         input_data_all = None
@@ -162,7 +167,8 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
             if input_data_all is None:
                 return
 
-            add_work(unique_id)  # add to seed if all input is properly provided
+            if not is_incomplete_input_slots(class_def, prompt[unique_id]['inputs'], outputs):
+                add_work(unique_id)  # add to seed if all input is properly provided
 
         result = exception_helper(unique_id, input_data_all, executed, outputs, task)
         if result is not None:
@@ -209,7 +215,8 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
                         # If all input slots are not completed, do not add to the work.
                         # This prevents duplicate entries of the same work in the worklist.
                         # For loop support, it is important to fire only once when the input slot is completed.
-                        if not is_incomplete_input_slots(prompt[next_node]['inputs'], outputs):
+                        next_class_def = get_class_def(prompt, next_node)
+                        if not is_incomplete_input_slots(next_class_def, prompt[next_node]['inputs'], outputs):
                             add_work(next_node)
 
     return executed, True, None, None
