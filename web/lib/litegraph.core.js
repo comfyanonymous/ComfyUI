@@ -10811,9 +10811,20 @@ LGraphNode.prototype.executeAction = function(action)
         var destType = false;
 		if (node_right && node_right.outputs && node_right.outputs[link.target_slot]) destType = node_right.inputs[link.target_slot].type;
 		
+		if (e.altKey) {
+            var node = LiteGraph.createNode("Reroute");
+            that.graph.add(node, true, {doProcess: false});
+
+            node_left.connect(link.origin_slot,node, 0) 
+            node_right.disconnectInput( link.target_slot )
+            node.connect(0, node_right,link.target_slot );
+            
+            node.pos = [e.canvasX, e.canvasY ];
+            node.pos[0] -= node.size[0] * 0.5;
+            return
+        }
+        
 		var options = ["Add Node",null,"Delete",null];
-		
-		
         var menu = new LiteGraph.ContextMenu(options, {
             event: e,
 			title: link.data != null ? link.data.constructor.name : null,
