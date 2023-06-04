@@ -54,7 +54,9 @@ export class ComfyApp {
 		 * file format for preview
 		 * @type {string}
 		 */
-		this.preview_format = "webp";
+		this.preview_format = "webp";	// L;webp;50 -> grayscale, webp, quality 50
+										// jpeg;80 -> rgb, jpeg, quality 80
+										// png -> rgb, png, default quality(=90)
 	}
 
 	static isImageNode(node) {
