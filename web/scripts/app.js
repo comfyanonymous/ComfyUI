@@ -52,11 +52,17 @@ export class ComfyApp {
 
 		/**
 		 * file format for preview
+		 *
+		 * L?;format;quality
+		 *
+		 * ex)
+		 * L;webp;50 -> grayscale, webp, quality 50
+		 * jpeg;80 -> rgb, jpeg, quality 80
+		 * png -> rgb, png, default quality(=90)
+		 *
 		 * @type {string}
 		 */
-		this.preview_format = "webp";	// L;webp;50 -> grayscale, webp, quality 50
-										// jpeg;80 -> rgb, jpeg, quality 80
-										// png -> rgb, png, default quality(=90)
+		this.preview_format = "webp";
 	}
 
 	static isImageNode(node) {
