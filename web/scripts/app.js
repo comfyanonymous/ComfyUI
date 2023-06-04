@@ -54,7 +54,7 @@ export class ComfyApp {
 		 * file format for preview
 		 * @type {string}
 		 */
-		this.preview_format = "jpeg";
+		this.preview_format = "webp";
 	}
 
 	static isImageNode(node) {
