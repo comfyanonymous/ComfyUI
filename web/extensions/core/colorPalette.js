@@ -174,7 +174,7 @@ const els = {}
 // const ctxMenu = LiteGraph.ContextMenu;
 app.registerExtension({
 	name: id,
-	init() {
+	addCustomNodeDefs(node_defs) {
 		const sortObjectKeys = (unordered) => {
 			return Object.keys(unordered).sort().reduce((obj, key) => {
 				obj[key] = unordered[key];
@@ -182,10 +182,10 @@ app.registerExtension({
 			}, {});
 		};
 
-		const getSlotTypes = async () => {
+		function getSlotTypes() {
 			var types = [];
 
-			const defs = await api.getNodeDefs();
+			const defs = node_defs;
 			for (const nodeId in defs) {
 				const nodeData = defs[nodeId];
 
@@ -212,8 +212,8 @@ app.registerExtension({
 			return types;
 		};
 
-		const completeColorPalette = async (colorPalette) => {
-			var types = await getSlotTypes();
+		function completeColorPalette(colorPalette) {
+			var types = getSlotTypes();
 
 			for (const type of types) {
 				if (!colorPalette.colors.node_slot[type]) {
@@ -232,9 +232,26 @@ app.registerExtension({
 				"name": "My Color Palette",
 				"colors": {
 					"node_slot": {
+					},
+					"litegraph_base": {
+					},
+					"comfy_base": {
 					}
 				}
 			};
+
+			// Copy over missing keys from default color palette
+			const defaultColorPalette = colorPalettes[defaultColorPaletteId];
+			for (const key in defaultColorPalette.colors.litegraph_base) {
+				if (!colorPalette.colors.litegraph_base[key]) {
+					colorPalette.colors.litegraph_base[key] = "";
+				}
+			}
+			for (const key in defaultColorPalette.colors.comfy_base) {
+				if (!colorPalette.colors.comfy_base[key]) {
+					colorPalette.colors.comfy_base[key] = "";
+				}
+			}
 
 			return completeColorPalette(colorPalette);
 		};

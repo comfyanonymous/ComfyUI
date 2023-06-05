@@ -2,8 +2,8 @@ import torch
 import contextlib
 import copy
 
-import sd1_clip
-import sd2_clip
+from . import sd1_clip
+from . import sd2_clip
 from comfy import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL
@@ -13,6 +13,8 @@ from .t2i_adapter import adapter
 
 from . import utils
 from . import clip_vision
+from . import gligen
+from . import diffusers_convert
 
 def load_model_weights(model, sd, verbose=False, load_state_dict_to=[]):
     m, u = model.load_state_dict(sd, strict=False)
@@ -110,6 +112,8 @@ def load_lora(path, to_load):
             loaded_keys.add(A_name)
             loaded_keys.add(B_name)
 
+
+        ######## loha
         hada_w1_a_name = "{}.hada_w1_a".format(x)
         hada_w1_b_name = "{}.hada_w1_b".format(x)
         hada_w2_a_name = "{}.hada_w2_a".format(x)
@@ -130,6 +134,54 @@ def load_lora(path, to_load):
             loaded_keys.add(hada_w1_b_name)
             loaded_keys.add(hada_w2_a_name)
             loaded_keys.add(hada_w2_b_name)
+
+
+        ######## lokr
+        lokr_w1_name = "{}.lokr_w1".format(x)
+        lokr_w2_name = "{}.lokr_w2".format(x)
+        lokr_w1_a_name = "{}.lokr_w1_a".format(x)
+        lokr_w1_b_name = "{}.lokr_w1_b".format(x)
+        lokr_t2_name = "{}.lokr_t2".format(x)
+        lokr_w2_a_name = "{}.lokr_w2_a".format(x)
+        lokr_w2_b_name = "{}.lokr_w2_b".format(x)
+
+        lokr_w1 = None
+        if lokr_w1_name in lora.keys():
+            lokr_w1 = lora[lokr_w1_name]
+            loaded_keys.add(lokr_w1_name)
+
+        lokr_w2 = None
+        if lokr_w2_name in lora.keys():
+            lokr_w2 = lora[lokr_w2_name]
+            loaded_keys.add(lokr_w2_name)
+
+        lokr_w1_a = None
+        if lokr_w1_a_name in lora.keys():
+            lokr_w1_a = lora[lokr_w1_a_name]
+            loaded_keys.add(lokr_w1_a_name)
+
+        lokr_w1_b = None
+        if lokr_w1_b_name in lora.keys():
+            lokr_w1_b = lora[lokr_w1_b_name]
+            loaded_keys.add(lokr_w1_b_name)
+
+        lokr_w2_a = None
+        if lokr_w2_a_name in lora.keys():
+            lokr_w2_a = lora[lokr_w2_a_name]
+            loaded_keys.add(lokr_w2_a_name)
+
+        lokr_w2_b = None
+        if lokr_w2_b_name in lora.keys():
+            lokr_w2_b = lora[lokr_w2_b_name]
+            loaded_keys.add(lokr_w2_b_name)
+
+        lokr_t2 = None
+        if lokr_t2_name in lora.keys():
+            lokr_t2 = lora[lokr_t2_name]
+            loaded_keys.add(lokr_t2_name)
+
+        if (lokr_w1 is not None) or (lokr_w2 is not None) or (lokr_w1_a is not None) or (lokr_w2_a is not None):
+            patch_dict[to_load[x]] = (lokr_w1, lokr_w2, alpha, lokr_w1_a, lokr_w1_b, lokr_w2_a, lokr_w2_b, lokr_t2)
 
     for x in lora.keys():
         if x not in loaded_keys:
@@ -234,15 +286,29 @@ def model_lora_keys(model, key_map={}):
 
     return key_map
 
+
 class ModelPatcher:
-    def __init__(self, model):
+    def __init__(self, model, size=0):
+        self.size = size
         self.model = model
         self.patches = []
         self.backup = {}
         self.model_options = {"transformer_options":{}}
+        self.model_size()
+
+    def model_size(self):
+        if self.size > 0:
+            return self.size
+        model_sd = self.model.state_dict()
+        size = 0
+        for k in model_sd:
+            t = model_sd[k]
+            size += t.nelement() * t.element_size()
+        self.size = size
+        return size
 
     def clone(self):
-        n = ModelPatcher(self.model)
+        n = ModelPatcher(self.model, self.size)
         n.patches = self.patches[:]
         n.model_options = copy.deepcopy(self.model_options)
         return n
@@ -252,6 +318,29 @@ class ModelPatcher:
 
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         self.model_options["sampler_cfg_function"] = sampler_cfg_function
+
+
+    def set_model_patch(self, patch, name):
+        to = self.model_options["transformer_options"]
+        if "patches" not in to:
+            to["patches"] = {}
+        to["patches"][name] = to["patches"].get(name, []) + [patch]
+
+    def set_model_attn1_patch(self, patch):
+        self.set_model_patch(patch, "attn1_patch")
+
+    def set_model_attn2_patch(self, patch):
+        self.set_model_patch(patch, "attn2_patch")
+
+    def model_patches_to(self, device):
+        to = self.model_options["transformer_options"]
+        if "patches" in to:
+            patches = to["patches"]
+            for name in patches:
+                patch_list = patches[name]
+                for i in range(len(patch_list)):
+                    if hasattr(patch_list[i], "to"):
+                        patch_list[i] = patch_list[i].to(device)
 
     def model_dtype(self):
         return self.model.diffusion_model.dtype
@@ -291,6 +380,33 @@ class ModelPatcher:
                         final_shape = [mat2.shape[1], mat2.shape[0], v[3].shape[2], v[3].shape[3]]
                         mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1).float(), v[3].transpose(0, 1).flatten(start_dim=1).float()).reshape(final_shape).transpose(0, 1)
                     weight += (alpha * torch.mm(mat1.flatten(start_dim=1).float(), mat2.flatten(start_dim=1).float())).reshape(weight.shape).type(weight.dtype).to(weight.device)
+                elif len(v) == 8: #lokr
+                    w1 = v[0]
+                    w2 = v[1]
+                    w1_a = v[3]
+                    w1_b = v[4]
+                    w2_a = v[5]
+                    w2_b = v[6]
+                    t2 = v[7]
+                    dim = None
+
+                    if w1 is None:
+                        dim = w1_b.shape[0]
+                        w1 = torch.mm(w1_a.float(), w1_b.float())
+
+                    if w2 is None:
+                        dim = w2_b.shape[0]
+                        if t2 is None:
+                            w2 = torch.mm(w2_a.float(), w2_b.float())
+                        else:
+                            w2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float(), w2_b.float(), w2_a.float())
+
+                    if len(w2.shape) == 4:
+                        w1 = w1.unsqueeze(2).unsqueeze(2)
+                    if v[2] is not None and dim is not None:
+                        alpha *= v[2] / dim
+
+                    weight += alpha * torch.kron(w1.float(), w2.float()).reshape(weight.shape).type(weight.dtype).to(weight.device)
                 else: #loha
                     w1a = v[0]
                     w1b = v[1]
@@ -345,10 +461,10 @@ class CLIP:
         else:
             params = {}
 
-        if self.target_clip == "ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder":
+        if self.target_clip.endswith("FrozenOpenCLIPEmbedder"):
             clip = sd2_clip.SD2ClipModel
             tokenizer = sd2_clip.SD2Tokenizer
-        elif self.target_clip == "ldm.modules.encoders.modules.FrozenCLIPEmbedder":
+        elif self.target_clip.endswith("FrozenCLIPEmbedder"):
             clip = sd1_clip.SD1ClipModel
             tokenizer = sd1_clip.SD1Tokenizer
 
@@ -378,7 +494,7 @@ class CLIP:
     def tokenize(self, text, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
-    def encode_from_tokens(self, tokens):
+    def encode_from_tokens(self, tokens, return_pooled=False):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
         try:
@@ -388,6 +504,10 @@ class CLIP:
         except Exception as e:
             self.patcher.unpatch_model()
             raise e
+        if return_pooled:
+            eos_token_index = max(range(len(tokens[0])), key=tokens[0].__getitem__)
+            pooled = cond[:, eos_token_index]
+            return cond, pooled
         return cond
 
     def encode(self, text):
@@ -399,21 +519,32 @@ class VAE:
         if config is None:
             #default SD1.x/SD2.x VAE parameters
             ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
-            self.first_stage_model = AutoencoderKL(ddconfig, {'target': 'torch.nn.Identity'}, 4, monitor="val/rec_loss", ckpt_path=ckpt_path)
+            self.first_stage_model = AutoencoderKL(ddconfig, {'target': 'torch.nn.Identity'}, 4, monitor="val/rec_loss")
         else:
-            self.first_stage_model = AutoencoderKL(**(config['params']), ckpt_path=ckpt_path)
+            self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
+        if ckpt_path is not None:
+            sd = utils.load_torch_file(ckpt_path)
+            if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
+                sd = diffusers_convert.convert_vae_state_dict(sd)
+            self.first_stage_model.load_state_dict(sd, strict=False)
+
         self.scale_factor = scale_factor
         if device is None:
             device = model_management.get_torch_device()
         self.device = device
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
+        steps = samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
+        steps += samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = utils.ProgressBar(steps)
+
         decode_fn = lambda a: (self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0)
         output = torch.clamp((
-            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8) +
-            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8) +
-             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8))
+            (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8, pbar = pbar) +
+            utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8, pbar = pbar) +
+             utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8, pbar = pbar))
             / 3.0) / 2.0, min=0.0, max=1.0)
         return output
 
@@ -457,20 +588,23 @@ class VAE:
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
-        samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4)
-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4)
+
+        steps = pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
+        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = utils.ProgressBar(steps)
+
+        samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
         samples /= 3.0
         self.first_stage_model = self.first_stage_model.cpu()
         samples = samples.cpu()
         return samples
 
-def resize_image_to(tensor, target_latent_tensor, batched_number):
-    tensor = utils.common_upscale(tensor, target_latent_tensor.shape[3] * 8, target_latent_tensor.shape[2] * 8, 'nearest-exact', "center")
-    target_batch_size = target_latent_tensor.shape[0]
-
+def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
-    print(current_batch_size, target_batch_size)
+    #print(current_batch_size, target_batch_size)
     if current_batch_size == 1:
         return tensor
 
@@ -487,7 +621,7 @@ def resize_image_to(tensor, target_latent_tensor, batched_number):
         return torch.cat([tensor] * batched_number, dim=0)
 
 class ControlNet:
-    def __init__(self, control_model, device=None):
+    def __init__(self, control_model, global_average_pooling=False, device=None):
         self.control_model = control_model
         self.cond_hint_original = None
         self.cond_hint = None
@@ -496,6 +630,7 @@ class ControlNet:
             device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
+        self.global_average_pooling = global_average_pooling
 
     def get_control(self, x_noisy, t, cond_txt, batched_number):
         control_prev = None
@@ -507,7 +642,9 @@ class ControlNet:
             if self.cond_hint is not None:
                 del self.cond_hint
             self.cond_hint = None
-            self.cond_hint = resize_image_to(self.cond_hint_original, x_noisy, batched_number).to(self.control_model.dtype).to(self.device)
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").to(self.control_model.dtype).to(self.device)
+        if x_noisy.shape[0] != self.cond_hint.shape[0]:
+            self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
         if self.control_model.dtype == torch.float16:
             precision_scope = torch.autocast
@@ -529,6 +666,9 @@ class ControlNet:
                 key = 'output'
                 index = i
             x = control[i]
+            if self.global_average_pooling:
+                x = torch.mean(x, dim=(2, 3), keepdim=True).repeat(1, 1, x.shape[2], x.shape[3])
+
             x *= self.strength
             if x.dtype != output_dtype and not autocast_enabled:
                 x = x.to(output_dtype)
@@ -559,15 +699,15 @@ class ControlNet:
             self.cond_hint = None
 
     def copy(self):
-        c = ControlNet(self.control_model)
+        c = ControlNet(self.control_model, global_average_pooling=self.global_average_pooling)
         c.cond_hint_original = self.cond_hint_original
         c.strength = self.strength
         return c
 
-    def get_control_models(self):
+    def get_models(self):
         out = []
         if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_control_models()
+            out += self.previous_controlnet.get_models()
         out.append(self.control_model)
         return out
 
@@ -607,7 +747,7 @@ def load_controlnet(ckpt_path, model=None):
                                         use_spatial_transformer=True,
                                         transformer_depth=1,
                                         context_dim=context_dim,
-                                        use_checkpoint=True,
+                                        use_checkpoint=False,
                                         legacy=False,
                                         use_fp16=use_fp16)
     else:
@@ -624,7 +764,7 @@ def load_controlnet(ckpt_path, model=None):
                                         use_linear_in_transformer=True,
                                         transformer_depth=1,
                                         context_dim=context_dim,
-                                        use_checkpoint=True,
+                                        use_checkpoint=False,
                                         legacy=False,
                                         use_fp16=use_fp16)
     if pth:
@@ -654,7 +794,11 @@ def load_controlnet(ckpt_path, model=None):
     if use_fp16:
         control_model = control_model.half()
 
-    control = ControlNet(control_model)
+    global_average_pooling = False
+    if ckpt_path.endswith("_shuffle.pth") or ckpt_path.endswith("_shuffle.safetensors") or ckpt_path.endswith("_shuffle_fp16.safetensors"): #TODO: smarter way of enabling global_average_pooling
+        global_average_pooling = True
+
+    control = ControlNet(control_model, global_average_pooling=global_average_pooling)
     return control
 
 class T2IAdapter:
@@ -678,10 +822,14 @@ class T2IAdapter:
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
                 del self.cond_hint
+            self.control_input = None
             self.cond_hint = None
-            self.cond_hint = resize_image_to(self.cond_hint_original, x_noisy, batched_number).float().to(self.device)
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").float().to(self.device)
             if self.channels_in == 1 and self.cond_hint.shape[1] > 1:
                 self.cond_hint = torch.mean(self.cond_hint, 1, keepdim=True)
+        if x_noisy.shape[0] != self.cond_hint.shape[0]:
+            self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
+        if self.control_input is None:
             self.t2i_model.to(self.device)
             self.control_input = self.t2i_model(self.cond_hint)
             self.t2i_model.cpu()
@@ -737,10 +885,10 @@ class T2IAdapter:
             del self.cond_hint
             self.cond_hint = None
 
-    def get_control_models(self):
+    def get_models(self):
         out = []
         if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_control_models()
+            out += self.previous_controlnet.get_models()
         return out
 
 def load_t2i_adapter(t2i_data):
@@ -780,12 +928,19 @@ def load_clip(ckpt_path, embedding_directory=None):
     clip_data = utils.load_torch_file(ckpt_path)
     config = {}
     if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
     else:
-        config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
     clip = CLIP(config=config, embedding_directory=embedding_directory)
     clip.load_from_state_dict(clip_data)
     return clip
+
+def load_gligen(ckpt_path):
+    data = utils.load_torch_file(ckpt_path)
+    model = gligen.load_gligen(data)
+    if model_management.should_use_fp16():
+        model = model.half()
+    return model
 
 def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):
     with open(config_path, 'r') as stream:
@@ -851,9 +1006,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if output_clip:
         clip_config = {}
         if "cond_stage_model.model.transformer.resblocks.22.attn.out_proj.weight" in sd_keys:
-            clip_config['target'] = 'ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+            clip_config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
         else:
-            clip_config['target'] = 'ldm.modules.encoders.modules.FrozenCLIPEmbedder'
+            clip_config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
         clip = CLIP(config=clip_config, embedding_directory=embedding_directory)
         w.cond_stage_model = clip.cond_stage_model
         load_state_dict_to = [w]
@@ -874,7 +1029,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             noise_schedule_config["timesteps"] = sd[noise_aug_key].shape[0]
             noise_schedule_config["beta_schedule"] = "squaredcos_cap_v2"
             params["noise_schedule_config"] = noise_schedule_config
-            noise_aug_config['target'] = "ldm.modules.encoders.noise_aug_modules.CLIPEmbeddingNoiseAugmentation"
+            noise_aug_config['target'] = "comfy.ldm.modules.encoders.noise_aug_modules.CLIPEmbeddingNoiseAugmentation"
             if size == 1280: #h
                 params["timestep_dim"] = 1024
             elif size == 1024: #l
@@ -898,7 +1053,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     }
 
     unet_config = {
-        "use_checkpoint": True,
+        "use_checkpoint": False,
         "image_size": 32,
         "out_channels": 4,
         "attention_resolutions": [
@@ -926,19 +1081,19 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     unet_config["in_channels"] = sd['model.diffusion_model.input_blocks.0.0.weight'].shape[1]
     unet_config["context_dim"] = sd['model.diffusion_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'].shape[1]
 
-    sd_config["unet_config"] = {"target": "ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
-    model_config = {"target": "ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
+    sd_config["unet_config"] = {"target": "comfy.ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
+    model_config = {"target": "comfy.ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
 
     if noise_aug_config is not None: #SD2.x unclip model
         sd_config["noise_aug_config"] = noise_aug_config
         sd_config["image_size"] = 96
         sd_config["embedding_dropout"] = 0.25
         sd_config["conditioning_key"] = 'crossattn-adm'
-        model_config["target"] = "ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
+        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
     elif unet_config["in_channels"] > 4: #inpainting model
         sd_config["conditioning_key"] = "hybrid"
         sd_config["finetune_keys"] = None
-        model_config["target"] = "ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
+        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
     else:
         sd_config["conditioning_key"] = "crossattn"
 
