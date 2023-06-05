@@ -462,6 +462,25 @@ export class ComfyUI {
 			defaultValue: true,
 		});
 
+		/**
+		 * file format for preview
+		 *
+		 * L?;format;quality
+		 *
+		 * ex)
+		 * L;webp;50 -> grayscale, webp, quality 50
+		 * jpeg;80 -> rgb, jpeg, quality 80
+		 * png -> rgb, png, default quality(=90)
+		 *
+		 * @type {string}
+		 */
+		const previewImage = this.settings.addSetting({
+			id: "Comfy.PreviewFormat",
+			name: "When displaying a preview in the image widget, convert it to a lightweight image. (webp, jpeg, webp;50, ...)",
+			type: "string",
+			defaultValue: "",
+		});
+
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",

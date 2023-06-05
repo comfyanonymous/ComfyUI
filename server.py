@@ -217,6 +217,28 @@ class PromptServer():
                 file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
+                    if 'preview' in request.rel_url.query:
+                        with Image.open(file) as img:
+                            preview_info = request.rel_url.query['preview'].split(';')
+
+                            if preview_info[0] == "L" or preview_info[0] == "l":
+                                img = img.convert("L")
+                                image_format = preview_info[1]
+                            else:
+                                img = img.convert("RGB")  # jpeg doesn't support RGBA
+                                image_format = preview_info[0]
+
+                            quality = 90
+                            if preview_info[-1].isdigit():
+                                quality = int(preview_info[-1])
+
+                            buffer = BytesIO()
+                            img.save(buffer, format=image_format, optimize=True, quality=quality)
+                            buffer.seek(0)
+
+                            return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
                     else:
