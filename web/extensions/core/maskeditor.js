@@ -41,7 +41,7 @@ async function uploadMask(filepath, formData) {
 	});
 
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
-	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = "/view?" + new URLSearchParams(filepath).toString();
+	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = "/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam();
 
 	if(ComfyApp.clipspace.images)
 		ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;
@@ -335,6 +335,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 		const alpha_url = new URL(ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src)
 		alpha_url.searchParams.delete('channel');
+		alpha_url.searchParams.delete('preview');
 		alpha_url.searchParams.set('channel', 'a');
 		touched_image.src = alpha_url;
 
@@ -345,6 +346,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 		const rgb_url = new URL(ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src);
 		rgb_url.searchParams.delete('channel');
+		rgb_url.searchParams.delete('preview');
 		rgb_url.searchParams.set('channel', 'rgb');
 		orig_image.src = rgb_url;
 		this.image = orig_image;
