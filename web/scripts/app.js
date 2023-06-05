@@ -51,6 +51,14 @@ export class ComfyApp {
 		this.shiftDown = false;
 	}
 
+	getPreviewFormatParam() {
+		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
+		if(preview_format)
+			return `&preview=${preview_format}`;
+		else
+			return "";
+	}
+
 	static isImageNode(node) {
 		return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
 	}
@@ -231,14 +239,20 @@ export class ComfyApp {
 					options.unshift(
 						{
 							content: "Open Image",
-							callback: () => window.open(img.src, "_blank"),
+							callback: () => {
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								window.open(url, "_blank")
+							},
 						},
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
-								a.href = img.src;
-								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								a.href = url;
+								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
 								a.click();
 								requestAnimationFrame(() => a.remove());
@@ -365,7 +379,7 @@ export class ComfyApp {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
-									img.src = "/view?" + new URLSearchParams(src).toString();
+									img.src = "/view?" + new URLSearchParams(src).toString() + app.getPreviewFormatParam();
 								});
 							})
 						).then((imgs) => {
