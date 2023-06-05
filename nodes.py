@@ -1036,7 +1036,6 @@ class SaveImage:
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-            input = input.replace("%date%", datetime.now().strftime("%Y%m%d%H%M%S"))
         results = list()
         for image in images:
             i = 255. * image.cpu().numpy()

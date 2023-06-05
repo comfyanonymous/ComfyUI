@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime
 
 supported_ckpt_extensions = set(['.ckpt', '.pth', '.safetensors'])
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
@@ -202,6 +203,7 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
     def compute_vars(input, image_width, image_height):
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
+        input = input.replace("%date%", datetime.now().strftime("%Y%m%d%H%M%S"))
         return input
 
     filename_prefix = compute_vars(filename_prefix, image_width, image_height)
