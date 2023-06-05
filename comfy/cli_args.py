@@ -44,10 +44,11 @@ parser.add_argument("--dont-upcast-attention", action="store_true", help="Disabl
 parser.add_argument("--force-fp32", action="store_true", help="Force fp32 (If this makes your GPU work better please report it).")
 parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
 
-class PreviewType(enum.Enum):
+class LatentPreviewType(enum.Enum):
+    Latent2RGB = "latent2rgb"
     TAESD = "taesd"
 parser.add_argument("--disable-previews", action="store_true", help="Disable showing node previews.")
-parser.add_argument("--default-preview-method", type=str, default=PreviewType.TAESD, metavar="PREVIEW_TYPE", help="Default preview method for sampler nodes.")
+parser.add_argument("--default-preview-method", type=str, default=LatentPreviewType.Latent2RGB, metavar="PREVIEW_TYPE", help="Default preview method for sampler nodes.")
 
 attn_group = parser.add_mutually_exclusive_group()
 attn_group.add_argument("--use-split-cross-attention", action="store_true", help="Use the split cross attention optimization instead of the sub-quadratic one. Ignored when xformers is used.")
