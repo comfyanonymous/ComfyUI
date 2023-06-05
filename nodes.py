@@ -24,7 +24,7 @@ import comfy.samplers
 import comfy.sample
 import comfy.sd
 import comfy.utils
-from comfy.cli_args import args
+from comfy.cli_args import args, LatentPreviewType
 from comfy.taesd.taesd import TAESD
 
 import comfy.clip_vision
@@ -38,6 +38,27 @@ import folder_paths
 class LatentPreviewer:
     def decode_latent_to_preview(self, device, x0):
         pass
+
+
+class Latent2RGBPreviewer(LatentPreviewer):
+    def __init__(self):
+        self.latent_rgb_factors = torch.tensor([
+                    #   R        G        B
+                    [0.298, 0.207, 0.208],  # L1
+                    [0.187, 0.286, 0.173],  # L2
+                    [-0.158, 0.189, 0.264],  # L3
+                    [-0.184, -0.271, -0.473],  # L4
+                ], device="cpu")
+
+    def decode_latent_to_preview(self, device, x0):
+        latent_image = x0[0].permute(1, 2, 0).cpu() @ self.latent_rgb_factors
+
+        latents_ubyte = (((latent_image + 1) / 2)
+                            .clamp(0, 1)  # change scale from -1..1 to 0..1
+                            .mul(0xFF)  # to 0..255
+                            .byte()).cpu()
+
+        return Image.fromarray(latents_ubyte.numpy())
 
 
 def before_node_execution():
@@ -266,7 +287,13 @@ class TAESDPreviewerImpl(LatentPreviewer):
         x_sample = self.taesd.decoder(x0.to(device))[0].detach()
         # x_sample = self.taesd.unscale_latents(x_sample).div(4).add(0.5)  # returns value in [-2, 2]
         x_sample = x_sample.sub(0.5).mul(2)
-        return x_sample
+
+        x_sample = torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
+        x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
+        x_sample = x_sample.astype(np.uint8)
+
+        preview_image = Image.fromarray(x_sample)
+        return preview_image
 
 class SaveLatent:
     def __init__(self):
@@ -952,16 +979,8 @@ class SetLatentNoiseMask:
 
 
 def decode_latent_to_preview_image(previewer, device, preview_format, x0):
-    x_sample = previewer.decode_latent_to_preview(device, x0)
-
-    x_sample = torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
-    x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
-    x_sample = x_sample.astype(np.uint8)
-
-    preview_image = Image.fromarray(x_sample)
-
-    if preview_image.size[0] > MAX_PREVIEW_RESOLUTION or preview_image.size[1] > MAX_PREVIEW_RESOLUTION:
-        preview_image.thumbnail((MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), Image.ANTIALIAS)
+    preview_image = previewer.decode_latent_to_preview(device, x0)
+    preview_image = ImageOps.contain(preview_image, (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), Image.ANTIALIAS)
 
     preview_type = 1
     if preview_format == "JPEG":
@@ -999,13 +1018,17 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     previewer = None
     if not args.disable_previews:
         # TODO previewer methods
-        encoder_path = folder_paths.get_full_path("taesd", "taesd_encoder.pth")
-        decoder_path = folder_paths.get_full_path("taesd", "taesd_decoder.pth")
-        if encoder_path and decoder_path:
-            taesd = TAESD(encoder_path, decoder_path).to(device)
-            previewer = TAESDPreviewerImpl(taesd)
-        else:
-            print("Warning: TAESD previews enabled, but could not find models/taesd/taesd_encoder.pth and models/taesd/taesd_decoder.pth")
+        if args.default_preview_method == LatentPreviewType.TAESD:
+            encoder_path = folder_paths.get_full_path("taesd", "taesd_encoder.pth")
+            decoder_path = folder_paths.get_full_path("taesd", "taesd_decoder.pth")
+            if encoder_path and decoder_path:
+                taesd = TAESD(encoder_path, decoder_path).to(device)
+                previewer = TAESDPreviewerImpl(taesd)
+            else:
+                print("Warning: TAESD previews enabled, but could not find models/taesd/taesd_encoder.pth and models/taesd/taesd_decoder.pth")
+
+        if previewer is None:
+            previewer = Latent2RGBPreviewer()
 
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
