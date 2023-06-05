@@ -45,7 +45,6 @@ def hijack_progress(server):
         server.send_sync("progress", { "value": value, "max": total}, server.client_id)
         if preview_image_bytes is not None:
             server.send_sync(BinaryEventTypes.PREVIEW_IMAGE, preview_image_bytes, server.client_id)
-            pass
     comfy.utils.set_progress_bar_global_hook(hook)
 
 def cleanup_temp():
