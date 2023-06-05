@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { Util } from "./util.js";
 
 export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
@@ -581,8 +582,10 @@ export class ComfyUI {
 							filename += ".json";
 						}
 					}
-					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
-					const blob = new Blob([json], { type: "application/json" });
+					var json = app.graph.serialize();
+					json = Util.workflow_security_filter(json);
+					const json_str = JSON.stringify(json, null, 2); // convert the data to a JSON string
+					const blob = new Blob([json_str], { type: "application/json" });
 					const url = URL.createObjectURL(blob);
 					const a = $el("a", {
 						href: url,

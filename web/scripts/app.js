@@ -3,6 +3,7 @@ import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { Util } from "./util.js";
 
 /** 
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -1355,6 +1356,7 @@ export class ComfyApp {
 					const p = await this.graphToPrompt();
 
 					try {
+						p.workflow = Util.workflow_security_filter(p.workflow);
 						await api.queuePrompt(number, p);
 					} catch (error) {
 						const formattedError = this.#formatPromptError(error)
@@ -1441,20 +1443,34 @@ export class ComfyApp {
 
 			const def = defs[node.type];
 
-			// HOTFIX: The current patch is designed to prevent the rest of the code from breaking due to primitive nodes,
-			//         and additional work is needed to consider the primitive logic in the refresh logic.
-			if(!def)
-				continue;
-
 			for(const widgetNum in node.widgets) {
 				const widget = node.widgets[widgetNum]
-				if(widget.type == "combo" && def["input"]["required"][widget.name] !== undefined) {
-					widget.options.values = def["input"]["required"][widget.name][0];
+				if(widget.type == "combo") {
+					if(def) {
+						// normal node
+						if(def["input"]["required"][widget.name]) {
+							widget.options.values = def["input"]["required"][widget.name][0];
 
-					if(widget.name != 'image' && !widget.options.values.includes(widget.value)) {
-						widget.value = widget.options.values[0];
-						widget.callback(widget.value);
+							if(widget.name != 'image' && !widget.options.values.includes(widget.value)) {
+								widget.value = widget.options.values[0];
+								widget.callback(widget.value);
+							}
+						}
 					}
+					else if(widget.name != "control_after_generate") {
+						// primitive node
+						let info = node.outputs[0].type.split("\n");
+						let node_type = info[0];
+						let slot_name = info[1];
+
+						widget.options.values = defs[node_type].input.required[slot_name][0];
+
+						if(widget.name != 'image' && !widget.options.values.includes(widget.value)) {
+							widget.value = widget.options.values[0];
+							widget.callback(widget.value);
+						}
+					}
+
 				}
 			}
 		}

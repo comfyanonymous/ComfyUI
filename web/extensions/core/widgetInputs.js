@@ -51,7 +51,7 @@ function showWidget(widget) {
 function convertToInput(node, widget, config) {
 	hideWidget(node, widget);
 
-	const { linkType } = getWidgetType(config);
+	const { linkType } = getWidgetType(`${node.type}\n${widget.name}`, config);
 
 	// Add input and store widget config for creating on primitive node
 	const sz = node.size;
@@ -72,13 +72,13 @@ function convertToWidget(node, widget) {
 	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
 }
 
-function getWidgetType(config) {
+function getWidgetType(name, config) {
 	// Special handling for COMBO so we restrict links based on the entries
 	let type = config[0];
 	let linkType = type;
 	if (type instanceof Array) {
 		type = "COMBO";
-		linkType = linkType.join(",");
+		linkType = `${name}`;
 	}
 	return { type, linkType };
 }
@@ -86,7 +86,7 @@ function getWidgetType(config) {
 app.registerExtension({
 	name: "Comfy.WidgetInputs",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
-		// Add menu options to conver to/from widgets
+		// Add menu options to convert to/from widgets
 		const origGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
 		nodeType.prototype.getExtraMenuOptions = function (_, options) {
 			const r = origGetExtraMenuOptions ? origGetExtraMenuOptions.apply(this, arguments) : undefined;
@@ -270,7 +270,7 @@ app.registerExtension({
 				}
 
 				const widget = _widget;
-				const { type, linkType } = getWidgetType(widget.config);
+				const { type, linkType } = getWidgetType(`${theirNode.type}\n${widget.name}`, widget.config);
 				// Update our output to restrict to the widget type
 				this.outputs[0].type = linkType;
 				this.outputs[0].name = type;
