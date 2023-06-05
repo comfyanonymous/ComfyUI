@@ -382,7 +382,7 @@ export class ComfyApp {
 						this.images = output.images;
 						imagesChanged = true;
 						imgURLs = imgURLs.concat(output.images.map(params => {
-							return "/view?" + new URLSearchParams(src).toString() + app.getPreviewFormatParam();
+							return "/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
 						}))
 					}
 				}

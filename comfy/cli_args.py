@@ -1,4 +1,35 @@
 import argparse
+import enum
+
+
+class EnumAction(argparse.Action):
+    """
+    Argparse action for handling Enums
+    """
+    def __init__(self, **kwargs):
+        # Pop off the type value
+        enum_type = kwargs.pop("type", None)
+
+        # Ensure an Enum subclass is provided
+        if enum_type is None:
+            raise ValueError("type must be assigned an Enum when using EnumAction")
+        if not issubclass(enum_type, enum.Enum):
+            raise TypeError("type must be an Enum when using EnumAction")
+
+        # Generate choices from the Enum
+        choices = tuple(e.value for e in enum_type)
+        kwargs.setdefault("choices", choices)
+        kwargs.setdefault("metavar", f"[{','.join(list(choices))}]")
+
+        super(EnumAction, self).__init__(**kwargs)
+
+        self._enum = enum_type
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Convert value back into an Enum
+        value = self._enum(values)
+        setattr(namespace, self.dest, value)
+
 
 parser = argparse.ArgumentParser()
 
@@ -12,6 +43,11 @@ parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID"
 parser.add_argument("--dont-upcast-attention", action="store_true", help="Disable upcasting of attention. Can boost speed but increase the chances of black images.")
 parser.add_argument("--force-fp32", action="store_true", help="Force fp32 (If this makes your GPU work better please report it).")
 parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
+
+class PreviewType(enum.Enum):
+    TAESD = "taesd"
+parser.add_argument("--disable-previews", action="store_true", help="Disable showing node previews.")
+parser.add_argument("--default-preview-method", type=str, default=PreviewType.TAESD, metavar="PREVIEW_TYPE", help="Default preview method for sampler nodes.")
 
 attn_group = parser.add_mutually_exclusive_group()
 attn_group.add_argument("--use-split-cross-attention", action="store_true", help="Use the split cross attention optimization instead of the sub-quadratic one. Ignored when xformers is used.")
