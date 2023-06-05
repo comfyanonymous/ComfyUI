@@ -465,12 +465,11 @@ export class ComfyUI {
 		/**
 		 * file format for preview
 		 *
-		 * L?;format;quality
+		 * format;quality
 		 *
 		 * ex)
-		 * L;webp;50 -> grayscale, webp, quality 50
+		 * webp;50 -> webp, quality 50
 		 * jpeg;80 -> rgb, jpeg, quality 80
-		 * png -> rgb, png, default quality(=90)
 		 *
 		 * @type {string}
 		 */
