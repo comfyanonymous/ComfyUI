@@ -49,20 +49,14 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+	}
 
-		/**
-		 * file format for preview
-		 *
-		 * L?;format;quality
-		 *
-		 * ex)
-		 * L;webp;50 -> grayscale, webp, quality 50
-		 * jpeg;80 -> rgb, jpeg, quality 80
-		 * png -> rgb, png, default quality(=90)
-		 *
-		 * @type {string}
-		 */
-		this.preview_format = "webp";
+	getPreviewFormatParam() {
+		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
+		if(preview_format)
+			return `&preview=${preview_format}`;
+		else
+			return "";
 	}
 
 	static isImageNode(node) {
@@ -385,7 +379,7 @@ export class ComfyApp {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
-									img.src = "/view?" + new URLSearchParams(src).toString() + "&preview="+app.preview_format;
+									img.src = "/view?" + new URLSearchParams(src).toString() + app.getPreviewFormatParam();
 								});
 							})
 						).then((imgs) => {
