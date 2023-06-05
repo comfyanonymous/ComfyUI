@@ -9,3 +9,5 @@ pytorch_lightning
 aiohttp
 accelerate
 pyyaml
+ruamel.yaml
+pytest

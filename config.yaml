@@ -1,0 +1,89 @@
+config:
+  network:
+
+    # Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)
+    # Type: str
+    listen: 127.0.0.1
+
+    # Set the listen port.
+    # Type: int
+    port: 8188
+
+    # Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.
+    # Type: str
+    enable_cors_header:
+  files:
+
+    # Extra paths to scan for model files.
+    extra_model_paths:
+      a1111:
+        hypernetworks: models/hypernetworks
+        base_path: path/to/stable-diffusion-webui/
+        embeddings: embeddings
+        controlnet: models/ControlNet
+        configs: models/Stable-diffusion
+        loras: models/Lora
+        vae: models/VAE
+        checkpoints: models/Stable-diffusion
+        upscale_models: |
+          models/ESRGAN
+          models/SwinIR
+
+    # Set the ComfyUI output directory. Leave empty to use the default.
+    # Type: str
+    output_directory:
+  behavior:
+
+    # Automatically launch ComfyUI in the default browser.
+    # Type: bool
+    auto_launch: false
+
+    # Don't print server output.
+    # Type: bool
+    dont_print_server: false
+
+    # Quick test for CI.
+    # Type: bool
+    quick_test_for_ci: false
+
+    # Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).
+    # Type: bool
+    windows_standalone_build: false
+  pytorch:
+
+    # Set the id of the cuda device this instance will use, or leave empty to autodetect.
+    # Type: int
+    cuda_device:
+
+    # Disable upcasting of attention. Can boost speed but increase the chances of black images.
+    # Type: bool
+    dont_upcast_attention: false
+
+    # Force fp32 (If this makes your GPU work better please report it).
+    # Type: bool
+    force_fp32: false
+
+    # Use torch-directml.
+    # Type: int
+    directml:
+
+    # Type of cross attention to use
+    # Choices:
+    #  - (empty): Don't use cross-attention.
+    #  - split: Use the split cross attention optimization instead of the sub-quadratic one. Ignored when xformers is used.
+    #  - pytorch: Use the new pytorch 2.0 cross attention function.
+    cross_attention:
+
+    # Disable xformers.
+    # Type: bool
+    disable_xformers: false
+
+    # Determines how VRAM is used.
+    # Choices:
+    #  - (empty): Autodetect the optional VRAM settings based on hardware.
+    #  - highvram: By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.
+    #  - normalvram: Used to force normal vram use if lowvram gets automatically enabled.
+    #  - lowvram: Split the unet in parts to use less vram.
+    #  - novram: When lowvram isn't enough.
+    #  - cpu: To use the CPU for everything (slow).
+    vram:

@@ -3,9 +3,12 @@ import itertools
 import os
 import shutil
 import threading
+import pprint
 
 from comfy.cli_args import args
 import comfy.utils
+
+print("Configuration: " + str(vars(args)))
 
 if os.name == "nt":
     import logging
@@ -49,16 +52,17 @@ def cleanup_temp():
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-def load_extra_path_config(yaml_path):
+def load_extra_path_config_file(yaml_path):
     with open(yaml_path, 'r') as stream:
         config = yaml.safe_load(stream)
+        load_extra_path_config(config)
+
+def load_extra_path_config(config):
     for c in config:
         conf = config[c]
         if conf is None:
             continue
-        base_path = None
-        if "base_path" in conf:
-            base_path = conf.pop("base_path")
+        base_path = conf.get("base_path", None)
         for x in conf:
             for y in conf[x].split("\n"):
                 if len(y) == 0:
@@ -79,11 +83,10 @@ if __name__ == "__main__":
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
-        load_extra_path_config(extra_model_paths_config_path)
+        load_extra_path_config_file(extra_model_paths_config_path)
 
-    if args.extra_model_paths_config:
-        for config_path in itertools.chain(*args.extra_model_paths_config):
-            load_extra_path_config(config_path)
+    if args.extra_model_paths:
+        load_extra_path_config(args.extra_model_paths)
 
     init_custom_nodes()
     server.add_routes()
