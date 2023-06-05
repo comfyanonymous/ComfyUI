@@ -24,7 +24,7 @@ import comfy.samplers
 import comfy.sample
 import comfy.sd
 import comfy.utils
-from comfy.cli_args import args, LatentPreviewType
+from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
 
 import comfy.clip_vision
@@ -1018,11 +1018,19 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     previewer = None
     if not args.disable_previews:
         # TODO previewer methods
-        if args.default_preview_method == LatentPreviewType.TAESD:
-            encoder_path = folder_paths.get_full_path("taesd", "taesd_encoder.pth")
-            decoder_path = folder_paths.get_full_path("taesd", "taesd_decoder.pth")
-            if encoder_path and decoder_path:
-                taesd = TAESD(encoder_path, decoder_path).to(device)
+        taesd_encoder_path = folder_paths.get_full_path("taesd", "taesd_encoder.pth")
+        taesd_decoder_path = folder_paths.get_full_path("taesd", "taesd_decoder.pth")
+
+        method = args.default_preview_method
+
+        if args.default_preview_method == LatentPreviewMethod.AUTO:
+            method = LatentPreviewMethod.Latent2RGB
+            if taesd_encoder_path and taesd_encoder_path:
+                method = LatentPreviewMethod.TAESD
+
+        if method == LatentPreviewMethod.TAESD:
+            if taesd_encoder_path and taesd_encoder_path:
+                taesd = TAESD(taesd_encoder_path, taesd_decoder_path).to(device)
                 previewer = TAESDPreviewerImpl(taesd)
             else:
                 print("Warning: TAESD previews enabled, but could not find models/taesd/taesd_encoder.pth and models/taesd/taesd_decoder.pth")
