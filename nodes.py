@@ -264,8 +264,8 @@ class TAESDPreviewerImpl(LatentPreviewer):
 
     def decode_latent_to_preview(self, device, x0):
         x_sample = self.taesd.decoder(x0.to(device))[0].detach()
-        x_sample = self.taesd.unscale_latents(x_sample)  # returns value in [-2, 2]
-        x_sample = x_sample * 0.5
+        # x_sample = self.taesd.unscale_latents(x_sample).div(4).add(0.5)  # returns value in [-2, 2]
+        x_sample = x_sample.sub(0.5).mul(2)
         return x_sample
 
 class SaveLatent:
