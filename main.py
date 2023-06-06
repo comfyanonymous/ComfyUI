@@ -26,6 +26,7 @@ import yaml
 import execution
 import folder_paths
 import server
+from server import BinaryEventTypes
 from nodes import init_custom_nodes
 
 
@@ -40,8 +41,10 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
 
 def hijack_progress(server):
-    def hook(value, total):
+    def hook(value, total, preview_image_bytes):
         server.send_sync("progress", { "value": value, "max": total}, server.client_id)
+        if preview_image_bytes is not None:
+            server.send_sync(BinaryEventTypes.PREVIEW_IMAGE, preview_image_bytes, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
 
 def cleanup_temp():

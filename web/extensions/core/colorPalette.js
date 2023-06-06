@@ -21,6 +21,7 @@ const colorPalettes = {
 				"MODEL": "#B39DDB", // light lavender-purple
 				"STYLE_MODEL": "#C2FFAE", // light green-yellow
 				"VAE": "#FF6E6E", // bright red
+				"TAESD": "#DCC274", // cheesecake
 			},
 			"litegraph_base": {
 				"NODE_TITLE_COLOR": "#999",
