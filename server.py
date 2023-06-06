@@ -7,6 +7,7 @@ import execution
 import uuid
 import json
 import glob
+import struct
 from PIL import Image
 from io import BytesIO
 
@@ -24,6 +25,11 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+
+
+class BinaryEventTypes:
+    PREVIEW_IMAGE = 1
+
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -457,16 +463,37 @@ class PromptServer():
         return prompt_info
 
     async def send(self, event, data, sid=None):
-        message = {"type": event, "data": data}
-       
-        if isinstance(message, str) == False:
-            message = json.dumps(message)
+        if isinstance(data, (bytes, bytearray)):
+            await self.send_bytes(event, data, sid)
+        else:
+            await self.send_json(event, data, sid)
+
+    def encode_bytes(self, event, data):
+        if not isinstance(event, int):
+            raise RuntimeError(f"Binary event types must be integers, got {event}")
+
+        packed = struct.pack(">I", event)
+        message = bytearray(packed)
+        message.extend(data)
+        return message
+
+    async def send_bytes(self, event, data, sid=None):
+        message = self.encode_bytes(event, data)
 
         if sid is None:
             for ws in self.sockets.values():
-                await ws.send_str(message)
+                await ws.send_bytes(message)
         elif sid in self.sockets:
-            await self.sockets[sid].send_str(message)
+            await self.sockets[sid].send_bytes(message)
+
+    async def send_json(self, event, data, sid=None):
+        message = {"type": event, "data": data}
+
+        if sid is None:
+            for ws in self.sockets.values():
+                await ws.send_json(message)
+        elif sid in self.sockets:
+            await self.sockets[sid].send_json(message)
 
     def send_sync(self, event, data, sid=None):
         self.loop.call_soon_threadsafe(
