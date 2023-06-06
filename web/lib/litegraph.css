@@ -438,13 +438,20 @@
 	padding-left: 4px;
 }
 
+.litegraph .subgraph_property > select.type {
+	margin-right: 20px;
+	padding-left: 4px;
+    background-color: black;
+    border: 0;
+}
+
 .litegraph .subgraph_property span.label {
 	display: inline-block;
 	width: 60px;
 	padding:  0px 10px;
 }
 
-.litegraph .subgraph_property input {
+.litegraph .subgraph_property input, .litegraph .subgraph_property select {
 	width: 140px;
 	color: #999;
 	background-color: #1A1A1A;
@@ -468,7 +475,7 @@
 	color: #ccc;
 }
 
-.litegraph .subgraph_property.extra input {
+.litegraph .subgraph_property.extra input, .litegraph .subgraph_property.extra select {
 	background-color: #111;
 }
 

@@ -51,6 +51,7 @@ export class ComfyApp {
 		 */
 		this.nodePreviewImages = {};
 
+		/**
 		 * Stores `true` for nodes that are executing (the node or its parent subgraphs)
 		 * @type {Set<string>}
 		 */
@@ -829,6 +830,25 @@ export class ComfyApp {
 	}
 
 	/**
+	 * Notifies widgets when graph is changed
+	 */
+	#addCanvasAttachDetachHandlers() {
+		const self = this;
+
+		LGraphCanvas.prototype.onGraphAttached = function(graph) {
+			if (node.onGraphAttached)
+				node.onGraphAttached()
+		}
+
+		LGraphCanvas.prototype.onGraphDetached = function(graph) {
+			for (const node of graph._nodes) {
+				if (node.onGraphDetached)
+					node.onGraphDetached()
+			}
+		}
+	}
+
+	/**
 	 * Draws node highlights (executing, drag drop) and progress bar
 	 */
 	#addDrawNodeHandler() {
@@ -1034,6 +1054,7 @@ export class ComfyApp {
 	 */
 	async setup() {
 		LiteGraph.use_uuids = true;
+		LiteGraph.graph_inputs_outputs_use_combo_widget = true;
 		LiteGraph.registered_node_types["graph/input"].skip_list = true;
 		LiteGraph.registered_node_types["graph/output"].skip_list = true;
 

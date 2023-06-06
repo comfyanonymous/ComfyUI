@@ -179,6 +179,7 @@ function addMultilineWidget(node, name, opts, app) {
 	};
 	widget.inputEl = document.createElement("textarea");
 	widget.inputEl.className = "comfy-multiline-input";
+	widget.inputEl.style.display = "none";
 	widget.inputEl.value = opts.defaultVal;
 	widget.inputEl.placeholder = opts.placeholder || "";
 	document.addEventListener("mousedown", function (event) {
@@ -215,6 +216,14 @@ function addMultilineWidget(node, name, opts, app) {
 			}
 		}
 	};
+
+	node.onGraphAttached = function() {
+		widget.inputEl.style.display = "block";
+	}
+
+	node.onGraphDetached = function() {
+		widget.inputEl.style.display = "none";
+	}
 
 	widget.onRemove = () => {
 		widget.inputEl?.remove();
