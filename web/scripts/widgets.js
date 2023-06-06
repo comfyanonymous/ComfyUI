@@ -172,7 +172,7 @@ function addMultilineWidget(node, name, opts, app) {
 				position: "absolute",
 				background: (!node.color)?'':node.color,
 				color: (!node.color)?'':'white',
-				zIndex: app.graph._nodes.indexOf(node),
+				zIndex: node.graph._nodes.indexOf(node),
 			});
 			this.inputEl.hidden = !visible;
 		},
@@ -196,7 +196,11 @@ function addMultilineWidget(node, name, opts, app) {
 		// Draw node isnt fired once the node is off the screen
 		// if it goes off screen quickly, the input may not be removed
 		// this shifts it off screen so it can be moved back if the node is visible.
-		for (let n in app.graph._nodes) {
+		const graphcanvas = LGraphCanvas.active_canvas
+		if (graphcanvas == null || graphcanvas.graph != node.graph)
+			return
+
+		for (let n in graphcanvas.graph._nodes) {
 			n = graph._nodes[n];
 			for (let w in n.widgets) {
 				let wid = n.widgets[w];
@@ -217,12 +221,20 @@ function addMultilineWidget(node, name, opts, app) {
 		}
 	};
 
+	const onGraphAttached = node.onGraphAttached;
 	node.onGraphAttached = function() {
+		console.error("ONGRAPHATTACHKED", widget)
 		widget.inputEl.style.display = "block";
+		if (onGraphAttached)
+			onGraphAttached.apply(this, arguments)
 	}
 
+	const onGraphDetached = node.onGraphDetached;
 	node.onGraphDetached = function() {
+		console.error("ONGRAPHDETACHED", widget)
 		widget.inputEl.style.display = "none";
+		if (onGraphDetached)
+			onGraphDetached.apply(this, arguments)
 	}
 
 	widget.onRemove = () => {
@@ -304,7 +316,7 @@ export const ComfyWidgets = {
 			const img = new Image();
 			img.onload = () => {
 				node.imgs = [img];
-				app.graph.setDirtyCanvas(true);
+				node.graph.setDirtyCanvas(true);
 			};
 			let folder_separator = name.lastIndexOf("/");
 			let subfolder = "";

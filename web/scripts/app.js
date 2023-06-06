@@ -831,25 +831,6 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Notifies widgets when graph is changed
-	 */
-	#addCanvasAttachDetachHandlers() {
-		const self = this;
-
-		LGraphCanvas.prototype.onGraphAttached = function(graph) {
-			if (node.onGraphAttached)
-				node.onGraphAttached()
-		}
-
-		LGraphCanvas.prototype.onGraphDetached = function(graph) {
-			for (const node of graph._nodes) {
-				if (node.onGraphDetached)
-					node.onGraphDetached()
-			}
-		}
-	}
-
-	/**
 	 * Draws node highlights (executing, drag drop) and progress bar
 	 */
 	#addDrawNodeHandler() {
@@ -949,6 +930,33 @@ export class ComfyApp {
 
 			return res;
 		};
+	}
+
+	/**
+	 * Notifies widgets when graph is changed
+	 */
+	#addCanvasAttachDetachHandlers() {
+		const self = this;
+
+		this.canvas.onGraphAttached = function(graph) {
+			console.warn("canvas ongraphattached")
+			for (const node of graph._nodes)  {
+				if (node.onGraphAttached)
+					node.onGraphAttached()
+			}
+		}
+
+		this.canvas.onGraphDetached = function(graph) {
+			console.warn("canvas ongraphdetached")
+			for (const node of graph._nodes) {
+				if (node.onGraphDetached)
+					node.onGraphDetached()
+			}
+		}
+
+		// account for attachGraph() already having been called by the
+		// LGraphCanvas constructor
+		this.canvas.onGraphAttached(this.graph);
 	}
 
 	/**
@@ -1117,6 +1125,7 @@ export class ComfyApp {
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
 		this.#addApiUpdateHandlers();
+		this.#addCanvasAttachDetachHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
 		this.#addKeyboardHandler();
