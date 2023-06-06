@@ -1023,7 +1023,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
 
         method = args.default_preview_method
 
-        if args.default_preview_method == LatentPreviewMethod.AUTO:
+        if method == LatentPreviewMethod.Auto:
             method = LatentPreviewMethod.Latent2RGB
             if taesd_encoder_path and taesd_encoder_path:
                 method = LatentPreviewMethod.TAESD
