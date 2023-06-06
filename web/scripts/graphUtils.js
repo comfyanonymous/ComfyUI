@@ -60,7 +60,7 @@ export function getUpstreamLink(parent, currentLink) {
         const link = parent.getUpstreamLink();
         return [parent.graph, link];
     }
-    else if (parent.inputs.length === 1) {
+    else if (parent.inputs && parent.inputs.length === 1) {
         // Only one input, so assume we can follow it backwards.
         const link = parent.getInputLink(0);
         if (link) {
