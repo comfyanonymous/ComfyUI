@@ -4,12 +4,12 @@ from comfy.cli_args import args
 import torch
 
 class VRAMState(Enum):
-    DISABLED = 0
-    NO_VRAM = 1
+    DISABLED = 0    #No vram present: no need to move models to vram
+    NO_VRAM = 1     #Very low vram: enable all the options to save vram
     LOW_VRAM = 2
     NORMAL_VRAM = 3
     HIGH_VRAM = 4
-    SHARED = 5
+    SHARED = 5      #No dedicated vram: memory shared between CPU and GPU but models still need to be moved between both.
 
 class CPUState(Enum):
     GPU = 0

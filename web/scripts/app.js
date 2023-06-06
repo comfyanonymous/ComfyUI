@@ -45,10 +45,24 @@ export class ComfyApp {
 		this.nodeOutputs = {};
 
 		/**
+		 * Stores the preview image data for each node
+		 * @type {Record<string, Image>}
+		 */
+		this.nodePreviewImages = {};
+
+		/**
 		 * If the shift key on the keyboard is pressed
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+	}
+
+	getPreviewFormatParam() {
+		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
+		if(preview_format)
+			return `&preview=${preview_format}`;
+		else
+			return "";
 	}
 
 	static isImageNode(node) {
@@ -231,14 +245,20 @@ export class ComfyApp {
 					options.unshift(
 						{
 							content: "Open Image",
-							callback: () => window.open(img.src, "_blank"),
+							callback: () => {
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								window.open(url, "_blank")
+							},
 						},
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
-								a.href = img.src;
-								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								a.href = url;
+								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
 								a.click();
 								requestAnimationFrame(() => a.remove());
@@ -353,28 +373,51 @@ export class ComfyApp {
 
 		node.prototype.onDrawBackground = function (ctx) {
 			if (!this.flags.collapsed) {
+				let imgURLs = []
+				let imagesChanged = false
+
 				const output = app.nodeOutputs[this.id + ""];
 				if (output && output.images) {
 					if (this.images !== output.images) {
 						this.images = output.images;
-						this.imgs = null;
-						this.imageIndex = null;
+						imagesChanged = true;
+						imgURLs = imgURLs.concat(output.images.map(params => {
+							return "/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
+						}))
+					}
+				}
+
+				const preview = app.nodePreviewImages[this.id + ""]
+				if (this.preview !== preview) {
+					this.preview = preview
+					imagesChanged = true;
+					if (preview != null) {
+						imgURLs.push(preview);
+					}
+				}
+
+				if (imagesChanged) {
+					this.imageIndex = null;
+					if (imgURLs.length > 0) {
 						Promise.all(
-							output.images.map((src) => {
+							imgURLs.map((src) => {
 								return new Promise((r) => {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
-									img.src = "/view?" + new URLSearchParams(src).toString();
+									img.src = src
 								});
 							})
 						).then((imgs) => {
-							if (this.images === output.images) {
+							if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
 								this.imgs = imgs.filter(Boolean);
 								this.setSizeForImage?.();
 								app.graph.setDirtyCanvas(true);
 							}
 						});
+					}
+					else {
+						this.imgs = null;
 					}
 				}
 
@@ -887,17 +930,20 @@ export class ComfyApp {
 			this.progress = null;
 			this.runningNodeId = detail;
 			this.graph.setDirtyCanvas(true, false);
+			delete this.nodePreviewImages[this.runningNodeId]
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
 			const node = this.graph.getNodeById(detail.node);
-			if (node?.onExecuted) {
-				node.onExecuted(detail.output);
+			if (node) {
+				if (node.onExecuted)
+					node.onExecuted(detail.output);
 			}
 		});
 
 		api.addEventListener("execution_start", ({ detail }) => {
+			this.runningNodeId = null;
 			this.lastExecutionError = null
 		});
 
@@ -906,6 +952,16 @@ export class ComfyApp {
 			const formattedError = this.#formatExecutionError(detail);
 			this.ui.dialog.show(formattedError);
 			this.canvas.draw(true, true);
+		});
+
+		api.addEventListener("b_preview", ({ detail }) => {
+			const id = this.runningNodeId
+			if (id == null)
+				return;
+
+			const blob = detail
+			const blobUrl = URL.createObjectURL(blob)
+			this.nodePreviewImages[id] = [blobUrl]
 		});
 
 		api.init();
@@ -1451,8 +1507,10 @@ export class ComfyApp {
 	 */
 	clean() {
 		this.nodeOutputs = {};
+		this.nodePreviewImages = {}
 		this.lastPromptError = null;
 		this.lastExecutionError = null;
+		this.runningNodeId = null;
 	}
 }
 
