@@ -55,10 +55,10 @@ app.registerExtension({
 						}
 
 						// Find node with matching S&R property name
-						let nodes = app.graph._nodes.filter((n) => n.properties?.["Node name for S&R"] === split[0]);
+						let nodes = Array.from(app.graph.iterateNodesRecursive()).filter((n) => n.properties?.["Node name for S&R"] === split[0]);
 						// If we cant, see if there is a node with that title
 						if (!nodes.length) {
-							nodes = app.graph._nodes.filter((n) => n.title === split[0]);
+							nodes = Array.from(app.graph.iterateNodesRecursive()).filter((n) => n.title === split[0]);
 						}
 						if (!nodes.length) {
 							console.warn("Unable to find node", split[0]);

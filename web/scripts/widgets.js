@@ -200,8 +200,7 @@ function addMultilineWidget(node, name, opts, app) {
 		if (graphcanvas == null || graphcanvas.graph != node.graph)
 			return
 
-		for (let n in graphcanvas.graph._nodes) {
-			n = graph._nodes[n];
+		for (const n of graphcanvas.graph.iterateNodes()) {
 			for (let w in n.widgets) {
 				let wid = n.widgets[w];
 				if (Object.hasOwn(wid, "inputEl")) {
@@ -223,7 +222,6 @@ function addMultilineWidget(node, name, opts, app) {
 
 	const onGraphAttached = node.onGraphAttached;
 	node.onGraphAttached = function() {
-		console.error("ONGRAPHATTACHKED", widget)
 		widget.inputEl.style.display = "block";
 		if (onGraphAttached)
 			onGraphAttached.apply(this, arguments)
@@ -231,7 +229,6 @@ function addMultilineWidget(node, name, opts, app) {
 
 	const onGraphDetached = node.onGraphDetached;
 	node.onGraphDetached = function() {
-		console.error("ONGRAPHDETACHED", widget)
 		widget.inputEl.style.display = "none";
 		if (onGraphDetached)
 			onGraphDetached.apply(this, arguments)

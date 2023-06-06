@@ -22,12 +22,12 @@ app.registerExtension({
 					// Prevent multiple connections to different types when we have no input
 					if (connected && type === LiteGraph.OUTPUT) {
 						// Ignore wildcard nodes as these will be updated to real types
-						const types = new Set(this.outputs[0].links.map((l) => app.graph.links[l].type).filter((t) => t !== "*"));
+						const types = new Set(this.outputs[0].links.map((l) => this.graph.links[l].type).filter((t) => t !== "*"));
 						if (types.size > 1) {
 							for (let i = 0; i < this.outputs[0].links.length - 1; i++) {
 								const linkId = this.outputs[0].links[i];
-								const link = app.graph.links[linkId];
-								const node = app.graph.getNodeById(link.target_id);
+								const link = this.graph.links[linkId];
+								const node = this.graph.getNodeById(link.target_id);
 								node.disconnectInput(link.target_slot);
 							}
 						}
@@ -42,8 +42,8 @@ app.registerExtension({
 						updateNodes.unshift(currentNode);
 						const linkId = currentNode.inputs[0].link;
 						if (linkId !== null) {
-							const link = app.graph.links[linkId];
-							const node = app.graph.getNodeById(link.origin_id);
+							const link = this.graph.links[linkId];
+							const node = this.graph.getNodeById(link.origin_id);
 							const type = node.constructor.type;
 							if (type === "Reroute") {
 								if (node === this) {
@@ -76,12 +76,12 @@ app.registerExtension({
 						const outputs = (currentNode.outputs ? currentNode.outputs[0].links : []) || [];
 						if (outputs.length) {
 							for (const linkId of outputs) {
-								const link = app.graph.links[linkId];
+								const link = this.graph.links[linkId];
 
 								// When disconnecting sometimes the link is still registered
 								if (!link) continue;
 
-								const node = app.graph.getNodeById(link.target_id);
+								const node = this.graph.getNodeById(link.target_id);
 								const type = node.constructor.type;
 
 								if (type === "Reroute") {
@@ -118,7 +118,7 @@ app.registerExtension({
 						node.applyOrientation();
 
 						for (const l of node.outputs[0].links || []) {
-							const link = app.graph.links[l];
+							const link = this.graph.links[l];
 							if (link) {
 								link.color = color;
 							}
@@ -126,7 +126,7 @@ app.registerExtension({
 					}
 
 					if (inputNode) {
-						const link = app.graph.links[inputNode.inputs[0].link];
+						const link = this.graph.links[inputNode.inputs[0].link];
 						if (link) {
 							link.color = color;
 						}
@@ -158,7 +158,7 @@ app.registerExtension({
 							}
 							this.size = this.computeSize();
 							this.applyOrientation();
-							app.graph.setDirtyCanvas(true, true);
+							this.graph.setDirtyCanvas(true, true);
 						},
 					},
 					{
@@ -190,7 +190,7 @@ app.registerExtension({
 				} else {
 					delete this.inputs[0].pos;
 				}
-				app.graph.setDirtyCanvas(true, true);
+				this.graph.setDirtyCanvas(true, true);
 			}
 
 			computeSize() {

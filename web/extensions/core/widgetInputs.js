@@ -143,8 +143,8 @@ app.registerExtension({
 			return r;
 		};
 
-		function isNodeAtPos(pos) {
-			for (const n of app.graph._nodes) {
+		function isNodeAtPos(graph, pos) {
+			for (const n of graph.iterateNodes()) {
 				if (n.pos[0] === pos[0] && n.pos[1] === pos[1]) {
 					return true;
 				}
@@ -168,11 +168,12 @@ app.registerExtension({
 
 			// Create a primitive node
 			const node = LiteGraph.createNode("PrimitiveNode");
-			app.graph.add(node);
+			const graph = LGraphCanvas.active_canvas.graph;
+			graph.add(node);
 
 			// Calculate a position that wont directly overlap another node
 			const pos = [this.pos[0] - node.size[0] - 30, this.pos[1]];
-			while (isNodeAtPos(pos)) {
+			while (isNodeAtPos(graph, pos)) {
 				pos[1] += LiteGraph.NODE_TITLE_HEIGHT;
 			}
 
@@ -203,7 +204,7 @@ app.registerExtension({
 				function get_links(node) {
 					let links = [];
 					for (const l of node.outputs[0].links) {
-						const linkInfo = app.graph.links[l];
+						const linkInfo = node.graph.links[l];
 						const n = node.graph.getNodeById(linkInfo.target_id);
 						if (n.type == "Reroute") {
 							links = links.concat(get_links(n));
@@ -217,7 +218,7 @@ app.registerExtension({
 				let links = get_links(this);
 				// For each output link copy our value over the original widget value
 				for (const l of links) {
-					const linkInfo = app.graph.links[l];
+					const linkInfo = this.graph.links[l];
 					const node = this.graph.getNodeById(linkInfo.target_id);
 					const input = node.inputs[linkInfo.target_slot];
 					const widgetName = input.widget.name;

@@ -1401,6 +1401,30 @@
         return this.elapsed_time;
     };
 
+
+    /**
+     * Iterates all nodes in this graph *excluding* subgraphs.
+     */
+    LGraph.prototype.iterateNodes = function() {
+        const nodes = this._nodes_in_order ? this._nodes_in_order : this._nodes || [];
+		return nodes;
+    }
+
+    /**
+     * Iterates all nodes in this graph and subgraphs.
+     */
+    LGraph.prototype.iterateNodesRecursive = function() {
+        const nodes_ = this._nodes_in_order ? this._nodes_in_order : this._nodes || [];
+		let nodes = []
+        for (const node of nodes_) {
+			nodes.push(node)
+            if (node.subgraph != null) {
+				nodes = nodes.concat(node.subgraph.iterateNodesRecursive());
+            }
+        }
+		return nodes;
+    }
+
     /**
      * Sends an event to all the nodes, useful to trigger stuff
      * @method sendEventToAllNodes

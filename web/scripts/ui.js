@@ -602,12 +602,14 @@ export class ComfyUI {
 			$el("button", { id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace() }),
 			$el("button", { id: "comfy-clear-button", textContent: "Clear", onclick: () => {
 				if (!confirmClear.value || confirm("Clear workflow?")) {
+					LGraphCanvas.active_canvas.closeAllSubgraphs();
 					app.clean();
 					app.graph.clear();
 				}
 			}}),
 			$el("button", { id: "comfy-load-default-button", textContent: "Load Default", onclick: () => {
 				if (!confirmClear.value || confirm("Load default workflow?")) {
+					LGraphCanvas.active_canvas.closeAllSubgraphs();
 					app.loadGraphData()
 				}
 			}}),

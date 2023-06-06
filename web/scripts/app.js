@@ -190,7 +190,7 @@ export class ComfyApp {
 				}
 			}
 
-			app.graph.setDirtyCanvas(true);
+			node.graph.setDirtyCanvas(true);
 		}
 	}
 
@@ -437,7 +437,7 @@ export class ComfyApp {
 							if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
 								this.imgs = imgs.filter(Boolean);
 								this.setSizeForImage?.();
-								app.graph.setDirtyCanvas(true);
+								node.graph?.setDirtyCanvas(true);
 							}
 						});
 					}
@@ -940,7 +940,7 @@ export class ComfyApp {
 
 		this.canvas.onGraphAttached = function(graph) {
 			console.warn("canvas ongraphattached")
-			for (const node of graph._nodes)  {
+			for (const node of graph.iterateNodes())  {
 				if (node.onGraphAttached)
 					node.onGraphAttached()
 			}
@@ -948,7 +948,7 @@ export class ComfyApp {
 
 		this.canvas.onGraphDetached = function(graph) {
 			console.warn("canvas ongraphdetached")
-			for (const node of graph._nodes) {
+			for (const node of graph.iterateNodes()) {
 				if (node.onGraphDetached)
 					node.onGraphDetached()
 			}
@@ -1289,7 +1289,7 @@ export class ComfyApp {
 			return;
 		}
 
-		for (const node of this.graph._nodes) {
+		for (const node of this.graph.iterateNodesRecursive()) {
 			const size = node.computeSize();
 			size[0] = Math.max(node.size[0], size[0]);
 			size[1] = Math.max(node.size[1], size[1]);
@@ -1573,9 +1573,7 @@ export class ComfyApp {
 	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
-		for(let nodeNum in this.graph._nodes) {
-			const node = this.graph._nodes[nodeNum];
-
+		for(let node of this.graph.iterateNodesRecursive()) {
 			const def = defs[node.type];
 
 			// HOTFIX: The current patch is designed to prevent the rest of the code from breaking due to primitive nodes,
