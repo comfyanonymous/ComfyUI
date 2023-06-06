@@ -13,7 +13,6 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
@@ -29,7 +28,7 @@ import comfy.model_management
 import importlib
 
 import folder_paths
-
+import latent_preview
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -247,7 +246,6 @@ class VAEEncodeForInpaint:
         t = vae.encode(pixels)
 
         return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
-
 
 class SaveLatent:
     def __init__(self):
@@ -931,6 +929,7 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
         return (s,)
 
+
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
@@ -945,9 +944,18 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
+    preview_format = "JPEG"
+    if preview_format not in ["JPEG", "PNG"]:
+        preview_format = "JPEG"
+
+    previewer = latent_preview.get_previewer(device)
+
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
-        pbar.update_absolute(step + 1, total_steps)
+        preview_bytes = None
+        if previewer:
+            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
+        pbar.update_absolute(step + 1, total_steps, preview_bytes)
 
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
@@ -970,7 +978,8 @@ class KSampler:
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                    }}
+                     }
+                }
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "sample"
@@ -997,7 +1006,8 @@ class KSamplerAdvanced:
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
                     "return_with_leftover_noise": (["disable", "enable"], ),
-                    }}
+                     }
+                }
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "sample"
