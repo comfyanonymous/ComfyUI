@@ -229,6 +229,8 @@ class PromptServer():
                             if preview_info[-1].isdigit():
                                 quality = int(preview_info[-1])
 
+                            img.thumbnail((256, 256), Image.ANTIALIAS)
+
                             buffer = BytesIO()
                             if image_format in ['jpeg']:
                                 img = img.convert("RGB")
