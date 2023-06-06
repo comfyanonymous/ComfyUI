@@ -50,9 +50,9 @@ class TAESD(nn.Module):
         self.encoder = Encoder()
         self.decoder = Decoder()
         if encoder_path is not None:
-            self.encoder.load_state_dict(torch.load(encoder_path, map_location="cpu"))
+            self.encoder.load_state_dict(torch.load(encoder_path, map_location="cpu", weights_only=True))
         if decoder_path is not None:
-            self.decoder.load_state_dict(torch.load(decoder_path, map_location="cpu"))
+            self.decoder.load_state_dict(torch.load(decoder_path, map_location="cpu", weights_only=True))
 
     @staticmethod
     def scale_latents(x):

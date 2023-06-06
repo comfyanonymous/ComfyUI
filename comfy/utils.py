@@ -1,7 +1,6 @@
 import torch
 import math
 import struct
-import comfy.model_management
 
 def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
@@ -167,8 +166,6 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
         out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device="cpu")
         for y in range(0, s.shape[2], tile_y - overlap):
             for x in range(0, s.shape[3], tile_x - overlap):
-                comfy.model_management.throw_exception_if_processing_interrupted()
-
                 s_in = s[:,:,y:y+tile_y,x:x+tile_x]
 
                 ps = function(s_in).cpu()

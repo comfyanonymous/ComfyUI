@@ -7,14 +7,11 @@ import hashlib
 import traceback
 import math
 import time
-import struct
-from io import BytesIO
 
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
-
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -24,8 +21,6 @@ import comfy.samplers
 import comfy.sample
 import comfy.sd
 import comfy.utils
-from comfy.cli_args import args, LatentPreviewMethod
-from comfy.taesd.taesd import TAESD
 
 import comfy.clip_vision
 
@@ -33,33 +28,7 @@ import comfy.model_management
 import importlib
 
 import folder_paths
-
-
-class LatentPreviewer:
-    def decode_latent_to_preview(self, device, x0):
-        pass
-
-
-class Latent2RGBPreviewer(LatentPreviewer):
-    def __init__(self):
-        self.latent_rgb_factors = torch.tensor([
-                    #   R        G        B
-                    [0.298, 0.207, 0.208],  # L1
-                    [0.187, 0.286, 0.173],  # L2
-                    [-0.158, 0.189, 0.264],  # L3
-                    [-0.184, -0.271, -0.473],  # L4
-                ], device="cpu")
-
-    def decode_latent_to_preview(self, device, x0):
-        latent_image = x0[0].permute(1, 2, 0).cpu() @ self.latent_rgb_factors
-
-        latents_ubyte = (((latent_image + 1) / 2)
-                            .clamp(0, 1)  # change scale from -1..1 to 0..1
-                            .mul(0xFF)  # to 0..255
-                            .byte()).cpu()
-
-        return Image.fromarray(latents_ubyte.numpy())
-
+import latent_preview
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -68,7 +37,6 @@ def interrupt_processing(value=True):
     comfy.model_management.interrupt_current_processing(value)
 
 MAX_RESOLUTION=8192
-MAX_PREVIEW_RESOLUTION = 512
 
 class CLIPTextEncode:
     @classmethod
@@ -278,22 +246,6 @@ class VAEEncodeForInpaint:
         t = vae.encode(pixels)
 
         return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
-
-class TAESDPreviewerImpl(LatentPreviewer):
-    def __init__(self, taesd):
-        self.taesd = taesd
-
-    def decode_latent_to_preview(self, device, x0):
-        x_sample = self.taesd.decoder(x0.to(device))[0].detach()
-        # x_sample = self.taesd.unscale_latents(x_sample).div(4).add(0.5)  # returns value in [-2, 2]
-        x_sample = x_sample.sub(0.5).mul(2)
-
-        x_sample = torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
-        x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
-        x_sample = x_sample.astype(np.uint8)
-
-        preview_image = Image.fromarray(x_sample)
-        return preview_image
 
 class SaveLatent:
     def __init__(self):
@@ -978,25 +930,6 @@ class SetLatentNoiseMask:
         return (s,)
 
 
-def decode_latent_to_preview_image(previewer, device, preview_format, x0):
-    preview_image = previewer.decode_latent_to_preview(device, x0)
-    preview_image = ImageOps.contain(preview_image, (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), Image.ANTIALIAS)
-
-    preview_type = 1
-    if preview_format == "JPEG":
-        preview_type = 1
-    elif preview_format == "PNG":
-        preview_type = 2
-
-    bytesIO = BytesIO()
-    header = struct.pack(">I", preview_type)
-    bytesIO.write(header)
-    preview_image.save(bytesIO, format=preview_format)
-    preview_bytes = bytesIO.getvalue()
-
-    return preview_bytes
-
-
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
@@ -1015,34 +948,13 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if preview_format not in ["JPEG", "PNG"]:
         preview_format = "JPEG"
 
-    previewer = None
-    if not args.disable_previews:
-        # TODO previewer methods
-        taesd_encoder_path = folder_paths.get_full_path("taesd", "taesd_encoder.pth")
-        taesd_decoder_path = folder_paths.get_full_path("taesd", "taesd_decoder.pth")
-
-        method = args.default_preview_method
-
-        if method == LatentPreviewMethod.Auto:
-            method = LatentPreviewMethod.Latent2RGB
-            if taesd_encoder_path and taesd_encoder_path:
-                method = LatentPreviewMethod.TAESD
-
-        if method == LatentPreviewMethod.TAESD:
-            if taesd_encoder_path and taesd_encoder_path:
-                taesd = TAESD(taesd_encoder_path, taesd_decoder_path).to(device)
-                previewer = TAESDPreviewerImpl(taesd)
-            else:
-                print("Warning: TAESD previews enabled, but could not find models/taesd/taesd_encoder.pth and models/taesd/taesd_decoder.pth")
-
-        if previewer is None:
-            previewer = Latent2RGBPreviewer()
+    previewer = latent_preview.get_previewer(device)
 
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
         preview_bytes = None
         if previewer:
-            preview_bytes = decode_latent_to_preview_image(previewer, device, preview_format, x0)
+            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
 
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
