@@ -115,12 +115,12 @@ function addMultilineWidget(node, name, opts, app) {
 
 		// See how large each text input can be
 		freeSpace -= widgetHeight;
-		freeSpace /= multi.length;
+		freeSpace /= multi.length + (!!node.imgs?.length);
 
 		if (freeSpace < MIN_SIZE) {
 			// There isnt enough space for all the widgets, increase the size of the node
 			freeSpace = MIN_SIZE;
-			node.size[1] = y + widgetHeight + freeSpace * multi.length;
+			node.size[1] = y + widgetHeight + freeSpace * (multi.length + (!!node.imgs?.length));
 			node.graph.setDirtyCanvas(true);
 		}
 
