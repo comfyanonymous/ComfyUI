@@ -38,28 +38,28 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 ## Shortcuts
 
-| Keybind | Explanation |
-| - | - |
-| Ctrl + Enter | Queue up current graph for generation |
-| Ctrl + Shift + Enter | Queue up current graph as first for generation |
-| Ctrl + S | Save workflow |
-| Ctrl + O | Load workflow |
-| Ctrl + A | Select all nodes |
-| Ctrl + M | Mute/unmute selected nodes |
-| Delete/Backspace | Delete selected nodes |
-| Ctrl + Delete/Backspace | Delete the current graph |
-| Space | Move the canvas around when held and moving the cursor |
-| Ctrl/Shift + Click | Add clicked node to selection |
-| Ctrl + C/Ctrl + V | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes) |
-| Ctrl + C/Ctrl + Shift + V| Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
-| Shift + Drag | Move multiple selected nodes at the same time |
-| Ctrl + D | Load default graph |
-| Q | Toggle visibility of the queue |
-| H | Toggle visibility of history |
-| R | Refresh graph |
-| Double-Click LMB | Open node quick search palette |
+| Keybind                   | Explanation                                                                                                        |
+|---------------------------|--------------------------------------------------------------------------------------------------------------------|
+| Ctrl + Enter              | Queue up current graph for generation                                                                              |
+| Ctrl + Shift + Enter      | Queue up current graph as first for generation                                                                     |
+| Ctrl + S                  | Save workflow                                                                                                      |
+| Ctrl + O                  | Load workflow                                                                                                      |
+| Ctrl + A                  | Select all nodes                                                                                                   |
+| Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
+| Delete/Backspace          | Delete selected nodes                                                                                              |
+| Ctrl + Delete/Backspace   | Delete the current graph                                                                                           |
+| Space                     | Move the canvas around when held and moving the cursor                                                             |
+| Ctrl/Shift + Click        | Add clicked node to selection                                                                                      |
+| Ctrl + C/Ctrl + V         | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
+| Ctrl + C/Ctrl + Shift + V | Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
+| Shift + Drag              | Move multiple selected nodes at the same time                                                                      |
+| Ctrl + D                  | Load default graph                                                                                                 |
+| Q                         | Toggle visibility of the queue                                                                                     |
+| H                         | Toggle visibility of history                                                                                       |
+| R                         | Refresh graph                                                                                                      |
+| Double-Click LMB          | Open node quick search palette                                                                                     |
 
-Ctrl can also be replaced with Cmd instead for MacOS users
+Ctrl can also be replaced with Cmd instead for macOS users
 
 # Installing
 
@@ -77,7 +77,8 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 
 ## Colab Notebook
 
-To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
+To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: 
+<a href="https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb" target="_blank">Link to open with Google colab</a>
 
 ## Manual Install (Windows, Linux)
 
@@ -125,7 +126,7 @@ Mac/MPS: There is basic support in the code but until someone makes some install
 
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
-You don't. If you have another UI installed and working with it's own python venv you can use that venv to run ComfyUI. You can open up your favorite terminal and activate it:
+You don't. If you have another UI installed and working with its own python venv you can use that venv to run ComfyUI. You can open up your favorite terminal and activate it:
 
 ```source path_to_other_sd_gui/venv/bin/activate```
 
@@ -135,7 +136,7 @@ With Powershell: ```"path_to_other_sd_gui\venv\Scripts\Activate.ps1"```
 
 With cmd.exe: ```"path_to_other_sd_gui\venv\Scripts\activate.bat"```
 
-And then you can use that terminal to run Comfyui without installing any dependencies. Note that the venv folder might be called something else depending on the SD UI.
+And then you can use that terminal to run ComfyUI without installing any dependencies. Note that the venv folder might be called something else depending on the SD UI.
 
 # Running
 
@@ -190,7 +191,7 @@ The default installation includes a fast latent preview method that's low-resolu
 
 ## Support and dev channel
 
-[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
+<a href="https://app.element.io/#/room/%23comfyui_space%3Amatrix.org" target="_blank">Matrix space: #comfyui_space:matrix.org</a> (it's like discord but open source).
 
 # QA
 
