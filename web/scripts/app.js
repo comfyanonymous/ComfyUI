@@ -365,6 +365,10 @@ export class ComfyApp {
 		}
 
 		node.prototype.setSizeForImage = function () {
+			if (this.inputHeight) {
+				this.setSize(this.size);
+				return;
+			}
 			const minHeight = getImageTop(this) + 220;
 			if (this.size[1] < minHeight) {
 				this.setSize([this.size[0], minHeight]);
