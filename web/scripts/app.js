@@ -125,10 +125,14 @@ export class ComfyApp {
 			if(ComfyApp.clipspace.imgs && node.imgs) {
 				if(node.images && ComfyApp.clipspace.images) {
 					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-						app.nodeOutputs[node.id + ""].images = node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+						node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
 					}
-					else
-						app.nodeOutputs[node.id + ""].images = node.images = ComfyApp.clipspace.images;
+					else {
+						node.images = ComfyApp.clipspace.images;
+					}
+
+					if(app.nodeOutputs[node.id + ""])
+						app.nodeOutputs[node.id + ""].images = node.images;
 				}
 
 				if(ComfyApp.clipspace.imgs) {
