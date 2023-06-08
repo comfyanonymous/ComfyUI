@@ -69,10 +69,10 @@ class Latent2RGBPreviewer(LatentPreviewer):
         return Image.fromarray(latents_ubyte.numpy())
 
 
-def get_previewer(device):
+def get_previewer(device, force=False):
     previewer = None
     method = args.preview_method
-    if method != LatentPreviewMethod.NoPreviews:
+    if method != LatentPreviewMethod.NoPreviews or force:
         # TODO previewer methods
         taesd_decoder_path = folder_paths.get_full_path("vae_approx", "taesd_decoder.pth")
 

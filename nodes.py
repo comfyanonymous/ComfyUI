@@ -299,7 +299,6 @@ class SavePreviewLatent(SaveLatent):
     def INPUT_TYPES(s):
         return {"required": {"samples": ("LATENT", ),
                              "filename_prefix": ("STRING", {"default": "latents/ComfyUI"}), },
-                "optional": {"image_opt": ("IMAGE", ), },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
     RETURN_TYPES = ()
@@ -328,33 +327,30 @@ class SavePreviewLatent(SaveLatent):
         image.save(image_path, format='png', exif=exif_bytes, pnginfo=metadata, optimize=True)
 
     @staticmethod
-    def prepare_preview(image, latent_tensor):
+    def prepare_preview(latent_tensor):
         lower_bound = 128
         upper_bound = 512
 
-        if image is None:
-            image = comfy.utils.latent_to_rgb(latent_tensor).convert("P", palette=Image.ADAPTIVE, colors=256)
+        device = comfy.model_management.get_torch_device()
 
-            min_size = min(image.size[0], image.size[1])
-            max_size = max(image.size[0], image.size[1])
+        previewer = latent_preview.get_previewer(device, True)
 
-            scale_factor = 1
-            if max_size > upper_bound:
-                scale_factor = upper_bound/max_size
+        image = previewer.decode_latent_to_preview(latent_tensor)
+        min_size = min(image.size[0], image.size[1])
+        max_size = max(image.size[0], image.size[1])
 
-            # prevent too small preview
-            if min_size*scale_factor < lower_bound:
-                scale_factor = lower_bound/min_size
+        scale_factor = 1
+        if max_size > upper_bound:
+            scale_factor = upper_bound/max_size
 
-            w = int(image.size[0] * scale_factor)
-            h = int(image.size[1] * scale_factor)
+        # prevent too small preview
+        if min_size*scale_factor < lower_bound:
+            scale_factor = lower_bound/min_size
 
-            image = image.resize((w, h), resample=Image.NEAREST)
+        w = int(image.size[0] * scale_factor)
+        h = int(image.size[1] * scale_factor)
 
-        else:
-            # don't resize if provide preview image intentionally
-            i = 255. * image[0].cpu().numpy()
-            image = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+        image = image.resize((w, h), resample=Image.NEAREST)
 
         return SavePreviewLatent.attach_format_text(image)
 
@@ -378,11 +374,11 @@ class SavePreviewLatent(SaveLatent):
 
         return new_image
 
-    def save_preview_latent(self, samples, filename_prefix="ComfyUI", image_opt=None, prompt=None, extra_pnginfo=None):
+    def save_preview_latent(self, samples, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
 
         # load preview
-        preview = SavePreviewLatent.prepare_preview(image_opt, samples['samples'])
+        preview = SavePreviewLatent.prepare_preview(samples['samples'])
 
         # support save metadata for latent sharing
         file = f"{filename}_{counter:05}_.latent.png"

@@ -1,6 +1,5 @@
 import torch
 import math
-from PIL import Image
 import struct
 
 def load_torch_file(ckpt, safe_load=False):
@@ -221,20 +220,3 @@ class ProgressBar:
 
     def update(self, value):
         self.update_absolute(self.current + value)
-
-
-def latent_to_rgb(latent_tensor):
-    latent_rgb_factors = torch.tensor([
-        #   R     G      B
-        [0.298, 0.207, 0.208],  # L1
-        [0.187, 0.286, 0.173],  # L2
-        [-0.158, 0.189, 0.264],  # L3
-        [-0.184, -0.271, -0.473],  # L4
-    ], device="cpu")
-    rgb = torch.einsum('...lhw,lr -> ...rhw', latent_tensor.cpu().float(), latent_rgb_factors)
-    tensor = (((rgb + 1) / 2)
-              .clamp(0, 1)  # change scale from -1..1 to 0..1
-              .mul(0xFF)    # to 0..255
-              .byte())
-
-    return Image.fromarray(tensor.movedim(1, -1)[0].cpu().numpy())
