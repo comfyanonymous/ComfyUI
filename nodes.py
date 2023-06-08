@@ -329,12 +329,9 @@ class SavePreviewLatent(SaveLatent):
     @staticmethod
     def prepare_preview(latent_tensor):
         lower_bound = 128
-        upper_bound = 512
+        upper_bound = 256
 
-        device = comfy.model_management.get_torch_device()
-
-        previewer = latent_preview.get_previewer(device, True)
-
+        previewer = latent_preview.get_previewer("cpu", True)
         image = previewer.decode_latent_to_preview(latent_tensor)
         min_size = min(image.size[0], image.size[1])
         max_size = max(image.size[0], image.size[1])
