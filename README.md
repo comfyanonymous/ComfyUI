@@ -77,8 +77,7 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 
 ## Colab Notebook
 
-To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: 
-<a href="https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb" target="_blank">Link to open with Google colab</a>
+To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
 
 ## Manual Install (Windows, Linux)
 
@@ -123,6 +122,9 @@ After this you should have everything installed and can proceed to running Comfy
 [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
 
 Mac/MPS: There is basic support in the code but until someone makes some install instruction you are on your own.
+
+Directml: ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
+
 
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
@@ -191,7 +193,7 @@ The default installation includes a fast latent preview method that's low-resolu
 
 ## Support and dev channel
 
-<a href="https://app.element.io/#/room/%23comfyui_space%3Amatrix.org" target="_blank">Matrix space: #comfyui_space:matrix.org</a> (it's like discord but open source).
+[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
 # QA
 
