@@ -125,10 +125,14 @@ export class ComfyApp {
 			if(ComfyApp.clipspace.imgs && node.imgs) {
 				if(node.images && ComfyApp.clipspace.images) {
 					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-						app.nodeOutputs[node.id + ""].images = node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+						node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
 					}
-					else
-						app.nodeOutputs[node.id + ""].images = node.images = ComfyApp.clipspace.images;
+					else {
+						node.images = ComfyApp.clipspace.images;
+					}
+
+					if(app.nodeOutputs[node.id + ""])
+						app.nodeOutputs[node.id + ""].images = node.images;
 				}
 
 				if(ComfyApp.clipspace.imgs) {
@@ -161,7 +165,16 @@ export class ComfyApp {
 				if(ComfyApp.clipspace.widgets) {
 					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
-						if (prop && prop.type != 'button') {
+						if (prop && prop.type != 'image') {
+							if(typeof prop.value == "string" && value.filename) {
+								prop.value = (value.subfolder?value.subfolder+'/':'') + value.filename + (value.type?` [${value.type}]`:'');
+							}
+							else {
+								prop.value = value;
+								prop.callback(value);
+							}
+						}
+						else if (prop && prop.type != 'button') {
 							prop.value = value;
 							prop.callback(value);
 						}
