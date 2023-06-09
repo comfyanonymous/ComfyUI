@@ -8,11 +8,23 @@ import traceback
 import gc
 import time
 import itertools
+from typing import List, Dict
+import dataclasses
+from dataclasses import dataclass
 
 import torch
 import nodes
 
 import comfy.model_management
+
+
+@dataclass
+class CombinatorialBatches:
+    batches: List
+    input_to_index: Dict
+    index_to_values: Dict
+    indices: List
+    combinations: List
 
 
 def get_input_data_batches(input_data_all):
@@ -22,6 +34,7 @@ def get_input_data_batches(input_data_all):
 
     input_to_index = {}
     index_to_values = []
+    index_to_coords = []
 
     # Sort by input name first so the order which batch inputs are applied can
     # be easily calculated (node execution order first, then alphabetical input
@@ -34,15 +47,18 @@ def get_input_data_batches(input_data_all):
         if isinstance(value, dict) and "combinatorial" in value:
             input_to_index[input_name] = i
             index_to_values.append(value["values"])
+            index_to_coords.append(list(range(len(value["values"]))))
             i += 1
 
     if len(index_to_values) == 0:
         # No combinatorial options.
-        return [input_data_all]
+        return CombinatorialBatches([input_data_all], input_to_index, index_to_values, None, None)
 
     batches = []
 
-    for combination in list(itertools.product(*index_to_values)):
+    indices = list(itertools.product(*index_to_coords))
+    combinations = list(itertools.product(*index_to_values))
+    for combination in combinations:
         batch = {}
         for input_name, value in input_data_all.items():
             if isinstance(value, dict) and "combinatorial" in value:
@@ -53,7 +69,7 @@ def get_input_data_batches(input_data_all):
                 batch[input_name] = value
         batches.append(batch)
 
-    return batches
+    return CombinatorialBatches(batches, input_to_index, index_to_values, indices, combinations)
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     """Given input data from the prompt, returns a list of input data dicts for
@@ -157,9 +173,9 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
 def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
     all_outputs = []
     all_outputs_ui = []
-    total_batches = len(input_data_all_batches)
+    total_batches = len(input_data_all_batches.batches)
 
-    for batch_num, batch in enumerate(input_data_all_batches):
+    for batch_num, batch in enumerate(input_data_all_batches.batches):
         return_values = map_node_over_list(obj, batch, obj.FUNCTION, allow_interrupt=True)
 
         uis = []
@@ -208,6 +224,9 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
                 "batch_num": batch_num,
                 "total_batches": total_batches
             }
+            if input_data_all_batches.indices:
+                message["indices"] = input_data_all_batches.indices[batch_num]
+                message["combination"] = input_data_all_batches.combinations[batch_num]
             server.send_sync("executed", message, server.client_id)
 
     return all_outputs, all_outputs_ui
@@ -240,12 +259,25 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
                     # Another node failed further upstream
                     return result
 
-    input_data_all = None
+    input_data_all_batches = None
     try:
         input_data_all_batches = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
         if server.client_id is not None:
             server.last_node_id = unique_id
-            server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id, "total_batches": len(input_data_all_batches) }, server.client_id)
+            combinations = None
+            if input_data_all_batches.indices:
+                combinations = {
+                    "input_to_index": input_data_all_batches.input_to_index,
+                    "index_to_values": input_data_all_batches.index_to_values,
+                    "indices": input_data_all_batches.indices
+                }
+            mes = {
+                "node": unique_id,
+                "prompt_id": prompt_id,
+                "combinations": combinations
+            }
+            server.send_sync("executing", mes, server.client_id)
+
         obj = class_def()
 
         output_data_from_batches, output_ui_from_batches = get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id)
@@ -266,15 +298,20 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     except Exception as ex:
         typ, _, tb = sys.exc_info()
         exception_type = full_type_name(typ)
-        input_data_formatted = {}
-        if input_data_all is not None:
-            input_data_formatted = {}
-            for name, inputs in input_data_all.items():
-                input_data_formatted[name] = [format_value(x) for x in inputs]
+        input_data_formatted = []
+        if input_data_all_batches is not None:
+            d = {}
+            for batch in input_data_all_batches.batches:
+                for name, inputs in batch.items():
+                    d[name] = [format_value(x) for x in inputs]
+                input_data_formatted.append(d)
 
-        output_data_formatted = {}
+        output_data_formatted = []
         for node_id, node_outputs in outputs.items():
-            output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
+            d = {}
+            for batch_outputs in node_outputs:
+                d[node_id] = [[format_value(x) for x in l] for l in batch_outputs]
+            output_data_formatted.append(d)
 
         print("!!! Exception during processing !!!")
         print(traceback.format_exc())
@@ -327,7 +364,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
             if input_data_all_batches is not None:
                  try:
                     #is_changed = class_def.IS_CHANGED(**input_data_all)
-                    for batch in input_data_all_batches:
+                    for batch in input_data_all_batches.batches:
                         if map_node_over_list(class_def, batch, "IS_CHANGED"):
                             is_changed = True
                             break
@@ -668,8 +705,7 @@ def validate_inputs(prompt, item, validated):
             if hasattr(obj_class, "VALIDATE_INPUTS"):
                 input_data_all_batches = get_input_data(inputs, obj_class, unique_id)
                 #ret = obj_class.VALIDATE_INPUTS(**input_data_all)
-                ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
-                for batch in input_data_all_batches:
+                for batch in input_data_all_batches.batches:
                     ret = map_node_over_list(obj_class, batch, "VALIDATE_INPUTS")
                     for r in ret:
                         if r != True:

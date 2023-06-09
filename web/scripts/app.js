@@ -45,6 +45,12 @@ export class ComfyApp {
 		this.nodeOutputs = {};
 
 		/**
+		 * Stores the grid data for each node
+		 * @type {Record<string, any>}
+		 */
+		this.nodeGrids = {};
+
+		/**
 		 * Stores the preview image data for each node
 		 * @type {Record<string, Image>}
 		 */
@@ -949,13 +955,21 @@ export class ComfyApp {
 
 		api.addEventListener("executing", ({ detail }) => {
 			this.progress = null;
-			this.runningNodeId = detail;
+			this.runningNodeId = detail.node;
 			this.graph.setDirtyCanvas(true, false);
-			delete this.nodePreviewImages[this.runningNodeId]
+			if (detail.node != null) {
+				delete this.nodePreviewImages[this.runningNodeId]
+			}
+			else {
+				this.runningPrompt = null;
+			}
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
+			if (detail.output != null) {
+				this.nodeGrids[detail.node] = this.#resolveGrid(detail.node, detail.output, this.runningPrompt)
+			}
 			const node = this.graph.getNodeById(detail.node);
 			if (node) {
 				if (node.onExecuted)
@@ -964,6 +978,7 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("execution_start", ({ detail }) => {
+			this.nodeGrids = {}
 			this.runningNodeId = null;
 			this.lastExecutionError = null
 		});
@@ -986,6 +1001,93 @@ export class ComfyApp {
 		});
 
 		api.init();
+	}
+
+	/*
+	 * Based on inputs in the prompt marked as combinatorial,
+	 * construct a grid from the results;
+	 */
+	#resolveGrid(outputNode, output, runningPrompt) {
+		let axes = []
+
+		const allImages = output.filter(batch => Array.isArray(batch.images))
+								.flatMap(batch => batch.images)
+
+		if (allImages.length === 0)
+			return null;
+
+		console.error("PROMPT", runningPrompt);
+		console.error("OUTPUT", output);
+
+		const isInputLink = (input) => {
+			return Array.isArray(input)
+				&& input.length === 2
+				&& typeof input[0] === "string"
+				&& typeof input[1] === "number";
+		}
+
+		// Axes closer to the output (executed later) are discovered first
+		const queue = [outputNode]
+		while (queue.length > 0) {
+			const nodeID = queue.pop();
+			const promptInput = runningPrompt.output[nodeID];
+
+			// Ensure input keys are sorted alphanumerically
+			// This is important for the plot to have the same order as
+			// it was executed on the backend
+			let sortedKeys = Object.keys(promptInput.inputs);
+			sortedKeys.sort((a, b) => a.localeCompare(b));
+
+			// Then reverse the order since we're traversing the graph upstream,
+			// so execution order comes out backwards
+			sortedKeys = sortedKeys.reverse();
+
+			for (const inputName of sortedKeys) {
+				const input = promptInput.inputs[inputName];
+				if (typeof input === "object" && "__inputType__" in input) {
+					axes.push({
+						nodeID,
+						inputName,
+						values: input.values
+					})
+				}
+				else if (isInputLink(input)) {
+					const inputNodeID = input[0]
+					queue.push(inputNodeID)
+				}
+			}
+		}
+
+		axes = axes.reverse();
+
+		// Now divide up the image outputs
+		// Each axis will divide the full array of images by N, where N was the
+		// number of combinatorial choices for that axis, and this happens
+		// recursively for each axis
+
+		console.error("AXES", axes)
+
+		// Grid position
+		const currentCoords = Array.from(Array(0))
+
+		let images = allImages.map(i => { return {
+			image: i,
+			coords: []
+		}})
+
+		let factor = 1
+
+		for (const axis of axes) {
+			factor *= axis.values.length;
+			for (const [index, image] of images.entries()) {
+				image.coords.push(Math.floor((index / factor) * axis.values.length) % axis.values.length);
+			}
+		}
+
+		const grid = { axes, images };
+		console.error("GRID", grid);
+
+		return null;
 	}
 
 	#addKeyboardHandler() {
@@ -1292,7 +1394,11 @@ export class ComfyApp {
 		const workflow = this.graph.serialize();
 		const output = {};
 		// Process nodes in order of execution
-		for (const node of this.graph.computeExecutionOrder(false)) {
+
+		const executionOrder = Array.from(this.graph.computeExecutionOrder(false));
+		const executionOrderIds = executionOrder.map(n => n.id);
+
+		for (const node of executionOrder) {
 			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
@@ -1359,7 +1465,7 @@ export class ComfyApp {
 			}
 		}
 
-		return { workflow, output };
+		return { workflow, output, executionOrder: executionOrderIds };
 	}
 
 	#formatPromptError(error) {
@@ -1409,6 +1515,7 @@ export class ComfyApp {
 
 		this.#processingQueue = true;
 		this.lastPromptError = null;
+		this.runningPrompt = null;
 
 		try {
 			while (this.#queueItems.length) {
@@ -1418,8 +1525,10 @@ export class ComfyApp {
 					const p = await this.graphToPrompt();
 
 					try {
+						this.runningPrompt = p;
 						await api.queuePrompt(number, p);
 					} catch (error) {
+						this.runningPrompt = null;
 						const formattedError = this.#formatPromptError(error)
 						this.ui.dialog.show(formattedError);
 						if (error.response) {
@@ -1528,10 +1637,12 @@ export class ComfyApp {
 	 */
 	clean() {
 		this.nodeOutputs = {};
+		this.nodeGrids = {};
 		this.nodePreviewImages = {}
 		this.lastPromptError = null;
 		this.lastExecutionError = null;
 		this.runningNodeId = null;
+		this.runningPrompt = null;
 	}
 }
 

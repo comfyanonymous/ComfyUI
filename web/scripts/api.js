@@ -109,7 +109,7 @@ class ComfyApi extends EventTarget {
 						    this.dispatchEvent(new CustomEvent("progress", { detail: msg.data }));
 						    break;
 					    case "executing":
-						    this.dispatchEvent(new CustomEvent("executing", { detail: msg.data.node }));
+						    this.dispatchEvent(new CustomEvent("executing", { detail: msg.data }));
 						    break;
 					    case "executed":
 						    this.dispatchEvent(new CustomEvent("executed", { detail: msg.data }));
