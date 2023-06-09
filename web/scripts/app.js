@@ -132,7 +132,7 @@ export class ComfyApp {
 					}
 
 					if(app.nodeOutputs[node.id + ""])
-						app.nodeOutputs[node.id + ""].images = node.images;
+						app.nodeOutputs[node.id + ""] = [{ images: node.images }];
 				}
 
 				if(ComfyApp.clipspace.imgs) {
@@ -393,12 +393,14 @@ export class ComfyApp {
 				let imgURLs = []
 				let imagesChanged = false
 
-				const output = app.nodeOutputs[this.id + ""];
-				if (output && output.images) {
-					if (this.images !== output.images) {
-						this.images = output.images;
+				const outputBatches = app.nodeOutputs[this.id + ""];
+				if (outputBatches) {
+					if (this.images !== outputBatches) {
+						this.images = outputBatches;
+						const allImages = outputBatches.filter(batch => Array.isArray(batch.images))
+													   .flatMap(batch => batch.images)
 						imagesChanged = true;
-						imgURLs = imgURLs.concat(output.images.map(params => {
+						imgURLs = imgURLs.concat(allImages.map(params => {
 							return "/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
 						}))
 					}
@@ -426,7 +428,7 @@ export class ComfyApp {
 								});
 							})
 						).then((imgs) => {
-							if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
+							if ((!outputBatches || this.images === outputBatches) && (!preview || this.preview === preview)) {
 								this.imgs = imgs.filter(Boolean);
 								this.setSizeForImage?.();
 								app.graph.setDirtyCanvas(true);
@@ -530,6 +532,8 @@ export class ComfyApp {
 						}
 					} else {
 						// Draw individual
+						let w = this.imgs[imageIndex].naturalWidth;
+						let h = this.imgs[imageIndex].naturalHeight;
 						const scaleX = dw / w;
 						const scaleY = dh / h;
 						const scale = Math.min(scaleX, scaleY, 1);
