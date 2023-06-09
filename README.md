@@ -162,6 +162,8 @@ You can use () to change emphasis of a word or phrase like: (good code:1.2) or (
 
 You can use {day|night}, for wildcard/dynamic prompts. With this syntax "{wild|card|test}" will be randomly replaced by either "wild", "card" or "test" by the frontend every time you queue the prompt. To use {} characters in your actual prompt escape them like: \\{ or \\}.
 
+Dynamic prompts also support C-style comments, like `// comment` or `/* comment */`.
+
 To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
 
 ```embedding:embedding_filename.pt```
