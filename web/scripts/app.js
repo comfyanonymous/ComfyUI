@@ -159,7 +159,12 @@ export class ComfyApp {
 					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
 					const index = node.widgets.findIndex(obj => obj.name === 'image');
 					if(index >= 0) {
-						node.widgets[index].value = clip_image;
+						if(node.widgets[index].type != 'image' && typeof node.widgets[index].value == "string" && clip_image.filename) {
+							node.widgets[index].value = (clip_image.subfolder?clip_image.subfolder+'/':'') + clip_image.filename + (clip_image.type?` [${clip_image.type}]`:'');
+						}
+						else {
+							node.widgets[index].value = clip_image;
+						}
 					}
 				}
 				if(ComfyApp.clipspace.widgets) {
