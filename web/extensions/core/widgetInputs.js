@@ -195,6 +195,19 @@ app.registerExtension({
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
+				this.properties ||= {}
+				this.properties.valuesType = "single";
+				this.properties.listValue = "";
+				this.properties.rangeStepBy = 64;
+				this.properties.rangeSteps = 2;
+			}
+
+			getRange(min, stepBy, steps) {
+				let result = [];
+				for (let i = 0; i < steps; i++) {
+					result.push(min + i * stepBy);
+				}
+				return result;
 			}
 
 			applyToGraph() {
@@ -209,12 +222,52 @@ app.registerExtension({
 					if (widgetName) {
 						const widget = node.widgets.find((w) => w.name === widgetName);
 						if (widget) {
-							widget.value = this.widgets[0].value;
+							widget.value = this.mainWidget.value;
 							if (widget.callback) {
 								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
 							}
+
+							let values;
+
+							switch (this.properties.valuesType) {
+							case "list":
+								values = this.listWidget.value.split(",");
+								const inputType = this.outputs[0].widget.config[0]
+								if (inputType === "INT") {
+									values = values.map(v => parseInt(v))
+								}
+								else if (inputType === "FLOAT") {
+									values = values.map(v => parseFloat(v))
+								}
+								widget.value = { __inputType__: "combinatorial", values: values }
+								break;
+							case "range":
+								const isNumberWidget = widget.type === "number" || widget.origType === "number";
+								if (isNumberWidget) {
+									values = this.getRange(widget.value, this.properties.rangeStepBy, this.properties.rangeSteps);
+									widget.value = { __inputType__: "combinatorial", values: values }
+									break;
+								}
+							case "single":
+							default:
+								break;
+							}
 						}
 					}
+				}
+			}
+
+			onPropertyChanged(property, value) {
+				if (property === "valuesType") {
+					const isList = value === "list"
+					if (this.listWidget)
+						this.listWidget.disabled = !isList
+
+					const isRange = value === "range"
+					if (this.stepByWidget)
+						this.stepByWidget.disabled = !isRange
+					if (this.stepsWidget)
+						this.stepsWidget.disabled = !isRange
 				}
 			}
 
@@ -227,7 +280,7 @@ app.registerExtension({
 						if (!this.widgets?.length && this.outputs[0].widget) {
 							// On first load it often cant recreate the widget as the other node doesnt exist yet
 							// Manually recreate it from the output info
-							this.#createWidget(this.outputs[0].widget.config);
+							this.mainWidget = this.#createWidget(this.outputs[0].widget.config);
 						}
 					}
 				} else if (!this.outputs[0].links?.length) {
@@ -276,7 +329,7 @@ app.registerExtension({
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
-				this.#createWidget(widget.config, theirNode, widget.name);
+				this.mainWidget = this.#createWidget(widget.config, theirNode, widget.name);
 			}
 
 			#createWidget(inputData, node, widgetName) {
@@ -304,6 +357,23 @@ app.registerExtension({
 					addValueControlWidget(this, widget, "fixed");
 				}
 
+				const valuesTypeChoices = ["single", "list"];
+				if (widget.type === "number") {
+					valuesTypeChoices.push("range");
+				}
+
+				this.valuesTypeWidget = this.addWidget("combo", "Values type", this.properties.valuesType, "valuesType", { values: valuesTypeChoices });
+
+				this.listWidget = this.addWidget("text", "Choices", this.properties.listValue, "listValue");
+				this.listWidget.disabled = this.properties.valuesType !== "list";
+
+				if (widget.type === "number") {
+					this.stepByWidget = this.addWidget("number", "Range Step By", this.properties.rangeStepBy, "rangeStepBy");
+					this.stepByWidget.disabled = this.properties.valuesType !== "range";
+					this.stepsWidget = this.addWidget("number", "Range Steps", this.properties.rangeSteps, "rangeSteps", { min: 1, max: 128, step: 10 });
+					this.stepsWidget.disabled = this.properties.valuesType !== "range";
+				}
+
 				// When our value changes, update other widgets to reflect our changes
 				// e.g. so LoadImage shows correct image
 				const callback = widget.callback;
@@ -328,6 +398,8 @@ app.registerExtension({
 						this.onResize(this.size);
 					}
 				});
+
+				return widget;
 			}
 
 			#isValidConnection(input) {
