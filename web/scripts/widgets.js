@@ -453,13 +453,19 @@ async function loadImageAsync(imageURL) {
 }
 
 const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
-	const imagesWidget = node.addWidget("text", inputName, inputData, () => {})
-	imagesWidget.disabled = true;
+	let filepaths = { input: [], output: [] }
 
-	imagesWidget._filepaths = {}
 	if (inputData[1] && inputData[1].filepaths) {
-		imagesWidget._filepaths = inputData[1].filepaths
+		filepaths = inputData[1].filepaths
 	}
+
+	const update = function(v) {
+		this.value = v
+	}
+
+	const imagesWidget = node.addWidget("combo", inputName, inputData, update, { values: filepaths["input"] })
+	imagesWidget._filepaths = filepaths
+	imagesWidget._entries = filepaths["input"]
 
 	async function showImages(names) {
 		node.imgs = []
@@ -616,10 +622,11 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
        <option value="output">Output</option>
        <option value="input">Input</option>
 	</select>
-	<select class='image-path'></select>
+	<button class='image-path'><span class="image-path-text"></span></button>
 </div>
-<div class="bar">
+<div class="bar actions">
     <button class="add-image">Add</button>
+    <button class="replace-image">Replace</button>
 </div>`;
 		const previewElem = document.createElement("div");
 		previewElem.innerHTML = previewHtml;
@@ -628,41 +635,59 @@ const MULTIIMAGEUPLOAD = (node, inputName, inputData, app) => {
 
 		const folderTypeSel = previewElem.querySelector('.folder-type');
 		const imagePathSel = previewElem.querySelector('.image-path');
+		const imagePathText = previewElem.querySelector('.image-path-text');
 		const imagePreview = previewElem.querySelector('.image-preview');
 
-		imagePathSel.addEventListener("change", (event) => {
-			const filename = event.target.value;
-			const type = folderTypeSel.value;
-			imagePreview.src = `/view?filename=${filename}&type=${type}`
+		folderTypeSel.addEventListener("change", (event) => {
+			const filepaths = imagesWidget._filepaths[event.target.value];
+			imagesWidget._entries = filepaths
+			imagePathText.innerHTML = filepaths[0];
+			imagePreview.src = `/view?filename=${filepaths[0]}&type=${event.target.value}`
 		});
 
-		folderTypeSel.addEventListener("change", (event) => {
-			imagePathSel.innerHTML = "";
-			const filepaths = imagesWidget._filepaths[event.target.value];
-			if (filepaths == null)
-				return;
+		imagePathSel.addEventListener("click", (event) => {
+			const type = folderTypeSel.value;
+			const filepaths = imagesWidget._filepaths[folderTypeSel.value];
+			const entries = imagesWidget._entries
 
-			for (const filepath of filepaths) {
-				const filename = filepath.split('\\').pop().split('/').pop();
-				const opt = document.createElement('option');
-				opt.value = filepath
-				opt.innerHTML = filename
-				imagePathSel.appendChild(opt);
+			const innerClicked = (v, _options, e, prev) => {
+				const filename = v;
+				imagePathText.innerHTML = filename;
+				imagePreview.src = `/view?filename=${filename}&type=${type}`
 			}
 
-			imagePathSel.value = filepaths[0]
-			imagePathSel.dispatchEvent(new Event('change'));
+			new LiteGraph.ContextMenu(entries, {
+				event,
+				callback: innerClicked,
+				node,
+				className: "dark" // required for contextMenuFilter.js to kick in
+			});
 		});
 
-		folderTypeSel.value = "output";
+		folderTypeSel.value = "input";
 		folderTypeSel.dispatchEvent(new Event('change'));
 
 		const addButton = previewElem.querySelector('.add-image');
 		addButton.addEventListener("click", async (event) => {
-			const filename = imagePathSel.value;
+			const filename = imagePathText.innerHTML;
 			const type = folderTypeSel.value;
-			const value = `${filename} [${type}]`;
+			let value = filename;
+			if (type !== "input")
+				value += ` [${type}]`
 			imagesWidget._real_value.push(value)
+			imagesWidget.value = imagesWidget._real_value
+			await showImages(imagesWidget.value);
+			inner_refresh();
+		})
+
+		const replaceButton = previewElem.querySelector('.replace-image');
+		replaceButton.addEventListener("click", async (event) => {
+			const filename = imagePathText.innerHTML;
+			const type = folderTypeSel.value;
+			let value = filename;
+			if (type !== "input")
+				value += ` [${type}]`
+			imagesWidget._real_value = [value]
 			imagesWidget.value = imagesWidget._real_value
 			await showImages(imagesWidget.value);
 			inner_refresh();

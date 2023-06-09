@@ -381,6 +381,15 @@ button.comfy-queue-btn {
 	border-radius: 3px;
 }
 
+.litegraph .dialog.multiimageupload_dialog .image-path-text {
+	max-width: 250px;
+	overflow: hidden;
+	white-space: nowrap;
+	display: block;
+	text-overflow: ellipsis;
+    text-align: left;
+}
+
 .litegraph .dialog select {
 	margin-right: 20px;
 	padding-left: 4px;
@@ -471,12 +480,17 @@ button.comfy-queue-btn {
 }
 
 .multiimageupload_dialog button {
+    height: 28px;
 	background-color: #1c1c1c;
 	color: #aaa;
 	border: 0;
 	border-radius: 2px;
 	padding: 4px 10px;
 	cursor: pointer;
+}
+
+.multiimageupload_dialog .actions button {
+    margin-right: 10px;
 }
 
 .multiimageupload_dialog.extra {
