@@ -1031,6 +1031,7 @@ export class ComfyApp {
 		while (queue.length > 0) {
 			const nodeID = queue.pop();
 			const promptInput = runningPrompt.output[nodeID];
+			const nodeClass = promptInput.class_type
 
 			// Ensure input keys are sorted alphanumerically
 			// This is important for the plot to have the same order as
@@ -1047,6 +1048,9 @@ export class ComfyApp {
 				if (typeof input === "object" && "__inputType__" in input) {
 					axes.push({
 						nodeID,
+						nodeClass,
+						id: `${nodeID}-${inputName}`.replace(" ", "-"),
+						label: `${nodeClass}: ${inputName}`,
 						inputName,
 						values: input.values
 					})
@@ -1075,19 +1079,23 @@ export class ComfyApp {
 			coords: []
 		}})
 
+		// TODO i don't know if this can generalize across arbitrary batch sizes
 		let factor = 1
+		let maxFactor = axes.map(a => a.values.length).reduce((s, l) => s * l, 1)
+		let batchFactor = images.length / maxFactor;
 
 		for (const axis of axes) {
 			factor *= axis.values.length;
 			for (const [index, image] of images.entries()) {
-				image.coords.push(Math.floor((index / factor) * axis.values.length) % axis.values.length);
+				const coord = Math.floor((index / factor / batchFactor) * axis.values.length) % axis.values.length;
+				image.coords.push(coord);
 			}
 		}
 
 		const grid = { axes, images };
 		console.error("GRID", grid);
 
-		return null;
+		return grid;
 	}
 
 	#addKeyboardHandler() {

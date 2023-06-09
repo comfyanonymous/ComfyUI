@@ -356,3 +356,123 @@ button.comfy-queue-btn {
 	color: var(--input-text);
 	filter: brightness(50%);
 }
+
+.litegraph .dialog.grid_dialog {
+    display: inline-block;
+    text-align: right;
+	color: #AAA;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    max-width: initial;
+    min-width: 200px;
+	max-height: initial;
+    min-height: 20px;
+    padding: 4px;
+    margin: auto;
+	overflow: hidden;
+	border-radius: 3px;
+    z-index: 200;
+}
+
+.litegraph .dialog.grid_dialog .grid-root {
+    margin: auto;
+    width: fit-content;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .axis-selectors {
+    text-align: right;
+    margin: auto;
+    width: fit-content;
+    display: flex;
+    flex-direction: column;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .axis-selector {
+    position: relative;
+    display: inline-flex;
+    vertical-align: middle;
+
+}
+
+.litegraph .dialog.grid_dialog .grid-root .axis-label {
+    position: relative;
+    flex: 1 1 auto;
+    display: inline-block;
+    padding: 0.5rem;
+    font-size: 14pt;
+    color: #ccc;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+    cursor: pointer;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .axis-radio:checked + .axis-label {
+    color: black;
+    background-color: #aaa;
+    border-color: black;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .axis-radio {
+    position: absolute;
+    clip: rect(0, 0, 0, 0);
+    pointer-events: none;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .axis-label {
+}
+
+.litegraph .dialog.grid_dialog .grid-root img {
+    width: 512px;
+    height: 512px;
+    display: block;
+    margin: auto;
+    object-fit: contain;
+}
+
+.litegraph .dialog.grid_dialog .grid-root table {
+    border-spacing: 0;
+    border-collapse: collapse;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .axis {
+    text-align: center;
+    font-size: 20pt;
+    padding: 1rem;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .label {
+    text-align: center;
+    font-weight: bold;
+    font-size: 16pt;
+    padding: 0.5rem;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .y-label {
+    vertical-align: middle;
+}
+
+.litegraph .dialog.grid_dialog .grid-root .y-axis {
+    writing-mode: tb-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+}
+
+.litegraph .dialog.grid_dialog table {
+    margin: auto;
+}
+
+.litegraph .dialog.grid_dialog .grid-footer {
+    display: flex;
+}
+
+.litegraph .dialog.grid_dialog .image-size {
+    width: 400px;
+}
+
+.litegraph .dialog.grid_dialog table tr td, .litegraph .dialog.grid_dialog table tr th {
+    border: 1px solid #ccc;
+    vertical-align: top;
+}
