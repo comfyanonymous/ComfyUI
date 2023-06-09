@@ -27,6 +27,13 @@ class CombinatorialBatches:
     combinations: List
 
 
+def find(d, pred):
+    for i, x in d.items():
+        if pred(x):
+            return i, x
+    return None, None
+
+
 def get_input_data_batches(input_data_all):
     """Given input data that can contain combinatorial input values, returns all
     the possible batches that can be made by combining the different input
@@ -34,6 +41,7 @@ def get_input_data_batches(input_data_all):
 
     input_to_index = {}
     index_to_values = []
+    index_to_axis = {}
     index_to_coords = []
 
     # Sort by input name first so the order which batch inputs are applied can
@@ -45,10 +53,20 @@ def get_input_data_batches(input_data_all):
     for input_name in sorted_input_names:
         value = input_data_all[input_name]
         if isinstance(value, dict) and "combinatorial" in value:
-            input_to_index[input_name] = i
-            index_to_values.append(value["values"])
-            index_to_coords.append(list(range(len(value["values"]))))
-            i += 1
+            if "axis_id" in value:
+                found_i = next((k for k, v in index_to_axis.items() if v == value["axis_id"]), None)
+            else:
+                found_i = None
+
+            if found_i is not None:
+                input_to_index[input_name] = found_i
+            else:
+                input_to_index[input_name] = i
+                index_to_values.append(value["values"])
+                index_to_coords.append(list(range(len(value["values"]))))
+                if "axis_id" in value:
+                    index_to_axis[i] = value["axis_id"]
+                i += 1
 
     if len(index_to_values) == 0:
         # No combinatorial options.
@@ -99,11 +117,15 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 # Make the outputs into a list for map-over-list use
                 # (they are themselves lists so flatten them afterwards)
                 input_values = [batch_output[output_index] for batch_output in outputs_for_all_batches]
-                input_values = flatten(input_values)
+                input_values = { "combinatorial": True, "values": flatten(input_values) }
                 input_data_all[x] = input_values
         elif is_combinatorial_input(input_data):
             if required_or_optional:
-                input_data_all[x] = { "combinatorial": True, "values": input_data["values"] }
+                input_data_all[x] = {
+                    "combinatorial": True,
+                    "values": input_data["values"],
+                    "axis_id": input_data.get("axis_id")
+                }
         else:
             if required_or_optional:
                 input_data_all[x] = [input_data]
@@ -120,6 +142,28 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [unique_id]
 
     input_data_all_batches = get_input_data_batches(input_data_all)
+
+    def format_dict(d):
+        s = []
+        for k,v in d.items():
+            st = f"{k}: "
+            if isinstance(v, list):
+                st += f"list[len: {len(v)}]["
+                i = []
+                for v2 in v:
+                    i.append(v2.__class__.__name__)
+                st += ",".join(i) + "]"
+            else:
+                st += str(type(v))
+            s.append(st)
+        return "( " + ", ".join(s) + " )"
+
+
+    print("---------------------------------")
+    from pprint import pp
+    for batch in input_data_all_batches.batches:
+        print(format_dict(batch));
+    print("---------------------------------")
 
     return input_data_all_batches
 
@@ -152,7 +196,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, callbac
                 nodes.before_node_execution()
             results.append(getattr(obj, func)(**slice_lists_into_dict(input_data_all, i)))
             if callback is not None:
-                callback(i, max_len_input)
+                callback(i + 1, max_len_input)
     return results
 
 def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
@@ -180,7 +224,7 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
 
     for batch_num, batch in enumerate(input_data_all_batches.batches):
         def cb(inner_num, inner_total):
-            send_batch_progress(inner_num + 1)
+            send_batch_progress(inner_num)
 
         return_values = map_node_over_list(obj, batch, obj.FUNCTION, allow_interrupt=True, callback=cb)
 
@@ -229,12 +273,11 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
                 "node": unique_id,
                 "output": outputs_ui_to_send,
                 "prompt_id": prompt_id,
-                "batch_num": batch_num,
-                "total_batches": total_batches
+                "batch_num": inner_totals,
+                "total_batches": total_inner_batches
             }
             if input_data_all_batches.indices:
                 message["indices"] = input_data_all_batches.indices[batch_num]
-                message["combination"] = input_data_all_batches.combinations[batch_num]
             server.send_sync("executed", message, server.client_id)
 
     return all_outputs, all_outputs_ui
@@ -276,7 +319,6 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             if input_data_all_batches.indices:
                 combinations = {
                     "input_to_index": input_data_all_batches.input_to_index,
-                    "index_to_values": input_data_all_batches.index_to_values,
                     "indices": input_data_all_batches.indices
                 }
             mes = {
@@ -306,6 +348,10 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     except Exception as ex:
         typ, _, tb = sys.exc_info()
         exception_type = full_type_name(typ)
+
+        print("!!! Exception during processing !!!")
+        print(traceback.format_exc())
+
         input_data_formatted = []
         if input_data_all_batches is not None:
             d = {}
@@ -320,9 +366,6 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             for batch_outputs in node_outputs:
                 d[node_id] = [[format_value(x) for x in l] for l in batch_outputs]
             output_data_formatted.append(d)
-
-        print("!!! Exception during processing !!!")
-        print(traceback.format_exc())
 
         error_details = {
             "node_id": unique_id,

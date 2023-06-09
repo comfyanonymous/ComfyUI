@@ -2,6 +2,16 @@ import { app } from "/scripts/app.js";
 
 // Show grids from combinatorial outputs
 
+async function loadImageAsync(imageURL) {
+    return new Promise((resolve) => {
+        const e = new Image();
+        e.setAttribute('crossorigin', 'anonymous');
+        e.addEventListener("load", () => { resolve(e); });
+        e.src = imageURL;
+        return e;
+    });
+}
+
 app.registerExtension({
 	name: "Comfy.ShowGrid",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -44,9 +54,15 @@ app.registerExtension({
 				const axisSelectors = rootElem.querySelector(".axis-selectors");
 				const imageTable = rootElem.querySelector(".image-table");
 
+				this.imageSize = 512;
+				this.imageWidth = this.imageSize
+				this.imageHeight = this.imageSize
+				this.naturalWidth = this.imageSize
+				this.naturalHeight = this.imageSize
+
 				const footerHtml = `
 <label for="image-size">Image size</label>
-<input class="image-size" id="image-size" type="range" min="64" max="1024" step="1" value="512">
+<input class="image-size" id="image-size" type="range" min="64" max="1024" step="1" value="${this.imageSize}">
 </input>
 `
 				const footerElem = this._gridPanel.addHTML(footerHtml, "grid-footer", true);
@@ -99,17 +115,36 @@ app.registerExtension({
 					});
 				}
 
-				const refreshGrid = (xAxis, yAxis) => {
+				const refreshGrid = async (xAxis, yAxis) => {
 					this.xAxis = xAxis;
 					this.yAxis = yAxis;
 					this.xAxisData = getAxisData(this.xAxis);
 					this.yAxisData = getAxisData(this.yAxis);
 
-					selectAxis(false, this.xAxisData.id)
-					selectAxis(true, this.yAxisData.id)
+					selectAxis(false, this.xAxisData.selectorID)
+					selectAxis(true, this.yAxisData.selectorID)
 
 					if (xAxis === yAxis) {
 						this.yAxisData = getAxisData(-1);
+					}
+
+					this.imageWidth = this.imageSize
+					this.imageHeight = this.imageSize
+					this.naturalWidth = this.imageSize
+					this.naturalHeight = this.imageSize
+
+					const firstImages = getImagesAt(0, 0);
+					if (firstImages.length > 0) {
+						const src = "/view?" + new URLSearchParams(firstImages[0].image).toString() + app.getPreviewFormatParam();
+						const imgElem = await loadImageAsync(src);
+						this.naturalWidth = imgElem.naturalWidth
+						this.naturalHeight = imgElem.naturalHeight
+
+						const ratio = Math.min(this.imageSize / this.naturalWidth, this.imageSize / this.naturalHeight);
+						const newWidth = this.naturalWidth * ratio;
+						const newHeight = this.naturalHeight * ratio;
+						this.imageWidth = newWidth;
+						this.imageHeight = newHeight;
 					}
 
 					imageTable.innerHTML = "";
@@ -162,8 +197,8 @@ app.registerExtension({
 							const td = document.createElement("td");
 
 							const img = document.createElement("img");
-							img.style.width = `${this.imageSize}px`
-							img.style.height = `${this.imageSize}px`
+							img.style.width = `${this.imageWidth}px`
+							img.style.height = `${this.imageHeight}px`
 							const gridImages = getImagesAt(x, y);
 							if (gridImages.length > 0) {
 								img.src = "/view?" + new URLSearchParams(gridImages[0].image).toString() + app.getPreviewFormatParam();
@@ -187,7 +222,7 @@ app.registerExtension({
 					group.innerHTML = `${axisName.toUpperCase()} Axis:&nbsp `;
 
 					const addAxis = (index, axis) => {
-						const axisID = `${axisName}-${axis.id}`;
+						const axisID = `${axisName}-${axis.selectorID}`;
 
 						const input = document.createElement("input")
 						input.setAttribute("type", "radio")
@@ -211,7 +246,7 @@ app.registerExtension({
 						label.innerHTML = String(axis.label);
 						label.addEventListener("click", () => {
 							console.warn("SETAXIS", axis);
-							selectAxis(isY, axis.id, true);
+							selectAxis(isY, axis.selectorID, true);
 						})
 
 						group.appendChild(input)
@@ -228,17 +263,22 @@ app.registerExtension({
 					axisSelectors.appendChild(group);
 				}
 
-				this.imageSize = 256;
-
 				imageSizeInput.addEventListener("input", () => {
 					this.imageSize = parseInt(imageSizeInput.value);
+
+					const ratio = Math.min(this.imageSize / natWidth, this.imageSize / natHeight);
+					const newWidth = this.naturalWidth * ratio;
+					const newHeight = this.naturalHeight * ratio;
+					this.imageWidth = newWidth;
+					this.imageHeight = newHeight;
+
 					for (const img of imageTable.querySelectorAll("img")) {
-						img.style.width = `${this.imageSize}px`
-						img.style.height = `${this.imageSize}px`
+						img.style.width = `${this.imageWidth}px`
+						img.style.height = `${this.imageHeight}px`
 					}
 				})
 
-				refreshGrid(1, 2);
+				refreshGrid(0, Math.min(1, grid.axes.length));
 
 				document.body.appendChild(this._gridPanel);
 			})

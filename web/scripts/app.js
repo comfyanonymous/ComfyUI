@@ -890,23 +890,28 @@ export class ComfyApp {
 				ctx.globalAlpha = 1;
 			}
 
-			if (self.progress && node.id === +self.runningNodeId) {
-				let offset = 0
-				let height = 6;
+			if (node.id === +self.runningNodeId) {
+				if (self.progress) {
+					let offset = 0
+					let height = 6;
 
-				if (self.batchProgress) {
-					offset = 4;
-					height = 4;
+					if (self.batchProgress) {
+						offset = 4;
+						height = 4;
+					}
+
+					ctx.fillStyle = "green";
+					ctx.fillRect(0, offset, size[0] * (self.progress.value / self.progress.max), height);
+
+					if (self.batchProgress) {
+						ctx.fillStyle = "#3ca2c3";
+						ctx.fillRect(0, 0, size[0] * (self.batchProgress.value / self.batchProgress.max), height);
+					}
 				}
-
-				ctx.fillStyle = "green";
-				ctx.fillRect(0, offset, size[0] * (self.progress.value / self.progress.max), height);
-
-				if (self.batchProgress) {
+				else if (self.batchProgress) {
 					ctx.fillStyle = "#3ca2c3";
-					ctx.fillRect(0, 0, size[0] * (self.batchProgress.value / self.batchProgress.max), height);
+					ctx.fillRect(0, 0, size[0] * (self.batchProgress.value / self.batchProgress.max), 6);
 				}
-
 				ctx.fillStyle = bgcolor;
 			}
 
@@ -1082,14 +1087,18 @@ export class ComfyApp {
 			for (const inputName of sortedKeys) {
 				const input = promptInput.inputs[inputName];
 				if (typeof input === "object" && "__inputType__" in input) {
-					axes.push({
-						nodeID,
-						nodeClass,
-						id: `${nodeID}-${inputName}`.replace(" ", "-"),
-						label: `${nodeClass}: ${inputName}`,
-						inputName,
-						values: input.values
-					})
+					if (input.axis_id == null || !axes.some(a => a.id != null && a.id === input.axis_id)) {
+						let label = input.axis_name || `${nodeClass}: ${inputName}`;
+						axes.push({
+							id: input.axis_id,
+							nodeID,
+							nodeClass,
+							selectorID: `${nodeID}-${inputName}`.replace(" ", "-"),
+							label,
+							inputName,
+							values: input.values
+						})
+					}
 				}
 				else if (isInputLink(input)) {
 					const inputNodeID = input[0]

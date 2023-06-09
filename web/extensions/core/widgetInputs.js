@@ -197,6 +197,7 @@ app.registerExtension({
 				this.isVirtualNode = true;
 				this.properties ||= {}
 				this.properties.valuesType = "single";
+				this.properties.axisName = "";
 				this.properties.listValue = "";
 				this.properties.rangeStepBy = 64;
 				this.properties.rangeSteps = 2;
@@ -228,6 +229,12 @@ app.registerExtension({
 							}
 
 							let values;
+							let axisID = null;
+							let axisName = null;
+							if (this.properties.axisName != "") {
+								axisID = this.id;
+								axisName = this.properties.axisName
+							}
 
 							switch (this.properties.valuesType) {
 							case "list":
@@ -239,13 +246,13 @@ app.registerExtension({
 								else if (inputType === "FLOAT") {
 									values = values.map(v => parseFloat(v))
 								}
-								widget.value = { __inputType__: "combinatorial", values: values }
+								widget.value = { __inputType__: "combinatorial", values: values, axis_id: axisID, axis_name: axisName }
 								break;
 							case "range":
 								const isNumberWidget = widget.type === "number" || widget.origType === "number";
 								if (isNumberWidget) {
 									values = this.getRange(widget.value, this.properties.rangeStepBy, this.properties.rangeSteps);
-									widget.value = { __inputType__: "combinatorial", values: values }
+									widget.value = { __inputType__: "combinatorial", values: values, axis_id: axisID, axis_name: axisName }
 									break;
 								}
 							case "single":
@@ -259,6 +266,10 @@ app.registerExtension({
 
 			onPropertyChanged(property, value) {
 				if (property === "valuesType") {
+					const isSingle = value === "single"
+					if (this.axisNameWidget)
+						this.axisNameWidget.disabled = isSingle
+
 					const isList = value === "list"
 					if (this.mainWidget)
 						this.mainWidget.disabled = isList
@@ -365,6 +376,9 @@ app.registerExtension({
 				}
 
 				this.valuesTypeWidget = this.addWidget("combo", "Values type", this.properties.valuesType, "valuesType", { values: valuesTypeChoices });
+
+				this.axisNameWidget = this.addWidget("text", "Axis Name", this.properties.axisName, "axisName");
+				this.axisNameWidget.disabled = this.properties.valuesType === "single";
 
 				this.listWidget = this.addWidget("text", "Choices", this.properties.listValue, "listValue");
 				this.listWidget.disabled = this.properties.valuesType !== "list";
