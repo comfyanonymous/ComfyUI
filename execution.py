@@ -133,33 +133,16 @@ def slice_lists_into_dict(d, i):
         d_new[k] = v[i if len(v) > i else -1]
     return d_new
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
+def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, callback=None):
     # check if node wants the lists
-    intput_is_list = False
+    input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
-        intput_is_list = obj.INPUT_IS_LIST
-
-    max_len_input = max([len(x) for x in input_data_all.values()])
-     
-    def format_dict(d):
-        s = []
-        for k,v in d.items():
-            st = f"{k}: "
-            if isinstance(v, list):
-                st += f"list[len: {len(v)}]["
-                i = []
-                for v2 in v:
-                    i.append(v2.__class__.__name__)
-                st += ",".join(i) + "]"
-            else:
-                st += str(type(v))
-            s.append(st)
-        return "( " + ", ".join(s) + " )"
+        input_is_list = obj.INPUT_IS_LIST
 
     max_len_input = max(len(x) for x in input_data_all.values())
 
     results = []
-    if intput_is_list:
+    if input_is_list:
         if allow_interrupt:
             nodes.before_node_execution()
         results.append(getattr(obj, func)(**input_data_all))
@@ -168,6 +151,8 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
             if allow_interrupt:
                 nodes.before_node_execution()
             results.append(getattr(obj, func)(**slice_lists_into_dict(input_data_all, i)))
+            if callback is not None:
+                callback(i, max_len_input)
     return results
 
 def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
@@ -175,8 +160,31 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
     all_outputs_ui = []
     total_batches = len(input_data_all_batches.batches)
 
+    total_inner_batches = 0
+    for batch in input_data_all_batches.batches:
+        total_inner_batches += max(len(x) for x in batch.values())
+
+    inner_totals = 0
+
+    def send_batch_progress(inner_num):
+        if server.client_id is not None:
+            message = {
+                "node": unique_id,
+                "prompt_id": prompt_id,
+                "batch_num": inner_totals + inner_num,
+                "total_batches": total_inner_batches
+            }
+            server.send_sync("batch_progress", message, server.client_id)
+
+    send_batch_progress(0)
+
     for batch_num, batch in enumerate(input_data_all_batches.batches):
-        return_values = map_node_over_list(obj, batch, obj.FUNCTION, allow_interrupt=True)
+        def cb(inner_num, inner_total):
+            send_batch_progress(inner_num + 1)
+
+        return_values = map_node_over_list(obj, batch, obj.FUNCTION, allow_interrupt=True, callback=cb)
+
+        inner_totals += max(len(x) for x in batch.values())
 
         uis = []
         results = []
