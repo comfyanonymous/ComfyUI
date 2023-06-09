@@ -166,7 +166,7 @@ export class ComfyApp {
 					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
 						if (prop && prop.type != 'button') {
-							if(typeof prop.value == "string" && value.filename) {
+							if(prop.type != 'image' && typeof prop.value == "string" && value.filename) {
 								prop.value = (value.subfolder?value.subfolder+'/':'') + value.filename + (value.type?` [${value.type}]`:'');
 							}
 							else {
