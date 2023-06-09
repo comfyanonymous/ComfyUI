@@ -200,8 +200,23 @@ app.registerExtension({
 			applyToGraph() {
 				if (!this.outputs[0].links?.length) return;
 
+				function get_links(node) {
+					let links = [];
+					for (const l of node.outputs[0].links) {
+						const linkInfo = app.graph.links[l];
+						const n = node.graph.getNodeById(linkInfo.target_id);
+						if (n.type == "Reroute") {
+							links = links.concat(get_links(n));
+						} else {
+							links.push(l);
+						}
+					}
+					return links;
+				}
+
+				let links = get_links(this);
 				// For each output link copy our value over the original widget value
-				for (const l of this.outputs[0].links) {
+				for (const l of links) {
 					const linkInfo = app.graph.links[l];
 					const node = this.graph.getNodeById(linkInfo.target_id);
 					const input = node.inputs[linkInfo.target_slot];
@@ -240,7 +255,6 @@ app.registerExtension({
 
 				// No widget, we cant connect
 				if (!input.widget) {
-					if (this.outputs[0]?.type != '*' && target_node.type == "Reroute") return true;
 					if (!(input.type in ComfyWidgets)) return false;
 				}
 
