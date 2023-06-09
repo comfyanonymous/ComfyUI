@@ -260,6 +260,8 @@ app.registerExtension({
 			onPropertyChanged(property, value) {
 				if (property === "valuesType") {
 					const isList = value === "list"
+					if (this.mainWidget)
+						this.mainWidget.disabled = isList
 					if (this.listWidget)
 						this.listWidget.disabled = !isList
 

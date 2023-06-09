@@ -450,8 +450,6 @@ export class ComfyApp {
 						this.pointerDown = null;
 					}
 
-					let w = this.imgs[0].naturalWidth;
-					let h = this.imgs[0].naturalHeight;
 					let imageIndex = this.imageIndex;
 					const numImages = this.imgs.length;
 					if (numImages === 1 && !imageIndex) {
@@ -465,6 +463,8 @@ export class ComfyApp {
 					dh -= shiftY;
 
 					if (imageIndex == null) {
+						let w = this.imgs[0].naturalWidth;
+						let h = this.imgs[0].naturalHeight;
 						let best = 0;
 						let cellWidth;
 						let cellHeight;
