@@ -240,6 +240,7 @@ app.registerExtension({
 
 				// No widget, we cant connect
 				if (!input.widget) {
+					if (this.outputs[0]?.type != '*' && target_node.type == "Reroute") return true;
 					if (!(input.type in ComfyWidgets)) return false;
 				}
 
