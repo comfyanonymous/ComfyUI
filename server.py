@@ -252,7 +252,7 @@ class PromptServer():
                         with Image.open(file) as img:
                             preview_info = request.rel_url.query['preview'].split(';')
                             image_format = preview_info[0]
-                            if image_format not in ['webp', 'jpeg']:
+                            if image_format not in ['webp', 'jpeg'] or 'a' in request.rel_url.query.get('channel', ''):
                                 image_format = 'webp'
 
                             quality = 90
@@ -260,7 +260,7 @@ class PromptServer():
                                 quality = int(preview_info[-1])
 
                             buffer = BytesIO()
-                            if image_format in ['jpeg']:
+                            if image_format in ['jpeg'] or request.rel_url.query.get('channel', '') == 'rgb':
                                 img = img.convert("RGB")
                             img.save(buffer, format=image_format, quality=quality)
                             buffer.seek(0)
