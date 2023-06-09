@@ -999,14 +999,16 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
-			this.nodeOutputs[detail.node] = detail.output;
-			if (detail.output != null) {
-				this.nodeGrids[detail.node] = this.#resolveGrid(detail.node, detail.output, this.runningPrompt)
-			}
-			const node = this.graph.getNodeById(detail.node);
-			if (node) {
-				if (node.onExecuted)
-					node.onExecuted(detail.output);
+			if (detail.batch_num === detail.total_batches) {
+				this.nodeOutputs[detail.node] = detail.output;
+				if (detail.output != null) {
+					this.nodeGrids[detail.node] = this.#resolveGrid(detail.node, detail.output, this.runningPrompt)
+				}
+				const node = this.graph.getNodeById(detail.node);
+				if (node) {
+					if (node.onExecuted)
+						node.onExecuted(detail.output);
+				}
 			}
 			if (this.batchProgress != null) {
 				this.batchProgress.value = detail.batch_num
@@ -1473,6 +1475,7 @@ export class ComfyApp {
 
 			const inputs = {};
 			const widgets = node.widgets;
+			let axis_id = null;
 
 			// Store all widget values
 			if (widgets) {
@@ -1484,6 +1487,13 @@ export class ComfyApp {
 						if (typeof widgetValue === "object" && widgetValue.__inputType__) {
 							totalCombinatorialNodes += 1;
 							executionFactor *= widgetValue.values.length;
+
+							if (widgetValue.axis_id != null) {
+								if (axis_id != null && axis_id != widgetValue.axis_id) {
+									throw new RuntimeError("Each node's outputs can only belong to one axis at a time");
+								}
+								axis_id = widgetValue.axis_id;
+							}
 						}
 						totalExecuted += executionFactor;
 					}
@@ -1513,6 +1523,7 @@ export class ComfyApp {
 			output[String(node.id)] = {
 				inputs,
 				class_type: node.comfyClass,
+				axis_id,
 			};
 		}
 

@@ -87,7 +87,38 @@ def get_input_data_batches(input_data_all):
                 batch[input_name] = value
         batches.append(batch)
 
+    print("------------------=+++++++++++++++++")
+    for batch in batches:
+        print(format_dict(batch))
+    print(format_dict(input_to_index))
+    print(format_dict({ "v": index_to_values }))
+    print(index_to_coords)
+    print("------------------=+++++++++++++++++")
+
     return CombinatorialBatches(batches, input_to_index, index_to_values, indices, combinations)
+
+
+def format_dict(d):
+    s = []
+    for k,v in d.items():
+        st = f"{k}: "
+        if isinstance(v, list):
+            st += f"list[len: {len(v)}]["
+            i = []
+            for v2 in v:
+                if isinstance(v2, (int, float, bool)):
+                    i.append(str(v2))
+                else:
+                    i.append(v2.__class__.__name__)
+            st += ",".join(i) + "]"
+        else:
+            if isinstance(v, (int, float, bool)):
+                st += str(v)
+            else:
+                st += str(type(v))
+        s.append(st)
+    return "( " + ", ".join(s) + " )"
+
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     """Given input data from the prompt, returns a list of input data dicts for
@@ -117,7 +148,15 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 # Make the outputs into a list for map-over-list use
                 # (they are themselves lists so flatten them afterwards)
                 input_values = [batch_output[output_index] for batch_output in outputs_for_all_batches]
-                input_values = { "combinatorial": True, "values": flatten(input_values) }
+                print("COMB")
+                print(str(input_unique_id))
+                print(str(output_index))
+                print(format_dict({ "values": input_values }))
+                input_values = {
+                    "combinatorial": True,
+                    "values": flatten(input_values),
+                    "axis_id": prompt[input_unique_id].get("axis_id")
+                }
                 input_data_all[x] = input_values
         elif is_combinatorial_input(input_data):
             if required_or_optional:
@@ -142,22 +181,6 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [unique_id]
 
     input_data_all_batches = get_input_data_batches(input_data_all)
-
-    def format_dict(d):
-        s = []
-        for k,v in d.items():
-            st = f"{k}: "
-            if isinstance(v, list):
-                st += f"list[len: {len(v)}]["
-                i = []
-                for v2 in v:
-                    i.append(v2.__class__.__name__)
-                st += ",".join(i) + "]"
-            else:
-                st += str(type(v))
-            s.append(st)
-        return "( " + ", ".join(s) + " )"
-
 
     print("---------------------------------")
     from pprint import pp
@@ -274,7 +297,7 @@ def get_output_data(obj, input_data_all_batches, server, unique_id, prompt_id):
                 "output": outputs_ui_to_send,
                 "prompt_id": prompt_id,
                 "batch_num": inner_totals,
-                "total_batches": total_inner_batches
+                "total_batches": total_inner_batches,
             }
             if input_data_all_batches.indices:
                 message["indices"] = input_data_all_batches.indices[batch_num]
@@ -411,7 +434,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
             is_changed_old = old_prompt[unique_id]['is_changed']
         if 'is_changed' not in prompt[unique_id]:
-            input_data_all_batches = get_input_data(inputs, class_def, unique_id, outputs)
+            input_data_all_batches = get_input_data(inputs, class_def, unique_id, outputs, prompt)
             if input_data_all_batches is not None:
                  try:
                     #is_changed = class_def.IS_CHANGED(**input_data_all)
@@ -754,7 +777,7 @@ def validate_inputs(prompt, item, validated):
                 inputs[x] = r[1]
 
             if hasattr(obj_class, "VALIDATE_INPUTS"):
-                input_data_all_batches = get_input_data(inputs, obj_class, unique_id)
+                input_data_all_batches = get_input_data(inputs, obj_class, unique_id, {}, prompt)
                 #ret = obj_class.VALIDATE_INPUTS(**input_data_all)
                 for batch in input_data_all_batches.batches:
                     ret = map_node_over_list(obj_class, batch, "VALIDATE_INPUTS")
