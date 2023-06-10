@@ -41,7 +41,7 @@ def pull(repo, remote_name='origin', branch='master'):
             else:
                 raise AssertionError('Unknown merge analysis result')
 
-
+pygit2.option(pygit2.GIT_OPT_SET_OWNER_VALIDATION, 0)
 repo = pygit2.Repository(str(sys.argv[1]))
 ident = pygit2.Signature('comfyui', 'comfy@ui')
 try:

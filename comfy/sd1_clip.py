@@ -82,6 +82,8 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
                         next_new_token += 1
                     else:
                         print("WARNING: shape mismatch when trying to apply embedding, embedding will be ignored", y.shape[0], current_embeds.weight.shape[1])
+            while len(tokens_temp) < len(x):
+                tokens_temp += [self.empty_tokens[0][-1]]
             out_tokens += [tokens_temp]
 
         if len(embedding_weights) > 0:
