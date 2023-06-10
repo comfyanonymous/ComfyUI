@@ -229,10 +229,9 @@ app.registerExtension({
 							}
 
 							let values;
-							let axisID = null;
-							let axisName = null;
+							let axisID = this.id;
+							let axisName = `${node.id}_${node.type}: ${widget.name}`;
 							if (this.properties.axisName != "") {
-								axisID = this.id;
 								axisName = this.properties.axisName
 							}
 
@@ -251,7 +250,7 @@ app.registerExtension({
 									values: values,
 									axis_id: axisID,
 									axis_name: axisName,
-									join_axis: Boolean(axisName)
+									join_axis: true
 								}
 								break;
 							case "range":
@@ -263,7 +262,7 @@ app.registerExtension({
 										values: values,
 										axis_id: axisID,
 										axis_name: axisName,
-										join_axis: Boolean(axisName)
+										join_axis: true
 									}
 									break;
 								}

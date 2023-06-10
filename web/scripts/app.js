@@ -1075,6 +1075,7 @@ export class ComfyApp {
 			seen.add(nodeID);
 			const promptInput = runningPrompt.output[nodeID];
 			const nodeClass = promptInput.class_type
+			console.warn("TRAVEL", nodeID, promptInput)
 
 			// Ensure input keys are sorted alphanumerically
 			// This is important for the plot to have the same order as
@@ -1083,7 +1084,7 @@ export class ComfyApp {
 			sortedKeys.sort((a, b) => a.localeCompare(b));
 
 			// Then reverse the order since we're traversing the graph upstream,
-			// so execution order comes out backwards
+			// so application order of the inputs comes out backwards
 			sortedKeys = sortedKeys.reverse();
 
 			for (const inputName of sortedKeys) {
