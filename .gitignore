@@ -10,3 +10,7 @@ custom_nodes/
 extra_model_paths.yaml
 /.vs
 .idea/
+venv/
+web/extensions/*
+!web/extensions/logging.js.example
+!web/extensions/core/
