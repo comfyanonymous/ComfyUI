@@ -119,18 +119,22 @@ After this you should have everything installed and can proceed to running Comfy
 
 ### Others:
 
-[Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+
+#### Apple Mac silicon
 
 You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
 
 1. Install pytorch. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide.
 1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
-1. Install the ComfyUI [dependencies](#dependencies). If you have another UI to work with Stable Diffusion (such as Automatic1111), you can use the the packages for this installation. See [the instruction below](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
+1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
 1. Launch ComfyUI by running `python main.py`.
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
 
-DirectML (AMD Cards on Windows): ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
+#### DirectML (AMD Cards on Windows)
+
+```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
