@@ -1083,10 +1083,6 @@ export class ComfyApp {
 			let sortedKeys = Object.keys(promptInput.inputs);
 			sortedKeys.sort((a, b) => a.localeCompare(b));
 
-			// Then reverse the order since we're traversing the graph upstream,
-			// so application order of the inputs comes out backwards
-			sortedKeys = sortedKeys.reverse();
-
 			for (const inputName of sortedKeys) {
 				const input = promptInput.inputs[inputName];
 				if (typeof input === "object" && "__inputType__" in input) {
@@ -1406,7 +1402,7 @@ export class ComfyApp {
 				for (let widget of node.widgets) {
 					if (node.type == "KSampler" || node.type == "KSamplerAdvanced") {
 						if (widget.name == "sampler_name") {
-							if (widget.value.startsWith("sample_")) {
+							if (typeof widget.value === "string" && widget.value.startsWith("sample_")) {
 								widget.value = widget.value.slice(7);
 							}
 						}

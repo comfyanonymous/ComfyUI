@@ -135,15 +135,10 @@ def get_input_data_batches(input_data_all):
     if not inherit_id or axis_id is None:
         axis_id = str(uuid.uuid4())
 
-    pp(input_to_index)
-    pp(input_to_values)
-    pp(index_to_values)
-
     indices = list(itertools.product(*index_to_coords))
     combinations = list(itertools.product(*index_to_values))
 
     pp(indices)
-    pp(combinations)
 
     for i, indices_set in enumerate(indices):
         combination = combinations[i]

@@ -266,7 +266,7 @@ app.registerExtension({
 				imageSizeInput.addEventListener("input", () => {
 					this.imageSize = parseInt(imageSizeInput.value);
 
-					const ratio = Math.min(this.imageSize / natWidth, this.imageSize / natHeight);
+					const ratio = Math.min(this.imageSize / this.naturalWidth, this.imageSize / this.naturalHeight);
 					const newWidth = this.naturalWidth * ratio;
 					const newHeight = this.naturalHeight * ratio;
 					this.imageWidth = newWidth;
