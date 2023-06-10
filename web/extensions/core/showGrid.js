@@ -23,7 +23,7 @@ app.registerExtension({
 		nodeType.prototype.onNodeCreated = function () {
 			const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
 
-			this.addWidget("button", "Show Grid", "Show Grid", () => {
+			this.showGridWidget = this.addWidget("button", "Show Grid", "Show Grid", () => {
 				const grid = app.nodeGrids[this.id];
 				if (grid == null) {
 					console.warn("No grid to show!");
@@ -282,6 +282,14 @@ app.registerExtension({
 
 				document.body.appendChild(this._gridPanel);
 			})
+
+			this.showGridWidget.disabled = true;
+		}
+
+		const onExecuted = nodeType.prototype.onExecuted;
+		nodeType.prototype.onExecuted = function (output) {
+			const r = onExecuted ? onExecuted.apply(this, arguments) : undefined;
+			this.showGridWidget.disabled = app.nodeGrids[this.id] == null;
 		}
 	}
 })

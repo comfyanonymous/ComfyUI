@@ -999,14 +999,16 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
-			this.nodeOutputs[detail.node] = detail.output;
-			if (detail.output != null) {
-				this.nodeGrids[detail.node] = this.#resolveGrid(detail.node, detail.output, this.runningPrompt)
-			}
-			const node = this.graph.getNodeById(detail.node);
-			if (node) {
-				if (node.onExecuted)
-					node.onExecuted(detail.output);
+			if (detail.batch_num === detail.total_batches) {
+				this.nodeOutputs[detail.node] = detail.output;
+				if (detail.output != null) {
+					this.nodeGrids[detail.node] = this.#resolveGrid(detail.node, detail.output, this.runningPrompt)
+				}
+				const node = this.graph.getNodeById(detail.node);
+				if (node) {
+					if (node.onExecuted)
+						node.onExecuted(detail.output);
+				}
 			}
 			if (this.batchProgress != null) {
 				this.batchProgress.value = detail.batch_num

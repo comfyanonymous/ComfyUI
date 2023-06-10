@@ -246,13 +246,25 @@ app.registerExtension({
 								else if (inputType === "FLOAT") {
 									values = values.map(v => parseFloat(v))
 								}
-								widget.value = { __inputType__: "combinatorial", values: values, axis_id: axisID, axis_name: axisName }
+								widget.value = {
+									__inputType__: "combinatorial",
+									values: values,
+									axis_id: axisID,
+									axis_name: axisName,
+									join_axis: Boolean(axisName)
+								}
 								break;
 							case "range":
 								const isNumberWidget = widget.type === "number" || widget.origType === "number";
 								if (isNumberWidget) {
 									values = this.getRange(widget.value, this.properties.rangeStepBy, this.properties.rangeSteps);
-									widget.value = { __inputType__: "combinatorial", values: values, axis_id: axisID, axis_name: axisName }
+									widget.value = {
+										__inputType__: "combinatorial",
+										values: values,
+										axis_id: axisID,
+										axis_name: axisName,
+										join_axis: Boolean(axisName)
+									}
 									break;
 								}
 							case "single":
