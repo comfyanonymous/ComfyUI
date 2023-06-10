@@ -50,7 +50,7 @@ body {
 	padding: 30px 30px 10px 30px;
 	background-color: var(--comfy-menu-bg); /* Modal background */
 	color: var(--error-text);
-	box-shadow: 0px 0px 20px #888888;
+	box-shadow: 0 0 20px #888888;
 	border-radius: 10px;
 	top: 50%;
 	left: 50%;
@@ -84,7 +84,7 @@ body {
 	font-size: 15px;
 	position: absolute;
 	top: 50%;
-	right: 0%;
+	right: 0;
 	text-align: center;
 	z-index: 100;
 	width: 170px;
@@ -252,7 +252,7 @@ button.comfy-queue-btn {
 		bottom: 0 !important;
 		left: auto !important;
 		right: 0 !important;
-		border-radius: 0px;
+		border-radius: 0;
 	}
 	.comfy-menu span.drag-handle {
 		visibility:hidden
@@ -291,7 +291,7 @@ button.comfy-queue-btn {
 
 .litegraph .dialog {
 	 z-index: 1;
-	 font-family: Arial;
+	 font-family: Arial, sans-serif;
 }
 
 .litegraph .litemenu-entry.has_submenu {
@@ -328,6 +328,13 @@ button.comfy-queue-btn {
 .litegraph.litecontextmenu input {
 	background-color: var(--comfy-input-bg) !important;
 	color: var(--input-text) !important;
+}
+
+.comfy-context-menu-filter {
+	box-sizing: border-box;
+	border: 1px solid #999;
+	margin: 0 0 5px 5px;
+	width: calc(100% - 10px);
 }
 
 /* Search box */
