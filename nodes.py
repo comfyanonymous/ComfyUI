@@ -623,11 +623,11 @@ class unCLIPConditioning:
         c = []
         for t in conditioning:
             o = t[1].copy()
-            x = (clip_vision_output, strength, noise_augmentation)
-            if "adm" in o:
-                o["adm"] = o["adm"][:] + [x]
+            x = {"clip_vision_output": clip_vision_output, "strength": strength, "noise_augmentation": noise_augmentation}
+            if "unclip_conditioning" in o:
+                o["unclip_conditioning"] = o["unclip_conditioning"][:] + [x]
             else:
-                o["adm"] = [x]
+                o["unclip_conditioning"] = [x]
             n = [t[0], o]
             c.append(n)
         return (c, )
