@@ -1315,6 +1315,26 @@ class ImageScale:
         s = s.movedim(1,-1)
         return (s,)
 
+class ImageScaleBy:
+    upscale_methods = ["nearest-exact", "bilinear", "area"]
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
+                              "scale_by": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 8.0, "step": 0.01}),}}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "upscale"
+
+    CATEGORY = "image/upscaling"
+
+    def upscale(self, image, upscale_method, scale_by):
+        samples = image.movedim(-1,1)
+        width = round(samples.shape[3] * scale_by)
+        height = round(samples.shape[2] * scale_by)
+        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
+        s = s.movedim(1,-1)
+        return (s,)
+
 class ImageInvert:
 
     @classmethod
@@ -1413,6 +1433,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
+    "ImageScaleBy": ImageScaleBy,
     "ImageInvert": ImageInvert,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningAverage ": ConditioningAverage ,
@@ -1495,6 +1516,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImage": "Load Image",
     "LoadImageMask": "Load Image (as Mask)",
     "ImageScale": "Upscale Image",
+    "ImageScaleBy": "Upscale Image By",
     "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
