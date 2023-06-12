@@ -1,6 +1,5 @@
-import { app } from "/scripts/app.js";
-import { $el } from "/scripts/ui.js";
-import { api } from "/scripts/api.js";
+import {app} from "/scripts/app.js";
+import {$el} from "/scripts/ui.js";
 
 // Manage color palettes
 
@@ -24,6 +23,8 @@ const colorPalettes = {
 				"TAESD": "#DCC274", // cheesecake
 			},
 			"litegraph_base": {
+				"BACKGROUND_IMAGE": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAQBJREFUeNrs1rEKwjAUhlETUkj3vP9rdmr1Ysammk2w5wdxuLgcMHyptfawuZX4pJSWZTnfnu/lnIe/jNNxHHGNn//HNbbv+4dr6V+11uF527arU7+u63qfa/bnmh8sWLBgwYJlqRf8MEptXPBXJXa37BSl3ixYsGDBMliwFLyCV/DeLIMFCxYsWLBMwSt4Be/NggXLYMGCBUvBK3iNruC9WbBgwYJlsGApeAWv4L1ZBgsWLFiwYJmCV/AK3psFC5bBggULloJX8BpdwXuzYMGCBctgwVLwCl7Be7MMFixYsGDBsu8FH1FaSmExVfAxBa/gvVmwYMGCZbBg/W4vAQYA5tRF9QYlv/QAAAAASUVORK5CYII=",
+				"CLEAR_BACKGROUND_COLOR": "#222",
 				"NODE_TITLE_COLOR": "#999",
 				"NODE_SELECTED_TITLE_COLOR": "#FFF",
 				"NODE_TEXT_SIZE": 14,
@@ -77,6 +78,8 @@ const colorPalettes = {
 				"VAE": "#FF7043", // deep orange
 			},
 			"litegraph_base": {
+				"BACKGROUND_IMAGE": "data:image/gif;base64,R0lGODlhZABkALMAAAAAAP///+vr6+rq6ujo6Ofn5+bm5uXl5d3d3f///wAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAAkALAAAAABkAGQAAAT/UMhJq7046827HkcoHkYxjgZhnGG6si5LqnIM0/fL4qwwIMAg0CAsEovBIxKhRDaNy2GUOX0KfVFrssrNdpdaqTeKBX+dZ+jYvEaTf+y4W66mC8PUdrE879f9d2mBeoNLfH+IhYBbhIx2jkiHiomQlGKPl4uZe3CaeZifnnijgkESBqipqqusra6vsLGys62SlZO4t7qbuby7CLa+wqGWxL3Gv3jByMOkjc2lw8vOoNSi0czAncXW3Njdx9Pf48/Z4Kbbx+fQ5evZ4u3k1fKR6cn03vHlp7T9/v8A/8Gbp4+gwXoFryXMB2qgwoMMHyKEqA5fxX322FG8tzBcRnMW/zlulPbRncmQGidKjMjyYsOSKEF2FBlJQMCbOHP6c9iSZs+UnGYCdbnSo1CZI5F64kn0p1KnTH02nSoV3dGTV7FFHVqVq1dtWcMmVQZTbNGu72zqXMuW7danVL+6e4t1bEy6MeueBYLXrNO5Ze36jQtWsOG97wIj1vt3St/DjTEORss4nNq2mDP3e7w4r1bFkSET5hy6s2TRlD2/mSxXtSHQhCunXo26NevCpmvD/UU6tuullzULH76q92zdZG/Ltv1a+W+osI/nRmyc+fRi1Xdbh+68+0vv10dH3+77KD/i6IdnX669/frn5Zsjh4/2PXju8+8bzc9/6fj27LFnX11/+IUnXWl7BJfegm79FyB9JOl3oHgSklefgxAC+FmFGpqHIYcCfkhgfCohSKKJVo044YUMttggiBkmp6KFXw1oII24oYhjiDByaKOOHcp3Y5BD/njikSkO+eBREQAAOw==",
+				"CLEAR_BACKGROUND_COLOR": "white",
 				"NODE_TITLE_COLOR": "#222",
 				"NODE_SELECTED_TITLE_COLOR": "#000",
 				"NODE_TEXT_SIZE": 14,
@@ -191,7 +194,7 @@ app.registerExtension({
 				const nodeData = defs[nodeId];
 
 				var inputs = nodeData["input"]["required"];
-				if (nodeData["input"]["optional"] != undefined){
+				if (nodeData["input"]["optional"] != undefined) {
 					inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
 				}
 
@@ -232,12 +235,9 @@ app.registerExtension({
 				"id": "my_color_palette_unique_id",
 				"name": "My Color Palette",
 				"colors": {
-					"node_slot": {
-					},
-					"litegraph_base": {
-					},
-					"comfy_base": {
-					}
+					"node_slot": {},
+					"litegraph_base": {},
+					"comfy_base": {}
 				}
 			};
 
@@ -266,7 +266,7 @@ app.registerExtension({
 		};
 
 		const addCustomColorPalette = async (colorPalette) => {
-			if (typeof(colorPalette) !== "object") {
+			if (typeof (colorPalette) !== "object") {
 				app.ui.dialog.show("Invalid color palette");
 				return;
 			}
@@ -286,7 +286,7 @@ app.registerExtension({
 				return;
 			}
 
-			if (colorPalette.colors.node_slot && typeof(colorPalette.colors.node_slot) !== "object") {
+			if (colorPalette.colors.node_slot && typeof (colorPalette.colors.node_slot) !== "object") {
 				app.ui.dialog.show("Invalid color palette colors.node_slot");
 				return;
 			}
@@ -301,7 +301,11 @@ app.registerExtension({
 				}
 			}
 
-			els.select.append($el("option", { textContent: colorPalette.name + " (custom)", value: "custom_" + colorPalette.id, selected: true }));
+			els.select.append($el("option", {
+				textContent: colorPalette.name + " (custom)",
+				value: "custom_" + colorPalette.id,
+				selected: true
+			}));
 
 			setColorPalette("custom_" + colorPalette.id);
 			await loadColorPalette(colorPalette);
@@ -350,7 +354,7 @@ app.registerExtension({
 				if (colorPalette.colors.comfy_base) {
 					const rootStyle = document.documentElement.style;
 					for (const key in colorPalette.colors.comfy_base) {
-					  	rootStyle.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
+						rootStyle.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
 					}
 				}
 				app.canvas.draw(true, true);
@@ -380,7 +384,7 @@ app.registerExtension({
 		const fileInput = $el("input", {
 			type: "file",
 			accept: ".json",
-			style: { display: "none" },
+			style: {display: "none"},
 			parent: document.body,
 			onchange: () => {
 				let file = fileInput.files[0];
@@ -403,17 +407,25 @@ app.registerExtension({
 
 				for (const c in colorPalettes) {
 					const colorPalette = colorPalettes[c];
-					options.push($el("option", { textContent: colorPalette.name, value: colorPalette.id, selected: colorPalette.id === value }));
+					options.push($el("option", {
+						textContent: colorPalette.name,
+						value: colorPalette.id,
+						selected: colorPalette.id === value
+					}));
 				}
 
 				let customColorPalettes = getCustomColorPalettes();
 				for (const c in customColorPalettes) {
 					const colorPalette = customColorPalettes[c];
-					options.push($el("option", { textContent: colorPalette.name + " (custom)", value: "custom_" + colorPalette.id, selected: "custom_" + colorPalette.id === value }));
+					options.push($el("option", {
+						textContent: colorPalette.name + " (custom)",
+						value: "custom_" + colorPalette.id,
+						selected: "custom_" + colorPalette.id === value
+					}));
 				}
 
 				return $el("div", [
-					$el("label", { textContent: name || id }, [
+					$el("label", {textContent: name || id}, [
 						els.select = $el("select", {
 							onchange: (e) => {
 								setter(e.target.value);
@@ -427,12 +439,12 @@ app.registerExtension({
 							const colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
 							const colorPalette = await completeColorPalette(getColorPalette(colorPaletteId));
 							const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
-							const blob = new Blob([json], { type: "application/json" });
+							const blob = new Blob([json], {type: "application/json"});
 							const url = URL.createObjectURL(blob);
 							const a = $el("a", {
 								href: url,
 								download: colorPaletteId + ".json",
-								style: { display: "none" },
+								style: {display: "none"},
 								parent: document.body,
 							});
 							a.click();
@@ -455,12 +467,12 @@ app.registerExtension({
 						onclick: async () => {
 							const colorPalette = await getColorPaletteTemplate();
 							const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
-							const blob = new Blob([json], { type: "application/json" });
+							const blob = new Blob([json], {type: "application/json"});
 							const url = URL.createObjectURL(blob);
 							const a = $el("a", {
 								href: url,
 								download: "color_palette.json",
-								style: { display: "none" },
+								style: {display: "none"},
 								parent: document.body,
 							});
 							a.click();
@@ -496,15 +508,25 @@ app.registerExtension({
 					return;
 				}
 
-				if (colorPalettes[value]) {
-					await loadColorPalette(colorPalettes[value]);
+				let palette = colorPalettes[value];
+				if (palette) {
+					await loadColorPalette(palette);
 				} else if (value.startsWith("custom_")) {
 					value = value.substr(7);
 					let customColorPalettes = getCustomColorPalettes();
 					if (customColorPalettes[value]) {
+						palette = customColorPalettes[value];
 						await loadColorPalette(customColorPalettes[value]);
 					}
 				}
+
+				let {BACKGROUND_IMAGE, CLEAR_BACKGROUND_COLOR} = palette.colors.litegraph_base;
+				if (BACKGROUND_IMAGE === undefined || CLEAR_BACKGROUND_COLOR === undefined) {
+					const base = colorPalettes["dark"].colors.litegraph_base;
+					BACKGROUND_IMAGE = base.BACKGROUND_IMAGE;
+					CLEAR_BACKGROUND_COLOR = base.CLEAR_BACKGROUND_COLOR;
+				}
+				app.canvas.updateBackground(BACKGROUND_IMAGE, CLEAR_BACKGROUND_COLOR);
 			},
 		});
 	},
