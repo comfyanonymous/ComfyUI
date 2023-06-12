@@ -4,7 +4,7 @@ import yaml
 
 import folder_paths
 from comfy.ldm.util import instantiate_from_config
-from comfy.sd import ModelPatcher, load_model_weights, CLIP, VAE
+from comfy.sd import ModelPatcher, load_model_weights, CLIP, VAE, load_checkpoint
 import os.path as osp
 import re
 import torch
@@ -84,28 +84,4 @@ def load_diffusers(model_path, fp16=True, output_vae=True, output_clip=True, emb
     # Put together new checkpoint
     sd = {**unet_state_dict, **vae_state_dict, **text_enc_dict}
 
-    clip = None
-    vae = None
-
-    class WeightsLoader(torch.nn.Module):
-        pass
-
-    w = WeightsLoader()
-    load_state_dict_to = []
-    if output_vae:
-        vae = VAE(scale_factor=scale_factor, config=vae_config)
-        w.first_stage_model = vae.first_stage_model
-        load_state_dict_to = [w]
-
-    if output_clip:
-        clip = CLIP(config=clip_config, embedding_directory=embedding_directory)
-        w.cond_stage_model = clip.cond_stage_model
-        load_state_dict_to = [w]
-
-    model = instantiate_from_config(config["model"])
-    model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
-
-    if fp16:
-        model = model.half()
-
-    return ModelPatcher(model), clip, vae
+    return load_checkpoint(embedding_directory=embedding_directory, state_dict=sd, config=config)

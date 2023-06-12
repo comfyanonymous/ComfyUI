@@ -15,8 +15,15 @@ from . import utils
 from . import clip_vision
 from . import gligen
 from . import diffusers_convert
+from . import model_base
 
 def load_model_weights(model, sd, verbose=False, load_state_dict_to=[]):
+    replace_prefix = {"model.diffusion_model.": "diffusion_model."}
+    for rp in replace_prefix:
+        replace = list(map(lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp):])), filter(lambda a: a.startswith(rp), sd.keys())))
+        for x in replace:
+            sd[x[1]] = sd.pop(x[0])
+
     m, u = model.load_state_dict(sd, strict=False)
 
     k = list(sd.keys())
@@ -182,7 +189,7 @@ def model_lora_keys(model, key_map={}):
 
     counter = 0
     for b in range(12):
-        tk = "model.diffusion_model.input_blocks.{}.1".format(b)
+        tk = "diffusion_model.input_blocks.{}.1".format(b)
         up_counter = 0
         for c in LORA_UNET_MAP_ATTENTIONS:
             k = "{}.{}.weight".format(tk, c)
@@ -193,13 +200,13 @@ def model_lora_keys(model, key_map={}):
         if up_counter >= 4:
             counter += 1
     for c in LORA_UNET_MAP_ATTENTIONS:
-        k = "model.diffusion_model.middle_block.1.{}.weight".format(c)
+        k = "diffusion_model.middle_block.1.{}.weight".format(c)
         if k in sdk:
             lora_key = "lora_unet_mid_block_attentions_0_{}".format(LORA_UNET_MAP_ATTENTIONS[c])
             key_map[lora_key] = k
     counter = 3
     for b in range(12):
-        tk = "model.diffusion_model.output_blocks.{}.1".format(b)
+        tk = "diffusion_model.output_blocks.{}.1".format(b)
         up_counter = 0
         for c in LORA_UNET_MAP_ATTENTIONS:
             k = "{}.{}.weight".format(tk, c)
@@ -223,7 +230,7 @@ def model_lora_keys(model, key_map={}):
     ds_counter = 0
     counter = 0
     for b in range(12):
-        tk = "model.diffusion_model.input_blocks.{}.0".format(b)
+        tk = "diffusion_model.input_blocks.{}.0".format(b)
         key_in = False
         for c in LORA_UNET_MAP_RESNET:
             k = "{}.{}.weight".format(tk, c)
@@ -242,7 +249,7 @@ def model_lora_keys(model, key_map={}):
 
     counter = 0
     for b in range(3):
-        tk = "model.diffusion_model.middle_block.{}".format(b)
+        tk = "diffusion_model.middle_block.{}".format(b)
         key_in = False
         for c in LORA_UNET_MAP_RESNET:
             k = "{}.{}.weight".format(tk, c)
@@ -256,7 +263,7 @@ def model_lora_keys(model, key_map={}):
     counter = 0
     us_counter = 0
     for b in range(12):
-        tk = "model.diffusion_model.output_blocks.{}.0".format(b)
+        tk = "diffusion_model.output_blocks.{}.0".format(b)
         key_in = False
         for c in LORA_UNET_MAP_RESNET:
             k = "{}.{}.weight".format(tk, c)
@@ -332,7 +339,7 @@ class ModelPatcher:
                         patch_list[i] = patch_list[i].to(device)
 
     def model_dtype(self):
-        return self.model.diffusion_model.dtype
+        return self.model.get_dtype()
 
     def add_patches(self, patches, strength=1.0):
         p = {}
@@ -537,6 +544,19 @@ class VAE:
             / 3.0) / 2.0, min=0.0, max=1.0)
         return output
 
+    def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
+        steps = pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
+        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = utils.ProgressBar(steps)
+
+        encode_fn = lambda a: self.first_stage_model.encode(2. * a.to(self.device) - 1.).sample() * self.scale_factor
+        samples = utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples /= 3.0
+        return samples
+
     def decode(self, samples_in):
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
@@ -567,28 +587,29 @@ class VAE:
     def encode(self, pixel_samples):
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
-        pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
-        samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
+        pixel_samples = pixel_samples.movedim(-1,1)
+        try:
+            free_memory = model_management.get_free_memory(self.device)
+            batch_number = int((free_memory * 0.7) / (2078 * pixel_samples.shape[2] * pixel_samples.shape[3])) #NOTE: this constant along with the one in the decode above are estimated from the mem usage for the VAE and could change.
+            batch_number = max(1, batch_number)
+            samples = torch.empty((pixel_samples.shape[0], 4, round(pixel_samples.shape[2] // 8), round(pixel_samples.shape[3] // 8)), device="cpu")
+            for x in range(0, pixel_samples.shape[0], batch_number):
+                pixels_in = (2. * pixel_samples[x:x+batch_number] - 1.).to(self.device)
+                samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).sample().cpu() * self.scale_factor
+
+        except model_management.OOM_EXCEPTION as e:
+            print("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
+            samples = self.encode_tiled_(pixel_samples)
+
         self.first_stage_model = self.first_stage_model.cpu()
-        samples = samples.cpu()
         return samples
 
     def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
-        pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
-
-        steps = pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
-        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
-        steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
-        pbar = utils.ProgressBar(steps)
-
-        samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
-        samples /= 3.0
+        pixel_samples = pixel_samples.movedim(-1,1)
+        samples = self.encode_tiled_(pixel_samples, tile_x=tile_x, tile_y=tile_y, overlap=overlap)
         self.first_stage_model = self.first_stage_model.cpu()
-        samples = samples.cpu()
         return samples
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
@@ -764,7 +785,7 @@ def load_controlnet(ckpt_path, model=None):
                 for x in controlnet_data:
                     c_m = "control_model."
                     if x.startswith(c_m):
-                        sd_key = "model.diffusion_model.{}".format(x[len(c_m):])
+                        sd_key = "diffusion_model.{}".format(x[len(c_m):])
                         if sd_key in model_sd:
                             cd = controlnet_data[x]
                             cd += model_sd[sd_key].type(cd.dtype).to(cd.device)
@@ -931,9 +952,10 @@ def load_gligen(ckpt_path):
         model = model.half()
     return model
 
-def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=None):
-    with open(config_path, 'r') as stream:
-        config = yaml.safe_load(stream)
+def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
+    if config is None:
+        with open(config_path, 'r') as stream:
+            config = yaml.safe_load(stream)
     model_config_params = config['model']['params']
     clip_config = model_config_params['cond_stage_config']
     scale_factor = model_config_params['scale_factor']
@@ -942,8 +964,19 @@ def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, e
     fp16 = False
     if "unet_config" in model_config_params:
         if "params" in model_config_params["unet_config"]:
-            if "use_fp16" in model_config_params["unet_config"]["params"]:
-                fp16 = model_config_params["unet_config"]["params"]["use_fp16"]
+            unet_config = model_config_params["unet_config"]["params"]
+            if "use_fp16" in unet_config:
+                fp16 = unet_config["use_fp16"]
+
+    noise_aug_config = None
+    if "noise_aug_config" in model_config_params:
+        noise_aug_config = model_config_params["noise_aug_config"]
+
+    v_prediction = False
+
+    if "parameterization" in model_config_params:
+        if model_config_params["parameterization"] == "v":
+            v_prediction = True
 
     clip = None
     vae = None
@@ -963,9 +996,16 @@ def load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, e
         w.cond_stage_model = clip.cond_stage_model
         load_state_dict_to = [w]
 
-    model = instantiate_from_config(config["model"])
-    sd = utils.load_torch_file(ckpt_path)
-    model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
+    if config['model']["target"].endswith("LatentInpaintDiffusion"):
+        model = model_base.SDInpaint(unet_config, v_prediction=v_prediction)
+    elif config['model']["target"].endswith("ImageEmbeddingConditionedLatentDiffusion"):
+        model = model_base.SD21UNCLIP(unet_config, noise_aug_config["params"], v_prediction=v_prediction)
+    else:
+        model = model_base.BaseModel(unet_config, v_prediction=v_prediction)
+
+    if state_dict is None:
+        state_dict = utils.load_torch_file(ckpt_path)
+    model = load_model_weights(model, state_dict, verbose=False, load_state_dict_to=load_state_dict_to)
 
     if fp16:
         model = model.half()
@@ -1073,16 +1113,20 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     sd_config["unet_config"] = {"target": "comfy.ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
     model_config = {"target": "comfy.ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
 
+    unclip_model = False
+    inpaint_model = False
     if noise_aug_config is not None: #SD2.x unclip model
         sd_config["noise_aug_config"] = noise_aug_config
         sd_config["image_size"] = 96
         sd_config["embedding_dropout"] = 0.25
         sd_config["conditioning_key"] = 'crossattn-adm'
+        unclip_model = True
         model_config["target"] = "comfy.ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
     elif unet_config["in_channels"] > 4: #inpainting model
         sd_config["conditioning_key"] = "hybrid"
         sd_config["finetune_keys"] = None
         model_config["target"] = "comfy.ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
+        inpaint_model = True
     else:
         sd_config["conditioning_key"] = "crossattn"
 
@@ -1096,13 +1140,21 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         unet_config["num_classes"] = "sequential"
         unet_config["adm_in_channels"] = sd[unclip].shape[1]
 
+    v_prediction = False
     if unet_config["context_dim"] == 1024 and unet_config["in_channels"] == 4: #only SD2.x non inpainting models are v prediction
         k = "model.diffusion_model.output_blocks.11.1.transformer_blocks.0.norm1.bias"
         out = sd[k]
         if torch.std(out, unbiased=False) > 0.09: # not sure how well this will actually work. I guess we will find out.
+            v_prediction = True
             sd_config["parameterization"] = 'v'
 
-    model = instantiate_from_config(model_config)
+    if inpaint_model:
+        model = model_base.SDInpaint(unet_config, v_prediction=v_prediction)
+    elif unclip_model:
+        model = model_base.SD21UNCLIP(unet_config, noise_aug_config["params"], v_prediction=v_prediction)
+    else:
+        model = model_base.BaseModel(unet_config, v_prediction=v_prediction)
+
     model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
 
     if fp16:
