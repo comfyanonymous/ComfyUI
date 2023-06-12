@@ -728,9 +728,14 @@ class PromptQueue:
                     return True
         return False
 
-    def get_history(self):
+    def get_history(self, prompt_id=None):
         with self.mutex:
-            return copy.deepcopy(self.history)
+            if prompt_id is None:
+                return copy.deepcopy(self.history)
+            elif prompt_id in self.history:
+                return {prompt_id: copy.deepcopy(self.history[prompt_id])}
+            else:
+                return {}
 
     def wipe_history(self):
         with self.mutex:
