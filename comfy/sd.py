@@ -85,7 +85,7 @@ LORA_UNET_MAP_RESNET = {
 }
 
 def load_lora(path, to_load):
-    lora = utils.load_torch_file(path)
+    lora = utils.load_torch_file(path, safe_load=True)
     patch_dict = {}
     loaded_keys = set()
     for x in to_load:
@@ -722,7 +722,7 @@ class ControlNet:
         return out
 
 def load_controlnet(ckpt_path, model=None):
-    controlnet_data = utils.load_torch_file(ckpt_path)
+    controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
     pth_key = 'control_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'
     pth = False
     sd2 = False
@@ -924,7 +924,7 @@ class StyleModel:
 
 
 def load_style_model(ckpt_path):
-    model_data = utils.load_torch_file(ckpt_path)
+    model_data = utils.load_torch_file(ckpt_path, safe_load=True)
     keys = model_data.keys()
     if "style_embedding" in keys:
         model = adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
@@ -935,7 +935,7 @@ def load_style_model(ckpt_path):
 
 
 def load_clip(ckpt_path, embedding_directory=None):
-    clip_data = utils.load_torch_file(ckpt_path)
+    clip_data = utils.load_torch_file(ckpt_path, safe_load=True)
     config = {}
     if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
         config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
@@ -946,7 +946,7 @@ def load_clip(ckpt_path, embedding_directory=None):
     return clip
 
 def load_gligen(ckpt_path):
-    data = utils.load_torch_file(ckpt_path)
+    data = utils.load_torch_file(ckpt_path, safe_load=True)
     model = gligen.load_gligen(data)
     if model_management.should_use_fp16():
         model = model.half()
@@ -1111,7 +1111,6 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     unet_config["context_dim"] = sd['model.diffusion_model.input_blocks.4.1.transformer_blocks.0.attn2.to_k.weight'].shape[1]
 
     sd_config["unet_config"] = {"target": "comfy.ldm.modules.diffusionmodules.openaimodel.UNetModel", "params": unet_config}
-    model_config = {"target": "comfy.ldm.models.diffusion.ddpm.LatentDiffusion", "params": sd_config}
 
     unclip_model = False
     inpaint_model = False
@@ -1121,11 +1120,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         sd_config["embedding_dropout"] = 0.25
         sd_config["conditioning_key"] = 'crossattn-adm'
         unclip_model = True
-        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.ImageEmbeddingConditionedLatentDiffusion"
     elif unet_config["in_channels"] > 4: #inpainting model
         sd_config["conditioning_key"] = "hybrid"
         sd_config["finetune_keys"] = None
-        model_config["target"] = "comfy.ldm.models.diffusion.ddpm.LatentInpaintDiffusion"
         inpaint_model = True
     else:
         sd_config["conditioning_key"] = "crossattn"
