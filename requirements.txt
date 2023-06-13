@@ -2,7 +2,6 @@ torch
 torchdiffeq
 torchsde
 einops
-open-clip-torch
 transformers>=4.25.1
 safetensors>=0.3.0
 pytorch_lightning
