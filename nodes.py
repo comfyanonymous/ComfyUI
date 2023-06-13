@@ -1384,7 +1384,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 def load_custom_node(module_path):
 
-    def upate_modified_times(module_path):
+    def update_modified_times(module_path):
         if os.path.isdir(module_path):
             for root, _, files in os.walk(module_path):
                 for file_name in files:
@@ -1414,14 +1414,14 @@ def load_custom_node(module_path):
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
 
-        upate_modified_times(module_path)
+        update_modified_times(module_path)
 
         return True
         
     except Exception as e:
         print(traceback.format_exc())
         print(f"Cannot import {module_path} module for custom nodes:", e)
-        upate_modified_times(module_path)
+        update_modified_times(module_path)
         
         return False
 
