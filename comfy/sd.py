@@ -1,6 +1,7 @@
 import torch
 import contextlib
 import copy
+import inspect
 
 from . import sd1_clip
 from . import sd2_clip
@@ -313,8 +314,10 @@ class ModelPatcher:
         self.model_options["transformer_options"]["tomesd"] = {"ratio": ratio}
 
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
-        self.model_options["sampler_cfg_function"] = sampler_cfg_function
-
+        if len(inspect.signature(sampler_cfg_function).parameters) == 3:
+            self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
+        else:
+            self.model_options["sampler_cfg_function"] = sampler_cfg_function
 
     def set_model_patch(self, patch, name):
         to = self.model_options["transformer_options"]
