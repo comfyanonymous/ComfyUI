@@ -10,3 +10,6 @@ aiohttp
 accelerate
 pyyaml
 piexif
+Pillow
+scipy
+tqdm
