@@ -610,13 +610,12 @@ class SpatialTransformer(nn.Module):
                 for d in range(depth)]
         )
         if not use_linear:
-            self.proj_out = zero_module(nn.Conv2d(inner_dim,
-                                                  in_channels,
+            self.proj_out = nn.Conv2d(inner_dim,in_channels,
                                                   kernel_size=1,
                                                   stride=1,
-                                                  padding=0))
+                                                  padding=0)
         else:
-            self.proj_out = zero_module(comfy.ops.Linear(in_channels, inner_dim))
+            self.proj_out = comfy.ops.Linear(in_channels, inner_dim)
         self.use_linear = use_linear
 
     def forward(self, x, context=None, transformer_options={}):
