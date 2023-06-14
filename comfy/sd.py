@@ -1155,9 +1155,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     else:
         model = model_base.BaseModel(unet_config, v_prediction=v_prediction)
 
-    model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
-
     if fp16:
         model = model.half()
+
+    model = load_model_weights(model, sd, verbose=False, load_state_dict_to=load_state_dict_to)
 
     return (ModelPatcher(model), clip, vae, clipvision)
