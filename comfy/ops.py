@@ -15,3 +15,7 @@ class Linear(torch.nn.Module):
 
     def forward(self, input):
         return torch.nn.functional.linear(input, self.weight, self.bias)
+
+class Conv2d(torch.nn.Conv2d):
+    def reset_parameters(self):
+        return None
