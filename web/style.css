@@ -353,7 +353,8 @@ dialog::backdrop {
 	background-color: var(--tr-odd-bg-color);
 }
 
-td, th {
+.comfy-table td,
+.comfy-table th {
 	border: 1px solid var(--border-color);
 	padding: 8px;
 }
