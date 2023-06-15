@@ -4,7 +4,7 @@ import { app } from "/scripts/app.js";
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number"];
 
-function isConvertableWidget(widget, config) {
+export function isConvertableWidget(widget, config) {
 	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
 }
 
@@ -48,7 +48,7 @@ function showWidget(widget) {
 	}
 }
 
-function convertToInput(node, widget, config) {
+export function convertToInput(node, widget, config) {
 	hideWidget(node, widget);
 
 	const { linkType } = getWidgetType(config);
@@ -63,7 +63,7 @@ function convertToInput(node, widget, config) {
 	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
 }
 
-function convertToWidget(node, widget) {
+export function convertToWidget(node, widget) {
 	showWidget(widget);
 	const sz = node.size;
 	node.removeInput(node.inputs.findIndex((i) => i.widget?.name === widget.name));
@@ -81,6 +81,10 @@ function getWidgetType(config) {
 		linkType = linkType.join(",");
 	}
 	return { type, linkType };
+}
+
+export function getConfig(nodeData, widget) {
+	return nodeData?.input?.required[widget.name] || nodeData?.input?.optional?.[widget.name] || [widget.type, widget.options || {}];
 }
 
 app.registerExtension({
@@ -101,7 +105,7 @@ app.registerExtension({
 							callback: () => convertToWidget(this, w),
 						});
 					} else {
-						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
+						const config = getConfig(nodeData, w);
 						if (isConvertableWidget(w, config)) {
 							toInput.push({
 								content: `Convert ${w.name} to input`,
