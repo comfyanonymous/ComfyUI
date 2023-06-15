@@ -3,6 +3,8 @@ import itertools
 import os
 import shutil
 import threading
+import gc
+import time
 
 from comfy.cli_args import args
 import comfy.utils
@@ -28,15 +30,22 @@ import folder_paths
 import server
 from server import BinaryEventTypes
 from nodes import init_custom_nodes
-
+import comfy.model_management
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
     while True:
         item, item_id = q.get()
-        e.execute(item[2], item[1], item[3], item[4])
+        execution_start_time = time.perf_counter()
+        prompt_id = item[1]
+        e.execute(item[2], prompt_id, item[3], item[4])
         q.task_done(item_id, e.outputs_ui)
+        if server.client_id is not None:
+            server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
 
+        print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
+        gc.collect()
+        comfy.model_management.soft_empty_cache()
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
