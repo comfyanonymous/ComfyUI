@@ -1,4 +1,4 @@
-from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor
+from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor, modeling_utils
 from .utils import load_torch_file, transformers_convert
 import os
 import torch
@@ -6,7 +6,8 @@ import torch
 class ClipVisionModel():
     def __init__(self, json_config):
         config = CLIPVisionConfig.from_json_file(json_config)
-        self.model = CLIPVisionModelWithProjection(config)
+        with modeling_utils.no_init_weights():
+            self.model = CLIPVisionModelWithProjection(config)
         self.processor = CLIPImageProcessor(crop_size=224,
                                             do_center_crop=True,
                                             do_convert_rgb=True,
