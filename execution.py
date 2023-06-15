@@ -313,7 +313,6 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
-        execution_start_time = time.perf_counter()
         if self.server.client_id is not None:
             self.server.send_sync("execution_start", { "prompt_id": prompt_id}, self.server.client_id)
 
@@ -361,12 +360,7 @@ class PromptExecutor:
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
             self.server.last_node_id = None
-            if self.server.client_id is not None:
-                self.server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, self.server.client_id)
 
-        print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
-        gc.collect()
-        comfy.model_management.soft_empty_cache()
 
 
 def validate_inputs(prompt, item, validated):
