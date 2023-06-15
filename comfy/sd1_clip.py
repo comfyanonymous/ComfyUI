@@ -1,6 +1,6 @@
 import os
 
-from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig
+from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig, modeling_utils
 import torch
 import traceback
 import zipfile
@@ -38,7 +38,8 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             if textmodel_json_config is None:
                 textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_clip_config.json")
             config = CLIPTextConfig.from_json_file(textmodel_json_config)
-            self.transformer = CLIPTextModel(config)
+            with modeling_utils.no_init_weights():
+                self.transformer = CLIPTextModel(config)
 
         self.device = device
         self.max_length = max_length
