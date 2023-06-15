@@ -151,7 +151,7 @@ if args.lowvram:
     lowvram_available = True
 elif args.novram:
     set_vram_to = VRAMState.NO_VRAM
-elif args.highvram:
+elif args.highvram or args.gpu_only:
     vram_state = VRAMState.HIGH_VRAM
 
 FORCE_FP32 = False
@@ -306,6 +306,12 @@ def unload_if_low_vram(model):
     if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
         return model.cpu()
     return model
+
+def text_encoder_device():
+    if args.gpu_only:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):

@@ -467,7 +467,11 @@ class CLIP:
             clip = sd1_clip.SD1ClipModel
             tokenizer = sd1_clip.SD1Tokenizer
 
+        self.device = model_management.text_encoder_device()
+        params["device"] = self.device
         self.cond_stage_model = clip(**(params))
+        self.cond_stage_model = self.cond_stage_model.to(self.device)
+
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model)
         self.layer_idx = None
