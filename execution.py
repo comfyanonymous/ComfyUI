@@ -21,7 +21,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             output_index = input_data[1]
-            if input_unique_id not in outputs:
+            if input_unique_id not in outputs or outputs[input_unique_id][input_data[1]] == [None]:
                 return None
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
@@ -409,7 +409,7 @@ def validate_inputs(prompt, item, validated):
             o_id = val[0]
             o_class_type = prompt[o_id]['class_type']
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            if r[val[1]] != type_input:
+            if r[val[1]] != type_input and r[val[1]] != '*' and type_input != '*':
                 received_type = r[val[1]]
                 details = f"{x}, {received_type} != {type_input}"
                 error = {
