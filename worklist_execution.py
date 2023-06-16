@@ -14,7 +14,6 @@ import comfy.model_management
 from execution import get_input_data, get_output_data, map_node_over_list, format_value, full_type_name
 from queue import Queue
 
-
 DEBUG_FLAG = True
 
 
@@ -134,6 +133,11 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
     executed = set()
     will_execute = {}
 
+    def add_work_high(item):
+        worklist.put(item)
+        cnt = will_execute.get(item, 0)
+        will_execute[item] = cnt + 1
+
     def add_work(item):
         worklist.put(item)
         cnt = will_execute.get(item, 0)
@@ -148,6 +152,20 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
             will_execute[item] = cnt - 1
 
         return str(item)
+
+    def apply_priority(items):
+        high_priority = []
+        low_priority = []
+
+        for cur_id, cur_class_def in items:
+            if cur_class_def.__name__ == "LoopControl":
+                low_priority.append(cur_id)
+            elif cur_class_def.RETURN_TYPES == ():
+                high_priority.append(cur_id)
+            else:
+                low_priority.append(cur_id)
+
+        return (high_priority, low_priority)
 
     def get_progress():
         total = len(executed)+len(will_execute.keys())
@@ -218,6 +236,7 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
                 if class_def.__name__ == "LoopControl" and outputs[unique_id] == [[None]]:
                     continue
 
+                candidates = []
                 for next_node in next_nodes[unique_id]:
                     if next_node in to_execute:
                         # If all input slots are not completed, do not add to the work.
@@ -225,7 +244,15 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
                         # For loop support, it is important to fire only once when the input slot is completed.
                         next_class_def = get_class_def(prompt, next_node)
                         if not is_incomplete_input_slots(next_class_def, prompt[next_node]['inputs'], outputs):
-                            add_work(next_node)
+                            candidates.append((next_node, next_class_def))
+
+                high_priority_works, low_priority_works = apply_priority(candidates)
+
+                for next_node in high_priority_works:
+                    add_work_high(next_node)
+
+                for next_node in low_priority_works:
+                    add_work(next_node)
 
     return executed, True, None, None
 
