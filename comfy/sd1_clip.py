@@ -20,7 +20,7 @@ class ClipTokenWeightEncoder:
             output += [z]
         if (len(output) == 0):
             return self.encode(self.empty_tokens)
-        return torch.cat(output, dim=-2)
+        return torch.cat(output, dim=-2).cpu()
 
 class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     """Uses the CLIP transformer encoder for text (from huggingface)"""
