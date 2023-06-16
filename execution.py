@@ -21,10 +21,13 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             output_index = input_data[1]
-            if input_unique_id not in outputs or outputs[input_unique_id][input_data[1]] == [None]:
-                return None
-            obj = outputs[input_unique_id][output_index]
-            input_data_all[x] = obj
+            if class_def.__name__ != "LoopControl":
+                if input_unique_id not in outputs or outputs[input_unique_id][input_data[1]] == [None]:
+                    return None
+
+            if input_unique_id in outputs and outputs[input_unique_id][input_data[1]] != [None]:
+                obj = outputs[input_unique_id][output_index]
+                input_data_all[x] = obj
         else:
             if ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]):
                 input_data_all[x] = [input_data]
@@ -360,7 +363,12 @@ class PromptExecutor:
 
 
 
-def validate_inputs(prompt, item, validated):
+def validate_inputs(prompt, item, validated, visited=set()):
+    if item in visited:
+        return (True, [], item)
+    else:
+        visited.add(item)
+
     unique_id = item
     if unique_id in validated:
         return validated[unique_id]
@@ -426,7 +434,7 @@ def validate_inputs(prompt, item, validated):
                 errors.append(error)
                 continue
             try:
-                r = validate_inputs(prompt, o_id, validated)
+                r = validate_inputs(prompt, o_id, validated, visited)
                 if r[0] is False:
                     # `r` will be set in `validated[o_id]` already
                     valid = False

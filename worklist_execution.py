@@ -87,6 +87,12 @@ def is_incomplete_input_slots(class_def, inputs, outputs):
     if len(required_inputs - inputs.keys()) > 0:
         return True
 
+    if class_def.__name__ == "LoopControl":
+        inputs = {
+                    'loop_condition': inputs['loop_condition'],
+                    'initial_input': inputs['initial_input'],
+                  }
+
     for x in inputs:
         input_data = inputs[x]
 
@@ -209,6 +215,8 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
             return result  # error state
         else:
             if unique_id in next_nodes:
+                if class_def.__name__ == "LoopControl" and outputs[unique_id] == [[None]]:
+                    continue
 
                 for next_node in next_nodes[unique_id]:
                     if next_node in to_execute:
