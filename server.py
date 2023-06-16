@@ -30,6 +30,11 @@ import comfy.model_management
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
 
+async def send_socket_catch_exception(function, message):
+    try:
+        await function(message)
+    except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
+        print("send error:", err)
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -487,18 +492,18 @@ class PromptServer():
 
         if sid is None:
             for ws in self.sockets.values():
-                await ws.send_bytes(message)
+                await send_socket_catch_exception(ws.send_bytes, message)
         elif sid in self.sockets:
-            await self.sockets[sid].send_bytes(message)
+            await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
 
     async def send_json(self, event, data, sid=None):
         message = {"type": event, "data": data}
 
         if sid is None:
             for ws in self.sockets.values():
-                await ws.send_json(message)
+                await send_socket_catch_exception(ws.send_json, message)
         elif sid in self.sockets:
-            await self.sockets[sid].send_json(message)
+            await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
     def send_sync(self, event, data, sid=None):
         self.loop.call_soon_threadsafe(
