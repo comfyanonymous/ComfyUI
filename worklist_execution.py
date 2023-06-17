@@ -86,6 +86,19 @@ def is_incomplete_input_slots(class_def, inputs, outputs):
     if len(required_inputs - inputs.keys()) > 0:
         return True
 
+    # "ExecutionOneof" node is a special node that allows only one of the multiple execution paths to be reached and passed through.
+    if class_def.__name__ == "ExecutionOneOf":
+        for x in inputs:
+            input_data = inputs[x]
+
+            if isinstance(input_data, list):
+                input_unique_id = input_data[0]
+                if input_unique_id in outputs and outputs[input_unique_id][input_data[1]] != [None]:
+                    return False
+
+        return True
+
+    # The "LoopControl" is a special node that can be executed even without loopback_input.
     if class_def.__name__ == "LoopControl":
         inputs = {
                     'loop_condition': inputs['loop_condition'],
@@ -97,7 +110,7 @@ def is_incomplete_input_slots(class_def, inputs, outputs):
 
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
-            if input_unique_id not in outputs:
+            if input_unique_id not in outputs or outputs[input_unique_id][input_data[1]] == [None]:
                 return True
 
     return False
