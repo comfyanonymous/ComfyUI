@@ -832,7 +832,7 @@ class RepeatLatentBatch:
         return (s,)
 
 class LatentUpscale:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bislerp"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
@@ -852,7 +852,7 @@ class LatentUpscale:
         return (s,)
 
 class LatentUpscaleBy:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bislerp"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1248,7 +1248,7 @@ class LoadImageMask:
         return True
 
 class ImageScale:
-    upscale_methods = ["nearest-exact", "bilinear", "area"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
@@ -1269,7 +1269,7 @@ class ImageScale:
         return (s,)
 
 class ImageScaleBy:
-    upscale_methods = ["nearest-exact", "bilinear", "area"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
 
     @classmethod
     def INPUT_TYPES(s):
