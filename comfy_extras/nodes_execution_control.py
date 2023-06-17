@@ -17,7 +17,11 @@ class LoopControl:
         else:
             current = kwargs['loopback_input']
 
-        return (kwargs['loop_condition'].get_next(kwargs['initial_input'], current), )
+        result = kwargs['loop_condition'].get_next(kwargs['initial_input'], current)
+        if result is None:
+            return None
+        else:
+            return (result, )
 
 
 class CounterCondition:
