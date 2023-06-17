@@ -156,6 +156,10 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
     def add_work(item):
         worklist.put(item)
         cnt = will_execute.get(item, 0)
+
+        if item in outputs:
+            del outputs[item]
+
         will_execute[item] = cnt + 1
 
     def get_work():
@@ -227,6 +231,9 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
             nonlocal input_data_all
             input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
 
+            if input_data_all is None:
+                return
+
             if server.client_id is not None:
                 server.last_node_id = unique_id
                 server.send_sync("executing", {"node": unique_id, "prompt_id": prompt_id, "progress": get_progress()},
@@ -244,6 +251,10 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
             executed.add(unique_id)
 
         result = exception_helper(unique_id, input_data_all, executed, outputs, task)
+
+        if input_data_all is None:
+            continue
+
         if result is not None:
             return result  # error state
         else:
