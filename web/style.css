@@ -8,6 +8,8 @@
 	--drag-text: #ccc;
 	--error-text: #ff4444;
 	--border-color: #4e4e4e;
+	--tr-even-bg-color: #222;
+	--tr-odd-bg-color: #353535;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -220,7 +222,7 @@ button.comfy-queue-btn {
 	margin: 6px 0 !important;
 }
 
-.comfy-modal.comfy-settings, 
+.comfy-modal.comfy-settings,
 .comfy-modal.comfy-manage-templates {
 	text-align: center;
 	font-family: sans-serif;
@@ -246,6 +248,11 @@ button.comfy-queue-btn {
 	font-size: inherit;
 }
 
+.comfy-tooltip-indicator {
+	text-decoration: underline;
+	text-decoration-style: dashed;
+}
+
 @media only screen and (max-height: 850px) {
 	.comfy-menu {
 		top: 0 !important;
@@ -254,8 +261,9 @@ button.comfy-queue-btn {
 		right: 0 !important;
 		border-radius: 0;
 	}
+
 	.comfy-menu span.drag-handle {
-		visibility:hidden
+		visibility: hidden
 	}
 }
 
@@ -287,11 +295,75 @@ button.comfy-queue-btn {
 	border-radius: 12px 0 0 12px;
 }
 
+/* Dialogs */
+
+dialog {
+	box-shadow: 0 0 20px #888888;
+}
+
+dialog::backdrop {
+	background: rgba(0, 0, 0, 0.5);
+}
+
+#comfy-settings-dialog {
+	padding: 0;
+	width: 41rem;
+}
+
+#comfy-settings-dialog tr > td:first-child {
+	text-align: right;
+}
+
+#comfy-settings-dialog button {
+	background-color: var(--bg-color);
+	border: 1px var(--border-color) solid;
+	border-radius: 0;
+	color: var(--input-text);
+	font-size: 1rem;
+	padding: 0.5rem;
+}
+
+#comfy-settings-dialog button:hover {
+	background-color: var(--tr-odd-bg-color);
+}
+
+/* General CSS for tables */
+
+.comfy-table {
+	border-collapse: collapse;
+	color: var(--input-text);
+	font-family: Arial, sans-serif;
+	width: 100%;
+}
+
+.comfy-table caption {
+	background-color: var(--bg-color);
+	color: var(--input-text);
+	font-size: 1rem;
+	font-weight: bold;
+	padding: 8px;
+	text-align: center;
+}
+
+.comfy-table tr:nth-child(even) {
+	background-color: var(--tr-even-bg-color);
+}
+
+.comfy-table tr:nth-child(odd) {
+	background-color: var(--tr-odd-bg-color);
+}
+
+.comfy-table td,
+.comfy-table th {
+	border: 1px solid var(--border-color);
+	padding: 8px;
+}
+
 /* Context menu */
 
 .litegraph .dialog {
-	 z-index: 1;
-	 font-family: Arial, sans-serif;
+	z-index: 1;
+	font-family: Arial, sans-serif;
 }
 
 .litegraph .litemenu-entry.has_submenu {
