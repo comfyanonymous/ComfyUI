@@ -90,7 +90,7 @@ def get_output_data(obj, input_data_all):
             results.append(r)
     
     output = []
-    if len(results) > 0:
+    if len(results) > 0 and results[0] is not None:
         # check which outputs need concatenating
         output_is_list = [False] * len(results[0])
         if hasattr(obj, "OUTPUT_IS_LIST"):

@@ -110,7 +110,9 @@ def is_incomplete_input_slots(class_def, inputs, outputs):
 
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
-            if input_unique_id not in outputs or outputs[input_unique_id][input_data[1]] == [None]:
+            if input_unique_id not in outputs or \
+                    len(outputs[input_unique_id]) == 0 or \
+                    outputs[input_unique_id][input_data[1]] == [None]:
                 return True
 
     return False
