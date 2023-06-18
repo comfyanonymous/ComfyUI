@@ -51,9 +51,9 @@ def init_(tensor):
 
 # feedforward
 class GEGLU(nn.Module):
-    def __init__(self, dim_in, dim_out):
+    def __init__(self, dim_in, dim_out, dtype=None):
         super().__init__()
-        self.proj = comfy.ops.Linear(dim_in, dim_out * 2)
+        self.proj = comfy.ops.Linear(dim_in, dim_out * 2, dtype=dtype)
 
     def forward(self, x):
         x, gate = self.proj(x).chunk(2, dim=-1)
@@ -68,7 +68,7 @@ class FeedForward(nn.Module):
         project_in = nn.Sequential(
             comfy.ops.Linear(dim, inner_dim, dtype=dtype),
             nn.GELU()
-        ) if not glu else GEGLU(dim, inner_dim)
+        ) if not glu else GEGLU(dim, inner_dim, dtype=dtype)
 
         self.net = nn.Sequential(
             project_in,
@@ -89,8 +89,8 @@ def zero_module(module):
     return module
 
 
-def Normalize(in_channels):
-    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+def Normalize(in_channels, dtype=None):
+    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype)
 
 
 class SpatialSelfAttention(nn.Module):
@@ -594,7 +594,7 @@ class SpatialTransformer(nn.Module):
             context_dim = [context_dim]
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = Normalize(in_channels)
+        self.norm = Normalize(in_channels, dtype=dtype)
         if not use_linear:
             self.proj_in = nn.Conv2d(in_channels,
                                      inner_dim,
