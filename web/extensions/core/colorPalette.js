@@ -56,7 +56,9 @@ const colorPalettes = {
 				"descrip-text": "#999",
 				"drag-text": "#ccc",
 				"error-text": "#ff4444",
-				"border-color": "#4e4e4e"
+				"border-color": "#4e4e4e",
+				"tr-even-bg-color": "#222",
+				"tr-odd-bg-color": "#353535",
 			}
 		},
 	},
@@ -111,7 +113,9 @@ const colorPalettes = {
 				"descrip-text": "#444",
 				"drag-text": "#555",
 				"error-text": "#F44336",
-				"border-color": "#888"
+				"border-color": "#888",
+				"tr-even-bg-color": "#f9f9f9",
+				"tr-odd-bg-color": "#fff",
 			}
 		},
 	},
@@ -165,7 +169,9 @@ const colorPalettes = {
 				"descrip-text": "#586e75", // Base01
 				"drag-text": "#839496", // Base0
 				"error-text": "#dc322f", // Solarized Red
-				"border-color": "#657b83" // Base00
+				"border-color": "#657b83", // Base00
+				"tr-even-bg-color": "#002b36",
+				"tr-odd-bg-color": "#073642",
 			}
 		},
 	}
@@ -194,7 +200,7 @@ app.registerExtension({
 				const nodeData = defs[nodeId];
 
 				var inputs = nodeData["input"]["required"];
-				if (nodeData["input"]["optional"] != undefined) {
+				if (nodeData["input"]["optional"] !== undefined) {
 					inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
 				}
 
@@ -214,7 +220,7 @@ app.registerExtension({
 			}
 
 			return types;
-		};
+		}
 
 		function completeColorPalette(colorPalette) {
 			var types = getSlotTypes();
@@ -228,7 +234,7 @@ app.registerExtension({
 			colorPalette.colors.node_slot = sortObjectKeys(colorPalette.colors.node_slot);
 
 			return colorPalette;
-		};
+		}
 
 		const getColorPaletteTemplate = async () => {
 			let colorPalette = {
@@ -267,31 +273,31 @@ app.registerExtension({
 
 		const addCustomColorPalette = async (colorPalette) => {
 			if (typeof (colorPalette) !== "object") {
-				app.ui.dialog.show("Invalid color palette");
+				alert("Invalid color palette.");
 				return;
 			}
 
 			if (!colorPalette.id) {
-				app.ui.dialog.show("Color palette missing id");
+				alert("Color palette missing id.");
 				return;
 			}
 
 			if (!colorPalette.name) {
-				app.ui.dialog.show("Color palette missing name");
+				alert("Color palette missing name.");
 				return;
 			}
 
 			if (!colorPalette.colors) {
-				app.ui.dialog.show("Color palette missing colors");
+				alert("Color palette missing colors.");
 				return;
 			}
 
 			if (colorPalette.colors.node_slot && typeof (colorPalette.colors.node_slot) !== "object") {
-				app.ui.dialog.show("Invalid color palette colors.node_slot");
+				alert("Invalid color palette colors.node_slot.");
 				return;
 			}
 
-			let customColorPalettes = getCustomColorPalettes();
+			const customColorPalettes = getCustomColorPalettes();
 			customColorPalettes[colorPalette.id] = colorPalette;
 			setCustomColorPalettes(customColorPalettes);
 
@@ -312,7 +318,7 @@ app.registerExtension({
 		};
 
 		const deleteCustomColorPalette = async (colorPaletteId) => {
-			let customColorPalettes = getCustomColorPalettes();
+			const customColorPalettes = getCustomColorPalettes();
 			delete customColorPalettes[colorPaletteId];
 			setCustomColorPalettes(customColorPalettes);
 
@@ -387,8 +393,7 @@ app.registerExtension({
 			style: {display: "none"},
 			parent: document.body,
 			onchange: () => {
-				let file = fileInput.files[0];
-
+				const file = fileInput.files[0];
 				if (file.type === "application/json" || file.name.endsWith(".json")) {
 					const reader = new FileReader();
 					reader.onload = async () => {
@@ -403,104 +408,116 @@ app.registerExtension({
 			id,
 			name: "Color Palette",
 			type: (name, setter, value) => {
-				let options = [];
+				const options = [
+					...Object.values(colorPalettes).map(c=> $el("option", {
+						textContent: c.name,
+						value: c.id,
+						selected: c.id === value
+					})),
+					...Object.values(getCustomColorPalettes()).map(c=>$el("option", {
+						textContent: `${c.name} (custom)`,
+						value: `custom_${c.id}`,
+						selected: `custom_${c.id}` === value
+					}))	,
+				];
 
-				for (const c in colorPalettes) {
-					const colorPalette = colorPalettes[c];
-					options.push($el("option", {
-						textContent: colorPalette.name,
-						value: colorPalette.id,
-						selected: colorPalette.id === value
-					}));
-				}
+				els.select = $el("select", {
+					style: {
+						marginBottom: "0.15rem",
+						width: "100%",
+					},
+					onchange: (e) => {
+						setter(e.target.value);
+					}
+				}, options)
 
-				let customColorPalettes = getCustomColorPalettes();
-				for (const c in customColorPalettes) {
-					const colorPalette = customColorPalettes[c];
-					options.push($el("option", {
-						textContent: colorPalette.name + " (custom)",
-						value: "custom_" + colorPalette.id,
-						selected: "custom_" + colorPalette.id === value
-					}));
-				}
-
-				return $el("div", [
-					$el("label", {textContent: name || id}, [
-						els.select = $el("select", {
-							onchange: (e) => {
-								setter(e.target.value);
-							}
-						}, options)
+				return $el("tr", [
+					$el("td", [
+						$el("label", {
+							for: id.replaceAll(".", "-"),
+							textContent: "Color palette:",
+						}),
 					]),
-					$el("input", {
-						type: "button",
-						value: "Export",
-						onclick: async () => {
-							const colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
-							const colorPalette = await completeColorPalette(getColorPalette(colorPaletteId));
-							const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
-							const blob = new Blob([json], {type: "application/json"});
-							const url = URL.createObjectURL(blob);
-							const a = $el("a", {
-								href: url,
-								download: colorPaletteId + ".json",
-								style: {display: "none"},
-								parent: document.body,
-							});
-							a.click();
-							setTimeout(function () {
-								a.remove();
-								window.URL.revokeObjectURL(url);
-							}, 0);
-						},
-					}),
-					$el("input", {
-						type: "button",
-						value: "Import",
-						onclick: () => {
-							fileInput.click();
-						}
-					}),
-					$el("input", {
-						type: "button",
-						value: "Template",
-						onclick: async () => {
-							const colorPalette = await getColorPaletteTemplate();
-							const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
-							const blob = new Blob([json], {type: "application/json"});
-							const url = URL.createObjectURL(blob);
-							const a = $el("a", {
-								href: url,
-								download: "color_palette.json",
-								style: {display: "none"},
-								parent: document.body,
-							});
-							a.click();
-							setTimeout(function () {
-								a.remove();
-								window.URL.revokeObjectURL(url);
-							}, 0);
-						}
-					}),
-					$el("input", {
-						type: "button",
-						value: "Delete",
-						onclick: async () => {
-							let colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
+					$el("td", [
+						els.select,
+						$el("div", {
+							style: {
+								display: "grid",
+								gap: "4px",
+								gridAutoFlow: "column",
+							},
+						}, [
+							$el("input", {
+								type: "button",
+								value: "Export",
+								onclick: async () => {
+									const colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
+									const colorPalette = await completeColorPalette(getColorPalette(colorPaletteId));
+									const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
+									const blob = new Blob([json], {type: "application/json"});
+									const url = URL.createObjectURL(blob);
+									const a = $el("a", {
+										href: url,
+										download: colorPaletteId + ".json",
+										style: {display: "none"},
+										parent: document.body,
+									});
+									a.click();
+									setTimeout(function () {
+										a.remove();
+										window.URL.revokeObjectURL(url);
+									}, 0);
+								},
+							}),
+							$el("input", {
+								type: "button",
+								value: "Import",
+								onclick: () => {
+									fileInput.click();
+								}
+							}),
+							$el("input", {
+								type: "button",
+								value: "Template",
+								onclick: async () => {
+									const colorPalette = await getColorPaletteTemplate();
+									const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
+									const blob = new Blob([json], {type: "application/json"});
+									const url = URL.createObjectURL(blob);
+									const a = $el("a", {
+										href: url,
+										download: "color_palette.json",
+										style: {display: "none"},
+										parent: document.body,
+									});
+									a.click();
+									setTimeout(function () {
+										a.remove();
+										window.URL.revokeObjectURL(url);
+									}, 0);
+								}
+							}),
+							$el("input", {
+								type: "button",
+								value: "Delete",
+								onclick: async () => {
+									let colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
 
-							if (colorPalettes[colorPaletteId]) {
-								app.ui.dialog.show("You cannot delete built-in color palette");
-								return;
-							}
+									if (colorPalettes[colorPaletteId]) {
+										alert("You cannot delete a built-in color palette.");
+										return;
+									}
 
-							if (colorPaletteId.startsWith("custom_")) {
-								colorPaletteId = colorPaletteId.substr(7);
-							}
+									if (colorPaletteId.startsWith("custom_")) {
+										colorPaletteId = colorPaletteId.substr(7);
+									}
 
-							await deleteCustomColorPalette(colorPaletteId);
-						}
-					}),
-				]);
+									await deleteCustomColorPalette(colorPaletteId);
+								}
+							}),
+						]),
+					]),
+				])
 			},
 			defaultValue: defaultColorPaletteId,
 			async onChange(value) {

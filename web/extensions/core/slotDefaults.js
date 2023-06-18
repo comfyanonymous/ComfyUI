@@ -10,7 +10,7 @@ app.registerExtension({
 		LiteGraph.middle_click_slot_add_default_node = true;
 		this.suggestionsNumber = app.ui.settings.addSetting({
 			id: "Comfy.NodeSuggestions.number",
-			name: "number of nodes suggestions",
+			name: "Number of nodes suggestions",
 			type: "slider",
 			attrs: {
 				min: 1,
