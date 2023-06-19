@@ -1509,4 +1509,6 @@ def init_custom_nodes():
     load_custom_node(os.path.join(module_directory, "comfy_extras", "nodes_mask.py"))
     load_custom_node(os.path.join(module_directory, "comfy_extras", "nodes_rebatch.py"))
     load_custom_nodes()
-    start_custom_node_monitor()
+    if args.monitor_nodes:
+        print("Monitoring custom nodes for modifications.\n")
+        start_custom_node_monitor()
