@@ -524,9 +524,11 @@ class BasicTransformerBlock(nn.Module):
         return checkpoint(self._forward, (x, context, transformer_options), self.parameters(), self.checkpoint)
 
     def _forward(self, x, context=None, transformer_options={}):
-        current_index = None
+        extra_options = {}
         if "current_index" in transformer_options:
-            current_index = transformer_options["current_index"]
+            extra_options["transformer_index"] = transformer_options["current_index"]
+        if "block_index" in transformer_options:
+            extra_options["block_index"] = transformer_options["block_index"]
         if "patches" in transformer_options:
             transformer_patches = transformer_options["patches"]
         else:
@@ -545,7 +547,7 @@ class BasicTransformerBlock(nn.Module):
                 context_attn1 = n
             value_attn1 = context_attn1
             for p in patch:
-                n, context_attn1, value_attn1 = p(current_index, n, context_attn1, value_attn1)
+                n, context_attn1, value_attn1 = p(n, context_attn1, value_attn1, extra_options)
 
         if "tomesd" in transformer_options:
             m, u = tomesd.get_functions(x, transformer_options["tomesd"]["ratio"], transformer_options["original_shape"])
@@ -557,7 +559,7 @@ class BasicTransformerBlock(nn.Module):
         if "middle_patch" in transformer_patches:
             patch = transformer_patches["middle_patch"]
             for p in patch:
-                x = p(current_index, x)
+                x = p(x, extra_options)
 
         n = self.norm2(x)
 
@@ -567,9 +569,14 @@ class BasicTransformerBlock(nn.Module):
             patch = transformer_patches["attn2_patch"]
             value_attn2 = context_attn2
             for p in patch:
-                n, context_attn2, value_attn2 = p(current_index, n, context_attn2, value_attn2)
+                n, context_attn2, value_attn2 = p(n, context_attn2, value_attn2, extra_options)
 
         n = self.attn2(n, context=context_attn2, value=value_attn2)
+
+        if "attn2_output_patch" in transformer_patches:
+            patch = transformer_patches["attn2_output_patch"]
+            for p in patch:
+                n = p(n, extra_options)
 
         x += n
         x = self.ff(self.norm3(x)) + x
@@ -631,6 +638,7 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_in(x)
         for i, block in enumerate(self.transformer_blocks):
+            transformer_options["block_index"] = i
             x = block(x, context=context[i], transformer_options=transformer_options)
         if self.use_linear:
             x = self.proj_out(x)

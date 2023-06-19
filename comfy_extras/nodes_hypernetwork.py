@@ -68,7 +68,7 @@ def load_hypernetwork_patch(path, strength):
         def __init__(self, hypernet, strength):
             self.hypernet = hypernet
             self.strength = strength
-        def __call__(self, current_index, q, k, v):
+        def __call__(self, q, k, v, extra_options):
             dim = k.shape[-1]
             if dim in self.hypernet:
                 hn = self.hypernet[dim]
