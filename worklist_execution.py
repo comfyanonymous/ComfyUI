@@ -359,7 +359,7 @@ def worklist_output_delete_if_changed(prompt, old_prompt, outputs, next_nodes, m
             if not to_delete:
                 if is_changed != is_changed_old:
                     to_delete = True
-                elif unique_id in muted_nodes or has_muted_input(old_prompt[unique_id]['inputs']):
+                elif unique_id in muted_nodes or (unique_id in old_prompt and has_muted_input(old_prompt[unique_id]['inputs'])):
                     continue
                 elif unique_id not in old_prompt:
                     to_delete = True
@@ -453,8 +453,12 @@ class PromptExecutor:
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
 
-        muted_nodes = set([str(node['id']) for node in extra_data['extra_pnginfo']['workflow']['nodes']]) - set(prompt.keys())
-        unmuted_nodes = self.prev_muted_nodes - muted_nodes
+        if 'extra_pnginfo' in extra_data:
+            muted_nodes = set([str(node['id']) for node in extra_data['extra_pnginfo']['workflow']['nodes']]) - set(prompt.keys())
+            unmuted_nodes = self.prev_muted_nodes - muted_nodes
+        else:
+            muted_nodes = set()
+            unmuted_nodes = set()
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
