@@ -87,13 +87,13 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
-At the time of writing this pytorch has issues with python versions higher than 3.10 so make sure your python/pip versions are 3.10.
-
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
 
+This is the command to install the nightly with ROCm 5.5 that supports the 7000 series and might have some performance improvements:
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.5 -r requirements.txt```
 
 ### NVIDIA
 
@@ -119,12 +119,22 @@ After this you should have everything installed and can proceed to running Comfy
 
 ### Others:
 
-[Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
 
-Mac/MPS: There is basic support in the code but until someone makes some install instruction you are on your own.
+#### Apple Mac silicon
 
-Directml: ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
+You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
 
+1. Install pytorch. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide.
+1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
+1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
+1. Launch ComfyUI by running `python main.py`.
+
+> **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
+
+#### DirectML (AMD Cards on Windows)
+
+```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
@@ -168,16 +178,6 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 
 ```embedding:embedding_filename.pt```
 
-### Fedora
-
-To get python 3.10 on fedora:
-```dnf install python3.10```
-
-Then you can:
-
-```python3.10 -m ensurepip```
-
-This will let you use: pip3.10 to install all the dependencies.
 
 ## How to increase generation speed?
 

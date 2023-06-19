@@ -3,7 +3,6 @@ import os
 import yaml
 
 import folder_paths
-from comfy.ldm.util import instantiate_from_config
 from comfy.sd import ModelPatcher, load_model_weights, CLIP, VAE, load_checkpoint
 import os.path as osp
 import re

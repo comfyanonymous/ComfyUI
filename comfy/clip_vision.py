@@ -1,12 +1,15 @@
-from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor
+from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor, modeling_utils
 from .utils import load_torch_file, transformers_convert
 import os
 import torch
+import comfy.ops
 
 class ClipVisionModel():
     def __init__(self, json_config):
         config = CLIPVisionConfig.from_json_file(json_config)
-        self.model = CLIPVisionModelWithProjection(config)
+        with comfy.ops.use_comfy_ops():
+            with modeling_utils.no_init_weights():
+                self.model = CLIPVisionModelWithProjection(config)
         self.processor = CLIPImageProcessor(crop_size=224,
                                             do_center_crop=True,
                                             do_convert_rgb=True,
@@ -18,7 +21,7 @@ class ClipVisionModel():
                                             size=224)
 
     def load_sd(self, sd):
-        self.model.load_state_dict(sd, strict=False)
+        return self.model.load_state_dict(sd, strict=False)
 
     def encode_image(self, image):
         img = torch.clip((255. * image[0]), 0, 255).round().int()
@@ -56,7 +59,13 @@ def load_clipvision_from_sd(sd):
     else:
         json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl.json")
     clip = ClipVisionModel(json_config)
-    clip.load_sd(sd)
+    m, u = clip.load_sd(sd)
+    u = set(u)
+    keys = list(sd.keys())
+    for k in keys:
+        if k not in u:
+            t = sd.pop(k)
+            del t
     return clip
 
 def load(ckpt_path):
