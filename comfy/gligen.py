@@ -260,7 +260,8 @@ class Gligen(nn.Module):
                 return r
             return func_lowvram
         else:
-            def func(key, x):
+            def func(x, extra_options):
+                key = extra_options["transformer_index"]
                 module = self.module_list[key]
                 return module(x, objs)
             return func
