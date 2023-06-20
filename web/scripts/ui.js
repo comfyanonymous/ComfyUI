@@ -211,6 +211,9 @@ class ComfySettingsDialog extends ComfyDialog {
 				$el("button", {
 					type: "button",
 					textContent: "Close",
+					style: {
+						cursor: "pointer",
+					},
 					onclick: () => {
 						this.element.close();
 					},
@@ -267,7 +270,7 @@ class ComfySettingsDialog extends ComfyDialog {
 					$el("label", {
 						for: htmlID,
 						classList: [tooltip !== "" ? "comfy-tooltip-indicator" : ""],
-						textContent: name.endsWith(":") ? name : `${name}:`,
+						textContent: name,
 					})
 				]);
 
