@@ -650,7 +650,10 @@ class KSampler:
                 self.model_k.latent_image = latent_image
                 self.model_k.noise = noise
 
-                noise = noise * sigmas[0]
+                if max_denoise:
+                    noise = noise * torch.sqrt(1.0 + sigmas[0] ** 2.0)
+                else:
+                    noise = noise * sigmas[0]
 
                 k_callback = None
                 total_steps = len(sigmas) - 1
