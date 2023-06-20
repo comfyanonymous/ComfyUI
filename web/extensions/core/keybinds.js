@@ -1,38 +1,31 @@
-import { app } from "/scripts/app.js";
+import {app} from "/scripts/app.js";
 
-const id = "Comfy.Keybinds";
 app.registerExtension({
-	name: id,
+	name: "Comfy.Keybinds",
 	init() {
-		const keybindListener = function(event) {
+		const keybindListener = function (event) {
 			const modifierPressed = event.ctrlKey || event.metaKey;
 
 			// Queue prompt using ctrl or command + enter
-			if (modifierPressed && (event.key === "Enter" || event.keyCode === 13 || event.keyCode === 10)) {
-				app.queuePrompt(event.shiftKey ? -1 : 0);
+			if (modifierPressed && event.key === "Enter") {
+				app.queuePrompt(event.shiftKey ? -1 : 0).then();
 				return;
 			}
 
 			const target = event.composedPath()[0];
-
-			if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+			if (["INPUT", "TEXTAREA"].includes(target.tagName)) {
 				return;
 			}
 
 			const modifierKeyIdMap = {
-				"s": "#comfy-save-button",
-				83: "#comfy-save-button",
-				"o": "#comfy-file-input",
-				79: "#comfy-file-input",
-				"Backspace": "#comfy-clear-button",
-				8: "#comfy-clear-button",
-				"Delete": "#comfy-clear-button",
-				46: "#comfy-clear-button",
-				"d": "#comfy-load-default-button",
-				68: "#comfy-load-default-button",
+				s: "#comfy-save-button",
+				o: "#comfy-file-input",
+				Backspace: "#comfy-clear-button",
+				Delete: "#comfy-clear-button",
+				d: "#comfy-load-default-button",
 			};
 
-			const modifierKeybindId = modifierKeyIdMap[event.key] || modifierKeyIdMap[event.keyCode];
+			const modifierKeybindId = modifierKeyIdMap[event.key];
 			if (modifierPressed && modifierKeybindId) {
 				event.preventDefault();
 
@@ -47,24 +40,25 @@ app.registerExtension({
 			}
 
 			// Close out of modals using escape
-			if (event.key === "Escape" || event.keyCode === 27) {
+			if (event.key === "Escape") {
 				const modals = document.querySelectorAll(".comfy-modal");
 				const modal = Array.from(modals).find(modal => window.getComputedStyle(modal).getPropertyValue("display") !== "none");
 				if (modal) {
 					modal.style.display = "none";
 				}
+
+				[...document.querySelectorAll("dialog")].forEach(d => {
+					d.close();
+				});
 			}
 
 			const keyIdMap = {
-				"q": "#comfy-view-queue-button",
-				81: "#comfy-view-queue-button",
-				"h": "#comfy-view-history-button",
-				72: "#comfy-view-history-button",
-				"r": "#comfy-refresh-button",
-				82: "#comfy-refresh-button",
+				q: "#comfy-view-queue-button",
+				h: "#comfy-view-history-button",
+				r: "#comfy-refresh-button",
 			};
 
-			const buttonId = keyIdMap[event.key] || keyIdMap[event.keyCode];
+			const buttonId = keyIdMap[event.key];
 			if (buttonId) {
 				const button = document.querySelector(buttonId);
 				button.click();
