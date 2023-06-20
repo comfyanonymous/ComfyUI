@@ -435,7 +435,7 @@ app.registerExtension({
 					$el("td", [
 						$el("label", {
 							for: id.replaceAll(".", "-"),
-							textContent: "Color palette:",
+							textContent: "Color palette",
 						}),
 					]),
 					$el("td", [
