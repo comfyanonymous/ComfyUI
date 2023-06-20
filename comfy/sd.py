@@ -357,12 +357,13 @@ class ModelPatcher:
         self.patches += [(strength_patch, p, strength_model)]
         return p.keys()
 
-    def model_state_dict(self):
+    def model_state_dict(self, filter_prefix=None):
         sd = self.model.state_dict()
         keys = list(sd.keys())
-        for k in keys:
-            if not k.startswith("diffusion_model."):
-                sd.pop(k)
+        if filter_prefix is not None:
+            for k in keys:
+                if not k.startswith(filter_prefix):
+                    sd.pop(k)
         return sd
 
     def patch_model(self):
@@ -443,7 +444,7 @@ class ModelPatcher:
                     weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype).to(weight.device)
         return self.model
     def unpatch_model(self):
-        model_sd = self.model.state_dict()
+        model_sd = self.model_state_dict()
         keys = list(self.backup.keys())
         for k in keys:
             model_sd[k][:] = self.backup[k]
