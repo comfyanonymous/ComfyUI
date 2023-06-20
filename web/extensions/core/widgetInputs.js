@@ -59,6 +59,10 @@ function convertToInput(node, widget, config) {
 		widget: { name: widget.name, config },
 	});
 
+	for (const widget of node.widgets) {
+		widget.last_y += LiteGraph.NODE_SLOT_HEIGHT;
+	}
+
 	// Restore original size but grow if needed
 	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
 }
@@ -67,6 +71,10 @@ function convertToWidget(node, widget) {
 	showWidget(widget);
 	const sz = node.size;
 	node.removeInput(node.inputs.findIndex((i) => i.widget?.name === widget.name));
+
+	for (const widget of node.widgets) {
+		widget.last_y -= LiteGraph.NODE_SLOT_HEIGHT;
+	}
 
 	// Restore original size but grow if needed
 	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
