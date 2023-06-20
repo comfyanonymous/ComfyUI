@@ -14,7 +14,7 @@ class ModelMergeSimple:
 
     def merge(self, model1, model2, ratio):
         m = model1.clone()
-        sd = model2.model_state_dict()
+        sd = model2.model_state_dict("diffusion_model.")
         for k in sd:
             m.add_patches({k: (sd[k], )}, 1.0 - ratio, ratio)
         return (m, )
@@ -35,7 +35,7 @@ class ModelMergeBlocks:
 
     def merge(self, model1, model2, **kwargs):
         m = model1.clone()
-        sd = model2.model_state_dict()
+        sd = model2.model_state_dict("diffusion_model.")
         default_ratio = next(iter(kwargs.values()))
 
         for k in sd:
