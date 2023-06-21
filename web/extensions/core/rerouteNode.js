@@ -24,9 +24,13 @@ app.registerExtension({
 						// Ignore wildcard nodes as these will be updated to real types
 						const types = new Set(this.outputs[0].links.map((l) => app.graph.links[l].type).filter((t) => t !== "*"));
 						if (types.size > 1) {
+							const linksToDisconnect = [];
 							for (let i = 0; i < this.outputs[0].links.length - 1; i++) {
 								const linkId = this.outputs[0].links[i];
 								const link = app.graph.links[linkId];
+								linksToDisconnect.push(link);
+							}
+							for (const link of linksToDisconnect) {
 								const node = app.graph.getNodeById(link.target_id);
 								node.disconnectInput(link.target_slot);
 							}
