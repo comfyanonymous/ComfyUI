@@ -390,7 +390,11 @@ class ModelPatcher:
                     weight *= strength_model
 
                 if len(v) == 1:
-                    weight += alpha * (v[0]).type(weight.dtype).to(weight.device)
+                    w1 = v[0]
+                    if w1.shape != weight.shape:
+                        print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
+                    else:
+                        weight += alpha * w1.type(weight.dtype).to(weight.device)
                 elif len(v) == 4: #lora/locon
                     mat1 = v[0]
                     mat2 = v[1]
