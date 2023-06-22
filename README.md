@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x and SD2.x
+- Fully supports SD1.x, SD2.x and SDXL
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
@@ -154,15 +154,13 @@ And then you can use that terminal to run ComfyUI without installing any depende
 
 ```python main.py```
 
-### For AMD 6700, 6600 and maybe others
+### For AMD cards not officially supported by ROCm
 
 Try running it with this command if you have issues:
 
-```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
+For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
 
-### For AMD 7600 and meybe others with RDNA3
-
-```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
+For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
 
 # Notes
 
