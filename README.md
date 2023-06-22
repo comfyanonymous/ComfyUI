@@ -87,13 +87,13 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
-At the time of writing this pytorch has issues with python versions higher than 3.10 so make sure your python/pip versions are 3.10.
-
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
 
+This is the command to install the nightly with ROCm 5.5 that supports the 7000 series and might have some performance improvements:
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.5 -r requirements.txt```
 
 ### NVIDIA
 
@@ -178,16 +178,6 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 
 ```embedding:embedding_filename.pt```
 
-### Fedora
-
-To get python 3.10 on fedora:
-```dnf install python3.10```
-
-Then you can:
-
-```python3.10 -m ensurepip```
-
-This will let you use: pip3.10 to install all the dependencies.
 
 ## How to increase generation speed?
 

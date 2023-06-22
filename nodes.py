@@ -756,7 +756,7 @@ class RepeatLatentBatch:
         return (s,)
 
 class LatentUpscale:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bislerp"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
@@ -776,7 +776,7 @@ class LatentUpscale:
         return (s,)
 
 class LatentUpscaleBy:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bislerp"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1172,7 +1172,7 @@ class LoadImageMask:
         return True
 
 class ImageScale:
-    upscale_methods = ["nearest-exact", "bilinear", "area"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
@@ -1189,6 +1189,26 @@ class ImageScale:
     def upscale(self, image, upscale_method, width, height, crop):
         samples = image.movedim(-1,1)
         s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
+        s = s.movedim(1,-1)
+        return (s,)
+
+class ImageScaleBy:
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
+                              "scale_by": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 8.0, "step": 0.01}),}}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "upscale"
+
+    CATEGORY = "image/upscaling"
+
+    def upscale(self, image, upscale_method, scale_by):
+        samples = image.movedim(-1,1)
+        width = round(samples.shape[3] * scale_by)
+        height = round(samples.shape[2] * scale_by)
+        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
         s = s.movedim(1,-1)
         return (s,)
 
@@ -1290,6 +1310,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
+    "ImageScaleBy": ImageScaleBy,
     "ImageInvert": ImageInvert,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningAverage ": ConditioningAverage ,
@@ -1371,6 +1392,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImage": "Load Image",
     "LoadImageMask": "Load Image (as Mask)",
     "ImageScale": "Upscale Image",
+    "ImageScaleBy": "Upscale Image By",
     "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
@@ -1437,4 +1459,5 @@ def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_model_merging.py"))
     load_custom_nodes()

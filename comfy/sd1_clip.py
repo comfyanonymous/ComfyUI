@@ -1,6 +1,7 @@
 import os
 
-from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig
+from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig, modeling_utils
+import comfy.ops
 import torch
 import traceback
 import zipfile
@@ -19,7 +20,7 @@ class ClipTokenWeightEncoder:
             output += [z]
         if (len(output) == 0):
             return self.encode(self.empty_tokens)
-        return torch.cat(output, dim=-2)
+        return torch.cat(output, dim=-2).cpu()
 
 class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     """Uses the CLIP transformer encoder for text (from huggingface)"""
@@ -38,7 +39,9 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             if textmodel_json_config is None:
                 textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_clip_config.json")
             config = CLIPTextConfig.from_json_file(textmodel_json_config)
-            self.transformer = CLIPTextModel(config)
+            with comfy.ops.use_comfy_ops():
+                with modeling_utils.no_init_weights():
+                    self.transformer = CLIPTextModel(config)
 
         self.device = device
         self.max_length = max_length

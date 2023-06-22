@@ -284,7 +284,7 @@ class DDIMSampler(object):
             model_output = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
 
         if self.model.parameterization == "v":
-            e_t = self.model.predict_eps_from_z_and_v(x, t, model_output)
+            e_t = extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * model_output + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x
         else:
             e_t = model_output
 
@@ -306,7 +306,7 @@ class DDIMSampler(object):
         if self.model.parameterization != "v":
             pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
         else:
-            pred_x0 = self.model.predict_start_from_z_and_v(x, t, model_output)
+            pred_x0 = extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * x - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * model_output
 
         if quantize_denoised:
             pred_x0, _, *_ = self.model.first_stage_model.quantize(pred_x0)

@@ -273,7 +273,8 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
         max_total_area = model_management.maximum_batch_area()
         cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
         if "sampler_cfg_function" in model_options:
-            return model_options["sampler_cfg_function"](cond, uncond, cond_scale)
+            args = {"cond": cond, "uncond": uncond, "cond_scale": cond_scale, "timestep": timestep}
+            return model_options["sampler_cfg_function"](args)
         else:
             return uncond + (cond - uncond) * cond_scale
 
@@ -649,7 +650,10 @@ class KSampler:
                 self.model_k.latent_image = latent_image
                 self.model_k.noise = noise
 
-                noise = noise * sigmas[0]
+                if max_denoise:
+                    noise = noise * torch.sqrt(1.0 + sigmas[0] ** 2.0)
+                else:
+                    noise = noise * sigmas[0]
 
                 k_callback = None
                 total_steps = len(sigmas) - 1
