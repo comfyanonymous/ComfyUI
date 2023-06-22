@@ -529,6 +529,8 @@ class BasicTransformerBlock(nn.Module):
             extra_options["transformer_index"] = transformer_options["current_index"]
         if "block_index" in transformer_options:
             extra_options["block_index"] = transformer_options["block_index"]
+        if "original_shape" in transformer_options:
+            extra_options["original_shape"] = transformer_options["original_shape"]
         if "patches" in transformer_options:
             transformer_patches = transformer_options["patches"]
         else:
