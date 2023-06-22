@@ -160,6 +160,10 @@ Try running it with this command if you have issues:
 
 ```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
 
+### For AMD 7600 and meybe others with RDNA3
+
+```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
+
 # Notes
 
 Only parts of the graph that have an output with all the correct inputs will be executed.
