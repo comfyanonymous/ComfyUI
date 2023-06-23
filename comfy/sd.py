@@ -1015,7 +1015,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         class EmptyClass:
             pass
         clip_target = EmptyClass()
-        clip_target.params = clip_config["params"]
+        clip_target.params = clip_config.get("params", {})
         if clip_config["target"].endswith("FrozenOpenCLIPEmbedder"):
             clip_target.clip = sd2_clip.SD2ClipModel
             clip_target.tokenizer = sd2_clip.SD2Tokenizer
@@ -1049,7 +1049,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
     if model_config.clip_vision_prefix is not None:
         if output_clipvision:
-            clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix)
+            clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
     model = model_config.get_model(sd)
     model.load_model_weights(sd, "model.diffusion_model.")

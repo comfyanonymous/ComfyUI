@@ -52,8 +52,9 @@ def convert_to_transformers(sd, prefix):
         sd = transformers_convert(sd, prefix, "vision_model.", 32)
     return sd
 
-def load_clipvision_from_sd(sd, prefix):
-    sd = convert_to_transformers(sd, prefix)
+def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
+    if convert_keys:
+        sd = convert_to_transformers(sd, prefix)
     if "vision_model.encoder.layers.30.layer_norm1.weight" in sd:
         json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_h.json")
     else:
