@@ -1015,7 +1015,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         class EmptyClass:
             pass
         clip_target = EmptyClass()
-        clip_target.params = clip_config["params"]
+        clip_target.params = clip_config.get("params", {})
         if clip_config["target"].endswith("FrozenOpenCLIPEmbedder"):
             clip_target.clip = sd2_clip.SD2ClipModel
             clip_target.tokenizer = sd2_clip.SD2Tokenizer
