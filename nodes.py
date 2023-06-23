@@ -51,7 +51,9 @@ class CLIPTextEncode:
     CATEGORY = "conditioning"
 
     def encode(self, clip, text):
-        return ([[clip.encode(text), {}]], )
+        tokens = clip.tokenize(text)
+        cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+        return ([[cond, {"pooled_output": pooled}]], )
 
 class ConditioningCombine:
     @classmethod
@@ -285,6 +287,7 @@ class SaveLatent:
 
         output = {}
         output["latent_tensor"] = samples["samples"]
+        output["latent_format_version_0"] = torch.tensor([])
 
         safetensors.torch.save_file(output, file, metadata=metadata)
 
@@ -306,7 +309,10 @@ class LoadLatent:
     def load(self, latent):
         latent_path = folder_paths.get_annotated_filepath(latent)
         latent = safetensors.torch.load_file(latent_path, device="cpu")
-        samples = {"samples": latent["latent_tensor"].float()}
+        multiplier = 1.0
+        if "latent_format_version_0" not in latent:
+            multiplier = 1.0 / 0.18215
+        samples = {"samples": latent["latent_tensor"].float() * multiplier}
         return (samples, )
 
     @classmethod
@@ -1347,7 +1353,7 @@ NODE_CLASS_MAPPINGS = {
     "DiffusersLoader": DiffusersLoader,
 
     "LoadLatent": LoadLatent,
-    "SaveLatent": SaveLatent
+    "SaveLatent": SaveLatent,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
