@@ -21,6 +21,7 @@ import comfy.samplers
 import comfy.sample
 import comfy.sd
 import comfy.utils
+from comfy.cli_args import args
 
 import comfy.clip_vision
 
