@@ -31,4 +31,4 @@ class SD2ClipModel(sd1_clip.SD1ClipModel):
 
 class SD2Tokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, tokenizer_path=None, embedding_directory=None):
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory)
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory, embedding_size=1024)
