@@ -287,6 +287,7 @@ class SaveLatent:
 
         output = {}
         output["latent_tensor"] = samples["samples"]
+        output["latent_format_version_0"] = torch.tensor([])
 
         safetensors.torch.save_file(output, file, metadata=metadata)
 
@@ -425,7 +426,10 @@ class LoadLatent:
 
         if latent.endswith(".latent"):
             latent = safetensors.torch.load_file(latent_path, device="cpu")
-            samples = {"samples": latent["latent_tensor"].float()}
+            multiplier = 1.0
+            if "latent_format_version_0" not in latent:
+                multiplier = 1.0 / 0.18215
+            samples = {"samples": latent["latent_tensor"].float() * multiplier}
         else:
             samples = LoadLatent.load_preview_latent(latent_path)
 

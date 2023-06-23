@@ -586,6 +586,9 @@ class KSampler:
             positive = encode_adm(self.model, positive, noise.shape[0], noise.shape[3], noise.shape[2], self.device, "positive")
             negative = encode_adm(self.model, negative, noise.shape[0], noise.shape[3], noise.shape[2], self.device, "negative")
 
+        if latent_image is not None:
+            latent_image = self.model.process_latent_in(latent_image)
+
         extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options}
 
         cond_concat = None
@@ -672,4 +675,4 @@ class KSampler:
                 else:
                     samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
 
-        return samples.to(torch.float32)
+        return self.model.process_latent_out(samples.to(torch.float32))
