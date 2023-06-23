@@ -51,7 +51,9 @@ class CLIPTextEncode:
     CATEGORY = "conditioning"
 
     def encode(self, clip, text):
-        return ([[clip.encode(text), {}]], )
+        tokens = clip.tokenize(text)
+        cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+        return ([[cond, {"pooled_output": pooled}]], )
 
 class ConditioningCombine:
     @classmethod
@@ -1468,7 +1470,7 @@ NODE_CLASS_MAPPINGS = {
 
     "LoadLatent": LoadLatent,
     "SaveLatent": SaveLatent,
-    "SavePreviewLatent": SavePreviewLatent
+    "SavePreviewLatent": SavePreviewLatent,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
