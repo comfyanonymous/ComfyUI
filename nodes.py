@@ -15,7 +15,7 @@ import safetensors.torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
-
+from comfy.cli_arts import args
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
