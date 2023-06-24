@@ -565,7 +565,10 @@ class BasicTransformerBlock(nn.Module):
             for p in patch:
                 n, context_attn1, value_attn1 = p(n, context_attn1, value_attn1, extra_options)
 
-        transformer_block = (block[0], block[1], block_index)
+        if block is not None:
+            transformer_block = (block[0], block[1], block_index)
+        else:
+            transformer_block = None
         attn1_replace_patch = transformer_patches_replace.get("attn1", {})
         block_attn1 = transformer_block
         if block_attn1 not in attn1_replace_patch:
