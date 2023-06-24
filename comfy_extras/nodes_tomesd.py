@@ -142,3 +142,36 @@ def get_functions(x, ratio, original_shape):
 
     nothing = lambda y: y
     return nothing, nothing
+
+
+
+class TomePatchModel:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "ratio": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "_for_testing"
+
+    def patch(self, model, ratio):
+        self.u = None
+        def tomesd_m(q, k, v, extra_options):
+            #NOTE: In the reference code get_functions takes x (input of the transformer block) as the argument instead of q
+            #however from my basic testing it seems that using q instead gives better results
+            m, self.u = get_functions(q, ratio, extra_options["original_shape"])
+            return m(q), k, v
+        def tomesd_u(n, extra_options):
+            return self.u(n)
+
+        m = model.clone()
+        m.set_model_attn1_patch(tomesd_m)
+        m.set_model_attn1_output_patch(tomesd_u)
+        return (m, )
+
+
+NODE_CLASS_MAPPINGS = {
+    "TomePatchModel": TomePatchModel,
+}
