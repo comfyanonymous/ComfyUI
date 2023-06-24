@@ -315,9 +315,6 @@ class ModelPatcher:
         n.model_keys = self.model_keys
         return n
 
-    def set_model_tomesd(self, ratio):
-        self.model_options["transformer_options"]["tomesd"] = {"ratio": ratio}
-
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
@@ -330,11 +327,28 @@ class ModelPatcher:
             to["patches"] = {}
         to["patches"][name] = to["patches"].get(name, []) + [patch]
 
+    def set_model_patch_replace(self, patch, name, block_name, number):
+        to = self.model_options["transformer_options"]
+        if "patches_replace" not in to:
+            to["patches_replace"] = {}
+        if name not in to["patches_replace"]:
+            to["patches_replace"][name] = {}
+        to["patches_replace"][name][(block_name, number)] = patch
+
     def set_model_attn1_patch(self, patch):
         self.set_model_patch(patch, "attn1_patch")
 
     def set_model_attn2_patch(self, patch):
         self.set_model_patch(patch, "attn2_patch")
+
+    def set_model_attn1_replace(self, patch, block_name, number):
+        self.set_model_patch_replace(patch, "attn1", block_name, number)
+
+    def set_model_attn2_replace(self, patch, block_name, number):
+        self.set_model_patch_replace(patch, "attn2", block_name, number)
+
+    def set_model_attn1_output_patch(self, patch):
+        self.set_model_patch(patch, "attn1_output_patch")
 
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
@@ -348,6 +362,13 @@ class ModelPatcher:
                 for i in range(len(patch_list)):
                     if hasattr(patch_list[i], "to"):
                         patch_list[i] = patch_list[i].to(device)
+        if "patches_replace" in to:
+            patches = to["patches_replace"]
+            for name in patches:
+                patch_list = patches[name]
+                for k in patch_list:
+                    if hasattr(patch_list[k], "to"):
+                        patch_list[k] = patch_list[k].to(device)
 
     def model_dtype(self):
         return self.model.get_dtype()

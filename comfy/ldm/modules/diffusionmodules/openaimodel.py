@@ -830,17 +830,20 @@ class UNetModel(nn.Module):
 
         h = x.type(self.dtype)
         for id, module in enumerate(self.input_blocks):
+            transformer_options["block"] = ("input", id)
             h = forward_timestep_embed(module, h, emb, context, transformer_options)
             if control is not None and 'input' in control and len(control['input']) > 0:
                 ctrl = control['input'].pop()
                 if ctrl is not None:
                     h += ctrl
             hs.append(h)
+        transformer_options["block"] = ("middle", 0)
         h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options)
         if control is not None and 'middle' in control and len(control['middle']) > 0:
             h += control['middle'].pop()
 
-        for module in self.output_blocks:
+        for id, module in enumerate(self.output_blocks):
+            transformer_options["block"] = ("output", id)
             hsp = hs.pop()
             if control is not None and 'output' in control and len(control['output']) > 0:
                 ctrl = control['output'].pop()
