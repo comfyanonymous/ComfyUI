@@ -961,12 +961,19 @@ def load_style_model(ckpt_path):
 
 def load_clip(ckpt_path, embedding_directory=None):
     clip_data = utils.load_torch_file(ckpt_path, safe_load=True)
-    config = {}
+    class EmptyClass:
+        pass
+
+    clip_target = EmptyClass()
+    clip_target.params = {}
     if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+        clip_target.clip = sd2_clip.SD2ClipModel
+        clip_target.tokenizer = sd2_clip.SD2Tokenizer
     else:
-        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
-    clip = CLIP(config=config, embedding_directory=embedding_directory)
+        clip_target.clip = sd1_clip.SD1ClipModel
+        clip_target.tokenizer = sd1_clip.SD1Tokenizer
+
+    clip = CLIP(clip_target, embedding_directory=embedding_directory)
     clip.load_from_state_dict(clip_data)
     return clip
 
