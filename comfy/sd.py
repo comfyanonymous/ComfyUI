@@ -19,6 +19,7 @@ from . import model_detection
 
 from . import sd1_clip
 from . import sd2_clip
+from . import sdxl_clip
 
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
@@ -524,7 +525,7 @@ class CLIP:
         return n
 
     def load_from_state_dict(self, sd):
-        self.cond_stage_model.transformer.load_state_dict(sd, strict=False)
+        self.cond_stage_model.load_sd(sd)
 
     def add_patches(self, patches, strength=1.0):
         return self.patcher.add_patches(patches, strength)
@@ -555,6 +556,8 @@ class CLIP:
         tokens = self.tokenize(text)
         return self.encode_from_tokens(tokens)
 
+    def load_sd(self, sd):
+        return self.cond_stage_model.load_sd(sd)
 
 class VAE:
     def __init__(self, ckpt_path=None, device=None, config=None):
@@ -959,22 +962,42 @@ def load_style_model(ckpt_path):
     return StyleModel(model)
 
 
-def load_clip(ckpt_path, embedding_directory=None):
-    clip_data = utils.load_torch_file(ckpt_path, safe_load=True)
+def load_clip(ckpt_paths, embedding_directory=None):
+    clip_data = []
+    for p in ckpt_paths:
+        clip_data.append(utils.load_torch_file(p, safe_load=True))
+
     class EmptyClass:
         pass
 
+    for i in range(len(clip_data)):
+        if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
+            clip_data[i] = utils.transformers_convert(clip_data[i], "", "text_model.", 32)
+
     clip_target = EmptyClass()
     clip_target.params = {}
-    if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        clip_target.clip = sd2_clip.SD2ClipModel
-        clip_target.tokenizer = sd2_clip.SD2Tokenizer
+    if len(clip_data) == 1:
+        if "text_model.encoder.layers.30.mlp.fc1.weight" in clip_data[0]:
+            clip_target.clip = sdxl_clip.SDXLRefinerClipModel
+            clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+        elif "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data[0]:
+            clip_target.clip = sd2_clip.SD2ClipModel
+            clip_target.tokenizer = sd2_clip.SD2Tokenizer
+        else:
+            clip_target.clip = sd1_clip.SD1ClipModel
+            clip_target.tokenizer = sd1_clip.SD1Tokenizer
     else:
-        clip_target.clip = sd1_clip.SD1ClipModel
-        clip_target.tokenizer = sd1_clip.SD1Tokenizer
+        clip_target.clip = sdxl_clip.SDXLClipModel
+        clip_target.tokenizer = sdxl_clip.SDXLTokenizer
 
     clip = CLIP(clip_target, embedding_directory=embedding_directory)
-    clip.load_from_state_dict(clip_data)
+    for c in clip_data:
+        m, u = clip.load_sd(c)
+        if len(m) > 0:
+            print("clip missing:", m)
+
+        if len(u) > 0:
+            print("clip unexpected:", u)
     return clip
 
 def load_gligen(ckpt_path):
