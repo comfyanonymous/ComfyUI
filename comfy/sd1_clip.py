@@ -128,6 +128,9 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def encode(self, tokens):
         return self(tokens)
 
+    def load_sd(self, sd):
+        return self.transformer.load_state_dict(sd, strict=False)
+
 def parse_parentheses(string):
     result = []
     current_item = ""
