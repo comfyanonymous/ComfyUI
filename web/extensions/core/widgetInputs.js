@@ -210,7 +210,7 @@ app.registerExtension({
 
 				function get_links(node) {
 					let links = [];
-					for (const l of node.outputs[0].links) {
+					for (const l of node.outputs[0].links ?? []) {
 						const linkInfo = app.graph.links[l];
 						const n = node.graph.getNodeById(linkInfo.target_id);
 						if (n.type == "Reroute") {

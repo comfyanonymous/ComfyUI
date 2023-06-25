@@ -55,6 +55,7 @@ app.registerExtension({
 					let updateNodes = [];
 					let inputType = null;
 					let inputNode = null;
+					let rootNode = null;
 					while (currentNode) {
 						updateNodes.unshift(currentNode);
 						const linkId = currentNode.inputs[0].link;
@@ -76,6 +77,7 @@ app.registerExtension({
 								// We've found the end
 								inputNode = currentNode;
 								inputType = node.outputs[link.origin_slot]?.type ?? null;
+								rootNode = node;
 								break;
 							}
 						} else {
@@ -121,6 +123,11 @@ app.registerExtension({
 						} else {
 							// No more outputs for this path
 						}
+					}
+
+					if (rootNode?.constructor.type === "PrimitiveNode" && inputType === "*") {
+						// Primitive doesn't have type yet, skip update
+						return;
 					}
 
 					const displayType = (inputType === "*" && outputType) || inputType || outputType || "*";
