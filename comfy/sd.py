@@ -19,6 +19,7 @@ from . import model_detection
 
 from . import sd1_clip
 from . import sd2_clip
+from . import sdxl_clip
 
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
@@ -315,9 +316,6 @@ class ModelPatcher:
         n.model_keys = self.model_keys
         return n
 
-    def set_model_tomesd(self, ratio):
-        self.model_options["transformer_options"]["tomesd"] = {"ratio": ratio}
-
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
@@ -330,11 +328,28 @@ class ModelPatcher:
             to["patches"] = {}
         to["patches"][name] = to["patches"].get(name, []) + [patch]
 
+    def set_model_patch_replace(self, patch, name, block_name, number):
+        to = self.model_options["transformer_options"]
+        if "patches_replace" not in to:
+            to["patches_replace"] = {}
+        if name not in to["patches_replace"]:
+            to["patches_replace"][name] = {}
+        to["patches_replace"][name][(block_name, number)] = patch
+
     def set_model_attn1_patch(self, patch):
         self.set_model_patch(patch, "attn1_patch")
 
     def set_model_attn2_patch(self, patch):
         self.set_model_patch(patch, "attn2_patch")
+
+    def set_model_attn1_replace(self, patch, block_name, number):
+        self.set_model_patch_replace(patch, "attn1", block_name, number)
+
+    def set_model_attn2_replace(self, patch, block_name, number):
+        self.set_model_patch_replace(patch, "attn2", block_name, number)
+
+    def set_model_attn1_output_patch(self, patch):
+        self.set_model_patch(patch, "attn1_output_patch")
 
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
@@ -348,6 +363,13 @@ class ModelPatcher:
                 for i in range(len(patch_list)):
                     if hasattr(patch_list[i], "to"):
                         patch_list[i] = patch_list[i].to(device)
+        if "patches_replace" in to:
+            patches = to["patches_replace"]
+            for name in patches:
+                patch_list = patches[name]
+                for k in patch_list:
+                    if hasattr(patch_list[k], "to"):
+                        patch_list[k] = patch_list[k].to(device)
 
     def model_dtype(self):
         return self.model.get_dtype()
@@ -503,7 +525,7 @@ class CLIP:
         return n
 
     def load_from_state_dict(self, sd):
-        self.cond_stage_model.transformer.load_state_dict(sd, strict=False)
+        self.cond_stage_model.load_sd(sd)
 
     def add_patches(self, patches, strength=1.0):
         return self.patcher.add_patches(patches, strength)
@@ -534,6 +556,8 @@ class CLIP:
         tokens = self.tokenize(text)
         return self.encode_from_tokens(tokens)
 
+    def load_sd(self, sd):
+        return self.cond_stage_model.load_sd(sd)
 
 class VAE:
     def __init__(self, ckpt_path=None, device=None, config=None):
@@ -938,15 +962,42 @@ def load_style_model(ckpt_path):
     return StyleModel(model)
 
 
-def load_clip(ckpt_path, embedding_directory=None):
-    clip_data = utils.load_torch_file(ckpt_path, safe_load=True)
-    config = {}
-    if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+def load_clip(ckpt_paths, embedding_directory=None):
+    clip_data = []
+    for p in ckpt_paths:
+        clip_data.append(utils.load_torch_file(p, safe_load=True))
+
+    class EmptyClass:
+        pass
+
+    for i in range(len(clip_data)):
+        if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
+            clip_data[i] = utils.transformers_convert(clip_data[i], "", "text_model.", 32)
+
+    clip_target = EmptyClass()
+    clip_target.params = {}
+    if len(clip_data) == 1:
+        if "text_model.encoder.layers.30.mlp.fc1.weight" in clip_data[0]:
+            clip_target.clip = sdxl_clip.SDXLRefinerClipModel
+            clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+        elif "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data[0]:
+            clip_target.clip = sd2_clip.SD2ClipModel
+            clip_target.tokenizer = sd2_clip.SD2Tokenizer
+        else:
+            clip_target.clip = sd1_clip.SD1ClipModel
+            clip_target.tokenizer = sd1_clip.SD1Tokenizer
     else:
-        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
-    clip = CLIP(config=config, embedding_directory=embedding_directory)
-    clip.load_from_state_dict(clip_data)
+        clip_target.clip = sdxl_clip.SDXLClipModel
+        clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+
+    clip = CLIP(clip_target, embedding_directory=embedding_directory)
+    for c in clip_data:
+        m, u = clip.load_sd(c)
+        if len(m) > 0:
+            print("clip missing:", m)
+
+        if len(u) > 0:
+            print("clip unexpected:", u)
     return clip
 
 def load_gligen(ckpt_path):
