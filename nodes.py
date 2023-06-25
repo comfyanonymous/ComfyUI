@@ -954,7 +954,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if preview_format not in ["JPEG", "PNG"]:
         preview_format = "JPEG"
 
-    previewer = latent_preview.get_previewer(device)
+    previewer = latent_preview.get_previewer(device, model.model.latent_format)
 
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
