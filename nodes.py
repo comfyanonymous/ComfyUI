@@ -334,7 +334,7 @@ class SavePreviewLatent(SaveLatent):
         lower_bound = 128
         upper_bound = 256
 
-        previewer = latent_preview.get_previewer("cpu", True)
+        previewer = latent_preview.get_previewer("cpu", force=True)
         image = previewer.decode_latent_to_preview(latent_tensor)
         min_size = min(image.size[0], image.size[1])
         max_size = max(image.size[0], image.size[1])
