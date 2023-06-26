@@ -2,10 +2,10 @@ import torch
 import math
 import struct
 import comfy.checkpoint_pickle
+import safetensors.torch
 
 def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
-        import safetensors.torch
         sd = safetensors.torch.load_file(ckpt, device="cpu")
     else:
         if safe_load:
@@ -23,6 +23,12 @@ def load_torch_file(ckpt, safe_load=False):
         else:
             sd = pl_sd
     return sd
+
+def save_torch_file(sd, ckpt, metadata=None):
+    if metadata is not None:
+        safetensors.torch.save_file(sd, ckpt, metadata=metadata)
+    else:
+        safetensors.torch.save_file(sd, ckpt)
 
 def transformers_convert(sd, prefix_from, prefix_to, number):
     keys_to_replace = {
@@ -63,6 +69,12 @@ def transformers_convert(sd, prefix_from, prefix_to, number):
                     k_to = "{}encoder.layers.{}.{}.{}".format(prefix_to, resblock, p[x], y)
                     sd[k_to] = weights[shape_from*x:shape_from*(x + 1)]
     return sd
+
+def convert_sd_to(state_dict, dtype):
+    keys = list(state_dict.keys())
+    for k in keys:
+        state_dict[k] = state_dict[k].to(dtype)
+    return state_dict
 
 def safetensors_header(safetensors_path, max_size=100*1024*1024):
     with open(safetensors_path, "rb") as f:
