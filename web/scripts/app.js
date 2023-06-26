@@ -159,24 +159,25 @@ export class ComfyApp {
 					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
 					const index = node.widgets.findIndex(obj => obj.name === 'image');
 					if(index >= 0) {
-						node.widgets[index].value = clip_image;
+						if(node.widgets[index].type != 'image' && typeof node.widgets[index].value == "string" && clip_image.filename) {
+							node.widgets[index].value = (clip_image.subfolder?clip_image.subfolder+'/':'') + clip_image.filename + (clip_image.type?` [${clip_image.type}]`:'');
+						}
+						else {
+							node.widgets[index].value = clip_image;
+						}
 					}
 				}
 				if(ComfyApp.clipspace.widgets) {
 					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
-						if (prop && prop.type != 'image') {
-							if(typeof prop.value == "string" && value.filename) {
+						if (prop && prop.type != 'button') {
+							if(prop.type != 'image' && typeof prop.value == "string" && value.filename) {
 								prop.value = (value.subfolder?value.subfolder+'/':'') + value.filename + (value.type?` [${value.type}]`:'');
 							}
 							else {
 								prop.value = value;
 								prop.callback(value);
 							}
-						}
-						else if (prop && prop.type != 'button') {
-							prop.value = value;
-							prop.callback(value);
 						}
 					});
 				}

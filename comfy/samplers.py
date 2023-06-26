@@ -13,7 +13,7 @@ def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
 
 #The main sampling function shared by all the samplers
 #Returns predicted noise
-def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
+def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}, seed=None):
         def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
@@ -229,7 +229,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 timestep_ = torch.cat([timestep] * batch_chunks)
 
                 if control is not None:
-                    c['control'] = control.get_control(input_x, timestep_, c['c_crossattn'], len(cond_or_uncond))
+                    c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond))
 
                 transformer_options = {}
                 if 'transformer_options' in model_options:
@@ -292,8 +292,8 @@ class CFGNoisePredictor(torch.nn.Module):
         super().__init__()
         self.inner_model = model
         self.alphas_cumprod = model.alphas_cumprod
-    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}):
-        out = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat, model_options=model_options)
+    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}, seed=None):
+        out = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat, model_options=model_options, seed=seed)
         return out
 
 
@@ -301,11 +301,11 @@ class KSamplerX0Inpaint(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.inner_model = model
-    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={}):
+    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={}, seed=None):
         if denoise_mask is not None:
             latent_mask = 1. - denoise_mask
             x = x * denoise_mask + (self.latent_image + self.noise * sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1))) * latent_mask
-        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat, model_options=model_options)
+        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat, model_options=model_options, seed=seed)
         if denoise_mask is not None:
             out *= denoise_mask
 
@@ -460,8 +460,7 @@ def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
             n[name] = uncond_fill_func(cond_cnets, x)
             uncond[temp[1]] = [o[0], n]
 
-
-def encode_adm(model, conds, batch_size, device):
+def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
     for t in range(len(conds)):
         x = conds[t]
         adm_out = None
@@ -469,7 +468,11 @@ def encode_adm(model, conds, batch_size, device):
             adm_out = x[1]["adm"]
         else:
             params = x[1].copy()
+            params["width"] = params.get("width", width * 8)
+            params["height"] = params.get("height", height * 8)
+            params["prompt_type"] = params.get("prompt_type", prompt_type)
             adm_out = model.encode_adm(device=device, **params)
+
         if adm_out is not None:
             x[1] = x[1].copy()
             x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size).to(device)
@@ -539,7 +542,7 @@ class KSampler:
             sigmas = self.calculate_sigmas(new_steps).to(self.device)
             self.sigmas = sigmas[-(steps + 1):]
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, disable_pbar=False):
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
         if sigmas is None:
             sigmas = self.sigmas
         sigma_min = self.sigma_min
@@ -580,10 +583,13 @@ class KSampler:
             precision_scope = contextlib.nullcontext
 
         if self.model.is_adm():
-            positive = encode_adm(self.model, positive, noise.shape[0], self.device)
-            negative = encode_adm(self.model, negative, noise.shape[0], self.device)
+            positive = encode_adm(self.model, positive, noise.shape[0], noise.shape[3], noise.shape[2], self.device, "positive")
+            negative = encode_adm(self.model, negative, noise.shape[0], noise.shape[3], noise.shape[2], self.device, "negative")
 
-        extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options}
+        if latent_image is not None:
+            latent_image = self.model.process_latent_in(latent_image)
+
+        extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options, "seed":seed}
 
         cond_concat = None
         if hasattr(self.model, 'concat_keys'): #inpaint
@@ -669,4 +675,4 @@ class KSampler:
                 else:
                     samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
 
-        return samples.to(torch.float32)
+        return self.model.process_latent_out(samples.to(torch.float32))
