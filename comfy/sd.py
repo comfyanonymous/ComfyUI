@@ -285,6 +285,11 @@ def model_lora_keys(model, key_map={}):
         if key_in:
             counter += 1
 
+    for k in sdk:
+        if k.startswith("diffusion_model.") and k.endswith(".weight"):
+            key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
+            key_map["lora_unet_{}".format(key_lora)] = k
+
     return key_map
 
 
