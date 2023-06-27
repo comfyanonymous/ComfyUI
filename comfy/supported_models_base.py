@@ -64,3 +64,15 @@ class BASE:
     def process_clip_state_dict(self, state_dict):
         return state_dict
 
+    def process_clip_state_dict_for_saving(self, state_dict):
+        replace_prefix = {"": "cond_stage_model."}
+        return state_dict_prefix_replace(state_dict, replace_prefix)
+
+    def process_unet_state_dict_for_saving(self, state_dict):
+        replace_prefix = {"": "model.diffusion_model."}
+        return state_dict_prefix_replace(state_dict, replace_prefix)
+
+    def process_vae_state_dict_for_saving(self, state_dict):
+        replace_prefix = {"": "first_stage_model."}
+        return state_dict_prefix_replace(state_dict, replace_prefix)
+
