@@ -8,7 +8,9 @@ a111:
     checkpoints: models/Stable-diffusion
     configs: models/Stable-diffusion
     vae: models/VAE
-    loras: models/Lora
+    loras: |
+         models/Lora
+         models/LyCORIS
     upscale_models: |
                   models/ESRGAN
                   models/SwinIR
@@ -21,5 +23,3 @@ a111:
 #    checkpoints: models/checkpoints
 #    gligen: models/gligen
 #    custom_nodes: path/custom_nodes
-
-
