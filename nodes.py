@@ -329,12 +329,12 @@ class SavePreviewLatent(SaveLatent):
         image.save(image_path, format='png', exif=exif_bytes, pnginfo=metadata, optimize=True)
 
     @staticmethod
-    def prepare_preview(latent_tensor):
+    def prepare_preview(latent):
         lower_bound = 128
         upper_bound = 256
 
-        previewer = latent_preview.get_previewer("cpu", force=True)
-        image = previewer.decode_latent_to_preview(latent_tensor)
+        previewer = latent_preview.get_previewer("cpu", latent=latent, force=True)
+        image = previewer.decode_latent_to_preview(latent['samples'])
         min_size = min(image.size[0], image.size[1])
         max_size = max(image.size[0], image.size[1])
 
@@ -377,7 +377,7 @@ class SavePreviewLatent(SaveLatent):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
 
         # load preview
-        preview = SavePreviewLatent.prepare_preview(samples['samples'])
+        preview = SavePreviewLatent.prepare_preview(samples)
 
         # support save metadata for latent sharing
         file = f"{filename}_{counter:05}_.latent.png"

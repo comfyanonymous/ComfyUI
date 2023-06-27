@@ -3,6 +3,7 @@ from PIL import Image, ImageOps
 from io import BytesIO
 import struct
 import numpy as np
+import comfy.latent_formats as latent_formats
 
 from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
@@ -63,7 +64,18 @@ class Latent2RGBPreviewer(LatentPreviewer):
         return Image.fromarray(latents_ubyte.numpy())
 
 
-def get_previewer(device, latent_format, force=False):
+def get_previewer(device, latent_format=None, latent=None, force=False):
+    # If the latent_format parameter is not provided, fallback to assuming SD15 format.
+    # Ultimately, it seems that the format information should be included in the latent itself.
+    if latent_format is None:
+        if latent is not None and 'format' in latent:
+            if latent['format'] == 'SDXL':
+                latent_format = latent_formats.SDXL()
+            else:
+                latent_format = latent_formats.SD15()
+        else:
+            latent_format = latent_formats.SD15()
+
     previewer = None
     method = args.preview_method
     if method != LatentPreviewMethod.NoPreviews or force:
