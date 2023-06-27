@@ -1411,7 +1411,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 def load_custom_node(module_path):
-
     def update_modified_times(module_path):
         if os.path.isdir(module_path):
             for root, _, files in os.walk(module_path):
@@ -1424,16 +1423,30 @@ def load_custom_node(module_path):
 
     if os.path.isfile(module_path):
         module_name = os.path.splitext(os.path.basename(module_path))[0]
+        loader = importlib.machinery.SourceFileLoader(module_name, module_path)
     else:
         module_name = os.path.basename(module_path)
-    if os.path.isfile(module_path):
-        sp = os.path.splitext(module_path)
-        module_name = sp[0]
-    try:
-        if os.path.isfile(module_path):
-            loader = importlib.machinery.SourceFileLoader(module_name, module_path)
+        init_file_path = os.path.join(module_path, "__init__.py")
+        if os.path.exists(init_file_path):
+            loader = importlib.machinery.SourceFileLoader(module_name, init_file_path)
         else:
-            loader = importlib.machinery.SourceFileLoader(module_name, os.path.join(module_path, "__init__.py"))
+            file_paths = [os.path.join(module_path, file_name) for file_name in os.listdir(module_path) if file_name.endswith(".py")]
+            for file_path in file_paths:
+                sub_module_name = os.path.splitext(os.path.basename(file_path))[0]
+                sub_loader = importlib.machinery.SourceFileLoader(sub_module_name, file_path)
+                sub_module = sub_loader.load_module()
+                sys.modules[sub_module_name] = sub_module
+
+                if hasattr(sub_module, "NODE_CLASS_MAPPINGS") and getattr(sub_module, "NODE_CLASS_MAPPINGS") is not None:
+                    NODE_CLASS_MAPPINGS.update(sub_module.NODE_CLASS_MAPPINGS)
+                    if hasattr(sub_module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(sub_module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
+                        NODE_DISPLAY_NAME_MAPPINGS.update(sub_module.NODE_DISPLAY_NAME_MAPPINGS)
+
+            # Update modified times for the main module path
+            update_modified_times(module_path)
+            return True
+
+    try:
         module = loader.load_module()
         sys.modules[module_name] = module
 
@@ -1445,13 +1458,12 @@ def load_custom_node(module_path):
         update_modified_times(module_path)
 
         return True
-        
+
     except Exception as e:
         print(traceback.format_exc())
         print(f"Cannot import {module_path} module for custom nodes:", e)
         update_modified_times(module_path)
-        
-        return False
+        return False 
 
 def load_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
