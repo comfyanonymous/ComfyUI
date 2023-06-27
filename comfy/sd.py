@@ -19,6 +19,7 @@ from . import model_detection
 
 from . import sd1_clip
 from . import sd2_clip
+from . import sdxl_clip
 
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
@@ -284,6 +285,11 @@ def model_lora_keys(model, key_map={}):
         if key_in:
             counter += 1
 
+    for k in sdk:
+        if k.startswith("diffusion_model.") and k.endswith(".weight"):
+            key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
+            key_map["lora_unet_{}".format(key_lora)] = k
+
     return key_map
 
 
@@ -315,9 +321,6 @@ class ModelPatcher:
         n.model_keys = self.model_keys
         return n
 
-    def set_model_tomesd(self, ratio):
-        self.model_options["transformer_options"]["tomesd"] = {"ratio": ratio}
-
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
@@ -330,11 +333,28 @@ class ModelPatcher:
             to["patches"] = {}
         to["patches"][name] = to["patches"].get(name, []) + [patch]
 
+    def set_model_patch_replace(self, patch, name, block_name, number):
+        to = self.model_options["transformer_options"]
+        if "patches_replace" not in to:
+            to["patches_replace"] = {}
+        if name not in to["patches_replace"]:
+            to["patches_replace"][name] = {}
+        to["patches_replace"][name][(block_name, number)] = patch
+
     def set_model_attn1_patch(self, patch):
         self.set_model_patch(patch, "attn1_patch")
 
     def set_model_attn2_patch(self, patch):
         self.set_model_patch(patch, "attn2_patch")
+
+    def set_model_attn1_replace(self, patch, block_name, number):
+        self.set_model_patch_replace(patch, "attn1", block_name, number)
+
+    def set_model_attn2_replace(self, patch, block_name, number):
+        self.set_model_patch_replace(patch, "attn2", block_name, number)
+
+    def set_model_attn1_output_patch(self, patch):
+        self.set_model_patch(patch, "attn1_output_patch")
 
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
@@ -348,6 +368,13 @@ class ModelPatcher:
                 for i in range(len(patch_list)):
                     if hasattr(patch_list[i], "to"):
                         patch_list[i] = patch_list[i].to(device)
+        if "patches_replace" in to:
+            patches = to["patches_replace"]
+            for name in patches:
+                patch_list = patches[name]
+                for k in patch_list:
+                    if hasattr(patch_list[k], "to"):
+                        patch_list[k] = patch_list[k].to(device)
 
     def model_dtype(self):
         return self.model.get_dtype()
@@ -390,7 +417,11 @@ class ModelPatcher:
                     weight *= strength_model
 
                 if len(v) == 1:
-                    weight += alpha * (v[0]).type(weight.dtype).to(weight.device)
+                    w1 = v[0]
+                    if w1.shape != weight.shape:
+                        print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
+                    else:
+                        weight += alpha * w1.type(weight.dtype).to(weight.device)
                 elif len(v) == 4: #lora/locon
                     mat1 = v[0]
                     mat2 = v[1]
@@ -499,7 +530,7 @@ class CLIP:
         return n
 
     def load_from_state_dict(self, sd):
-        self.cond_stage_model.transformer.load_state_dict(sd, strict=False)
+        self.cond_stage_model.load_sd(sd)
 
     def add_patches(self, patches, strength=1.0):
         return self.patcher.add_patches(patches, strength)
@@ -514,11 +545,11 @@ class CLIP:
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
         try:
-            self.patcher.patch_model()
+            self.patch_model()
             cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
-            self.patcher.unpatch_model()
+            self.unpatch_model()
         except Exception as e:
-            self.patcher.unpatch_model()
+            self.unpatch_model()
             raise e
 
         cond_out = cond
@@ -530,9 +561,20 @@ class CLIP:
         tokens = self.tokenize(text)
         return self.encode_from_tokens(tokens)
 
+    def load_sd(self, sd):
+        return self.cond_stage_model.load_sd(sd)
+
+    def get_sd(self):
+        return self.cond_stage_model.state_dict()
+
+    def patch_model(self):
+        self.patcher.patch_model()
+
+    def unpatch_model(self):
+        self.patcher.unpatch_model()
 
 class VAE:
-    def __init__(self, ckpt_path=None, scale_factor=0.18215, device=None, config=None):
+    def __init__(self, ckpt_path=None, device=None, config=None):
         if config is None:
             #default SD1.x/SD2.x VAE parameters
             ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
@@ -546,7 +588,6 @@ class VAE:
                 sd = diffusers_convert.convert_vae_state_dict(sd)
             self.first_stage_model.load_state_dict(sd, strict=False)
 
-        self.scale_factor = scale_factor
         if device is None:
             device = model_management.get_torch_device()
         self.device = device
@@ -557,7 +598,7 @@ class VAE:
         steps += samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
         pbar = utils.ProgressBar(steps)
 
-        decode_fn = lambda a: (self.first_stage_model.decode(1. / self.scale_factor * a.to(self.device)) + 1.0)
+        decode_fn = lambda a: (self.first_stage_model.decode(a.to(self.device)) + 1.0)
         output = torch.clamp((
             (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8, pbar = pbar) +
             utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8, pbar = pbar) +
@@ -571,7 +612,7 @@ class VAE:
         steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
         pbar = utils.ProgressBar(steps)
 
-        encode_fn = lambda a: self.first_stage_model.encode(2. * a.to(self.device) - 1.).sample() * self.scale_factor
+        encode_fn = lambda a: self.first_stage_model.encode(2. * a.to(self.device) - 1.).sample()
         samples = utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
         samples += utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
         samples += utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
@@ -589,7 +630,7 @@ class VAE:
             pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * 8), round(samples_in.shape[3] * 8)), device="cpu")
             for x in range(0, samples_in.shape[0], batch_number):
                 samples = samples_in[x:x+batch_number].to(self.device)
-                pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(1. / self.scale_factor * samples) + 1.0) / 2.0, min=0.0, max=1.0).cpu()
+                pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(samples) + 1.0) / 2.0, min=0.0, max=1.0).cpu()
         except model_management.OOM_EXCEPTION as e:
             print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             pixel_samples = self.decode_tiled_(samples_in)
@@ -616,7 +657,7 @@ class VAE:
             samples = torch.empty((pixel_samples.shape[0], 4, round(pixel_samples.shape[2] // 8), round(pixel_samples.shape[3] // 8)), device="cpu")
             for x in range(0, pixel_samples.shape[0], batch_number):
                 pixels_in = (2. * pixel_samples[x:x+batch_number] - 1.).to(self.device)
-                samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).sample().cpu() * self.scale_factor
+                samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).sample().cpu()
 
         except model_management.OOM_EXCEPTION as e:
             print("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
@@ -632,6 +673,10 @@ class VAE:
         samples = self.encode_tiled_(pixel_samples, tile_x=tile_x, tile_y=tile_y, overlap=overlap)
         self.first_stage_model = self.first_stage_model.cpu()
         return samples
+
+    def get_sd(self):
+        return self.first_stage_model.state_dict()
+
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
@@ -935,15 +980,42 @@ def load_style_model(ckpt_path):
     return StyleModel(model)
 
 
-def load_clip(ckpt_path, embedding_directory=None):
-    clip_data = utils.load_torch_file(ckpt_path, safe_load=True)
-    config = {}
-    if "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data:
-        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenOpenCLIPEmbedder'
+def load_clip(ckpt_paths, embedding_directory=None):
+    clip_data = []
+    for p in ckpt_paths:
+        clip_data.append(utils.load_torch_file(p, safe_load=True))
+
+    class EmptyClass:
+        pass
+
+    for i in range(len(clip_data)):
+        if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
+            clip_data[i] = utils.transformers_convert(clip_data[i], "", "text_model.", 32)
+
+    clip_target = EmptyClass()
+    clip_target.params = {}
+    if len(clip_data) == 1:
+        if "text_model.encoder.layers.30.mlp.fc1.weight" in clip_data[0]:
+            clip_target.clip = sdxl_clip.SDXLRefinerClipModel
+            clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+        elif "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data[0]:
+            clip_target.clip = sd2_clip.SD2ClipModel
+            clip_target.tokenizer = sd2_clip.SD2Tokenizer
+        else:
+            clip_target.clip = sd1_clip.SD1ClipModel
+            clip_target.tokenizer = sd1_clip.SD1Tokenizer
     else:
-        config['target'] = 'comfy.ldm.modules.encoders.modules.FrozenCLIPEmbedder'
-    clip = CLIP(config=config, embedding_directory=embedding_directory)
-    clip.load_from_state_dict(clip_data)
+        clip_target.clip = sdxl_clip.SDXLClipModel
+        clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+
+    clip = CLIP(clip_target, embedding_directory=embedding_directory)
+    for c in clip_data:
+        m, u = clip.load_sd(c)
+        if len(m) > 0:
+            print("clip missing:", m)
+
+        if len(u) > 0:
+            print("clip unexpected:", u)
     return clip
 
 def load_gligen(ckpt_path):
@@ -954,6 +1026,7 @@ def load_gligen(ckpt_path):
     return model
 
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
+    #TODO: this function is a mess and should be removed eventually
     if config is None:
         with open(config_path, 'r') as stream:
             config = yaml.safe_load(stream)
@@ -988,12 +1061,20 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     if state_dict is None:
         state_dict = utils.load_torch_file(ckpt_path)
 
+    class EmptyClass:
+        pass
+
+    model_config = EmptyClass()
+    model_config.unet_config = unet_config
+    from . import latent_formats
+    model_config.latent_format = latent_formats.SD15(scale_factor=scale_factor)
+
     if config['model']["target"].endswith("LatentInpaintDiffusion"):
-        model = model_base.SDInpaint(unet_config, v_prediction=v_prediction)
+        model = model_base.SDInpaint(model_config, v_prediction=v_prediction)
     elif config['model']["target"].endswith("ImageEmbeddingConditionedLatentDiffusion"):
-        model = model_base.SD21UNCLIP(unet_config, noise_aug_config["params"], v_prediction=v_prediction)
+        model = model_base.SD21UNCLIP(model_config, noise_aug_config["params"], v_prediction=v_prediction)
     else:
-        model = model_base.BaseModel(unet_config, v_prediction=v_prediction)
+        model = model_base.BaseModel(model_config, v_prediction=v_prediction)
 
     if fp16:
         model = model.half()
@@ -1002,16 +1083,14 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     if output_vae:
         w = WeightsLoader()
-        vae = VAE(scale_factor=scale_factor, config=vae_config)
+        vae = VAE(config=vae_config)
         w.first_stage_model = vae.first_stage_model
         load_model_weights(w, state_dict)
 
     if output_clip:
         w = WeightsLoader()
-        class EmptyClass:
-            pass
         clip_target = EmptyClass()
-        clip_target.params = clip_config["params"]
+        clip_target.params = clip_config.get("params", {})
         if clip_config["target"].endswith("FrozenOpenCLIPEmbedder"):
             clip_target.clip = sd2_clip.SD2ClipModel
             clip_target.tokenizer = sd2_clip.SD2Tokenizer
@@ -1045,13 +1124,13 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
     if model_config.clip_vision_prefix is not None:
         if output_clipvision:
-            clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix)
+            clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
     model = model_config.get_model(sd)
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
-        vae = VAE(scale_factor=model_config.vae_scale_factor)
+        vae = VAE()
         w = WeightsLoader()
         w.first_stage_model = vae.first_stage_model
         load_model_weights(w, sd)
@@ -1069,3 +1148,16 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         print("left over keys:", left_over)
 
     return (ModelPatcher(model), clip, vae, clipvision)
+
+def save_checkpoint(output_path, model, clip, vae, metadata=None):
+    try:
+        model.patch_model()
+        clip.patch_model()
+        sd = model.model.state_dict_for_saving(clip.get_sd(), vae.get_sd())
+        utils.save_torch_file(sd, output_path, metadata=metadata)
+        model.unpatch_model()
+        clip.unpatch_model()
+    except Exception as e:
+        model.unpatch_model()
+        clip.unpatch_model()
+        raise e

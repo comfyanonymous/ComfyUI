@@ -4,11 +4,15 @@ from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugme
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
 import numpy as np
+from . import utils
 
 class BaseModel(torch.nn.Module):
-    def __init__(self, unet_config, v_prediction=False):
+    def __init__(self, model_config, v_prediction=False):
         super().__init__()
 
+        unet_config = model_config.unet_config
+        self.latent_format = model_config.latent_format
+        self.model_config = model_config
         self.register_schedule(given_betas=None, beta_schedule="linear", timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
         self.diffusion_model = UNetModel(**unet_config)
         self.v_prediction = v_prediction
@@ -75,9 +79,26 @@ class BaseModel(torch.nn.Module):
         del to_load
         return self
 
+    def process_latent_in(self, latent):
+        return self.latent_format.process_in(latent)
+
+    def process_latent_out(self, latent):
+        return self.latent_format.process_out(latent)
+
+    def state_dict_for_saving(self, clip_state_dict, vae_state_dict):
+        clip_state_dict = self.model_config.process_clip_state_dict_for_saving(clip_state_dict)
+        unet_state_dict = self.diffusion_model.state_dict()
+        unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
+        vae_state_dict = self.model_config.process_vae_state_dict_for_saving(vae_state_dict)
+        if self.get_dtype() == torch.float16:
+            clip_state_dict = utils.convert_sd_to(clip_state_dict, torch.float16)
+            vae_state_dict = utils.convert_sd_to(vae_state_dict, torch.float16)
+        return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
+
+
 class SD21UNCLIP(BaseModel):
-    def __init__(self, unet_config, noise_aug_config, v_prediction=True):
-        super().__init__(unet_config, v_prediction)
+    def __init__(self, model_config, noise_aug_config, v_prediction=True):
+        super().__init__(model_config, v_prediction)
         self.noise_augmentor = CLIPEmbeddingNoiseAugmentation(**noise_aug_config)
 
     def encode_adm(self, **kwargs):
@@ -112,13 +133,13 @@ class SD21UNCLIP(BaseModel):
         return adm_out
 
 class SDInpaint(BaseModel):
-    def __init__(self, unet_config, v_prediction=False):
-        super().__init__(unet_config, v_prediction)
+    def __init__(self, model_config, v_prediction=False):
+        super().__init__(model_config, v_prediction)
         self.concat_keys = ("mask", "masked_image")
 
 class SDXLRefiner(BaseModel):
-    def __init__(self, unet_config, v_prediction=False):
-        super().__init__(unet_config, v_prediction)
+    def __init__(self, model_config, v_prediction=False):
+        super().__init__(model_config, v_prediction)
         self.embedder = Timestep(256)
 
     def encode_adm(self, **kwargs):
@@ -144,8 +165,8 @@ class SDXLRefiner(BaseModel):
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
 
 class SDXL(BaseModel):
-    def __init__(self, unet_config, v_prediction=False):
-        super().__init__(unet_config, v_prediction)
+    def __init__(self, model_config, v_prediction=False):
+        super().__init__(model_config, v_prediction)
         self.embedder = Timestep(256)
 
     def encode_adm(self, **kwargs):

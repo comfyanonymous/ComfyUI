@@ -284,9 +284,9 @@ class SaveLatent:
 
         output = {}
         output["latent_tensor"] = samples["samples"]
+        output["latent_format_version_0"] = torch.tensor([])
 
-        safetensors.torch.save_file(output, file, metadata=metadata)
-
+        comfy.utils.save_torch_file(output, file, metadata=metadata)
         return {}
 
 
@@ -305,7 +305,10 @@ class LoadLatent:
     def load(self, latent):
         latent_path = folder_paths.get_annotated_filepath(latent)
         latent = safetensors.torch.load_file(latent_path, device="cpu")
-        samples = {"samples": latent["latent_tensor"].float()}
+        multiplier = 1.0
+        if "latent_format_version_0" not in latent:
+            multiplier = 1.0 / 0.18215
+        samples = {"samples": latent["latent_tensor"].float() * multiplier}
         return (samples, )
 
     @classmethod
@@ -433,22 +436,6 @@ class LoraLoader:
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora_path, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
-class TomePatchModel:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "ratio": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
-
-    CATEGORY = "_for_testing"
-
-    def patch(self, model, ratio):
-        m = model.clone()
-        m.set_model_tomesd(ratio)
-        return (m, )
-
 class VAELoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -532,11 +519,27 @@ class CLIPLoader:
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
-    CATEGORY = "loaders"
+    CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip", clip_name)
-        clip = comfy.sd.load_clip(ckpt_path=clip_path, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return (clip,)
+
+class DualCLIPLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"), ), "clip_name2": (folder_paths.get_filename_list("clip"), ),
+                             }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "load_clip"
+
+    CATEGORY = "advanced/loaders"
+
+    def load_clip(self, clip_name1, clip_name2):
+        clip_path1 = folder_paths.get_full_path("clip", clip_name1)
+        clip_path2 = folder_paths.get_full_path("clip", clip_name2)
+        clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
 class CLIPVisionLoader:
@@ -950,7 +953,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if preview_format not in ["JPEG", "PNG"]:
         preview_format = "JPEG"
 
-    previewer = latent_preview.get_previewer(device)
+    previewer = latent_preview.get_previewer(device, model.model.latent_format)
 
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
@@ -961,7 +964,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
 
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback)
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, seed=seed)
     out = latent.copy()
     out["samples"] = samples
     return (out, )
@@ -1327,6 +1330,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
+    "DualCLIPLoader": DualCLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
     "StyleModelApply": StyleModelApply,
     "unCLIPConditioning": unCLIPConditioning,
@@ -1337,7 +1341,6 @@ NODE_CLASS_MAPPINGS = {
     "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
     "VAEEncodeTiled": VAEEncodeTiled,
-    "TomePatchModel": TomePatchModel,
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "GLIGENLoader": GLIGENLoader,
     "GLIGENTextBoxApply": GLIGENTextBoxApply,
@@ -1462,4 +1465,5 @@ def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_model_merging.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_tomesd.py"))
     load_custom_nodes()
