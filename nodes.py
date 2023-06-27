@@ -286,8 +286,7 @@ class SaveLatent:
         output["latent_tensor"] = samples["samples"]
         output["latent_format_version_0"] = torch.tensor([])
 
-        safetensors.torch.save_file(output, file, metadata=metadata)
-
+        comfy.utils.save_torch_file(output, file, metadata=metadata)
         return {}
 
 
