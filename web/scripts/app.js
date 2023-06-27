@@ -1468,7 +1468,7 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(reader.result));
 			};
 			reader.readAsText(file);
-		} else if (file.name?.endsWith(".latent")) {
+		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
 			const info = await getLatentMetadata(file);
 			if (info.workflow) {
 				this.loadGraphData(JSON.parse(info.workflow));

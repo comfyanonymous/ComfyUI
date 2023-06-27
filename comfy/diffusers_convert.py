@@ -202,11 +202,13 @@ textenc_pattern = re.compile("|".join(protected.keys()))
 code2idx = {"q": 0, "k": 1, "v": 2}
 
 
-def convert_text_enc_state_dict_v20(text_enc_dict):
+def convert_text_enc_state_dict_v20(text_enc_dict, prefix=""):
     new_state_dict = {}
     capture_qkv_weight = {}
     capture_qkv_bias = {}
     for k, v in text_enc_dict.items():
+        if not k.startswith(prefix):
+            continue
         if (
                 k.endswith(".self_attn.q_proj.weight")
                 or k.endswith(".self_attn.k_proj.weight")
