@@ -58,8 +58,12 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         d_new = dict()
-        for k,v in d.items():
-            d_new[k] = v[i if len(v) > i else -1]
+
+        for k, v in d.items():
+            if not v:
+                return None
+            else:
+                d_new[k] = v[i if len(v) > i else -1]
         return d_new
     
     results = []
@@ -71,14 +75,23 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
-            results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
+
+            params = slice_dict(input_data_all, i)
+
+            if params is None:
+                return None
+
+            results.append(getattr(obj, func)(**params))
     return results
 
+
 def get_output_data(obj, input_data_all):
-    
     results = []
     uis = []
     return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
+
+    if return_values is None:
+        return None, None
 
     for r in return_values:
         if isinstance(r, dict):
@@ -103,7 +116,7 @@ def get_output_data(obj, input_data_all):
             else:
                 output.append([o[i] for o in results])
 
-    ui = dict()    
+    ui = dict()
     if len(uis) > 0:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui
