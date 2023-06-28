@@ -156,10 +156,10 @@ class SDXLRefiner(BaseModel):
 
         print(clip_pooled.shape, width, height, crop_w, crop_h, aesthetic_score)
         out = []
-        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([height])))
-        out.append(self.embedder(torch.Tensor([crop_w])))
+        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([crop_h])))
+        out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([aesthetic_score])))
         flat = torch.flatten(torch.cat(out))[None, ]
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
@@ -180,11 +180,11 @@ class SDXL(BaseModel):
 
         print(clip_pooled.shape, width, height, crop_w, crop_h, target_width, target_height)
         out = []
-        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([height])))
-        out.append(self.embedder(torch.Tensor([crop_w])))
+        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([crop_h])))
-        out.append(self.embedder(torch.Tensor([target_width])))
+        out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([target_height])))
+        out.append(self.embedder(torch.Tensor([target_width])))
         flat = torch.flatten(torch.cat(out))[None, ]
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
