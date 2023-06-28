@@ -223,11 +223,26 @@ def model_lora_keys(model, key_map={}):
             counter += 1
     counter = 0
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
-    for b in range(24):
+    clip_l_present = False
+    for b in range(32):
         for c in LORA_CLIP_MAP:
             k = "transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
+                key_map[lora_key] = k
+
+            k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            if k in sdk:
+                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                key_map[lora_key] = k
+                clip_l_present = True
+
+            k = "clip_g.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            if k in sdk:
+                if clip_l_present:
+                    lora_key = "lora_te2_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                else:
+                    lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #TODO: test if this is correct for SDXL-Refiner
                 key_map[lora_key] = k
 
 
