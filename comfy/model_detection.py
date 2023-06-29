@@ -16,13 +16,11 @@ def count_blocks(state_dict_keys, prefix_string):
 
 def detect_unet_config(state_dict, key_prefix, use_fp16):
     state_dict_keys = list(state_dict.keys())
-    num_res_blocks = 2
 
     unet_config = {
         "use_checkpoint": False,
         "image_size": 32,
         "out_channels": 4,
-        "num_res_blocks": num_res_blocks,
         "use_spatial_transformer": True,
         "legacy": False
     }
