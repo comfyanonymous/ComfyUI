@@ -1142,6 +1142,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
     model = model_config.get_model(sd)
+    model = model.to(model_management.unet_offload_device())
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
