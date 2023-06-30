@@ -111,9 +111,32 @@ And install it again with the command above.
 
 ### Dependencies
 
-Install the dependencies by opening your terminal inside the ComfyUI folder and:
+Make sure you have set up a virtual environment. It is highly recommended to use [venv](https://docs.python.org/3/library/venv.html) to isolate the project dependencies. 
 
-```pip install -r requirements.txt```
+If you haven't created one yet, you can do so by following these steps:
+
+1. Open your terminal inside the ComfyUI folder.
+1. Create the virtual environment:
+    ```shell
+   python -m venv venv
+    ```
+1. Activate it by running the appropriate command based on your operating system:
+
+    - Windows:
+        ```shell
+        .\venv\Scripts\activate
+        ```
+
+    - Linux:
+        ```shell
+        source ./venv/bin/activate
+        ```
+
+Install the dependencies:
+
+```shell
+pip install -r requirements.txt
+```
 
 After this you should have everything installed and can proceed to running ComfyUI.
 
