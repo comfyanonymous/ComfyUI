@@ -95,7 +95,7 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             out_tokens += [tokens_temp]
 
         if len(embedding_weights) > 0:
-            new_embedding = torch.nn.Embedding(next_new_token, current_embeds.weight.shape[1])
+            new_embedding = torch.nn.Embedding(next_new_token, current_embeds.weight.shape[1], device=self.device)
             new_embedding.weight[:token_dict_size] = current_embeds.weight[:]
             n = token_dict_size
             for x in embedding_weights:

@@ -216,6 +216,11 @@ current_gpu_controlnets = []
 
 model_accelerated = False
 
+def unet_offload_device():
+    if vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.SHARED:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
 
 def unload_model():
     global current_loaded_model
@@ -228,10 +233,9 @@ def unload_model():
             accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
             model_accelerated = False
 
-        #never unload models from GPU on high vram
-        if vram_state != VRAMState.HIGH_VRAM:
-            current_loaded_model.model.cpu()
-            current_loaded_model.model_patches_to("cpu")
+
+        current_loaded_model.model.to(unet_offload_device())
+        current_loaded_model.model_patches_to(unet_offload_device())
         current_loaded_model.unpatch_model()
         current_loaded_model = None
 
