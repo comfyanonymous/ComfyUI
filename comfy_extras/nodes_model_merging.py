@@ -14,7 +14,7 @@ class ModelMergeSimple:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "merge"
 
-    CATEGORY = "_for_testing/model_merging"
+    CATEGORY = "advanced/model_merging"
 
     def merge(self, model1, model2, ratio):
         m = model1.clone()
@@ -35,7 +35,7 @@ class ModelMergeBlocks:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "merge"
 
-    CATEGORY = "_for_testing/model_merging"
+    CATEGORY = "advanced/model_merging"
 
     def merge(self, model1, model2, **kwargs):
         m = model1.clone()
@@ -68,7 +68,7 @@ class CheckpointSave:
     FUNCTION = "save"
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing/model_merging"
+    CATEGORY = "advanced/model_merging"
 
     def save(self, model, clip, vae, filename_prefix, prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
