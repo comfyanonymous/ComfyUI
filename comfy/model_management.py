@@ -327,8 +327,14 @@ def unload_if_low_vram(model):
         return model.cpu()
     return model
 
-def text_encoder_device():
+def text_encoder_offload_device():
     if args.gpu_only:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
+
+def text_encoder_device():
+    if vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.SHARED or vram_state == VRAMState.NORMAL_VRAM:
         return get_torch_device()
     else:
         return torch.device("cpu")
@@ -422,9 +428,14 @@ def mps_mode():
     global cpu_state
     return cpu_state == CPUState.MPS
 
-def should_use_fp16():
+def should_use_fp16(device=None):
     global xpu_available
     global directml_enabled
+
+    if device is not None: #TODO
+        if hasattr(device, 'type'):
+            if (device.type == 'cpu' or device.type == 'mps'):
+                return False
 
     if FORCE_FP32:
         return False

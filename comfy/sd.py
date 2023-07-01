@@ -526,9 +526,10 @@ class CLIP:
         tokenizer = target.tokenizer
 
         self.device = model_management.text_encoder_device()
-        params["device"] = self.device
         self.cond_stage_model = clip(**(params))
-        self.cond_stage_model = self.cond_stage_model.to(self.device)
+        if model_management.should_use_fp16(self.device):
+            self.cond_stage_model.half()
+        self.cond_stage_model = self.cond_stage_model.to(model_management.text_encoder_offload_device())
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model)
@@ -559,11 +560,14 @@ class CLIP:
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
         try:
+            self.cond_stage_model.to(self.device)
             self.patch_model()
             cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
             self.unpatch_model()
+            self.cond_stage_model.to(model_management.text_encoder_offload_device())
         except Exception as e:
             self.unpatch_model()
+            self.cond_stage_model.to(model_management.text_encoder_offload_device())
             raise e
 
         cond_out = cond
