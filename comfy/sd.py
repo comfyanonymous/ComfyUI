@@ -533,8 +533,9 @@ class CLIP:
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
         self.cond_stage_model = clip(**(params))
-        if model_management.should_use_fp16(load_device):
-            self.cond_stage_model.half()
+        #TODO: make sure this doesn't have a quality loss before enabling.
+        # if model_management.should_use_fp16(load_device):
+        #     self.cond_stage_model.half()
 
         self.cond_stage_model = self.cond_stage_model.to()
 

@@ -333,14 +333,19 @@ def unet_offload_device():
         return torch.device("cpu")
 
 def text_encoder_offload_device():
-    if args.gpu_only:
+    if args.gpu_only or vram_state == VRAMState.SHARED:
         return get_torch_device()
     else:
         return torch.device("cpu")
 
 def text_encoder_device():
-    if vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.SHARED or vram_state == VRAMState.NORMAL_VRAM:
+    if args.gpu_only or vram_state == VRAMState.SHARED:
         return get_torch_device()
+    elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
+        if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
+            return get_torch_device()
+        else:
+            return torch.device("cpu")
     else:
         return torch.device("cpu")
 
