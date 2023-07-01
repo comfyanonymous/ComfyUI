@@ -1,6 +1,3 @@
-# This module modifies the original code for experimentation with a new execution structure intended to replace the original execution structure.
-# Original: https://github.com/comfyanonymous/ComfyUI/blob/master/execution.py
-
 import sys
 import copy
 import traceback
@@ -143,7 +140,7 @@ def get_next_nodes_map(prompt):
     return next_nodes
 
 
-def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui, to_execute, next_nodes):
+def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui, to_execute, next_nodes, object_storage):
     worklist = Queue()
     executed = set()
     will_execute = {}
@@ -221,6 +218,7 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
         unique_id = get_work()
 
         inputs = prompt[unique_id]['inputs']
+        class_type = prompt[unique_id]['class_type']
         class_def = get_class_def(prompt, unique_id)
 
         print_dbg(lambda: f"work: {unique_id} ({class_def.__name__}) / worklist: {list(worklist.queue)}")
@@ -238,7 +236,11 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
                 server.last_node_id = unique_id
                 server.send_sync("executing", {"node": unique_id, "prompt_id": prompt_id, "progress": get_progress()},
                                  server.client_id)
-            obj = class_def()
+
+            obj = object_storage.get((unique_id, class_type), None)
+            if obj is None:
+                obj = class_def()
+                object_storage[(unique_id, class_type)] = obj
 
             output_data, output_ui = get_output_data(obj, input_data_all)
 
@@ -404,6 +406,7 @@ def worklist_output_delete_if_changed(prompt, old_prompt, outputs, next_nodes, m
 class PromptExecutor:
     def __init__(self, server):
         self.outputs = {}
+        self.object_storage = {}
         self.outputs_ui = {}
         self.old_prompt = {}
         self.server = server
@@ -441,6 +444,18 @@ class PromptExecutor:
                     "current_outputs": error["current_outputs"],
                 }
                 self.server.send_sync("execution_error", mes, self.server.client_id)
+
+        # Next, remove the subsequent outputs since they will not be executed
+        to_delete = []
+        for o in self.outputs:
+            if (o not in current_outputs) and (o not in executed):
+                to_delete += [o]
+                if o in self.old_prompt:
+                    d = self.old_prompt.pop(o)
+                    del d
+        for o in to_delete:
+            d = self.outputs.pop(o)
+            del d
 
         # Next, remove the subsequent outputs since they will not be executed
         to_delete = []
@@ -502,7 +517,7 @@ class PromptExecutor:
             # the actual SD code, instead it will report the node where the
             # error was raised
             executed, success, error, ex = worklist_execute(self.server, prompt, self.outputs, extra_data, prompt_id,
-                                                            self.outputs_ui, to_execute, next_nodes)
+                                                            self.outputs_ui, to_execute, next_nodes, self.object_storage)
             if success is not True:
                 self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
 
