@@ -89,8 +89,7 @@ LORA_UNET_MAP_RESNET = {
     "skip_connection": "resnets_{}_conv_shortcut"
 }
 
-def load_lora(path, to_load):
-    lora = utils.load_torch_file(path, safe_load=True)
+def load_lora(lora, to_load):
     patch_dict = {}
     loaded_keys = set()
     for x in to_load:
@@ -223,11 +222,26 @@ def model_lora_keys(model, key_map={}):
             counter += 1
     counter = 0
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
-    for b in range(24):
+    clip_l_present = False
+    for b in range(32):
         for c in LORA_CLIP_MAP:
             k = "transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
+                key_map[lora_key] = k
+
+            k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            if k in sdk:
+                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                key_map[lora_key] = k
+                clip_l_present = True
+
+            k = "clip_g.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            if k in sdk:
+                if clip_l_present:
+                    lora_key = "lora_te2_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                else:
+                    lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #TODO: test if this is correct for SDXL-Refiner
                 key_map[lora_key] = k
 
 
@@ -486,10 +500,10 @@ class ModelPatcher:
 
         self.backup = {}
 
-def load_lora_for_models(model, clip, lora_path, strength_model, strength_clip):
+def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     key_map = model_lora_keys(model.model)
     key_map = model_lora_keys(clip.cond_stage_model, key_map)
-    loaded = load_lora(lora_path, key_map)
+    loaded = load_lora(lora, key_map)
     new_modelpatcher = model.clone()
     k = new_modelpatcher.add_patches(loaded, strength_model)
     new_clip = clip.clone()
@@ -545,11 +559,11 @@ class CLIP:
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
         try:
-            self.patcher.patch_model()
+            self.patch_model()
             cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
-            self.patcher.unpatch_model()
+            self.unpatch_model()
         except Exception as e:
-            self.patcher.unpatch_model()
+            self.unpatch_model()
             raise e
 
         cond_out = cond
@@ -563,6 +577,15 @@ class CLIP:
 
     def load_sd(self, sd):
         return self.cond_stage_model.load_sd(sd)
+
+    def get_sd(self):
+        return self.cond_stage_model.state_dict()
+
+    def patch_model(self):
+        self.patcher.patch_model()
+
+    def unpatch_model(self):
+        self.patcher.unpatch_model()
 
 class VAE:
     def __init__(self, ckpt_path=None, device=None, config=None):
@@ -664,6 +687,10 @@ class VAE:
         samples = self.encode_tiled_(pixel_samples, tile_x=tile_x, tile_y=tile_y, overlap=overlap)
         self.first_stage_model = self.first_stage_model.cpu()
         return samples
+
+    def get_sd(self):
+        return self.first_stage_model.state_dict()
+
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
     current_batch_size = tensor.shape[0]
@@ -1114,6 +1141,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
     model = model_config.get_model(sd)
+    model = model.to(model_management.unet_offload_device())
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
@@ -1135,3 +1163,16 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         print("left over keys:", left_over)
 
     return (ModelPatcher(model), clip, vae, clipvision)
+
+def save_checkpoint(output_path, model, clip, vae, metadata=None):
+    try:
+        model.patch_model()
+        clip.patch_model()
+        sd = model.model.state_dict_for_saving(clip.get_sd(), vae.get_sd())
+        utils.save_torch_file(sd, output_path, metadata=metadata)
+        model.unpatch_model()
+        clip.unpatch_model()
+    except Exception as e:
+        model.unpatch_model()
+        clip.unpatch_model()
+        raise e

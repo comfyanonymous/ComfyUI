@@ -139,7 +139,23 @@ else:
     except:
         XFORMERS_IS_AVAILABLE = False
 
+def is_nvidia():
+    global cpu_state
+    if cpu_state == CPUState.GPU:
+        if torch.version.cuda:
+            return True
+
 ENABLE_PYTORCH_ATTENTION = args.use_pytorch_cross_attention
+
+if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
+    try:
+        if is_nvidia():
+            torch_version = torch.version.__version__
+            if int(torch_version[0]) >= 2:
+                ENABLE_PYTORCH_ATTENTION = True
+    except:
+        pass
+
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
     torch.backends.cuda.enable_flash_sdp(True)
@@ -200,6 +216,11 @@ current_gpu_controlnets = []
 
 model_accelerated = False
 
+def unet_offload_device():
+    if vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.SHARED:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
 
 def unload_model():
     global current_loaded_model
@@ -212,10 +233,9 @@ def unload_model():
             accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
             model_accelerated = False
 
-        #never unload models from GPU on high vram
-        if vram_state != VRAMState.HIGH_VRAM:
-            current_loaded_model.model.cpu()
-            current_loaded_model.model_patches_to("cpu")
+
+        current_loaded_model.model.to(unet_offload_device())
+        current_loaded_model.model_patches_to(unet_offload_device())
         current_loaded_model.unpatch_model()
         current_loaded_model = None
 
@@ -347,7 +367,7 @@ def pytorch_attention_flash_attention():
     global ENABLE_PYTORCH_ATTENTION
     if ENABLE_PYTORCH_ATTENTION:
         #TODO: more reliable way of checking for flash attention?
-        if torch.version.cuda: #pytorch flash attention only works on Nvidia
+        if is_nvidia(): #pytorch flash attention only works on Nvidia
             return True
     return False
 
@@ -438,7 +458,7 @@ def soft_empty_cache():
     elif xpu_available:
         torch.xpu.empty_cache()
     elif torch.cuda.is_available():
-        if torch.version.cuda: #This seems to make things worse on ROCm so I only do it for cuda
+        if is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
 
