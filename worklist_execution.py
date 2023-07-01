@@ -125,6 +125,15 @@ def get_class_def(prompt, unique_id):
     return class_def
 
 
+def get_class_type(prompt, unique_id):
+    if 'class_type' in prompt[unique_id]:
+        class_type = prompt[unique_id]['class_type']
+    else:
+        class_type = "DummyNode"
+
+    return class_type
+
+
 def get_next_nodes_map(prompt):
     next_nodes = {}
     for key, value in prompt.items():
@@ -218,7 +227,7 @@ def worklist_execute(server, prompt, outputs, extra_data, prompt_id, outputs_ui,
         unique_id = get_work()
 
         inputs = prompt[unique_id]['inputs']
-        class_type = prompt[unique_id]['class_type']
+        class_type = get_class_type(prompt, unique_id)
         class_def = get_class_def(prompt, unique_id)
 
         print_dbg(lambda: f"work: {unique_id} ({class_def.__name__}) / worklist: {list(worklist.queue)}")
@@ -457,17 +466,17 @@ class PromptExecutor:
             d = self.outputs.pop(o)
             del d
 
-        # Next, remove the subsequent outputs since they will not be executed
-        to_delete = []
-        for o in self.outputs:
-            if (o not in current_outputs) and (o not in executed):
-                to_delete += [o]
-                if o in self.old_prompt:
-                    d = self.old_prompt.pop(o)
-                    del d
-        for o in to_delete:
-            d = self.outputs.pop(o)
-            del d
+            to_delete = []
+            for o in self.object_storage:
+                if o[0] not in prompt:
+                    to_delete += [o]
+                else:
+                    p = prompt[o[0]]
+                    if o[1] != p['class_type']:
+                        to_delete += [o]
+            for o in to_delete:
+                d = self.object_storage.pop(o)
+                del d
 
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
