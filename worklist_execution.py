@@ -329,7 +329,7 @@ def worklist_will_execute(prompt, outputs, worklist):
     return will_execute
 
 
-def worklist_output_delete_if_changed(prompt, old_prompt, outputs, next_nodes, muted_nodes):
+def worklist_output_delete_if_changed(prompt, old_prompt, outputs, next_nodes, muted_nodes, extra_data):
     worklist = []
     deleted = set()
 
@@ -358,7 +358,7 @@ def worklist_output_delete_if_changed(prompt, old_prompt, outputs, next_nodes, m
             if unique_id in old_prompt and 'is_changed' in old_prompt[unique_id]:
                 is_changed_old = old_prompt[unique_id]['is_changed']
             if 'is_changed' not in value:
-                input_data_all = get_input_data(inputs, class_def, unique_id, outputs)
+                input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt=prompt, extra_data=extra_data)
                 if input_data_all is not None:
                     try:
                         is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
@@ -508,7 +508,7 @@ class PromptExecutor:
                 del d
 
             next_nodes = get_next_nodes_map(prompt)
-            worklist_output_delete_if_changed(prompt, self.old_prompt, self.outputs, next_nodes, muted_nodes)
+            worklist_output_delete_if_changed(prompt, self.old_prompt, self.outputs, next_nodes, muted_nodes, extra_data)
 
             current_outputs = set(self.outputs.keys())
             for x in list(self.outputs_ui.keys()):
