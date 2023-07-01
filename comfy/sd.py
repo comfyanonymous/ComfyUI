@@ -308,13 +308,15 @@ def model_lora_keys(model, key_map={}):
 
 
 class ModelPatcher:
-    def __init__(self, model, size=0):
+    def __init__(self, model, load_device, offload_device, size=0):
         self.size = size
         self.model = model
         self.patches = []
         self.backup = {}
         self.model_options = {"transformer_options":{}}
         self.model_size()
+        self.load_device = load_device
+        self.offload_device = offload_device
 
     def model_size(self):
         if self.size > 0:
@@ -329,7 +331,7 @@ class ModelPatcher:
         return size
 
     def clone(self):
-        n = ModelPatcher(self.model, self.size)
+        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size)
         n.patches = self.patches[:]
         n.model_options = copy.deepcopy(self.model_options)
         n.model_keys = self.model_keys
@@ -340,6 +342,9 @@ class ModelPatcher:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
         else:
             self.model_options["sampler_cfg_function"] = sampler_cfg_function
+
+    def set_model_unet_function_wrapper(self, unet_wrapper_function):
+        self.model_options["model_function_wrapper"] = unet_wrapper_function
 
     def set_model_patch(self, patch, name):
         to = self.model_options["transformer_options"]
@@ -525,14 +530,16 @@ class CLIP:
         clip = target.clip
         tokenizer = target.tokenizer
 
-        self.device = model_management.text_encoder_device()
+        load_device = model_management.text_encoder_device()
+        offload_device = model_management.text_encoder_offload_device()
         self.cond_stage_model = clip(**(params))
-        if model_management.should_use_fp16(self.device):
+        if model_management.should_use_fp16(load_device):
             self.cond_stage_model.half()
-        self.cond_stage_model = self.cond_stage_model.to(model_management.text_encoder_offload_device())
+
+        self.cond_stage_model = self.cond_stage_model.to()
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
-        self.patcher = ModelPatcher(self.cond_stage_model)
+        self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.layer_idx = None
 
     def clone(self):
@@ -541,7 +548,6 @@ class CLIP:
         n.cond_stage_model = self.cond_stage_model
         n.tokenizer = self.tokenizer
         n.layer_idx = self.layer_idx
-        n.device = self.device
         return n
 
     def load_from_state_dict(self, sd):
@@ -559,21 +565,12 @@ class CLIP:
     def encode_from_tokens(self, tokens, return_pooled=False):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
-        try:
-            self.cond_stage_model.to(self.device)
-            self.patch_model()
-            cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
-            self.unpatch_model()
-            self.cond_stage_model.to(model_management.text_encoder_offload_device())
-        except Exception as e:
-            self.unpatch_model()
-            self.cond_stage_model.to(model_management.text_encoder_offload_device())
-            raise e
 
-        cond_out = cond
+        model_management.load_model_gpu(self.patcher)
+        cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
         if return_pooled:
-            return cond_out, pooled
-        return cond_out
+            return cond, pooled
+        return cond
 
     def encode(self, text):
         tokens = self.tokenize(text)
@@ -1097,6 +1094,8 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     if fp16:
         model = model.half()
 
+    offload_device = model_management.unet_offload_device()
+    model = model.to(offload_device)
     model.load_model_weights(state_dict, "model.diffusion_model.")
 
     if output_vae:
@@ -1119,7 +1118,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         w.cond_stage_model = clip.cond_stage_model
         load_clip_weights(w, state_dict)
 
-    return (ModelPatcher(model), clip, vae)
+    return (ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
 
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None):
@@ -1144,8 +1143,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         if output_clipvision:
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
+    offload_device = model_management.unet_offload_device()
     model = model_config.get_model(sd)
-    model = model.to(model_management.unet_offload_device())
+    model = model.to(offload_device)
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
@@ -1166,7 +1166,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if len(left_over) > 0:
         print("left over keys:", left_over)
 
-    return (ModelPatcher(model), clip, vae, clipvision)
+    return (ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae, clipvision)
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
     try:
