@@ -349,6 +349,15 @@ def text_encoder_device():
     else:
         return torch.device("cpu")
 
+def vae_device():
+    return get_torch_device()
+
+def vae_offload_device():
+    if args.gpu_only or vram_state == VRAMState.SHARED:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
+
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
         return dev.type
