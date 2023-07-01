@@ -29,7 +29,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
 - [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
 - [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
-- Latent previews with [TAESD](https://github.com/madebyollin/taesd)
+- [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
+- Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
 - Works fully offline: will never download anything.
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
