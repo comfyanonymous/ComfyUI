@@ -1122,6 +1122,12 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     return (ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
 
+def calculate_parameters(sd, prefix):
+    params = 0
+    for k in sd.keys():
+        if k.startswith(prefix):
+            params += sd[k].nelement()
+    return params
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None):
     sd = utils.load_torch_file(ckpt_path)
@@ -1132,7 +1138,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     model = None
     clip_target = None
 
-    fp16 = model_management.should_use_fp16()
+    parameters = calculate_parameters(sd, "model.diffusion_model.")
+    fp16 = model_management.should_use_fp16(model_params=parameters)
 
     class WeightsLoader(torch.nn.Module):
         pass
