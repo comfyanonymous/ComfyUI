@@ -245,6 +245,8 @@ def unload_model():
                 n.cpu()
             current_gpu_controlnets = []
 
+def minimum_inference_memory():
+    return (768 * 1024 * 1024)
 
 def load_model_gpu(model):
     global current_loaded_model
@@ -272,7 +274,7 @@ def load_model_gpu(model):
         model_size = model.model_size()
         current_free_mem = get_free_memory(torch_dev)
         lowvram_model_memory = int(max(256 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.3 ))
-        if model_size > (current_free_mem - (512 * 1024 * 1024)): #only switch to lowvram if really necessary
+        if model_size > (current_free_mem - minimum_inference_memory()): #only switch to lowvram if really necessary
             vram_set_state = VRAMState.LOW_VRAM
 
     current_loaded_model = model
@@ -458,7 +460,7 @@ def is_device_cpu(device):
             return True
     return False
 
-def should_use_fp16(device=None):
+def should_use_fp16(device=None, model_params=0):
     global xpu_available
     global directml_enabled
 
@@ -482,10 +484,27 @@ def should_use_fp16(device=None):
         return True
 
     props = torch.cuda.get_device_properties("cuda")
+    if props.major < 6:
+        return False
+
+    fp16_works = False
+    #FP16 is confirmed working on a 1080 (GP104) but it's a bit slower than FP32 so it should only be enabled
+    #when the model doesn't actually fit on the card
+    #TODO: actually test if GP106 and others have the same type of behavior
+    nvidia_10_series = ["1080", "1070", "titan x", "p3000", "p3200", "p4000", "p4200", "p5000", "p5200", "p6000", "1060", "1050"]
+    for x in nvidia_10_series:
+        if x in props.name.lower():
+            fp16_works = True
+
+    if fp16_works:
+        free_model_memory = (get_free_memory() * 0.9 - minimum_inference_memory())
+        if model_params * 4 > free_model_memory:
+            return True
+
     if props.major < 7:
         return False
 
-    #FP32 is faster on those cards?
+    #FP16 is just broken on these cards
     nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600"]
     for x in nvidia_16_series:
         if x in props.name:
