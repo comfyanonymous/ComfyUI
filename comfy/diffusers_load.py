@@ -3,7 +3,7 @@ import os
 import yaml
 
 import folder_paths
-from comfy.sd import ModelPatcher, load_model_weights, CLIP, VAE, load_checkpoint
+from comfy.sd import load_checkpoint
 import os.path as osp
 import re
 import torch
