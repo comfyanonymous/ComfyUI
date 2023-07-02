@@ -53,7 +53,10 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     if hasattr(obj, "INPUT_IS_LIST"):
         intput_is_list = obj.INPUT_IS_LIST
 
-    max_len_input = max([len(x) for x in input_data_all.values()])
+    if input_data_all is not None:
+        max_len_input = max([len(x) for x in input_data_all.values()])
+    else:
+        max_len_input = 0
      
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
