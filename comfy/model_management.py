@@ -171,9 +171,14 @@ elif args.highvram or args.gpu_only:
     vram_state = VRAMState.HIGH_VRAM
 
 FORCE_FP32 = False
+FORCE_FP16 = False
 if args.force_fp32:
     print("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
+
+if args.force_fp16:
+    print("Forcing FP16.")
+    FORCE_FP16 = True
 
 if lowvram_available:
     try:
@@ -456,6 +461,9 @@ def is_device_cpu(device):
 def should_use_fp16(device=None):
     global xpu_available
     global directml_enabled
+
+    if FORCE_FP16:
+        return True
 
     if device is not None: #TODO
         if is_device_cpu(device):
