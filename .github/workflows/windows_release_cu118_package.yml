@@ -45,6 +45,8 @@ jobs:
             sed -i '1i../ComfyUI' ./python310._pth
             cd ..
 
+            git clone https://github.com/comfyanonymous/taesd
+            cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
 
             mkdir ComfyUI_windows_portable
             mv python_embeded ComfyUI_windows_portable
