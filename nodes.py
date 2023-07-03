@@ -15,7 +15,7 @@ import safetensors.torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
-
+from comfy.cli_args import args
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
@@ -26,6 +26,8 @@ import comfy.clip_vision
 
 import comfy.model_management
 import importlib
+import threading
+import traceback
 
 import folder_paths
 import latent_preview
@@ -37,6 +39,7 @@ def interrupt_processing(value=True):
     comfy.model_management.interrupt_current_processing(value)
 
 MAX_RESOLUTION=8192
+NODE_MODIFICATION_TIMES = {}
 
 class CLIPTextEncode:
     @classmethod
@@ -1442,29 +1445,61 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 def load_custom_node(module_path):
-    module_name = os.path.basename(module_path)
-    if os.path.isfile(module_path):
-        sp = os.path.splitext(module_path)
-        module_name = sp[0]
-    try:
-        if os.path.isfile(module_path):
-            module_spec = importlib.util.spec_from_file_location(module_name, module_path)
+    def update_modified_times(module_path):
+        if os.path.isdir(module_path):
+            for root, _, files in os.walk(module_path):
+                for file_name in files:
+                    file_path = os.path.join(root, file_name)
+                    if file_name.endswith(".py"):
+                        NODE_MODIFICATION_TIMES[file_path] = os.path.getmtime(file_path)
         else:
-            module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
-        module = importlib.util.module_from_spec(module_spec)
-        sys.modules[module_name] = module
-        module_spec.loader.exec_module(module)
+            NODE_MODIFICATION_TIMES[module_path] = os.path.getmtime(module_path)
+
+
+    parent_dir = os.path.dirname(module_path)
+    parent_package = os.path.basename(parent_dir)
+
+    if os.path.isfile(module_path):
+        module_name = os.path.splitext(os.path.basename(module_path))[0]
+        loader = importlib.machinery.SourceFileLoader(f"{parent_package}.{module_name}", module_path)
+    else:
+        module_name = os.path.basename(module_path)
+        init_file_path = os.path.join(module_path, "__init__.py")
+        if os.path.exists(init_file_path):
+            loader = importlib.machinery.SourceFileLoader(f"{parent_package}.{module_name}", init_file_path)
+        else:
+            file_paths = [os.path.join(module_path, file_name) for file_name in os.listdir(module_path) if file_name.endswith(".py")]
+            for file_path in file_paths:
+                sub_module_name = os.path.splitext(os.path.basename(file_path))[0]
+                sub_loader = importlib.machinery.SourceFileLoader(f"{parent_package}.{module_name}.{sub_module_name}", file_path)
+                sub_module = sub_loader.load_module()
+                sys.modules[f"{parent_package}.{module_name}.{sub_module_name}"] = sub_module
+
+                if hasattr(sub_module, "NODE_CLASS_MAPPINGS") and getattr(sub_module, "NODE_CLASS_MAPPINGS") is not None:
+                    NODE_CLASS_MAPPINGS.update(sub_module.NODE_CLASS_MAPPINGS)
+                    if hasattr(sub_module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(sub_module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
+                        NODE_DISPLAY_NAME_MAPPINGS.update(sub_module.NODE_DISPLAY_NAME_MAPPINGS)
+
+            update_modified_times(module_path)
+            return True
+
+    try:
+        module = loader.load_module()
+        sys.modules[f"{parent_package}.{module_name}"] = module
+
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
-            return True
-        else:
-            print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
-            return False
+
+        update_modified_times(module_path)
+
+        return True
+
     except Exception as e:
         print(traceback.format_exc())
         print(f"Cannot import {module_path} module for custom nodes:", e)
+        update_modified_times(module_path)
         return False
 
 def load_custom_nodes():
@@ -1477,8 +1512,10 @@ def load_custom_nodes():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-            if module_path.endswith(".disabled"): continue
+            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py":
+                continue
+            if module_path.endswith(".disabled"):
+                continue
             time_before = time.perf_counter()
             success = load_custom_node(module_path)
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
@@ -1490,15 +1527,41 @@ def load_custom_nodes():
                 import_message = ""
             else:
                 import_message = " (IMPORT FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
+            print("{:6.1f} seconds{}:".format(n[0], import_message), os.path.basename(n[1]))
         print()
 
+def start_custom_node_monitor():
+
+    def monitor_custom_nodes():
+        while True:
+            try:
+                for file_path, modification_time in list(NODE_MODIFICATION_TIMES.items()):
+                    current_modification_time = os.path.getmtime(file_path)
+                    if current_modification_time != modification_time:
+                        print(f"{os.path.basename(file_path)} has been modified. Reloading.")
+                        success = load_custom_node(file_path)
+                        if success:
+                            print(f"{os.path.basename(file_path)} has been reloaded.")
+                        else:
+                            print(f"Reloading {os.path.basename(file_path)} failed.")
+                time.sleep(5)
+            except Exception as e:
+                print("An error occurred in the monitoring loop:")
+                print(e)
+                print(traceback.format_exc())
+
+    monitor_thread = threading.Thread(target=monitor_custom_nodes)
+    monitor_thread.daemon = True
+    monitor_thread.start()
+
 def init_custom_nodes():
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_model_merging.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_tomesd.py"))
+    module_directory = os.path.dirname(os.path.abspath(__file__))
+    load_custom_node(os.path.join(module_directory, "comfy_extras", "nodes_hypernetwork.py"))
+    load_custom_node(os.path.join(module_directory, "comfy_extras", "nodes_upscale_model.py"))
+    load_custom_node(os.path.join(module_directory, "comfy_extras", "nodes_post_processing.py"))
+    load_custom_node(os.path.join(module_directory, "comfy_extras", "nodes_mask.py"))
+    load_custom_node(os.path.join(module_directory, "comfy_extras", "nodes_rebatch.py"))
     load_custom_nodes()
+    if args.monitor_nodes:
+        print("Monitoring custom nodes for modifications.\n")
+        start_custom_node_monitor()
