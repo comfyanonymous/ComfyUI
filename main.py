@@ -14,10 +14,6 @@ if os.name == "nt":
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
-    if args.dont_upcast_attention:
-        print("disabling upcasting of attention")
-        os.environ['ATTN_PRECISION'] = "fp16"
-
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         print("Set cuda device to:", args.cuda_device)

@@ -16,11 +16,14 @@ if model_management.xformers_enabled():
     import xformers
     import xformers.ops
 
-# CrossAttn precision handling
-import os
-_ATTN_PRECISION = os.environ.get("ATTN_PRECISION", "fp32")
-
 from comfy.cli_args import args
+# CrossAttn precision handling
+if args.dont_upcast_attention:
+    print("disabling upcasting of attention")
+    _ATTN_PRECISION = "fp16"
+else:
+    _ATTN_PRECISION = "fp32"
+
 
 def exists(val):
     return val is not None
