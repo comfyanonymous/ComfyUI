@@ -334,19 +334,19 @@ def unload_if_low_vram(model):
     return model
 
 def unet_offload_device():
-    if vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.SHARED:
+    if vram_state == VRAMState.HIGH_VRAM:
         return get_torch_device()
     else:
         return torch.device("cpu")
 
 def text_encoder_offload_device():
-    if args.gpu_only or vram_state == VRAMState.SHARED:
+    if args.gpu_only:
         return get_torch_device()
     else:
         return torch.device("cpu")
 
 def text_encoder_device():
-    if args.gpu_only or vram_state == VRAMState.SHARED:
+    if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
         if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
@@ -360,7 +360,7 @@ def vae_device():
     return get_torch_device()
 
 def vae_offload_device():
-    if args.gpu_only or vram_state == VRAMState.SHARED:
+    if args.gpu_only:
         return get_torch_device()
     else:
         return torch.device("cpu")
