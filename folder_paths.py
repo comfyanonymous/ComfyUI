@@ -157,7 +157,7 @@ def get_relative_path(folder_name, full_path):
     full_path = os.path.normpath(full_path)
     for x in folders[0]:
         x = os.path.normpath(x)
-        if os.path.commonprefix([x, full_path]):
+        if os.path.commonprefix([x, full_path]) == x:
             return os.path.relpath(full_path, x)
 
     return None
