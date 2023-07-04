@@ -46,9 +46,11 @@ class ModelMergeBlocks:
             ratio = default_ratio
             k_unet = k[len("diffusion_model."):]
 
+            last_arg_size = 0
             for arg in kwargs:
-                if k_unet.startswith(arg):
+                if k_unet.startswith(arg) and last_arg_size < len(arg):
                     ratio = kwargs[arg]
+                    last_arg_size = len(arg)
 
             m.add_patches({k: (sd[k], )}, 1.0 - ratio, ratio)
         return (m, )
