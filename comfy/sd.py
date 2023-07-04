@@ -526,12 +526,13 @@ class CLIP:
     def __init__(self, target=None, embedding_directory=None, no_init=False):
         if no_init:
             return
-        params = target.params
+        params = target.params.copy()
         clip = target.clip
         tokenizer = target.tokenizer
 
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
+        params['device'] = load_device
         self.cond_stage_model = clip(**(params))
         #TODO: make sure this doesn't have a quality loss before enabling.
         # if model_management.should_use_fp16(load_device):
