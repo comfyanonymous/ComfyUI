@@ -146,6 +146,23 @@ def get_full_path(folder_name, filename):
 
     return None
 
+
+def get_relative_path(folder_name, full_path):
+    global folder_names_and_paths
+    if folder_name not in folder_names_and_paths:
+        return None
+    if not os.path.exists(full_path):
+        return None
+    folders = folder_names_and_paths[folder_name]
+    full_path = os.path.normpath(full_path)
+    for x in folders[0]:
+        x = os.path.normpath(x)
+        if os.path.commonprefix([x, full_path]):
+            return os.path.relpath(full_path, x)
+
+    return None
+
+
 def get_filename_list_(folder_name):
     global folder_names_and_paths
     output_list = set()
