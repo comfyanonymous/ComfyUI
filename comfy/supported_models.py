@@ -118,6 +118,7 @@ class SDXLRefiner(supported_models_base.BASE):
 
         state_dict = utils.transformers_convert(state_dict, "conditioner.embedders.0.model.", "cond_stage_model.clip_g.transformer.text_model.", 32)
         keys_to_replace["conditioner.embedders.0.model.text_projection"] = "cond_stage_model.clip_g.text_projection"
+        keys_to_replace["conditioner.embedders.0.model.logit_scale"] = "cond_stage_model.clip_g.logit_scale"
 
         state_dict = supported_models_base.state_dict_key_replace(state_dict, keys_to_replace)
         return state_dict
@@ -153,6 +154,7 @@ class SDXL(supported_models_base.BASE):
         replace_prefix["conditioner.embedders.0.transformer.text_model"] = "cond_stage_model.clip_l.transformer.text_model"
         state_dict = utils.transformers_convert(state_dict, "conditioner.embedders.1.model.", "cond_stage_model.clip_g.transformer.text_model.", 32)
         keys_to_replace["conditioner.embedders.1.model.text_projection"] = "cond_stage_model.clip_g.text_projection"
+        keys_to_replace["conditioner.embedders.1.model.logit_scale"] = "cond_stage_model.clip_g.logit_scale"
 
         state_dict = supported_models_base.state_dict_prefix_replace(state_dict, replace_prefix)
         state_dict = supported_models_base.state_dict_key_replace(state_dict, keys_to_replace)
