@@ -38,7 +38,7 @@
 
 .litegraph.litecontextmenu .litemenu-entry {
     margin: 2px;
-    padding: 2px;
+    padding: 10px;
 }
 
 .litegraph.litecontextmenu .litemenu-entry.submenu {
@@ -132,9 +132,9 @@
     cursor: default !important;
 }
 
-.litegraph .litemenu-entry.has_submenu {
+/* .litegraph .litemenu-entry.has_submenu {
     border-right: 2px solid cyan;
-}
+} */
 
 .litegraph .litemenu-title {
     color: #dde;
