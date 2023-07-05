@@ -108,11 +108,13 @@ def detect_unet_config(state_dict, key_prefix, use_fp16):
     unet_config["context_dim"] = context_dim
     return unet_config
 
-
-def model_config_from_unet(state_dict, unet_key_prefix, use_fp16):
-    unet_config = detect_unet_config(state_dict, unet_key_prefix, use_fp16)
+def model_config_from_unet_config(unet_config):
     for model_config in supported_models.models:
         if model_config.matches(unet_config):
             return model_config(unet_config)
 
     return None
+
+def model_config_from_unet(state_dict, unet_key_prefix, use_fp16):
+    unet_config = detect_unet_config(state_dict, unet_key_prefix, use_fp16)
+    return model_config_from_unet_config(unet_config)
