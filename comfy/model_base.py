@@ -52,7 +52,13 @@ class BaseModel(torch.nn.Module):
         else:
             xc = x
         context = torch.cat(c_crossattn, 1)
-        return self.diffusion_model(xc, t, context=context, y=c_adm, control=control, transformer_options=transformer_options)
+        dtype = self.get_dtype()
+        xc = xc.to(dtype)
+        t = t.to(dtype)
+        context = context.to(dtype)
+        if c_adm is not None:
+            c_adm = c_adm.to(dtype)
+        return self.diffusion_model(xc, t, context=context, y=c_adm, control=control, transformer_options=transformer_options).float()
 
     def get_dtype(self):
         return self.diffusion_model.dtype
