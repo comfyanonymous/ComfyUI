@@ -264,6 +264,7 @@ def load_model_gpu(model):
 
     torch_dev = model.load_device
     model.model_patches_to(torch_dev)
+    model.model_patches_to(model.model_dtype())
 
     if is_device_cpu(torch_dev):
         vram_set_state = VRAMState.DISABLED
