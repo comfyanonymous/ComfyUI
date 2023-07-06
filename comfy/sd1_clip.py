@@ -23,11 +23,11 @@ class ClipTokenWeightEncoder:
             first_pooled = pooled[0:1]
 
         output = []
-        for i in range(1, out.shape[0]):
-            z = out[i:i+1]
+        for k in range(1, out.shape[0]):
+            z = out[k:k+1]
             for i in range(len(z)):
                 for j in range(len(z[i])):
-                    weight = token_weight_pairs[i - 1][j][1]
+                    weight = token_weight_pairs[k - 1][j][1]
                     z[i][j] = (z[i][j] - z_empty[0][j]) * weight + z_empty[0][j]
             output.append(z)
 
