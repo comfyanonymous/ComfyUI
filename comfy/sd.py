@@ -291,7 +291,8 @@ class ModelPatcher:
                         patch_list[k] = patch_list[k].to(device)
 
     def model_dtype(self):
-        return self.model.get_dtype()
+        if hasattr(self.model, "get_dtype"):
+            return self.model.get_dtype()
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         p = {}

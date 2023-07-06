@@ -51,11 +51,11 @@ def get_models_from_cond(cond, model_type):
             models += [c[1][model_type]]
     return models
 
-def load_additional_models(positive, negative):
+def load_additional_models(positive, negative, dtype):
     """loads additional models in positive and negative conditioning"""
     control_nets = get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control")
     gligen = get_models_from_cond(positive, "gligen") + get_models_from_cond(negative, "gligen")
-    gligen = [x[1] for x in gligen]
+    gligen = [x[1].to(dtype) for x in gligen]
     models = control_nets + gligen
     comfy.model_management.load_controlnet_gpu(models)
     return models
@@ -81,7 +81,7 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     positive_copy = broadcast_cond(positive, noise.shape[0], device)
     negative_copy = broadcast_cond(negative, noise.shape[0], device)
 
-    models = load_additional_models(positive, negative)
+    models = load_additional_models(positive, negative, model.model_dtype())
 
     sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
 
