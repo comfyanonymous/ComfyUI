@@ -139,7 +139,23 @@ else:
     except:
         XFORMERS_IS_AVAILABLE = False
 
+def is_nvidia():
+    global cpu_state
+    if cpu_state == CPUState.GPU:
+        if torch.version.cuda:
+            return True
+
 ENABLE_PYTORCH_ATTENTION = args.use_pytorch_cross_attention
+
+if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
+    try:
+        if is_nvidia():
+            torch_version = torch.version.__version__
+            if int(torch_version[0]) >= 2:
+                ENABLE_PYTORCH_ATTENTION = True
+    except:
+        pass
+
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
     torch.backends.cuda.enable_flash_sdp(True)
@@ -155,9 +171,14 @@ elif args.highvram or args.gpu_only:
     vram_state = VRAMState.HIGH_VRAM
 
 FORCE_FP32 = False
+FORCE_FP16 = False
 if args.force_fp32:
     print("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
+
+if args.force_fp16:
+    print("Forcing FP16.")
+    FORCE_FP16 = True
 
 if lowvram_available:
     try:
@@ -212,10 +233,9 @@ def unload_model():
             accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
             model_accelerated = False
 
-        #never unload models from GPU on high vram
-        if vram_state != VRAMState.HIGH_VRAM:
-            current_loaded_model.model.cpu()
-            current_loaded_model.model_patches_to("cpu")
+
+        current_loaded_model.model.to(current_loaded_model.offload_device)
+        current_loaded_model.model_patches_to(current_loaded_model.offload_device)
         current_loaded_model.unpatch_model()
         current_loaded_model = None
 
@@ -225,6 +245,8 @@ def unload_model():
                 n.cpu()
             current_gpu_controlnets = []
 
+def minimum_inference_memory():
+    return (768 * 1024 * 1024)
 
 def load_model_gpu(model):
     global current_loaded_model
@@ -240,15 +262,20 @@ def load_model_gpu(model):
         model.unpatch_model()
         raise e
 
-    torch_dev = get_torch_device()
+    torch_dev = model.load_device
     model.model_patches_to(torch_dev)
+    model.model_patches_to(model.model_dtype())
 
-    vram_set_state = vram_state
+    if is_device_cpu(torch_dev):
+        vram_set_state = VRAMState.DISABLED
+    else:
+        vram_set_state = vram_state
+
     if lowvram_available and (vram_set_state == VRAMState.LOW_VRAM or vram_set_state == VRAMState.NORMAL_VRAM):
         model_size = model.model_size()
         current_free_mem = get_free_memory(torch_dev)
         lowvram_model_memory = int(max(256 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.3 ))
-        if model_size > (current_free_mem - (512 * 1024 * 1024)): #only switch to lowvram if really necessary
+        if model_size > (current_free_mem - minimum_inference_memory()): #only switch to lowvram if really necessary
             vram_set_state = VRAMState.LOW_VRAM
 
     current_loaded_model = model
@@ -257,14 +284,14 @@ def load_model_gpu(model):
         pass
     elif vram_set_state == VRAMState.NORMAL_VRAM or vram_set_state == VRAMState.HIGH_VRAM or vram_set_state == VRAMState.SHARED:
         model_accelerated = False
-        real_model.to(get_torch_device())
+        real_model.to(torch_dev)
     else:
         if vram_set_state == VRAMState.NO_VRAM:
             device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
         elif vram_set_state == VRAMState.LOW_VRAM:
             device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(lowvram_model_memory // (1024 * 1024)), "cpu": "16GiB"})
 
-        accelerate.dispatch_model(real_model, device_map=device_map, main_device=get_torch_device())
+        accelerate.dispatch_model(real_model, device_map=device_map, main_device=torch_dev)
         model_accelerated = True
     return current_loaded_model
 
@@ -307,11 +334,45 @@ def unload_if_low_vram(model):
         return model.cpu()
     return model
 
-def text_encoder_device():
+def unet_offload_device():
+    if vram_state == VRAMState.HIGH_VRAM:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
+
+def text_encoder_offload_device():
     if args.gpu_only:
         return get_torch_device()
     else:
         return torch.device("cpu")
+
+def text_encoder_device():
+    if args.gpu_only:
+        return get_torch_device()
+    elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
+        if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
+            return get_torch_device()
+        else:
+            return torch.device("cpu")
+    else:
+        return torch.device("cpu")
+
+def vae_device():
+    return get_torch_device()
+
+def vae_offload_device():
+    if args.gpu_only:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
+
+def vae_dtype():
+    if args.fp16_vae:
+        return torch.float16
+    elif args.bf16_vae:
+        return torch.bfloat16
+    else:
+        return torch.float32
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
@@ -347,7 +408,7 @@ def pytorch_attention_flash_attention():
     global ENABLE_PYTORCH_ATTENTION
     if ENABLE_PYTORCH_ATTENTION:
         #TODO: more reliable way of checking for flash attention?
-        if torch.version.cuda: #pytorch flash attention only works on Nvidia
+        if is_nvidia(): #pytorch flash attention only works on Nvidia
             return True
     return False
 
@@ -402,9 +463,28 @@ def mps_mode():
     global cpu_state
     return cpu_state == CPUState.MPS
 
-def should_use_fp16():
+def is_device_cpu(device):
+    if hasattr(device, 'type'):
+        if (device.type == 'cpu'):
+            return True
+    return False
+
+def is_device_mps(device):
+    if hasattr(device, 'type'):
+        if (device.type == 'mps'):
+            return True
+    return False
+
+def should_use_fp16(device=None, model_params=0):
     global xpu_available
     global directml_enabled
+
+    if FORCE_FP16:
+        return True
+
+    if device is not None: #TODO
+        if is_device_cpu(device) or is_device_mps(device):
+            return False
 
     if FORCE_FP32:
         return False
@@ -419,10 +499,27 @@ def should_use_fp16():
         return True
 
     props = torch.cuda.get_device_properties("cuda")
+    if props.major < 6:
+        return False
+
+    fp16_works = False
+    #FP16 is confirmed working on a 1080 (GP104) but it's a bit slower than FP32 so it should only be enabled
+    #when the model doesn't actually fit on the card
+    #TODO: actually test if GP106 and others have the same type of behavior
+    nvidia_10_series = ["1080", "1070", "titan x", "p3000", "p3200", "p4000", "p4200", "p5000", "p5200", "p6000", "1060", "1050"]
+    for x in nvidia_10_series:
+        if x in props.name.lower():
+            fp16_works = True
+
+    if fp16_works:
+        free_model_memory = (get_free_memory() * 0.9 - minimum_inference_memory())
+        if model_params * 4 > free_model_memory:
+            return True
+
     if props.major < 7:
         return False
 
-    #FP32 is faster on those cards?
+    #FP16 is just broken on these cards
     nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600"]
     for x in nvidia_16_series:
         if x in props.name:
@@ -438,7 +535,7 @@ def soft_empty_cache():
     elif xpu_available:
         torch.xpu.empty_cache()
     elif torch.cuda.is_available():
-        if torch.version.cuda: #This seems to make things worse on ROCm so I only do it for cuda
+        if is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
 

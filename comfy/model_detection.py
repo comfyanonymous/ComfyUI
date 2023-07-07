@@ -16,13 +16,11 @@ def count_blocks(state_dict_keys, prefix_string):
 
 def detect_unet_config(state_dict, key_prefix, use_fp16):
     state_dict_keys = list(state_dict.keys())
-    num_res_blocks = 2
 
     unet_config = {
         "use_checkpoint": False,
         "image_size": 32,
         "out_channels": 4,
-        "num_res_blocks": num_res_blocks,
         "use_spatial_transformer": True,
         "legacy": False
     }
@@ -110,11 +108,13 @@ def detect_unet_config(state_dict, key_prefix, use_fp16):
     unet_config["context_dim"] = context_dim
     return unet_config
 
-
-def model_config_from_unet(state_dict, unet_key_prefix, use_fp16):
-    unet_config = detect_unet_config(state_dict, unet_key_prefix, use_fp16)
+def model_config_from_unet_config(unet_config):
     for model_config in supported_models.models:
         if model_config.matches(unet_config):
             return model_config(unet_config)
 
     return None
+
+def model_config_from_unet(state_dict, unet_key_prefix, use_fp16):
+    unet_config = detect_unet_config(state_dict, unet_key_prefix, use_fp16)
+    return model_config_from_unet_config(unet_config)

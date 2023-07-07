@@ -4,6 +4,7 @@ from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugme
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
 import numpy as np
+from . import utils
 
 class BaseModel(torch.nn.Module):
     def __init__(self, model_config, v_prediction=False):
@@ -11,6 +12,7 @@ class BaseModel(torch.nn.Module):
 
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
+        self.model_config = model_config
         self.register_schedule(given_betas=None, beta_schedule="linear", timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
         self.diffusion_model = UNetModel(**unet_config)
         self.v_prediction = v_prediction
@@ -50,7 +52,13 @@ class BaseModel(torch.nn.Module):
         else:
             xc = x
         context = torch.cat(c_crossattn, 1)
-        return self.diffusion_model(xc, t, context=context, y=c_adm, control=control, transformer_options=transformer_options)
+        dtype = self.get_dtype()
+        xc = xc.to(dtype)
+        t = t.to(dtype)
+        context = context.to(dtype)
+        if c_adm is not None:
+            c_adm = c_adm.to(dtype)
+        return self.diffusion_model(xc, t, context=context, y=c_adm, control=control, transformer_options=transformer_options).float()
 
     def get_dtype(self):
         return self.diffusion_model.dtype
@@ -82,6 +90,16 @@ class BaseModel(torch.nn.Module):
 
     def process_latent_out(self, latent):
         return self.latent_format.process_out(latent)
+
+    def state_dict_for_saving(self, clip_state_dict, vae_state_dict):
+        clip_state_dict = self.model_config.process_clip_state_dict_for_saving(clip_state_dict)
+        unet_state_dict = self.diffusion_model.state_dict()
+        unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
+        vae_state_dict = self.model_config.process_vae_state_dict_for_saving(vae_state_dict)
+        if self.get_dtype() == torch.float16:
+            clip_state_dict = utils.convert_sd_to(clip_state_dict, torch.float16)
+            vae_state_dict = utils.convert_sd_to(vae_state_dict, torch.float16)
+        return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
 
 
 class SD21UNCLIP(BaseModel):
@@ -144,10 +162,10 @@ class SDXLRefiner(BaseModel):
 
         print(clip_pooled.shape, width, height, crop_w, crop_h, aesthetic_score)
         out = []
-        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([height])))
-        out.append(self.embedder(torch.Tensor([crop_w])))
+        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([crop_h])))
+        out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([aesthetic_score])))
         flat = torch.flatten(torch.cat(out))[None, ]
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
@@ -168,11 +186,11 @@ class SDXL(BaseModel):
 
         print(clip_pooled.shape, width, height, crop_w, crop_h, target_width, target_height)
         out = []
-        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([height])))
-        out.append(self.embedder(torch.Tensor([crop_w])))
+        out.append(self.embedder(torch.Tensor([width])))
         out.append(self.embedder(torch.Tensor([crop_h])))
-        out.append(self.embedder(torch.Tensor([target_width])))
+        out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([target_height])))
+        out.append(self.embedder(torch.Tensor([target_width])))
         flat = torch.flatten(torch.cat(out))[None, ]
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
