@@ -6,7 +6,7 @@ import safetensors.torch
 
 def load_torch_file(ckpt, safe_load=False):
     if ckpt.lower().endswith(".safetensors"):
-        sd = safetensors.torch.load_file(ckpt, device="cpu")
+        sd = safetensors.torch.load(open(ckpt, 'rb').read())
     else:
         if safe_load:
             if not 'weights_only' in torch.load.__code__.co_varnames:
