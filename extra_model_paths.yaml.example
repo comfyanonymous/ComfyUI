@@ -13,6 +13,7 @@ a111:
          models/LyCORIS
     upscale_models: |
                   models/ESRGAN
+                  models/RealESRGAN
                   models/SwinIR
     embeddings: embeddings
     hypernetworks: models/hypernetworks
