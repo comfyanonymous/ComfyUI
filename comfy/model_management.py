@@ -366,6 +366,14 @@ def vae_offload_device():
     else:
         return torch.device("cpu")
 
+def vae_dtype():
+    if args.fp16_vae:
+        return torch.float16
+    elif args.bf16_vae:
+        return torch.bfloat16
+    else:
+        return torch.float32
+
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
         return dev.type

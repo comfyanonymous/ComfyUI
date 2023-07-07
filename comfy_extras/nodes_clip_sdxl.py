@@ -41,6 +41,12 @@ class CLIPTextEncodeSDXL:
     def encode(self, clip, width, height, crop_w, crop_h, target_width, target_height, text_g, text_l):
         tokens = clip.tokenize(text_g)
         tokens["l"] = clip.tokenize(text_l)["l"]
+        if len(tokens["l"]) != len(tokens["g"]):
+            empty = clip.tokenize("")
+            while len(tokens["l"]) < len(tokens["g"]):
+                tokens["l"] += empty["l"]
+            while len(tokens["l"]) > len(tokens["g"]):
+                tokens["g"] += empty["g"]
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
         return ([[cond, {"pooled_output": pooled, "width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}]], )
 
