@@ -16,7 +16,12 @@ class LatentPreviewer:
     def decode_latent_to_preview_image(self, preview_format, x0):
         preview_image = self.decode_latent_to_preview(x0)
 
-        preview_image = ImageOps.contain(preview_image, (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), Image.Resampling.LANCZOS)
+        if hasattr(Image, 'Resampling'):
+            resampling = Image.Resampling.LANCZOS
+        else:
+            resampling = Image.ANTIALIAS
+
+        preview_image = ImageOps.contain(preview_image, (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), resampling)
 
         preview_type = 1
         if preview_format == "JPEG":
