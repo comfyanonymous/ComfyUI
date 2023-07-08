@@ -129,6 +129,7 @@ function addMultilineWidget(node, name, opts, app) {
 			w.y = y;
 			if (w.type === "customtext") {
 				y += freeSpace;
+				w.computedHeight = freeSpace - multi.length*4;
 			} else if (w.computeSize) {
 				y += w.computeSize()[1] + 4;
 			} else {
