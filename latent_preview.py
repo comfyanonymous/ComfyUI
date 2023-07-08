@@ -17,7 +17,7 @@ class LatentPreviewer:
         preview_image = self.decode_latent_to_preview(x0)
 
         if hasattr(Image, 'Resampling'):
-            resampling = Image.Resampling.LANCZOS
+            resampling = Image.Resampling.BILINEAR
         else:
             resampling = Image.ANTIALIAS
 
