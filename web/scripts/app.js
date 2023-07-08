@@ -368,7 +368,11 @@ export class ComfyApp {
 					shiftY = w.last_y;
 					if (w.computeSize) {
 						shiftY += w.computeSize()[1] + 4;
-					} else {
+					}
+					else if(w.computedHeight) {
+						shiftY += w.computedHeight;
+					}
+					else {
 						shiftY += LiteGraph.NODE_WIDGET_HEIGHT + 4;
 					}
 				} else {
