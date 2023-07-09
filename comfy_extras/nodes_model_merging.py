@@ -18,9 +18,9 @@ class ModelMergeSimple:
 
     def merge(self, model1, model2, ratio):
         m = model1.clone()
-        sd = model2.model_state_dict("diffusion_model.")
-        for k in sd:
-            m.add_patches({k: (sd[k], )}, 1.0 - ratio, ratio)
+        kp = model2.get_key_patches("diffusion_model.")
+        for k in kp:
+            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
         return (m, )
 
 class ModelMergeBlocks:
@@ -39,10 +39,10 @@ class ModelMergeBlocks:
 
     def merge(self, model1, model2, **kwargs):
         m = model1.clone()
-        sd = model2.model_state_dict("diffusion_model.")
+        kp = model2.get_key_patches("diffusion_model.")
         default_ratio = next(iter(kwargs.values()))
 
-        for k in sd:
+        for k in kp:
             ratio = default_ratio
             k_unet = k[len("diffusion_model."):]
 
@@ -52,7 +52,7 @@ class ModelMergeBlocks:
                     ratio = kwargs[arg]
                     last_arg_size = len(arg)
 
-            m.add_patches({k: (sd[k], )}, 1.0 - ratio, ratio)
+            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
         return (m, )
 
 class CheckpointSave:
