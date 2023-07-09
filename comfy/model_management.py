@@ -238,6 +238,8 @@ def unload_model():
         current_loaded_model.model_patches_to(current_loaded_model.offload_device)
         current_loaded_model.unpatch_model()
         current_loaded_model = None
+        if vram_state != VRAMState.HIGH_VRAM:
+            soft_empty_cache()
 
     if vram_state != VRAMState.HIGH_VRAM:
         if len(current_gpu_controlnets) > 0:
