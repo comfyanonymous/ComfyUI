@@ -1,6 +1,31 @@
+import os
+import glob
+import importlib.util
+
+# When the startup script is executed, it should ensure that it has minimal dependencies.
+# This startup script can be executed while minimizing the impact of package locking caused by imports in Windows, especially during dependency installation processes.
+startup_scripts_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), "startup-scripts")
+script_files = glob.glob(os.path.join(startup_scripts_path, "*.py"))
+
+if os.path.exists(startup_scripts_path):
+    script_files = os.listdir(startup_scripts_path)
+
+    # Import each script file to execute
+    for script_file in script_files:
+        if script_file.endswith(".py"):
+            script_path = os.path.join(startup_scripts_path, script_file)
+            module_name = os.path.splitext(script_file)[0]
+            try:
+                spec = importlib.util.spec_from_file_location(module_name, script_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+            except Exception as e:
+                print(f"Failed to execute startup-script: {script_file} / {e}")
+
+
+# Main code
 import asyncio
 import itertools
-import os
 import shutil
 import threading
 import gc
