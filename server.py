@@ -7,6 +7,7 @@ import execution
 import uuid
 import json
 import glob
+import struct
 from PIL import Image
 from io import BytesIO
 
@@ -22,7 +23,18 @@ except ImportError:
 
 import mimetypes
 from comfy.cli_args import args
+import comfy.utils
+import comfy.model_management
 
+
+class BinaryEventTypes:
+    PREVIEW_IMAGE = 1
+
+async def send_socket_catch_exception(function, message):
+    try:
+        await function(message)
+    except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
+        print("send error:", err)
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -52,7 +64,7 @@ class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
 
-        mimetypes.init(); 
+        mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
         self.prompt_queue = None
         self.loop = loop
@@ -177,18 +189,43 @@ class PromptServer():
             post = await request.post()
             return image_upload(post)
 
+
         @routes.post("/upload/mask")
         async def upload_mask(request):
             post = await request.post()
 
             def image_save_function(image, post, filepath):
-                original_pil = Image.open(post.get("original_image").file).convert('RGBA')
-                mask_pil = Image.open(image.file).convert('RGBA')
+                original_ref = json.loads(post.get("original_ref"))
+                filename, output_dir = folder_paths.annotated_filepath(original_ref['filename'])
 
-                # alpha copy
-                new_alpha = mask_pil.getchannel('A')
-                original_pil.putalpha(new_alpha)
-                original_pil.save(filepath, compress_level=4)
+                # validation for security: prevent accessing arbitrary path
+                if filename[0] == '/' or '..' in filename:
+                    return web.Response(status=400)
+
+                if output_dir is None:
+                    type = original_ref.get("type", "output")
+                    output_dir = folder_paths.get_directory_by_type(type)
+
+                if output_dir is None:
+                    return web.Response(status=400)
+
+                if original_ref.get("subfolder", "") != "":
+                    full_output_dir = os.path.join(output_dir, original_ref["subfolder"])
+                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                        return web.Response(status=403)
+                    output_dir = full_output_dir
+
+                file = os.path.join(output_dir, filename)
+
+                if os.path.isfile(file):
+                    with Image.open(file) as original_pil:
+                        original_pil = original_pil.convert('RGBA')
+                        mask_pil = Image.open(image.file).convert('RGBA')
+
+                        # alpha copy
+                        new_alpha = mask_pil.getchannel('A')
+                        original_pil.putalpha(new_alpha)
+                        original_pil.save(filepath, compress_level=4)
 
             return image_upload(post, image_save_function)
 
@@ -219,6 +256,26 @@ class PromptServer():
                 file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
+                    if 'preview' in request.rel_url.query:
+                        with Image.open(file) as img:
+                            preview_info = request.rel_url.query['preview'].split(';')
+                            image_format = preview_info[0]
+                            if image_format not in ['webp', 'jpeg'] or 'a' in request.rel_url.query.get('channel', ''):
+                                image_format = 'webp'
+
+                            quality = 90
+                            if preview_info[-1].isdigit():
+                                quality = int(preview_info[-1])
+
+                            buffer = BytesIO()
+                            if image_format in ['jpeg'] or request.rel_url.query.get('channel', '') == 'rgb':
+                                img = img.convert("RGB")
+                            img.save(buffer, format=image_format, quality=quality)
+                            buffer.seek(0)
+
+                            return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
                     else:
@@ -260,6 +317,50 @@ class PromptServer():
 
             return web.Response(status=404)
 
+        @routes.get("/view_metadata/{folder_name}")
+        async def view_metadata(request):
+            folder_name = request.match_info.get("folder_name", None)
+            if folder_name is None:
+                return web.Response(status=404)
+            if not "filename" in request.rel_url.query:
+                return web.Response(status=404)
+
+            filename = request.rel_url.query["filename"]
+            if not filename.endswith(".safetensors"):
+                return web.Response(status=404)
+
+            safetensors_path = folder_paths.get_full_path(folder_name, filename)
+            if safetensors_path is None:
+                return web.Response(status=404)
+            out = comfy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
+            if out is None:
+                return web.Response(status=404)
+            dt = json.loads(out)
+            if not "__metadata__" in dt:
+                return web.Response(status=404)
+            return web.json_response(dt["__metadata__"])
+
+        @routes.get("/system_stats")
+        async def get_queue(request):
+            device = comfy.model_management.get_torch_device()
+            device_name = comfy.model_management.get_torch_device_name(device)
+            vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            system_stats = {
+                "devices": [
+                    {
+                        "name": device_name,
+                        "type": device.type,
+                        "index": device.index,
+                        "vram_total": vram_total,
+                        "vram_free": vram_free,
+                        "torch_vram_total": torch_vram_total,
+                        "torch_vram_free": torch_vram_free,
+                    }
+                ]
+            }
+            return web.json_response(system_stats)
+
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
@@ -275,6 +376,11 @@ class PromptServer():
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = ''
             info['category'] = 'sd'
+            if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
+                info['output_node'] = True
+            else:
+                info['output_node'] = False
+
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
             return info
@@ -301,6 +407,11 @@ class PromptServer():
         @routes.get("/poll_messages")
         async def get_poll_messages(request):
             return web.json_response(self.poll_messages)
+
+        @routes.get("/history/{prompt_id}")
+        async def get_history(request):
+            prompt_id = request.match_info.get("prompt_id", None)
+            return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
         @routes.get("/queue")
         async def get_queue(request):
@@ -340,12 +451,12 @@ class PromptServer():
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
-                    return web.json_response({"prompt_id": prompt_id})
+                    return web.json_response({"prompt_id": prompt_id, "number": number})
                 else:
                     print("invalid prompt:", valid[1])
-                    return web.json_response({"error": valid[1]}, status=400)
+                    return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
-                return web.json_response({"error": "no prompt"}, status=400)
+                return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
 
         @routes.post("/queue")
         async def post_queue(request):
@@ -397,15 +508,38 @@ class PromptServer():
         self.poll_messages.append({"type": event, "data": data, "sid": sid, "poll_id": self.poll_id})
         self.poll_messages = self.poll_messages[-10:]
         self.poll_id += 1
-       
-        if isinstance(message, str) == False:
-            message = json.dumps(message)
+
+        if isinstance(data, (bytes, bytearray)):
+            await self.send_bytes(event, data, sid)
+        else:
+            await self.send_json(event, data, sid)
+
+    def encode_bytes(self, event, data):
+        if not isinstance(event, int):
+            raise RuntimeError(f"Binary event types must be integers, got {event}")
+
+        packed = struct.pack(">I", event)
+        message = bytearray(packed)
+        message.extend(data)
+        return message
+
+    async def send_bytes(self, event, data, sid=None):
+        message = self.encode_bytes(event, data)
 
         if sid is None:
             for ws in self.sockets.values():
-                await ws.send_str(message)
+                await send_socket_catch_exception(ws.send_bytes, message)
         elif sid in self.sockets:
-            await self.sockets[sid].send_str(message)
+            await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
+
+    async def send_json(self, event, data, sid=None):
+        message = {"type": event, "data": data}
+
+        if sid is None:
+            for ws in self.sockets.values():
+                await send_socket_catch_exception(ws.send_json, message)
+        elif sid in self.sockets:
+            await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
     def send_sync(self, event, data, sid=None):
         self.loop.call_soon_threadsafe(

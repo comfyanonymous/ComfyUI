@@ -55,11 +55,12 @@ export function getLatentMetadata(file) {
 			const dataView = new DataView(safetensorsData.buffer);
 			let header_size = dataView.getUint32(0, true);
 			let offset = 8;
-			let header = JSON.parse(String.fromCharCode(...safetensorsData.slice(offset, offset + header_size)));
+			let header = JSON.parse(new TextDecoder().decode(safetensorsData.slice(offset, offset + header_size)));
 			r(header.__metadata__);
 		};
 
-		reader.readAsArrayBuffer(file);
+		var slice = file.slice(0, 1024 * 1024 * 4);
+		reader.readAsArrayBuffer(slice);
 	});
 }
 
@@ -69,6 +70,7 @@ export async function importA1111(graph, parameters) {
 		const embeddings = await api.getEmbeddings();
 		const opts = parameters
 			.substr(p)
+			.split("\n")[1]
 			.split(",")
 			.reduce((p, n) => {
 				const s = n.split(":");

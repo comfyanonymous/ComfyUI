@@ -1,6 +1,5 @@
-import { app } from "/scripts/app.js";
-import { $el } from "/scripts/ui.js";
-import { api } from "/scripts/api.js";
+import {app} from "/scripts/app.js";
+import {$el} from "/scripts/ui.js";
 
 // Manage color palettes
 
@@ -21,8 +20,11 @@ const colorPalettes = {
 				"MODEL": "#B39DDB", // light lavender-purple
 				"STYLE_MODEL": "#C2FFAE", // light green-yellow
 				"VAE": "#FF6E6E", // bright red
+				"TAESD": "#DCC274", // cheesecake
 			},
 			"litegraph_base": {
+				"BACKGROUND_IMAGE": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAQBJREFUeNrs1rEKwjAUhlETUkj3vP9rdmr1Ysammk2w5wdxuLgcMHyptfawuZX4pJSWZTnfnu/lnIe/jNNxHHGNn//HNbbv+4dr6V+11uF527arU7+u63qfa/bnmh8sWLBgwYJlqRf8MEptXPBXJXa37BSl3ixYsGDBMliwFLyCV/DeLIMFCxYsWLBMwSt4Be/NggXLYMGCBUvBK3iNruC9WbBgwYJlsGApeAWv4L1ZBgsWLFiwYJmCV/AK3psFC5bBggULloJX8BpdwXuzYMGCBctgwVLwCl7Be7MMFixYsGDBsu8FH1FaSmExVfAxBa/gvVmwYMGCZbBg/W4vAQYA5tRF9QYlv/QAAAAASUVORK5CYII=",
+				"CLEAR_BACKGROUND_COLOR": "#222",
 				"NODE_TITLE_COLOR": "#999",
 				"NODE_SELECTED_TITLE_COLOR": "#FFF",
 				"NODE_TEXT_SIZE": 14,
@@ -54,7 +56,9 @@ const colorPalettes = {
 				"descrip-text": "#999",
 				"drag-text": "#ccc",
 				"error-text": "#ff4444",
-				"border-color": "#4e4e4e"
+				"border-color": "#4e4e4e",
+				"tr-even-bg-color": "#222",
+				"tr-odd-bg-color": "#353535",
 			}
 		},
 	},
@@ -76,6 +80,8 @@ const colorPalettes = {
 				"VAE": "#FF7043", // deep orange
 			},
 			"litegraph_base": {
+				"BACKGROUND_IMAGE": "data:image/gif;base64,R0lGODlhZABkALMAAAAAAP///+vr6+rq6ujo6Ofn5+bm5uXl5d3d3f///wAAAAAAAAAAAAAAAAAAAAAAACH5BAEAAAkALAAAAABkAGQAAAT/UMhJq7046827HkcoHkYxjgZhnGG6si5LqnIM0/fL4qwwIMAg0CAsEovBIxKhRDaNy2GUOX0KfVFrssrNdpdaqTeKBX+dZ+jYvEaTf+y4W66mC8PUdrE879f9d2mBeoNLfH+IhYBbhIx2jkiHiomQlGKPl4uZe3CaeZifnnijgkESBqipqqusra6vsLGys62SlZO4t7qbuby7CLa+wqGWxL3Gv3jByMOkjc2lw8vOoNSi0czAncXW3Njdx9Pf48/Z4Kbbx+fQ5evZ4u3k1fKR6cn03vHlp7T9/v8A/8Gbp4+gwXoFryXMB2qgwoMMHyKEqA5fxX322FG8tzBcRnMW/zlulPbRncmQGidKjMjyYsOSKEF2FBlJQMCbOHP6c9iSZs+UnGYCdbnSo1CZI5F64kn0p1KnTH02nSoV3dGTV7FFHVqVq1dtWcMmVQZTbNGu72zqXMuW7danVL+6e4t1bEy6MeueBYLXrNO5Ze36jQtWsOG97wIj1vt3St/DjTEORss4nNq2mDP3e7w4r1bFkSET5hy6s2TRlD2/mSxXtSHQhCunXo26NevCpmvD/UU6tuullzULH76q92zdZG/Ltv1a+W+osI/nRmyc+fRi1Xdbh+68+0vv10dH3+77KD/i6IdnX669/frn5Zsjh4/2PXju8+8bzc9/6fj27LFnX11/+IUnXWl7BJfegm79FyB9JOl3oHgSklefgxAC+FmFGpqHIYcCfkhgfCohSKKJVo044YUMttggiBkmp6KFXw1oII24oYhjiDByaKOOHcp3Y5BD/njikSkO+eBREQAAOw==",
+				"CLEAR_BACKGROUND_COLOR": "lightgray",
 				"NODE_TITLE_COLOR": "#222",
 				"NODE_SELECTED_TITLE_COLOR": "#000",
 				"NODE_TEXT_SIZE": 14,
@@ -107,7 +113,9 @@ const colorPalettes = {
 				"descrip-text": "#444",
 				"drag-text": "#555",
 				"error-text": "#F44336",
-				"border-color": "#888"
+				"border-color": "#888",
+				"tr-even-bg-color": "#f9f9f9",
+				"tr-odd-bg-color": "#fff",
 			}
 		},
 	},
@@ -161,7 +169,9 @@ const colorPalettes = {
 				"descrip-text": "#586e75", // Base01
 				"drag-text": "#839496", // Base0
 				"error-text": "#dc322f", // Solarized Red
-				"border-color": "#657b83" // Base00
+				"border-color": "#657b83", // Base00
+				"tr-even-bg-color": "#002b36",
+				"tr-odd-bg-color": "#073642",
 			}
 		},
 	}
@@ -174,7 +184,7 @@ const els = {}
 // const ctxMenu = LiteGraph.ContextMenu;
 app.registerExtension({
 	name: id,
-	init() {
+	addCustomNodeDefs(node_defs) {
 		const sortObjectKeys = (unordered) => {
 			return Object.keys(unordered).sort().reduce((obj, key) => {
 				obj[key] = unordered[key];
@@ -182,15 +192,15 @@ app.registerExtension({
 			}, {});
 		};
 
-		const getSlotTypes = async () => {
+		function getSlotTypes() {
 			var types = [];
 
-			const defs = await api.getNodeDefs();
+			const defs = node_defs;
 			for (const nodeId in defs) {
 				const nodeData = defs[nodeId];
 
 				var inputs = nodeData["input"]["required"];
-				if (nodeData["input"]["optional"] != undefined){
+				if (nodeData["input"]["optional"] !== undefined) {
 					inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
 				}
 
@@ -210,10 +220,10 @@ app.registerExtension({
 			}
 
 			return types;
-		};
+		}
 
-		const completeColorPalette = async (colorPalette) => {
-			var types = await getSlotTypes();
+		function completeColorPalette(colorPalette) {
+			var types = getSlotTypes();
 
 			for (const type of types) {
 				if (!colorPalette.colors.node_slot[type]) {
@@ -224,19 +234,16 @@ app.registerExtension({
 			colorPalette.colors.node_slot = sortObjectKeys(colorPalette.colors.node_slot);
 
 			return colorPalette;
-		};
+		}
 
 		const getColorPaletteTemplate = async () => {
 			let colorPalette = {
 				"id": "my_color_palette_unique_id",
 				"name": "My Color Palette",
 				"colors": {
-					"node_slot": {
-					},
-					"litegraph_base": {
-					},
-					"comfy_base": {
-					}
+					"node_slot": {},
+					"litegraph_base": {},
+					"comfy_base": {}
 				}
 			};
 
@@ -265,32 +272,32 @@ app.registerExtension({
 		};
 
 		const addCustomColorPalette = async (colorPalette) => {
-			if (typeof(colorPalette) !== "object") {
-				app.ui.dialog.show("Invalid color palette");
+			if (typeof (colorPalette) !== "object") {
+				alert("Invalid color palette.");
 				return;
 			}
 
 			if (!colorPalette.id) {
-				app.ui.dialog.show("Color palette missing id");
+				alert("Color palette missing id.");
 				return;
 			}
 
 			if (!colorPalette.name) {
-				app.ui.dialog.show("Color palette missing name");
+				alert("Color palette missing name.");
 				return;
 			}
 
 			if (!colorPalette.colors) {
-				app.ui.dialog.show("Color palette missing colors");
+				alert("Color palette missing colors.");
 				return;
 			}
 
-			if (colorPalette.colors.node_slot && typeof(colorPalette.colors.node_slot) !== "object") {
-				app.ui.dialog.show("Invalid color palette colors.node_slot");
+			if (colorPalette.colors.node_slot && typeof (colorPalette.colors.node_slot) !== "object") {
+				alert("Invalid color palette colors.node_slot.");
 				return;
 			}
 
-			let customColorPalettes = getCustomColorPalettes();
+			const customColorPalettes = getCustomColorPalettes();
 			customColorPalettes[colorPalette.id] = colorPalette;
 			setCustomColorPalettes(customColorPalettes);
 
@@ -300,14 +307,18 @@ app.registerExtension({
 				}
 			}
 
-			els.select.append($el("option", { textContent: colorPalette.name + " (custom)", value: "custom_" + colorPalette.id, selected: true }));
+			els.select.append($el("option", {
+				textContent: colorPalette.name + " (custom)",
+				value: "custom_" + colorPalette.id,
+				selected: true
+			}));
 
 			setColorPalette("custom_" + colorPalette.id);
 			await loadColorPalette(colorPalette);
 		};
 
 		const deleteCustomColorPalette = async (colorPaletteId) => {
-			let customColorPalettes = getCustomColorPalettes();
+			const customColorPalettes = getCustomColorPalettes();
 			delete customColorPalettes[colorPaletteId];
 			setCustomColorPalettes(customColorPalettes);
 
@@ -349,7 +360,7 @@ app.registerExtension({
 				if (colorPalette.colors.comfy_base) {
 					const rootStyle = document.documentElement.style;
 					for (const key in colorPalette.colors.comfy_base) {
-					  	rootStyle.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
+						rootStyle.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
 					}
 				}
 				app.canvas.draw(true, true);
@@ -379,11 +390,10 @@ app.registerExtension({
 		const fileInput = $el("input", {
 			type: "file",
 			accept: ".json",
-			style: { display: "none" },
+			style: {display: "none"},
 			parent: document.body,
 			onchange: () => {
-				let file = fileInput.files[0];
-
+				const file = fileInput.files[0];
 				if (file.type === "application/json" || file.name.endsWith(".json")) {
 					const reader = new FileReader();
 					reader.onload = async () => {
@@ -398,96 +408,116 @@ app.registerExtension({
 			id,
 			name: "Color Palette",
 			type: (name, setter, value) => {
-				let options = [];
+				const options = [
+					...Object.values(colorPalettes).map(c=> $el("option", {
+						textContent: c.name,
+						value: c.id,
+						selected: c.id === value
+					})),
+					...Object.values(getCustomColorPalettes()).map(c=>$el("option", {
+						textContent: `${c.name} (custom)`,
+						value: `custom_${c.id}`,
+						selected: `custom_${c.id}` === value
+					}))	,
+				];
 
-				for (const c in colorPalettes) {
-					const colorPalette = colorPalettes[c];
-					options.push($el("option", { textContent: colorPalette.name, value: colorPalette.id, selected: colorPalette.id === value }));
-				}
+				els.select = $el("select", {
+					style: {
+						marginBottom: "0.15rem",
+						width: "100%",
+					},
+					onchange: (e) => {
+						setter(e.target.value);
+					}
+				}, options)
 
-				let customColorPalettes = getCustomColorPalettes();
-				for (const c in customColorPalettes) {
-					const colorPalette = customColorPalettes[c];
-					options.push($el("option", { textContent: colorPalette.name + " (custom)", value: "custom_" + colorPalette.id, selected: "custom_" + colorPalette.id === value }));
-				}
-
-				return $el("div", [
-					$el("label", { textContent: name || id }, [
-						els.select = $el("select", {
-							onchange: (e) => {
-								setter(e.target.value);
-							}
-						}, options)
+				return $el("tr", [
+					$el("td", [
+						$el("label", {
+							for: id.replaceAll(".", "-"),
+							textContent: "Color palette",
+						}),
 					]),
-					$el("input", {
-						type: "button",
-						value: "Export",
-						onclick: async () => {
-							const colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
-							const colorPalette = await completeColorPalette(getColorPalette(colorPaletteId));
-							const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
-							const blob = new Blob([json], { type: "application/json" });
-							const url = URL.createObjectURL(blob);
-							const a = $el("a", {
-								href: url,
-								download: colorPaletteId + ".json",
-								style: { display: "none" },
-								parent: document.body,
-							});
-							a.click();
-							setTimeout(function () {
-								a.remove();
-								window.URL.revokeObjectURL(url);
-							}, 0);
-						},
-					}),
-					$el("input", {
-						type: "button",
-						value: "Import",
-						onclick: () => {
-							fileInput.click();
-						}
-					}),
-					$el("input", {
-						type: "button",
-						value: "Template",
-						onclick: async () => {
-							const colorPalette = await getColorPaletteTemplate();
-							const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
-							const blob = new Blob([json], { type: "application/json" });
-							const url = URL.createObjectURL(blob);
-							const a = $el("a", {
-								href: url,
-								download: "color_palette.json",
-								style: { display: "none" },
-								parent: document.body,
-							});
-							a.click();
-							setTimeout(function () {
-								a.remove();
-								window.URL.revokeObjectURL(url);
-							}, 0);
-						}
-					}),
-					$el("input", {
-						type: "button",
-						value: "Delete",
-						onclick: async () => {
-							let colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
+					$el("td", [
+						els.select,
+						$el("div", {
+							style: {
+								display: "grid",
+								gap: "4px",
+								gridAutoFlow: "column",
+							},
+						}, [
+							$el("input", {
+								type: "button",
+								value: "Export",
+								onclick: async () => {
+									const colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
+									const colorPalette = await completeColorPalette(getColorPalette(colorPaletteId));
+									const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
+									const blob = new Blob([json], {type: "application/json"});
+									const url = URL.createObjectURL(blob);
+									const a = $el("a", {
+										href: url,
+										download: colorPaletteId + ".json",
+										style: {display: "none"},
+										parent: document.body,
+									});
+									a.click();
+									setTimeout(function () {
+										a.remove();
+										window.URL.revokeObjectURL(url);
+									}, 0);
+								},
+							}),
+							$el("input", {
+								type: "button",
+								value: "Import",
+								onclick: () => {
+									fileInput.click();
+								}
+							}),
+							$el("input", {
+								type: "button",
+								value: "Template",
+								onclick: async () => {
+									const colorPalette = await getColorPaletteTemplate();
+									const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
+									const blob = new Blob([json], {type: "application/json"});
+									const url = URL.createObjectURL(blob);
+									const a = $el("a", {
+										href: url,
+										download: "color_palette.json",
+										style: {display: "none"},
+										parent: document.body,
+									});
+									a.click();
+									setTimeout(function () {
+										a.remove();
+										window.URL.revokeObjectURL(url);
+									}, 0);
+								}
+							}),
+							$el("input", {
+								type: "button",
+								value: "Delete",
+								onclick: async () => {
+									let colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
 
-							if (colorPalettes[colorPaletteId]) {
-								app.ui.dialog.show("You cannot delete built-in color palette");
-								return;
-							}
+									if (colorPalettes[colorPaletteId]) {
+										alert("You cannot delete a built-in color palette.");
+										return;
+									}
 
-							if (colorPaletteId.startsWith("custom_")) {
-								colorPaletteId = colorPaletteId.substr(7);
-							}
+									if (colorPaletteId.startsWith("custom_")) {
+										colorPaletteId = colorPaletteId.substr(7);
+									}
 
-							await deleteCustomColorPalette(colorPaletteId);
-						}
-					}),
-				]);
+									await deleteCustomColorPalette(colorPaletteId);
+								}
+							}),
+						]),
+					]),
+				])
 			},
 			defaultValue: defaultColorPaletteId,
 			async onChange(value) {
@@ -495,15 +525,25 @@ app.registerExtension({
 					return;
 				}
 
-				if (colorPalettes[value]) {
-					await loadColorPalette(colorPalettes[value]);
+				let palette = colorPalettes[value];
+				if (palette) {
+					await loadColorPalette(palette);
 				} else if (value.startsWith("custom_")) {
 					value = value.substr(7);
 					let customColorPalettes = getCustomColorPalettes();
 					if (customColorPalettes[value]) {
+						palette = customColorPalettes[value];
 						await loadColorPalette(customColorPalettes[value]);
 					}
 				}
+
+				let {BACKGROUND_IMAGE, CLEAR_BACKGROUND_COLOR} = palette.colors.litegraph_base;
+				if (BACKGROUND_IMAGE === undefined || CLEAR_BACKGROUND_COLOR === undefined) {
+					const base = colorPalettes["dark"].colors.litegraph_base;
+					BACKGROUND_IMAGE = base.BACKGROUND_IMAGE;
+					CLEAR_BACKGROUND_COLOR = base.CLEAR_BACKGROUND_COLOR;
+				}
+				app.canvas.updateBackground(BACKGROUND_IMAGE, CLEAR_BACKGROUND_COLOR);
 			},
 		});
 	},

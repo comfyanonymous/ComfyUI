@@ -10,18 +10,20 @@ from .diffusionmodules.util import checkpoint
 from .sub_quadratic_attention import efficient_dot_product_attention
 
 from comfy import model_management
-
-from . import tomesd
+import comfy.ops
 
 if model_management.xformers_enabled():
     import xformers
     import xformers.ops
 
-# CrossAttn precision handling
-import os
-_ATTN_PRECISION = os.environ.get("ATTN_PRECISION", "fp32")
-
 from comfy.cli_args import args
+# CrossAttn precision handling
+if args.dont_upcast_attention:
+    print("disabling upcasting of attention")
+    _ATTN_PRECISION = "fp16"
+else:
+    _ATTN_PRECISION = "fp32"
+
 
 def exists(val):
     return val is not None
@@ -50,9 +52,9 @@ def init_(tensor):
 
 # feedforward
 class GEGLU(nn.Module):
-    def __init__(self, dim_in, dim_out):
+    def __init__(self, dim_in, dim_out, dtype=None):
         super().__init__()
-        self.proj = nn.Linear(dim_in, dim_out * 2)
+        self.proj = comfy.ops.Linear(dim_in, dim_out * 2, dtype=dtype)
 
     def forward(self, x):
         x, gate = self.proj(x).chunk(2, dim=-1)
@@ -60,19 +62,19 @@ class GEGLU(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.):
+    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0., dtype=None):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
         project_in = nn.Sequential(
-            nn.Linear(dim, inner_dim),
+            comfy.ops.Linear(dim, inner_dim, dtype=dtype),
             nn.GELU()
-        ) if not glu else GEGLU(dim, inner_dim)
+        ) if not glu else GEGLU(dim, inner_dim, dtype=dtype)
 
         self.net = nn.Sequential(
             project_in,
             nn.Dropout(dropout),
-            nn.Linear(inner_dim, dim_out)
+            comfy.ops.Linear(inner_dim, dim_out, dtype=dtype)
         )
 
     def forward(self, x):
@@ -88,8 +90,8 @@ def zero_module(module):
     return module
 
 
-def Normalize(in_channels):
-    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+def Normalize(in_channels, dtype=None):
+    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype)
 
 
 class SpatialSelfAttention(nn.Module):
@@ -146,7 +148,7 @@ class SpatialSelfAttention(nn.Module):
 
 
 class CrossAttentionBirchSan(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None):
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
@@ -154,12 +156,12 @@ class CrossAttentionBirchSan(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_q = comfy.ops.Linear(query_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_k = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_v = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
 
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim),
+            comfy.ops.Linear(inner_dim, query_dim, dtype=dtype),
             nn.Dropout(dropout)
         )
 
@@ -243,7 +245,7 @@ class CrossAttentionBirchSan(nn.Module):
 
 
 class CrossAttentionDoggettx(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None):
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
@@ -251,12 +253,12 @@ class CrossAttentionDoggettx(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_q = comfy.ops.Linear(query_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_k = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_v = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
 
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim),
+            comfy.ops.Linear(inner_dim, query_dim, dtype=dtype),
             nn.Dropout(dropout)
         )
 
@@ -276,7 +278,7 @@ class CrossAttentionDoggettx(nn.Module):
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q_in, k_in, v_in))
         del q_in, k_in, v_in
 
-        r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2], device=q.device)
+        r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2], device=q.device, dtype=q.dtype)
 
         mem_free_total = model_management.get_free_memory(q.device)
 
@@ -312,7 +314,7 @@ class CrossAttentionDoggettx(nn.Module):
                         s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k) * self.scale
                     first_op_done = True
 
-                    s2 = s1.softmax(dim=-1)
+                    s2 = s1.softmax(dim=-1).to(v.dtype)
                     del s1
 
                     r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
@@ -341,7 +343,7 @@ class CrossAttentionDoggettx(nn.Module):
         return self.to_out(r2)
 
 class CrossAttention(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None):
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
@@ -349,12 +351,12 @@ class CrossAttention(nn.Module):
         self.scale = dim_head ** -0.5
         self.heads = heads
 
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_q = comfy.ops.Linear(query_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_k = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_v = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
 
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim),
+            comfy.ops.Linear(inner_dim, query_dim, dtype=dtype),
             nn.Dropout(dropout)
         )
 
@@ -397,7 +399,7 @@ class CrossAttention(nn.Module):
 
 class MemoryEfficientCrossAttention(nn.Module):
     # https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0, dtype=None):
         super().__init__()
         print(f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
               f"{heads} heads.")
@@ -407,11 +409,11 @@ class MemoryEfficientCrossAttention(nn.Module):
         self.heads = heads
         self.dim_head = dim_head
 
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_q = comfy.ops.Linear(query_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_k = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_v = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
 
-        self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
+        self.to_out = nn.Sequential(comfy.ops.Linear(inner_dim, query_dim, dtype=dtype), nn.Dropout(dropout))
         self.attention_op: Optional[Any] = None
 
     def forward(self, x, context=None, value=None, mask=None):
@@ -448,7 +450,7 @@ class MemoryEfficientCrossAttention(nn.Module):
         return self.to_out(out)
 
 class CrossAttentionPytorch(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None):
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
@@ -456,11 +458,11 @@ class CrossAttentionPytorch(nn.Module):
         self.heads = heads
         self.dim_head = dim_head
 
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_q = comfy.ops.Linear(query_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_k = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_v = comfy.ops.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
 
-        self.to_out = nn.Sequential(nn.Linear(inner_dim, query_dim), nn.Dropout(dropout))
+        self.to_out = nn.Sequential(comfy.ops.Linear(inner_dim, query_dim, dtype=dtype), nn.Dropout(dropout))
         self.attention_op: Optional[Any] = None
 
     def forward(self, x, context=None, value=None, mask=None):
@@ -506,30 +508,50 @@ else:
 
 class BasicTransformerBlock(nn.Module):
     def __init__(self, dim, n_heads, d_head, dropout=0., context_dim=None, gated_ff=True, checkpoint=True,
-                 disable_self_attn=False):
+                 disable_self_attn=False, dtype=None):
         super().__init__()
         self.disable_self_attn = disable_self_attn
         self.attn1 = CrossAttention(query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout,
-                              context_dim=context_dim if self.disable_self_attn else None)  # is a self-attention if not self.disable_self_attn
-        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
+                              context_dim=context_dim if self.disable_self_attn else None, dtype=dtype)  # is a self-attention if not self.disable_self_attn
+        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff, dtype=dtype)
         self.attn2 = CrossAttention(query_dim=dim, context_dim=context_dim,
-                              heads=n_heads, dim_head=d_head, dropout=dropout)  # is self-attn if context is none
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
-        self.norm3 = nn.LayerNorm(dim)
+                              heads=n_heads, dim_head=d_head, dropout=dropout, dtype=dtype)  # is self-attn if context is none
+        self.norm1 = nn.LayerNorm(dim, dtype=dtype)
+        self.norm2 = nn.LayerNorm(dim, dtype=dtype)
+        self.norm3 = nn.LayerNorm(dim, dtype=dtype)
         self.checkpoint = checkpoint
+        self.n_heads = n_heads
+        self.d_head = d_head
 
     def forward(self, x, context=None, transformer_options={}):
         return checkpoint(self._forward, (x, context, transformer_options), self.parameters(), self.checkpoint)
 
     def _forward(self, x, context=None, transformer_options={}):
-        current_index = None
+        extra_options = {}
+        block = None
+        block_index = 0
         if "current_index" in transformer_options:
-            current_index = transformer_options["current_index"]
+            extra_options["transformer_index"] = transformer_options["current_index"]
+        if "block_index" in transformer_options:
+            block_index = transformer_options["block_index"]
+            extra_options["block_index"] = block_index
+        if "original_shape" in transformer_options:
+            extra_options["original_shape"] = transformer_options["original_shape"]
+        if "block" in transformer_options:
+            block = transformer_options["block"]
+            extra_options["block"] = block
         if "patches" in transformer_options:
             transformer_patches = transformer_options["patches"]
         else:
             transformer_patches = {}
+
+        extra_options["n_heads"] = self.n_heads
+        extra_options["dim_head"] = self.d_head
+
+        if "patches_replace" in transformer_options:
+            transformer_patches_replace = transformer_options["patches_replace"]
+        else:
+            transformer_patches_replace = {}
 
         n = self.norm1(x)
         if self.disable_self_attn:
@@ -544,19 +566,39 @@ class BasicTransformerBlock(nn.Module):
                 context_attn1 = n
             value_attn1 = context_attn1
             for p in patch:
-                n, context_attn1, value_attn1 = p(current_index, n, context_attn1, value_attn1)
+                n, context_attn1, value_attn1 = p(n, context_attn1, value_attn1, extra_options)
 
-        if "tomesd" in transformer_options:
-            m, u = tomesd.get_functions(x, transformer_options["tomesd"]["ratio"], transformer_options["original_shape"])
-            n = u(self.attn1(m(n), context=context_attn1, value=value_attn1))
+        if block is not None:
+            transformer_block = (block[0], block[1], block_index)
+        else:
+            transformer_block = None
+        attn1_replace_patch = transformer_patches_replace.get("attn1", {})
+        block_attn1 = transformer_block
+        if block_attn1 not in attn1_replace_patch:
+            block_attn1 = block
+
+        if block_attn1 in attn1_replace_patch:
+            if context_attn1 is None:
+                context_attn1 = n
+                value_attn1 = n
+            n = self.attn1.to_q(n)
+            context_attn1 = self.attn1.to_k(context_attn1)
+            value_attn1 = self.attn1.to_v(value_attn1)
+            n = attn1_replace_patch[block_attn1](n, context_attn1, value_attn1, extra_options)
+            n = self.attn1.to_out(n)
         else:
             n = self.attn1(n, context=context_attn1, value=value_attn1)
+
+        if "attn1_output_patch" in transformer_patches:
+            patch = transformer_patches["attn1_output_patch"]
+            for p in patch:
+                n = p(n, extra_options)
 
         x += n
         if "middle_patch" in transformer_patches:
             patch = transformer_patches["middle_patch"]
             for p in patch:
-                x = p(current_index, x)
+                x = p(x, extra_options)
 
         n = self.norm2(x)
 
@@ -566,9 +608,28 @@ class BasicTransformerBlock(nn.Module):
             patch = transformer_patches["attn2_patch"]
             value_attn2 = context_attn2
             for p in patch:
-                n, context_attn2, value_attn2 = p(current_index, n, context_attn2, value_attn2)
+                n, context_attn2, value_attn2 = p(n, context_attn2, value_attn2, extra_options)
 
-        n = self.attn2(n, context=context_attn2, value=value_attn2)
+        attn2_replace_patch = transformer_patches_replace.get("attn2", {})
+        block_attn2 = transformer_block
+        if block_attn2 not in attn2_replace_patch:
+            block_attn2 = block
+
+        if block_attn2 in attn2_replace_patch:
+            if value_attn2 is None:
+                value_attn2 = context_attn2
+            n = self.attn2.to_q(n)
+            context_attn2 = self.attn2.to_k(context_attn2)
+            value_attn2 = self.attn2.to_v(value_attn2)
+            n = attn2_replace_patch[block_attn2](n, context_attn2, value_attn2, extra_options)
+            n = self.attn2.to_out(n)
+        else:
+            n = self.attn2(n, context=context_attn2, value=value_attn2)
+
+        if "attn2_output_patch" in transformer_patches:
+            patch = transformer_patches["attn2_output_patch"]
+            for p in patch:
+                n = p(n, extra_options)
 
         x += n
         x = self.ff(self.norm3(x)) + x
@@ -587,41 +648,40 @@ class SpatialTransformer(nn.Module):
     def __init__(self, in_channels, n_heads, d_head,
                  depth=1, dropout=0., context_dim=None,
                  disable_self_attn=False, use_linear=False,
-                 use_checkpoint=True):
+                 use_checkpoint=True, dtype=None):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
-            context_dim = [context_dim]
+            context_dim = [context_dim] * depth
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = Normalize(in_channels)
+        self.norm = Normalize(in_channels, dtype=dtype)
         if not use_linear:
             self.proj_in = nn.Conv2d(in_channels,
                                      inner_dim,
                                      kernel_size=1,
                                      stride=1,
-                                     padding=0)
+                                     padding=0, dtype=dtype)
         else:
-            self.proj_in = nn.Linear(in_channels, inner_dim)
+            self.proj_in = comfy.ops.Linear(in_channels, inner_dim, dtype=dtype)
 
         self.transformer_blocks = nn.ModuleList(
             [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d],
-                                   disable_self_attn=disable_self_attn, checkpoint=use_checkpoint)
+                                   disable_self_attn=disable_self_attn, checkpoint=use_checkpoint, dtype=dtype)
                 for d in range(depth)]
         )
         if not use_linear:
-            self.proj_out = zero_module(nn.Conv2d(inner_dim,
-                                                  in_channels,
+            self.proj_out = nn.Conv2d(inner_dim,in_channels,
                                                   kernel_size=1,
                                                   stride=1,
-                                                  padding=0))
+                                                  padding=0, dtype=dtype)
         else:
-            self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
+            self.proj_out = comfy.ops.Linear(in_channels, inner_dim, dtype=dtype)
         self.use_linear = use_linear
 
     def forward(self, x, context=None, transformer_options={}):
         # note: if no context is given, cross-attention defaults to self-attention
         if not isinstance(context, list):
-            context = [context]
+            context = [context] * len(self.transformer_blocks)
         b, c, h, w = x.shape
         x_in = x
         x = self.norm(x)
@@ -631,6 +691,7 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_in(x)
         for i, block in enumerate(self.transformer_blocks):
+            transformer_options["block_index"] = i
             x = block(x, context=context[i], transformer_options=transformer_options)
         if self.use_linear:
             x = self.proj_out(x)
