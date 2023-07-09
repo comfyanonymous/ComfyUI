@@ -163,11 +163,12 @@ function addMultilineWidget(node, name, opts, app) {
 				.multiplySelf(ctx.getTransform())
 				.translateSelf(margin, margin + y);
 
+			const scale = new DOMMatrix().scaleSelf(transform.a, transform.d)
 			Object.assign(this.inputEl.style, {
 				transformOrigin: "0 0",
-				transform: transform,
-				left: "0px",
-				top: "0px",
+				transform: scale,
+				left: `${transform.a + transform.e}px`,
+				top: `${transform.d + transform.f}px`,
 				width: `${widgetWidth - (margin * 2)}px`,
 				height: `${this.parent.inputHeight - (margin * 2)}px`,
 				position: "absolute",
