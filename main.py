@@ -1,26 +1,33 @@
 import os
-import glob
 import importlib.util
+import folder_paths
 
-# When the startup script is executed, it should ensure that it has minimal dependencies.
-# This startup script can be executed while minimizing the impact of package locking caused by imports in Windows, especially during dependency installation processes.
-startup_scripts_path = os.path.join(os.path.realpath(os.path.dirname(__file__)), "startup-scripts")
-script_files = glob.glob(os.path.join(startup_scripts_path, "*.py"))
 
-if os.path.exists(startup_scripts_path):
-    script_files = os.listdir(startup_scripts_path)
-
-    # Import each script file to execute
-    for script_file in script_files:
-        if script_file.endswith(".py"):
-            script_path = os.path.join(startup_scripts_path, script_file)
-            module_name = os.path.splitext(script_file)[0]
+def execute_prestartup_script():
+    def execute_script(script_path):
+        if os.path.exists(script_path):
+            module_name = os.path.splitext(script_path)[0]
             try:
                 spec = importlib.util.spec_from_file_location(module_name, script_path)
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
             except Exception as e:
-                print(f"Failed to execute startup-script: {script_file} / {e}")
+                print(f"Failed to execute startup-script: {script_path} / {e}")
+
+    node_paths = folder_paths.get_folder_paths("custom_nodes")
+    for custom_node_path in node_paths:
+        possible_modules = os.listdir(custom_node_path)
+
+        for possible_module in possible_modules:
+            module_path = os.path.join(custom_node_path, possible_module)
+            if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
+                continue
+
+            script_path = os.path.join(module_path, "prestartup_script.py")
+            execute_script(script_path)
+
+
+execute_prestartup_script()
 
 
 # Main code
@@ -47,7 +54,6 @@ if __name__ == "__main__":
 import yaml
 
 import execution
-import folder_paths
 import server
 from server import BinaryEventTypes
 from nodes import init_custom_nodes
