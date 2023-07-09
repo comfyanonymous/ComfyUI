@@ -35,6 +35,8 @@ class SDXLClipG(sd1_clip.SD1ClipModel):
     def load_sd(self, sd):
         if "text_projection" in sd:
             self.text_projection[:] = sd.pop("text_projection")
+        if "text_projection.weight" in sd:
+            self.text_projection[:] = sd.pop("text_projection.weight").transpose(0, 1)
         return super().load_sd(sd)
 
 class SDXLClipGTokenizer(sd1_clip.SD1Tokenizer):
