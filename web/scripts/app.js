@@ -404,7 +404,7 @@ export class ComfyApp {
 						this.images = output.images;
 						imagesChanged = true;
 						imgURLs = imgURLs.concat(output.images.map(params => {
-							return "/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
+							return "./view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
 						}))
 					}
 				}
@@ -1005,7 +1005,7 @@ export class ComfyApp {
 		const extensions = await api.getExtensions();
 		for (const ext of extensions) {
 			try {
-				await import(ext);
+				await import(".." + ext);
 			} catch (error) {
 				console.error("Error loading extension", ext, error);
 			}
