@@ -21,7 +21,7 @@ class SD15(LatentFormat):
 class SDXL(LatentFormat):
     def __init__(self):
         self.scale_factor = 0.13025
-        self.latent_rgb_factors = [ #TODO: these are the factors for SD1.5, need to estimate new ones for SDXL
+        self.latent_rgb_factors = [
                     #   R        G        B
                     [ 0.3920,  0.4054,  0.4549],
                     [-0.2634, -0.0196,  0.0653],
