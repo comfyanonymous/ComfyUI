@@ -3,7 +3,6 @@ from PIL import Image, ImageOps
 from io import BytesIO
 import struct
 import numpy as np
-
 from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
 import folder_paths
@@ -16,7 +15,13 @@ class LatentPreviewer:
 
     def decode_latent_to_preview_image(self, preview_format, x0):
         preview_image = self.decode_latent_to_preview(x0)
-        preview_image = ImageOps.contain(preview_image, (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), Image.ANTIALIAS)
+
+        if hasattr(Image, 'Resampling'):
+            resampling = Image.Resampling.BILINEAR
+        else:
+            resampling = Image.ANTIALIAS
+
+        preview_image = ImageOps.contain(preview_image, (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), resampling)
 
         preview_type = 1
         if preview_format == "JPEG":
