@@ -4,18 +4,6 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
-// DPI scaling fix, see https://github.com/comfyanonymous/ComfyUI/pull/845
-(function() {
-	const originalRenderInfo = LGraphCanvas.prototype.renderInfo
-	LGraphCanvas.prototype.renderInfo = function(ctx, x, y) {
-		// Patch renderInfo() to use canvas.offsetHeight instead of canvas.height as bottom viewpoint bound
-		if (!y) {
-			y = this.canvas.offsetHeight - 80
-		}
-		return originalRenderInfo.call(this, ctx, x, y)
-	}
-})()
-
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
