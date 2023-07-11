@@ -359,10 +359,11 @@ class ModelPatcher:
 
             if len(v) == 1:
                 w1 = v[0]
-                if w1.shape != weight.shape:
-                    print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
-                else:
-                    weight += alpha * w1.type(weight.dtype).to(weight.device)
+                if alpha != 0.0:
+                    if w1.shape != weight.shape:
+                        print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
+                    else:
+                        weight += alpha * w1.type(weight.dtype).to(weight.device)
             elif len(v) == 4: #lora/locon
                 mat1 = v[0]
                 mat2 = v[1]

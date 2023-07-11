@@ -41,7 +41,7 @@ class SDXLClipG(sd1_clip.SD1ClipModel):
 
 class SDXLClipGTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, tokenizer_path=None, embedding_directory=None):
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory, embedding_size=1280)
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g')
 
 
 class SDXLTokenizer(sd1_clip.SD1Tokenizer):
