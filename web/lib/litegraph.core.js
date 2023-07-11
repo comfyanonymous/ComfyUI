@@ -8191,7 +8191,7 @@ LGraphNode.prototype.executeAction = function(action)
      **/
     LGraphCanvas.prototype.renderInfo = function(ctx, x, y) {
         x = x || 10;
-        y = y || this.canvas.height - 80;
+        y = y || this.canvas.offsetHeight - 80;
 
         ctx.save();
         ctx.translate(x, y);
