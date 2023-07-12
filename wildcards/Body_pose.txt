@@ -33,25 +33,13 @@ twirl pose
 curtsey pose
 claw pose pose
 kissing neck pose
-supine pose
-prone pose
-lateral pose
-fowler pose
-trendelenburg pose
-lithotomy pose
 knees up to chest pose
 elbows on knees pose
-rose pose
-semi-fowler pose
-verticosubmental pose
 all fours pose
 sitting pose
 climbing pose
 jumping pose
-bending pose
-reaching pose
-pulling pose
-lifting pose
-twisting pose
+bending down pose
+reaching out pose
 hands above head pose
 slumped posture pose

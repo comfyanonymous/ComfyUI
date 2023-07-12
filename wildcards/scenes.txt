@@ -1,4 +1,3 @@
-[LOCATION + OBJECTS + TIME OF DAY + EXTRAS]
 fantasy forest, bushes and trees, glowing lines of light, balls of light fairies
 witch hovel, cauldron, magic trinkets
 gothic castle, stone walls, carpets, tables and chairs, indoors
