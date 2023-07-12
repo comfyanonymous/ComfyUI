@@ -38,6 +38,6 @@ train_car, train_tracks, train_tunnel
 creek, rushing_water, fishing, skipping_stones
 speed_boat, windblown hair, excited
 rock_climbing, free_climbing, mountains, view
-medieval_fantasy_slave_market, animal_eared, collars, cages, chains
+medieval_fantasy_slave_market, cat eared, fox eared, wolf eared, collars, cages, chains
 haunted_house, halloween, halloween costume, trick or treat
 murder_scene, police_investigation
