@@ -53,7 +53,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     if hasattr(obj, "INPUT_IS_LIST"):
         intput_is_list = obj.INPUT_IS_LIST
 
-    if input_data_all is not None:
+    if input_data_all is not None and len(input_data_all) > 0:
         max_len_input = max([len(x) for x in input_data_all.values()])
     else:
         max_len_input = 0
