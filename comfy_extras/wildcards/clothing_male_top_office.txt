@@ -1,0 +1,25 @@
+Dress shirt
+Button-up shirt
+Polo shirt
+Turtleneck sweater
+V-neck sweater
+Crewneck sweater
+Cardigan
+Blazer
+Suit jacket
+Waistcoat (vest)
+Henley shirt
+Mock neck sweater
+Dressy polo shirt
+Dress sweater
+Dress vest
+Dressy button-up shirt
+Sweater vest
+Tuxedo shirt
+Collared polo shirt
+Dressy turtleneck
+Chambray shirt
+Corduroy shirt
+Checked shirt
+Striped shirt
+Dressy Henley shirt

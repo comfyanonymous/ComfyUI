@@ -1,0 +1,57 @@
+Classic headshot pose
+Standing tall pose
+Slight head tilt pose
+Crossed arm pose
+Leaning on one leg pose
+Looking over the shoulder pose
+Hands in pockets pose
+Profile pose
+Seated pose
+Arms above head pose
+Contrapposto pose
+Sitting on edge pose
+One hand on hip pose
+Walking pose
+Lying down pose
+Squatting pose
+Arms crossed behind the back pose
+Kneeling pose
+Pointing pose
+Hands on hips pose
+One hand behind the head pose
+Running pose
+Shoulder forward pose
+Standing in the doorway pose
+Hand on chin pose
+going up stairs pose
+lean_forward, hands on knees pose
+from_behind, looking over shoulder pose
+tucking hair behind ear pose
+crossing arms pose
+hand on hip pose
+twirl pose
+curtsey pose
+claw pose pose
+kissing neck pose
+supine pose
+prone pose
+lateral pose
+fowler pose
+trendelenburg pose
+lithotomy pose
+knees up to chest pose
+elbows on knees pose
+rose pose
+semi-fowler pose
+verticosubmental pose
+all fours pose
+sitting pose
+climbing pose
+jumping pose
+bending pose
+reaching pose
+pulling pose
+lifting pose
+twisting pose
+hands above head pose
+slumped posture pose

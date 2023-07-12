@@ -1,0 +1,50 @@
+T-Shirt
+Tank Top
+Blouse
+Button-up Shirt
+Crop Top
+Camisole
+Bodysuit
+Peplum Top
+Off-the-Shoulder Top
+Halter Top
+Tunic Top
+Sweater
+Cardigan
+Pullover
+Wrap Top
+Kimono
+Denim Jacket
+Leather Jacket
+Blazer
+Bomber Jacket
+Hoodie
+Sweatshirt
+Poncho
+Cape
+Vest
+Tankini Top
+Bikini Top
+Rashguard
+One-Shoulder Top
+Cold-Shoulder Top
+Peasant Top
+Lace Top
+Ruffle Top
+Sheer Top
+Sleeveless Blazer
+Sleeveless Trench Coat
+Tube Top
+Bandeau Top
+Corset Top
+Bustier Top
+Peplum Jacket
+Cropped Blazer
+Bolero Jacket
+Kimono Jacket
+Cape Blazer
+Halter Neck Top
+Strapless Top
+One-Shoulder Blouse
+High-Neck Blouse
+Peter Pan Collar Shirt
