@@ -1,43 +1,44 @@
-fantasy forest, glowing lines of light, balls of light fairies
+[LOCATION + OBJECTS + TIME OF DAY + EXTRAS]
+fantasy forest, bushes and trees, glowing lines of light, balls of light fairies
 witch hovel, cauldron, magic trinkets
-gothic castle, indoors
-fantasy battlefield, swords, bodies, blood, dirt, smoke, explosions
-hell, throne, skulls
-mad scientist, laboratory, human experimentation, humans in cages, glowing vials, strapped to a chair
-kitchen, cooking, food
+gothic castle, stone walls, carpets, tables and chairs, indoors
+fantasy battlefield, swords, bodies, sunset, dirt, smoke
+hell, throne, skulls, fire
+mad scientist laboratory, strapped down, humans in cages, glowing vials
+kitchen, food, cooking
 ant_size, giant plants, backyard, giant toys, macro shot
-barbeque, children playing in the yard
-goddess in the clouds, heavenly
-city rooftops, night, dark
-underwater city, atlantis
-bedroom, sleepover
-cosplay convention, stage, crowds
-family_dining_room, feast, dinner
-livingroom, family_time, tv_time
-kitchen, cooking
-vacation, travel, road_trip
-tour, outdoors, tourist
-sailing, deck, sailor
-free_diving, underwater, fish
-beach, outdoor
-sports_day, school_sports_field, track
+barbeque, children playing in the yard, sprinklers
+goddess in the clouds, heavenly, everything made of clouds
+city rooftops, cityscape, night, dark
+underwater city, coral, fish, atlantis
+bedroom, blankets, pajamas, sleepover
+cosplay convention, props, stage, crowds
+family_dining_room, feast, dinner, family sitting at the table
+livingroom, couch, television, family_time, tv_time
+vacation, sight-seeing, travel, road_trip
+tour, outdoors, tourist, sight-seeing, tourists, cameras
+sailing, deck, sailors, morning o, waves
+free_diving, underwater, fish, coral
+beach, beach_umbrellas, towels, outdoor, boardwalk
+sports_day, school_sports_field, track, parents sitting in the bleachers
 market, busy, crowded, for_sale, japan
-escape, traps, running, maze
-space_station, alien_species, space_dock
+maze, traps, escape, running
+space_station, alien_species, space_dock, nebula, space_ships
 stranded, survival
 ship_wreck, survival
-island_survival
-ranch, cowgirl
+island_survival, camp, firepit, hammock, rags
+ranch, cowgirl, horses, bull
 fleeing, running, danger, running_away
-building_shelter, log_cabin, forest_clearing
+log_cabin, forest_clearing, building a shelter 
 casting_magic, excited, happy, glowing lines of light
-first_person_shooter
-zombie_survival, running, hiding
-restaurant
-train_car, train_tracks
+first_person_shooter, weapons, running, enemies, around the corner
+apocalypse, zombie_survival, running, hiding, around the corner, 
+restaurant, warm and cozy, waitresses, patrons, food
+american diner, waitresses, patrons, food, milkshakes
+train_car, train_tracks, train_tunnel
 creek, rushing_water, fishing, skipping_stones
 speed_boat, windblown hair, excited
 rock_climbing, free_climbing, mountains, view
-medieval_fantasy_slave_market, animal_eared, beast_kin, collars, cages
+medieval_fantasy_slave_market, animal_eared, collars, cages, chains
 haunted_house, halloween, halloween costume, trick or treat
 murder_scene, police_investigation
