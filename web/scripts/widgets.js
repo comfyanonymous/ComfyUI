@@ -115,12 +115,12 @@ function addMultilineWidget(node, name, opts, app) {
 
 		// See how large each text input can be
 		freeSpace -= widgetHeight;
-		freeSpace /= multi.length;
+		freeSpace /= multi.length + (!!node.imgs?.length);
 
 		if (freeSpace < MIN_SIZE) {
 			// There isnt enough space for all the widgets, increase the size of the node
 			freeSpace = MIN_SIZE;
-			node.size[1] = y + widgetHeight + freeSpace * multi.length;
+			node.size[1] = y + widgetHeight + freeSpace * (multi.length + (!!node.imgs?.length));
 			node.graph.setDirtyCanvas(true);
 		}
 
@@ -129,6 +129,7 @@ function addMultilineWidget(node, name, opts, app) {
 			w.y = y;
 			if (w.type === "customtext") {
 				y += freeSpace;
+				w.computedHeight = freeSpace - multi.length*4;
 			} else if (w.computeSize) {
 				y += w.computeSize()[1] + 4;
 			} else {
@@ -162,11 +163,12 @@ function addMultilineWidget(node, name, opts, app) {
 				.multiplySelf(ctx.getTransform())
 				.translateSelf(margin, margin + y);
 
+			const scale = new DOMMatrix().scaleSelf(transform.a, transform.d)
 			Object.assign(this.inputEl.style, {
 				transformOrigin: "0 0",
-				transform: transform,
-				left: "0px",
-				top: "0px",
+				transform: scale,
+				left: `${transform.a + transform.e}px`,
+				top: `${transform.d + transform.f}px`,
 				width: `${widgetWidth - (margin * 2)}px`,
 				height: `${this.parent.inputHeight - (margin * 2)}px`,
 				position: "absolute",
@@ -303,7 +305,7 @@ export const ComfyWidgets = {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}`;
+			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`;
 			node.setSizeForImage?.();
 		}
 

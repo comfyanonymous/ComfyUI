@@ -7,6 +7,7 @@ import execution
 import uuid
 import json
 import glob
+import struct
 from PIL import Image
 from io import BytesIO
 
@@ -24,6 +25,16 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+
+
+class BinaryEventTypes:
+    PREVIEW_IMAGE = 1
+
+async def send_socket_catch_exception(function, message):
+    try:
+        await function(message)
+    except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
+        print("send error:", err)
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -53,7 +64,7 @@ class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
 
-        mimetypes.init(); 
+        mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
         self.prompt_queue = None
         self.loop = loop
@@ -190,18 +201,43 @@ class PromptServer():
             post = await request.post()
             return image_upload(post)
 
+
         @routes.post("/upload/mask")
         async def upload_mask(request):
             post = await request.post()
 
             def image_save_function(image, post, filepath):
-                original_pil = Image.open(post.get("original_image").file).convert('RGBA')
-                mask_pil = Image.open(image.file).convert('RGBA')
+                original_ref = json.loads(post.get("original_ref"))
+                filename, output_dir = folder_paths.annotated_filepath(original_ref['filename'])
 
-                # alpha copy
-                new_alpha = mask_pil.getchannel('A')
-                original_pil.putalpha(new_alpha)
-                original_pil.save(filepath, compress_level=4)
+                # validation for security: prevent accessing arbitrary path
+                if filename[0] == '/' or '..' in filename:
+                    return web.Response(status=400)
+
+                if output_dir is None:
+                    type = original_ref.get("type", "output")
+                    output_dir = folder_paths.get_directory_by_type(type)
+
+                if output_dir is None:
+                    return web.Response(status=400)
+
+                if original_ref.get("subfolder", "") != "":
+                    full_output_dir = os.path.join(output_dir, original_ref["subfolder"])
+                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                        return web.Response(status=403)
+                    output_dir = full_output_dir
+
+                file = os.path.join(output_dir, filename)
+
+                if os.path.isfile(file):
+                    with Image.open(file) as original_pil:
+                        original_pil = original_pil.convert('RGBA')
+                        mask_pil = Image.open(image.file).convert('RGBA')
+
+                        # alpha copy
+                        new_alpha = mask_pil.getchannel('A')
+                        original_pil.putalpha(new_alpha)
+                        original_pil.save(filepath, compress_level=4)
 
             return image_upload(post, image_save_function)                
 
@@ -232,6 +268,26 @@ class PromptServer():
                 file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
+                    if 'preview' in request.rel_url.query:
+                        with Image.open(file) as img:
+                            preview_info = request.rel_url.query['preview'].split(';')
+                            image_format = preview_info[0]
+                            if image_format not in ['webp', 'jpeg'] or 'a' in request.rel_url.query.get('channel', ''):
+                                image_format = 'webp'
+
+                            quality = 90
+                            if preview_info[-1].isdigit():
+                                quality = int(preview_info[-1])
+
+                            buffer = BytesIO()
+                            if image_format in ['jpeg'] or request.rel_url.query.get('channel', '') == 'rgb':
+                                img = img.convert("RGB")
+                            img.save(buffer, format=image_format, quality=quality)
+                            buffer.seek(0)
+
+                            return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
+                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
                     else:
@@ -383,6 +439,11 @@ class PromptServer():
         async def get_history(request):
             return web.json_response(self.prompt_queue.get_history())
 
+        @routes.get("/history/{prompt_id}")
+        async def get_history(request):
+            prompt_id = request.match_info.get("prompt_id", None)
+            return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
+
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
@@ -474,16 +535,37 @@ class PromptServer():
         return prompt_info
 
     async def send(self, event, data, sid=None):
-        message = {"type": event, "data": data}
-       
-        if isinstance(message, str) == False:
-            message = json.dumps(message)
+        if isinstance(data, (bytes, bytearray)):
+            await self.send_bytes(event, data, sid)
+        else:
+            await self.send_json(event, data, sid)
+
+    def encode_bytes(self, event, data):
+        if not isinstance(event, int):
+            raise RuntimeError(f"Binary event types must be integers, got {event}")
+
+        packed = struct.pack(">I", event)
+        message = bytearray(packed)
+        message.extend(data)
+        return message
+
+    async def send_bytes(self, event, data, sid=None):
+        message = self.encode_bytes(event, data)
 
         if sid is None:
             for ws in self.sockets.values():
-                await ws.send_str(message)
+                await send_socket_catch_exception(ws.send_bytes, message)
         elif sid in self.sockets:
-            await self.sockets[sid].send_str(message)
+            await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
+
+    async def send_json(self, event, data, sid=None):
+        message = {"type": event, "data": data}
+
+        if sid is None:
+            for ws in self.sockets.values():
+                await send_socket_catch_exception(ws.send_json, message)
+        elif sid in self.sockets:
+            await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
     def send_sync(self, event, data, sid=None):
         self.loop.call_soon_threadsafe(

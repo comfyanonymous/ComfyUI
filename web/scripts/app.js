@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
-/** 
+/**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
 
@@ -45,10 +45,24 @@ export class ComfyApp {
 		this.nodeOutputs = {};
 
 		/**
+		 * Stores the preview image data for each node
+		 * @type {Record<string, Image>}
+		 */
+		this.nodePreviewImages = {};
+
+		/**
 		 * If the shift key on the keyboard is pressed
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+	}
+
+	getPreviewFormatParam() {
+		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
+		if(preview_format)
+			return `&preview=${preview_format}`;
+		else
+			return "";
 	}
 
 	static isImageNode(node) {
@@ -111,10 +125,14 @@ export class ComfyApp {
 			if(ComfyApp.clipspace.imgs && node.imgs) {
 				if(node.images && ComfyApp.clipspace.images) {
 					if(ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-						app.nodeOutputs[node.id + ""].images = node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+						node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
 					}
-					else
-						app.nodeOutputs[node.id + ""].images = node.images = ComfyApp.clipspace.images;
+					else {
+						node.images = ComfyApp.clipspace.images;
+					}
+
+					if(app.nodeOutputs[node.id + ""])
+						app.nodeOutputs[node.id + ""].images = node.images;
 				}
 
 				if(ComfyApp.clipspace.imgs) {
@@ -141,15 +159,25 @@ export class ComfyApp {
 					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
 					const index = node.widgets.findIndex(obj => obj.name === 'image');
 					if(index >= 0) {
-						node.widgets[index].value = clip_image;
+						if(node.widgets[index].type != 'image' && typeof node.widgets[index].value == "string" && clip_image.filename) {
+							node.widgets[index].value = (clip_image.subfolder?clip_image.subfolder+'/':'') + clip_image.filename + (clip_image.type?` [${clip_image.type}]`:'');
+						}
+						else {
+							node.widgets[index].value = clip_image;
+						}
 					}
 				}
 				if(ComfyApp.clipspace.widgets) {
 					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
 						if (prop && prop.type != 'button') {
-							prop.value = value;
-							prop.callback(value);
+							if(prop.type != 'image' && typeof prop.value == "string" && value.filename) {
+								prop.value = (value.subfolder?value.subfolder+'/':'') + value.filename + (value.type?` [${value.type}]`:'');
+							}
+							else {
+								prop.value = value;
+								prop.callback(value);
+							}
 						}
 					});
 				}
@@ -231,14 +259,20 @@ export class ComfyApp {
 					options.unshift(
 						{
 							content: "Open Image",
-							callback: () => window.open(img.src, "_blank"),
+							callback: () => {
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								window.open(url, "_blank")
+							},
 						},
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
-								a.href = img.src;
-								a.setAttribute("download", new URLSearchParams(new URL(img.src).search).get("filename"));
+								let url = new URL(img.src);
+								url.searchParams.delete('preview');
+								a.href = url;
+								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
 								a.click();
 								requestAnimationFrame(() => a.remove());
@@ -334,7 +368,11 @@ export class ComfyApp {
 					shiftY = w.last_y;
 					if (w.computeSize) {
 						shiftY += w.computeSize()[1] + 4;
-					} else {
+					}
+					else if(w.computedHeight) {
+						shiftY += w.computedHeight;
+					}
+					else {
 						shiftY += LiteGraph.NODE_WIDGET_HEIGHT + 4;
 					}
 				} else {
@@ -345,6 +383,10 @@ export class ComfyApp {
 		}
 
 		node.prototype.setSizeForImage = function () {
+			if (this.inputHeight) {
+				this.setSize(this.size);
+				return;
+			}
 			const minHeight = getImageTop(this) + 220;
 			if (this.size[1] < minHeight) {
 				this.setSize([this.size[0], minHeight]);
@@ -353,28 +395,51 @@ export class ComfyApp {
 
 		node.prototype.onDrawBackground = function (ctx) {
 			if (!this.flags.collapsed) {
+				let imgURLs = []
+				let imagesChanged = false
+
 				const output = app.nodeOutputs[this.id + ""];
 				if (output && output.images) {
 					if (this.images !== output.images) {
 						this.images = output.images;
-						this.imgs = null;
-						this.imageIndex = null;
+						imagesChanged = true;
+						imgURLs = imgURLs.concat(output.images.map(params => {
+							return "/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
+						}))
+					}
+				}
+
+				const preview = app.nodePreviewImages[this.id + ""]
+				if (this.preview !== preview) {
+					this.preview = preview
+					imagesChanged = true;
+					if (preview != null) {
+						imgURLs.push(preview);
+					}
+				}
+
+				if (imagesChanged) {
+					this.imageIndex = null;
+					if (imgURLs.length > 0) {
 						Promise.all(
-							output.images.map((src) => {
+							imgURLs.map((src) => {
 								return new Promise((r) => {
 									const img = new Image();
 									img.onload = () => r(img);
 									img.onerror = () => r(null);
-									img.src = "/view?" + new URLSearchParams(src).toString();
+									img.src = src
 								});
 							})
 						).then((imgs) => {
-							if (this.images === output.images) {
+							if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
 								this.imgs = imgs.filter(Boolean);
 								this.setSizeForImage?.();
 								app.graph.setDirtyCanvas(true);
 							}
 						});
+					}
+					else {
+						this.imgs = null;
 					}
 				}
 
@@ -887,17 +952,20 @@ export class ComfyApp {
 			this.progress = null;
 			this.runningNodeId = detail;
 			this.graph.setDirtyCanvas(true, false);
+			delete this.nodePreviewImages[this.runningNodeId]
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
 			this.nodeOutputs[detail.node] = detail.output;
 			const node = this.graph.getNodeById(detail.node);
-			if (node?.onExecuted) {
-				node.onExecuted(detail.output);
+			if (node) {
+				if (node.onExecuted)
+					node.onExecuted(detail.output);
 			}
 		});
 
 		api.addEventListener("execution_start", ({ detail }) => {
+			this.runningNodeId = null;
 			this.lastExecutionError = null
 		});
 
@@ -906,6 +974,16 @@ export class ComfyApp {
 			const formattedError = this.#formatExecutionError(detail);
 			this.ui.dialog.show(formattedError);
 			this.canvas.draw(true, true);
+		});
+
+		api.addEventListener("b_preview", ({ detail }) => {
+			const id = this.runningNodeId
+			if (id == null)
+				return;
+
+			const blob = detail
+			const blobUrl = URL.createObjectURL(blob)
+			this.nodePreviewImages[id] = [blobUrl]
 		});
 
 		api.init();
@@ -960,8 +1038,12 @@ export class ComfyApp {
 		this.graph.start();
 
 		function resizeCanvas() {
-			canvasEl.width = canvasEl.offsetWidth;
-			canvasEl.height = canvasEl.offsetHeight;
+			// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
+			const scale = Math.max(window.devicePixelRatio, 1);
+			const { width, height } = canvasEl.getBoundingClientRect();
+			canvasEl.width = Math.round(width * scale);
+			canvasEl.height = Math.round(height * scale);
+			canvasEl.getContext("2d").scale(scale, scale);
 			canvas.draw(true, true);
 		}
 
@@ -1394,7 +1476,7 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(reader.result));
 			};
 			reader.readAsText(file);
-		} else if (file.name?.endsWith(".latent")) {
+		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
 			const info = await getLatentMetadata(file);
 			if (info.workflow) {
 				this.loadGraphData(JSON.parse(info.workflow));
@@ -1451,8 +1533,10 @@ export class ComfyApp {
 	 */
 	clean() {
 		this.nodeOutputs = {};
+		this.nodePreviewImages = {}
 		this.lastPromptError = null;
 		this.lastExecutionError = null;
+		this.runningNodeId = null;
 	}
 }
 

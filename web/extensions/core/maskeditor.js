@@ -41,7 +41,7 @@ async function uploadMask(filepath, formData) {
 	});
 
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
-	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = "/view?" + new URLSearchParams(filepath).toString();
+	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = "/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam();
 
 	if(ComfyApp.clipspace.images)
 		ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;
@@ -335,6 +335,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 		const alpha_url = new URL(ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src)
 		alpha_url.searchParams.delete('channel');
+		alpha_url.searchParams.delete('preview');
 		alpha_url.searchParams.set('channel', 'a');
 		touched_image.src = alpha_url;
 
@@ -616,10 +617,20 @@ class MaskEditorDialog extends ComfyDialog {
 		const dataURL = this.backupCanvas.toDataURL();
 		const blob = dataURLToBlob(dataURL);
 
-		const original_blob = loadedImageToBlob(this.image);
+		let original_url = new URL(this.image.src);
+
+		const original_ref = { filename: original_url.searchParams.get('filename') };
+
+		let original_subfolder = original_url.searchParams.get("subfolder");
+		if(original_subfolder)
+			original_ref.subfolder = original_subfolder;
+
+		let original_type = original_url.searchParams.get("type");
+		if(original_type)
+			original_ref.type = original_type;
 
 		formData.append('image', blob, filename);
-		formData.append('original_image', original_blob);
+		formData.append('original_ref', JSON.stringify(original_ref));
 		formData.append('type', "input");
 		formData.append('subfolder', "clipspace");
 
