@@ -144,6 +144,10 @@
 
         ctrl_shift_v_paste_connect_unselected_outputs: true, //[true!] allows ctrl + shift + v to paste nodes with the outputs of the unselected nodes connected with the inputs of the newly pasted nodes
 
+        // if true, all newly created nodes/links will use string UUIDs for their id fields instead of integers.
+        // use this if you must have node IDs that are unique across all graphs and subgraphs.
+        use_uuids: false,
+
         /**
          * Register a node class so it can be listed when the user wants to create a new one
          * @method registerNodeType
@@ -601,6 +605,13 @@
                 target[i] = r[i];
             }
             return target;
+        },
+
+        /*
+         * https://gist.github.com/jed/982883?permalink_comment_id=852670#gistcomment-852670
+         */
+        uuidv4: function() {
+            return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,a=>(a^Math.random()*16>>a/4).toString(16));
         },
 
         /**
@@ -1407,7 +1418,12 @@
             console.warn(
                 "LiteGraph: there is already a node with this ID, changing it"
             );
-            node.id = ++this.last_node_id;
+            if (LiteGraph.use_uuids) {
+                node.id = LiteGraph.uuidv4();
+            }
+            else {
+                node.id = ++this.last_node_id;
+            }
         }
 
         if (this._nodes.length >= LiteGraph.MAX_NUMBER_OF_NODES) {
@@ -1415,10 +1431,16 @@
         }
 
         //give him an id
-        if (node.id == null || node.id == -1) {
-            node.id = ++this.last_node_id;
-        } else if (this.last_node_id < node.id) {
-            this.last_node_id = node.id;
+        if (LiteGraph.use_uuids) {
+            if (node.id == null || node.id == -1)
+                node.id = LiteGraph.uuidv4();
+        }
+        else {
+            if (node.id == null || node.id == -1) {
+                node.id = ++this.last_node_id;
+            } else if (this.last_node_id < node.id) {
+                this.last_node_id = node.id;
+            }
         }
 
         node.graph = this;
@@ -2415,7 +2437,12 @@
             enumerable: true
         });
 
-        this.id = -1; //not know till not added
+        if (LiteGraph.use_uuids) {
+            this.id = LiteGraph.uuidv4();
+        }
+        else {
+            this.id = -1; //not know till not added
+        }
         this.type = null;
 
         //inputs available: array of inputs
@@ -2629,6 +2656,11 @@
         }
 
         delete data["id"];
+
+        if (LiteGraph.use_uuids) {
+            data["id"] = LiteGraph.uuidv4()
+        }
+
         //remove links
         node.configure(data);
 
@@ -3540,8 +3572,8 @@
     /**
      * computes the minimum size of a node according to its inputs and output slots
      * @method computeSize
-     * @param {number} minHeight
-     * @return {number} the total size
+     * @param {vec2} minHeight
+     * @return {vec2} the total size
      */
     LGraphNode.prototype.computeSize = function(out) {
         if (this.constructor.size) {
@@ -4279,10 +4311,16 @@
                 break;
             }
         }
+
+        var nextId
+        if (LiteGraph.use_uuids)
+            nextId = LiteGraph.uuidv4();
+        else
+            nextId = ++this.graph.last_link_id;
         
 		//create link class
 		link_info = new LLink(
-			++this.graph.last_link_id,
+			nextId,
 			input.type || output.type,
 			this.id,
 			slot,
@@ -6023,6 +6061,9 @@ LGraphNode.prototype.executeAction = function(action)
                 //it wasn't clicked on the links boxes
                 if (!skip_action) {
                     var block_drag_node = false;
+                    if(node && node.flags && node.flags.pinned) {
+                        block_drag_node = true;
+                    }
 					var pos = [e.canvasX - node.pos[0], e.canvasY - node.pos[1]];
 
                     //widgets
@@ -7070,6 +7111,8 @@ LGraphNode.prototype.executeAction = function(action)
         var selected_nodes_array = [];
         for (var i in this.selected_nodes) {
             var node = this.selected_nodes[i];
+            if (node.clonable === false)
+                continue;
             node._relative_id = index;
             selected_nodes_array.push(node);
             index += 1;
@@ -7077,12 +7120,12 @@ LGraphNode.prototype.executeAction = function(action)
 
         for (var i = 0; i < selected_nodes_array.length; ++i) {
             var node = selected_nodes_array[i];
-			var cloned = node.clone();
-			if(!cloned)
-			{
-				console.warn("node type not found: " + node.type );
-				continue;
-			}
+            var cloned = node.clone();
+            if(!cloned)
+            {
+                console.warn("node type not found: " + node.type );
+                continue;
+            }
             clipboard_info.nodes.push(cloned.serialize());
             if (node.inputs && node.inputs.length) {
                 for (var j = 0; j < node.inputs.length; ++j) {
@@ -8148,7 +8191,7 @@ LGraphNode.prototype.executeAction = function(action)
      **/
     LGraphCanvas.prototype.renderInfo = function(ctx, x, y) {
         x = x || 10;
-        y = y || this.canvas.height - 80;
+        y = y || this.canvas.offsetHeight - 80;
 
         ctx.save();
         ctx.translate(x, y);
@@ -9952,7 +9995,7 @@ LGraphNode.prototype.executeAction = function(action)
 					break;
 				case "slider":
 					var old_value = w.value;
-					var nvalue = Math.clamp((x - 15) / (widget_width - 30), 0, 1);
+					var nvalue = clamp((x - 15) / (widget_width - 30), 0, 1);
 					if(w.options.read_only) break;
 					w.value = w.options.min + (w.options.max - w.options.min) * nvalue;
 					if (old_value != w.value) {
@@ -12949,7 +12992,7 @@ LGraphNode.prototype.executeAction = function(action)
 		var newSelected = {};
 		
 		var fApplyMultiNode = function(node){
-			if (node.clonable == false) {
+			if (node.clonable === false) {
 				return;
 			}
 			var newnode = node.clone();
@@ -14148,10 +14191,10 @@ LGraphNode.prototype.executeAction = function(action)
 				return;
 			}
 			if( !is_edge_point ) //not edges
-				point[0] = Math.clamp(x,0,1);
+				point[0] = clamp(x, 0, 1);
 			else
 				point[0] = s == 0 ? 0 : 1;
-			point[1] = 1.0 - Math.clamp(y,0,1);
+			point[1] = 1.0 - clamp(y, 0, 1);
 			points.sort(function(a,b){ return a[0] - b[0]; });
 			this.selected = points.indexOf(point);
 			this.must_update = true;
@@ -14299,10 +14342,11 @@ LGraphNode.prototype.executeAction = function(action)
 				return oDOM.removeEventListener(sEvent, fCall, capture);
 		}
 	}
-	
-    Math.clamp = function(v, a, b) {
+
+    function clamp(v, a, b) {
         return a > v ? a : b < v ? b : v;
     };
+    global.clamp = clamp;
 
     if (typeof window != "undefined" && !window["requestAnimationFrame"]) {
         window.requestAnimationFrame =
@@ -14316,6 +14360,13 @@ LGraphNode.prototype.executeAction = function(action)
 
 if (typeof exports != "undefined") {
     exports.LiteGraph = this.LiteGraph;
+    exports.LGraph = this.LGraph;
+    exports.LLink = this.LLink;
+    exports.LGraphNode = this.LGraphNode;
+    exports.LGraphGroup = this.LGraphGroup;
+    exports.DragAndScale = this.DragAndScale;
+    exports.LGraphCanvas = this.LGraphCanvas;
+    exports.ContextMenu = this.ContextMenu;
 }
 
 
