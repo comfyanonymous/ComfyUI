@@ -32,7 +32,7 @@ class ClipTokenWeightEncoder:
             output.append(z)
 
         if (len(output) == 0):
-            return z_empty, first_pooled
+            return z_empty.cpu(), first_pooled.cpu()
         return torch.cat(output, dim=-2).cpu(), first_pooled.cpu()
 
 class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
@@ -139,7 +139,7 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
             pooled_output = outputs.pooler_output
             if self.text_projection is not None:
-                pooled_output = pooled_output @ self.text_projection
+                pooled_output = pooled_output.to(self.text_projection.device) @ self.text_projection
         return z.float(), pooled_output.float()
 
     def encode(self, tokens):
