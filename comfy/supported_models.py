@@ -126,6 +126,7 @@ class SDXLRefiner(supported_models_base.BASE):
     def process_clip_state_dict_for_saving(self, state_dict):
         replace_prefix = {}
         state_dict_g = diffusers_convert.convert_text_enc_state_dict_v20(state_dict, "clip_g")
+        state_dict_g.pop("clip_g.transformer.text_model.embeddings.position_ids")
         replace_prefix["clip_g"] = "conditioner.embedders.0.model"
         state_dict_g = supported_models_base.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
@@ -164,6 +165,7 @@ class SDXL(supported_models_base.BASE):
         replace_prefix = {}
         keys_to_replace = {}
         state_dict_g = diffusers_convert.convert_text_enc_state_dict_v20(state_dict, "clip_g")
+        state_dict_g.pop("clip_g.transformer.text_model.embeddings.position_ids")
         for k in state_dict:
             if k.startswith("clip_l"):
                 state_dict_g[k] = state_dict[k]
