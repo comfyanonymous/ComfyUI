@@ -1,4 +1,4 @@
-import { app } from "/scripts/app.js";
+import { app } from "../../scripts/app.js";
 
 // Use widget values and dates in output filenames
 
