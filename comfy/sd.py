@@ -479,8 +479,8 @@ class CLIP:
     def load_from_state_dict(self, sd):
         self.cond_stage_model.load_sd(sd)
 
-    def add_patches(self, patches, strength=1.0):
-        return self.patcher.add_patches(patches, strength)
+    def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
+        return self.patcher.add_patches(patches, strength_patch, strength_model)
 
     def clip_layer(self, layer_idx):
         self.layer_idx = layer_idx
@@ -513,6 +513,9 @@ class CLIP:
 
     def unpatch_model(self):
         self.patcher.unpatch_model()
+
+    def get_key_patches(self):
+        return self.patcher.get_key_patches()
 
 class VAE:
     def __init__(self, ckpt_path=None, device=None, config=None):
