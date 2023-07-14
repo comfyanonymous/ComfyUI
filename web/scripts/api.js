@@ -203,6 +203,8 @@ class ComfyApi extends EventTarget {
 				response: await res.json(),
 			};
 		}
+
+		return await res.json();
 	}
 
 	/**

@@ -836,7 +836,7 @@ export class ComfyApp {
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
 			const res = origDrawNodeShape.apply(this, arguments);
 
-			const nodeErrors = self.lastPromptError?.node_errors[node.id];
+			const nodeErrors = self.lastNodeErrors?.[node.id];
 
 			let color = null;
 			let lineWidth = 1;
@@ -845,7 +845,7 @@ export class ComfyApp {
 			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
 				color = "dodgerblue";
 			}
-			else if (self.lastPromptError != null && nodeErrors?.errors) {
+			else if (nodeErrors?.errors) {
 				color = "red";
 				lineWidth = 2;
 			}
@@ -1413,7 +1413,7 @@ export class ComfyApp {
 		}
 
 		this.#processingQueue = true;
-		this.lastPromptError = null;
+		this.lastNodeErrors = null;
 
 		try {
 			while (this.#queueItems.length) {
@@ -1429,12 +1429,16 @@ export class ComfyApp {
 					}
 
 					try {
-						await api.queuePrompt(number, p, settings);
+						const res = await api.queuePrompt(number, p, settings);
+						this.lastNodeErrors = res.node_errors;
+						if (this.lastNodeErrors.length > 0) {
+							this.canvas.draw(true, true);
+						}
 					} catch (error) {
 						const formattedError = this.#formatPromptError(error)
 						this.ui.dialog.show(formattedError);
 						if (error.response) {
-							this.lastPromptError = error.response;
+							this.lastNodeErrors = error.response.node_errors;
 							this.canvas.draw(true, true);
 						}
 						break;
@@ -1540,7 +1544,7 @@ export class ComfyApp {
 	clean() {
 		this.nodeOutputs = {};
 		this.nodePreviewImages = {}
-		this.lastPromptError = null;
+		this.lastNodeErrors = null;
 		this.lastExecutionError = null;
 		this.runningNodeId = null;
 	}
