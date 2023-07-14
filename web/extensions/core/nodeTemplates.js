@@ -1,5 +1,5 @@
-import { app } from "/scripts/app.js";
-import { ComfyDialog, $el } from "/scripts/ui.js";
+import { app } from "../../scripts/app.js";
+import { ComfyDialog, $el } from "../../scripts/ui.js";
 
 // Adds the ability to save and add multiple nodes as a template
 // To save:

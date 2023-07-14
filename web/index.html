@@ -4,12 +4,12 @@
 		<meta charset="UTF-8">
 		<title>ComfyUI</title>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-		<link rel="stylesheet" type="text/css" href="lib/litegraph.css" />
-		<link rel="stylesheet" type="text/css" href="style.css" />
-		<script type="text/javascript" src="lib/litegraph.core.js"></script>
-		<script type="text/javascript" src="lib/litegraph.extensions.js" defer></script>
+		<link rel="stylesheet" type="text/css" href="./lib/litegraph.css" />
+		<link rel="stylesheet" type="text/css" href="./style.css" />
+		<script type="text/javascript" src="./lib/litegraph.core.js"></script>
+		<script type="text/javascript" src="./lib/litegraph.extensions.js" defer></script>
 		<script type="module">
-			import { app } from "/scripts/app.js";
+			import { app } from "./scripts/app.js";
 			await app.setup();
 			window.app = app;
 			window.graph = app.graph;
