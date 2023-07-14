@@ -1,3 +1,5 @@
+import { api } from "./api.js"
+
 function getNumberDefaults(inputData, defaultStep) {
 	let defaultVal = inputData[1]["default"];
 	let { min, max, step } = inputData[1];
@@ -305,7 +307,7 @@ export const ComfyWidgets = {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = `./view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`;
+			img.src = api.apiURL(`/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`);
 			node.setSizeForImage?.();
 		}
 
@@ -362,7 +364,7 @@ export const ComfyWidgets = {
 				// Wrap file in formdata so it includes filename
 				const body = new FormData();
 				body.append("image", file);
-				const resp = await fetch("./upload/image", {
+				const resp = await api.fetchApi("/upload/image", {
 					method: "POST",
 					body,
 				});
