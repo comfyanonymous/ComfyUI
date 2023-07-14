@@ -670,6 +670,37 @@ export class ComfyUI {
 					}, 0);
 				},
 			}),
+			$el("button", {
+				id: "comfy-dev-save-api-button",
+				textContent: "Save (API Format)",
+				style: {width: "100%", display: "none"},
+				onclick: () => {
+					let filename = "workflow_api.json";
+					if (promptFilename.value) {
+						filename = prompt("Save workflow (API) as:", filename);
+						if (!filename) return;
+						if (!filename.toLowerCase().endsWith(".json")) {
+							filename += ".json";
+						}
+					}
+					app.graphToPrompt().then(p=>{
+						const json = JSON.stringify(p.output, null, 2); // convert the data to a JSON string
+						const blob = new Blob([json], {type: "application/json"});
+						const url = URL.createObjectURL(blob);
+						const a = $el("a", {
+							href: url,
+							download: filename,
+							style: {display: "none"},
+							parent: document.body,
+						});
+						a.click();
+						setTimeout(function () {
+							a.remove();
+							window.URL.revokeObjectURL(url);
+						}, 0);
+					});
+				},
+			}),
 			$el("button", {id: "comfy-load-button", textContent: "Load", onclick: () => fileInput.click()}),
 			$el("button", {
 				id: "comfy-refresh-button",
@@ -693,6 +724,14 @@ export class ComfyUI {
 				}
 			}),
 		]);
+
+		const devMode = this.settings.addSetting({
+			id: "Comfy.DevMode",
+			name: "Enable Dev mode Options",
+			type: "boolean",
+			defaultValue: false,
+			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
+		});
 
 		dragElement(this.menuContainer, this.settings);
 
