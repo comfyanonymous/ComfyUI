@@ -1,7 +1,7 @@
-import { app } from "/scripts/app.js";
-import { ComfyDialog, $el } from "/scripts/ui.js";
-import { ComfyApp } from "/scripts/app.js";
-import { ClipspaceDialog } from "/extensions/core/clipspace.js";
+import { app } from "../../scripts/app.js";
+import { ComfyDialog, $el } from "../../scripts/ui.js";
+import { ComfyApp } from "../../scripts/app.js";
+import { ClipspaceDialog } from "../../extensions/core/clipspace.js";
 
 // Helper function to convert a data URL to a Blob object
 function dataURLToBlob(dataURL) {
@@ -33,7 +33,7 @@ function loadedImageToBlob(image) {
 }
 
 async function uploadMask(filepath, formData) {
-	await fetch('/upload/mask', {
+	await fetch('./upload/mask', {
 		method: 'POST',
 		body: formData
 	}).then(response => {}).catch(error => {
@@ -41,7 +41,7 @@ async function uploadMask(filepath, formData) {
 	});
 
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
-	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = "/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam();
+	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = "./view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam();
 
 	if(ComfyApp.clipspace.images)
 		ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;

@@ -16,7 +16,7 @@ class ComfyApi extends EventTarget {
 	#pollQueue() {
 		setInterval(async () => {
 			try {
-				const resp = await fetch("/prompt");
+				const resp = await fetch("./prompt");
 				const status = await resp.json();
 				this.dispatchEvent(new CustomEvent("status", { detail: status }));
 			} catch (error) {
@@ -40,7 +40,7 @@ class ComfyApi extends EventTarget {
 			existingSession = "?clientId=" + existingSession;
 		}
 		this.socket = new WebSocket(
-			`ws${window.location.protocol === "https:" ? "s" : ""}://${location.host}/ws${existingSession}`
+			`ws${window.location.protocol === "https:" ? "s" : ""}://${location.host}${location.pathname}ws${existingSession}`
 		);
 		this.socket.binaryType = "arraybuffer";
 
@@ -149,7 +149,7 @@ class ComfyApi extends EventTarget {
 	 * @returns An array of script urls to import
 	 */
 	async getExtensions() {
-		const resp = await fetch("/extensions", { cache: "no-store" });
+		const resp = await fetch("./extensions", { cache: "no-store" });
 		return await resp.json();
 	}
 
@@ -158,7 +158,7 @@ class ComfyApi extends EventTarget {
 	 * @returns An array of script urls to import
 	 */
 	async getEmbeddings() {
-		const resp = await fetch("/embeddings", { cache: "no-store" });
+		const resp = await fetch("./embeddings", { cache: "no-store" });
 		return await resp.json();
 	}
 
@@ -167,7 +167,7 @@ class ComfyApi extends EventTarget {
 	 * @returns The node definitions
 	 */
 	async getNodeDefs() {
-		const resp = await fetch("object_info", { cache: "no-store" });
+		const resp = await fetch("./object_info", { cache: "no-store" });
 		return await resp.json();
 	}
 
@@ -189,7 +189,7 @@ class ComfyApi extends EventTarget {
 			body.number = number;
 		}
 
-		const res = await fetch("/prompt", {
+		const res = await fetch("./prompt", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -224,7 +224,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async getQueue() {
 		try {
-			const res = await fetch("/queue");
+			const res = await fetch("./queue");
 			const data = await res.json();
 			return {
 				// Running action uses a different endpoint for cancelling
@@ -246,7 +246,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async getHistory() {
 		try {
-			const res = await fetch("/history");
+			const res = await fetch("./history");
 			return { History: Object.values(await res.json()) };
 		} catch (error) {
 			console.error(error);
@@ -261,7 +261,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async #postItem(type, body) {
 		try {
-			await fetch("/" + type, {
+			await fetch("./" + type, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
