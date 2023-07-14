@@ -23,6 +23,27 @@ class ModelMergeSimple:
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
         return (m, )
 
+class CLIPMergeSimple:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip1": ("CLIP",),
+                              "clip2": ("CLIP",),
+                              "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "merge"
+
+    CATEGORY = "advanced/model_merging"
+
+    def merge(self, clip1, clip2, ratio):
+        m = clip1.clone()
+        kp = clip2.get_key_patches()
+        for k in kp:
+            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
+                continue
+            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
+        return (m, )
+
 class ModelMergeBlocks:
     @classmethod
     def INPUT_TYPES(s):
@@ -94,4 +115,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeSimple": ModelMergeSimple,
     "ModelMergeBlocks": ModelMergeBlocks,
     "CheckpointSave": CheckpointSave,
+    "CLIPMergeSimple": CLIPMergeSimple,
 }
