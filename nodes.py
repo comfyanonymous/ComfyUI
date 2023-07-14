@@ -113,7 +113,7 @@ class ConditioningConcat:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "concat"
 
-    CATEGORY = "advanced/conditioning"
+    CATEGORY = "conditioning"
 
     def concat(self, conditioning_to, conditioning_from):
         out = []
@@ -1408,6 +1408,7 @@ NODE_CLASS_MAPPINGS = {
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
+    "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
@@ -1441,7 +1442,6 @@ NODE_CLASS_MAPPINGS = {
     "SaveLatent": SaveLatent,
 
     "ConditioningZeroOut": ConditioningZeroOut,
-    "ConditioningConcat": ConditioningConcat,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1466,6 +1466,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
     "ConditioningAverage ": "Conditioning (Average)",
+    "ConditioningConcat": "Conditioning (Concat)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
