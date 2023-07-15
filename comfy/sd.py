@@ -493,6 +493,8 @@ class CLIP:
     def encode_from_tokens(self, tokens, return_pooled=False):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
+        else:
+            self.cond_stage_model.reset_clip_layer()
 
         model_management.load_model_gpu(self.patcher)
         cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
