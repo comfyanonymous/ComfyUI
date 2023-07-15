@@ -31,3 +31,32 @@ Hogwarts student
 Assassin
 idol
 egirl
+Vampire
+Cyberpunk hacker
+Werewolf
+Pirate
+Mermaid
+Archaeologist
+Bounty hunter
+Circus performer
+Fashion model
+Rockstar
+Time traveler
+Detective
+Vigilante
+Barista
+Baker
+Artist
+Dancer
+Teacher
+Athlete
+Explorer
+Spy
+Psychic
+Ghost
+Genie
+Cowboy
+Sorcerer
+Viking warrior
+Gardener
+Chef
