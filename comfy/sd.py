@@ -342,7 +342,9 @@ class ModelPatcher:
             if key not in self.backup:
                 self.backup[key] = weight.clone()
 
-            weight[:] = self.calculate_weight(self.patches[key], weight.clone(), key)
+            temp_weight = weight.to(torch.float32, copy=True)
+            weight[:] = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+            del temp_weight
         return self.model
 
     def calculate_weight(self, patches, weight, key):
@@ -491,6 +493,8 @@ class CLIP:
     def encode_from_tokens(self, tokens, return_pooled=False):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
+        else:
+            self.cond_stage_model.reset_clip_layer()
 
         model_management.load_model_gpu(self.patcher)
         cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
