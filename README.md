@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x and SD2.x
+- Fully supports SD1.x, SD2.x and SDXL
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
@@ -29,7 +29,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
 - [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
 - [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
-- Latent previews with [TAESD](https://github.com/madebyollin/taesd)
+- [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
+- Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
 - Works fully offline: will never download anything.
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
@@ -69,7 +70,7 @@ There is a portable standalone build for Windows that should work for running on
 
 ### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_cu118_or_cpu.7z)
 
-Just download, extract and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
+Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
 
 #### How do I share models between another UI and ComfyUI?
 
@@ -87,13 +88,13 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
-At the time of writing this pytorch has issues with python versions higher than 3.10 so make sure your python/pip versions are 3.10.
-
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
 
+This is the command to install the nightly with ROCm 5.5 that supports the 7000 series and might have some performance improvements:
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.5 -r requirements.txt```
 
 ### NVIDIA
 
@@ -154,11 +155,13 @@ And then you can use that terminal to run ComfyUI without installing any depende
 
 ```python main.py```
 
-### For AMD 6700, 6600 and maybe others
+### For AMD cards not officially supported by ROCm
 
 Try running it with this command if you have issues:
 
-```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
+For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
+
+For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
 
 # Notes
 
@@ -178,16 +181,6 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 
 ```embedding:embedding_filename.pt```
 
-### Fedora
-
-To get python 3.10 on fedora:
-```dnf install python3.10```
-
-Then you can:
-
-```python3.10 -m ensurepip```
-
-This will let you use: pip3.10 to install all the dependencies.
 
 ## How to increase generation speed?
 
@@ -201,7 +194,7 @@ You can set this command line setting to disable the upcasting to fp32 in some c
 
 Use ```--preview-method auto``` to enable previews.
 
-The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with [TAESD](https://github.com/madebyollin/taesd), download the [taesd_encoder.pth](https://github.com/madebyollin/taesd/raw/main/taesd_encoder.pth) and [taesd_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesd_decoder.pth) models and place them in the `models/vae_approx` folder. Once they're installed, restart ComfyUI to enable high-quality previews.
+The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with [TAESD](https://github.com/madebyollin/taesd), download the [taesd_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesd_decoder.pth) (for SD1.x and SD2.x) and [taesdxl_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesdxl_decoder.pth) (for SDXL) models and place them in the `models/vae_approx` folder. Once they're installed, restart ComfyUI to enable high-quality previews.
 
 ## Support and dev channel
 

@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
-/** 
+/**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
 
@@ -159,24 +159,25 @@ export class ComfyApp {
 					const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
 					const index = node.widgets.findIndex(obj => obj.name === 'image');
 					if(index >= 0) {
-						node.widgets[index].value = clip_image;
+						if(node.widgets[index].type != 'image' && typeof node.widgets[index].value == "string" && clip_image.filename) {
+							node.widgets[index].value = (clip_image.subfolder?clip_image.subfolder+'/':'') + clip_image.filename + (clip_image.type?` [${clip_image.type}]`:'');
+						}
+						else {
+							node.widgets[index].value = clip_image;
+						}
 					}
 				}
 				if(ComfyApp.clipspace.widgets) {
 					ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
 						const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
-						if (prop && prop.type != 'image') {
-							if(typeof prop.value == "string" && value.filename) {
+						if (prop && prop.type != 'button') {
+							if(prop.type != 'image' && typeof prop.value == "string" && value.filename) {
 								prop.value = (value.subfolder?value.subfolder+'/':'') + value.filename + (value.type?` [${value.type}]`:'');
 							}
 							else {
 								prop.value = value;
 								prop.callback(value);
 							}
-						}
-						else if (prop && prop.type != 'button') {
-							prop.value = value;
-							prop.callback(value);
 						}
 					});
 				}
@@ -367,7 +368,11 @@ export class ComfyApp {
 					shiftY = w.last_y;
 					if (w.computeSize) {
 						shiftY += w.computeSize()[1] + 4;
-					} else {
+					}
+					else if(w.computedHeight) {
+						shiftY += w.computedHeight;
+					}
+					else {
 						shiftY += LiteGraph.NODE_WIDGET_HEIGHT + 4;
 					}
 				} else {
@@ -399,7 +404,7 @@ export class ComfyApp {
 						this.images = output.images;
 						imagesChanged = true;
 						imgURLs = imgURLs.concat(output.images.map(params => {
-							return "/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
+							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam());
 						}))
 					}
 				}
@@ -831,7 +836,7 @@ export class ComfyApp {
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
 			const res = origDrawNodeShape.apply(this, arguments);
 
-			const nodeErrors = self.lastPromptError?.node_errors[node.id];
+			const nodeErrors = self.lastNodeErrors?.[node.id];
 
 			let color = null;
 			let lineWidth = 1;
@@ -840,7 +845,7 @@ export class ComfyApp {
 			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
 				color = "dodgerblue";
 			}
-			else if (self.lastPromptError != null && nodeErrors?.errors) {
+			else if (nodeErrors?.errors) {
 				color = "red";
 				lineWidth = 2;
 			}
@@ -1000,7 +1005,7 @@ export class ComfyApp {
 		const extensions = await api.getExtensions();
 		for (const ext of extensions) {
 			try {
-				await import(ext);
+				await import(api.apiURL(ext));
 			} catch (error) {
 				console.error("Error loading extension", ext, error);
 			}
@@ -1032,15 +1037,15 @@ export class ComfyApp {
 
 		this.graph.start();
 
-		const resizeCanvas = () => {
-			const sc = window.devicePixelRatio;
-			const w = canvasEl.offsetWidth;
-			const h = canvasEl.offsetHeight;
-			canvasEl.width = Math.floor(sc * w);
-			canvasEl.height = Math.floor(sc * h);
-			this.scale = window.devicePixelRatio;
-			this.ctx.scale(this.scale, this.scale);
-		};
+		function resizeCanvas() {
+			// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
+			const scale = window.devicePixelRatio;
+			const { width, height } = canvasEl.getBoundingClientRect();
+			canvasEl.width = Math.round(width * scale);
+			canvasEl.height = Math.round(height * scale);
+			canvasEl.getContext("2d").scale(scale, scale);
+			canvas.draw(true, true);
+		}
 
 		// Ensure the canvas fills the window
 		resizeCanvas();
@@ -1408,7 +1413,7 @@ export class ComfyApp {
 		}
 
 		this.#processingQueue = true;
-		this.lastPromptError = null;
+		this.lastNodeErrors = null;
 
 		try {
 			while (this.#queueItems.length) {
@@ -1418,12 +1423,16 @@ export class ComfyApp {
 					const p = await this.graphToPrompt();
 
 					try {
-						await api.queuePrompt(number, p);
+						const res = await api.queuePrompt(number, p);
+						this.lastNodeErrors = res.node_errors;
+						if (this.lastNodeErrors.length > 0) {
+							this.canvas.draw(true, true);
+						}
 					} catch (error) {
 						const formattedError = this.#formatPromptError(error)
 						this.ui.dialog.show(formattedError);
 						if (error.response) {
-							this.lastPromptError = error.response;
+							this.lastNodeErrors = error.response.node_errors;
 							this.canvas.draw(true, true);
 						}
 						break;
@@ -1471,7 +1480,7 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(reader.result));
 			};
 			reader.readAsText(file);
-		} else if (file.name?.endsWith(".latent")) {
+		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
 			const info = await getLatentMetadata(file);
 			if (info.workflow) {
 				this.loadGraphData(JSON.parse(info.workflow));
@@ -1529,7 +1538,7 @@ export class ComfyApp {
 	clean() {
 		this.nodeOutputs = {};
 		this.nodePreviewImages = {}
-		this.lastPromptError = null;
+		this.lastNodeErrors = null;
 		this.lastExecutionError = null;
 		this.runningNodeId = null;
 	}

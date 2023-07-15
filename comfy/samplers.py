@@ -2,7 +2,6 @@ from .k_diffusion import sampling as k_diffusion_sampling
 from .k_diffusion import external as k_diffusion_external
 from .extra_samplers import uni_pc
 import torch
-import contextlib
 from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
@@ -13,7 +12,7 @@ def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
 
 #The main sampling function shared by all the samplers
 #Returns predicted noise
-def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}):
+def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}, seed=None):
         def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
@@ -229,7 +228,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 timestep_ = torch.cat([timestep] * batch_chunks)
 
                 if control is not None:
-                    c['control'] = control.get_control(input_x, timestep_, c['c_crossattn'], len(cond_or_uncond))
+                    c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond))
 
                 transformer_options = {}
                 if 'transformer_options' in model_options:
@@ -273,7 +272,8 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
         max_total_area = model_management.maximum_batch_area()
         cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
         if "sampler_cfg_function" in model_options:
-            return model_options["sampler_cfg_function"](cond, uncond, cond_scale)
+            args = {"cond": cond, "uncond": uncond, "cond_scale": cond_scale, "timestep": timestep}
+            return model_options["sampler_cfg_function"](args)
         else:
             return uncond + (cond - uncond) * cond_scale
 
@@ -291,8 +291,8 @@ class CFGNoisePredictor(torch.nn.Module):
         super().__init__()
         self.inner_model = model
         self.alphas_cumprod = model.alphas_cumprod
-    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}):
-        out = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat, model_options=model_options)
+    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}, seed=None):
+        out = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat, model_options=model_options, seed=seed)
         return out
 
 
@@ -300,11 +300,11 @@ class KSamplerX0Inpaint(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.inner_model = model
-    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={}):
+    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={}, seed=None):
         if denoise_mask is not None:
             latent_mask = 1. - denoise_mask
             x = x * denoise_mask + (self.latent_image + self.noise * sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1))) * latent_mask
-        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat, model_options=model_options)
+        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat, model_options=model_options, seed=seed)
         if denoise_mask is not None:
             out *= denoise_mask
 
@@ -374,7 +374,7 @@ def resolve_cond_masks(conditions, h, w, device):
             modified = c[1].copy()
             if len(mask.shape) == 2:
                 mask = mask.unsqueeze(0)
-            if mask.shape[2] != h or mask.shape[3] != w:
+            if mask.shape[1] != h or mask.shape[2] != w:
                 mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=(h, w), mode='bilinear', align_corners=False).squeeze(1)
 
             if modified.get("set_area_to_bounds", False):
@@ -459,43 +459,22 @@ def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
             n[name] = uncond_fill_func(cond_cnets, x)
             uncond[temp[1]] = [o[0], n]
 
-
-def encode_adm(conds, batch_size, device, noise_augmentor=None):
+def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
     for t in range(len(conds)):
         x = conds[t]
         adm_out = None
-        if noise_augmentor is not None:
-            if 'adm' in x[1]:
-                adm_inputs = []
-                weights = []
-                noise_aug = []
-                adm_in = x[1]["adm"]
-                for adm_c in adm_in:
-                    adm_cond = adm_c[0].image_embeds
-                    weight = adm_c[1]
-                    noise_augment = adm_c[2]
-                    noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
-                    c_adm, noise_level_emb = noise_augmentor(adm_cond.to(device), noise_level=torch.tensor([noise_level], device=device))
-                    adm_out = torch.cat((c_adm, noise_level_emb), 1) * weight
-                    weights.append(weight)
-                    noise_aug.append(noise_augment)
-                    adm_inputs.append(adm_out)
-
-                if len(noise_aug) > 1:
-                    adm_out = torch.stack(adm_inputs).sum(0)
-                    #TODO: add a way to control this
-                    noise_augment = 0.05
-                    noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
-                    c_adm, noise_level_emb = noise_augmentor(adm_out[:, :noise_augmentor.time_embed.dim], noise_level=torch.tensor([noise_level], device=device))
-                    adm_out = torch.cat((c_adm, noise_level_emb), 1)
-            else:
-                adm_out = torch.zeros((1, noise_augmentor.time_embed.dim * 2), device=device)
+        if 'adm' in x[1]:
+            adm_out = x[1]["adm"]
         else:
-            if 'adm' in x[1]:
-                adm_out = x[1]["adm"].to(device)
+            params = x[1].copy()
+            params["width"] = params.get("width", width * 8)
+            params["height"] = params.get("height", height * 8)
+            params["prompt_type"] = params.get("prompt_type", prompt_type)
+            adm_out = model.encode_adm(device=device, **params)
+
         if adm_out is not None:
             x[1] = x[1].copy()
-            x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size)
+            x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size).to(device)
 
     return conds
 
@@ -503,8 +482,8 @@ def encode_adm(conds, batch_size, device, noise_augmentor=None):
 class KSampler:
     SCHEDULERS = ["normal", "karras", "exponential", "simple", "ddim_uniform"]
     SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
-                "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde",
-                "dpmpp_2m", "dpmpp_2m_sde", "ddim", "uni_pc", "uni_pc_bh2"]
+                "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
+                "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "ddim", "uni_pc", "uni_pc_bh2"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
@@ -562,7 +541,7 @@ class KSampler:
             sigmas = self.calculate_sigmas(new_steps).to(self.device)
             self.sigmas = sigmas[-(steps + 1):]
 
-    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, disable_pbar=False):
+    def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
         if sigmas is None:
             sigmas = self.sigmas
         sigma_min = self.sigma_min
@@ -597,19 +576,14 @@ class KSampler:
         apply_empty_x_to_equal_area(positive, negative, 'control', lambda cond_cnets, x: cond_cnets[x])
         apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
-        if self.model.get_dtype() == torch.float16:
-            precision_scope = torch.autocast
-        else:
-            precision_scope = contextlib.nullcontext
-
         if self.model.is_adm():
-            noise_augmentor = None
-            if hasattr(self.model, 'noise_augmentor'): #unclip
-                noise_augmentor = self.model.noise_augmentor
-            positive = encode_adm(positive, noise.shape[0], self.device, noise_augmentor)
-            negative = encode_adm(negative, noise.shape[0], self.device, noise_augmentor)
+            positive = encode_adm(self.model, positive, noise.shape[0], noise.shape[3], noise.shape[2], self.device, "positive")
+            negative = encode_adm(self.model, negative, noise.shape[0], noise.shape[3], noise.shape[2], self.device, "negative")
 
-        extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options}
+        if latent_image is not None:
+            latent_image = self.model.process_latent_in(latent_image)
+
+        extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": self.model_options, "seed":seed}
 
         cond_concat = None
         if hasattr(self.model, 'concat_keys'): #inpaint
@@ -632,64 +606,67 @@ class KSampler:
         else:
             max_denoise = True
 
-        with precision_scope(model_management.get_autocast_device(self.device)):
-            if self.sampler == "uni_pc":
-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, callback=callback, disable=disable_pbar)
-            elif self.sampler == "uni_pc_bh2":
-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, callback=callback, variant='bh2', disable=disable_pbar)
-            elif self.sampler == "ddim":
-                timesteps = []
-                for s in range(sigmas.shape[0]):
-                    timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
-                noise_mask = None
-                if denoise_mask is not None:
-                    noise_mask = 1.0 - denoise_mask
 
-                ddim_callback = None
-                if callback is not None:
-                    total_steps = len(timesteps) - 1
-                    ddim_callback = lambda pred_x0, i: callback(i, pred_x0, None, total_steps)
+        if self.sampler == "uni_pc":
+            samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, callback=callback, disable=disable_pbar)
+        elif self.sampler == "uni_pc_bh2":
+            samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, callback=callback, variant='bh2', disable=disable_pbar)
+        elif self.sampler == "ddim":
+            timesteps = []
+            for s in range(sigmas.shape[0]):
+                timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
+            noise_mask = None
+            if denoise_mask is not None:
+                noise_mask = 1.0 - denoise_mask
 
-                sampler = DDIMSampler(self.model, device=self.device)
-                sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
-                z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
-                samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
-                                                     conditioning=positive,
-                                                     batch_size=noise.shape[0],
-                                                     shape=noise.shape[1:],
-                                                     verbose=False,
-                                                     unconditional_guidance_scale=cfg,
-                                                     unconditional_conditioning=negative,
-                                                     eta=0.0,
-                                                     x_T=z_enc,
-                                                     x0=latent_image,
-                                                     img_callback=ddim_callback,
-                                                     denoise_function=sampling_function,
-                                                     extra_args=extra_args,
-                                                     mask=noise_mask,
-                                                     to_zero=sigmas[-1]==0,
-                                                     end_step=sigmas.shape[0] - 1,
-                                                     disable_pbar=disable_pbar)
+            ddim_callback = None
+            if callback is not None:
+                total_steps = len(timesteps) - 1
+                ddim_callback = lambda pred_x0, i: callback(i, pred_x0, None, total_steps)
 
+            sampler = DDIMSampler(self.model, device=self.device)
+            sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
+            z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
+            samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
+                                                    conditioning=positive,
+                                                    batch_size=noise.shape[0],
+                                                    shape=noise.shape[1:],
+                                                    verbose=False,
+                                                    unconditional_guidance_scale=cfg,
+                                                    unconditional_conditioning=negative,
+                                                    eta=0.0,
+                                                    x_T=z_enc,
+                                                    x0=latent_image,
+                                                    img_callback=ddim_callback,
+                                                    denoise_function=sampling_function,
+                                                    extra_args=extra_args,
+                                                    mask=noise_mask,
+                                                    to_zero=sigmas[-1]==0,
+                                                    end_step=sigmas.shape[0] - 1,
+                                                    disable_pbar=disable_pbar)
+
+        else:
+            extra_args["denoise_mask"] = denoise_mask
+            self.model_k.latent_image = latent_image
+            self.model_k.noise = noise
+
+            if max_denoise:
+                noise = noise * torch.sqrt(1.0 + sigmas[0] ** 2.0)
             else:
-                extra_args["denoise_mask"] = denoise_mask
-                self.model_k.latent_image = latent_image
-                self.model_k.noise = noise
-
                 noise = noise * sigmas[0]
 
-                k_callback = None
-                total_steps = len(sigmas) - 1
-                if callback is not None:
-                    k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
+            k_callback = None
+            total_steps = len(sigmas) - 1
+            if callback is not None:
+                k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
-                if latent_image is not None:
-                    noise += latent_image
-                if self.sampler == "dpm_fast":
-                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
-                elif self.sampler == "dpm_adaptive":
-                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback, disable=disable_pbar)
-                else:
-                    samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
+            if latent_image is not None:
+                noise += latent_image
+            if self.sampler == "dpm_fast":
+                samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
+            elif self.sampler == "dpm_adaptive":
+                samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback, disable=disable_pbar)
+            else:
+                samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
 
-        return samples.to(torch.float32)
+        return self.model.process_latent_out(samples.to(torch.float32))

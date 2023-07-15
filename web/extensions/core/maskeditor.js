@@ -1,7 +1,8 @@
-import { app } from "/scripts/app.js";
-import { ComfyDialog, $el } from "/scripts/ui.js";
-import { ComfyApp } from "/scripts/app.js";
-import { ClipspaceDialog } from "/extensions/core/clipspace.js";
+import { app } from "../../scripts/app.js";
+import { ComfyDialog, $el } from "../../scripts/ui.js";
+import { ComfyApp } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js"
+import { ClipspaceDialog } from "./clipspace.js";
 
 // Helper function to convert a data URL to a Blob object
 function dataURLToBlob(dataURL) {
@@ -33,7 +34,7 @@ function loadedImageToBlob(image) {
 }
 
 async function uploadMask(filepath, formData) {
-	await fetch('/upload/mask', {
+	await api.fetchApi('/upload/mask', {
 		method: 'POST',
 		body: formData
 	}).then(response => {}).catch(error => {
@@ -41,7 +42,7 @@ async function uploadMask(filepath, formData) {
 	});
 
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
-	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = "/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam();
+	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = api.apiURL("/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam());
 
 	if(ComfyApp.clipspace.images)
 		ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;
@@ -346,7 +347,6 @@ class MaskEditorDialog extends ComfyDialog {
 
 		const rgb_url = new URL(ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src);
 		rgb_url.searchParams.delete('channel');
-		rgb_url.searchParams.delete('preview');
 		rgb_url.searchParams.set('channel', 'rgb');
 		orig_image.src = rgb_url;
 		this.image = orig_image;
@@ -618,10 +618,20 @@ class MaskEditorDialog extends ComfyDialog {
 		const dataURL = this.backupCanvas.toDataURL();
 		const blob = dataURLToBlob(dataURL);
 
-		const original_blob = loadedImageToBlob(this.image);
+		let original_url = new URL(this.image.src);
+
+		const original_ref = { filename: original_url.searchParams.get('filename') };
+
+		let original_subfolder = original_url.searchParams.get("subfolder");
+		if(original_subfolder)
+			original_ref.subfolder = original_subfolder;
+
+		let original_type = original_url.searchParams.get("type");
+		if(original_type)
+			original_ref.type = original_type;
 
 		formData.append('image', blob, filename);
-		formData.append('original_image', original_blob);
+		formData.append('original_ref', JSON.stringify(original_ref));
 		formData.append('type', "input");
 		formData.append('subfolder', "clipspace");
 

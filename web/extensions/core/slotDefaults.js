@@ -1,5 +1,5 @@
-import { app } from "/scripts/app.js";
-import { ComfyWidgets } from "/scripts/widgets.js";
+import { app } from "../../scripts/app.js";
+import { ComfyWidgets } from "../../scripts/widgets.js";
 // Adds defaults for quickly adding nodes with middle click on the input/output
 
 app.registerExtension({
@@ -10,7 +10,7 @@ app.registerExtension({
 		LiteGraph.middle_click_slot_add_default_node = true;
 		this.suggestionsNumber = app.ui.settings.addSetting({
 			id: "Comfy.NodeSuggestions.number",
-			name: "number of nodes suggestions",
+			name: "Number of nodes suggestions",
 			type: "slider",
 			attrs: {
 				min: 1,
