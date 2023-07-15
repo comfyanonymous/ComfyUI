@@ -342,7 +342,9 @@ class ModelPatcher:
             if key not in self.backup:
                 self.backup[key] = weight.clone()
 
-            weight[:] = self.calculate_weight(self.patches[key], weight.clone(), key)
+            temp_weight = weight.to(torch.float32, copy=True)
+            weight[:] = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+            del temp_weight
         return self.model
 
     def calculate_weight(self, patches, weight, key):
