@@ -4,33 +4,16 @@ import os
 
 class SDXLClipG(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", max_length=77, freeze=True, layer="penultimate", layer_idx=None, textmodel_path=None):
+        if layer == "penultimate":
+            layer="hidden"
+            layer_idx=-2
+
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_config_bigg.json")
-        super().__init__(device=device, freeze=freeze, textmodel_json_config=textmodel_json_config, textmodel_path=textmodel_path)
+        super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, textmodel_path=textmodel_path)
         self.empty_tokens = [[49406] + [49407] + [0] * 75]
         self.text_projection = torch.nn.Parameter(torch.empty(1280, 1280))
         self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
         self.layer_norm_hidden_state = False
-        if layer == "last":
-            pass
-        elif layer == "penultimate":
-            layer_idx = -1
-            self.clip_layer(layer_idx)
-        elif self.layer == "hidden":
-            assert layer_idx is not None
-            assert abs(layer_idx) < 32
-            self.clip_layer(layer_idx)
-        else:
-            raise NotImplementedError()
-
-    def clip_layer(self, layer_idx):
-        if layer_idx < 0:
-            layer_idx -= 1 #The real last layer of SD2.x clip is the penultimate one. The last one might contain garbage.
-        if abs(layer_idx) >= 32:
-            self.layer = "hidden"
-            self.layer_idx = -2
-        else:
-            self.layer = "hidden"
-            self.layer_idx = layer_idx
 
     def load_sd(self, sd):
         if "text_projection" in sd:
@@ -69,6 +52,10 @@ class SDXLClipModel(torch.nn.Module):
         self.clip_l.clip_layer(layer_idx)
         self.clip_g.clip_layer(layer_idx)
 
+    def reset_clip_layer(self):
+        self.clip_g.reset_clip_layer()
+        self.clip_l.reset_clip_layer()
+
     def encode_token_weights(self, token_weight_pairs):
         token_weight_pairs_g = token_weight_pairs["g"]
         token_weight_pairs_l = token_weight_pairs["l"]
@@ -89,6 +76,9 @@ class SDXLRefinerClipModel(torch.nn.Module):
 
     def clip_layer(self, layer_idx):
         self.clip_g.clip_layer(layer_idx)
+
+    def reset_clip_layer(self):
+        self.clip_g.reset_clip_layer()
 
     def encode_token_weights(self, token_weight_pairs):
         token_weight_pairs_g = token_weight_pairs["g"]
