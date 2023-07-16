@@ -64,7 +64,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
 
         for k, v in d.items():
             if not v:
-                return None
+                continue
             else:
                 d_new[k] = v[i if len(v) > i else -1]
         return d_new
