@@ -8,6 +8,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 ### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 ### [Installing ComfyUI](#installing)
+* Video Tutorial By Dr. Furkan Gözükara ⤵️
+* [ComfyUI Master Tutorial - Stable Diffusion XL (SDXL) - Install On PC, Google Colab (Free) & RunPod](https://youtu.be/FnMHbhvWUhE)
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
