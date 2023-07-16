@@ -233,10 +233,9 @@ def unload_model():
             accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
             model_accelerated = False
 
-
+        current_loaded_model.unpatch_model()
         current_loaded_model.model.to(current_loaded_model.offload_device)
         current_loaded_model.model_patches_to(current_loaded_model.offload_device)
-        current_loaded_model.unpatch_model()
         current_loaded_model = None
         if vram_state != VRAMState.HIGH_VRAM:
             soft_empty_cache()
@@ -258,15 +257,11 @@ def load_model_gpu(model):
     if model is current_loaded_model:
         return
     unload_model()
-    try:
-        real_model = model.patch_model()
-    except Exception as e:
-        model.unpatch_model()
-        raise e
 
     torch_dev = model.load_device
     model.model_patches_to(torch_dev)
     model.model_patches_to(model.model_dtype())
+    current_loaded_model = model
 
     if is_device_cpu(torch_dev):
         vram_set_state = VRAMState.DISABLED
@@ -280,21 +275,29 @@ def load_model_gpu(model):
         if model_size > (current_free_mem - minimum_inference_memory()): #only switch to lowvram if really necessary
             vram_set_state = VRAMState.LOW_VRAM
 
-    current_loaded_model = model
-
+    real_model = model.model
     if vram_set_state == VRAMState.DISABLED:
         pass
     elif vram_set_state == VRAMState.NORMAL_VRAM or vram_set_state == VRAMState.HIGH_VRAM or vram_set_state == VRAMState.SHARED:
         model_accelerated = False
         real_model.to(torch_dev)
-    else:
-        if vram_set_state == VRAMState.NO_VRAM:
-            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
-        elif vram_set_state == VRAMState.LOW_VRAM:
-            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(lowvram_model_memory // (1024 * 1024)), "cpu": "16GiB"})
 
+    try:
+        real_model = model.patch_model()
+    except Exception as e:
+        model.unpatch_model()
+        unload_model()
+        raise e
+
+    if vram_set_state == VRAMState.NO_VRAM:
+        device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
         accelerate.dispatch_model(real_model, device_map=device_map, main_device=torch_dev)
         model_accelerated = True
+    elif vram_set_state == VRAMState.LOW_VRAM:
+        device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(lowvram_model_memory // (1024 * 1024)), "cpu": "16GiB"})
+        accelerate.dispatch_model(real_model, device_map=device_map, main_device=torch_dev)
+        model_accelerated = True
+
     return current_loaded_model
 
 def load_controlnet_gpu(control_models):
