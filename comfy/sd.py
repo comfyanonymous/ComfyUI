@@ -428,11 +428,17 @@ class ModelPatcher:
         return weight
 
     def unpatch_model(self):
-        model_sd = self.model_state_dict()
         keys = list(self.backup.keys())
+        def set_attr(obj, attr, value):
+            attrs = attr.split(".")
+            for name in attrs[:-1]:
+                obj = getattr(obj, name)
+            prev = getattr(obj, attrs[-1])
+            setattr(obj, attrs[-1], torch.nn.Parameter(value))
+            del prev
+
         for k in keys:
-            model_sd[k][:] = self.backup[k]
-            del self.backup[k]
+            set_attr(self.model, k, self.backup[k])
 
         self.backup = {}
 
