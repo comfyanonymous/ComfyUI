@@ -51,7 +51,6 @@ import threading
 import gc
 
 from comfy.cli_args import args
-import comfy.utils
 
 if os.name == "nt":
     import logging
@@ -62,7 +61,16 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         print("Set cuda device to:", args.cuda_device)
 
+    if args.cuda_malloc:
+        env_var = os.environ.get('PYTORCH_CUDA_ALLOC_CONF', None)
+        if env_var is None:
+            env_var = "backend:cudaMallocAsync"
+        else:
+            env_var += ",backend:cudaMallocAsync"
 
+        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = env_var
+
+import comfy.utils
 import yaml
 
 import execution

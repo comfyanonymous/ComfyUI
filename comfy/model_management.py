@@ -204,7 +204,7 @@ print(f"Set vram state to: {vram_state.name}")
 def get_torch_device_name(device):
     if hasattr(device, 'type'):
         if device.type == "cuda":
-            return "{} {}".format(device, torch.cuda.get_device_name(device))
+            return "{} {} : {}".format(device, torch.cuda.get_device_name(device), torch.cuda.get_allocator_backend())
         else:
             return "{}".format(device.type)
     else:
