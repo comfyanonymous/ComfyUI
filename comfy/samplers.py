@@ -6,6 +6,7 @@ from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 import math
+from comfy import model_base
 
 def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
     return abs(a*b) // math.gcd(a, b)
@@ -488,11 +489,11 @@ class KSampler:
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
         self.model_denoise = CFGNoisePredictor(self.model)
-        if self.model.parameterization == "v":
+        if self.model.model_type == model_base.ModelType.V_PREDICTION:
             self.model_wrap = CompVisVDenoiser(self.model_denoise, quantize=True)
         else:
             self.model_wrap = k_diffusion_external.CompVisDenoiser(self.model_denoise, quantize=True)
-        self.model_wrap.parameterization = self.model.parameterization
+
         self.model_k = KSamplerX0Inpaint(self.model_wrap)
         self.device = device
         if scheduler not in self.SCHEDULERS:
@@ -614,7 +615,7 @@ class KSampler:
         elif self.sampler == "ddim":
             timesteps = []
             for s in range(sigmas.shape[0]):
-                timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
+                timesteps.insert(0, self.model_wrap.sigma_to_discrete_timestep(sigmas[s]))
             noise_mask = None
             if denoise_mask is not None:
                 noise_mask = 1.0 - denoise_mask
@@ -638,7 +639,7 @@ class KSampler:
                                                     x_T=z_enc,
                                                     x0=latent_image,
                                                     img_callback=ddim_callback,
-                                                    denoise_function=sampling_function,
+                                                    denoise_function=self.model_wrap.predict_eps_discrete_timestep,
                                                     extra_args=extra_args,
                                                     mask=noise_mask,
                                                     to_zero=sigmas[-1]==0,
