@@ -85,3 +85,4 @@ args = parser.parse_args()
 
 if args.windows_standalone_build:
     args.auto_launch = True
+    args.cuda_malloc = True #work around memory issue in nvidia drivers > 531
