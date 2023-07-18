@@ -11,6 +11,7 @@ class LoopControl:
     RETURN_TYPES = ("*", )
     FUNCTION = "doit"
 
+    CATEGORY = "execution"
     def doit(s, **kwargs):
         if 'loopback_input' not in kwargs or kwargs['loopback_input'] is None:
             current = kwargs['initial_input']
@@ -53,6 +54,7 @@ class LoopCounterCondition:
     RETURN_TYPES = ("LOOP_CONDITION", )
     FUNCTION = "doit"
 
+    CATEGORY = "execution"
     def doit(s, count, trigger):
         return (CounterCondition(count), )
 
@@ -70,6 +72,7 @@ class InputZip:
     RETURN_TYPES = ("*", )
     FUNCTION = "doit"
 
+    CATEGORY = "execution"
     def doit(s, input1, input2):
         return ((input1, input2), )
 
@@ -85,6 +88,7 @@ class InputUnzip:
     RETURN_TYPES = ("*", "*", )
     FUNCTION = "doit"
 
+    CATEGORY = "execution"
     def doit(s, zipped_input):
         input1, input2 = zipped_input
         return (input1, input2, )
@@ -102,6 +106,7 @@ class ExecutionBlocker:
     RETURN_TYPES = ("*", )
     FUNCTION = "doit"
 
+    CATEGORY = "execution"
     def doit(s, input, signal):
         return input
 
@@ -124,6 +129,7 @@ class ExecutionOneOf:
     RETURN_TYPES = ("*", )
     FUNCTION = "doit"
 
+    CATEGORY = "execution"
     def doit(s, **kwargs):
         if 'input1' in kwargs and kwargs['input1'] is not None:
             return (kwargs['input1'], )
@@ -156,6 +162,8 @@ class ExecutionSwitch:
 
     RETURN_TYPES = ("*", "*", "*", "*", "*", )
     FUNCTION = "doit"
+
+    CATEGORY = "execution"
 
     def doit(s, select, input1, input2_opt=None, input3_opt=None, input4_opt=None, input5_opt=None):
         if select == 1:
