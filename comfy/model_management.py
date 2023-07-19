@@ -529,7 +529,7 @@ def should_use_fp16(device=None, model_params=0):
         return False
 
     #FP16 is just broken on these cards
-    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600"]
+    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600", "MX550", "MX450"]
     for x in nvidia_16_series:
         if x in props.name:
             return False

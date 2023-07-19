@@ -91,7 +91,9 @@ class DiscreteSchedule(nn.Module):
         return log_sigma.exp()
 
     def predict_eps_discrete_timestep(self, input, t, **kwargs):
-        sigma = self.t_to_sigma(t.round())
+        if t.dtype != torch.int64 and t.dtype != torch.int32:
+            t = t.round()
+        sigma = self.t_to_sigma(t)
         input = input * ((utils.append_dims(sigma, input.ndim) ** 2 + 1.0) ** 0.5)
         return  (input - self(input, sigma, **kwargs)) / utils.append_dims(sigma, input.ndim)
 
