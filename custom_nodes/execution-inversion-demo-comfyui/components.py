@@ -200,6 +200,8 @@ def LoadComponent(component_file):
 
 def load_components():
     component_dir = os.path.join(comfy_path, "components")
+    if not os.path.exists(component_dir):
+        return
     files = [f for f in os.listdir(component_dir) if os.path.isfile(os.path.join(component_dir, f)) and f.endswith(".json")]
     for f in files:
         print("Loading component file %s" % f)
