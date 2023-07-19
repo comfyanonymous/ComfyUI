@@ -37,7 +37,7 @@ def get_gpu_names():
         return set()
 
 def cuda_malloc_supported():
-    blacklist = {"GeForce GTX 960M", "GeForce GTX 950M", "GeForce 945M", "GeForce 940M", "GeForce 930M", "GeForce 920M", "GeForce 910M"}
+    blacklist = {"GeForce GTX 960M", "GeForce GTX 950M", "GeForce 945M", "GeForce 940M", "GeForce 930M", "GeForce 920M", "GeForce 910M", "GeForce GTX 750", "GeForce GTX 745"}
     try:
         names = get_gpu_names()
     except:
