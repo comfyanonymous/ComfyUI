@@ -92,10 +92,10 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 
 
 def hijack_progress(server):
-    def hook(value, total, preview_image_bytes):
+    def hook(value, total, preview_image):
         server.send_sync("progress", {"value": value, "max": total}, server.client_id)
-        if preview_image_bytes is not None:
-            server.send_sync(BinaryEventTypes.PREVIEW_IMAGE, preview_image_bytes, server.client_id)
+        if preview_image is not None:
+            server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
 
 
