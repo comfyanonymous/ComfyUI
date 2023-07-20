@@ -1,6 +1,5 @@
 import torch
-from PIL import Image, ImageOps
-from io import BytesIO
+from PIL import Image
 import struct
 import numpy as np
 from comfy.cli_args import args, LatentPreviewMethod
@@ -15,26 +14,7 @@ class LatentPreviewer:
 
     def decode_latent_to_preview_image(self, preview_format, x0):
         preview_image = self.decode_latent_to_preview(x0)
-
-        if hasattr(Image, 'Resampling'):
-            resampling = Image.Resampling.BILINEAR
-        else:
-            resampling = Image.ANTIALIAS
-
-        preview_image = ImageOps.contain(preview_image, (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), resampling)
-
-        preview_type = 1
-        if preview_format == "JPEG":
-            preview_type = 1
-        elif preview_format == "PNG":
-            preview_type = 2
-
-        bytesIO = BytesIO()
-        header = struct.pack(">I", preview_type)
-        bytesIO.write(header)
-        preview_image.save(bytesIO, format=preview_format, quality=95)
-        preview_bytes = bytesIO.getvalue()
-        return preview_bytes
+        return ("JPEG", preview_image, MAX_PREVIEW_RESOLUTION)
 
 class TAESDPreviewerImpl(LatentPreviewer):
     def __init__(self, taesd):
