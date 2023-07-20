@@ -61,30 +61,7 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         print("Set cuda device to:", args.cuda_device)
 
-    if not args.cuda_malloc:
-        try: #if there's a better way to check the torch version without importing it let me know
-            version = ""
-            torch_spec = importlib.util.find_spec("torch")
-            for folder in torch_spec.submodule_search_locations:
-                ver_file = os.path.join(folder, "version.py")
-                if os.path.isfile(ver_file):
-                    spec = importlib.util.spec_from_file_location("torch_version_import", ver_file)
-                    module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(module)
-                    version = module.__version__
-            if int(version[0]) >= 2: #enable by default for torch version 2.0 and up
-                args.cuda_malloc = True
-        except:
-            pass
-
-    if args.cuda_malloc and not args.disable_cuda_malloc:
-        env_var = os.environ.get('PYTORCH_CUDA_ALLOC_CONF', None)
-        if env_var is None:
-            env_var = "backend:cudaMallocAsync"
-        else:
-            env_var += ",backend:cudaMallocAsync"
-
-        os.environ['PYTORCH_CUDA_ALLOC_CONF'] = env_var
+    import cuda_malloc
 
 import comfy.utils
 import yaml
@@ -115,10 +92,10 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 
 
 def hijack_progress(server):
-    def hook(value, total, preview_image_bytes):
+    def hook(value, total, preview_image):
         server.send_sync("progress", {"value": value, "max": total}, server.client_id)
-        if preview_image_bytes is not None:
-            server.send_sync(BinaryEventTypes.PREVIEW_IMAGE, preview_image_bytes, server.client_id)
+        if preview_image is not None:
+            server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
 
 
