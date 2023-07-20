@@ -19,6 +19,7 @@ class WhileLoopOpen:
         return inputs
 
     RETURN_TYPES = tuple(["FLOW_CONTROL"] + ["*"] * NUM_FLOW_SOCKETS)
+    RETURN_NAMES = tuple(["FLOW_CONTROL"] + ["value%d" % i for i in range(NUM_FLOW_SOCKETS)])
     FUNCTION = "while_loop_open"
 
     CATEGORY = "Flow Control"
@@ -37,7 +38,7 @@ class WhileLoopClose:
     def INPUT_TYPES(cls):
         inputs = {
             "required": {
-                "flow_control": ("FLOW_CONTROL",),
+                "flow_control": ("FLOW_CONTROL", {"raw_link": True}),
                 "condition": ("INT", {"default": 0, "min": 0, "max": 1, "step": 1}),
             },
             "optional": {
@@ -52,6 +53,7 @@ class WhileLoopClose:
         return inputs
 
     RETURN_TYPES = tuple(["*"] * NUM_FLOW_SOCKETS)
+    RETURN_NAMES = tuple(["value%d" % i for i in range(NUM_FLOW_SOCKETS)])
     FUNCTION = "while_loop_close"
 
     CATEGORY = "Flow Control"
@@ -92,7 +94,7 @@ class WhileLoopClose:
         self.explore_dependencies(unique_id, dynprompt, upstream)
 
         contained = {}
-        open_node = this_node["inputs"]["flow_control"][0]
+        open_node = flow_control[0]
         self.collect_contained(open_node, upstream, contained)
         contained[unique_id] = True
         contained[open_node] = True
