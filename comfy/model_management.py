@@ -49,6 +49,7 @@ except:
 try:
     if torch.backends.mps.is_available():
         cpu_state = CPUState.MPS
+        import torch.mps
 except:
     pass
 
