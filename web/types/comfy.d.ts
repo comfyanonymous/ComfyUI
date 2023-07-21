@@ -30,9 +30,7 @@ export interface ComfyExtension {
 	getCustomWidgets(
 		app: ComfyApp
 	): Promise<
-		Array<
-			Record<string, (node, inputName, inputData, app) => { widget?: IWidget; minWidth?: number; minHeight?: number }>
-		>
+		Record<string, (node, inputName, inputData, app) => { widget?: IWidget; minWidth?: number; minHeight?: number }>
 	>;
 	/**
 	 * Allows the extension to add additional handling to the node before it is registered with LGraph
