@@ -24,13 +24,13 @@ def get_input_info(class_def, input_name):
     valid_inputs = class_def.INPUT_TYPES()
     input_info = None
     input_category = None
-    if input_name in valid_inputs["required"]:
+    if "required" in valid_inputs and input_name in valid_inputs["required"]:
         input_category = "required"
         input_info = valid_inputs["required"][input_name]
-    elif input_name in valid_inputs["optional"]:
+    elif "optional" in valid_inputs and input_name in valid_inputs["optional"]:
         input_category = "optional"
         input_info = valid_inputs["optional"][input_name]
-    elif input_name in valid_inputs["hidden"]:
+    elif "hidden" in valid_inputs and input_name in valid_inputs["hidden"]:
         input_category = "hidden"
         input_info = valid_inputs["hidden"][input_name]
     if input_info is None:
