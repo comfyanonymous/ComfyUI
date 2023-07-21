@@ -273,6 +273,10 @@ export const ComfyWidgets = {
 			),
 		};
 	},
+	BOOL(node, inputName, inputData) {
+		const defaultVal = inputData[1]?.default || false;
+		return { widget: node.addWidget("toggle", inputName, defaultVal, () => {}, {}) };
+	},
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;

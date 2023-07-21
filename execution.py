@@ -667,6 +667,9 @@ def validate_inputs(prompt, item, validated):
                 if type_input == "STRING":
                     val = str(val)
                     inputs[x] = val
+                if type_input == "BOOL":
+                    val = bool(val)
+                    inputs[x] = val
             except Exception as ex:
                 error = {
                     "type": "invalid_input_type",
