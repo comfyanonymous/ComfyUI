@@ -1,4 +1,3 @@
-import torch
 from comfy.graph_utils import GraphBuilder
 
 class AccumulateNode:
@@ -120,7 +119,7 @@ class ListToAccumulationNode:
     def accumulation_to_list(self, list):
         return ({"accum": list},)
 
-class IsTruthyNode:
+class IntMathOperation:
     def __init__(self):
         pass
 
@@ -128,26 +127,31 @@ class IsTruthyNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "value": ("*",),
+                "a": ("INT", {"default": 0, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff, "step": 1}),
+                "b": ("INT", {"default": 0, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff, "step": 1}),
+                "operation": (["add", "subtract", "multiply", "divide", "modulo", "power"],),
             },
         }
 
     RETURN_TYPES = ("INT",)
-    FUNCTION = "is_truthy"
+    FUNCTION = "int_math_operation"
 
     CATEGORY = "InversionDemo Nodes"
 
-    def is_truthy(self, value):
-        if isinstance(value, torch.Tensor):
-            if value.max().item() == 0 and value.min().item() == 0:
-                return (0,)
-            else:
-                return (1,)
-        try:
-            return (int(bool(value)),)
-        except:
-            # Can't convert it? Well then it's something or other. I dunno, I'm not a Python programmer.
-            return (1,)
+    def int_math_operation(self, a, b, operation):
+        if operation == "add":
+            return (a + b,)
+        elif operation == "subtract":
+            return (a - b,)
+        elif operation == "multiply":
+            return (a * b,)
+        elif operation == "divide":
+            return (a // b,)
+        elif operation == "modulo":
+            return (a % b,)
+        elif operation == "power":
+            return (a ** b,)
+
 
 from .flow_control import NUM_FLOW_SOCKETS
 class ForLoopOpen:
@@ -193,11 +197,11 @@ class ForLoopClose:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "flow_control": ("FLOW_CONTROL", {"raw_link": True}),
-                "old_remaining": ("INT", {"default": 1, "min": 0, "max": 100000, "step": 1}),
+                "flow_control": ("FLOW_CONTROL", {"rawLink": True}),
+                "old_remaining": ("INT", {"default": 1, "min": 0, "max": 100000, "step": 1, "forceInput": True}),
             },
             "optional": {
-                "initial_value%d" % i: ("*",{"raw_link": True}) for i in range(1, NUM_FLOW_SOCKETS)
+                "initial_value%d" % i: ("*",{"rawLink": True}) for i in range(1, NUM_FLOW_SOCKETS)
             },
         }
 
@@ -211,11 +215,12 @@ class ForLoopClose:
         graph = GraphBuilder()
         while_open = flow_control[0]
         # TODO - Requires WAS-ns. Will definitely want to solve before merging
-        sub = graph.node("Number Operation", operation="subtraction", number_a=[while_open,1], number_b=1)
+        sub = graph.node("IntMathOperation", operation="subtract", a=[while_open,1], b=1)
+        cond = graph.node("ToBoolNode", value=sub.out(0))
         input_values = {("initial_value%d" % i): kwargs.get("initial_value%d" % i, None) for i in range(1, NUM_FLOW_SOCKETS)}
         while_close = graph.node("WhileLoopClose",
                 flow_control=flow_control,
-                condition=sub.out(0),
+                condition=cond.out(0),
                 initial_value0=sub.out(0),
                 **input_values)
         return {
@@ -230,9 +235,9 @@ UTILITY_NODE_CLASS_MAPPINGS = {
     "AccumulationTailNode": AccumulationTailNode,
     "AccumulationToListNode": AccumulationToListNode,
     "ListToAccumulationNode": ListToAccumulationNode,
-    "IsTruthyNode": IsTruthyNode,
     "ForLoopOpen": ForLoopOpen,
     "ForLoopClose": ForLoopClose,
+    "IntMathOperation": IntMathOperation,
 }
 UTILITY_NODE_DISPLAY_NAME_MAPPINGS = {
     "AccumulateNode": "Accumulate",
@@ -240,7 +245,7 @@ UTILITY_NODE_DISPLAY_NAME_MAPPINGS = {
     "AccumulationTailNode": "Accumulation Tail",
     "AccumulationToListNode": "Accumulation to List",
     "ListToAccumulationNode": "List to Accumulation",
-    "IsTruthyNode": "Is Truthy",
     "ForLoopOpen": "For Loop Open",
     "ForLoopClose": "For Loop Close",
+    "IntMathOperation": "Int Math Operation",
 }

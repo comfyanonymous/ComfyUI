@@ -83,7 +83,7 @@ class InversionDemoLazySwitch:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "switch": ([False, True],),
+                "switch": ("BOOL",),
                 "on_false": ("*", {"lazy": True}),
                 "on_true": ("*", {"lazy": True}),
             },
@@ -103,6 +103,61 @@ class InversionDemoLazySwitch:
     def switch(self, switch, on_false = None, on_true = None):
         value = on_true if switch else on_false
         return (value,)
+
+NUM_IF_ELSE_NODES = 10
+class InversionDemoLazyConditional:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        args = {
+            "value1": ("*", {"lazy": True}),
+            "condition1": ("BOOL", {"forceInput": True}),
+        }
+
+        for i in range(1,NUM_IF_ELSE_NODES):
+            args["value%d" % (i + 1)] = ("*", {"lazy": True})
+            args["condition%d" % (i + 1)] = ("BOOL", {"lazy": True, "forceInput": True})
+
+        args["else"] = ("*", {"lazy": True})
+
+        return {
+            "required": {},
+            "optional": args,
+        }
+
+    RETURN_TYPES = ("*",)
+    FUNCTION = "conditional"
+
+    CATEGORY = "InversionDemo Nodes"
+
+    def check_lazy_status(self, **kwargs):
+        for i in range(0,NUM_IF_ELSE_NODES):
+            cond = "condition%d" % (i + 1)
+            if cond not in kwargs:
+                return [cond]
+            if kwargs[cond]:
+                val = "value%d" % (i + 1)
+                if val not in kwargs:
+                    return [val]
+                else:
+                    return []
+
+        if "else" not in kwargs:
+            return ["else"]
+
+    def conditional(self, **kwargs):
+        for i in range(0,NUM_IF_ELSE_NODES):
+            cond = "condition%d" % (i + 1)
+            if cond not in kwargs:
+                return [cond]
+            if kwargs.get(cond, False):
+                val = "value%d" % (i + 1)
+                return (kwargs.get(val, None),)
+
+        return (kwargs.get("else", None),)
+    
     
 class InversionDemoLazyIndexSwitch:
     def __init__(self):
@@ -195,6 +250,7 @@ GENERAL_NODE_CLASS_MAPPINGS = {
     "InversionDemoLazySwitch": InversionDemoLazySwitch,
     "InversionDemoLazyIndexSwitch": InversionDemoLazyIndexSwitch,
     "InversionDemoLazyMixImages": InversionDemoLazyMixImages,
+    "InversionDemoLazyConditional": InversionDemoLazyConditional,
 }
 
 GENERAL_NODE_DISPLAY_NAME_MAPPINGS = {
@@ -203,4 +259,5 @@ GENERAL_NODE_DISPLAY_NAME_MAPPINGS = {
     "InversionDemoLazySwitch": "Lazy Switch",
     "InversionDemoLazyIndexSwitch": "Lazy Index Switch",
     "InversionDemoLazyMixImages": "Lazy Mix Images",
+    "InversionDemoLazyConditional": "Lazy Conditional",
 }

@@ -9,7 +9,7 @@ class WhileLoopOpen:
     def INPUT_TYPES(cls):
         inputs = {
             "required": {
-                "condition": ("INT", {"default": 1, "min": 0, "max": 1, "step": 1}),
+                "condition": ("BOOL", {"default": True}),
             },
             "optional": {
             },
@@ -38,8 +38,8 @@ class WhileLoopClose:
     def INPUT_TYPES(cls):
         inputs = {
             "required": {
-                "flow_control": ("FLOW_CONTROL", {"raw_link": True}),
-                "condition": ("INT", {"default": 0, "min": 0, "max": 1, "step": 1}),
+                "flow_control": ("FLOW_CONTROL", {"rawLink": True}),
+                "condition": ("BOOL", {"forceInput": True}),
             },
             "optional": {
             },

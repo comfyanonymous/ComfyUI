@@ -53,6 +53,7 @@ class ComponentOutput:
             "required": {
                 "index": ("INT", {"default": 0, "min": 0, "max": 1000, "step": 1}),
                 "data_type": ("STRING", {"multiline": False, "default": "IMAGE"}),
+                "name": ("STRING", {"multiline": False}),
                 "value": ("*",),
             },
         }
@@ -62,7 +63,7 @@ class ComponentOutput:
 
     CATEGORY = "Component Creation"
 
-    def component_output(self, index, data_type, value):
+    def component_output(self, index, data_type, name, value):
         return (value,)
 
 class ComponentMetadata:
@@ -152,6 +153,7 @@ def LoadComponent(component_file):
             elif data["class_type"] == "ComponentOutput":
                 component_outputs.append({
                     "node_id": node_id,
+                    "name": data["inputs"]["name"] or data["inputs"]["data_type"],
                     "index": data["inputs"]["index"],
                     "data_type": data["inputs"]["data_type"],
                 })
@@ -179,6 +181,7 @@ def LoadComponent(component_file):
             }
 
         RETURN_TYPES = tuple([node["data_type"] for node in component_outputs])
+        RETURN_NAMES = tuple([node["name"] for node in component_outputs])
         FUNCTION = "expand_component"
 
         CATEGORY = "Custom Components"

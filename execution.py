@@ -160,7 +160,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, dynpromp
     for x in inputs:
         input_data = inputs[x]
         input_type, input_category, input_info = get_input_info(class_def, x)
-        if isinstance(input_data, list) and not input_info.get("raw_link", False):
+        if isinstance(input_data, list) and not input_info.get("rawLink", False):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
