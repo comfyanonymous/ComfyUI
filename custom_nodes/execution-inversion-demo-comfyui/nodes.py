@@ -195,7 +195,7 @@ class InversionDemoLazyIndexSwitch:
 
     def index_switch(self, index, **kwargs):
         key = "value%d" % index
-        return kwargs[key]
+        return (kwargs[key],)
 
 class InversionDemoLazyMixImages:
     def __init__(self):
