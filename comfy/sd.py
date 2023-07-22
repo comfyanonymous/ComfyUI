@@ -353,7 +353,7 @@ class ModelPatcher:
             temp_weight = weight.to(torch.float32, copy=True)
             out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
             set_attr(self.model, key, out_weight)
-            del temp_weight
+            del weight
         return self.model
 
     def calculate_weight(self, patches, weight, key):
