@@ -103,6 +103,7 @@ class WhileLoopClose:
         for node_id in contained:
             original_node = dynprompt.get_node(node_id)
             node = graph.node(original_node["class_type"], node_id)
+            node.set_override_parent_id(node_id)
         for node_id in contained:
             original_node = dynprompt.get_node(node_id)
             node = graph.lookup_node(node_id)

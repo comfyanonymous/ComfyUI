@@ -68,6 +68,7 @@ class Node:
         self.id = id
         self.class_type = class_type
         self.inputs = inputs
+        self.override_parent_id = None
 
     def out(self, index):
         return [self.id, index]
@@ -82,11 +83,17 @@ class Node:
     def get_input(self, key):
         return self.inputs.get(key)
 
+    def set_override_parent_id(self, override_parent_id):
+        self.override_parent_id = override_parent_id
+
     def serialize(self):
-        return {
+        serialized = {
             "class_type": self.class_type,
             "inputs": self.inputs
         }
+        if self.override_parent_id is not None:
+            serialized["override_parent_id"] = self.override_parent_id
+        return serialized
 
 def add_graph_prefix(graph, outputs, prefix):
     # Change the node IDs and any internal links

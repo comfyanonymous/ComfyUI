@@ -146,13 +146,13 @@ class DynamicPrompt:
             return self.original_prompt[node_id]
         return None
 
-    def add_ephemeral_node(self, real_parent_id, node_id, node_info):
+    def add_ephemeral_node(self, parent_id, node_id, node_info):
         self.ephemeral_prompt[node_id] = node_info
-        self.ephemeral_parents[node_id] = real_parent_id
+        self.ephemeral_parents[node_id] = parent_id
 
     def get_real_node_id(self, node_id):
-        if node_id in self.ephemeral_parents:
-            return self.ephemeral_parents[node_id]
+        while node_id in self.ephemeral_parents:
+            node_id = self.ephemeral_parents[node_id]
         return node_id
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, dynprompt=None, extra_data={}):
@@ -340,7 +340,8 @@ def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, 
                             break
                     new_output_ids = []
                     for node_id, node_info in new_graph.items():
-                        dynprompt.add_ephemeral_node(real_node_id, node_id, node_info)
+                        parent_id = node_info.get("override_parent_id", real_node_id)
+                        dynprompt.add_ephemeral_node(parent_id, node_id, node_info)
                         # Figure out if the newly created node is an output node
                         class_type = node_info["class_type"]
                         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
