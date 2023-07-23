@@ -248,7 +248,10 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
                 c['transformer_options'] = transformer_options
 
-                output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
+                if 'model_function_wrapper' in model_options:
+                    output = model_options['model_function_wrapper'](model_function, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
+                else:
+                    output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
                 del input_x
 
                 model_management.throw_exception_if_processing_interrupted()
