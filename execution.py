@@ -14,6 +14,7 @@ import nodes
 
 import comfy.model_management
 import comfy.graph_utils
+from comfy.graph_utils import is_link
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -63,7 +64,7 @@ class ExecutionList:
         if to_input not in inputs:
             raise Exception("Node %s says it needs input %s, but there is no input to that node at all" % (to_node_id, to_input))
         value = inputs[to_input]
-        if not isinstance(value, list):
+        if not is_link(value):
             raise Exception("Node %s says it needs input %s, but that value is a constant" % (to_node_id, to_input))
         from_node_id, from_socket = value
         self.add_strong_link(from_node_id, from_socket, to_node_id)
@@ -88,7 +89,7 @@ class ExecutionList:
         inputs = self.dynprompt.get_node(unique_id)["inputs"]
         for input_name in inputs:
             value = inputs[input_name]
-            if isinstance(value, list):
+            if is_link(value):
                 from_node_id, from_socket = value
                 input_type, input_category, input_info = self.get_input_info(unique_id, input_name)
                 if "lazy" not in input_info or not input_info["lazy"]:
@@ -160,7 +161,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, dynpromp
     for x in inputs:
         input_data = inputs[x]
         input_type, input_category, input_info = get_input_info(class_def, x)
-        if isinstance(input_data, list) and not input_info.get("rawLink", False):
+        if is_link(input_data) and not input_info.get("rawLink", False):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
@@ -288,7 +289,7 @@ def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, 
                 else:
                     resolved_output = []
                     for r in result:
-                        if isinstance(r, list) and len(r) == 2:
+                        if is_link(r):
                             source_node, source_output = r[0], r[1]
                             node_output = outputs[source_node][source_output]
                             for o in node_output:
@@ -348,7 +349,7 @@ def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, 
                     for node_id in new_output_ids:
                         execution_list.add_node(node_id)
                     for i in range(len(node_outputs)):
-                        if isinstance(node_outputs[i], list) and len(node_outputs[i]) == 2:
+                        if is_link(node_outputs[i]):
                             from_node_id, from_socket = node_outputs[i][0], node_outputs[i][1]
                             execution_list.add_strong_link(from_node_id, from_socket, unique_id)
                     cached_outputs.append((True, node_outputs))
@@ -430,7 +431,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
             for x in inputs:
                 input_data = inputs[x]
 
-                if isinstance(input_data, list):
+                if is_link(input_data):
                     input_unique_id = input_data[0]
                     output_index = input_data[1]
                     if input_unique_id in outputs:

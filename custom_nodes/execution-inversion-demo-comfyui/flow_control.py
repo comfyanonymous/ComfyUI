@@ -1,4 +1,4 @@
-from comfy.graph_utils import GraphBuilder
+from comfy.graph_utils import GraphBuilder, is_link
 
 NUM_FLOW_SOCKETS = 5
 class WhileLoopOpen:
@@ -63,7 +63,7 @@ class WhileLoopClose:
         if "inputs" not in node_info:
             return
         for k, v in node_info["inputs"].items():
-            if isinstance(v, list) and len(v) == 2:
+            if is_link(v):
                 parent_id = v[0]
                 if parent_id not in upstream:
                     upstream[parent_id] = []
@@ -107,7 +107,7 @@ class WhileLoopClose:
             original_node = dynprompt.get_node(node_id)
             node = graph.lookup_node(node_id)
             for k, v in original_node["inputs"].items():
-                if isinstance(v, list) and len(v) == 2 and v[0] in contained:
+                if is_link(v) and v[0] in contained:
                     parent = graph.lookup_node(v[0])
                     node.set_input(k, parent.out(v[1]))
                 else:

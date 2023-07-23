@@ -1,6 +1,17 @@
 import json
 import random
 
+def is_link(obj):
+    if not isinstance(obj, list):
+        return False
+    if len(obj) != 2:
+        return False
+    if not isinstance(obj[0], str):
+        return False
+    if not isinstance(obj[1], int) and not isinstance(obj[1], float):
+        return False
+    return True
+
 # The GraphBuilder is just a utility class that outputs graphs in the form expected by the ComfyUI back-end
 class GraphBuilder:
     def __init__(self, prefix = True):
@@ -40,7 +51,7 @@ class GraphBuilder:
         to_remove = []
         for node in self.nodes.values():
             for key, value in node.inputs.items():
-                if isinstance(value, list) and value[0] == node_id and value[1] == index:
+                if is_link(value) and value[0] == node_id and value[1] == index:
                     if new_value is None:
                         to_remove.append((node, key))
                     else:
@@ -85,7 +96,7 @@ def add_graph_prefix(graph, outputs, prefix):
         new_node_id = prefix + node_id
         new_node = { "class_type": node_info["class_type"], "inputs": {} }
         for input_name, input_value in node_info.get("inputs", {}).items():
-            if isinstance(input_value, list):
+            if is_link(input_value):
                 new_node["inputs"][input_name] = [prefix + input_value[0], input_value[1]]
             else:
                 new_node["inputs"][input_name] = input_value
@@ -95,7 +106,7 @@ def add_graph_prefix(graph, outputs, prefix):
     new_outputs = []
     for n in range(len(outputs)):
         output = outputs[n]
-        if isinstance(output, list): # This is a node link
+        if is_link(output):
             new_outputs.append([prefix + output[0], output[1]])
         else:
             new_outputs.append(output)
