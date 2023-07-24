@@ -673,22 +673,71 @@ def broadcast_image_to(tensor, target_batch_size, batched_number):
     else:
         return torch.cat([tensor] * batched_number, dim=0)
 
-class ControlNet:
-    def __init__(self, control_model, global_average_pooling=False, device=None):
-        self.control_model = control_model
+class ControlBase:
+    def __init__(self, device=None):
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
+        self.timestep_percent_range = (1.0, 0.0)
+        self.timestep_range = None
+
         if device is None:
             device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
+
+    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(1.0, 0.0)):
+        self.cond_hint_original = cond_hint
+        self.strength = strength
+        self.timestep_percent_range = timestep_percent_range
+        return self
+
+    def pre_run(self, model, percent_to_timestep_function):
+        self.timestep_range = (percent_to_timestep_function(self.timestep_percent_range[0]), percent_to_timestep_function(self.timestep_percent_range[1]))
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.pre_run(model, percent_to_timestep_function)
+
+    def set_previous_controlnet(self, controlnet):
+        self.previous_controlnet = controlnet
+        return self
+
+    def cleanup(self):
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.cleanup()
+        if self.cond_hint is not None:
+            del self.cond_hint
+            self.cond_hint = None
+        self.timestep_range = None
+
+    def get_models(self):
+        out = []
+        if self.previous_controlnet is not None:
+            out += self.previous_controlnet.get_models()
+        out.append(self.control_model)
+        return out
+
+    def copy_to(self, c):
+        c.cond_hint_original = self.cond_hint_original
+        c.strength = self.strength
+        c.timestep_percent_range = self.timestep_percent_range
+
+class ControlNet(ControlBase):
+    def __init__(self, control_model, global_average_pooling=False, device=None):
+        super().__init__(device)
+        self.control_model = control_model
         self.global_average_pooling = global_average_pooling
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
             control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+
+        if self.timestep_range is not None:
+            if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
+                if control_prev is not None:
+                    return control_prev
+                else:
+                    return {}
 
         output_dtype = x_noisy.dtype
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
@@ -737,34 +786,10 @@ class ControlNet:
             out['input'] = control_prev['input']
         return out
 
-    def set_cond_hint(self, cond_hint, strength=1.0):
-        self.cond_hint_original = cond_hint
-        self.strength = strength
-        return self
-
-    def set_previous_controlnet(self, controlnet):
-        self.previous_controlnet = controlnet
-        return self
-
-    def cleanup(self):
-        if self.previous_controlnet is not None:
-            self.previous_controlnet.cleanup()
-        if self.cond_hint is not None:
-            del self.cond_hint
-            self.cond_hint = None
-
     def copy(self):
         c = ControlNet(self.control_model, global_average_pooling=self.global_average_pooling)
-        c.cond_hint_original = self.cond_hint_original
-        c.strength = self.strength
+        self.copy_to(c)
         return c
-
-    def get_models(self):
-        out = []
-        if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_models()
-        out.append(self.control_model)
-        return out
 
 def load_controlnet(ckpt_path, model=None):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
@@ -870,23 +895,24 @@ def load_controlnet(ckpt_path, model=None):
     control = ControlNet(control_model, global_average_pooling=global_average_pooling)
     return control
 
-class T2IAdapter:
+class T2IAdapter(ControlBase):
     def __init__(self, t2i_model, channels_in, device=None):
+        super().__init__(device)
         self.t2i_model = t2i_model
         self.channels_in = channels_in
-        self.strength = 1.0
-        if device is None:
-            device = model_management.get_torch_device()
-        self.device = device
-        self.previous_controlnet = None
         self.control_input = None
-        self.cond_hint_original = None
-        self.cond_hint = None
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
             control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+
+        if self.timestep_range is not None:
+            if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
+                if control_prev is not None:
+                    return control_prev
+                else:
+                    return {}
 
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
@@ -932,33 +958,11 @@ class T2IAdapter:
             out['output'] = control_prev['output']
         return out
 
-    def set_cond_hint(self, cond_hint, strength=1.0):
-        self.cond_hint_original = cond_hint
-        self.strength = strength
-        return self
-
-    def set_previous_controlnet(self, controlnet):
-        self.previous_controlnet = controlnet
-        return self
-
     def copy(self):
         c = T2IAdapter(self.t2i_model, self.channels_in)
-        c.cond_hint_original = self.cond_hint_original
-        c.strength = self.strength
+        self.copy_to(c)
         return c
 
-    def cleanup(self):
-        if self.previous_controlnet is not None:
-            self.previous_controlnet.cleanup()
-        if self.cond_hint is not None:
-            del self.cond_hint
-            self.cond_hint = None
-
-    def get_models(self):
-        out = []
-        if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_models()
-        return out
 
 def load_t2i_adapter(t2i_data):
     keys = t2i_data.keys()

@@ -615,6 +615,8 @@ class ControlNetApplyAdvanced:
                              "control_net": ("CONTROL_NET", ),
                              "image": ("IMAGE", ),
                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             "start": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001})
                              }}
 
     RETURN_TYPES = ("CONDITIONING","CONDITIONING")
@@ -623,7 +625,7 @@ class ControlNetApplyAdvanced:
 
     CATEGORY = "conditioning"
 
-    def apply_controlnet(self, positive, negative, control_net, image, strength):
+    def apply_controlnet(self, positive, negative, control_net, image, strength, start, end):
         if strength == 0:
             return (positive, negative)
 
@@ -640,7 +642,7 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength)
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start, end))
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
