@@ -204,6 +204,28 @@ class ConditioningZeroOut:
             c.append(n)
         return (c, )
 
+class ConditioningSetTimestepRange:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "start": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "set_range"
+
+    CATEGORY = "advanced/conditioning"
+
+    def set_range(self, conditioning, start, end):
+        c = []
+        for t in conditioning:
+            d = t[1].copy()
+            d['start_percent'] = start
+            d['end_percent'] = end
+            n = [t[0], d]
+            c.append(n)
+        return (c, )
+
 class VAEDecode:
     @classmethod
     def INPUT_TYPES(s):
@@ -1444,6 +1466,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveLatent": SaveLatent,
 
     "ConditioningZeroOut": ConditioningZeroOut,
+    "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
