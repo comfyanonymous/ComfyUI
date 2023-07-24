@@ -3,7 +3,10 @@
 :: If omitted, use the python installed in the system:
 set PYTHON=
 
-:: If omitted, use the default "venv" subfolder:
+:: If omitted, use the default "venv" subfolder.
+:: Set to just a dash (set VENV_DIR=-) to make the launcher use a system python.
+:: However, if you do, you might get into issues due to lack of write permissions.
+:: (so set it to "-" only if you actually know what you do and why)
 set VENV_DIR=
 
 call comfyui_venv_and_launch.bat %*
