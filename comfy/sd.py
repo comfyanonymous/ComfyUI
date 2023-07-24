@@ -713,7 +713,6 @@ class ControlBase:
         out = []
         if self.previous_controlnet is not None:
             out += self.previous_controlnet.get_models()
-        out.append(self.control_model)
         return out
 
     def copy_to(self, c):
@@ -790,6 +789,12 @@ class ControlNet(ControlBase):
         c = ControlNet(self.control_model, global_average_pooling=self.global_average_pooling)
         self.copy_to(c)
         return c
+
+    def get_models(self):
+        out = super().get_models()
+        out.append(self.control_model)
+        return out
+
 
 def load_controlnet(ckpt_path, model=None):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
