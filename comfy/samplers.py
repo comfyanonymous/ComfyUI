@@ -455,6 +455,16 @@ def calculate_start_end_timesteps(model, conds):
                 n['timestep_end'] = timestep_end
             conds[t] = [x[0], n]
 
+def pre_run_control(model, conds):
+    for t in range(len(conds)):
+        x = conds[t]
+
+        timestep_start = None
+        timestep_end = None
+        percent_to_timestep_function = lambda a: model.sigma_to_t(model.t_to_sigma(torch.tensor(a) * 999.0))
+        if 'control' in x[1]:
+            x[1]['control'].pre_run(model.inner_model, percent_to_timestep_function)
+
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []
     cond_other = []
@@ -606,6 +616,8 @@ class KSampler:
             create_cond_with_same_area_if_none(negative, c)
         for c in negative:
             create_cond_with_same_area_if_none(positive, c)
+
+        pre_run_control(self.model_wrap, negative + positive)
 
         apply_empty_x_to_equal_area(list(filter(lambda c: c[1].get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
         apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
