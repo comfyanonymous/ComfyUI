@@ -5,6 +5,7 @@ input/
 !input/example.png
 models/
 temp/
+tmp/
 custom_nodes/
 !custom_nodes/example_node.py.example
 extra_model_paths.yaml
