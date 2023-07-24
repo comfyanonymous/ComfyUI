@@ -1,6 +1,7 @@
 @echo off
 
-:: If omitted, use the python installed in the system:
+:: If omitted, use the python installed in the system.
+:: It's used only once, to create a venv (or if you explicitly tell the script to use it instead, see below).
 set PYTHON=
 
 :: If omitted, use the default "venv" subfolder.
