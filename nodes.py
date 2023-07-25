@@ -500,7 +500,7 @@ class LoraLoader:
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
-                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "lora_name": (["None"] + folder_paths.get_filename_list("loras"), ),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                               }}
@@ -510,7 +510,7 @@ class LoraLoader:
     CATEGORY = "loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
-        if strength_model == 0 and strength_clip == 0:
+        if lora_name == "None" or (strength_model == 0 and strength_clip == 0):
             return (model, clip)
 
         lora_path = folder_paths.get_full_path("loras", lora_name)
