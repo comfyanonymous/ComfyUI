@@ -1,0 +1,6 @@
+How to build the Docker Image
+
+ docker build -t comfy .
+
+ How to run the Docker Container
+ docker run -d --gpus all -p 8188:8188 my_python_app
