@@ -8,7 +8,7 @@ import uuid
 import json
 import glob
 import struct
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 
 try:
@@ -29,6 +29,7 @@ import comfy.model_management
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
+    UNENCODED_PREVIEW_IMAGE = 2
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -444,7 +445,8 @@ class PromptServer():
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
-                    return web.json_response({"prompt_id": prompt_id, "number": number})
+                    response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
+                    return web.json_response(response)
                 else:
                     print("invalid prompt:", valid[1])
                     return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
@@ -497,7 +499,9 @@ class PromptServer():
         return prompt_info
 
     async def send(self, event, data, sid=None):
-        if isinstance(data, (bytes, bytearray)):
+        if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
+            await self.send_image(data, sid=sid)
+        elif isinstance(data, (bytes, bytearray)):
             await self.send_bytes(event, data, sid)
         else:
             await self.send_json(event, data, sid)
@@ -510,6 +514,30 @@ class PromptServer():
         message = bytearray(packed)
         message.extend(data)
         return message
+
+    async def send_image(self, image_data, sid=None):
+        image_type = image_data[0]
+        image = image_data[1]
+        max_size = image_data[2]
+        if max_size is not None:
+            if hasattr(Image, 'Resampling'):
+                resampling = Image.Resampling.BILINEAR
+            else:
+                resampling = Image.ANTIALIAS
+
+            image = ImageOps.contain(image, (max_size, max_size), resampling)
+        type_num = 1
+        if image_type == "JPEG":
+            type_num = 1
+        elif image_type == "PNG":
+            type_num = 2
+
+        bytesIO = BytesIO()
+        header = struct.pack(">I", type_num)
+        bytesIO.write(header)
+        image.save(bytesIO, format=image_type, quality=95, compress_level=4)
+        preview_bytes = bytesIO.getvalue()
+        await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
     async def send_bytes(self, event, data, sid=None):
         message = self.encode_bytes(event, data)

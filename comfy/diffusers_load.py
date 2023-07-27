@@ -3,12 +3,13 @@ import os
 import yaml
 
 import folder_paths
-from comfy.sd import ModelPatcher, load_model_weights, CLIP, VAE, load_checkpoint
+from comfy.sd import load_checkpoint
 import os.path as osp
 import re
 import torch
 from safetensors.torch import load_file, save_file
-import diffusers_convert
+from . import diffusers_convert
+
 
 def load_diffusers(model_path, fp16=True, output_vae=True, output_clip=True, embedding_directory=None):
     diffusers_unet_conf = json.load(open(osp.join(model_path, "unet/config.json")))

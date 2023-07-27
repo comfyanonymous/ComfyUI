@@ -59,35 +59,6 @@ LORA_CLIP_MAP = {
     "self_attn.out_proj": "self_attn_out_proj",
 }
 
-LORA_UNET_MAP_ATTENTIONS = {
-    "proj_in": "proj_in",
-    "proj_out": "proj_out",
-}
-
-transformer_lora_blocks = {
-    "transformer_blocks.{}.attn1.to_q": "transformer_blocks_{}_attn1_to_q",
-    "transformer_blocks.{}.attn1.to_k": "transformer_blocks_{}_attn1_to_k",
-    "transformer_blocks.{}.attn1.to_v": "transformer_blocks_{}_attn1_to_v",
-    "transformer_blocks.{}.attn1.to_out.0": "transformer_blocks_{}_attn1_to_out_0",
-    "transformer_blocks.{}.attn2.to_q": "transformer_blocks_{}_attn2_to_q",
-    "transformer_blocks.{}.attn2.to_k": "transformer_blocks_{}_attn2_to_k",
-    "transformer_blocks.{}.attn2.to_v": "transformer_blocks_{}_attn2_to_v",
-    "transformer_blocks.{}.attn2.to_out.0": "transformer_blocks_{}_attn2_to_out_0",
-    "transformer_blocks.{}.ff.net.0.proj": "transformer_blocks_{}_ff_net_0_proj",
-    "transformer_blocks.{}.ff.net.2": "transformer_blocks_{}_ff_net_2",
-}
-
-for i in range(10):
-    for k in transformer_lora_blocks:
-        LORA_UNET_MAP_ATTENTIONS[k.format(i)] = transformer_lora_blocks[k].format(i)
-
-
-LORA_UNET_MAP_RESNET = {
-    "in_layers.2": "resnets_{}_conv1",
-    "emb_layers.1": "resnets_{}_time_emb_proj",
-    "out_layers.3": "resnets_{}_conv2",
-    "skip_connection": "resnets_{}_conv_shortcut"
-}
 
 def load_lora(lora, to_load):
     patch_dict = {}
@@ -188,39 +159,9 @@ def load_lora(lora, to_load):
             print("lora key not loaded", x)
     return patch_dict
 
-def model_lora_keys(model, key_map={}):
+def model_lora_keys_clip(model, key_map={}):
     sdk = model.state_dict().keys()
 
-    counter = 0
-    for b in range(12):
-        tk = "diffusion_model.input_blocks.{}.1".format(b)
-        up_counter = 0
-        for c in LORA_UNET_MAP_ATTENTIONS:
-            k = "{}.{}.weight".format(tk, c)
-            if k in sdk:
-                lora_key = "lora_unet_down_blocks_{}_attentions_{}_{}".format(counter // 2, counter % 2, LORA_UNET_MAP_ATTENTIONS[c])
-                key_map[lora_key] = k
-                up_counter += 1
-        if up_counter >= 4:
-            counter += 1
-    for c in LORA_UNET_MAP_ATTENTIONS:
-        k = "diffusion_model.middle_block.1.{}.weight".format(c)
-        if k in sdk:
-            lora_key = "lora_unet_mid_block_attentions_0_{}".format(LORA_UNET_MAP_ATTENTIONS[c])
-            key_map[lora_key] = k
-    counter = 3
-    for b in range(12):
-        tk = "diffusion_model.output_blocks.{}.1".format(b)
-        up_counter = 0
-        for c in LORA_UNET_MAP_ATTENTIONS:
-            k = "{}.{}.weight".format(tk, c)
-            if k in sdk:
-                lora_key = "lora_unet_up_blocks_{}_attentions_{}_{}".format(counter // 3, counter % 3, LORA_UNET_MAP_ATTENTIONS[c])
-                key_map[lora_key] = k
-                up_counter += 1
-        if up_counter >= 4:
-            counter += 1
-    counter = 0
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
     for b in range(32):
@@ -228,6 +169,8 @@ def model_lora_keys(model, key_map={}):
             k = "transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
+                key_map[lora_key] = k
+                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])
                 key_map[lora_key] = k
 
             k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
@@ -244,77 +187,41 @@ def model_lora_keys(model, key_map={}):
                     lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #TODO: test if this is correct for SDXL-Refiner
                 key_map[lora_key] = k
 
+    return key_map
 
-    #Locon stuff
-    ds_counter = 0
-    counter = 0
-    for b in range(12):
-        tk = "diffusion_model.input_blocks.{}.0".format(b)
-        key_in = False
-        for c in LORA_UNET_MAP_RESNET:
-            k = "{}.{}.weight".format(tk, c)
-            if k in sdk:
-                lora_key = "lora_unet_down_blocks_{}_{}".format(counter // 2, LORA_UNET_MAP_RESNET[c].format(counter % 2))
-                key_map[lora_key] = k
-                key_in = True
-        for bb in range(3):
-            k = "{}.{}.op.weight".format(tk[:-2], bb)
-            if k in sdk:
-                lora_key = "lora_unet_down_blocks_{}_downsamplers_0_conv".format(ds_counter)
-                key_map[lora_key] = k
-                ds_counter += 1
-        if key_in:
-            counter += 1
-
-    counter = 0
-    for b in range(3):
-        tk = "diffusion_model.middle_block.{}".format(b)
-        key_in = False
-        for c in LORA_UNET_MAP_RESNET:
-            k = "{}.{}.weight".format(tk, c)
-            if k in sdk:
-                lora_key = "lora_unet_mid_block_{}".format(LORA_UNET_MAP_RESNET[c].format(counter))
-                key_map[lora_key] = k
-                key_in = True
-        if key_in:
-            counter += 1
-
-    counter = 0
-    us_counter = 0
-    for b in range(12):
-        tk = "diffusion_model.output_blocks.{}.0".format(b)
-        key_in = False
-        for c in LORA_UNET_MAP_RESNET:
-            k = "{}.{}.weight".format(tk, c)
-            if k in sdk:
-                lora_key = "lora_unet_up_blocks_{}_{}".format(counter // 3, LORA_UNET_MAP_RESNET[c].format(counter % 3))
-                key_map[lora_key] = k
-                key_in = True
-        for bb in range(3):
-            k = "{}.{}.conv.weight".format(tk[:-2], bb)
-            if k in sdk:
-                lora_key = "lora_unet_up_blocks_{}_upsamplers_0_conv".format(us_counter)
-                key_map[lora_key] = k
-                us_counter += 1
-        if key_in:
-            counter += 1
+def model_lora_keys_unet(model, key_map={}):
+    sdk = model.state_dict().keys()
 
     for k in sdk:
         if k.startswith("diffusion_model.") and k.endswith(".weight"):
             key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = k
 
+    diffusers_keys = utils.unet_to_diffusers(model.model_config.unet_config)
+    for k in diffusers_keys:
+        if k.endswith(".weight"):
+            key_lora = k[:-len(".weight")].replace(".", "_")
+            key_map["lora_unet_{}".format(key_lora)] = "diffusion_model.{}".format(diffusers_keys[k])
     return key_map
 
+def set_attr(obj, attr, value):
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    prev = getattr(obj, attrs[-1])
+    setattr(obj, attrs[-1], torch.nn.Parameter(value))
+    del prev
 
 class ModelPatcher:
-    def __init__(self, model, size=0):
+    def __init__(self, model, load_device, offload_device, size=0):
         self.size = size
         self.model = model
-        self.patches = []
+        self.patches = {}
         self.backup = {}
         self.model_options = {"transformer_options":{}}
         self.model_size()
+        self.load_device = load_device
+        self.offload_device = offload_device
 
     def model_size(self):
         if self.size > 0:
@@ -329,8 +236,11 @@ class ModelPatcher:
         return size
 
     def clone(self):
-        n = ModelPatcher(self.model, self.size)
-        n.patches = self.patches[:]
+        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size)
+        n.patches = {}
+        for k in self.patches:
+            n.patches[k] = self.patches[k][:]
+
         n.model_options = copy.deepcopy(self.model_options)
         n.model_keys = self.model_keys
         return n
@@ -340,6 +250,9 @@ class ModelPatcher:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
         else:
             self.model_options["sampler_cfg_function"] = sampler_cfg_function
+
+    def set_model_unet_function_wrapper(self, unet_wrapper_function):
+        self.model_options["model_function_wrapper"] = unet_wrapper_function
 
     def set_model_patch(self, patch, name):
         to = self.model_options["transformer_options"]
@@ -391,15 +304,32 @@ class ModelPatcher:
                         patch_list[k] = patch_list[k].to(device)
 
     def model_dtype(self):
-        return self.model.get_dtype()
+        if hasattr(self.model, "get_dtype"):
+            return self.model.get_dtype()
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
-        p = {}
+        p = set()
         for k in patches:
             if k in self.model_keys:
-                p[k] = patches[k]
-        self.patches += [(strength_patch, p, strength_model)]
-        return p.keys()
+                p.add(k)
+                current_patches = self.patches.get(k, [])
+                current_patches.append((strength_patch, patches[k], strength_model))
+                self.patches[k] = current_patches
+
+        return list(p)
+
+    def get_key_patches(self, filter_prefix=None):
+        model_sd = self.model_state_dict()
+        p = {}
+        for k in model_sd:
+            if filter_prefix is not None:
+                if not k.startswith(filter_prefix):
+                    continue
+            if k in self.patches:
+                p[k] = [model_sd[k]] + self.patches[k]
+            else:
+                p[k] = (model_sd[k],)
+        return p
 
     def model_state_dict(self, filter_prefix=None):
         sd = self.model.state_dict()
@@ -410,99 +340,128 @@ class ModelPatcher:
                     sd.pop(k)
         return sd
 
-    def patch_model(self):
+    def patch_model(self, device_to=None):
         model_sd = self.model_state_dict()
-        for p in self.patches:
-            for k in p[1]:
-                v = p[1][k]
-                key = k
-                if key not in model_sd:
-                    print("could not patch. key doesn't exist in model:", k)
-                    continue
+        for key in self.patches:
+            if key not in model_sd:
+                print("could not patch. key doesn't exist in model:", k)
+                continue
 
-                weight = model_sd[key]
-                if key not in self.backup:
-                    self.backup[key] = weight.clone()
+            weight = model_sd[key]
 
-                alpha = p[0]
-                strength_model = p[2]
+            if key not in self.backup:
+                self.backup[key] = weight.to(self.offload_device)
 
-                if strength_model != 1.0:
-                    weight *= strength_model
+            if device_to is not None:
+                temp_weight = weight.float().to(device_to, copy=True)
+            else:
+                temp_weight = weight.to(torch.float32, copy=True)
+            out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+            set_attr(self.model, key, out_weight)
+            del temp_weight
+        return self.model
 
-                if len(v) == 1:
-                    w1 = v[0]
+    def calculate_weight(self, patches, weight, key):
+        for p in patches:
+            alpha = p[0]
+            v = p[1]
+            strength_model = p[2]
+
+            if strength_model != 1.0:
+                weight *= strength_model
+
+            if isinstance(v, list):
+                v = (self.calculate_weight(v[1:], v[0].clone(), key), )
+
+            if len(v) == 1:
+                w1 = v[0]
+                if alpha != 0.0:
                     if w1.shape != weight.shape:
                         print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
                     else:
                         weight += alpha * w1.type(weight.dtype).to(weight.device)
-                elif len(v) == 4: #lora/locon
-                    mat1 = v[0]
-                    mat2 = v[1]
-                    if v[2] is not None:
-                        alpha *= v[2] / mat2.shape[0]
-                    if v[3] is not None:
-                        #locon mid weights, hopefully the math is fine because I didn't properly test it
-                        final_shape = [mat2.shape[1], mat2.shape[0], v[3].shape[2], v[3].shape[3]]
-                        mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1).float(), v[3].transpose(0, 1).flatten(start_dim=1).float()).reshape(final_shape).transpose(0, 1)
-                    weight += (alpha * torch.mm(mat1.flatten(start_dim=1).float(), mat2.flatten(start_dim=1).float())).reshape(weight.shape).type(weight.dtype).to(weight.device)
-                elif len(v) == 8: #lokr
-                    w1 = v[0]
-                    w2 = v[1]
-                    w1_a = v[3]
-                    w1_b = v[4]
-                    w2_a = v[5]
-                    w2_b = v[6]
-                    t2 = v[7]
-                    dim = None
+            elif len(v) == 4: #lora/locon
+                mat1 = v[0].float().to(weight.device)
+                mat2 = v[1].float().to(weight.device)
+                if v[2] is not None:
+                    alpha *= v[2] / mat2.shape[0]
+                if v[3] is not None:
+                    #locon mid weights, hopefully the math is fine because I didn't properly test it
+                    mat3 = v[3].float().to(weight.device)
+                    final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
+                    mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
+                try:
+                    weight += (alpha * torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1))).reshape(weight.shape).type(weight.dtype)
+                except Exception as e:
+                    print("ERROR", key, e)
+            elif len(v) == 8: #lokr
+                w1 = v[0]
+                w2 = v[1]
+                w1_a = v[3]
+                w1_b = v[4]
+                w2_a = v[5]
+                w2_b = v[6]
+                t2 = v[7]
+                dim = None
 
-                    if w1 is None:
-                        dim = w1_b.shape[0]
-                        w1 = torch.mm(w1_a.float(), w1_b.float())
+                if w1 is None:
+                    dim = w1_b.shape[0]
+                    w1 = torch.mm(w1_a.float(), w1_b.float())
+                else:
+                    w1 = w1.float().to(weight.device)
 
-                    if w2 is None:
-                        dim = w2_b.shape[0]
-                        if t2 is None:
-                            w2 = torch.mm(w2_a.float(), w2_b.float())
-                        else:
-                            w2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float(), w2_b.float(), w2_a.float())
-
-                    if len(w2.shape) == 4:
-                        w1 = w1.unsqueeze(2).unsqueeze(2)
-                    if v[2] is not None and dim is not None:
-                        alpha *= v[2] / dim
-
-                    weight += alpha * torch.kron(w1.float(), w2.float()).reshape(weight.shape).type(weight.dtype).to(weight.device)
-                else: #loha
-                    w1a = v[0]
-                    w1b = v[1]
-                    if v[2] is not None:
-                        alpha *= v[2] / w1b.shape[0]
-                    w2a = v[3]
-                    w2b = v[4]
-                    if v[5] is not None: #cp decomposition
-                        t1 = v[5]
-                        t2 = v[6]
-                        m1 = torch.einsum('i j k l, j r, i p -> p r k l', t1.float(), w1b.float(), w1a.float())
-                        m2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float(), w2b.float(), w2a.float())
+                if w2 is None:
+                    dim = w2_b.shape[0]
+                    if t2 is None:
+                        w2 = torch.mm(w2_a.float().to(weight.device), w2_b.float().to(weight.device))
                     else:
-                        m1 = torch.mm(w1a.float(), w1b.float())
-                        m2 = torch.mm(w2a.float(), w2b.float())
+                        w2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float().to(weight.device), w2_b.float().to(weight.device), w2_a.float().to(weight.device))
+                else:
+                    w2 = w2.float().to(weight.device)
 
-                    weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype).to(weight.device)
-        return self.model
+                if len(w2.shape) == 4:
+                    w1 = w1.unsqueeze(2).unsqueeze(2)
+                if v[2] is not None and dim is not None:
+                    alpha *= v[2] / dim
+
+                try:
+                    weight += alpha * torch.kron(w1, w2).reshape(weight.shape).type(weight.dtype)
+                except Exception as e:
+                    print("ERROR", key, e)
+            else: #loha
+                w1a = v[0]
+                w1b = v[1]
+                if v[2] is not None:
+                    alpha *= v[2] / w1b.shape[0]
+                w2a = v[3]
+                w2b = v[4]
+                if v[5] is not None: #cp decomposition
+                    t1 = v[5]
+                    t2 = v[6]
+                    m1 = torch.einsum('i j k l, j r, i p -> p r k l', t1.float().to(weight.device), w1b.float().to(weight.device), w1a.float().to(weight.device))
+                    m2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float().to(weight.device), w2b.float().to(weight.device), w2a.float().to(weight.device))
+                else:
+                    m1 = torch.mm(w1a.float().to(weight.device), w1b.float().to(weight.device))
+                    m2 = torch.mm(w2a.float().to(weight.device), w2b.float().to(weight.device))
+
+                try:
+                    weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype)
+                except Exception as e:
+                    print("ERROR", key, e)
+
+        return weight
+
     def unpatch_model(self):
-        model_sd = self.model_state_dict()
         keys = list(self.backup.keys())
+
         for k in keys:
-            model_sd[k][:] = self.backup[k]
-            del self.backup[k]
+            set_attr(self.model, k, self.backup[k])
 
         self.backup = {}
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
-    key_map = model_lora_keys(model.model)
-    key_map = model_lora_keys(clip.cond_stage_model, key_map)
+    key_map = model_lora_keys_unet(model.model)
+    key_map = model_lora_keys_clip(clip.cond_stage_model, key_map)
     loaded = load_lora(lora, key_map)
     new_modelpatcher = model.clone()
     k = new_modelpatcher.add_patches(loaded, strength_model)
@@ -521,17 +480,22 @@ class CLIP:
     def __init__(self, target=None, embedding_directory=None, no_init=False):
         if no_init:
             return
-        params = target.params
+        params = target.params.copy()
         clip = target.clip
         tokenizer = target.tokenizer
 
-        self.device = model_management.text_encoder_device()
-        params["device"] = self.device
+        load_device = model_management.text_encoder_device()
+        offload_device = model_management.text_encoder_offload_device()
+        params['device'] = load_device
         self.cond_stage_model = clip(**(params))
-        self.cond_stage_model = self.cond_stage_model.to(self.device)
+        #TODO: make sure this doesn't have a quality loss before enabling.
+        # if model_management.should_use_fp16(load_device):
+        #     self.cond_stage_model.half()
+
+        self.cond_stage_model = self.cond_stage_model.to()
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
-        self.patcher = ModelPatcher(self.cond_stage_model)
+        self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.layer_idx = None
 
     def clone(self):
@@ -540,14 +504,13 @@ class CLIP:
         n.cond_stage_model = self.cond_stage_model
         n.tokenizer = self.tokenizer
         n.layer_idx = self.layer_idx
-        n.device = self.device
         return n
 
     def load_from_state_dict(self, sd):
         self.cond_stage_model.load_sd(sd)
 
-    def add_patches(self, patches, strength=1.0):
-        return self.patcher.add_patches(patches, strength)
+    def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
+        return self.patcher.add_patches(patches, strength_patch, strength_model)
 
     def clip_layer(self, layer_idx):
         self.layer_idx = layer_idx
@@ -558,18 +521,14 @@ class CLIP:
     def encode_from_tokens(self, tokens, return_pooled=False):
         if self.layer_idx is not None:
             self.cond_stage_model.clip_layer(self.layer_idx)
-        try:
-            self.patch_model()
-            cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
-            self.unpatch_model()
-        except Exception as e:
-            self.unpatch_model()
-            raise e
+        else:
+            self.cond_stage_model.reset_clip_layer()
 
-        cond_out = cond
+        model_management.load_model_gpu(self.patcher)
+        cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
         if return_pooled:
-            return cond_out, pooled
-        return cond_out
+            return cond, pooled
+        return cond
 
     def encode(self, text):
         tokens = self.tokenize(text)
@@ -587,6 +546,9 @@ class CLIP:
     def unpatch_model(self):
         self.patcher.unpatch_model()
 
+    def get_key_patches(self):
+        return self.patcher.get_key_patches()
+
 class VAE:
     def __init__(self, ckpt_path=None, device=None, config=None):
         if config is None:
@@ -603,8 +565,11 @@ class VAE:
             self.first_stage_model.load_state_dict(sd, strict=False)
 
         if device is None:
-            device = model_management.get_torch_device()
+            device = model_management.vae_device()
         self.device = device
+        self.offload_device = model_management.vae_offload_device()
+        self.vae_dtype = model_management.vae_dtype()
+        self.first_stage_model.to(self.vae_dtype)
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
         steps = samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
@@ -612,7 +577,7 @@ class VAE:
         steps += samples.shape[0] * utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
         pbar = utils.ProgressBar(steps)
 
-        decode_fn = lambda a: (self.first_stage_model.decode(a.to(self.device)) + 1.0)
+        decode_fn = lambda a: (self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)) + 1.0).float()
         output = torch.clamp((
             (utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8, pbar = pbar) +
             utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8, pbar = pbar) +
@@ -626,7 +591,7 @@ class VAE:
         steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
         pbar = utils.ProgressBar(steps)
 
-        encode_fn = lambda a: self.first_stage_model.encode(2. * a.to(self.device) - 1.).sample()
+        encode_fn = lambda a: self.first_stage_model.encode(2. * a.to(self.vae_dtype).to(self.device) - 1.).sample().float()
         samples = utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
         samples += utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
         samples += utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
@@ -643,13 +608,13 @@ class VAE:
 
             pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * 8), round(samples_in.shape[3] * 8)), device="cpu")
             for x in range(0, samples_in.shape[0], batch_number):
-                samples = samples_in[x:x+batch_number].to(self.device)
-                pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(samples) + 1.0) / 2.0, min=0.0, max=1.0).cpu()
+                samples = samples_in[x:x+batch_number].to(self.vae_dtype).to(self.device)
+                pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(samples) + 1.0) / 2.0, min=0.0, max=1.0).cpu().float()
         except model_management.OOM_EXCEPTION as e:
             print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             pixel_samples = self.decode_tiled_(samples_in)
 
-        self.first_stage_model = self.first_stage_model.cpu()
+        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         pixel_samples = pixel_samples.cpu().movedim(1,-1)
         return pixel_samples
 
@@ -657,7 +622,7 @@ class VAE:
         model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
-        self.first_stage_model = self.first_stage_model.cpu()
+        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         return output.movedim(1,-1)
 
     def encode(self, pixel_samples):
@@ -670,14 +635,14 @@ class VAE:
             batch_number = max(1, batch_number)
             samples = torch.empty((pixel_samples.shape[0], 4, round(pixel_samples.shape[2] // 8), round(pixel_samples.shape[3] // 8)), device="cpu")
             for x in range(0, pixel_samples.shape[0], batch_number):
-                pixels_in = (2. * pixel_samples[x:x+batch_number] - 1.).to(self.device)
-                samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).sample().cpu()
+                pixels_in = (2. * pixel_samples[x:x+batch_number] - 1.).to(self.vae_dtype).to(self.device)
+                samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).sample().cpu().float()
 
         except model_management.OOM_EXCEPTION as e:
             print("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
             samples = self.encode_tiled_(pixel_samples)
 
-        self.first_stage_model = self.first_stage_model.cpu()
+        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         return samples
 
     def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
@@ -685,7 +650,7 @@ class VAE:
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1)
         samples = self.encode_tiled_(pixel_samples, tile_x=tile_x, tile_y=tile_y, overlap=overlap)
-        self.first_stage_model = self.first_stage_model.cpu()
+        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         return samples
 
     def get_sd(self):
@@ -710,22 +675,70 @@ def broadcast_image_to(tensor, target_batch_size, batched_number):
     else:
         return torch.cat([tensor] * batched_number, dim=0)
 
-class ControlNet:
-    def __init__(self, control_model, global_average_pooling=False, device=None):
-        self.control_model = control_model
+class ControlBase:
+    def __init__(self, device=None):
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
+        self.timestep_percent_range = (1.0, 0.0)
+        self.timestep_range = None
+
         if device is None:
             device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
+
+    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(1.0, 0.0)):
+        self.cond_hint_original = cond_hint
+        self.strength = strength
+        self.timestep_percent_range = timestep_percent_range
+        return self
+
+    def pre_run(self, model, percent_to_timestep_function):
+        self.timestep_range = (percent_to_timestep_function(self.timestep_percent_range[0]), percent_to_timestep_function(self.timestep_percent_range[1]))
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.pre_run(model, percent_to_timestep_function)
+
+    def set_previous_controlnet(self, controlnet):
+        self.previous_controlnet = controlnet
+        return self
+
+    def cleanup(self):
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.cleanup()
+        if self.cond_hint is not None:
+            del self.cond_hint
+            self.cond_hint = None
+        self.timestep_range = None
+
+    def get_models(self):
+        out = []
+        if self.previous_controlnet is not None:
+            out += self.previous_controlnet.get_models()
+        return out
+
+    def copy_to(self, c):
+        c.cond_hint_original = self.cond_hint_original
+        c.strength = self.strength
+        c.timestep_percent_range = self.timestep_percent_range
+
+class ControlNet(ControlBase):
+    def __init__(self, control_model, global_average_pooling=False, device=None):
+        super().__init__(device)
+        self.control_model = control_model
         self.global_average_pooling = global_average_pooling
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
             control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+
+        if self.timestep_range is not None:
+            if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
+                if control_prev is not None:
+                    return control_prev
+                else:
+                    return {}
 
         output_dtype = x_noisy.dtype
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
@@ -774,37 +787,64 @@ class ControlNet:
             out['input'] = control_prev['input']
         return out
 
-    def set_cond_hint(self, cond_hint, strength=1.0):
-        self.cond_hint_original = cond_hint
-        self.strength = strength
-        return self
-
-    def set_previous_controlnet(self, controlnet):
-        self.previous_controlnet = controlnet
-        return self
-
-    def cleanup(self):
-        if self.previous_controlnet is not None:
-            self.previous_controlnet.cleanup()
-        if self.cond_hint is not None:
-            del self.cond_hint
-            self.cond_hint = None
-
     def copy(self):
         c = ControlNet(self.control_model, global_average_pooling=self.global_average_pooling)
-        c.cond_hint_original = self.cond_hint_original
-        c.strength = self.strength
+        self.copy_to(c)
         return c
 
     def get_models(self):
-        out = []
-        if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_models()
+        out = super().get_models()
         out.append(self.control_model)
         return out
 
+
 def load_controlnet(ckpt_path, model=None):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
+
+    controlnet_config = None
+    if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
+        use_fp16 = model_management.should_use_fp16()
+        controlnet_config = model_detection.model_config_from_diffusers_unet(controlnet_data, use_fp16).unet_config
+        diffusers_keys = utils.unet_to_diffusers(controlnet_config)
+        diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
+        diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
+
+        count = 0
+        loop = True
+        while loop:
+            suffix = [".weight", ".bias"]
+            for s in suffix:
+                k_in = "controlnet_down_blocks.{}{}".format(count, s)
+                k_out = "zero_convs.{}.0{}".format(count, s)
+                if k_in not in controlnet_data:
+                    loop = False
+                    break
+                diffusers_keys[k_in] = k_out
+            count += 1
+
+        count = 0
+        loop = True
+        while loop:
+            suffix = [".weight", ".bias"]
+            for s in suffix:
+                if count == 0:
+                    k_in = "controlnet_cond_embedding.conv_in{}".format(s)
+                else:
+                    k_in = "controlnet_cond_embedding.blocks.{}{}".format(count - 1, s)
+                k_out = "input_hint_block.{}{}".format(count * 2, s)
+                if k_in not in controlnet_data:
+                    k_in = "controlnet_cond_embedding.conv_out{}".format(s)
+                    loop = False
+                diffusers_keys[k_in] = k_out
+            count += 1
+
+        new_sd = {}
+        for k in diffusers_keys:
+            if k in controlnet_data:
+                new_sd[diffusers_keys[k]] = controlnet_data.pop(k)
+
+        controlnet_data = new_sd
+
     pth_key = 'control_model.zero_convs.0.0.weight'
     pth = False
     key = 'zero_convs.0.0.weight'
@@ -820,9 +860,9 @@ def load_controlnet(ckpt_path, model=None):
             print("error checkpoint does not contain controlnet or t2i adapter data", ckpt_path)
         return net
 
-    use_fp16 = model_management.should_use_fp16()
-
-    controlnet_config = model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
+    if controlnet_config is None:
+        use_fp16 = model_management.should_use_fp16()
+        controlnet_config = model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
     controlnet_config.pop("out_channels")
     controlnet_config["hint_channels"] = 3
     control_model = cldm.ControlNet(**controlnet_config)
@@ -862,23 +902,24 @@ def load_controlnet(ckpt_path, model=None):
     control = ControlNet(control_model, global_average_pooling=global_average_pooling)
     return control
 
-class T2IAdapter:
+class T2IAdapter(ControlBase):
     def __init__(self, t2i_model, channels_in, device=None):
+        super().__init__(device)
         self.t2i_model = t2i_model
         self.channels_in = channels_in
-        self.strength = 1.0
-        if device is None:
-            device = model_management.get_torch_device()
-        self.device = device
-        self.previous_controlnet = None
         self.control_input = None
-        self.cond_hint_original = None
-        self.cond_hint = None
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
             control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+
+        if self.timestep_range is not None:
+            if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
+                if control_prev is not None:
+                    return control_prev
+                else:
+                    return {}
 
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
@@ -924,33 +965,11 @@ class T2IAdapter:
             out['output'] = control_prev['output']
         return out
 
-    def set_cond_hint(self, cond_hint, strength=1.0):
-        self.cond_hint_original = cond_hint
-        self.strength = strength
-        return self
-
-    def set_previous_controlnet(self, controlnet):
-        self.previous_controlnet = controlnet
-        return self
-
     def copy(self):
         c = T2IAdapter(self.t2i_model, self.channels_in)
-        c.cond_hint_original = self.cond_hint_original
-        c.strength = self.strength
+        self.copy_to(c)
         return c
 
-    def cleanup(self):
-        if self.previous_controlnet is not None:
-            self.previous_controlnet.cleanup()
-        if self.cond_hint is not None:
-            del self.cond_hint
-            self.cond_hint = None
-
-    def get_models(self):
-        out = []
-        if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_models()
-        return out
 
 def load_t2i_adapter(t2i_data):
     keys = t2i_data.keys()
@@ -1060,11 +1079,11 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     if "noise_aug_config" in model_config_params:
         noise_aug_config = model_config_params["noise_aug_config"]
 
-    v_prediction = False
+    model_type = model_base.ModelType.EPS
 
     if "parameterization" in model_config_params:
         if model_config_params["parameterization"] == "v":
-            v_prediction = True
+            model_type = model_base.ModelType.V_PREDICTION
 
     clip = None
     vae = None
@@ -1084,15 +1103,17 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     model_config.latent_format = latent_formats.SD15(scale_factor=scale_factor)
 
     if config['model']["target"].endswith("LatentInpaintDiffusion"):
-        model = model_base.SDInpaint(model_config, v_prediction=v_prediction)
+        model = model_base.SDInpaint(model_config, model_type=model_type)
     elif config['model']["target"].endswith("ImageEmbeddingConditionedLatentDiffusion"):
-        model = model_base.SD21UNCLIP(model_config, noise_aug_config["params"], v_prediction=v_prediction)
+        model = model_base.SD21UNCLIP(model_config, noise_aug_config["params"], model_type=model_type)
     else:
-        model = model_base.BaseModel(model_config, v_prediction=v_prediction)
+        model = model_base.BaseModel(model_config, model_type=model_type)
 
     if fp16:
         model = model.half()
 
+    offload_device = model_management.unet_offload_device()
+    model = model.to(offload_device)
     model.load_model_weights(state_dict, "model.diffusion_model.")
 
     if output_vae:
@@ -1115,8 +1136,14 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         w.cond_stage_model = clip.cond_stage_model
         load_clip_weights(w, state_dict)
 
-    return (ModelPatcher(model), clip, vae)
+    return (ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
 
+def calculate_parameters(sd, prefix):
+    params = 0
+    for k in sd.keys():
+        if k.startswith(prefix):
+            params += sd[k].nelement()
+    return params
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None):
     sd = utils.load_torch_file(ckpt_path)
@@ -1127,7 +1154,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     model = None
     clip_target = None
 
-    fp16 = model_management.should_use_fp16()
+    parameters = calculate_parameters(sd, "model.diffusion_model.")
+    fp16 = model_management.should_use_fp16(model_params=parameters)
 
     class WeightsLoader(torch.nn.Module):
         pass
@@ -1140,8 +1168,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         if output_clipvision:
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
-    model = model_config.get_model(sd)
-    model = model.to(model_management.unet_offload_device())
+    offload_device = model_management.unet_offload_device()
+    model = model_config.get_model(sd, "model.diffusion_model.")
+    model = model.to(offload_device)
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
@@ -1162,7 +1191,32 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if len(left_over) > 0:
         print("left over keys:", left_over)
 
-    return (ModelPatcher(model), clip, vae, clipvision)
+    return (ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae, clipvision)
+
+
+def load_unet(unet_path): #load unet in diffusers format
+    sd = utils.load_torch_file(unet_path)
+    parameters = calculate_parameters(sd, "")
+    fp16 = model_management.should_use_fp16(model_params=parameters)
+
+    model_config = model_detection.model_config_from_diffusers_unet(sd, fp16)
+    if model_config is None:
+        print("ERROR UNSUPPORTED UNET", unet_path)
+        return None
+
+    diffusers_keys = utils.unet_to_diffusers(model_config.unet_config)
+
+    new_sd = {}
+    for k in diffusers_keys:
+        if k in sd:
+            new_sd[diffusers_keys[k]] = sd.pop(k)
+        else:
+            print(diffusers_keys[k], k)
+    offload_device = model_management.unet_offload_device()
+    model = model_config.get_model(new_sd, "")
+    model = model.to(offload_device)
+    model.load_model_weights(new_sd, "")
+    return ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
     try:

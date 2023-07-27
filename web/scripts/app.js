@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
-/** 
+/**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
 
@@ -368,7 +368,11 @@ export class ComfyApp {
 					shiftY = w.last_y;
 					if (w.computeSize) {
 						shiftY += w.computeSize()[1] + 4;
-					} else {
+					}
+					else if(w.computedHeight) {
+						shiftY += w.computedHeight;
+					}
+					else {
 						shiftY += LiteGraph.NODE_WIDGET_HEIGHT + 4;
 					}
 				} else {
@@ -400,7 +404,7 @@ export class ComfyApp {
 						this.images = output.images;
 						imagesChanged = true;
 						imgURLs = imgURLs.concat(output.images.map(params => {
-							return "/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam();
+							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam());
 						}))
 					}
 				}
@@ -832,7 +836,7 @@ export class ComfyApp {
 		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
 			const res = origDrawNodeShape.apply(this, arguments);
 
-			const nodeErrors = self.lastPromptError?.node_errors[node.id];
+			const nodeErrors = self.lastNodeErrors?.[node.id];
 
 			let color = null;
 			let lineWidth = 1;
@@ -841,7 +845,7 @@ export class ComfyApp {
 			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
 				color = "dodgerblue";
 			}
-			else if (self.lastPromptError != null && nodeErrors?.errors) {
+			else if (nodeErrors?.errors) {
 				color = "red";
 				lineWidth = 2;
 			}
@@ -1001,7 +1005,7 @@ export class ComfyApp {
 		const extensions = await api.getExtensions();
 		for (const ext of extensions) {
 			try {
-				await import(ext);
+				await import(api.apiURL(ext));
 			} catch (error) {
 				console.error("Error loading extension", ext, error);
 			}
@@ -1034,8 +1038,12 @@ export class ComfyApp {
 		this.graph.start();
 
 		function resizeCanvas() {
-			canvasEl.width = canvasEl.offsetWidth;
-			canvasEl.height = canvasEl.offsetHeight;
+			// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
+			const scale = Math.max(window.devicePixelRatio, 1);
+			const { width, height } = canvasEl.getBoundingClientRect();
+			canvasEl.width = Math.round(width * scale);
+			canvasEl.height = Math.round(height * scale);
+			canvasEl.getContext("2d").scale(scale, scale);
 			canvas.draw(true, true);
 		}
 
@@ -1405,7 +1413,7 @@ export class ComfyApp {
 		}
 
 		this.#processingQueue = true;
-		this.lastPromptError = null;
+		this.lastNodeErrors = null;
 
 		try {
 			while (this.#queueItems.length) {
@@ -1431,12 +1439,16 @@ export class ComfyApp {
 					}
 
 					try {
-						await api.queuePrompt(number, p);
+						const res = await api.queuePrompt(number, p);
+						this.lastNodeErrors = res.node_errors;
+						if (this.lastNodeErrors.length > 0) {
+							this.canvas.draw(true, true);
+						}
 					} catch (error) {
 						const formattedError = this.#formatPromptError(error)
 						this.ui.dialog.show(formattedError);
 						if (error.response) {
-							this.lastPromptError = error.response;
+							this.lastNodeErrors = error.response.node_errors;
 							this.canvas.draw(true, true);
 						}
 						break;
@@ -1542,7 +1554,7 @@ export class ComfyApp {
 	clean() {
 		this.nodeOutputs = {};
 		this.nodePreviewImages = {}
-		this.lastPromptError = null;
+		this.lastNodeErrors = null;
 		this.lastExecutionError = null;
 		this.runningNodeId = null;
 	}

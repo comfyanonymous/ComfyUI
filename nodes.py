@@ -7,6 +7,7 @@ import hashlib
 import traceback
 import math
 import time
+import random
 
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
@@ -82,16 +83,52 @@ class ConditioningAverage :
             print("Warning: ConditioningAverage conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
 
         cond_from = conditioning_from[0][0]
+        pooled_output_from = conditioning_from[0][1].get("pooled_output", None)
 
         for i in range(len(conditioning_to)):
             t1 = conditioning_to[i][0]
+            pooled_output_to = conditioning_to[i][1].get("pooled_output", pooled_output_from)
             t0 = cond_from[:,:t1.shape[1]]
             if t0.shape[1] < t1.shape[1]:
                 t0 = torch.cat([t0] + [torch.zeros((1, (t1.shape[1] - t0.shape[1]), t1.shape[2]))], dim=1)
 
             tw = torch.mul(t1, conditioning_to_strength) + torch.mul(t0, (1.0 - conditioning_to_strength))
+            t_to = conditioning_to[i][1].copy()
+            if pooled_output_from is not None and pooled_output_to is not None:
+                t_to["pooled_output"] = torch.mul(pooled_output_to, conditioning_to_strength) + torch.mul(pooled_output_from, (1.0 - conditioning_to_strength))
+            elif pooled_output_from is not None:
+                t_to["pooled_output"] = pooled_output_from
+
+            n = [tw, t_to]
+            out.append(n)
+        return (out, )
+
+class ConditioningConcat:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "conditioning_to": ("CONDITIONING",),
+            "conditioning_from": ("CONDITIONING",),
+            }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "concat"
+
+    CATEGORY = "conditioning"
+
+    def concat(self, conditioning_to, conditioning_from):
+        out = []
+
+        if len(conditioning_from) > 1:
+            print("Warning: ConditioningConcat conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
+
+        cond_from = conditioning_from[0][0]
+
+        for i in range(len(conditioning_to)):
+            t1 = conditioning_to[i][0]
+            tw = torch.cat((t1, cond_from),1)
             n = [tw, conditioning_to[i][1].copy()]
             out.append(n)
+
         return (out, )
 
 class ConditioningSetArea:
@@ -164,6 +201,28 @@ class ConditioningZeroOut:
             if "pooled_output" in d:
                 d["pooled_output"] = torch.zeros_like(d["pooled_output"])
             n = [torch.zeros_like(t[0]), d]
+            c.append(n)
+        return (c, )
+
+class ConditioningSetTimestepRange:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "start": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "set_range"
+
+    CATEGORY = "advanced/conditioning"
+
+    def set_range(self, conditioning, start, end):
+        c = []
+        for t in conditioning:
+            d = t[1].copy()
+            d['start_percent'] = 1.0 - start
+            d['end_percent'] = 1.0 - end
+            n = [t[0], d]
             c.append(n)
         return (c, )
 
@@ -389,7 +448,7 @@ class DiffusersLoader:
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
-    CATEGORY = "advanced/loaders"
+    CATEGORY = "advanced/loaders/deprecated"
 
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
         for search_path in folder_paths.get_folder_paths("diffusers"):
@@ -460,7 +519,9 @@ class LoraLoader:
             if self.loaded_lora[0] == lora_path:
                 lora = self.loaded_lora[1]
             else:
-                del self.loaded_lora
+                temp = self.loaded_lora
+                self.loaded_lora = None
+                del temp
 
         if lora is None:
             lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
@@ -541,8 +602,72 @@ class ControlNetApply:
             if 'control' in t[1]:
                 c_net.set_previous_controlnet(t[1]['control'])
             n[1]['control'] = c_net
+            n[1]['control_apply_to_uncond'] = True
             c.append(n)
         return (c, )
+
+
+class ControlNetApplyAdvanced:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "control_net": ("CONTROL_NET", ),
+                             "image": ("IMAGE", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
+                             }}
+
+    RETURN_TYPES = ("CONDITIONING","CONDITIONING")
+    RETURN_NAMES = ("positive", "negative")
+    FUNCTION = "apply_controlnet"
+
+    CATEGORY = "conditioning"
+
+    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent):
+        if strength == 0:
+            return (positive, negative)
+
+        control_hint = image.movedim(-1,1)
+        cnets = {}
+
+        out = []
+        for conditioning in [positive, negative]:
+            c = []
+            for t in conditioning:
+                d = t[1].copy()
+
+                prev_cnet = d.get('control', None)
+                if prev_cnet in cnets:
+                    c_net = cnets[prev_cnet]
+                else:
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (1.0 - start_percent, 1.0 - end_percent))
+                    c_net.set_previous_controlnet(prev_cnet)
+                    cnets[prev_cnet] = c_net
+
+                d['control'] = c_net
+                d['control_apply_to_uncond'] = False
+                n = [t[0], d]
+                c.append(n)
+            out.append(c)
+        return (out[0], out[1])
+
+
+class UNETLoader:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "unet_name": (folder_paths.get_filename_list("unet"), ),
+                             }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "load_unet"
+
+    CATEGORY = "advanced/loaders"
+
+    def load_unet(self, unet_name):
+        unet_path = folder_paths.get_full_path("unet", unet_name)
+        model = comfy.sd.load_unet(unet_path)
+        return (model,)
 
 class CLIPLoader:
     @classmethod
@@ -1065,6 +1190,7 @@ class SaveImage:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
+        self.prefix_append = ""
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1082,6 +1208,7 @@ class SaveImage:
     CATEGORY = "image"
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
         for image in images:
@@ -1109,6 +1236,7 @@ class PreviewImage(SaveImage):
     def __init__(self):
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
+        self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1353,6 +1481,7 @@ NODE_CLASS_MAPPINGS = {
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
+    "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
@@ -1363,11 +1492,13 @@ NODE_CLASS_MAPPINGS = {
     "LatentCrop": LatentCrop,
     "LoraLoader": LoraLoader,
     "CLIPLoader": CLIPLoader,
+    "UNETLoader": UNETLoader,
     "DualCLIPLoader": DualCLIPLoader,
     "CLIPVisionEncode": CLIPVisionEncode,
     "StyleModelApply": StyleModelApply,
     "unCLIPConditioning": unCLIPConditioning,
     "ControlNetApply": ControlNetApply,
+    "ControlNetApplyAdvanced": ControlNetApplyAdvanced,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
     "StyleModelLoader": StyleModelLoader,
@@ -1385,6 +1516,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveLatent": SaveLatent,
 
     "ConditioningZeroOut": ConditioningZeroOut,
+    "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1409,9 +1541,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPSetLastLayer": "CLIP Set Last Layer",
     "ConditioningCombine": "Conditioning (Combine)",
     "ConditioningAverage ": "Conditioning (Average)",
+    "ConditioningConcat": "Conditioning (Concat)",
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
+    "ControlNetApplyAdvanced": "Apply ControlNet (Advanced)",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
     "SetLatentNoiseMask": "Set Latent Noise Mask",
@@ -1441,7 +1575,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VAEEncodeTiled": "VAE Encode (Tiled)",
 }
 
-def load_custom_node(module_path):
+def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
@@ -1455,7 +1589,9 @@ def load_custom_node(module_path):
         sys.modules[module_name] = module
         module_spec.loader.exec_module(module)
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
-            NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
+            for name in module.NODE_CLASS_MAPPINGS:
+                if name not in ignore:
+                    NODE_CLASS_MAPPINGS[name] = module.NODE_CLASS_MAPPINGS[name]
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
@@ -1468,6 +1604,7 @@ def load_custom_node(module_path):
         return False
 
 def load_custom_nodes():
+    base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
@@ -1480,7 +1617,7 @@ def load_custom_nodes():
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
             time_before = time.perf_counter()
-            success = load_custom_node(module_path)
+            success = load_custom_node(module_path, base_node_names)
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
@@ -1501,4 +1638,6 @@ def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_model_merging.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_tomesd.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_clip_sdxl.py"))
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_canny.py"))
     load_custom_nodes()
