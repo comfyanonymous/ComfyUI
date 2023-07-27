@@ -21,14 +21,15 @@ COPY ./ /app
 # Install Python dependencies
 RUN pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 xformers
 RUN pip3 install -r requirements.txt
+RUN pip3 install runpod
+RUN pip3 install websocket-client
 
-
-# Expose the port the application will be running on
-EXPOSE 8188
+#Give permission to script
+RUN chmod +x ./entrypoint.sh
 
 # Set the environment variable for GPU support
 ENV NVIDIA_VISIBLE_DEVICES all
 
 # Run the Python program when the container starts
-CMD ["python3", "main.py", "--listen","0.0.0.0"]
-
+ENTRYPOINT ["./entrypoint.sh"]
+# [ "python3", "-u", "comfy_runpod.py" ]
