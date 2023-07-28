@@ -164,7 +164,6 @@ class SDXLRefiner(BaseModel):
         else:
             aesthetic_score = kwargs.get("aesthetic_score", 6)
 
-        print(clip_pooled.shape, width, height, crop_w, crop_h, aesthetic_score)
         out = []
         out.append(self.embedder(torch.Tensor([height])))
         out.append(self.embedder(torch.Tensor([width])))
@@ -188,7 +187,6 @@ class SDXL(BaseModel):
         target_width = kwargs.get("target_width", width)
         target_height = kwargs.get("target_height", height)
 
-        print(clip_pooled.shape, width, height, crop_w, crop_h, target_width, target_height)
         out = []
         out.append(self.embedder(torch.Tensor([height])))
         out.append(self.embedder(torch.Tensor([width])))
