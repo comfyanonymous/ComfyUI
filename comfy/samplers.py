@@ -19,11 +19,11 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
             strength = 1.0
             if 'timestep_start' in cond[1]:
                 timestep_start = cond[1]['timestep_start']
-                if timestep_in > timestep_start:
+                if timestep_in[0] > timestep_start:
                     return None
             if 'timestep_end' in cond[1]:
                 timestep_end = cond[1]['timestep_end']
-                if timestep_in < timestep_end:
+                if timestep_in[0] < timestep_end:
                     return None
             if 'area' in cond[1]:
                 area = cond[1]['area']
