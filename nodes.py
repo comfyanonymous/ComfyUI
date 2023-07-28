@@ -26,6 +26,8 @@ import comfy.utils
 import comfy.clip_vision
 
 import comfy.model_management
+from comfy.cli_args import args
+
 import importlib
 
 import folder_paths
@@ -352,10 +354,12 @@ class SaveLatent:
         if prompt is not None:
             prompt_info = json.dumps(prompt)
 
-        metadata = {"prompt": prompt_info}
-        if extra_pnginfo is not None:
-            for x in extra_pnginfo:
-                metadata[x] = json.dumps(extra_pnginfo[x])
+        metadata = None
+        if not args.disable_metadata:
+            metadata = {"prompt": prompt_info}
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata[x] = json.dumps(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
         file = os.path.join(full_output_folder, file)
@@ -1214,12 +1218,14 @@ class SaveImage:
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = PngInfo()
-            if prompt is not None:
-                metadata.add_text("prompt", json.dumps(prompt))
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            metadata = None
+            if not args.disable_metadata:
+                metadata = PngInfo()
+                if prompt is not None:
+                    metadata.add_text("prompt", json.dumps(prompt))
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
