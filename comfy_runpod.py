@@ -74,10 +74,11 @@ def run_prompt(job):
     for node_id in images:
         for image_data in images[node_id]:
             image = Image.open(io.BytesIO(image_data))
-            im_file = BytesIO()
+            im_file = io.BytesIO()
             image.save(im_file, format="JPEG")
             im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
-            im_b64 = base64.b64encode(im_bytes) 
+            im_b64 = base64.b64encode(im_bytes)
+            im_b64 = str(im_b64) 
             data['images'].append(im_b64)
     return data
     
