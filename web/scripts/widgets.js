@@ -273,6 +273,33 @@ export const ComfyWidgets = {
 			),
 		};
 	},
+	SLIDER(node, inputName, inputData) {
+		const { val, config } = getNumberDefaults(inputData, 1);
+		Object.assign(config, { precision: 0 });
+		return {
+			widget: node.addWidget(
+				"slider",
+				inputName,
+				val,
+				function (v) {
+					const s = this.options.step / 10;
+					this.value = Math.round(v / s) * s;
+				},
+				config
+			),
+		};
+	},
+	TOGGLE(node, inputName, inputData) {
+		let defaultVal = inputData[1]["default"];
+		return {
+			widget: node.addWidget(
+				"toggle",
+				inputName,
+				defaultVal,
+				() => {},
+				)
+		};
+	},
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
