@@ -1,4 +1,4 @@
-from comfy.graph_utils import GraphBuilder, is_link
+from comfy.graph_utils import GraphBuilder, is_link, ExecutionBlocker
 
 NUM_FLOW_SOCKETS = 5
 class WhileLoopOpen:
@@ -124,11 +124,39 @@ class WhileLoopClose:
             "expand": graph.finalize(),
         }
 
+class ExecutionBlockerNode:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        inputs = {
+            "required": {
+                "input": ("*",),
+                "block": ("BOOL",),
+                "verbose": ("BOOL", {"default": False}),
+            },
+        }
+        return inputs
+
+    RETURN_TYPES = ("*",)
+    RETURN_NAMES = ("output",)
+    FUNCTION = "execution_blocker"
+
+    CATEGORY = "Flow Control"
+
+    def execution_blocker(self, input, block, verbose):
+        if block:
+            return (ExecutionBlocker("Blocked Execution" if verbose else None),)
+        return (input,)
+
 FLOW_CONTROL_NODE_CLASS_MAPPINGS = {
     "WhileLoopOpen": WhileLoopOpen,
     "WhileLoopClose": WhileLoopClose,
+    "ExecutionBlocker": ExecutionBlockerNode,
 }
 FLOW_CONTROL_NODE_DISPLAY_NAME_MAPPINGS = {
     "WhileLoopOpen": "While Loop Open",
     "WhileLoopClose": "While Loop Close",
+    "ExecutionBlocker": "Execution Blocker",
 }

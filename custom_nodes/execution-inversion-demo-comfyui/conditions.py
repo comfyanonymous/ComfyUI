@@ -147,11 +147,42 @@ class ToBoolNode:
 
         return (result,)
 
+class BoolOperationNode:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "a": ("BOOL",),
+                "b": ("BOOL",),
+                "op": (["a AND b", "a OR b", "a XOR b", "NOT a"],),
+            },
+        }
+
+    RETURN_TYPES = ("BOOL",)
+    FUNCTION = "bool_operation"
+
+    CATEGORY = "InversionDemo Nodes"
+
+    def bool_operation(self, a, b, op):
+        if op == "a AND b":
+            return (a and b,)
+        elif op == "a OR b":
+            return (a or b,)
+        elif op == "a XOR b":
+            return (a ^ b,)
+        elif op == "NOT a":
+            return (not a,)
+
+
 CONDITION_NODE_CLASS_MAPPINGS = {
     "IntConditions": IntConditions,
     "FloatConditions": FloatConditions,
     "StringConditions": StringConditions,
     "ToBoolNode": ToBoolNode,
+    "BoolOperationNode": BoolOperationNode,
 }
 
 CONDITION_NODE_DISPLAY_NAME_MAPPINGS = {
@@ -159,4 +190,5 @@ CONDITION_NODE_DISPLAY_NAME_MAPPINGS = {
     "FloatConditions": "Float Condition",
     "StringConditions": "String Condition",
     "ToBoolNode": "To Bool",
+    "BoolOperationNode": "Bool Operation",
 }

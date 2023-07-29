@@ -63,6 +63,11 @@ class GraphBuilder:
         id = self.prefix + id
         del self.nodes[id]
 
+# Return this from a node and any users will be blocked with the given error message.
+class ExecutionBlocker:
+    def __init__(self, message):
+        self.message = message
+
 class Node:
     def __init__(self, id, class_type, inputs):
         self.id = id

@@ -1,4 +1,5 @@
 from comfy.graph_utils import GraphBuilder
+import torch
 
 class AccumulateNode:
     def __init__(self):
@@ -228,6 +229,82 @@ class ForLoopClose:
             "expand": graph.finalize(),
         }
 
+class DebugPrint:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value": ("*",),
+                "label": ("STRING", {"multiline": False}),
+            },
+        }
+
+    RETURN_TYPES = ("*",)
+    FUNCTION = "debug_print"
+
+    CATEGORY = "InversionDemo Nodes"
+
+    def debugtype(self, value):
+        if isinstance(value, list):
+            result = "["
+            for i, v in enumerate(value):
+                result += (self.debugtype(v) + ",")
+            result += "]"
+        elif isinstance(value, tuple):
+            result = "("
+            for i, v in enumerate(value):
+                result += (self.debugtype(v) + ",")
+            result += ")"
+        elif isinstance(value, dict):
+            result = "{"
+            for k, v in value.items():
+                result += ("%s: %s," % (self.debugtype(k), self.debugtype(v)))
+            result += "}"
+        elif isinstance(value, str):
+            result = "'%s'" % value
+        elif isinstance(value, bool) or isinstance(value, int) or isinstance(value, float):
+            result = str(value)
+        elif isinstance(value, torch.Tensor):
+            result = "Tensor[%s]" % str(value.shape)
+        else:
+            result = type(value).__name__
+        return result
+
+    def debug_print(self, value, label):
+        print("[%s]: %s" % (label, self.debugtype(value)))
+        return (value,)
+
+NUM_LIST_SOCKETS = 10
+class MakeListNode:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value1": ("*",),
+            },
+            "optional": {
+                "value%d" % i: ("*",) for i in range(1, NUM_LIST_SOCKETS)
+            },
+        }
+
+    RETURN_TYPES = ("*",)
+    FUNCTION = "make_list"
+    OUTPUT_IS_LIST = (True,)
+
+    CATEGORY = "InversionDemo Nodes"
+
+    def make_list(self, **kwargs):
+        result = []
+        for i in range(NUM_LIST_SOCKETS):
+            if "value%d" % i in kwargs:
+                result.append(kwargs["value%d" % i])
+        return (result,)
 
 UTILITY_NODE_CLASS_MAPPINGS = {
     "AccumulateNode": AccumulateNode,
@@ -238,6 +315,8 @@ UTILITY_NODE_CLASS_MAPPINGS = {
     "ForLoopOpen": ForLoopOpen,
     "ForLoopClose": ForLoopClose,
     "IntMathOperation": IntMathOperation,
+    "DebugPrint": DebugPrint,
+    "MakeListNode": MakeListNode,
 }
 UTILITY_NODE_DISPLAY_NAME_MAPPINGS = {
     "AccumulateNode": "Accumulate",
@@ -248,4 +327,6 @@ UTILITY_NODE_DISPLAY_NAME_MAPPINGS = {
     "ForLoopOpen": "For Loop Open",
     "ForLoopClose": "For Loop Close",
     "IntMathOperation": "Int Math Operation",
+    "DebugPrint": "Debug Print",
+    "MakeListNode": "Make List",
 }

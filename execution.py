@@ -14,7 +14,7 @@ import nodes
 
 import comfy.model_management
 import comfy.graph_utils
-from comfy.graph_utils import is_link
+from comfy.graph_utils import is_link, ExecutionBlocker
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -185,7 +185,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, dynpromp
                 input_data_all[x] = [unique_id]
     return input_data_all
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
+def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None):
     # check if node wants the lists
     intput_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
@@ -204,12 +204,31 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     if intput_is_list:
         if allow_interrupt:
             nodes.before_node_execution()
-        results.append(getattr(obj, func)(**input_data_all))
+        execution_block = None
+        for k, v in input_data_all.items():
+            for input in v:
+                if isinstance(v, ExecutionBlocker):
+                    execution_block = execution_block_cb(v) if execution_block_cb is not None else v
+                    break
+
+        if execution_block is None:
+            results.append(getattr(obj, func)(**input_data_all))
+        else:
+            results.append(execution_block)
     else: 
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
-            results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
+            input_dict = slice_dict(input_data_all, i)
+            execution_block = None
+            for k, v in input_dict.items():
+                if isinstance(v, ExecutionBlocker):
+                    execution_block = execution_block_cb(v) if execution_block_cb is not None else v
+                    break
+            if execution_block is None:
+                results.append(getattr(obj, func)(**input_dict))
+            else:
+                results.append(execution_block)
     return results
 
 def merge_result_data(results, obj):
@@ -227,12 +246,12 @@ def merge_result_data(results, obj):
             output.append([o[i] for o in results])
     return output
 
-def get_output_data(obj, input_data_all):
+def get_output_data(obj, input_data_all, execution_block_cb=None):
     
     results = []
     uis = []
     subgraph_results = []
-    return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
+    return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb)
     has_subgraph = False
     for i in range(len(return_values)):
         r = return_values[i]
@@ -243,11 +262,19 @@ def get_output_data(obj, input_data_all):
                 # Perform an expansion, but do not append results
                 has_subgraph = True
                 new_graph = r['expand']
-                subgraph_results.append((new_graph, r.get("result", None)))
+                result = r.get("result", None)
+                if isinstance(result, ExecutionBlocker):
+                    result = tuple([result] * len(obj.RETURN_TYPES))
+                subgraph_results.append((new_graph, result))
             elif 'result' in r:
-                results.append(r['result'])
-                subgraph_results.append((None, r['result']))
+                result = r.get("result", None)
+                if isinstance(result, ExecutionBlocker):
+                    result = tuple([result] * len(obj.RETURN_TYPES))
+                results.append(result)
+                subgraph_results.append((None, result))
         else:
+            if isinstance(r, ExecutionBlocker):
+                r = tuple([r] * len(obj.RETURN_TYPES))
             results.append(r)
     
     if has_subgraph:
@@ -315,13 +342,31 @@ def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, 
             if hasattr(obj, "check_lazy_status"):
                 required_inputs = map_node_over_list(obj, input_data_all, "check_lazy_status", allow_interrupt=True)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
-                required_inputs = [x for x in required_inputs if x not in input_data_all]
+                required_inputs = [x for x in required_inputs if isinstance(x,str) and x not in input_data_all]
                 if len(required_inputs) > 0:
                     for i in required_inputs:
                         execution_list.make_input_strong_link(unique_id, i)
                     return (ExecutionResult.SLEEPING, None, None)
 
-            output_data, output_ui, has_subgraph = get_output_data(obj, input_data_all)
+            def execution_block_cb(block):
+                if block.message is not None:
+                    mes = {
+                        "prompt_id": prompt_id,
+                        "node_id": unique_id,
+                        "node_type": class_type,
+                        "executed": list(executed),
+
+                        "exception_message": "Execution Blocked: %s" % block.message,
+                        "exception_type": "ExecutionBlocked",
+                        "traceback": [],
+                        "current_inputs": [],
+                        "current_outputs": [],
+                    }
+                    server.send_sync("execution_error", mes, server.client_id)
+                    return ExecutionBlocker(None)
+                else:
+                    return block
+            output_data, output_ui, has_subgraph = get_output_data(obj, input_data_all, execution_block_cb=execution_block_cb)
         if len(output_ui) > 0:
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:
@@ -414,7 +459,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
                 try:
                     #is_changed = class_def.IS_CHANGED(**input_data_all)
                     is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
-                    prompt[unique_id]['is_changed'] = is_changed
+                    prompt[unique_id]['is_changed'] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
                 except:
                     to_delete = True
         else:
@@ -719,7 +764,7 @@ def validate_inputs(prompt, item, validated):
                 #ret = obj_class.VALIDATE_INPUTS(**input_data_all)
                 ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
                 for i, r in enumerate(ret):
-                    if r is not True:
+                    if r is not True and not isinstance(r, ExecutionBlocker):
                         details = f"{x}"
                         if r is not False:
                             details += f" - {str(r)}"
