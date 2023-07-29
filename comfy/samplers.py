@@ -17,6 +17,14 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
         def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
+            if 'timestep_start' in cond[1]:
+                timestep_start = cond[1]['timestep_start']
+                if timestep_in[0] > timestep_start:
+                    return None
+            if 'timestep_end' in cond[1]:
+                timestep_end = cond[1]['timestep_end']
+                if timestep_in[0] < timestep_end:
+                    return None
             if 'area' in cond[1]:
                 area = cond[1]['area']
             if 'strength' in cond[1]:
@@ -248,7 +256,10 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
                 c['transformer_options'] = transformer_options
 
-                output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
+                if 'model_function_wrapper' in model_options:
+                    output = model_options['model_function_wrapper'](model_function, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
+                else:
+                    output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
                 del input_x
 
                 model_management.throw_exception_if_processing_interrupted()
@@ -425,6 +436,35 @@ def create_cond_with_same_area_if_none(conds, c):
     n = c[1].copy()
     conds += [[smallest[0], n]]
 
+def calculate_start_end_timesteps(model, conds):
+    for t in range(len(conds)):
+        x = conds[t]
+
+        timestep_start = None
+        timestep_end = None
+        if 'start_percent' in x[1]:
+            timestep_start = model.sigma_to_t(model.t_to_sigma(torch.tensor(x[1]['start_percent'] * 999.0)))
+        if 'end_percent' in x[1]:
+            timestep_end = model.sigma_to_t(model.t_to_sigma(torch.tensor(x[1]['end_percent'] * 999.0)))
+
+        if (timestep_start is not None) or (timestep_end is not None):
+            n = x[1].copy()
+            if (timestep_start is not None):
+                n['timestep_start'] = timestep_start
+            if (timestep_end is not None):
+                n['timestep_end'] = timestep_end
+            conds[t] = [x[0], n]
+
+def pre_run_control(model, conds):
+    for t in range(len(conds)):
+        x = conds[t]
+
+        timestep_start = None
+        timestep_end = None
+        percent_to_timestep_function = lambda a: model.sigma_to_t(model.t_to_sigma(torch.tensor(a) * 999.0))
+        if 'control' in x[1]:
+            x[1]['control'].pre_run(model.inner_model, percent_to_timestep_function)
+
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []
     cond_other = []
@@ -568,13 +608,18 @@ class KSampler:
         resolve_cond_masks(positive, noise.shape[2], noise.shape[3], self.device)
         resolve_cond_masks(negative, noise.shape[2], noise.shape[3], self.device)
 
+        calculate_start_end_timesteps(self.model_wrap, negative)
+        calculate_start_end_timesteps(self.model_wrap, positive)
+
         #make sure each cond area has an opposite one with the same area
         for c in positive:
             create_cond_with_same_area_if_none(negative, c)
         for c in negative:
             create_cond_with_same_area_if_none(positive, c)
 
-        apply_empty_x_to_equal_area(positive, negative, 'control', lambda cond_cnets, x: cond_cnets[x])
+        pre_run_control(self.model_wrap, negative + positive)
+
+        apply_empty_x_to_equal_area(list(filter(lambda c: c[1].get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
         apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
         if self.model.is_adm():

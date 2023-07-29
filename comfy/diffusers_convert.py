@@ -148,6 +148,10 @@ vae_conversion_map_attn = [
     ("q.", "query."),
     ("k.", "key."),
     ("v.", "value."),
+    ("q.", "to_q."),
+    ("k.", "to_k."),
+    ("v.", "to_v."),
+    ("proj_out.", "to_out.0."),
     ("proj_out.", "proj_attn."),
 ]
 
