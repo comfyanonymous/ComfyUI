@@ -18,7 +18,7 @@ class IntConditions:
     RETURN_TYPES = ("BOOL",)
     FUNCTION = "int_condition"
 
-    CATEGORY = "Conditions"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def int_condition(self, a, b, operation):
         if operation == "==":
@@ -52,7 +52,7 @@ class FloatConditions:
     RETURN_TYPES = ("BOOL",)
     FUNCTION = "float_condition"
 
-    CATEGORY = "Conditions"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def float_condition(self, a, b, operation):
         if operation == "==":
@@ -86,7 +86,7 @@ class StringConditions:
     RETURN_TYPES = ("BOOL",)
     FUNCTION = "string_condition"
 
-    CATEGORY = "Conditions"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def string_condition(self, a, b, operation, case_sensitive):
         if not case_sensitive:
@@ -127,7 +127,7 @@ class ToBoolNode:
     RETURN_TYPES = ("BOOL",)
     FUNCTION = "to_bool"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def to_bool(self, value, invert = False):
         if isinstance(value, torch.Tensor):
@@ -164,7 +164,7 @@ class BoolOperationNode:
     RETURN_TYPES = ("BOOL",)
     FUNCTION = "bool_operation"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def bool_operation(self, a, b, op):
         if op == "a AND b":

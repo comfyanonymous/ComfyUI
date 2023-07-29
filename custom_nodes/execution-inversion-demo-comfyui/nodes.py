@@ -19,7 +19,7 @@ class InversionDemoAdvancedPromptNode:
     RETURN_TYPES = ("MODEL", "CLIP", "CONDITIONING")
     FUNCTION = "advanced_prompt"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Demo"
 
     def parse_prompt(self, prompt):
         # Get all string pieces matching the pattern "<lora:(name):(strength)(:(clip_strength))?>"
@@ -68,7 +68,7 @@ class InversionDemoFakeAdvancedPromptNode:
     RETURN_TYPES = ("MODEL", "CLIP", "CONDITIONING")
     FUNCTION = "advanced_prompt"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Debug"
 
     def advanced_prompt(self, prompt, clip, model):
         tokens = clip.tokenize(prompt)
@@ -92,7 +92,7 @@ class InversionDemoLazySwitch:
     RETURN_TYPES = ("*",)
     FUNCTION = "switch"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def check_lazy_status(self, switch, on_false = None, on_true = None):
         if switch and on_true is None:
@@ -130,7 +130,7 @@ class InversionDemoLazyConditional:
     RETURN_TYPES = ("*",)
     FUNCTION = "conditional"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def check_lazy_status(self, **kwargs):
         for i in range(0,NUM_IF_ELSE_NODES):
@@ -186,7 +186,7 @@ class InversionDemoLazyIndexSwitch:
     RETURN_TYPES = ("*",)
     FUNCTION = "index_switch"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def check_lazy_status(self, index, **kwargs):
         key = "value%d" % index
@@ -214,7 +214,7 @@ class InversionDemoLazyMixImages:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "mix"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Demo"
 
     def check_lazy_status(self, mask, image1 = None, image2 = None):
         mask_min = mask.min()

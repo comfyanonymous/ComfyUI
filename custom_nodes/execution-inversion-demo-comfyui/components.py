@@ -38,7 +38,7 @@ class ComponentInput:
     RETURN_TYPES = ("*",)
     FUNCTION = "component_input"
 
-    CATEGORY = "Component Creation"
+    CATEGORY = "InversionDemo Nodes/Component Creation"
 
     def component_input(self, name, data_type, extra_args, explicit_input_order, optional, default_value = None):
         return (default_value,)
@@ -61,7 +61,7 @@ class ComponentOutput:
     RETURN_TYPES = ("*",)
     FUNCTION = "component_output"
 
-    CATEGORY = "Component Creation"
+    CATEGORY = "InversionDemo Nodes/Component Creation"
 
     def component_output(self, index, data_type, name, value):
         return (value,)
@@ -82,7 +82,7 @@ class ComponentMetadata:
     RETURN_TYPES = ()
     FUNCTION = "nop"
 
-    CATEGORY = "Component Creation"
+    CATEGORY = "InversionDemo Nodes/Component Creation"
 
     def nop(self, name):
         return {}

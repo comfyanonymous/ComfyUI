@@ -22,7 +22,7 @@ class WhileLoopOpen:
     RETURN_NAMES = tuple(["FLOW_CONTROL"] + ["value%d" % i for i in range(NUM_FLOW_SOCKETS)])
     FUNCTION = "while_loop_open"
 
-    CATEGORY = "Flow Control"
+    CATEGORY = "InversionDemo Nodes/Flow"
 
     def while_loop_open(self, condition, **kwargs):
         values = []
@@ -56,7 +56,7 @@ class WhileLoopClose:
     RETURN_NAMES = tuple(["value%d" % i for i in range(NUM_FLOW_SOCKETS)])
     FUNCTION = "while_loop_close"
 
-    CATEGORY = "Flow Control"
+    CATEGORY = "InversionDemo Nodes/Flow"
 
     def explore_dependencies(self, node_id, dynprompt, upstream):
         node_info = dynprompt.get_node(node_id)
@@ -143,7 +143,7 @@ class ExecutionBlockerNode:
     RETURN_NAMES = ("output",)
     FUNCTION = "execution_blocker"
 
-    CATEGORY = "Flow Control"
+    CATEGORY = "InversionDemo Nodes/Flow"
 
     def execution_blocker(self, input, block, verbose):
         if block:

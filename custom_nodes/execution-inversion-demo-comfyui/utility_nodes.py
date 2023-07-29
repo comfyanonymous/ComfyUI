@@ -19,7 +19,7 @@ class AccumulateNode:
     RETURN_TYPES = ("ACCUMULATION",)
     FUNCTION = "accumulate"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Lists"
 
     def accumulate(self, to_add, accumulation = None):
         if accumulation is None:
@@ -43,7 +43,7 @@ class AccumulationHeadNode:
     RETURN_TYPES = ("ACCUMULATION", "*",)
     FUNCTION = "accumulation_head"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Lists"
 
     def accumulation_head(self, accumulation):
         accum = accumulation["accum"]
@@ -67,7 +67,7 @@ class AccumulationTailNode:
     RETURN_TYPES = ("ACCUMULATION", "*",)
     FUNCTION = "accumulation_tail"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Lists"
 
     def accumulation_tail(self, accumulation):
         accum = accumulation["accum"]
@@ -93,7 +93,7 @@ class AccumulationToListNode:
 
     FUNCTION = "accumulation_to_list"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Lists"
 
     def accumulation_to_list(self, accumulation):
         return (accumulation["accum"],)
@@ -115,7 +115,7 @@ class ListToAccumulationNode:
 
     FUNCTION = "list_to_accumulation"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Lists"
 
     def accumulation_to_list(self, list):
         return ({"accum": list},)
@@ -137,7 +137,7 @@ class IntMathOperation:
     RETURN_TYPES = ("INT",)
     FUNCTION = "int_math_operation"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Logic"
 
     def int_math_operation(self, a, b, operation):
         if operation == "add":
@@ -177,7 +177,7 @@ class ForLoopOpen:
     RETURN_NAMES = tuple(["flow_control", "remaining"] + ["value%d" % i for i in range(1, NUM_FLOW_SOCKETS)])
     FUNCTION = "for_loop_open"
 
-    CATEGORY = "Flow Control"
+    CATEGORY = "InversionDemo Nodes/Flow"
 
     def for_loop_open(self, remaining, **kwargs):
         graph = GraphBuilder()
@@ -210,7 +210,7 @@ class ForLoopClose:
     RETURN_NAMES = tuple(["value%d" % i for i in range(1, NUM_FLOW_SOCKETS)])
     FUNCTION = "for_loop_close"
 
-    CATEGORY = "Flow Control"
+    CATEGORY = "InversionDemo Nodes/Flow"
 
     def for_loop_close(self, flow_control, old_remaining, **kwargs):
         graph = GraphBuilder()
@@ -245,7 +245,7 @@ class DebugPrint:
     RETURN_TYPES = ("*",)
     FUNCTION = "debug_print"
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Debug"
 
     def debugtype(self, value):
         if isinstance(value, list):
@@ -297,7 +297,7 @@ class MakeListNode:
     FUNCTION = "make_list"
     OUTPUT_IS_LIST = (True,)
 
-    CATEGORY = "InversionDemo Nodes"
+    CATEGORY = "InversionDemo Nodes/Lists"
 
     def make_list(self, **kwargs):
         result = []
