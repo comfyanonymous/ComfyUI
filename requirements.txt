@@ -1,5 +1,4 @@
 torch
-torchdiffeq
 torchsde
 einops
 open-clip-torch
