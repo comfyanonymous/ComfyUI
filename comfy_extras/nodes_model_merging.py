@@ -6,6 +6,8 @@ import folder_paths
 import json
 import os
 
+from comfy.cli_args import args
+
 class ModelMergeSimple:
     @classmethod
     def INPUT_TYPES(s):
@@ -101,8 +103,7 @@ class CheckpointSave:
         if prompt is not None:
             prompt_info = json.dumps(prompt)
 
-        metadata = {"prompt": prompt_info}
-
+        metadata = {}
 
         enable_modelspec = True
         if isinstance(model.model, comfy.model_base.SDXL):
@@ -127,9 +128,11 @@ class CheckpointSave:
         elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
             metadata["modelspec.predict_key"] = "v"
 
-        if extra_pnginfo is not None:
-            for x in extra_pnginfo:
-                metadata[x] = json.dumps(extra_pnginfo[x])
+        if not args.disable_metadata:
+            metadata["prompt"] = prompt_info
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata[x] = json.dumps(extra_pnginfo[x])
 
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
