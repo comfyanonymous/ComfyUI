@@ -14,6 +14,8 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
+from comfy.parse_choice import translate_choices
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
@@ -44,14 +46,19 @@ MAX_RESOLUTION=8192
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
+        return {"required": {
+            "text": ("STRING", {"multiline": True}), 
+            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            "clip": ("CLIP", )
+        }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip, text):
-        tokens = clip.tokenize(text)
+    def encode(self, clip, seed, text):
+        translated_prompt_text = translate_choices(text, seed)
+        tokens = clip.tokenize(translated_prompt_text)
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
         return ([[cond, {"pooled_output": pooled}]], )
 
