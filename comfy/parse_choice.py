@@ -1,5 +1,6 @@
 
 
+import os
 import random
 
 import comfy.parse
@@ -11,7 +12,10 @@ class LogicError(Exception):
 	pass
 
 
-def translate_choices(text, seed=0):
+def get_seed():
+	return int.from_bytes(os.urandom(8), byteorder='big')
+
+def translate_choices(text, seed=None):
 	'''
 	Parses the text, translating "{A|B|C}" choices into a single choice.
 	An option is chosen randomly from the available options.
@@ -101,6 +105,9 @@ def translate_choices(text, seed=0):
 				break
 		
 		return ''.join(out)
+	
+	if seed == None:
+		seed = get_seed()
 	
 	# init our local random number generator
 	rng = random.Random(seed)
