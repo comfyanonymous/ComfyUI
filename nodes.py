@@ -44,7 +44,7 @@ MAX_RESOLUTION=8192
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
+        return {"required": {"text": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", )}}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
@@ -820,7 +820,7 @@ class GLIGENTextBoxApply:
         return {"required": {"conditioning_to": ("CONDITIONING", ),
                               "clip": ("CLIP", ),
                               "gligen_textbox_model": ("GLIGEN", ),
-                              "text": ("STRING", {"multiline": True}),
+                              "text": ("STRING", {"multiline": True, "dynamicPrompts": True}),
                               "width": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
