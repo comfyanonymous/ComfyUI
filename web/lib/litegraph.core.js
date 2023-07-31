@@ -6879,10 +6879,11 @@ LGraphNode.prototype.executeAction = function(action)
 
         var scale = this.ds.scale;
 
-        if (delta > 0) {
-            scale *= 1.1;
+		scroll_sensitivity = 500; // maybe this in a general config
+		if (delta > 0) {
+            scale *= 1 + (delta / scroll_sensitivity);
         } else if (delta < 0) {
-            scale *= 1 / 1.1;
+            scale *= 1 + (delta / scroll_sensitivity);
         }
 
         //this.setZoom( scale, [ e.clientX, e.clientY ] );
