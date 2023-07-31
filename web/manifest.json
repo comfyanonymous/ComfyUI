@@ -7,14 +7,14 @@
   "display": "standalone",
   "icons":[
     {
-      "src":"assets/comfy192.webp",
+      "src":"assets/comfy192.png",
       "sizes": "192x192",
-      "type": "image/webp"
+      "type": "image/png"
     },
     {
-      "src":"assets/comfy512.webp",
+      "src":"assets/comfy512.png",
       "sizes": "512x512",
-      "type": "image/webp"
+      "type": "image/png"
     }
   ]
 }
