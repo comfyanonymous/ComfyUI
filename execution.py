@@ -14,7 +14,7 @@ import nodes
 
 import comfy.model_management
 import comfy.graph_utils
-from comfy.graph_utils import is_link, ExecutionBlocker
+from comfy.graph_utils import is_link, ExecutionBlocker, GraphBuilder
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -45,11 +45,9 @@ def get_input_info(class_def, input_name):
 
 # ExecutionList implements a topological dissolve of the graph. After a node is staged for execution,
 # it can still be returned to the graph after having further dependencies added.
-class ExecutionList:
-    def __init__(self, dynprompt, outputs):
+class TopologicalSort:
+    def __init__(self, dynprompt):
         self.dynprompt = dynprompt
-        self.outputs = outputs
-        self.staged_node_id = None
         self.pendingNodes = {}
         self.blockCount = {} # Number of nodes this node is directly blocked by
         self.blocking = {} # Which nodes are blocked by this node
@@ -70,9 +68,6 @@ class ExecutionList:
         self.add_strong_link(from_node_id, from_socket, to_node_id)
 
     def add_strong_link(self, from_node_id, from_socket, to_node_id):
-        if from_node_id in self.outputs:
-            # Nothing to do
-            return
         self.add_node(from_node_id)
         if to_node_id not in self.blocking[from_node_id]:
             self.blocking[from_node_id][to_node_id] = {}
@@ -95,11 +90,35 @@ class ExecutionList:
                 if "lazy" not in input_info or not input_info["lazy"]:
                     self.add_strong_link(from_node_id, from_socket, unique_id)
 
+    def get_ready_nodes(self):
+        return [node_id for node_id in self.pendingNodes if self.blockCount[node_id] == 0]
+
+    def pop_node(self, unique_id):
+        del self.pendingNodes[unique_id]
+        for blocked_node_id in self.blocking[unique_id]:
+            self.blockCount[blocked_node_id] -= 1
+        del self.blocking[unique_id]
+
+    def is_empty(self):
+        return len(self.pendingNodes) == 0
+
+class ExecutionList(TopologicalSort):
+    def __init__(self, dynprompt, outputs):
+        super().__init__(dynprompt)
+        self.outputs = outputs
+        self.staged_node_id = None
+
+    def add_strong_link(self, from_node_id, from_socket, to_node_id):
+        if from_node_id in self.outputs:
+            # Nothing to do
+            return
+        super().add_strong_link(from_node_id, from_socket, to_node_id)
+
     def stage_node_execution(self):
         assert self.staged_node_id is None
         if self.is_empty():
             return None
-        available = [node_id for node_id in self.pendingNodes if self.blockCount[node_id] == 0]
+        available = self.get_ready_nodes()
         if len(available) == 0:
             raise Exception("Dependency cycle detected")
         next_node = available[0]
@@ -122,14 +141,9 @@ class ExecutionList:
 
     def complete_node_execution(self):
         node_id = self.staged_node_id
-        del self.pendingNodes[node_id]
-        for blocked_node_id in self.blocking[node_id]:
-            self.blockCount[blocked_node_id] -= 1
-        del self.blocking[node_id]
+        self.pop_node(node_id)
         self.staged_node_id = None
 
-    def is_empty(self):
-        return len(self.pendingNodes) == 0
 
 class DynamicPrompt:
     def __init__(self, original_prompt):
@@ -138,6 +152,7 @@ class DynamicPrompt:
         # Any extra pieces of the graph created during execution
         self.ephemeral_prompt = {}
         self.ephemeral_parents = {}
+        self.ephemeral_display = {}
 
     def get_node(self, node_id):
         if node_id in self.ephemeral_prompt:
@@ -146,13 +161,21 @@ class DynamicPrompt:
             return self.original_prompt[node_id]
         return None
 
-    def add_ephemeral_node(self, parent_id, node_id, node_info):
+    def add_ephemeral_node(self, node_id, node_info, parent_id, display_id):
         self.ephemeral_prompt[node_id] = node_info
         self.ephemeral_parents[node_id] = parent_id
 
     def get_real_node_id(self, node_id):
         while node_id in self.ephemeral_parents:
             node_id = self.ephemeral_parents[node_id]
+        return node_id
+
+    def get_parent_node_id(self, node_id):
+        return self.ephemeral_parents.get(node_id, None)
+
+    def get_display_node_id(self, node_id):
+        while node_id in self.ephemeral_display:
+            node_id = self.ephemeral_display[node_id]
         return node_id
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, dynprompt=None, extra_data={}):
@@ -185,7 +208,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, dynpromp
                 input_data_all[x] = [unique_id]
     return input_data_all
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None):
+def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
     # check if node wants the lists
     intput_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
@@ -212,6 +235,8 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, executi
                     break
 
         if execution_block is None:
+            if pre_execute_cb is not None:
+                pre_execute_cb(0)
             results.append(getattr(obj, func)(**input_data_all))
         else:
             results.append(execution_block)
@@ -226,6 +251,8 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, executi
                     execution_block = execution_block_cb(v) if execution_block_cb is not None else v
                     break
             if execution_block is None:
+                if pre_execute_cb is not None:
+                    pre_execute_cb(i)
                 results.append(getattr(obj, func)(**input_dict))
             else:
                 results.append(execution_block)
@@ -246,12 +273,12 @@ def merge_result_data(results, obj):
             output.append([o[i] for o in results])
     return output
 
-def get_output_data(obj, input_data_all, execution_block_cb=None):
+def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb=None):
     
     results = []
     uis = []
     subgraph_results = []
-    return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb)
+    return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
     has_subgraph = False
     for i in range(len(return_values)):
         r = return_values[i]
@@ -299,6 +326,7 @@ def format_value(x):
 def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage, execution_list, pending_subgraph_results):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
+    display_node_id = dynprompt.get_display_node_id(unique_id)
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
@@ -331,8 +359,8 @@ def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, 
         else:
             input_data_all = get_input_data(inputs, class_def, unique_id, outputs, dynprompt.original_prompt, dynprompt, extra_data)
             if server.client_id is not None:
-                server.last_node_id = real_node_id
-                server.send_sync("executing", { "node": real_node_id, "prompt_id": prompt_id }, server.client_id)
+                server.last_node_id = display_node_id
+                server.send_sync("executing", { "node": display_node_id, "prompt_id": prompt_id }, server.client_id)
 
             obj = object_storage.get((unique_id, class_type), None)
             if obj is None:
@@ -366,11 +394,13 @@ def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, 
                     return ExecutionBlocker(None)
                 else:
                     return block
-            output_data, output_ui, has_subgraph = get_output_data(obj, input_data_all, execution_block_cb=execution_block_cb)
+            def pre_execute_cb(call_index):
+                GraphBuilder.set_default_prefix(unique_id, call_index, 0)
+            output_data, output_ui, has_subgraph = get_output_data(obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb)
         if len(output_ui) > 0:
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:
-                server.send_sync("executed", { "node": real_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
+                server.send_sync("executed", { "node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
         if has_subgraph:
             cached_outputs = []
             for i in range(len(output_data)):
@@ -381,12 +411,12 @@ def non_recursive_execute(server, dynprompt, outputs, current_item, extra_data, 
                     # Check for conflicts
                     for node_id in new_graph.keys():
                         if dynprompt.get_node(node_id) is not None:
-                            new_graph, node_outputs = comfy.graph_utils.add_graph_prefix(new_graph, node_outputs, "%s.%d." % (unique_id, i))
+                            raise Exception("Attempt to add duplicate node %s" % node_id)
                             break
                     new_output_ids = []
                     for node_id, node_info in new_graph.items():
-                        parent_id = node_info.get("override_parent_id", real_node_id)
-                        dynprompt.add_ephemeral_node(parent_id, node_id, node_info)
+                        display_id = node_info.get("override_display_id", unique_id)
+                        dynprompt.add_ephemeral_node(node_id, node_info, unique_id, display_id)
                         # Figure out if the newly created node is an output node
                         class_type = node_info["class_type"]
                         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]

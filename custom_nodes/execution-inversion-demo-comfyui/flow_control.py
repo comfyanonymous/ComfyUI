@@ -99,14 +99,16 @@ class WhileLoopClose:
         contained[unique_id] = True
         contained[open_node] = True
 
+        # We'll use the default prefix, but to avoid having node names grow exponentially in size,
+        # we'll use "Recurse" for the name of the recursively-generated copy of this node.
         graph = GraphBuilder()
         for node_id in contained:
             original_node = dynprompt.get_node(node_id)
-            node = graph.node(original_node["class_type"], node_id)
-            node.set_override_parent_id(node_id)
+            node = graph.node(original_node["class_type"], "Recurse" if node_id == unique_id else node_id)
+            node.set_override_display_id(node_id)
         for node_id in contained:
             original_node = dynprompt.get_node(node_id)
-            node = graph.lookup_node(node_id)
+            node = graph.lookup_node("Recurse" if node_id == unique_id else node_id)
             for k, v in original_node["inputs"].items():
                 if is_link(v) and v[0] in contained:
                     parent = graph.lookup_node(v[0])
@@ -117,7 +119,7 @@ class WhileLoopClose:
         for i in range(NUM_FLOW_SOCKETS):
             key = "initial_value%d" % i
             new_open.set_input(key, kwargs.get(key, None))
-        my_clone = graph.lookup_node(unique_id)
+        my_clone = graph.lookup_node("Recurse" )
         result = map(lambda x: my_clone.out(x), range(NUM_FLOW_SOCKETS))
         return {
             "result": tuple(result),

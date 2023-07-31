@@ -14,15 +14,36 @@ def is_link(obj):
 
 # The GraphBuilder is just a utility class that outputs graphs in the form expected by the ComfyUI back-end
 class GraphBuilder:
-    def __init__(self, prefix = True):
-        if isinstance(prefix, str):
-            self.prefix = prefix
-        elif prefix:
-            self.prefix = "%d.%d." % (random.randint(0, 0xffffffffffffffff), random.randint(0, 0xffffffffffffffff))
+    _default_prefix_root = ""
+    _default_prefix_call_index = 0
+    _default_prefix_graph_index = 0
+
+    def __init__(self, prefix = None):
+        if prefix is None:
+            self.prefix = GraphBuilder.alloc_prefix()
         else:
-            self.prefix = ""
+            self.prefix = prefix
         self.nodes = {}
         self.id_gen = 1
+
+    @classmethod
+    def set_default_prefix(cls, prefix_root, call_index, graph_index = 0):
+        cls._default_prefix_root = prefix_root
+        cls._default_prefix_call_index = call_index
+        if graph_index is not None:
+            cls._default_prefix_graph_index = graph_index
+
+    @classmethod
+    def alloc_prefix(cls, root=None, call_index=None, graph_index=None):
+        if root is None:
+            root = GraphBuilder._default_prefix_root
+        if call_index is None:
+            call_index = GraphBuilder._default_prefix_call_index
+        if graph_index is None:
+            graph_index = GraphBuilder._default_prefix_graph_index
+        result = "%s.%d.%d." % (root, call_index, graph_index)
+        GraphBuilder._default_prefix_graph_index += 1
+        return result
 
     def node(self, class_type, id=None, **kwargs):
         if id is None:
@@ -73,7 +94,7 @@ class Node:
         self.id = id
         self.class_type = class_type
         self.inputs = inputs
-        self.override_parent_id = None
+        self.override_display_id = None
 
     def out(self, index):
         return [self.id, index]
@@ -88,16 +109,16 @@ class Node:
     def get_input(self, key):
         return self.inputs.get(key)
 
-    def set_override_parent_id(self, override_parent_id):
-        self.override_parent_id = override_parent_id
+    def set_override_display_id(self, override_display_id):
+        self.override_display_id = override_display_id
 
     def serialize(self):
         serialized = {
             "class_type": self.class_type,
             "inputs": self.inputs
         }
-        if self.override_parent_id is not None:
-            serialized["override_parent_id"] = self.override_parent_id
+        if self.override_display_id is not None:
+            serialized["override_display_id"] = self.override_display_id
         return serialized
 
 def add_graph_prefix(graph, outputs, prefix):

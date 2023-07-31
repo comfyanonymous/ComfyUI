@@ -3,6 +3,7 @@ import shutil
 import folder_paths
 import json
 import copy
+import comfy.graph_utils
 
 comfy_path = os.path.dirname(folder_paths.__file__)
 js_path = os.path.join(comfy_path, "web", "extensions")
@@ -192,8 +193,10 @@ def LoadComponent(component_file):
             for input_node in component_inputs:
                 if input_node["name"] in kwargs:
                     new_graph[input_node["node_id"]]["inputs"]["default_value"] = kwargs[input_node["name"]]
+            outputs = tuple([[node["node_id"], 0] for node in component_outputs])
+            new_graph, outputs = comfy.graph_utils.add_graph_prefix(new_graph, outputs, comfy.graph_utils.GraphBuilder.alloc_prefix())
             return {
-                "result": tuple([[node["node_id"], 0] for node in component_outputs]),
+                "result": outputs,
                 "expand": new_graph,
             }
     ComponentNode.__name__ = component_raw_name
