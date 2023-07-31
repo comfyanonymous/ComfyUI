@@ -110,15 +110,83 @@ class ListToAccumulationNode:
             },
         }
 
-    RETURN_TYPES = ("*",)
+    RETURN_TYPES = ("ACCUMULATION",)
     INPUT_IS_LIST = (True,)
 
     FUNCTION = "list_to_accumulation"
 
     CATEGORY = "InversionDemo Nodes/Lists"
 
-    def accumulation_to_list(self, list):
+    def list_to_accumulation(self, list):
         return ({"accum": list},)
+
+class AccumulationGetLengthNode:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "accumulation": ("ACCUMULATION",),
+            },
+        }
+
+    RETURN_TYPES = ("INT",)
+
+    FUNCTION = "accumlength"
+
+    CATEGORY = "InversionDemo Nodes/Lists"
+
+    def accumlength(self, accumulation):
+        return (len(accumulation['accum']),)
+        
+class AccumulationGetItemNode:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "accumulation": ("ACCUMULATION",),
+                "index": ("INT", {"default":0, "step":1})
+            },
+        }
+
+    RETURN_TYPES = ("*",)
+
+    FUNCTION = "get_item"
+
+    CATEGORY = "InversionDemo Nodes/Lists"
+
+    def get_item(self, accumulation, index):
+        return (accumulation['accum'][index],)
+        
+class AccumulationSetItemNode:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "accumulation": ("ACCUMULATION",),
+                "index": ("INT", {"default":0, "step":1}),
+                "value": ("*",),
+            },
+        }
+
+    RETURN_TYPES = ("ACCUMULATION",)
+
+    FUNCTION = "set_item"
+
+    CATEGORY = "InversionDemo Nodes/Lists"
+
+    def set_item(self, accumulation, index, value):
+        new_accum = accumulation['accum'][:]
+        new_accum[index] = value
+        return ({"accum": new_accum},)
 
 class IntMathOperation:
     def __init__(self):
@@ -312,6 +380,9 @@ UTILITY_NODE_CLASS_MAPPINGS = {
     "AccumulationTailNode": AccumulationTailNode,
     "AccumulationToListNode": AccumulationToListNode,
     "ListToAccumulationNode": ListToAccumulationNode,
+    "AccumulationGetLengthNode": AccumulationGetLengthNode,
+    "AccumulationGetItemNode": AccumulationGetItemNode,
+    "AccumulationSetItemNode": AccumulationSetItemNode,
     "ForLoopOpen": ForLoopOpen,
     "ForLoopClose": ForLoopClose,
     "IntMathOperation": IntMathOperation,
@@ -324,6 +395,9 @@ UTILITY_NODE_DISPLAY_NAME_MAPPINGS = {
     "AccumulationTailNode": "Accumulation Tail",
     "AccumulationToListNode": "Accumulation to List",
     "ListToAccumulationNode": "List to Accumulation",
+    "AccumulationGetLengthNode": "Accumulation Get Length",
+    "AccumulationGetItemNode": "Accumulation Get Item",
+    "AccumulationSetItemNode": "Accumulation Set Item",
     "ForLoopOpen": "For Loop Open",
     "ForLoopClose": "For Loop Close",
     "IntMathOperation": "Int Math Operation",
