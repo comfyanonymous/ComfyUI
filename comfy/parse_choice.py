@@ -62,36 +62,41 @@ def translate_choices(text, seed=0):
 		
 		while True:
 			if 0: pass
-			elif m := input.match(r'[\\\{]'): # a single metacharacter, \ or {
-				ch = m.group(0)
+			elif m := input.match(r'\\'): # \
 				if 0: pass
-				elif ch == '\\':
-					if not (m := input.match(r'.')):
-						raise ParseError(input, f'Unexpected end of input after backslash')
-					ch = m.group(0)
-					if 0: pass
-					elif ch in {'\\', '(', ')'}:
-						# these are metacharacters in the weight parsing phase, so we have to handle them specially
-						# maintain the escaping for the upcoming weight parsing phase
-						out.append(f'\\{ch}')
-					elif ch in {'{', '}', '|'}:
-						# escaping a metacharacter to make it literal
-						out.append(ch) # output literal character
-					else:
-						# other characters shouldn't require escaping
-						# treat it as a normal escape regardless
-						# policy subject to change
-						out.append(ch)
-				elif ch == '{':
-					# choice
-					chosen_text = parse_choice(input)
-					out.append(chosen_text)
+				elif m := input.match(r'[\{\|\}\/]'):
+					# escaping a metacharacter to make it literal
+					out.append(m.group(0)) # output literal character
+				elif m := input.match(r'.'):
+					# by passing through non-native or unrecognised escape codes without change, we support clean combiniation of multiple parsing phases
+					# without forcing the user to add additional escaping for each phase
+					out.append(f'\\{m.group(0)}')
 				else:
-					raise LogicError(input, f"Expected metacharacter '\\' or '{{' ")
-			elif m := input.match(r'[^\\\{\}\|]+'): # 1 or more non-metacharacters
+					raise ParseError(input, f'Unexpected end of input after backslash')
+			elif m := input.match(r'\{'): # {
+				# choice
+				chosen_text = parse_choice(input)
+				out.append(chosen_text)
+			elif m := input.match(r'\/'): # /
+				# C-style block "/* */" and line "//" comments
+				if 0: pass
+				elif m := input.match(r'\/'): # /
+					# line comment
+					if not input.match(r'.*?(?:\n|$)'):
+						raise ParseError(input, f"Failed to find end of comment")
+					out.append('\n')
+				elif m := input.match(r'\*'): # /
+					# block comment
+					if not input.match(r'.*?\*\/'):
+						raise ParseError(input, f"Unterminated comment")
+					out.append(' ')
+				else:
+					# it was a literal /, not a comment after all
+					out.append('/');
+			elif m := input.match(r'[^\\\{\}\|\/]+'): # 1 or more non-metacharacters
 				out.append(m.group(0))
 			else:
-				# didn't match \, { or non-metacharacters
+				# didn't match \, {, / or non-metacharacters
 				# must be either |, } or end of input
 				break
 		
