@@ -1,0 +1,20 @@
+{
+  "name": "ComfyUI",
+  "short_name": "ComfyUI", 
+  "start_url": "./",
+  "theme_color": "#0B0B0B",
+  "background_color": "#222222",
+  "display": "standalone",
+  "icons":[
+    {
+      "src":"assets/comfy192.webp",
+      "sizes": "192x192",
+      "type": "image/webp"
+    },
+    {
+      "src":"assets/comfy512.webp",
+      "sizes": "512x512",
+      "type": "image/webp"
+    }
+  ]
+}
