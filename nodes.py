@@ -362,6 +362,14 @@ class SaveLatent:
                     metadata[x] = json.dumps(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
+
+        results = list()
+        results.append({
+            "filename": file,
+            "subfolder": subfolder,
+            "type": "output"
+        })
+
         file = os.path.join(full_output_folder, file)
 
         output = {}
@@ -369,7 +377,7 @@ class SaveLatent:
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
-        return {}
+        return { "ui": { "latents": results } }
 
 
 class LoadLatent:
