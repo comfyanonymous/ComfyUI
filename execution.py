@@ -56,6 +56,8 @@ class QueueItem:
     """
     queue_tuple: QueueTuple
     completed: asyncio.Future | None
+    def __lt__(self, other: QueueItem):
+        return self.queue_tuple[0] < other.queue_tuple[0]
 
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
