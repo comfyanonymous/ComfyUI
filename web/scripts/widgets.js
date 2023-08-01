@@ -250,20 +250,20 @@ function addMultilineWidget(node, name, opts, app) {
 	return { minWidth: 400, minHeight: 200, widget };
 }
 
-function isSlider(display_as) {
-	return (display_as==="slider") ? "slider" : "number"
+function isSlider(display) {
+	return (display==="slider") ? "slider" : "number"
 }
 
 export const ComfyWidgets = {
 	"INT:seed": seedWidget,
 	"INT:noise_seed": seedWidget,
 	FLOAT(node, inputName, inputData) {
-		let widgetType = isSlider(inputData[1]["display_as"]);
+		let widgetType = isSlider(inputData[1]["display"]);
 		const { val, config } = getNumberDefaults(inputData, 0.5);
 		return { widget: node.addWidget(widgetType, inputName, val, () => {}, config) };
 	},
 	INT(node, inputName, inputData) {
-		let widgetType = isSlider(inputData[1]["display_as"]);
+		let widgetType = isSlider(inputData[1]["display"]);
 		const { val, config } = getNumberDefaults(inputData, 1);
 		Object.assign(config, { precision: 0 });
 		return {
@@ -276,7 +276,7 @@ export const ComfyWidgets = {
 					this.value = Math.round(v / s) * s;
 				},
 				config
-			),	
+			),
 		};
 	},
 	TOGGLE(node, inputName, inputData) {
