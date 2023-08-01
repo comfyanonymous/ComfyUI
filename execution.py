@@ -58,7 +58,7 @@ class QueueItem:
     completed: asyncio.Future | None
 
     def __lt__(self, other: QueueItem):
-        return self.queue_tuple[0] < other.queue_tuple[0]
+        return get_queue_priority(self.queue_tuple) < get_queue_priority(other.queue_tuple)
 
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
@@ -650,7 +650,7 @@ def full_type_name(klass):
         return klass.__qualname__
     return module + '.' + klass.__qualname__
 
-def validate_prompt(prompt: dict) -> typing.Tuple[bool, str, typing.List[str], dict | list]:
+def validate_prompt(prompt: dict) -> typing.Tuple[bool, dict | typing.List[dict] | None, typing.List[str], dict | list]:
     outputs = set()
     for x in prompt:
         class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
