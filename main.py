@@ -160,6 +160,8 @@ if __name__ == "__main__":
     if args.auto_launch:
         def startup_server(address, port):
             import webbrowser
+            if os.name == 'nt' and address == '0.0.0.0':
+                address = '127.0.0.1'
             webbrowser.open(f"http://{address}:{port}")
         call_on_start = startup_server
 
