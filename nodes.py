@@ -1055,6 +1055,48 @@ class LatentComposite:
         samples_out["samples"] = s
         return (samples_out,)
 
+class LatentBlend:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "samples_a": ("LATENT",),
+            "samples_b": ("LATENT",),
+            "blend_factor": ("FLOAT", {
+                "default": 0.5,
+                "min": 0,
+                "max": 1,
+                "step": 0.01
+            }),
+            "blend_mode": (["normal"],),
+        }}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "blend"
+
+    CATEGORY = "_for_testing"
+
+    def blend(self, samples_a, samples_b, blend_factor:float, blend_mode: str):
+
+        samples_out = samples_a.copy()
+        samples_a = samples_a["samples"]
+        samples_b = samples_b["samples"]
+
+        if samples_a.shape != samples_b.shape:
+            samples_b.permute(0, 3, 1, 2)
+            samples_b = comfy.utils.common_upscale(samples_b, samples_a.shape[3], samples_a.shape[2], 'bicubic', crop='center')
+            samples_b.permute(0, 2, 3, 1)
+
+        samples_blended = self.blend_mode(samples_a, samples_b, blend_mode)
+        samples_blended = samples_a * (1 - blend_factor) + samples_blended * blend_factor
+        samples_out["samples"] = samples_blended
+        return (samples_out,)
+
+    def blend_mode(self, img1, img2, mode):
+        if mode == "normal":
+            return img2
+        else:
+            raise ValueError(f"Unsupported blend mode: {mode}")
+
 class LatentCrop:
     @classmethod
     def INPUT_TYPES(s):
@@ -1501,6 +1543,7 @@ NODE_CLASS_MAPPINGS = {
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
+    "LatentBlend": LatentBlend,
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
@@ -1572,6 +1615,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentUpscale": "Upscale Latent",
     "LatentUpscaleBy": "Upscale Latent By",
     "LatentComposite": "Latent Composite",
+    "LatentBlend": "Latent Blend",
     "LatentFromBatch" : "Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
