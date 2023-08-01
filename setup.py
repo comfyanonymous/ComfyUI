@@ -132,11 +132,12 @@ setup(
     description="",
     author="",
     version=version,
-    python_requires=">=3.9,<=3.11",
+    python_requires=">=3.9,<3.12",
     # todo: figure out how to include the web directory to eventually let main live inside the package
     # todo: see https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/ for more about adding plugins
     packages=find_packages(where=".", include=['comfy', 'comfy_extras']),
     install_requires=dependencies(),
+    setup_requires=["wheel"],
     entry_points={
         'console_scripts': [
             # todo: eventually migrate main here
