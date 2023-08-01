@@ -102,13 +102,13 @@ To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfy
        ```
     2. Activate it:
        
-       **Windows:**
+       **Windows (PowerShell):**
        ```pwsh
        Set-ExecutionPolicy Unrestricted -Scope Process
        & .\venv\Scripts\activate.ps1
        ```
        
-       **Linux, macOS and bash/busybox64.exe on Windows:**
+       **Linux and macOS**
        ```shell
        source ./venv/bin/activate
        ```
@@ -130,26 +130,9 @@ To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfy
     
     You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
 
-#### Troubleshooting
-
-If you get the "Torch not compiled with CUDA enabled" error, uninstall torch with:
-
-```pip uninstall torch```
-
-And install it again with the command above.
-
 ### Others:
 
 #### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
-
-#### Apple Mac silicon
-
-You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
-
-1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
-1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
-1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
-1. Launch ComfyUI by running `python main.py --force-fp16`. Note that --force-fp16 will only work if you installed the latest pytorch nightly.
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
 

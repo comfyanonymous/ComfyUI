@@ -177,7 +177,7 @@ if args.force_fp32:
     print("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
 
-if args.force_fp16:
+if args.force_fp16 or cpu_state == CPUState.MPS:
     print("Forcing FP16.")
     FORCE_FP16 = True
 
