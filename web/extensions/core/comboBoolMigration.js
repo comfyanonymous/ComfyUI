@@ -8,12 +8,13 @@ app.registerExtension({
 			let widget = node.widgets[i];
 
 			if(widget.type == "toggle") {
+			    let value = widget.value;
 				Object.defineProperty(widget, "value", {
 					set: (value) => {
 							delete widget.value;
 							widget.value = value == true || value == widget.options.on;
 						},
-					get: () => { return false; }
+					get: () => { return value; }
 				});
 			}
 		}
