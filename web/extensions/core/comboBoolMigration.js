@@ -1,7 +1,7 @@
 import { ComfyApp, app } from "../../scripts/app.js";
 
 app.registerExtension({
-	name: "Comfy.ToggleMigration",
+	name: "Comfy.comboBoolMigration",
 
 	nodeCreated(node, app) {
 		for(let i in node.widgets) {
