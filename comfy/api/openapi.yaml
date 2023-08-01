@@ -8,7 +8,7 @@ servers:
 paths:
   /:
     get:
-      summary: Web UI index.html
+      summary: (UI) index.html
       operationId: get_root
       responses:
         200:
@@ -18,7 +18,7 @@ paths:
               example: "<!DOCTYPE html>..."
   /embeddings:
     get:
-      summary: Get embeddings
+      summary: (UI) Get embeddings
       operationId: get_embeddings
       responses:
         200:
@@ -35,7 +35,7 @@ paths:
                   type: string
   /extensions:
     get:
-      summary: Get extensions
+      summary: (UI) Get extensions
       operationId: get_extensions
       responses:
         200:
@@ -48,7 +48,7 @@ paths:
                   type: string
   /upload/image:
     post:
-      summary: Upload an image.
+      summary: (UI) Upload an image.
       description: |
         Uploads an image to the input/ directory.
         
@@ -82,7 +82,7 @@ paths:
             The request was missing an image upload.
   /view:
     get:
-      summary: View image
+      summary: (UI) View image
       operationId: view_image
       parameters:
         - in: query
@@ -118,7 +118,7 @@ paths:
           description: Not Found
   /prompt:
     get:
-      summary: Get queue info
+      summary: (UI) Get queue info
       operationId: get_prompt
       responses:
         200:
@@ -134,7 +134,7 @@ paths:
                       queue_remaining:
                         type: integer
     post:
-      summary: Post prompt
+      summary: (UI) Post prompt
       operationId: post_prompt
       requestBody:
         content:
@@ -157,7 +157,7 @@ paths:
                 type: string
   /object_info:
     get:
-      summary: Get object info
+      summary: (UI) Get object info
       operationId: get_object_info
       responses:
         '200':
@@ -172,7 +172,7 @@ paths:
                     $ref: "#/components/schemas/Node"
   /history:
     get:
-      summary: Get history
+      summary: (UI) Get history
       operationId: get_history
       responses:
         "200":
@@ -192,7 +192,7 @@ paths:
                     outputs:
                       type: object
     post:
-      summary: Post history
+      summary: (UI) Post history
       operationId: post_history
       requestBody:
         content:
@@ -211,7 +211,7 @@ paths:
           description: OK
   /queue:
     get:
-      summary: Get queue
+      summary: (UI) Get queue
       operationId: get_queue
       responses:
         "200":
@@ -230,7 +230,7 @@ paths:
                     items:
                       $ref: "#/components/schemas/QueueTuple"
     post:
-      summary: Post queue
+      summary: (UI) Post queue
       operationId: post_queue
       requestBody:
         content:
@@ -249,15 +249,40 @@ paths:
           description: OK
   /interrupt:
     post:
-      summary: Post interrupt
+      summary: (UI) Post interrupt
       operationId: post_interrupt
       responses:
         '200':
           description: OK
+  /api/v1/images/{digest}:
+    get:
+      summary: (API) Get image
+      description: |
+        Returns an image given a content hash.
+      parameters:
+        - name: digest
+          in: path
+          required: true
+          description: A digest of the request used to generate the imaeg
+          schema:
+            type: string
+          example: e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
+      responses:
+        404:
+          description: No image was found.
+        200:
+          description: An image.
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
   /api/v1/prompts:
     get:
-      summary: Return the last prompt run anywhere that was used to produce an image.
+      summary: (API) Get prompt
       description: |
+        Return the last prompt run anywhere that was used to produce an image
+        
         The prompt object can be POSTed to run the image again with your own parameters.
         
         The last prompt, whether it was in the UI or via the API, will be returned here.
@@ -273,8 +298,10 @@ paths:
           description: |
             There were no prompts in the history to return.
     post:
-      summary: Run a prompt to produce an image.
+      summary: (API) Generate image
       description: |
+        Run a prompt to generate an image.
+        
         Blocks until the image is produced. This may take an arbitrarily long amount of time due to model loading.
         
         Prompts that produce multiple images will return the last SaveImage output node in the Prompt by default. To return a specific image, remove other
@@ -284,11 +311,89 @@ paths:
         filenames will be used in your Prompt.
       responses:
         200:
+          headers:
+            Location:
+              description: The URL to the file based on a hash of the request body.
+              example: /api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
+              schema:
+                type: string
+            Digest:
+              description: The digest of the request body
+              example: SHA256=e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
+              schema:
+                type: string
+            Content-Disposition:
+              description: The filename when a SaveImage node is specified.
+              example: filename=ComfyUI_00001.png
+              schema:
+                type: string
           description: |
             The binary content of the last SaveImage node.
           content:
+            text/uri-list:
+              schema:
+                description: |
+                  The URI to retrieve the binary content of the image.
+                  
+                  This will return two URLs. The first is the ordinary ComfyUI view image URL that exactly corresponds
+                  to the UI call. The second is the URL that corresponds to sha256 hash of the request body.
+                  
+                  Hashing function for web browsers:
+                  
+                  ```js
+                  async function generateHash(body) {
+                    // Stringify and sort keys in the JSON object
+                    let str = JSON.stringify(body);
+                  
+                    // Encode the string as a Uint8Array
+                    let encoder = new TextEncoder();
+                    let data = encoder.encode(str);
+                  
+                    // Create a SHA-256 hash of the data
+                    let hash = await window.crypto.subtle.digest('SHA-256', data);
+                  
+                    // Convert the hash (which is an ArrayBuffer) to a hex string
+                    let hashArray = Array.from(new Uint8Array(hash));
+                    let hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                  
+                    return hashHex;
+                  }
+                  ```
+                  
+                  Hashing function for nodejs:
+                  
+                  ```js
+                  const crypto = require('crypto');
+                  
+                  function generateHash(body) {
+                    // Stringify and sort keys in the JSON object
+                    let str = JSON.stringify(body);
+                  
+                    // Create a SHA-256 hash of the string
+                    let hash = crypto.createHash('sha256');
+                    hash.update(str);
+                  
+                    // Return the hexadecimal representation of the hash
+                    return hash.digest('hex');
+                  }
+                  ```
+                  
+                  Hashing function for python:
+                  ```python
+                  def digest(data: dict | str) -> str:
+                    json_str = data if isinstance(data, str) else json.dumps(data)
+                    json_bytes = json_str.encode('utf-8')
+                    hash_object = hashlib.sha256(json_bytes)
+                    return hash_object.hexdigest()
+                  
+                  ```
+                type: string
+                example: |
+                  /api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
+                  http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output
             image/png:
               schema:
+                description: The PNG binary content.
                 type: string
                 format: binary
         204:
@@ -398,6 +503,92 @@ components:
               $ref: "#/components/schemas/Workflow"
     Prompt:
       type: object
+      example: {
+        "3": {
+          "class_type": "KSampler",
+          "inputs": {
+            "cfg": 8,
+            "denoise": 1,
+            "latent_image": [
+              "5",
+              0
+            ],
+            "model": [
+              "4",
+              0
+            ],
+            "negative": [
+              "7",
+              0
+            ],
+            "positive": [
+              "6",
+              0
+            ],
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "seed": 8566257,
+            "steps": 20
+          }
+        },
+        "4": {
+          "class_type": "CheckpointLoaderSimple",
+          "inputs": {
+            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
+          }
+        },
+        "5": {
+          "class_type": "EmptyLatentImage",
+          "inputs": {
+            "batch_size": 1,
+            "height": 512,
+            "width": 512
+          }
+        },
+        "6": {
+          "class_type": "CLIPTextEncode",
+          "inputs": {
+            "clip": [
+              "4",
+              1
+            ],
+            "text": "masterpiece best quality girl"
+          }
+        },
+        "7": {
+          "class_type": "CLIPTextEncode",
+          "inputs": {
+            "clip": [
+              "4",
+              1
+            ],
+            "text": "bad hands"
+          }
+        },
+        "8": {
+          "class_type": "VAEDecode",
+          "inputs": {
+            "samples": [
+              "3",
+              0
+            ],
+            "vae": [
+              "4",
+              2
+            ]
+          }
+        },
+        "9": {
+          "class_type": "SaveImage",
+          "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+              "8",
+              0
+            ]
+          }
+        }
+      }
       description: |
         The keys are stringified integers corresponding to nodes.
         
