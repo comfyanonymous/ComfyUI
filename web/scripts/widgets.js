@@ -279,7 +279,7 @@ export const ComfyWidgets = {
 			),
 		};
 	},
-	TOGGLE(node, inputName, inputData) {
+	BOOLEAN(node, inputName, inputData) {
 		let defaultVal = inputData[1]["default"];
 		return {
 			widget: node.addWidget(
@@ -287,6 +287,7 @@ export const ComfyWidgets = {
 				inputName,
 				defaultVal,
 				() => {},
+				{"on": inputData[1].label_on, "off": inputData[1].label_off}
 				)
 		};
 	},
