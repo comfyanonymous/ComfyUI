@@ -287,6 +287,7 @@ export const ComfyWidgets = {
 				inputName,
 				defaultVal,
 				() => {},
+				inputData[1].options
 				)
 		};
 	},
