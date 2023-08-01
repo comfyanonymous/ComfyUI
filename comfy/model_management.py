@@ -364,7 +364,8 @@ def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
-        if torch.get_num_threads() < 4: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
+        #NOTE: on a Ryzen 5 7600X with 4080 it's faster to shift to GPU
+        if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
             return get_torch_device()
         else:
             return torch.device("cpu")
