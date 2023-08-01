@@ -27,4 +27,4 @@ scipy
 tqdm
 diffusers>=0.16.1
 protobuf==3.20.3
-rembg[gpu]
+rembg
