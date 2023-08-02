@@ -66,9 +66,9 @@ class CLIPTextEncode:
         # Assume that if the text contains a dynamic prompt, it is always changed.
         return is_dynamic_prompt_changed(text)
     
-    @classmethod
-    def VALIDATE_INPUTS(s, clip, text):
-        return validate_dynamic_prompt(text)
+    # @classmethod
+    # def VALIDATE_INPUTS(s, clip, text):
+    #     return validate_dynamic_prompt(text)
 
 
 class ConditioningCombine:
@@ -866,9 +866,9 @@ class GLIGENTextBoxApply:
     def IS_CHANGED(s, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
         return is_dynamic_prompt_changed(text)
 
-    @classmethod
-    def VALIDATE_INPUTS(s, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
-        return validate_dynamic_prompt(text)
+    # @classmethod
+    # def VALIDATE_INPUTS(s, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
+    #     return validate_dynamic_prompt(text)
 
 class EmptyLatentImage:
     def __init__(self, device="cpu"):
