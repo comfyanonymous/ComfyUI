@@ -11,6 +11,7 @@ class CustomNode(Protocol):
     RETURN_TYPES: ClassVar[Tuple[str]]
     RETURN_NAMES: ClassVar[Tuple[str]] = None
     OUTPUT_IS_LIST: ClassVar[Tuple[bool]] = None
+    INPUT_IS_LIST: ClassVar[bool] = None
     FUNCTION: ClassVar[str]
     CATEGORY: ClassVar[str]
     OUTPUT_NODE: ClassVar[bool] = None
