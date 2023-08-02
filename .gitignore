@@ -6,6 +6,7 @@
 /[Tt]emp/
 /[Cc]ustom_nodes/
 !/custom_nodes/example_node.py.example
+!/custom_nodes/__init__.py
 /extra_model_paths.yaml
 /.vs
 .idea/

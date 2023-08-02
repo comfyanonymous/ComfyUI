@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import copy
 import datetime
-import gc
 import heapq
 import threading
 import traceback
@@ -14,7 +13,8 @@ import sys
 
 import torch
 
-import nodes
+from comfy.nodes.package import import_all_nodes_in_workspace
+nodes = import_all_nodes_in_workspace()
 import comfy.model_management
 
 """
@@ -111,7 +111,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     results = []
     if input_is_list:
         if allow_interrupt:
-            nodes.before_node_execution()
+            comfy.model_management.throw_exception_if_processing_interrupted()
         results.append(getattr(obj, func)(**input_data_all))
     elif max_len_input == 0:
         if allow_interrupt:
@@ -120,7 +120,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     else:
         for i in range(max_len_input):
             if allow_interrupt:
-                nodes.before_node_execution()
+                comfy.model_management.throw_exception_if_processing_interrupted()
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
     return results
 
@@ -368,7 +368,7 @@ class PromptExecutor:
             del d
 
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
-        nodes.interrupt_processing(False)
+        comfy.model_management.interrupt_current_processing(False)
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]

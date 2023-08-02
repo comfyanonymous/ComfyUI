@@ -1,6 +1,7 @@
 import torch
 
-from nodes import MAX_RESOLUTION
+from comfy.nodes.common import MAX_RESOLUTION
+
 
 class LatentCompositeMasked:
     @classmethod

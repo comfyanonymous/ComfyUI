@@ -17,15 +17,16 @@ from aiohttp import web
 
 import execution
 import folder_paths
-import nodes
 import mimetypes
 
 from comfy.digest import digest
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+from comfy.nodes.package import import_all_nodes_in_workspace
 from comfy.vendor.appdirs import user_data_dir
 
+nodes = import_all_nodes_in_workspace()
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -488,7 +489,7 @@ class PromptServer():
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            nodes.interrupt_processing()
+            comfy.model_management.interrupt_current_processing()
             return web.Response(status=200)
 
         @routes.post("/history")
