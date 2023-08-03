@@ -1,4 +1,5 @@
 import torch
+from nodes import MAX_RESOLUTION
 
 class NoisyLatentImage:
     def __init__(self, device="cpu"):
