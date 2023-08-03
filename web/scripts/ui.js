@@ -543,6 +543,13 @@ export class ComfyUI {
 			defaultValue: "",
 		});
 
+		this.settings.addSetting({
+			id: "Comfy.DisableSliders",
+			name: "Disable sliders.",
+			type: "boolean",
+			defaultValue: false,
+		});
+
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
