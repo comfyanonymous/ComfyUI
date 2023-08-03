@@ -2,7 +2,7 @@ import torch
 from nodes import MAX_RESOLUTION
 
 # diffusers library scale the random noise
-vae_scaling_factor = 0.18215 # doesn't work
+default_vae_scaling_factor = 0.18215 
 
 class NoisyLatentImage:
     def __init__(self, device="cpu"):
@@ -12,6 +12,7 @@ class NoisyLatentImage:
     def INPUT_TYPES(s):
         return {"required": { 
                               "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                              "vae_scaling_factor": ("FLOAT", {"default": default_vae_scaling_factor, "min": 0.01, "max": 1.1, "step": 0.01})
                               "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
@@ -20,7 +21,7 @@ class NoisyLatentImage:
 
     CATEGORY = "latent"
 
-    def generate(self, seed, width, height, batch_size=1):
+    def generate(self, seed, vae_scaling_factor, width, height, batch_size=1):
         generator = torch.manual_seed(seed)
         latent = torch.randn([batch_size, 4, height // 8, width // 8], generator=generator, device=self.device) / vae_scaling_factor
         return ({"samples":latent}, )
