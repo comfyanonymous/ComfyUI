@@ -1,10 +1,9 @@
 import torch
 from PIL import Image
-import struct
 import numpy as np
 from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
-import folder_paths
+from ..cmd import folder_paths
 
 MAX_PREVIEW_RESOLUTION = 512
 

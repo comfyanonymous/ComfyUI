@@ -151,8 +151,8 @@ setup(
     setup_requires=["pip", "wheel"],
     entry_points={
         'console_scripts': [
-            # todo: eventually migrate main here
-            'comfyui-openapi-gen = comfy.cmd.openapi_gen:main'
+            'comfyui-openapi-gen = comfy.cmd.openapi_gen:main',
+            'comfyui = comfy.cmd.main:main'
         ],
     },
 )

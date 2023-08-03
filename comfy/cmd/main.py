@@ -1,6 +1,6 @@
 import os
 import importlib.util
-import folder_paths
+from ..cmd import folder_paths
 import time
 
 def execute_prestartup_script():
@@ -56,23 +56,21 @@ if os.name == "nt":
     import logging
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
-if __name__ == "__main__":
-    if args.cuda_device is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        print("Set cuda device to:", args.cuda_device)
 
-    import cuda_malloc
+if args.cuda_device is not None:
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+    print("Set cuda device to:", args.cuda_device)
 
 import comfy.utils
 import yaml
 
-import execution
-import server
-from server import BinaryEventTypes
+from ..cmd import execution
+from ..cmd import server as server_module
+from .server import BinaryEventTypes
 import comfy.model_management
 
 
-def prompt_worker(q: execution.PromptQueue, _server: server.PromptServer):
+def prompt_worker(q: execution.PromptQueue, _server: server_module.PromptServer):
     e = execution.PromptExecutor(_server)
     while True:
         item, item_id = q.get()
@@ -80,8 +78,8 @@ def prompt_worker(q: execution.PromptQueue, _server: server.PromptServer):
         prompt_id = item[1]
         e.execute(item[2], prompt_id, item[3], item[4])
         q.task_done(item_id, e.outputs_ui)
-        if server.client_id is not None:
-            server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
+        if _server.client_id is not None:
+            _server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, _server.client_id)
 
         print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
         gc.collect()
@@ -126,12 +124,12 @@ def load_extra_path_config(yaml_path):
                 folder_paths.add_model_folder_path(x, full_path)
 
 
-if __name__ == "__main__":
+def main():
     cleanup_temp()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    server = server.PromptServer(loop)
+    server = server_module.PromptServer(loop)
     q = execution.PromptQueue(server)
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")

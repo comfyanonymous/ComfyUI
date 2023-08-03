@@ -5,9 +5,13 @@ import pkgutil
 import time
 import types
 
-import nodes as base_nodes
+from comfy.nodes import base_nodes as base_nodes
 from comfy_extras import nodes as comfy_extras_nodes
-import custom_nodes
+
+try:
+    import custom_nodes
+except:
+    custom_nodes = None
 from comfy.nodes.package_typing import ExportedNodes
 from functools import reduce
 
@@ -68,11 +72,12 @@ def import_all_nodes_in_workspace() -> ExportedNodes:
                                     comfy_extras_nodes
                                 ]),
                                 ExportedNodes())
+        custom_nodes_mappings = ExportedNodes()
+        if custom_nodes is not None:
+            custom_nodes_mappings = _import_and_enumerate_nodes_in_module(custom_nodes, print_import_times=True)
 
-        custom_nodes_mappings = _import_and_enumerate_nodes_in_module(custom_nodes, print_import_times=True)
-
-        # don't allow custom nodes to overwrite base nodes
-        custom_nodes_mappings -= base_and_extra
+            # don't allow custom nodes to overwrite base nodes
+            custom_nodes_mappings -= base_and_extra
 
         _comfy_nodes.update(base_and_extra + custom_nodes_mappings)
     return _comfy_nodes

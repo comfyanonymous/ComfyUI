@@ -1,5 +1,5 @@
 import comfy.utils
-import folder_paths
+from comfy.cmd import folder_paths
 import torch
 
 def load_hypernetwork_patch(path, strength):
@@ -88,7 +88,7 @@ class HypernetworkLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "hypernetwork_name": (folder_paths.get_filename_list("hypernetworks"), ),
+                              "hypernetwork_name": (folder_paths.get_filename_list("hypernetworks"),),
                               "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL",)

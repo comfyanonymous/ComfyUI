@@ -15,8 +15,8 @@ import aiofiles
 import aiohttp
 from aiohttp import web
 
-import execution
-import folder_paths
+from ..cmd import execution
+from ..cmd import folder_paths
 import mimetypes
 
 from comfy.digest import digest
@@ -89,7 +89,7 @@ class PromptServer():
                                    middlewares=middlewares)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "web")
+            os.path.realpath(__file__)), "../../web")
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -140,7 +140,7 @@ class PromptServer():
         def get_dir_by_type(dir_type=None):
             type_dir = ""
             if dir_type is None:
-                dir_type = "input"
+                dir_type = "../../input"
 
             if dir_type == "input":
                 type_dir = folder_paths.get_input_directory()
@@ -732,7 +732,7 @@ class PromptServer():
 
     @classmethod
     def get_upload_dir(cls) -> str:
-        upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+        upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../input")
 
         if not os.path.exists(upload_dir):
             os.makedirs(upload_dir)

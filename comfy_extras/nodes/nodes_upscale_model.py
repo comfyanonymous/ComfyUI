@@ -1,14 +1,14 @@
-import os
 from comfy_extras.chainner_models import model_loading
 from comfy import model_management
 import torch
 import comfy.utils
-import folder_paths
+from comfy.cmd import folder_paths
+
 
 class UpscaleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model_name": (folder_paths.get_filename_list("upscale_models"), ),
+        return {"required": { "model_name": (folder_paths.get_filename_list("upscale_models"),),
                              }}
     RETURN_TYPES = ("UPSCALE_MODEL",)
     FUNCTION = "load_model"

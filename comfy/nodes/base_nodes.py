@@ -1,12 +1,9 @@
 import torch
 
 import os
-import sys
 import json
 import hashlib
-import traceback
 import math
-import time
 import random
 
 from PIL import Image, ImageOps
@@ -25,10 +22,7 @@ import comfy.clip_vision
 import comfy.model_management
 from comfy.cli_args import args
 
-import importlib
-
-import folder_paths
-import latent_preview
+from comfy.cmd import folder_paths, latent_preview
 from comfy.nodes.common import MAX_RESOLUTION
 
 
@@ -410,8 +404,8 @@ class LoadLatent:
 class CheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
-                              "ckpt_name": (folder_paths.get_filename_list("checkpoints"), )}}
+        return {"required": { "config_name": (folder_paths.get_filename_list("configs"),),
+                              "ckpt_name": (folder_paths.get_filename_list("checkpoints"),)}}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -425,7 +419,7 @@ class CheckpointLoader:
 class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"),),
                              }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
@@ -467,7 +461,7 @@ class DiffusersLoader:
 class unCLIPCheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"),),
                              }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE", "CLIP_VISION")
     FUNCTION = "load_checkpoint"
@@ -503,7 +497,7 @@ class LoraLoader:
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
-                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "lora_name": (folder_paths.get_filename_list("loras"),),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                               }}
@@ -536,7 +530,7 @@ class LoraLoader:
 class VAELoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), )}}
+        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"),)}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -551,7 +545,7 @@ class VAELoader:
 class ControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), )}}
+        return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"),)}}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -567,7 +561,7 @@ class DiffControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "control_net_name": (folder_paths.get_filename_list("controlnet"), )}}
+                              "control_net_name": (folder_paths.get_filename_list("controlnet"),)}}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -660,7 +654,7 @@ class ControlNetApplyAdvanced:
 class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "unet_name": (folder_paths.get_filename_list("unet"), ),
+        return {"required": { "unet_name": (folder_paths.get_filename_list("unet"),),
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
@@ -675,7 +669,7 @@ class UNETLoader:
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"),),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -690,8 +684,9 @@ class CLIPLoader:
 class DualCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"), ), "clip_name2": (folder_paths.get_filename_list("clip"), ),
-                             }}
+        return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"),), "clip_name2": (
+        folder_paths.get_filename_list("clip"),),
+                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
@@ -706,7 +701,7 @@ class DualCLIPLoader:
 class CLIPVisionLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
+        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"),),
                              }}
     RETURN_TYPES = ("CLIP_VISION",)
     FUNCTION = "load_clip"
@@ -736,7 +731,7 @@ class CLIPVisionEncode:
 class StyleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), )}}
+        return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"),)}}
 
     RETURN_TYPES = ("STYLE_MODEL",)
     FUNCTION = "load_style_model"
@@ -801,7 +796,7 @@ class unCLIPConditioning:
 class GLIGENLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "gligen_name": (folder_paths.get_filename_list("gligen"), )}}
+        return {"required": { "gligen_name": (folder_paths.get_filename_list("gligen"),)}}
 
     RETURN_TYPES = ("GLIGEN",)
     FUNCTION = "load_gligen"
