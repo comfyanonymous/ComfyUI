@@ -1351,9 +1351,17 @@ export class ComfyApp {
 				let parent = node.getInputNode(i);
 				if (parent) {
 					let link = node.getInputLink(i);
-					while (parent.mode === 4) {
+					while (parent.mode === 4 || parent.isVirtualNode) {
 						let found = false;
-						if (link) {
+						if (parent.isVirtualNode) {
+							link = parent.getInputLink(link.origin_slot);
+							if (link) {
+								parent = parent.getInputNode(link.origin_slot);
+								if (parent) {
+									found = true;
+								}
+							}
+						} else if (link && parent.mode === 4) {
 							let all_inputs = [link.origin_slot].concat(parent.inputs)
 							for (let parent_input in all_inputs) {
 								if (parent.inputs[parent_input].type === node.inputs[i].type) {
@@ -1366,17 +1374,10 @@ export class ComfyApp {
 								}
 							}
 						}
+
+
 						if (!found) {
 							break;
-						}
-					}
-
-					while (parent && parent.isVirtualNode) {
-						link = parent.getInputLink(link.origin_slot);
-						if (link) {
-							parent = parent.getInputNode(link.origin_slot);
-						} else {
-							parent = null;
 						}
 					}
 
