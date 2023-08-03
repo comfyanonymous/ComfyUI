@@ -12,7 +12,7 @@ class NoisyLatentImage:
     def INPUT_TYPES(s):
         return {"required": { 
                               "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                              "vae_scaling_factor": ("FLOAT", {"default": default_vae_scaling_factor, "min": 0.01, "max": 1.1, "step": 0.01})
+                              "vae_scaling_factor": ("FLOAT", {"default": default_vae_scaling_factor, "min": 0.01, "max": 1.1, "step": 0.01}),
                               "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
