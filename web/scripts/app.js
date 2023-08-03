@@ -768,6 +768,19 @@ export class ComfyApp {
 					}
 					block_default = true;
 				}
+
+				if (e.keyCode == 66 && e.ctrlKey) {
+					if (this.selected_nodes) {
+						for (var i in this.selected_nodes) {
+							if (this.selected_nodes[i].mode === 4) { // never
+								this.selected_nodes[i].mode = 0; // always
+							} else {
+								this.selected_nodes[i].mode = 4; // never
+							}
+						}
+					}
+					block_default = true;
+				}
 			}
 
 			this.graph.change();
@@ -914,14 +927,21 @@ export class ComfyApp {
 		const origDrawNode = LGraphCanvas.prototype.drawNode;
 		LGraphCanvas.prototype.drawNode = function (node, ctx) {
 			var editor_alpha = this.editor_alpha;
+			var old_color = node.bgcolor;
 
 			if (node.mode === 2) { // never
 				this.editor_alpha = 0.4;
 			}
 
+			if (node.mode === 4) { // never
+				node.bgcolor = "#FF00FF";
+				this.editor_alpha = 0.2;
+			}
+
 			const res = origDrawNode.apply(this, arguments);
 
 			this.editor_alpha = editor_alpha;
+			node.bgcolor = old_color;
 
 			return res;
 		};
@@ -1308,7 +1328,7 @@ export class ComfyApp {
 				continue;
 			}
 
-			if (node.mode === 2) {
+			if (node.mode === 2 || node.mode === 4) {
 				// Don't serialize muted nodes
 				continue;
 			}
@@ -1331,6 +1351,26 @@ export class ComfyApp {
 				let parent = node.getInputNode(i);
 				if (parent) {
 					let link = node.getInputLink(i);
+					while (parent.mode === 4) {
+						let found = false;
+						if (link) {
+							let all_inputs = [link.origin_slot].concat(parent.inputs)
+							for (let parent_input in all_inputs) {
+								if (parent.inputs[parent_input].type === node.inputs[i].type) {
+									link = parent.getInputLink(parent_input);
+									if (link) {
+										parent = parent.getInputNode(parent_input);
+									}
+									found = true;
+									break;
+								}
+							}
+						}
+						if (!found) {
+							break;
+						}
+					}
+
 					while (parent && parent.isVirtualNode) {
 						link = parent.getInputLink(link.origin_slot);
 						if (link) {

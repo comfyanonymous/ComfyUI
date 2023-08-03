@@ -42,11 +42,14 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     # check if node wants the lists
-    intput_is_list = False
+    input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
-        intput_is_list = obj.INPUT_IS_LIST
+        input_is_list = obj.INPUT_IS_LIST
 
-    max_len_input = max([len(x) for x in input_data_all.values()])
+    if len(input_data_all) == 0:
+        max_len_input = 0
+    else:
+        max_len_input = max([len(x) for x in input_data_all.values()])
      
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
@@ -56,11 +59,15 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         return d_new
     
     results = []
-    if intput_is_list:
+    if input_is_list:
         if allow_interrupt:
             nodes.before_node_execution()
         results.append(getattr(obj, func)(**input_data_all))
-    else: 
+    elif max_len_input == 0:
+        if allow_interrupt:
+            nodes.before_node_execution()
+        results.append(getattr(obj, func)())
+    else:
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
