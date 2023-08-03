@@ -1362,19 +1362,22 @@ export class ComfyApp {
 								}
 							}
 						} else if (link && parent.mode === 4) {
-							let all_inputs = [link.origin_slot].concat(parent.inputs)
-							for (let parent_input in all_inputs) {
-								if (parent.inputs[parent_input].type === node.inputs[i].type) {
-									link = parent.getInputLink(parent_input);
-									if (link) {
-										parent = parent.getInputNode(parent_input);
+							let all_inputs = [link.origin_slot];
+							if (parent.inputs) {
+								all_inputs = all_inputs.concat(Object.keys(parent.inputs))
+								for (let parent_input in all_inputs) {
+									parent_input = all_inputs[parent_input];
+									if (parent.inputs[parent_input].type === node.inputs[i].type) {
+										link = parent.getInputLink(parent_input);
+										if (link) {
+											parent = parent.getInputNode(parent_input);
+										}
+										found = true;
+										break;
 									}
-									found = true;
-									break;
 								}
 							}
 						}
-
 
 						if (!found) {
 							break;
