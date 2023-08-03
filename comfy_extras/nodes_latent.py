@@ -22,7 +22,7 @@ class NoisyLatentImage:
 
     def generate(self, seed, width, height, batch_size=1):
         generator = torch.manual_seed(seed)
-        latent = torch.randn([batch_size, 4, height // 8, width // 8], generator=generator, device=self.device)
+        latent = torch.randn([batch_size, 4, height // 8, width // 8], generator=generator, device=self.device) / vae_scaling_factor
         return ({"samples":latent}, )
 
 
