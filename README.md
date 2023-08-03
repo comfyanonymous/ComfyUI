@@ -74,7 +74,7 @@ Ctrl can also be replaced with Cmd instead for macOS users
 
 [ 1. Install Python 3.11. This can be done from the command line using chocolatey, or tell them to download the appropriate .exe and double click on it and follow the installer. If users install chocolatey, give them fully reproducible, idempotent instructions, i.e. stuff strictly in the command line for powershell or cmd.exe.]: #
 [ 2. Open a command line on Windows. This is usually cmd.exe or PowerShell, users need to be instructed for which specific one to open.]: #
-[ 3. Create a virtual environment on a disk with a lot of space. This step usually looks like `python -m venv venv`]: #
+[ 3. Create a virtual environment on a disk with a lot of space. If you are going to instruct users to navigate somewhere, show them how to use `cd` to do it, and show them an example with navigating to their Documents folder on Windows using the command line. Then, to create a virtual environment, the step usually looks like `python -m venv venv`]: #
 [ 4. Activate the virtual environment. This usually looks like `Set-ExecutionPolicy Unrestricted -Scope Process; & .\venv\Scripts\activate.ps1` in PowerShell. Observe the caveat of the execution policy problem. Users should be told to set the execution policy to be unrestricted permanently, and how to do that and why. Remember, they need something ergonomic and easy.]: #
 [ 5. Install this package. Currently, that is done with `pip install git+https://github.com/doctorpangloss/ComfyUI.git@installable`.]: #
 [ 6. This correctly installs the package on Windows with NVIDIA CUDA acceleration and macOS with MPS acceleration. However, users may have weird setups and need more help.]: #
