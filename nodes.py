@@ -828,6 +828,7 @@ class GLIGENTextBoxApply:
                               "clip": ("CLIP", ),
                               "gligen_textbox_model": ("GLIGEN", ),
                               "text": ("STRING", {"multiline": True}),
+                              "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                               "width": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
@@ -838,9 +839,11 @@ class GLIGENTextBoxApply:
 
     CATEGORY = "conditioning/gligen"
 
-    def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
+    def append(self, conditioning_to, clip, gligen_textbox_model, text, seed, width, height, x, y):
         c = []
-        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled=True)
+        translated_prompt_text = translate_choices(text, seed)
+        tokens = clip.tokenize(translated_prompt_text)
+        _, cond_pooled = clip.encode_from_tokens(tokens, return_pooled=True)
         for t in conditioning_to:
             n = [t[0], t[1].copy()]
             position_params = [(cond_pooled, height // 8, width // 8, y // 8, x // 8)]
@@ -1469,6 +1472,24 @@ class ImagePadForOutpaint:
 
         return (new_image, mask)
 
+class DynamicPrompt:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {"multiline": True, "placeholder": "A prompt which can contain random text. Eg. This is a {good|great|spectacular} prompt."}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "dynamic_prompt"
+    CATEGORY = "conditioning"
+
+    def dynamic_prompt(self, text, seed):
+        translated_prompt_text = translate_choices(text, seed)
+        return (translated_prompt_text,)
+
 
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
@@ -1530,6 +1551,8 @@ NODE_CLASS_MAPPINGS = {
 
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
+
+    "DynamicPrompt": DynamicPrompt,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1583,6 +1606,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
+    # Prompts
+    "DynamicPrompt": "Dynamic Prompt",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",

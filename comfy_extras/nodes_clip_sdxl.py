@@ -1,22 +1,26 @@
 import torch
 from nodes import MAX_RESOLUTION
+from comfy.parse_choice import translate_choices
 
 class CLIPTextEncodeSDXLRefiner:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
+            "clip": ("CLIP", ),
             "ascore": ("FLOAT", {"default": 6.0, "min": 0.0, "max": 1000.0, "step": 0.01}),
             "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text": ("STRING", {"multiline": True}), "clip": ("CLIP", ),
+            "text": ("STRING", {"multiline": True}),
+            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
     CATEGORY = "advanced/conditioning"
 
-    def encode(self, clip, ascore, width, height, text):
-        tokens = clip.tokenize(text)
+    def encode(self, clip, ascore, width, height, text, seed):
+        translated_prompt_text = translate_choices(text, seed)
+        tokens = clip.tokenize(translated_prompt_text)
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
         return ([[cond, {"pooled_output": pooled, "aesthetic_score": ascore, "width": width,"height": height}]], )
 
@@ -24,23 +28,27 @@ class CLIPTextEncodeSDXL:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
+            "clip": ("CLIP", ),
             "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "crop_w": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
             "crop_h": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
             "target_width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "target_height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text_g": ("STRING", {"multiline": True, "default": "CLIP_G"}), "clip": ("CLIP", ),
-            "text_l": ("STRING", {"multiline": True, "default": "CLIP_L"}), "clip": ("CLIP", ),
+            "text_g": ("STRING", {"multiline": True, "default": "CLIP_G"}),
+            "text_l": ("STRING", {"multiline": True, "default": "CLIP_L"}),
+            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
     CATEGORY = "advanced/conditioning"
 
-    def encode(self, clip, width, height, crop_w, crop_h, target_width, target_height, text_g, text_l):
-        tokens = clip.tokenize(text_g)
-        tokens["l"] = clip.tokenize(text_l)["l"]
+    def encode(self, clip, width, height, crop_w, crop_h, target_width, target_height, text_g, text_l, seed):
+        translated_g = translate_choices(text_g, seed)
+        translated_l = translate_choices(text_l, seed)
+        tokens = clip.tokenize(translated_g)
+        tokens["l"] = clip.tokenize(translated_l)["l"]
         if len(tokens["l"]) != len(tokens["g"]):
             empty = clip.tokenize("")
             while len(tokens["l"]) < len(tokens["g"]):
