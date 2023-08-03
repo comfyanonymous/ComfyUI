@@ -146,7 +146,7 @@ setup(
     python_requires=">=3.9,<3.12",
     # todo: figure out how to include the web directory to eventually let main live inside the package
     # todo: see https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/ for more about adding plugins
-    packages=find_packages(where=".", include=['comfy', 'comfy_extras']),
+    packages=find_packages(where="comfy") + find_packages(where="comfy_extras"),
     install_requires=dependencies(),
     setup_requires=["pip", "wheel"],
     entry_points={
