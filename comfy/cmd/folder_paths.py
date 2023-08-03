@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 supported_ckpt_extensions = set(['.ckpt', '.pth', '.safetensors'])
@@ -6,8 +7,11 @@ supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
 
 folder_names_and_paths = {}
 
-base_path = os.path.dirname(os.path.realpath(__file__))
-models_dir = os.path.join(base_path, "../../models")
+if 'main.py' in sys.argv:
+    base_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../.."))
+else:
+    base_path = os.getcwd()
+models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_ckpt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
@@ -26,13 +30,13 @@ folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], suppor
 
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
-folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "../../custom_nodes")], [])
+folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
-output_directory = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../output"))
-temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
-input_directory = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../input"))
+output_directory = os.path.join(base_path, "output")
+temp_directory = os.path.join(base_path, "temp")
+input_directory = os.path.join(base_path, "input")
 
 filename_list_cache = {}
 
