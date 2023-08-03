@@ -82,6 +82,7 @@ Ctrl can also be replaced with Cmd instead for macOS users
 [ 8. Then, they must download https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt into the path ./models/checkpoints/v1-5-pruned-emaonly.ckpt]: #
 [ 9. Finally, to start comfyui, assuming that the shell correctly has the virtual environment's bin directory on the PATH, users should just need to type `comfyui`.]: #
 [ 10. The console should output a URL to visit. It is usually http://127.0.0.1:8188. Tell them to visit this URL in their browser.]: #
+[ 11. Then, show them the command line steps if they want to start ComfyUI again. Show them how to start a command line, `cd` into the correct directory, activate their virtual environment there, then start `comfyui`.]: #
 
 [Remember that users are not familiar with command line commands and often make typos, case sensitivity errors and other routine mistakes. Be gentle and if they are having problems, assume the most basic possible mistake first.]: #
 
