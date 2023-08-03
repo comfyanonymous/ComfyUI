@@ -1,3 +1,5 @@
+from pkg_resources import resource_filename
+
 from comfy import sd1_clip
 import torch
 import os
@@ -9,6 +11,8 @@ class SD2ClipModel(sd1_clip.SD1ClipModel):
             layer_idx=23
 
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd2_clip_config.json")
+        if not os.path.exists(textmodel_json_config):
+            textmodel_json_config = resource_filename('comfy', 'sd2_clip_config.json')
         super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, textmodel_path=textmodel_path)
         self.empty_tokens = [[49406] + [49407] + [0] * 75]
 

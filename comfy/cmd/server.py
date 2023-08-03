@@ -28,6 +28,7 @@ from comfy.vendor.appdirs import user_data_dir
 
 nodes = import_all_nodes_in_workspace()
 
+
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
@@ -88,8 +89,11 @@ class PromptServer():
         self.app = web.Application(client_max_size=20971520, handler_args={'max_field_size': 16380},
                                    middlewares=middlewares)
         self.sockets = dict()
-        self.web_root = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "../../web")
+        web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../web")
+        if not os.path.exists(web_root_path):
+            from pkg_resources import resource_filename
+            web_root_path = resource_filename('comfy', 'web/')
+        self.web_root = web_root_path
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None

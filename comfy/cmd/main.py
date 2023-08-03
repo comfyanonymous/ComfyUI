@@ -17,7 +17,7 @@ def execute_prestartup_script():
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        possible_modules = os.listdir(custom_node_path) if os.path.exists(custom_node_path) else []
         node_prestartup_times = []
 
         for possible_module in possible_modules:

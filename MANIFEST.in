@@ -1,0 +1,4 @@
+recursive-include web *
+recursive-include comfy/sd1_tokenizer *
+include comfy/sd1_clip_config.json
+include comfy/sd2_clip_config.json

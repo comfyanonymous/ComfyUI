@@ -3,6 +3,7 @@
 import os.path
 import platform
 import subprocess
+import sys
 
 from pip._internal.index.collector import LinkCollector
 from pip._internal.index.package_finder import PackageFinder
@@ -11,7 +12,7 @@ from pip._internal.models.selection_prefs import SelectionPreferences
 from pip._internal.network.session import PipSession
 from pip._internal.req import InstallRequirement
 from pip._vendor.packaging.requirements import Requirement
-from setuptools import setup, find_packages, find_namespace_packages
+from setuptools import setup, find_packages
 
 """
 The name of the package.
@@ -32,7 +33,7 @@ amd_torch_index = "https://download.pytorch.org/whl/rocm5.4.2"
 The package index to torch built with CUDA.
 Observe the CUDA version is in this URL.
 """
-nvidia_torch_index = "https://download.pytorch.org/whl/cu118"
+nvidia_torch_index = "https://download.pytorch.org/whl/nightly/cu118"
 
 """
 The package index to torch built against CPU features.
@@ -46,6 +47,12 @@ cpu_torch_index_nightlies = "https://download.pytorch.org/whl/nightly/cpu"
 Packages that should have a specific option set when a GPU accelerator is present
 """
 gpu_accelerated_packages = {"rembg": "rembg[gpu]"}
+
+"""
+Indicates if we're installing an editable (develop) mode package
+"""
+is_editable = '--editable' in sys.argv or '-e' in sys.argv or (
+        'python' in sys.argv and 'setup.py' in sys.argv and 'develop' in sys.argv)
 
 
 def _is_nvidia() -> bool:
@@ -137,6 +144,9 @@ def dependencies() -> [str]:
     return _dependencies
 
 
+package_data = ['sd1_tokenizer/*', '**/*.json']
+if not is_editable:
+    package_data.append('web/**/*')
 setup(
     # "comfyui"
     name=package_name,
@@ -146,7 +156,8 @@ setup(
     python_requires=">=3.9,<3.12",
     # todo: figure out how to include the web directory to eventually let main live inside the package
     # todo: see https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/ for more about adding plugins
-    packages=find_packages(where="comfy") + find_packages(where="comfy_extras"),
+    packages=find_packages(exclude=[] if is_editable else ['custom_nodes']),
+    include_package_data=True,
     install_requires=dependencies(),
     setup_requires=["pip", "wheel"],
     entry_points={
@@ -154,5 +165,8 @@ setup(
             'comfyui-openapi-gen = comfy.cmd.openapi_gen:main',
             'comfyui = comfy.cmd.main:main'
         ],
+    },
+    package_data={
+        'comfy': package_data
     },
 )

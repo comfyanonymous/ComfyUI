@@ -6,6 +6,7 @@ import torch
 import traceback
 import zipfile
 from . import model_management
+from pkg_resources import resource_filename
 import contextlib
 
 class ClipTokenWeightEncoder:
@@ -52,6 +53,8 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         else:
             if textmodel_json_config is None:
                 textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_clip_config.json")
+            if not os.path.exists(textmodel_json_config):
+                textmodel_json_config = resource_filename('comfy', 'sd1_clip_config.json')
             config = CLIPTextConfig.from_json_file(textmodel_json_config)
             self.num_layers = config.num_hidden_layers
             with comfy.ops.use_comfy_ops():
@@ -318,6 +321,9 @@ class SD1Tokenizer:
     def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l'):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
+        if not os.path.exists(os.path.join(tokenizer_path, "tokenizer_config.json")):
+            # package based
+            tokenizer_path = resource_filename('comfy', 'sd1_tokenizer/')
         self.tokenizer = CLIPTokenizer.from_pretrained(tokenizer_path)
         self.max_length = max_length
         self.max_tokens_per_section = self.max_length - 2
