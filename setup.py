@@ -33,7 +33,7 @@ amd_torch_index = "https://download.pytorch.org/whl/rocm5.4.2"
 The package index to torch built with CUDA.
 Observe the CUDA version is in this URL.
 """
-nvidia_torch_index = "https://download.pytorch.org/whl/nightly/cu118"
+nvidia_torch_index = "https://download.pytorch.org/whl/cu118"
 
 """
 The package index to torch built against CPU features.
