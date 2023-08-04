@@ -1151,22 +1151,21 @@ export class ComfyApp {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
 
-						if(inputData[1]?.forceInput) {
-							this.addInput(inputName, type);
+						if (Array.isArray(type)) {
+							// Enums
+							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
+						} else if (`${type}:${inputName}` in widgets) {
+							// Support custom widgets by Type:Name
+							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+						} else if (type in widgets) {
+							// Standard type widgets
+							Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
 						} else {
-							if (Array.isArray(type)) {
-								// Enums
-								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
-							} else if (`${type}:${inputName}` in widgets) {
-								// Support custom widgets by Type:Name
-								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
-							} else if (type in widgets) {
-								// Standard type widgets
-								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-							} else {
-								// Node connection inputs
-								this.addInput(inputName, type);
-							}
+							// Node connection inputs
+							this.addInput(inputName, type);
+						}
+						if(inputData[1]?.forceInput && config?.widget) {
+							config.widget.options.forceInput = inputData[1].forceInput;
 						}
 					}
 

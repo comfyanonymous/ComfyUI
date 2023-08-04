@@ -5,7 +5,7 @@ const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
 
 function isConvertableWidget(widget, config) {
-	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
+	return (VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0])) && !widget.options?.forceInput;
 }
 
 function hideWidget(node, widget, suffix = "") {
@@ -103,6 +103,9 @@ app.registerExtension({
 				let toInput = [];
 				let toWidget = [];
 				for (const w of this.widgets) {
+					if (w.options?.forceInput) {
+						continue;
+					}
 					if (w.type === CONVERTED_TYPE) {
 						toWidget.push({
 							content: `Convert ${w.name} to widget`,
@@ -130,6 +133,20 @@ app.registerExtension({
 			return r;
 		};
 
+		const origOnNodeCreated = nodeType.prototype.onNodeCreated
+		nodeType.prototype.onNodeCreated = function () {
+			const r = origOnNodeCreated ? origOnNodeCreated.apply(this) : undefined;
+			if (this.widgets) {
+				for (const w of this.widgets) {
+					if (w?.options?.forceInput) {
+						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
+						convertToInput(this, w, config);
+					}
+				}
+			}
+			return r;
+		}
+
 		// On initial configure of nodes hide all converted widgets
 		const origOnConfigure = nodeType.prototype.onConfigure;
 		nodeType.prototype.onConfigure = function () {
@@ -137,7 +154,7 @@ app.registerExtension({
 
 			if (this.inputs) {
 				for (const input of this.inputs) {
-					if (input.widget) {
+					if (input.widget && !input.widget.config[1]?.forceInput) {
 						const w = this.widgets.find((w) => w.name === input.widget.name);
 						if (w) {
 							hideWidget(this, w);
@@ -374,7 +391,7 @@ app.registerExtension({
 				}
 
 				for (const k in config1[1]) {
-					if (k !== "default") {
+					if (k !== "default" && k !== 'forceInput') {
 						if (config1[1][k] !== config2[1][k]) {
 							return false;
 						}
