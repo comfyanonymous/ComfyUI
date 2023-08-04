@@ -144,7 +144,7 @@ class PromptServer():
         def get_dir_by_type(dir_type=None):
             type_dir = ""
             if dir_type is None:
-                dir_type = "../../input"
+                dir_type = "input"
 
             if dir_type == "input":
                 type_dir = folder_paths.get_input_directory()
@@ -201,7 +201,7 @@ class PromptServer():
         @routes.post("/upload/image")
         async def upload_image(request):
             post = await request.post()
-            return image_upload(post)
+            return await image_upload(post)
 
         @routes.post("/upload/mask")
         async def upload_mask(request):

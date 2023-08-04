@@ -170,3 +170,6 @@ def main():
         print("\nStopped server")
 
     cleanup_temp()
+
+if __name__ == "__main__":
+    main()
