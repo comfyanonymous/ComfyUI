@@ -41,6 +41,12 @@ This includes macOS MPS support.
 """
 cpu_torch_index_nightlies = "https://download.pytorch.org/whl/nightly/cpu"
 
+"""
+The package index to torch built against CPU features.
+Non-nightlies are selected when building Linux on arm64.
+"""
+cpu_torch_index = "https://download.pytorch.org/whl/cpu"
+
 # xformers not required for new torch
 
 """
@@ -98,6 +104,13 @@ def _is_amd() -> bool:
     return False
 
 
+def _is_linux_arm64():
+    os_name = platform.system()
+    architecture = platform.machine()
+
+    return os_name == 'Linux' and architecture == 'aarch64'
+
+
 def dependencies() -> [str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
     # todo: also add all plugin dependencies
@@ -113,6 +126,8 @@ def dependencies() -> [str]:
     elif _is_amd():
         index_urls += [amd_torch_index]
         gpu_accelerated = True
+    elif _is_linux_arm64():
+        index_urls += [cpu_torch_index]
     else:
         index_urls += [cpu_torch_index_nightlies]
 
