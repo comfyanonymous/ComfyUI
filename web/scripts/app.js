@@ -1356,7 +1356,7 @@ export class ComfyApp {
 						if (parent.isVirtualNode) {
 							link = parent.getInputLink(link.origin_slot);
 							if (link) {
-								parent = parent.getInputNode(link.origin_slot);
+								parent = parent.getInputNode(link.target_slot);
 								if (parent) {
 									found = true;
 								}
