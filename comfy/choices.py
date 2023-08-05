@@ -67,28 +67,7 @@ def translate(text, seed=None, strict=True, reescape=frozenset()):
 					if strict:
 						raise ParseError(openbrace, f"Missing matching closing brace '}}' for earlier open brace '{{'")
 				out.append(chosen_text)
-			elif m := input.match(r'\/'):
-				# C-style block "/* */" and line "//" comments
-				comment = input.prior()
-				if 0: pass
-				elif m := input.match(r'\/'):
-					# // line comment
-					if not input.match(r'.*?(?:\n|$)'):
-						if strict:
-							raise ParseLogicError(comment, f"Failed to find end of C-style // line comment")
-						input.match(r'.*') # consume unterminated comment (however that might be possible)
-					out.append('\n')
-				elif m := input.match(r'\*'):
-					# /* ... */ block comment
-					if not input.match(r'.*?\*\/'):
-						if strict:
-							raise ParseError(comment, f"Unterminated C-style /* ... */ block comment")
-						input.match(r'.*') # consume unterminated comment
-					out.append(' ')
-				else:
-					# it was a literal /, not a comment after all
-					out.append('/');
-			elif m := input.match(r'[^\\\{\}\|\/]+'):
+			elif m := input.match(r'[^\\\{\}\|]+'):
 				# 1 or more non-metacharacters
 				out.append(m.group(0))
 			else:
