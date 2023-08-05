@@ -27,10 +27,10 @@ const ext = {
 					const clickedComboValue = currentNode.widgets
 						.filter(w => w.type === "combo" && w.options.values.length === values.length)
 						.find(w => w.options.values.every((v, i) => v === values[i]))
-						.value;
+						?.value;
 
-					let selectedIndex = values.findIndex(v => v === clickedComboValue);
-					let selectedItem = displayedItems?.[selectedIndex];
+					let selectedIndex = clickedComboValue ? values.findIndex(v => v === clickedComboValue) : 0;
+					let selectedItem = displayedItems[selectedIndex];
 					updateSelected();
 
 					// Apply highlighting to the selected item
