@@ -480,7 +480,7 @@ class ComfyList {
 
 	hide() {
 		this.element.style.display = "none";
-		this.button.textContent = "See " + this.#text;
+		this.button.textContent = "View " + this.#text;
 	}
 
 	toggle() {
