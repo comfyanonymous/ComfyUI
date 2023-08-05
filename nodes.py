@@ -1476,6 +1476,8 @@ class DynamicPrompt:
         }
 
     RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+
     FUNCTION = "dynamic_prompt"
     CATEGORY = "conditioning"
 
