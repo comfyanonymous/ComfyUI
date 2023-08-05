@@ -15,7 +15,6 @@ import numpy as np
 import safetensors.torch
 
 import comfy.choices
-import comfy.comments
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -1482,8 +1481,7 @@ class DynamicPrompt:
     CATEGORY = "conditioning"
 
     def dynamic_prompt(self, text, seed):
-        text = comfy.comments.strip_c_comments(text)
-        text = comfy.choices.translate(text, seed=seed, strict=False, reescape=r'\()')
+        text = comfy.choices.translate_choices_with_c_comments(text, seed=seed, strict=False, reescape=r'\()')
         return (text,)
 
 

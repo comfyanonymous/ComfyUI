@@ -6,6 +6,13 @@ import random
 import comfy.parse as parse
 from comfy.parse import ParseError, ParseLogicError
 
+from comfy.comments import strip_c_comments
+
+def translate_choices_with_c_comments(text, seed=None, strict=True, reescape=frozenset()):
+	text = strip_c_comments(text, strict=strict)
+	text = translate(text, seed=seed, strict=strict, reescape = reescape)
+	return text
+
 def get_random_seed():
 	return int.from_bytes(os.urandom(8))
 
