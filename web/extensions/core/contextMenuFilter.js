@@ -30,6 +30,9 @@ const ext = {
 						?.value;
 
 					let selectedIndex = clickedComboValue ? values.findIndex(v => v === clickedComboValue) : 0;
+					if (selectedIndex < 0) {
+						selectedIndex = 0;
+					} 
 					let selectedItem = displayedItems[selectedIndex];
 					updateSelected();
 
