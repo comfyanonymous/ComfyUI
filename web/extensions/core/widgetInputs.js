@@ -2,7 +2,7 @@ import { ComfyWidgets, addValueControlWidget } from "../../scripts/widgets.js";
 import { app } from "../../scripts/app.js";
 
 const CONVERTED_TYPE = "converted-widget";
-const VALID_TYPES = ["STRING", "combo", "number"];
+const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
 
 function isConvertableWidget(widget, config) {
 	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
