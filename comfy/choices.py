@@ -12,8 +12,8 @@ class LogicError(Exception):
 	pass
 
 
-def get_seed():
-	return int.from_bytes(os.urandom(8), byteorder='big')
+def get_random_seed():
+	return int.from_bytes(os.urandom(8))
 
 def translate(text, seed=None):
 	'''
@@ -99,7 +99,7 @@ def translate(text, seed=None):
 		return ''.join(out)
 	
 	if seed == None:
-		seed = get_seed()
+		seed = get_random_seed()
 	
 	# init our local random number generator
 	rng = random.Random(seed)
