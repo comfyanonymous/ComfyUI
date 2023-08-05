@@ -46,19 +46,14 @@ MAX_RESOLUTION=8192
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {
-            "text": ("STRING", {"multiline": True}), 
-            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-            "clip": ("CLIP", )
-        }}
+        return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
 
-    def encode(self, clip, seed, text):
-        translated_prompt_text = translate_choices(text, seed)
-        tokens = clip.tokenize(translated_prompt_text)
+    def encode(self, clip, text):
+        tokens = clip.tokenize(text)
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
         return ([[cond, {"pooled_output": pooled}]], )
 
@@ -828,7 +823,6 @@ class GLIGENTextBoxApply:
                               "clip": ("CLIP", ),
                               "gligen_textbox_model": ("GLIGEN", ),
                               "text": ("STRING", {"multiline": True}),
-                              "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                               "width": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
@@ -839,11 +833,9 @@ class GLIGENTextBoxApply:
 
     CATEGORY = "conditioning/gligen"
 
-    def append(self, conditioning_to, clip, gligen_textbox_model, text, seed, width, height, x, y):
+    def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
         c = []
-        translated_prompt_text = translate_choices(text, seed)
-        tokens = clip.tokenize(translated_prompt_text)
-        _, cond_pooled = clip.encode_from_tokens(tokens, return_pooled=True)
+        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled=True)
         for t in conditioning_to:
             n = [t[0], t[1].copy()]
             position_params = [(cond_pooled, height // 8, width // 8, y // 8, x // 8)]
