@@ -6,7 +6,7 @@ import random
 import comfy.parse
 from comfy.parse import ParseError
 
-class LogicError(Exception):
+class ParseLogicError(ParseError):
 	# something that shouldn't be possible occurred in the code
 	# not the user's fault
 	pass
@@ -15,7 +15,7 @@ class LogicError(Exception):
 def get_random_seed():
 	return int.from_bytes(os.urandom(8))
 
-def translate(text, seed=None, reescape=frozenset()):
+def translate(text, seed=None, strict=True, reescape=frozenset()):
 	'''
 	Parses the text, translating "{A|B|C}" choices into a single chosen option.
 	An option is chosen randomly from the available options.
@@ -26,6 +26,8 @@ def translate(text, seed=None, reescape=frozenset()):
 	"a woman wearing a realistic police uniform".
 	All random choices are governed by the supplied random seed value, ensuring repeatability.
 	
+	If strict is True, exceptions will be thrown if the input doesn't conform to expectations.
+	
 	reescape indicates the set of metacharacters that, if escaped with a backslash in the input, should be re-escaped in the output.
 	This is useful to avoid need for multi-escaping when incorporating this parser as a single phase in a multi-phase parsing operation.
 	Note that while the default is a frozenset, you can pass anything that works with the "in" operator, such as a string or a set.
@@ -35,14 +37,14 @@ def translate(text, seed=None, reescape=frozenset()):
 		options = []
 		while True:
 			options.append(parse_text_with_choices(input))
-			if 0: pass
-			elif m := input.match(r'\|'):
+			if m := input.match(r'\|'):
 				# loop around for another choice
 				pass
-			elif m := input.match(r'\}'):
-				break
 			else:
-				raise ParseError(input, f"Expected '|' or '}}' after choice text")
+				# at this point, the input must be }
+				# although for incorrectly-formed input, it could be end of input too
+				# regardless, the correct action here is to break and return to the caller
+				break
 		
 		# choose one of the options
 		text = rng.choice(options)
@@ -53,35 +55,47 @@ def translate(text, seed=None, reescape=frozenset()):
 		
 		while True:
 			if 0: pass
-			elif m := input.match(r'\\'): # \ = escape character
+			elif m := input.match(r'\\'):
+				# \ = escape character
 				if m := input.match(r'.'):
 					ch = m.group(0)
 					if ch in reescape:
 						out.append('\\')
 					out.append(ch)
 				else:
-					raise ParseError(input, f'Unexpected end of input after backslash')
-			elif m := input.match(r'\{'): # {
-				# choice
+					if strict:
+						raise ParseError(input, f'Unexpected end of input after backslash')
+			elif m := input.match(r'\{'):
+				# { ... | ... } choice
+				openbrace = input.prior()
 				chosen_text = parse_choice(input)
+				if not input.match(r'\}'):
+					if strict:
+						raise ParseError(openbrace, f"Missing matching closing brace '}}' for earlier open brace '{{'")
 				out.append(chosen_text)
-			elif m := input.match(r'\/'): # /
+			elif m := input.match(r'\/'):
 				# C-style block "/* */" and line "//" comments
+				comment = input.prior()
 				if 0: pass
-				elif m := input.match(r'\/'): # /
-					# line comment
+				elif m := input.match(r'\/'):
+					# // line comment
 					if not input.match(r'.*?(?:\n|$)'):
-						raise ParseError(input, f"Failed to find end of comment")
+						if strict:
+							raise ParseLogicError(comment, f"Failed to find end of C-style // line comment")
+						input.match(r'.*') # consume unterminated comment (however that might be possible)
 					out.append('\n')
-				elif m := input.match(r'\*'): # /
-					# block comment
+				elif m := input.match(r'\*'):
+					# /* ... */ block comment
 					if not input.match(r'.*?\*\/'):
-						raise ParseError(input, f"Unterminated comment")
+						if strict:
+							raise ParseError(comment, f"Unterminated C-style /* ... */ block comment")
+						input.match(r'.*') # consume unterminated comment
 					out.append(' ')
 				else:
 					# it was a literal /, not a comment after all
 					out.append('/');
-			elif m := input.match(r'[^\\\{\}\|\/]+'): # 1 or more non-metacharacters
+			elif m := input.match(r'[^\\\{\}\|\/]+'):
+				# 1 or more non-metacharacters
 				out.append(m.group(0))
 			else:
 				# didn't match \, {, / or non-metacharacters
@@ -89,6 +103,29 @@ def translate(text, seed=None, reescape=frozenset()):
 				break
 		
 		return ''.join(out)
+	
+	def parse_text_with_choices_outer(input):
+		# this function and the contained loop is required to support the non-strict parsing mode
+		# it catches the case where we exit parse_text_with_choices upon encountering | or }, and don't find ourselves withing a calling instance of parse_choice
+		out = []
+		while True:
+			out.append(parse_text_with_choices(input))
+			if 0:pass
+			elif input.match(r'$'):
+				break
+			elif input.match(r'\|'):
+				if strict:
+					raise ParseError(input.prior(), f"Encountered a choice delimiter '|' outside any choice block")
+			elif input.match(r'\}'):
+				if strict:
+					raise ParseError(input.prior(), f"Encountered a closing brace '}}' without a matching open brace")
+			else:
+				if strict:
+					raise ParseLogicError(input, f'Failed to parse up to the end of the prompt text')
+				break
+		
+		return ''.join(out)
+	
 	
 	if seed == None:
 		seed = get_random_seed()
@@ -98,12 +135,9 @@ def translate(text, seed=None, reescape=frozenset()):
 	
 	try:
 		input = comfy.parse.Cursor(text)
-		out = parse_text_with_choices(input)
-		if not input.match(r'$'):
-			raise ParseError(input, f'Failed to parse up to the end of the prompt text')
-		
+		out = parse_text_with_choices_outer(input)
 		return out
-	except (ParseError, LogicError) as e:
+	except (ParseError) as e:
 		# alternative: re-throw the error
 		stdout.write(f'Error parsing prompt: {e}');
 		return text

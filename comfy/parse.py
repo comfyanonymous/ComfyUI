@@ -24,6 +24,13 @@ class Cursor:
 		self.consume = consume
 		self.space = space
 	
+	def prior(self):
+		# returns a cursor pointing at the position prior to the last match
+		prior = self.clone()
+		prior.end = prior.start
+		prior.pos = prior.start
+		return prior
+	
 	def loc(self):
 		# describe the cursor position in a human-readable form, suitable for error messages
 		

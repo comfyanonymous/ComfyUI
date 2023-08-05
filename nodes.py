@@ -1479,7 +1479,7 @@ class DynamicPrompt:
     CATEGORY = "conditioning"
 
     def dynamic_prompt(self, text, seed):
-        translated_prompt_text = comfy.choices.translate(text, seed=seed, reescape=r'\()')
+        translated_prompt_text = comfy.choices.translate(text, seed=seed, strict=False, reescape=r'\()')
         return (translated_prompt_text,)
 
 
