@@ -26,6 +26,8 @@ import comfy.utils
 import comfy.clip_vision
 
 import comfy.model_management
+from comfy.cli_args import args
+
 import importlib
 
 import folder_paths
@@ -352,12 +354,22 @@ class SaveLatent:
         if prompt is not None:
             prompt_info = json.dumps(prompt)
 
-        metadata = {"prompt": prompt_info}
-        if extra_pnginfo is not None:
-            for x in extra_pnginfo:
-                metadata[x] = json.dumps(extra_pnginfo[x])
+        metadata = None
+        if not args.disable_metadata:
+            metadata = {"prompt": prompt_info}
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata[x] = json.dumps(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
+
+        results = list()
+        results.append({
+            "filename": file,
+            "subfolder": subfolder,
+            "type": "output"
+        })
+
         file = os.path.join(full_output_folder, file)
 
         output = {}
@@ -365,7 +377,7 @@ class SaveLatent:
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
-        return {}
+        return { "ui": { "latents": results } }
 
 
 class LoadLatent:
@@ -1043,6 +1055,47 @@ class LatentComposite:
         samples_out["samples"] = s
         return (samples_out,)
 
+class LatentBlend:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "samples1": ("LATENT",),
+            "samples2": ("LATENT",),
+            "blend_factor": ("FLOAT", {
+                "default": 0.5,
+                "min": 0,
+                "max": 1,
+                "step": 0.01
+            }),
+        }}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "blend"
+
+    CATEGORY = "_for_testing"
+
+    def blend(self, samples1, samples2, blend_factor:float, blend_mode: str="normal"):
+
+        samples_out = samples1.copy()
+        samples1 = samples1["samples"]
+        samples2 = samples2["samples"]
+
+        if samples1.shape != samples2.shape:
+            samples2.permute(0, 3, 1, 2)
+            samples2 = comfy.utils.common_upscale(samples2, samples1.shape[3], samples1.shape[2], 'bicubic', crop='center')
+            samples2.permute(0, 2, 3, 1)
+
+        samples_blended = self.blend_mode(samples1, samples2, blend_mode)
+        samples_blended = samples1 * blend_factor + samples_blended * (1 - blend_factor)
+        samples_out["samples"] = samples_blended
+        return (samples_out,)
+
+    def blend_mode(self, img1, img2, mode):
+        if mode == "normal":
+            return img2
+        else:
+            raise ValueError(f"Unsupported blend mode: {mode}")
+
 class LatentCrop:
     @classmethod
     def INPUT_TYPES(s):
@@ -1214,12 +1267,14 @@ class SaveImage:
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = PngInfo()
-            if prompt is not None:
-                metadata.add_text("prompt", json.dumps(prompt))
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            metadata = None
+            if not args.disable_metadata:
+                metadata = PngInfo()
+                if prompt is not None:
+                    metadata.add_text("prompt", json.dumps(prompt))
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
@@ -1487,6 +1542,7 @@ NODE_CLASS_MAPPINGS = {
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
+    "LatentBlend": LatentBlend,
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
@@ -1558,6 +1614,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentUpscale": "Upscale Latent",
     "LatentUpscaleBy": "Upscale Latent By",
     "LatentComposite": "Latent Composite",
+    "LatentBlend": "Latent Blend",
     "LatentFromBatch" : "Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
