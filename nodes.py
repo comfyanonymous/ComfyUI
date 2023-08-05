@@ -1469,7 +1469,7 @@ class DynamicPrompt:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "text": ("STRING", {"multiline": True, "placeholder": "A prompt which can contain random text. Eg. This is a {good|great|spectacular} prompt."}),
+                "text": ("STRING", {"multiline": True, "placeholder": "A prompt which can contain random text. Eg. A {small|big} {red|yellow|black} {sports car|convertible|van}."}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }
         }
