@@ -66,7 +66,7 @@ class Cursor:
 	
 	def clone(self):
 		# python's immutable strings should mean the actual string data for text is not copied
-		clone = Cursor(text)
+		clone = Cursor(self.text, skip_space=self.skip_space, consume=self.consume, space=self.space)
 		# pos is the main purpose of the clone
 		clone.pos = self.pos
 		# this other stuff, we're just cloning for completeness
