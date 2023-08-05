@@ -4,27 +4,21 @@ import struct
 import comfy.checkpoint_pickle
 import safetensors.torch
 
-def load_torch_file(ckpt, safe_load=False, device=None):
-    if device is None:
-        device = torch.device("cpu")
+
+def load_torch_file(ckpt: str, safe_load: bool = False):
     if ckpt.lower().endswith(".safetensors"):
-        sd = safetensors.torch.load_file(ckpt, device=device.type)
+        return safetensors.torch.load_file(ckpt, "cpu")
+    if safe_load:
+        if 'weights_only'not in torch.load.__code__.co_varnames:
+            print("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
+            safe_load = False
+        pl_sd = torch.load(ckpt, weights_only=True)
     else:
-        if safe_load:
-            if not 'weights_only' in torch.load.__code__.co_varnames:
-                print("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
-                safe_load = False
-        if safe_load:
-            pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
-        else:
-            pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
-        if "global_step" in pl_sd:
-            print(f"Global Step: {pl_sd['global_step']}")
-        if "state_dict" in pl_sd:
-            sd = pl_sd["state_dict"]
-        else:
-            sd = pl_sd
-    return sd
+        pl_sd = torch.load(ckpt, pickle_module=comfy.checkpoint_pickle)
+    if "global_step" in pl_sd:
+        print(f"Global Step: {pl_sd['global_step']}")
+    return pl_sd["state_dict"] if "state_dict" in pl_sd else pl_sd
+
 
 def save_torch_file(sd, ckpt, metadata=None):
     if metadata is not None:
