@@ -14,7 +14,7 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-from comfy.parse_choice import translate_choices
+from comfy.choices import translate_choices
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
