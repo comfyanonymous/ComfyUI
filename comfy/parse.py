@@ -10,6 +10,12 @@ class ParseError(Exception):
 	def __str__(self):
 		return f'{self.message} {self.input.loc()}'
 
+class ParseLogicError(ParseError):
+	# like a ParseError, in that it has an associated cursor position which will help in understanding the error
+	# but unlike a ParseError, because it wasn't the user's fault
+	# something that shouldn't be possible occurred in the code
+	pass
+
 
 class Cursor:
 	def __init__(self, text, skip_space=False, consume=True, space=r'\s+'):

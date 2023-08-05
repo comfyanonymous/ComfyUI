@@ -3,14 +3,8 @@
 import os
 import random
 
-import comfy.parse
-from comfy.parse import ParseError
-
-class ParseLogicError(ParseError):
-	# something that shouldn't be possible occurred in the code
-	# not the user's fault
-	pass
-
+import comfy.parse as parse
+from comfy.parse import ParseError, ParseLogicError
 
 def get_random_seed():
 	return int.from_bytes(os.urandom(8))
@@ -133,12 +127,7 @@ def translate(text, seed=None, strict=True, reescape=frozenset()):
 	# init our local random number generator
 	rng = random.Random(seed)
 	
-	try:
-		input = comfy.parse.Cursor(text)
-		out = parse_text_with_choices_outer(input)
-		return out
-	except (ParseError) as e:
-		# alternative: re-throw the error
-		stdout.write(f'Error parsing prompt: {e}');
-		return text
+	input = parse.Cursor(text)
+	out = parse_text_with_choices_outer(input)
+	return out
 
