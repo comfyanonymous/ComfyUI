@@ -14,7 +14,7 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-from comfy.choices import translate_choices
+import comfy.choices
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -1479,7 +1479,7 @@ class DynamicPrompt:
     CATEGORY = "conditioning"
 
     def dynamic_prompt(self, text, seed):
-        translated_prompt_text = translate_choices(text, seed)
+        translated_prompt_text = comfy.choices.translate(text, seed)
         return (translated_prompt_text,)
 
 

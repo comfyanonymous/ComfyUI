@@ -15,7 +15,7 @@ class LogicError(Exception):
 def get_seed():
 	return int.from_bytes(os.urandom(8), byteorder='big')
 
-def translate_choices(text, seed=None):
+def translate(text, seed=None):
 	'''
 	Parses the text, translating "{A|B|C}" choices into a single choice.
 	An option is chosen randomly from the available options.
