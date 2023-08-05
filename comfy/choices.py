@@ -15,7 +15,7 @@ class LogicError(Exception):
 def get_random_seed():
 	return int.from_bytes(os.urandom(8))
 
-def translate(text, seed=None):
+def translate(text, seed=None, reescape=frozenset()):
 	'''
 	Parses the text, translating "{A|B|C}" choices into a single chosen option.
 	An option is chosen randomly from the available options.
@@ -25,16 +25,11 @@ def translate(text, seed=None):
 	could expand to
 	"a woman wearing a realistic police uniform".
 	All random choices are governed by the supplied random seed value, ensuring repeatability.
-	'''
 	
-	# the user will be escaping for both this processing (using curly braces) and the weight processing (using round parentheses)
-	# from their perspective, they will need to escape literal data like this to cover both sets of processing:
-	# { -> \{
-	# } -> \}
-	# | -> \|
-	# \ -> \\
-	# ( -> \(
-	# ) -> \)
+	reescape indicates the set of metacharacters that, if escaped with a backslash in the input, should be re-escaped in the output.
+	This is useful to avoid need for multi-escaping when incorporating this parser as a single phase in a multi-phase parsing operation.
+	Note that while the default is a frozenset, you can pass anything that works with the "in" operator, such as a string or a set.
+	'''
 	
 	def parse_choice(input):
 		options = []
@@ -58,15 +53,12 @@ def translate(text, seed=None):
 		
 		while True:
 			if 0: pass
-			elif m := input.match(r'\\'): # \
-				if 0: pass
-				elif m := input.match(r'[\{\|\}\/]'):
-					# escaping a metacharacter to make it literal
-					out.append(m.group(0)) # output literal character
-				elif m := input.match(r'.'):
-					# by passing through non-native or unrecognised escape codes without change, we support clean combiniation of multiple parsing phases
-					# without forcing the user to add additional escaping for each phase
-					out.append(f'\\{m.group(0)}')
+			elif m := input.match(r'\\'): # \ = escape character
+				if m := input.match(r'.'):
+					ch = m.group(0)
+					if ch in reescape:
+						out.append('\\')
+					out.append(ch)
 				else:
 					raise ParseError(input, f'Unexpected end of input after backslash')
 			elif m := input.match(r'\{'): # {
