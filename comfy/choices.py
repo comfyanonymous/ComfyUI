@@ -17,22 +17,14 @@ def get_seed():
 
 def translate(text, seed=None):
 	'''
-	Parses the text, translating "{A|B|C}" choices into a single choice.
+	Parses the text, translating "{A|B|C}" choices into a single chosen option.
 	An option is chosen randomly from the available options.
 	For example: "a {green|red|blue} ball on a {wooden|metal} bench" might expand to "a red ball on a wooden bench".
 	Nesting choices is supported, so 
 	"a woman wearing a {{lavish|garish|expensive|stylish|} {red|brown|blue|} dress|{sexy|realistic|} {police|nurse|maid} uniform|{black leather|wooly|thick} coat}"
 	could expand to
-	"a woman wearing a stylish brown dress".
+	"a woman wearing a realistic police uniform".
 	All random choices are governed by the supplied random seed value, ensuring repeatability.
-	You can use a single PrimitiveNode with an INT value, and connect that to the CLIPTextEncode node and the KSampler node in a typical Stable Diffusion 1.5 workflow, for example.
-	
-	Notes:
-		* this function must correctly support valid inputs
-		* for invalid inputs:
-			* raise an error if that's supported cleanly enough in the system
-			* otherwise, return the original input as the output, and issue a warning to stdout or stderr if that's acceptable in the system
-		* must preserve escaped metacharacters for the prompt weight parsing
 	'''
 	
 	# the user will be escaping for both this processing (using curly braces) and the weight processing (using round parentheses)
