@@ -265,6 +265,15 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
+	 * Gets system & device stats
+	 * @returns System stats such as python version, OS, per device info
+	 */
+	async getSystemStats() {
+		const res = await this.fetchApi("/system_stats");
+		return await res.json();
+	}
+
+	/**
 	 * Sends a POST request to the API
 	 * @param {*} type The endpoint to post to
 	 * @param {*} body Optional POST data
