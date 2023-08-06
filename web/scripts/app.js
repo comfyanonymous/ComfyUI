@@ -1311,7 +1311,7 @@ export class ComfyApp {
 				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
 			);
 			this.logging.addEntry("Comfy.App", "warn", {
-				MissingNodes: nodes,
+				MissingNodes: missingNodeTypes,
 			});
 		}
 	}
