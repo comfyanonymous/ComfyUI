@@ -40,6 +40,10 @@ parser.add_argument("--extra-model-paths-config", type=str, default=None, metava
 parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory.")
 parser.add_argument("--auto-launch", action="store_true", help="Automatically launch ComfyUI in the default browser.")
 parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID", help="Set the id of the cuda device this instance will use.")
+cm_group = parser.add_mutually_exclusive_group()
+cm_group.add_argument("--cuda-malloc", action="store_true", help="Enable cudaMallocAsync (enabled by default for torch 2.0 and up).")
+cm_group.add_argument("--disable-cuda-malloc", action="store_true", help="Disable cudaMallocAsync.")
+
 parser.add_argument("--dont-upcast-attention", action="store_true", help="Disable upcasting of attention. Can boost speed but increase the chances of black images.")
 
 fp_group = parser.add_mutually_exclusive_group()
@@ -79,6 +83,8 @@ vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for e
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
 parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
+
+parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 
 args = parser.parse_args()
 

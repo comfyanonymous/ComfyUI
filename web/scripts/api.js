@@ -3,6 +3,16 @@ class ComfyApi extends EventTarget {
 
 	constructor() {
 		super();
+		this.api_host = location.host;
+		this.api_base = location.pathname.split('/').slice(0, -1).join('/');
+	}
+
+	apiURL(route) {
+		return this.api_base + route;
+	}
+
+	fetchApi(route, options) {
+		return fetch(this.apiURL(route), options);
 	}
 
 	addEventListener(type, callback, options) {
@@ -16,7 +26,7 @@ class ComfyApi extends EventTarget {
 	#pollQueue() {
 		setInterval(async () => {
 			try {
-				const resp = await fetch("/prompt");
+				const resp = await this.fetchApi("/prompt");
 				const status = await resp.json();
 				this.dispatchEvent(new CustomEvent("status", { detail: status }));
 			} catch (error) {
@@ -40,7 +50,7 @@ class ComfyApi extends EventTarget {
 			existingSession = "?clientId=" + existingSession;
 		}
 		this.socket = new WebSocket(
-			`ws${window.location.protocol === "https:" ? "s" : ""}://${location.host}/ws${existingSession}`
+			`ws${window.location.protocol === "https:" ? "s" : ""}://${this.api_host}${this.api_base}/ws${existingSession}`
 		);
 		this.socket.binaryType = "arraybuffer";
 
@@ -149,23 +159,16 @@ class ComfyApi extends EventTarget {
 	 * @returns An array of script urls to import
 	 */
 	async getExtensions() {
-		const resp = await fetch("/extensions", { cache: "no-store" });
+		const resp = await this.fetchApi("/extensions", { cache: "no-store" });
 		return await resp.json();
 	}
-
-    async deleteAllImages(filenames) {
-        await this.#postItem("delete", { delete: filenames })
-    }
-    async deleteImage(filename) {
-        await this.#postItem("delete", { delete: filename })
-    }
 
 	/**
 	 * Gets a list of embedding names
 	 * @returns An array of script urls to import
 	 */
 	async getEmbeddings() {
-		const resp = await fetch("/embeddings", { cache: "no-store" });
+		const resp = await this.fetchApi("/embeddings", { cache: "no-store" });
 		return await resp.json();
 	}
 
@@ -174,7 +177,7 @@ class ComfyApi extends EventTarget {
 	 * @returns The node definitions
 	 */
 	async getNodeDefs() {
-		const resp = await fetch("object_info", { cache: "no-store" });
+		const resp = await this.fetchApi("/object_info", { cache: "no-store" });
 		return await resp.json();
 	}
 
@@ -196,7 +199,7 @@ class ComfyApi extends EventTarget {
 			body.number = number;
 		}
 
-		const res = await fetch("/prompt", {
+		const res = await this.fetchApi("/prompt", {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -209,6 +212,8 @@ class ComfyApi extends EventTarget {
 				response: await res.json(),
 			};
 		}
+
+		return await res.json();
 	}
 
 	/**
@@ -229,7 +234,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async getQueue() {
 		try {
-			const res = await fetch("/queue");
+			const res = await this.fetchApi("/queue");
 			const data = await res.json();
 			return {
 				// Running action uses a different endpoint for cancelling
@@ -251,7 +256,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async getHistory() {
 		try {
-			const res = await fetch("/history");
+			const res = await this.fetchApi("/history");
 			return { History: Object.values(await res.json()) };
 		} catch (error) {
 			console.error(error);
@@ -260,24 +265,13 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
-	 * Gets the prompt execution history
-	 * @returns Prompt history including node outputs
+	 * Gets system & device stats
+	 * @returns System stats such as python version, OS, per device info
 	 */
-    async getOutput() {
-        try {
-            const res = await fetch("/output/images");
-            if (res.status == 200){
-                var values = await res.json();
-                return { filenames: Object.values(values), message: "Success"  };
-            }
-            else {
-                return { filenames: [], message: "Failed to fetch output images"  };
-            }
-        } catch (error) {
-            console.error(error);
-            return { filenames: [], message: "Failed to fetch output images" };
-        }
-    }
+	async getSystemStats() {
+		const res = await this.fetchApi("/system_stats");
+		return await res.json();
+	}
 
 	/**
 	 * Sends a POST request to the API
@@ -286,7 +280,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async #postItem(type, body) {
 		try {
-			await fetch("/" + type, {
+			await this.fetchApi("/" + type, {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",

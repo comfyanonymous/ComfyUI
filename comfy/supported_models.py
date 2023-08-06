@@ -53,13 +53,13 @@ class SD20(supported_models_base.BASE):
 
     latent_format = latent_formats.SD15
 
-    def v_prediction(self, state_dict, prefix=""):
+    def model_type(self, state_dict, prefix=""):
         if self.unet_config["in_channels"] == 4: #SD2.0 inpainting models are not v prediction
             k = "{}output_blocks.11.1.transformer_blocks.0.norm1.bias".format(prefix)
             out = state_dict[k]
             if torch.std(out, unbiased=False) > 0.09: # not sure how well this will actually work. I guess we will find out.
-                return True
-        return False
+                return model_base.ModelType.V_PREDICTION
+        return model_base.ModelType.EPS
 
     def process_clip_state_dict(self, state_dict):
         state_dict = utils.transformers_convert(state_dict, "cond_stage_model.model.", "cond_stage_model.transformer.text_model.", 24)
@@ -109,8 +109,8 @@ class SDXLRefiner(supported_models_base.BASE):
 
     latent_format = latent_formats.SDXL
 
-    def get_model(self, state_dict, prefix=""):
-        return model_base.SDXLRefiner(self)
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.SDXLRefiner(self, device=device)
 
     def process_clip_state_dict(self, state_dict):
         keys_to_replace = {}
@@ -126,6 +126,8 @@ class SDXLRefiner(supported_models_base.BASE):
     def process_clip_state_dict_for_saving(self, state_dict):
         replace_prefix = {}
         state_dict_g = diffusers_convert.convert_text_enc_state_dict_v20(state_dict, "clip_g")
+        if "clip_g.transformer.text_model.embeddings.position_ids" in state_dict_g:
+            state_dict_g.pop("clip_g.transformer.text_model.embeddings.position_ids")
         replace_prefix["clip_g"] = "conditioner.embedders.0.model"
         state_dict_g = supported_models_base.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
@@ -144,8 +146,14 @@ class SDXL(supported_models_base.BASE):
 
     latent_format = latent_formats.SDXL
 
-    def get_model(self, state_dict, prefix=""):
-        return model_base.SDXL(self)
+    def model_type(self, state_dict, prefix=""):
+        if "v_pred" in state_dict:
+            return model_base.ModelType.V_PREDICTION
+        else:
+            return model_base.ModelType.EPS
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.SDXL(self, model_type=self.model_type(state_dict, prefix), device=device)
 
     def process_clip_state_dict(self, state_dict):
         keys_to_replace = {}
@@ -164,6 +172,8 @@ class SDXL(supported_models_base.BASE):
         replace_prefix = {}
         keys_to_replace = {}
         state_dict_g = diffusers_convert.convert_text_enc_state_dict_v20(state_dict, "clip_g")
+        if "clip_g.transformer.text_model.embeddings.position_ids" in state_dict_g:
+            state_dict_g.pop("clip_g.transformer.text_model.embeddings.position_ids")
         for k in state_dict:
             if k.startswith("clip_l"):
                 state_dict_g[k] = state_dict[k]

@@ -1,22 +1,24 @@
 import os
 import importlib.util
 import folder_paths
-
+import time
 
 def execute_prestartup_script():
     def execute_script(script_path):
-        if os.path.exists(script_path):
-            module_name = os.path.splitext(script_path)[0]
-            try:
-                spec = importlib.util.spec_from_file_location(module_name, script_path)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-            except Exception as e:
-                print(f"Failed to execute startup-script: {script_path} / {e}")
+        module_name = os.path.splitext(script_path)[0]
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, script_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return True
+        except Exception as e:
+            print(f"Failed to execute startup-script: {script_path} / {e}")
+        return False
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
+        node_prestartup_times = []
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
@@ -24,8 +26,19 @@ def execute_prestartup_script():
                 continue
 
             script_path = os.path.join(module_path, "prestartup_script.py")
-            execute_script(script_path)
-
+            if os.path.exists(script_path):
+                time_before = time.perf_counter()
+                success = execute_script(script_path)
+                node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
+    if len(node_prestartup_times) > 0:
+        print("\nPrestartup times for custom nodes:")
+        for n in sorted(node_prestartup_times):
+            if n[2]:
+                import_message = ""
+            else:
+                import_message = " (PRESTARTUP FAILED)"
+            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
+        print()
 
 execute_prestartup_script()
 
@@ -36,10 +49,8 @@ import itertools
 import shutil
 import threading
 import gc
-import time
 
 from comfy.cli_args import args
-import comfy.utils
 
 if os.name == "nt":
     import logging
@@ -50,7 +61,9 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         print("Set cuda device to:", args.cuda_device)
 
+    import cuda_malloc
 
+import comfy.utils
 import yaml
 
 import execution
@@ -79,10 +92,10 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 
 
 def hijack_progress(server):
-    def hook(value, total, preview_image_bytes):
+    def hook(value, total, preview_image):
         server.send_sync("progress", {"value": value, "max": total}, server.client_id)
-        if preview_image_bytes is not None:
-            server.send_sync(BinaryEventTypes.PREVIEW_IMAGE, preview_image_bytes, server.client_id)
+        if preview_image is not None:
+            server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
 
 
@@ -147,6 +160,8 @@ if __name__ == "__main__":
     if args.auto_launch:
         def startup_server(address, port):
             import webbrowser
+            if os.name == 'nt' and address == '0.0.0.0':
+                address = '127.0.0.1'
             webbrowser.open(f"http://{address}:{port}")
         call_on_start = startup_server
 

@@ -1,8 +1,12 @@
 import comfy.sd
 import comfy.utils
+import comfy.model_base
+
 import folder_paths
 import json
 import os
+
+from comfy.cli_args import args
 
 class ModelMergeSimple:
     @classmethod
@@ -20,6 +24,27 @@ class ModelMergeSimple:
         m = model1.clone()
         kp = model2.get_key_patches("diffusion_model.")
         for k in kp:
+            m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
+        return (m, )
+
+class CLIPMergeSimple:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip1": ("CLIP",),
+                              "clip2": ("CLIP",),
+                              "ratio": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "merge"
+
+    CATEGORY = "advanced/model_merging"
+
+    def merge(self, clip1, clip2, ratio):
+        m = clip1.clone()
+        kp = clip2.get_key_patches()
+        for k in kp:
+            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
+                continue
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
         return (m, )
 
@@ -78,10 +103,36 @@ class CheckpointSave:
         if prompt is not None:
             prompt_info = json.dumps(prompt)
 
-        metadata = {"prompt": prompt_info}
-        if extra_pnginfo is not None:
-            for x in extra_pnginfo:
-                metadata[x] = json.dumps(extra_pnginfo[x])
+        metadata = {}
+
+        enable_modelspec = True
+        if isinstance(model.model, comfy.model_base.SDXL):
+            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
+        elif isinstance(model.model, comfy.model_base.SDXLRefiner):
+            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
+        else:
+            enable_modelspec = False
+
+        if enable_modelspec:
+            metadata["modelspec.sai_model_spec"] = "1.0.0"
+            metadata["modelspec.implementation"] = "sgm"
+            metadata["modelspec.title"] = "{} {}".format(filename, counter)
+
+        #TODO:
+        # "stable-diffusion-v1", "stable-diffusion-v1-inpainting", "stable-diffusion-v2-512",
+        # "stable-diffusion-v2-768-v", "stable-diffusion-v2-unclip-l", "stable-diffusion-v2-unclip-h",
+        # "v2-inpainting"
+
+        if model.model.model_type == comfy.model_base.ModelType.EPS:
+            metadata["modelspec.predict_key"] = "epsilon"
+        elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
+            metadata["modelspec.predict_key"] = "v"
+
+        if not args.disable_metadata:
+            metadata["prompt"] = prompt_info
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata[x] = json.dumps(extra_pnginfo[x])
 
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
@@ -94,4 +145,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeSimple": ModelMergeSimple,
     "ModelMergeBlocks": ModelMergeBlocks,
     "CheckpointSave": CheckpointSave,
+    "CLIPMergeSimple": CLIPMergeSimple,
 }
