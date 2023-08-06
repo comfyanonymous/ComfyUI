@@ -163,6 +163,14 @@ class ComfyApi extends EventTarget {
 		return await resp.json();
 	}
 
+    async deleteAllImages(filenames) {
+        await this.#postItem("delete", { delete: filenames })
+    }
+    
+    async deleteImage(filename) {
+        await this.#postItem("delete", { delete: filename })
+    }
+
 	/**
 	 * Gets a list of embedding names
 	 * @returns An array of script urls to import
@@ -263,6 +271,25 @@ class ComfyApi extends EventTarget {
 			return { History: [] };
 		}
 	}
+	/**
+	 * Gets the prompt execution history
+	 * @returns Prompt history including node outputs
+	 */
+    async getOutput() {
+        try {
+            const res = await this.fetchApi("/output/images");
+            if (res.status == 200){
+                var values = await res.json();
+                return { filenames: Object.values(values), message: "Success"  };
+            }
+            else {
+                return { filenames: [], message: "Failed to fetch output images"  };
+            }
+        } catch (error) {
+            console.error(error);
+            return { filenames: [], message: "Failed to fetch output images" };
+        }
+    }
 
 	/**
 	 * Gets system & device stats
