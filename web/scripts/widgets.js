@@ -79,8 +79,8 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 	return valueControl;	
 };
 
-function seedWidget(node, inputName, inputData) {
-	const seed = ComfyWidgets.INT(node, inputName, inputData);
+function seedWidget(node, inputName, inputData, app) {
+	const seed = ComfyWidgets.INT(node, inputName, inputData, app);
 	const seedControl = addValueControlWidget(node, seed.widget, "randomize");
 
 	seed.widget.linkedWidgets = [seedControl];
@@ -250,19 +250,29 @@ function addMultilineWidget(node, name, opts, app) {
 	return { minWidth: 400, minHeight: 200, widget };
 }
 
+function isSlider(display, app) {
+	if (app.ui.settings.getSettingValue("Comfy.DisableSliders")) {
+		return "number"
+	}
+
+	return (display==="slider") ? "slider" : "number"
+}
+
 export const ComfyWidgets = {
 	"INT:seed": seedWidget,
 	"INT:noise_seed": seedWidget,
-	FLOAT(node, inputName, inputData) {
+	FLOAT(node, inputName, inputData, app) {
+		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 0.5);
-		return { widget: node.addWidget("number", inputName, val, () => {}, config) };
+		return { widget: node.addWidget(widgetType, inputName, val, () => {}, config) };
 	},
-	INT(node, inputName, inputData) {
+	INT(node, inputName, inputData, app) {
+		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 1);
 		Object.assign(config, { precision: 0 });
 		return {
 			widget: node.addWidget(
-				"number",
+				widgetType,
 				inputName,
 				val,
 				function (v) {
@@ -271,6 +281,18 @@ export const ComfyWidgets = {
 				},
 				config
 			),
+		};
+	},
+	BOOLEAN(node, inputName, inputData) {
+		let defaultVal = inputData[1]["default"];
+		return {
+			widget: node.addWidget(
+				"toggle",
+				inputName,
+				defaultVal,
+				() => {},
+				{"on": inputData[1].label_on, "off": inputData[1].label_off}
+				)
 		};
 	},
 	STRING(node, inputName, inputData, app) {
