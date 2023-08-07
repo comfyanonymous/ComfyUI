@@ -79,7 +79,7 @@ class extract_rainbow():
         monochromatic3 = self.rgb_to_hex(self.hsv_to_rgb((hsv[0], hsv[1]*0.7, hsv[2])))
         return monochromatic1, monochromatic2, monochromatic3
 
-    def main(self,tensor):
+    def main(self,image):
         # Load image and get most common colors
         hex_colors = self.get_most_common_colors(image)
 
