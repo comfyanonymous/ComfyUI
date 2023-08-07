@@ -1,7 +1,6 @@
 # Use the official Python image as the base image
 FROM nvidia/cuda:11.0.3-base-ubuntu20.04
 
-
 # Run update
 RUN apt update
 
@@ -23,6 +22,8 @@ RUN pip3 install torch torchvision torchaudio --extra-index-url https://download
 RUN pip3 install -r requirements.txt
 RUN pip3 install runpod
 RUN pip3 install websocket-client
+RUN pip3 install webcolors
+RUN pip3 install scikit-learn
 
 #Give permission to script
 RUN chmod +x ./entrypoint.sh
