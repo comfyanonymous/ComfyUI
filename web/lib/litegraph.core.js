@@ -9835,7 +9835,11 @@ LGraphNode.prototype.executeAction = function(action)
                         ctx.textAlign = "center";
                         ctx.fillStyle = text_color;
                         ctx.fillText(
-                            w.label || w.name + "  " + Number(w.value).toFixed(3),
+                            w.label || w.name + "  " + Number(w.value).toFixed(
+                                                            w.options.precision != null
+                                                                ? w.options.precision
+                                                                : 3
+                                                        ),
                             widget_width * 0.5,
                             y + H * 0.7
                         );
@@ -13835,7 +13839,7 @@ LGraphNode.prototype.executeAction = function(action)
         if (!disabled) {
             element.addEventListener("click", inner_onclick);
         }
-        if (options.autoopen) {
+        if (!disabled && options.autoopen) {
 			LiteGraph.pointerListenerAdd(element,"enter",inner_over);
         }
 
