@@ -1,0 +1,30 @@
+** ComfyUI start up time: 2023-08-07 18:20:56.720218
+
+Prestartup times for custom nodes:
+   0.0 seconds: /home/dan/comfyui/ForkedComfyUI/ComfyUI/custom_nodes/ComfyUI-Manager
+
+Total VRAM 12042 MB, total RAM 32057 MB
+xformers version: 0.0.20
+Set vram state to: NORMAL_VRAM
+Device: cuda:0 NVIDIA GeForce RTX 3060 : cudaMallocAsync
+Using xformers cross attention
+Adding extra search path checkpoints /home/dan/ai/stable-diffusion-webui/models/Stable-diffusion
+Adding extra search path configs /home/dan/ai/stable-diffusion-webui/models/Stable-diffusion
+Adding extra search path vae /home/dan/ai/stable-diffusion-webui/models/VAE
+Adding extra search path loras /home/dan/ai/stable-diffusion-webui/models/Lora
+Adding extra search path loras /home/dan/ai/stable-diffusion-webui/models/LyCORIS
+Adding extra search path upscale_models /home/dan/ai/stable-diffusion-webui/models/ESRGAN
+Adding extra search path upscale_models /home/dan/ai/stable-diffusion-webui/models/RealESRGAN
+Adding extra search path upscale_models /home/dan/ai/stable-diffusion-webui/models/SwinIR
+Adding extra search path embeddings /home/dan/ai/stable-diffusion-webui/embeddings
+Adding extra search path hypernetworks /home/dan/ai/stable-diffusion-webui/models/hypernetworks
+Adding extra search path controlnet /home/dan/ai/stable-diffusion-webui/models/ControlNet
+### Loading: ComfyUI-Manager (V0.21)
+### ComfyUI Revision: 1266 [297a2876]
+
+Import times for custom nodes:
+   0.1 seconds: /home/dan/comfyui/ForkedComfyUI/ComfyUI/custom_nodes/ComfyUI-Manager
+
+Starting server
+
+To see the GUI go to: http://127.0.0.1:8188
