@@ -1,0 +1,5 @@
+MC1: #1d1413 - black, MC2: #656771 - dimgray, MC3: #995838 - sienna, MC4: #d0ad90 - tan
+AN1: #696571 - dimgray, AN2: #656d71 - dimgray
+T1: #716567 - dimgray, T2: #677165 - dimgray
+C1: #716f65 - dimgray, C2: #716f65 - dimgray
+MO1: #1d1a1a - black, MO2: #6d6e71 - dimgray, MO3: #99867c - gray, MO4: #d0c5bd - silver

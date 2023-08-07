@@ -1,0 +1,5 @@
+MC1: #9a5938 - sienna, MC2: #656771 - dimgray, MC3: #1e1413 - black, MC4: #d1ad91 - tan
+AN1: #9a8a38 - olivedrab, AN2: #9a3848 - brown
+T1: #389a59 - seagreen, T2: #59389a - darkslateblue
+C1: #38799a - steelblue, C2: #716f65 - dimgray
+MO1: #9a867d - gray, MO2: #6d6e71 - dimgray, MO3: #1e1b1b - black, MO4: #d1c6be - silver

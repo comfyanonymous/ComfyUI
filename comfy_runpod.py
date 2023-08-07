@@ -10,7 +10,7 @@ from PIL import Image
 import base64
 import io
 
-
+from custom_scripts_for_nodes.Rainbow import extract_rainbow
 
 import runpod
 
@@ -64,22 +64,40 @@ def get_images(ws, prompt):
 
 
 def run_prompt(job):
-
+    
+    data = {'images':[],'rainbow':"None"}
+    
+    #Inferring from the Rainbow Script
+    image_string = job['input']['image_string']
     prompt_text = job["input"]["prompt"]
-    prompt = prompt_text
-    ws = websocket.WebSocket()
-    ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
-    images = get_images(ws, prompt)
-    data = {'images':[]}
-    for node_id in images:
-        for image_data in images[node_id]:
-            image = Image.open(io.BytesIO(image_data))
-            im_file = io.BytesIO()
-            image.save(im_file, format="JPEG")
-            im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
-            im_b64 = base64.b64encode(im_bytes)
-            im_b64 = str(im_b64) 
-            data['images'].append(im_b64)
+    
+    if image_string != 'None': 
+        # Decode the base64 string into bytes
+        decoded_bytes = base64.b64decode(image_string)
+        # Convert the bytes to an in-memory file-like object using io.BytesIO
+        image_data = io.BytesIO(decoded_bytes)
+        image = Image.open(image_data)
+        rnbw = extract_rainbow()
+        rnbw_values = rnbw.main(image)
+        
+        data['rainbow'] = rnbw_values
+    
+    if prompt_text != "None":
+        prompt = prompt_text
+        ws = websocket.WebSocket()
+        ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
+        images = get_images(ws, prompt)
+        
+        
+        for node_id in images:
+            for image_data in images[node_id]:
+                image = Image.open(io.BytesIO(image_data))
+                im_file = io.BytesIO()
+                image.save(im_file, format="JPEG")
+                im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
+                im_b64 = base64.b64encode(im_bytes)
+                im_b64 = str(im_b64) 
+                data['images'].append(im_b64)
     return data
     
 
