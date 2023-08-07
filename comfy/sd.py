@@ -878,7 +878,7 @@ def load_controlnet(ckpt_path, model=None):
         use_fp16 = model_management.should_use_fp16()
         controlnet_config = model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
     controlnet_config.pop("out_channels")
-    controlnet_config["hint_channels"] = 3
+    controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = cldm.ControlNet(**controlnet_config)
 
     if pth:
