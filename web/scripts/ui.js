@@ -234,7 +234,7 @@ class ComfySettingsDialog extends ComfyDialog {
 		localStorage[settingId] = JSON.stringify(value);
 	}
 
-	addSetting({id, name, type, defaultValue, onChange, attrs = {}, tooltip = "",}) {
+	addSetting({id, name, type, defaultValue, onChange, attrs = {}, tooltip = "", options = undefined}) {
 		if (!id) {
 			throw new Error("Settings must have an ID");
 		}
@@ -344,6 +344,32 @@ class ComfySettingsDialog extends ComfyDialog {
 											},
 										}),
 									]),
+								]),
+							]);
+							break;
+						case "combo":
+							element = $el("tr", [
+								labelCell,
+								$el("td", [
+									$el(
+										"select",
+										{
+											oninput: (e) => {
+												setter(e.target.value);
+											},
+										},
+										(typeof options === "function" ? options(value) : options || []).map((opt) => {
+											if (typeof opt === "string") {
+												opt = { text: opt };
+											}
+											const v = opt.value ?? opt.text;
+											return $el("option", {
+												value: v,
+												textContent: opt.text,
+												selected: value + "" === v + "",
+											});
+										})
+									),
 								]),
 							]);
 							break;
@@ -480,7 +506,7 @@ class ComfyList {
 
 	hide() {
 		this.element.style.display = "none";
-		this.button.textContent = "See " + this.#text;
+		this.button.textContent = "View " + this.#text;
 	}
 
 	toggle() {
@@ -540,6 +566,13 @@ export class ComfyUI {
 			name: "When displaying a preview in the image widget, convert it to a lightweight image, e.g. webp, jpeg, webp;50, etc.",
 			type: "text",
 			defaultValue: "",
+		});
+
+		this.settings.addSetting({
+			id: "Comfy.DisableSliders",
+			name: "Disable sliders.",
+			type: "boolean",
+			defaultValue: false,
 		});
 
 		const fileInput = $el("input", {
