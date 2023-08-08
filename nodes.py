@@ -1570,6 +1570,7 @@ NODE_CLASS_MAPPINGS = {
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
     "LoadImageMask": LoadImageMask,
+    "ImageAlphaComposite": ImageAlphaComposite,
     "ImageScale": ImageScale,
     "ImageScaleBy": ImageScaleBy,
     "ImageInvert": ImageInvert,
