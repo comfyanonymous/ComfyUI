@@ -1438,7 +1438,7 @@ class ImageAlphaComposite:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image1": ("IMAGE",),
-                             "mask1": ("MASK",),
+                             "mask": ("MASK",),
                              "image2": ("IMAGE",)
                              }
                }
@@ -1447,8 +1447,12 @@ class ImageAlphaComposite:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "alpha_composite"
-    def alpha_composite(self, image1, mask1, image2):
-        mask1 = mask1.repeat((1, 1, 1, 3))
+    def alpha_composite(self, image1, mask, image2):
+        mask1 = torch.ones_like(image1)
+        mask1[0, :, :, 0] = mask
+        mask1[0, :, :, 1] = mask
+        mask1[0, :, :, 2] = mask
+        
         print(image1.size(), mask1.size())
         image = image1 * mask1
         return (image,)
