@@ -1449,7 +1449,7 @@ class ImageAlphaComposite:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "alpha_composite"
     def alpha_composite(self, image1, mask1, image2, mask2):
-        print(image.get_shape(), mask1.get_shape())
+        print(image1.get_shape(), mask1.get_shape())
         image = image1 * mask1
         return (image, mask1)
 
