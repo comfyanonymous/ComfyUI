@@ -1449,12 +1449,13 @@ class ImageAlphaComposite:
     FUNCTION = "alpha_composite"
     def alpha_composite(self, image1, mask, image2):
         mask1 = torch.ones_like(image1)
+        mask = torch.ones_like(mask) - mask
         mask1[0, :, :, 0] = mask
         mask1[0, :, :, 1] = mask
         mask1[0, :, :, 2] = mask
         
         print(image1.size(), mask1.size())
-        image = image1 * mask1
+        image = image1 * mask1 + image2 * (torch.ones_like(mask) - mask)
         return (image,)
 
 class ImageScaleBy:
