@@ -57,6 +57,7 @@ function convertToInput(node, widget, config) {
 	const sz = node.size;
 	node.addInput(widget.name, linkType, {
 		widget: { name: widget.name, config },
+		label: config?.[1] ? i18next.t(config?.[1].label) : void 0,
 	});
 
 	for (const widget of node.widgets) {

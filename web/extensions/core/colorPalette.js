@@ -435,7 +435,7 @@ app.registerExtension({
 					$el("td", [
 						$el("label", {
 							for: id.replaceAll(".", "-"),
-							textContent: "Color palette",
+							textContent: i18next.t("settings.Comfy.ColorPalette"),
 						}),
 					]),
 					$el("td", [
@@ -449,7 +449,7 @@ app.registerExtension({
 						}, [
 							$el("input", {
 								type: "button",
-								value: "Export",
+								value: i18next.t("settings.Comfy.ColorPalette.export"),
 								onclick: async () => {
 									const colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
 									const colorPalette = await completeColorPalette(getColorPalette(colorPaletteId));
@@ -471,14 +471,14 @@ app.registerExtension({
 							}),
 							$el("input", {
 								type: "button",
-								value: "Import",
+								value: i18next.t("settings.Comfy.ColorPalette.import"),
 								onclick: () => {
 									fileInput.click();
 								}
 							}),
 							$el("input", {
 								type: "button",
-								value: "Template",
+								value: i18next.t("settings.Comfy.ColorPalette.template"),
 								onclick: async () => {
 									const colorPalette = await getColorPaletteTemplate();
 									const json = JSON.stringify(colorPalette, null, 2); // convert the data to a JSON string
@@ -499,7 +499,7 @@ app.registerExtension({
 							}),
 							$el("input", {
 								type: "button",
-								value: "Delete",
+								value: i18next.t("settings.Comfy.ColorPalette.delete"),
 								onclick: async () => {
 									let colorPaletteId = app.ui.settings.getSettingValue(id, defaultColorPaletteId);
 

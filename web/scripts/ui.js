@@ -1,4 +1,4 @@
-import {api} from "./api.js";
+import { api } from "./api.js";
 
 export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
@@ -11,7 +11,7 @@ export function $el(tag, propsOrChildren, children) {
 		if (Array.isArray(propsOrChildren)) {
 			element.append(...propsOrChildren);
 		} else {
-			const {parent, $: cb, dataset, style} = propsOrChildren;
+			const { parent, $: cb, dataset, style } = propsOrChildren;
 			delete propsOrChildren.parent;
 			delete propsOrChildren.$;
 			delete propsOrChildren.dataset;
@@ -178,7 +178,7 @@ export class ComfyDialog {
 		return [
 			$el("button", {
 				type: "button",
-				textContent: "Close",
+				textContent: i18next.t("ui.close_btn"),
 				onclick: () => this.close(),
 			}),
 		];
@@ -206,11 +206,11 @@ class ComfySettingsDialog extends ComfyDialog {
 			parent: document.body,
 		}, [
 			$el("table.comfy-modal-content.comfy-table", [
-				$el("caption", {textContent: "Settings"}),
-				$el("tbody", {$: (tbody) => (this.textElement = tbody)}),
+				$el("caption", { textContent: i18next.t("ui.settings.title") }),
+				$el("tbody", { $: (tbody) => (this.textElement = tbody) }),
 				$el("button", {
 					type: "button",
-					textContent: "Close",
+					textContent: i18next.t("ui.close_btn"),
 					style: {
 						cursor: "pointer",
 					},
@@ -234,7 +234,7 @@ class ComfySettingsDialog extends ComfyDialog {
 		localStorage[settingId] = JSON.stringify(value);
 	}
 
-	addSetting({id, name, type, defaultValue, onChange, attrs = {}, tooltip = "",}) {
+	addSetting({ id, name, type, defaultValue, onChange, attrs = {}, tooltip = "", options = undefined }) {
 		if (!id) {
 			throw new Error("Settings must have an ID");
 		}
@@ -270,7 +270,7 @@ class ComfySettingsDialog extends ComfyDialog {
 					$el("label", {
 						for: htmlID,
 						classList: [tooltip !== "" ? "comfy-tooltip-indicator" : ""],
-						textContent: name,
+						textContent: i18next.t(`settings.${id}`),
 					})
 				]);
 
@@ -337,13 +337,39 @@ class ComfySettingsDialog extends ComfyDialog {
 											value,
 											id: htmlID,
 											type: "number",
-											style: {maxWidth: "4rem"},
+											style: { maxWidth: "4rem" },
 											oninput: (e) => {
 												setter(e.target.value);
 												e.target.previousElementSibling.value = e.target.value;
 											},
 										}),
 									]),
+								]),
+							]);
+							break;
+						case "combo":
+							element = $el("tr", [
+								labelCell,
+								$el("td", [
+									$el(
+										"select",
+										{
+											oninput: (e) => {
+												setter(e.target.value);
+											},
+										},
+										(typeof options === "function" ? options(value) : options || []).map((opt) => {
+											if (typeof opt === "string") {
+												opt = { text: opt };
+											}
+											const v = opt.value ?? opt.text;
+											return $el("option", {
+												value: v,
+												textContent: opt.text,
+												selected: value + "" === v + "",
+											});
+										})
+									),
 								]),
 							]);
 							break;
@@ -391,10 +417,10 @@ class ComfySettingsDialog extends ComfyDialog {
 	show() {
 		this.textElement.replaceChildren(
 			$el("tr", {
-				style: {display: "none"},
+				style: { display: "none" },
 			}, [
 				$el("th"),
-				$el("th", {style: {width: "33%"}})
+				$el("th", { style: { width: "33%" } })
 			]),
 			...this.settings.map((s) => s.render()),
 		)
@@ -431,7 +457,7 @@ class ComfyList {
 							name: "Delete",
 							cb: () => api.deleteItem(this.#type, item.prompt[1]),
 						};
-						return $el("div", {textContent: item.prompt[0] + ": "}, [
+						return $el("div", { textContent: item.prompt[0] + ": " }, [
 							$el("button", {
 								textContent: "Load",
 								onclick: () => {
@@ -460,7 +486,7 @@ class ComfyList {
 						await this.load();
 					},
 				}),
-				$el("button", {textContent: "Refresh", onclick: () => this.load()}),
+				$el("button", { textContent: "Refresh", onclick: () => this.load() }),
 			])
 		);
 	}
@@ -480,7 +506,7 @@ class ComfyList {
 
 	hide() {
 		this.element.style.display = "none";
-		this.button.textContent = "See " + this.#text;
+		this.button.textContent = "View " + this.#text;
 	}
 
 	toggle() {
@@ -553,14 +579,14 @@ export class ComfyUI {
 			id: "comfy-file-input",
 			type: "file",
 			accept: ".json,image/png,.latent,.safetensors",
-			style: {display: "none"},
+			style: { display: "none" },
 			parent: document.body,
 			onchange: () => {
 				app.handleFile(fileInput.files[0]);
 			},
 		});
 
-		this.menuContainer = $el("div.comfy-menu", {parent: document.body}, [
+		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
 			$el("div.drag-handle", {
 				style: {
 					overflow: "hidden",
@@ -570,16 +596,16 @@ export class ComfyUI {
 				}
 			}, [
 				$el("span.drag-handle"),
-				$el("span", {$: (q) => (this.queueSize = q)}),
-				$el("button.comfy-settings-btn", {textContent: "⚙️", onclick: () => this.settings.show()}),
+				$el("span", { $: (q) => (this.queueSize = q) }),
+				$el("button.comfy-settings-btn", { textContent: "⚙️", onclick: () => this.settings.show() }),
 			]),
 			$el("button.comfy-queue-btn", {
 				id: "queue-button",
-				textContent: "Queue Prompt",
+				textContent: i18next.t("ui.queue_btn"),
 				onclick: () => app.queuePrompt(0, this.batchCount),
 			}),
 			$el("div", {}, [
-				$el("label", {innerHTML: "Extra options"}, [
+				$el("label", { innerHTML: i18next.t("ui.extra_options") }, [
 					$el("input", {
 						type: "checkbox",
 						onchange: (i) => {
@@ -590,14 +616,14 @@ export class ComfyUI {
 					}),
 				]),
 			]),
-			$el("div", {id: "extraOptions", style: {width: "100%", display: "none"}}, [
-				$el("label", {innerHTML: "Batch count"}, [
+			$el("div", { id: "extraOptions", style: { width: "100%", display: "none" } }, [
+				$el("label", { innerHTML: "Batch count" }, [
 					$el("input", {
 						id: "batchCountInputNumber",
 						type: "number",
 						value: this.batchCount,
 						min: "1",
-						style: {width: "35%", "margin-left": "0.4em"},
+						style: { width: "35%", "margin-left": "0.4em" },
 						oninput: (i) => {
 							this.batchCount = i.target.value;
 							document.getElementById("batchCountInputRange").value = this.batchCount;
@@ -625,13 +651,13 @@ export class ComfyUI {
 			$el("div.comfy-menu-btns", [
 				$el("button", {
 					id: "queue-front-button",
-					textContent: "Queue Front",
+					textContent: i18next.t("ui.queue_front_btn"),
 					onclick: () => app.queuePrompt(-1, this.batchCount)
 				}),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
 					id: "comfy-view-queue-button",
-					textContent: "View Queue",
+					textContent: i18next.t("ui.view_queue_btn"),
 					onclick: () => {
 						this.history.hide();
 						this.queue.toggle();
@@ -640,7 +666,7 @@ export class ComfyUI {
 				$el("button", {
 					$: (b) => (this.history.button = b),
 					id: "comfy-view-history-button",
-					textContent: "View History",
+					textContent: i18next.t("ui.view_history_btn"),
 					onclick: () => {
 						this.queue.hide();
 						this.history.toggle();
@@ -651,7 +677,7 @@ export class ComfyUI {
 			this.history.element,
 			$el("button", {
 				id: "comfy-save-button",
-				textContent: "Save",
+				textContent: i18next.t("ui.save_btn"),
 				onclick: () => {
 					let filename = "workflow.json";
 					if (promptFilename.value) {
@@ -662,12 +688,12 @@ export class ComfyUI {
 						}
 					}
 					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
-					const blob = new Blob([json], {type: "application/json"});
+					const blob = new Blob([json], { type: "application/json" });
 					const url = URL.createObjectURL(blob);
 					const a = $el("a", {
 						href: url,
 						download: filename,
-						style: {display: "none"},
+						style: { display: "none" },
 						parent: document.body,
 					});
 					a.click();
@@ -680,7 +706,7 @@ export class ComfyUI {
 			$el("button", {
 				id: "comfy-dev-save-api-button",
 				textContent: "Save (API Format)",
-				style: {width: "100%", display: "none"},
+				style: { width: "100%", display: "none" },
 				onclick: () => {
 					let filename = "workflow_api.json";
 					if (promptFilename.value) {
@@ -690,14 +716,14 @@ export class ComfyUI {
 							filename += ".json";
 						}
 					}
-					app.graphToPrompt().then(p=>{
+					app.graphToPrompt().then(p => {
 						const json = JSON.stringify(p.output, null, 2); // convert the data to a JSON string
-						const blob = new Blob([json], {type: "application/json"});
+						const blob = new Blob([json], { type: "application/json" });
 						const url = URL.createObjectURL(blob);
 						const a = $el("a", {
 							href: url,
 							download: filename,
-							style: {display: "none"},
+							style: { display: "none" },
 							parent: document.body,
 						});
 						a.click();
@@ -708,15 +734,15 @@ export class ComfyUI {
 					});
 				},
 			}),
-			$el("button", {id: "comfy-load-button", textContent: "Load", onclick: () => fileInput.click()}),
+			$el("button", { id: "comfy-load-button", textContent: i18next.t("ui.load_btn"), onclick: () => fileInput.click() }),
 			$el("button", {
 				id: "comfy-refresh-button",
-				textContent: "Refresh",
+				textContent: i18next.t("ui.refresh_btn"),
 				onclick: () => app.refreshComboInNodes()
 			}),
-			$el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
+			$el("button", { id: "comfy-clipspace-button", textContent: i18next.t("ui.clipspace_btn"), onclick: () => app.openClipspace() }),
 			$el("button", {
-				id: "comfy-clear-button", textContent: "Clear", onclick: () => {
+				id: "comfy-clear-button", textContent: i18next.t("ui.clear_btn"), onclick: () => {
 					if (!confirmClear.value || confirm("Clear workflow?")) {
 						app.clean();
 						app.graph.clear();
@@ -724,7 +750,7 @@ export class ComfyUI {
 				}
 			}),
 			$el("button", {
-				id: "comfy-load-default-button", textContent: "Load Default", onclick: () => {
+				id: "comfy-load-default-button", textContent: i18next.t("ui.load_default_btn"), onclick: () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
 						app.loadGraphData()
 					}
@@ -737,16 +763,16 @@ export class ComfyUI {
 			name: "Enable Dev mode Options",
 			type: "boolean",
 			defaultValue: false,
-			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
+			onChange: function (value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none" },
 		});
 
 		dragElement(this.menuContainer, this.settings);
 
-		this.setStatus({exec_info: {queue_remaining: "X"}});
+		this.setStatus({ exec_info: { queue_remaining: "X" } });
 	}
 
 	setStatus(status) {
-		this.queueSize.textContent = "Queue size: " + (status ? status.exec_info.queue_remaining : "ERR");
+		this.queueSize.textContent = i18next.t("ui.queue_size") + (status ? status.exec_info.queue_remaining : "ERR");
 		if (status) {
 			if (
 				this.lastQueueSize != 0 &&

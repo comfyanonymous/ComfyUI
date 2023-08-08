@@ -9835,7 +9835,11 @@ LGraphNode.prototype.executeAction = function(action)
                         ctx.textAlign = "center";
                         ctx.fillStyle = text_color;
                         ctx.fillText(
-                            w.label || w.name + "  " + Number(w.value).toFixed(3),
+                            w.label || w.name + "  " + Number(w.value).toFixed(
+                                                            w.options.precision != null
+                                                                ? w.options.precision
+                                                                : 3
+                                                        ),
                             widget_width * 0.5,
                             y + H * 0.7
                         );
@@ -12518,7 +12522,7 @@ LGraphNode.prototype.executeAction = function(action)
 			panel.content.innerHTML = ""; //clear
 			panel.addHTML("<span class='node_type'>"+node.type+"</span><span class='node_desc'>"+(node.constructor.desc || "")+"</span><span class='separator'></span>");
 
-			panel.addHTML("<h3>Properties</h3>");
+			panel.addHTML(`<h3>${i18next.t("ui.node_panel.header.properties")}</h3>`);
 
             var fUpdate = function(name,value){
                             graphcanvas.graph.beforeChange(node);
@@ -12550,16 +12554,16 @@ LGraphNode.prototype.executeAction = function(action)
                             graphcanvas.dirty_canvas = true;
                         };
             
-            panel.addWidget( "string", "Title", node.title, {}, fUpdate);
+            panel.addWidget( "string", i18next.t("ui.node_panel.header.title"), node.title, {}, fUpdate);
             
-            panel.addWidget( "combo", "Mode", LiteGraph.NODE_MODES[node.mode], {values: LiteGraph.NODE_MODES}, fUpdate);
+            panel.addWidget( "combo", i18next.t("ui.node_panel.header.mode"), LiteGraph.NODE_MODES[node.mode], {values: LiteGraph.NODE_MODES}, fUpdate);
             
             var nodeCol = "";
             if (node.color !== undefined){
                 nodeCol = Object.keys(LGraphCanvas.node_colors).filter(function(nK){ return LGraphCanvas.node_colors[nK].color == node.color; });
             }
             
-            panel.addWidget( "combo", "Color", nodeCol, {values: Object.keys(LGraphCanvas.node_colors)}, fUpdate);
+            panel.addWidget( "combo", i18next.t("ui.node_panel.header.color"), nodeCol, {values: Object.keys(LGraphCanvas.node_colors)}, fUpdate);
             
             for(var pName in node.properties)
 			{
@@ -13835,7 +13839,7 @@ LGraphNode.prototype.executeAction = function(action)
         if (!disabled) {
             element.addEventListener("click", inner_onclick);
         }
-        if (options.autoopen) {
+        if (!disabled && options.autoopen) {
 			LiteGraph.pointerListenerAdd(element,"enter",inner_over);
         }
 
