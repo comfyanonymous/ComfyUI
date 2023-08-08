@@ -1455,7 +1455,7 @@ class ImageAlphaComposite:
         mask1[0, :, :, 2] = mask
         
         print(image1.size(), mask1.size())
-        image = image1 * mask1 + image2 * (torch.ones_like(mask) - mask)
+        image = image1 * mask1 + image2 * (torch.ones_like(mask1) - mask1)
         return (image,)
 
 class ImageScaleBy:
