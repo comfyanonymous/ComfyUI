@@ -9,6 +9,7 @@ import urllib.parse
 from PIL import Image
 import base64
 import io
+import os
 
 from custom_scripts_for_nodes.Rainbow import extract_rainbow
 
@@ -68,19 +69,47 @@ def run_prompt(job):
     data = {'images':[],'rainbow':"None"}
     
     #Inferring from the Rainbow Script
-    image_string = job['input']['image_string']
+    image_string = job['input']['image_string_lama']
+    mask_string = job['input']['mask_string_lama']
     prompt_text = job["input"]["prompt"]
     
-    if image_string != 'None': 
+    if image_string != 'None' and mask_string != 'None':
+        print("Running this part")
         # Decode the base64 string into bytes
         decoded_bytes = base64.b64decode(image_string)
         # Convert the bytes to an in-memory file-like object using io.BytesIO
         image_data = io.BytesIO(decoded_bytes)
         image = Image.open(image_data)
-        rnbw = extract_rainbow()
-        rnbw_values = rnbw.main(image)
+        image.save("./lama-with-refiner/input/image.png")
         
-        data['rainbow'] = rnbw_values
+        # Decode the base64 string into bytes
+        mask_decoded_bytes = base64.b64decode(mask_string)
+        # Convert the bytes to an in-memory file-like object using io.BytesIO
+        mask_data = io.BytesIO(mask_decoded_bytes)
+        mask = Image.open(mask_data)
+        mask.save("./lama-with-refiner/input/image_mask.png")
+        
+        
+        new_working_directory = "./lama-with-refiner"
+        os.chdir(new_working_directory)
+        cmd = "python3 bin/predict.py model.path=$(pwd)/big-lama indir=$(pwd)/LaMa_test_images outdir=$(pwd)/output"
+        os.system(cmd)
+        
+        new_working_directory = "../"
+        os.chdir(new_working_directory)
+    
+    
+    #NOTE This is for the Rainbow Script Will be updating it later
+    # if image_string != 'None': 
+    #     # Decode the base64 string into bytes
+    #     decoded_bytes = base64.b64decode(image_string)
+    #     # Convert the bytes to an in-memory file-like object using io.BytesIO
+    #     image_data = io.BytesIO(decoded_bytes)
+    #     image = Image.open(image_data)
+    #     rnbw = extract_rainbow()
+    #     rnbw_values = rnbw.main(image)
+        
+    #     data['rainbow'] = rnbw_values
     
     if prompt_text != "None":
         prompt = prompt_text
