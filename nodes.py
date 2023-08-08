@@ -1439,19 +1439,19 @@ class ImageAlphaComposite:
     def INPUT_TYPES(s):
         return {"required": { "image1": ("IMAGE",),
                              "mask1": ("MASK",),
-                             "image2": ("IMAGE",),
-                             "mask2": ("MASK", {"default": None}),
+                             "image2": ("IMAGE",)),
                              }
                }
 
     CATEGORY = "image"
 
-    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_TYPES = ("IMAGE",)
     FUNCTION = "alpha_composite"
-    def alpha_composite(self, image1, mask1, image2, mask2):
+    def alpha_composite(self, image1, mask1, image2):
+        mask1 = mask1.repeat((1, 1, 1, 3))
         print(image1.size(), mask1.size())
         image = image1 * mask1
-        return (image, mask1)
+        return (image,)
 
 class ImageScaleBy:
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
