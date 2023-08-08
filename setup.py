@@ -159,7 +159,7 @@ def dependencies() -> [str]:
     return _dependencies
 
 
-package_data = ['sd1_tokenizer/*', '**/*.json']
+package_data = ['sd1_tokenizer/*', '**/*.json', '**/*.yaml']
 if not is_editable:
     package_data.append('web/**/*')
 setup(
