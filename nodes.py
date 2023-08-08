@@ -1332,7 +1332,7 @@ class LoadImage:
 
     CATEGORY = "image"
 
-    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_TYPES = ("IMAGE", "MASK", "IMAGE")
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
@@ -1341,12 +1341,21 @@ class LoadImage:
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
+
+        smooth_image = image.copy()
         if 'A' in i.getbands():
             mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-            mask = 1. - torch.from_numpy(mask)
+            mask = torch.from_numpy(mask)
+            
+            mask1 = torch.ones_like(image)
+            mask1[0, :, :, 0] = mask
+            mask1[0, :, :, 1] = mask
+            mask1[0, :, :, 2] = mask
+            smooth_image = smooth_image * mask
+            mask = 1.0 - mask
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (image, mask)
+        return (image, mask, smooth_image)
 
     @classmethod
     def IS_CHANGED(s, image):
