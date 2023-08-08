@@ -1434,6 +1434,25 @@ class ImageScale:
         s = s.movedim(1,-1)
         return (s,)
 
+class ImageAlphaComposite:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image1": ("IMAGE",),
+                             "mask1": ("MASK",),
+                             "image2": ("IMAGE",),
+                             "mask2": ("MASK", {"default": None}),
+                             }
+
+    CATEGORY = "image"
+
+    RETURN_TYPES = ("IMAGE", "MASK")
+    FUNCTION = "alpha_composite"
+    def alpha_composite(self, image1, mask1, image2, mask2):
+        if not mask2:
+            mask2 = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+        image = image1 * mask1 + image2 * (1.0 - mask1)
+        return (image, mask1)
+
 class ImageScaleBy:
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
 
