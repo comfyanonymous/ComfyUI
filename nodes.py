@@ -1351,7 +1351,7 @@ class LoadImage:
             mask1[0, :, :, 0] = mask
             mask1[0, :, :, 1] = mask
             mask1[0, :, :, 2] = mask
-            smooth_image = smooth_image * mask
+            smooth_image = smooth_image * mask1
             mask = 1.0 - mask
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
