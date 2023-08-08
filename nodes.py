@@ -1342,7 +1342,7 @@ class LoadImage:
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
 
-        smooth_image = image.copy()
+        smooth_image = image.detach().clone()
         if 'A' in i.getbands():
             mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
             mask = torch.from_numpy(mask)
