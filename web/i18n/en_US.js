@@ -78,6 +78,7 @@ export default {
         "node.title.VAEDecodeTiled": "VAE Decode (Tiled)",
         "node.title.VAEEncodeTiled": "VAE Encode (Tiled)",
 
+        "node.input.CheckpointLoaderSimple.ckpt_name": "ckpt_name",
         "node.input.SaveImage.filename_prefix": "filename_prefix",
         "node.input.SaveImage.images": "images",
 

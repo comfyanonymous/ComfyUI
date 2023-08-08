@@ -78,6 +78,7 @@ export default {
         "node.title.VAEDecodeTiled": "VAE Decode (Tiled)",
         "node.title.VAEEncodeTiled": "VAE Encode (Tiled)",
 
+        "node.input.CheckpointLoaderSimple.ckpt_name": "模型文件",
         "node.input.SaveImage.filename_prefix": "文件名前缀",
         "node.input.SaveImage.images": "图片",
 
