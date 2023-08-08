@@ -345,6 +345,11 @@ class PromptServer():
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
             system_stats = {
+                "system": {
+                    "os": os.name,
+                    "python_version": sys.version,
+                    "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded"
+                },
                 "devices": [
                     {
                         "name": device_name,

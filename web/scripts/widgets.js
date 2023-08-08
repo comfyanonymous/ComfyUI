@@ -267,7 +267,6 @@ export const ComfyWidgets = {
 		return { widget: node.addWidget(widgetType, inputName, val, () => {}, config) };
 	},
 	INT(node, inputName, inputData, app) {
-		console.log(app);
 		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 1);
 		Object.assign(config, { precision: 0 });
