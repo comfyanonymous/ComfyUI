@@ -2,6 +2,8 @@ from __future__ import annotations
 import asyncio
 import glob
 import struct
+import sys
+
 from PIL import Image, ImageOps
 from io import BytesIO
 
