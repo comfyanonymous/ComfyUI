@@ -1,0 +1,3 @@
+[submodule "lama-with-refiner"]
+	path = lama-with-refiner
+	url = https://github.com/Sharda-Tech/lama-with-refiner
