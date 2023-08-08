@@ -1449,8 +1449,6 @@ class ImageAlphaComposite:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "alpha_composite"
     def alpha_composite(self, image1, mask1, image2, mask2):
-        if not mask2:
-            mask2 = torch.zeros((64,64), dtype=torch.float32, device="cpu")
         image = image1 * mask1 + image2 * (1.0 - mask1)
         return (image, mask1)
 
