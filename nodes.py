@@ -1448,15 +1448,12 @@ class ImageAlphaComposite:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "alpha_composite"
     def alpha_composite(self, image1, mask, image2):
-        # image1 = torch.nn.functional.interpolate(mask[None, None], size=(source.shape[2], source.shape[3]), mode="bilinear")
-        
         mask1 = torch.ones_like(image1)
         mask1[0, :, :, 0] = mask
         mask1[0, :, :, 1] = mask
         mask1[0, :, :, 2] = mask
         
-        print(image1.size(), mask1.size())
-        image = image1 * (torch.ones_like(mask1) - mask1)
+        image = image1 * (torch.ones_like(mask1) - mask1) + image2 * mask1
         return (image,)
 
 class ImageScaleBy:
