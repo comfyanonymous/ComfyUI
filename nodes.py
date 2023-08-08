@@ -1442,6 +1442,7 @@ class ImageAlphaComposite:
                              "image2": ("IMAGE",),
                              "mask2": ("MASK", {"default": None}),
                              }
+               }
 
     CATEGORY = "image"
 
