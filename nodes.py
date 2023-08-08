@@ -1439,7 +1439,7 @@ class ImageAlphaComposite:
     def INPUT_TYPES(s):
         return {"required": { "image1": ("IMAGE",),
                              "mask1": ("MASK",),
-                             "image2": ("IMAGE",)),
+                             "image2": ("IMAGE",)
                              }
                }
 
