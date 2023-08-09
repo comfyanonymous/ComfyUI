@@ -75,6 +75,7 @@ def run_prompt(job):
     image_string = job['input']['image_string_lama']
     mask_string = job['input']['mask_string_lama']
     prompt_text = job["input"]["prompt"]
+    rainbow = job["input"]["rainbow"]
     
     if image_string != 'None' and mask_string != 'None':
         print("Running this part")
@@ -110,20 +111,6 @@ def run_prompt(job):
         data['lama'] = im_b64
         
         
-    
-    
-    #NOTE This is for the Rainbow Script Will be updating it later
-    # if image_string != 'None': 
-    #     # Decode the base64 string into bytes
-    #     decoded_bytes = base64.b64decode(image_string)
-    #     # Convert the bytes to an in-memory file-like object using io.BytesIO
-    #     image_data = io.BytesIO(decoded_bytes)
-    #     image = Image.open(image_data)
-    #     rnbw = extract_rainbow()
-    #     rnbw_values = rnbw.main(image)
-        
-    #     data['rainbow'] = rnbw_values
-    
     if prompt_text != "None":
         prompt = prompt_text
         ws = websocket.WebSocket()
@@ -134,6 +121,11 @@ def run_prompt(job):
         for node_id in images:
             for image_data in images[node_id]:
                 image = Image.open(io.BytesIO(image_data))
+                #NOTE This is for the Rainbow Script Will be updating it later
+                if rainbow != 'None': 
+                    rnbw = extract_rainbow()
+                    rnbw_values = rnbw.main(image)
+                    data['rainbow'] = rnbw_values
                 im_file = io.BytesIO()
                 image.save(im_file, format="JPEG")
                 im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
