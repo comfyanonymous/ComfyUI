@@ -11,6 +11,9 @@ import base64
 import io
 import os
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 from custom_scripts_for_nodes.Rainbow import extract_rainbow
 
 import runpod
