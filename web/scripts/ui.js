@@ -480,13 +480,13 @@ class ComfyList {
 			]),
 			$el("div.comfy-list-actions", [
 				$el("button", {
-					textContent: "Clear " + this.#text,
+					textContent: i18next.t("ui.list.clear.prefix") + this.#text,
 					onclick: async () => {
 						await api.clearItems(this.#type);
 						await this.load();
 					},
 				}),
-				$el("button", { textContent: "Refresh", onclick: () => this.load() }),
+				$el("button", { textContent: i18next.t("ui.refresh_btn"), onclick: () => this.load() }),
 			])
 		);
 	}
@@ -499,14 +499,14 @@ class ComfyList {
 
 	async show() {
 		this.element.style.display = "block";
-		this.button.textContent = "Close";
+		this.button.textContent = i18next.t("ui.close_btn");
 
 		await this.load();
 	}
 
 	hide() {
 		this.element.style.display = "none";
-		this.button.textContent = "View " + this.#text;
+		this.button.textContent = i18next.t("ui.list.view.prefix") + this.#text;
 	}
 
 	toggle() {
@@ -528,8 +528,8 @@ export class ComfyUI {
 
 		this.batchCount = 1;
 		this.lastQueueSize = 0;
-		this.queue = new ComfyList("Queue");
-		this.history = new ComfyList("History");
+		this.queue = new ComfyList(i18next.t("ui.list.queue"));
+		this.history = new ComfyList(i18next.t("ui.list.history"));
 
 		api.addEventListener("status", () => {
 			this.queue.update();
@@ -617,7 +617,7 @@ export class ComfyUI {
 				]),
 			]),
 			$el("div", { id: "extraOptions", style: { width: "100%", display: "none" } }, [
-				$el("label", { innerHTML: "Batch count" }, [
+				$el("label", { innerHTML: i18next.t("ui.extra.batch_count") }, [
 					$el("input", {
 						id: "batchCountInputNumber",
 						type: "number",

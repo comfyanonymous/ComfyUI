@@ -13,8 +13,13 @@ export default {
         "ui.close_btn": "关闭",
         "ui.queue_size": "队列数量: ",
         "ui.extra_options": "额外选项",
+        "ui.extra.batch_count": "批次数量",
 
         "ui.settings.title": "设置",
+        "ui.list.view.prefix": "查看",
+        "ui.list.clear.prefix": "清除",
+        "ui.list.queue": "队列",
+        "ui.list.history": "历史",
 
         "ui.canvas_menu_add_node": "添加节点",
         "ui.canvas_menu_add_group": "添加组",

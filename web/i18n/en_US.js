@@ -13,8 +13,13 @@ export default {
         "ui.close_btn": "Close",
         "ui.queue_size": "Queue size: ",
         "ui.extra_options": "Extra options",
+        "ui.extra.batch_count": "Batch count",
 
         "ui.settings.title": "Settings",
+        "ui.list.view.prefix": "View ",
+        "ui.list.clear.prefix": "Clear ",
+        "ui.list.queue": "Queue",
+        "ui.list.history": "History",
 
         "ui.canvas_menu_add_node": "Add Node",
         "ui.canvas_menu_add_group": "Add Group",
