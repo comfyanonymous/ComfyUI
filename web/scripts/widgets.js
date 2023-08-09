@@ -433,7 +433,7 @@ export const ComfyWidgets = {
 		// Add handler to check if an image is being dragged over our node
 		node.onDragOver = function (e) {
 			if (e.dataTransfer && e.dataTransfer.items) {
-				const image = [...e.dataTransfer.items].find((f) => f.kind === "file" && f.type.startsWith("image/"));
+				const image = [...e.dataTransfer.items].find((f) => f.kind === "file");
 				return !!image;
 			}
 
