@@ -66,7 +66,7 @@ def get_images(ws, prompt):
 
 def run_prompt(job):
     
-    data = {'images':[],'rainbow':"None"}
+    data = {'images':[],'rainbow':"None",'lama':"None"}
     
     #Inferring from the Rainbow Script
     image_string = job['input']['image_string_lama']
@@ -97,6 +97,16 @@ def run_prompt(job):
         
         new_working_directory = "../"
         os.chdir(new_working_directory)
+        
+        image = Image.open('./lama-with-refiner/output/')
+        im_file = io.BytesIO()
+        image.save(im_file, format="JPEG")
+        im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
+        im_b64 = base64.b64encode(im_bytes)
+        im_b64 = str(im_b64) 
+        data['images'].append(im_b64)
+        
+        
     
     
     #NOTE This is for the Rainbow Script Will be updating it later
