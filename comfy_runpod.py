@@ -107,7 +107,7 @@ def run_prompt(job):
         im_bytes = im_file.getvalue()  # im_bytes: image in binary format.
         im_b64 = base64.b64encode(im_bytes)
         im_b64 = str(im_b64) 
-        data['lama'].append(im_b64)
+        data['lama'] = im_b64
         
         
     
