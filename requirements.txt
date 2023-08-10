@@ -9,3 +9,4 @@ pyyaml
 Pillow
 scipy
 tqdm
+psutil
