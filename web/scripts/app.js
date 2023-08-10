@@ -13,7 +13,7 @@ i18next.use(i18nextBrowserLanguageDetector).init({
 	resources: {
 		"en-US": en,
 		"en": en,
-		"zh_CN": cn,
+		"zh-CN": cn,
 		"cn": cn,
 	},
 })
