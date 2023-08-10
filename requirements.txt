@@ -12,3 +12,4 @@ piexif
 Pillow
 scipy
 tqdm
+psutil
