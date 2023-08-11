@@ -38,6 +38,7 @@ parser.add_argument("--port", type=int, default=8188, help="Set the listen port.
 parser.add_argument("--enable-cors-header", type=str, default=None, metavar="ORIGIN", nargs="?", const="*", help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
 parser.add_argument("--extra-model-paths-config", type=str, default=None, metavar="PATH", nargs='+', action='append', help="Load one or more extra_model_paths.yaml files.")
 parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory.")
+parser.add_argument("--temp-directory", type=str, default=None, help="Set the ComfyUI temp directory (default is in the ComfyUI directory).")
 parser.add_argument("--auto-launch", action="store_true", help="Automatically launch ComfyUI in the default browser.")
 parser.add_argument("--disable-auto-launch", action="store_true", help="Disable auto launching the browser.")
 parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID", help="Set the id of the cuda device this instance will use.")
