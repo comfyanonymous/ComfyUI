@@ -43,6 +43,10 @@ def set_output_directory(output_dir):
     global output_directory
     output_directory = output_dir
 
+def set_temp_directory(temp_dir):
+    global temp_directory
+    temp_directory = temp_dir
+
 def get_output_directory():
     global output_directory
     return output_directory
