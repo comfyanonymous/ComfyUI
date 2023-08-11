@@ -7,12 +7,14 @@ import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
 import en from "../i18n/en_US.js"
 import cn from "../i18n/zh_CN.js"
+import tw from "../i18n/zh_TW.js"
 
 i18next.use(i18nextBrowserLanguageDetector).init({
 	fallbackLng: 'en',
 	resources: {
-		"en-US": en,
+		"en-US": cn,
 		"en": en,
+		"zh-TW": tw,
 		"zh-CN": cn,
 		"cn": cn,
 	},
