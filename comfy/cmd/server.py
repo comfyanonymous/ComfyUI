@@ -3,6 +3,7 @@ import asyncio
 import glob
 import struct
 import sys
+import shutil
 
 from PIL import Image, ImageOps
 from io import BytesIO
@@ -560,9 +561,15 @@ class PromptServer():
 
             content_digest = digest(prompt_dict)
             cache_path = os.path.join(user_data_dir("comfyui", "comfyanonymous", roaming=False), content_digest)
+            cache_url = f"/api/v1/images/{content_digest}"
+
             if os.path.exists(cache_path):
-                return web.FileResponse(path=cache_path,
-                                        headers={"Content-Disposition": f"filename=\"{content_digest}.png\""})
+                return web.Response(status=200,
+                                    headers={
+                                        "Digest": f"SHA-256={content_digest}",
+                                        "Location": f"/api/v1/images/{content_digest}",
+                                    },
+                                    body=json.dumps({'urls': [cache_url]}))
 
             # todo: check that the files specified in the InputFile nodes exist
 
@@ -591,29 +598,25 @@ class PromptServer():
                     'ui']:
                     images = node['ui']['images']
                 for image_tuple in images:
-                    subfolder_ = image_tuple['subfolder']
-                    filename_ = image_tuple['filename']
-                    output_images.append(PromptServer.get_output_path(subfolder=subfolder_, filename=filename_))
+                    filename_ = image_tuple['abs_path']
+                    output_images.append(filename_)
 
             if len(output_images) > 0:
                 image_ = output_images[-1]
                 if not os.path.exists(os.path.dirname(cache_path)):
-                    os.makedirs(os.path.dirname(cache_path))
-                os.symlink(image_, cache_path)
-                cache_url = "/api/v1/images/{content_digest}"
+                    try:
+                        os.makedirs(os.path.dirname(cache_path))
+                    except:
+                        pass
+                shutil.copy(image_, cache_path)
                 filename = os.path.basename(image_)
-                if 'Accept' in request.headers and request.headers['Accept'] == 'text/uri-list':
-                    res = web.Response(status=200, text=f"""
-                    {cache_url}
-                    http://{self.address}:{self.port}/view?filename={filename}&type=output
-                    """)
-                else:
-                    res = web.FileResponse(path=image_,
-                                           headers={
-                                               "Digest": f"SHA-256={content_digest}",
-                                               "Location": f"/api/v1/images/{content_digest}",
-                                               "Content-Disposition": f"filename=\"{filename}\""})
-                return res
+                comfyui_url = f"http://{self.address}:{self.port}/view?filename={filename}&type=output"
+                return web.Response(status=200,
+                                    headers={
+                                        "Digest": f"SHA-256={content_digest}",
+                                        "Location": f"/api/v1/images/{content_digest}",
+                                        "Content-Disposition": f"filename=\"{filename}\""},
+                                    body=json.dumps({'urls': [cache_url, comfyui_url]}))
             else:
                 return web.Response(status=204)
 

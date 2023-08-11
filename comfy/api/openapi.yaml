@@ -328,12 +328,12 @@ paths:
               schema:
                 type: string
           description: |
-            The binary content of the last SaveImage node.
+            The content of the last SaveImage node.
           content:
-            text/uri-list:
+            application/json:
               schema:
                 description: |
-                  The URI to retrieve the binary content of the image.
+                  A list of URLs to retrieve the binary content of the image.
                   
                   This will return two URLs. The first is the ordinary ComfyUI view image URL that exactly corresponds
                   to the UI call. The second is the URL that corresponds to sha256 hash of the request body.
@@ -387,15 +387,14 @@ paths:
                     return hash_object.hexdigest()
                   
                   ```
-                type: string
-                example: |
-                  /api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
-                  http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output
-            image/png:
-              schema:
-                description: The PNG binary content.
-                type: string
-                format: binary
+                type: object
+                properties:
+                  urls:
+                    type: array
+                    items:
+                      type: string
+                example:
+                  uris: [ "/api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3", "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output" ]
         204:
           description: |
             The prompt was run but did not contain any SaveImage outputs, so nothing will be returned.
