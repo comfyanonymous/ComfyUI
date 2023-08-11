@@ -111,6 +111,8 @@ def add_model_folder_path(folder_name, full_folder_path):
     global folder_names_and_paths
     if folder_name in folder_names_and_paths:
         folder_names_and_paths[folder_name][0].append(full_folder_path)
+    else:
+        folder_names_and_paths[folder_name] = ([full_folder_path], set())
 
 def get_folder_paths(folder_name):
     return folder_names_and_paths[folder_name][0][:]
