@@ -117,8 +117,7 @@ export default {
         "node.title.LoadLatent": "加载隐空间",
         "node.title.SaveLatent": "保存隐空间",
         "node.title.ConditioningZeroOut": "调节ZeroOut",
-        "node.title.ConditioningSetTimestepRange":
-            "ConditioningSetTimestepRange",
+        "node.title.ConditioningSetTimestepRange": "ConditioningSetTimestepRange",
 
         "node.input.text": "文本",
         "node.input.clip": "clip",
@@ -207,6 +206,22 @@ export default {
         "node.input.control_after_generate": "control_after_generate",
         "node.input.low_threshold": "低门槛",
         "node.input.high_threshold": "高门槛",
+        "node.input.model_name": "模型名称",
+        "node.input.ascore": "ascore",
+        "node.input.crop_w": "crop_w",
+        "node.input.crop_h": "crop_h",
+        "node.input.target_width": "target_width",
+        "node.input.target_height": "target_height",
+        "node.input.text_g": "text_g",
+        "node.input.text_l": "text_l",
+        "node.input.ratio": "ratio",
+        "node.input.model1": "模型1",
+        "node.input.model2": "模型2",
+        "node.input.clip1": "clip1",
+        "node.input.clip2": "clip2",
+        "node.input.input": "input",
+        "node.input.middle": "middle",
+        "node.input.out": "out",
 
         "node.output.CONDITIONING": "CONDITIONING",
         "node.output.IMAGE": "图像",
@@ -220,6 +235,7 @@ export default {
         "node.output.STYLE_MODEL": "STYLE_MODEL",
         "node.output.GLIGEN": "GLIGEN",
         "node.output.MASK": "遮罩",
+        "node.output.UPSCALE_MODEL": "UPSCALE_MODEL",
 
         "category.conditioning": "可调参数",
         "category.loaders": "加载器",
@@ -244,8 +260,7 @@ export default {
 
         "settings.Comfy.ConfirmClear": "清空工作流需要确认",
         "settings.Comfy.PromptFilename": "把工作流保存成文件",
-        "settings.Comfy.PreviewFormat":
-            "预览图格式和压缩尺寸, e.g. webp, jpeg, webp;50, etc.",
+        "settings.Comfy.PreviewFormat": "预览图格式和压缩尺寸, e.g. webp, jpeg, webp;50, etc.",
         "settings.Comfy.DisableSliders": "禁用滑动条",
         "settings.Comfy.DevMode": "启用开发模式",
         "settings.Comfy.ColorPalette": "主题",
