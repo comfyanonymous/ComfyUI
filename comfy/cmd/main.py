@@ -125,6 +125,10 @@ def load_extra_path_config(yaml_path):
 
 
 def main():
+    if args.temp_directory:
+        temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
+        print(f"Setting temp directory to: {temp_dir}")
+        folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
     loop = asyncio.new_event_loop()
