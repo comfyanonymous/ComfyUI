@@ -189,12 +189,13 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     continue
 
                 to_run += [(p, COND)]
-            for x in uncond:
-                p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
-                if p is None:
-                    continue
+            if uncond is not None:
+                for x in uncond:
+                    p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
+                    if p is None:
+                        continue
 
-                to_run += [(p, UNCOND)]
+                    to_run += [(p, UNCOND)]
 
             while len(to_run) > 0:
                 first = to_run[0]
@@ -282,6 +283,9 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
 
         max_total_area = model_management.maximum_batch_area()
+        if math.isclose(cond_scale, 1.0):
+            uncond = None
+
         cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
         if "sampler_cfg_function" in model_options:
             args = {"cond": cond, "uncond": uncond, "cond_scale": cond_scale, "timestep": timestep}
