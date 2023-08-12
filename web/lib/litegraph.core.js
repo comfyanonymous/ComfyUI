@@ -9766,6 +9766,7 @@ LGraphNode.prototype.executeAction = function(action)
 
             switch (w.type) {
                 case "button":
+                    ctx.fillStyle = background_color;
                     if (w.clicked) {
                         ctx.fillStyle = "#AAA";
                         w.clicked = false;
