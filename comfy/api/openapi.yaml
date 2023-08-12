@@ -504,68 +504,67 @@ components:
       type: object
       example: {
         "3": {
-          "class_type": "KSampler",
           "inputs": {
-            "cfg": 8,
+            "seed": 732984013877771,
+            "steps": 25,
+            "cfg": 100,
+            "sampler_name": "euler_ancestral",
+            "scheduler": "normal",
             "denoise": 1,
-            "latent_image": [
-              "5",
-              0
-            ],
             "model": [
-              "4",
-              0
-            ],
-            "negative": [
-              "7",
+              "10",
               0
             ],
             "positive": [
               "6",
               0
             ],
-            "sampler_name": "euler",
-            "scheduler": "normal",
-            "seed": 8566257,
-            "steps": 20
-          }
+            "negative": [
+              "7",
+              0
+            ],
+            "latent_image": [
+              "5",
+              0
+            ]
+          },
+          "class_type": "KSampler"
         },
         "4": {
-          "class_type": "CheckpointLoaderSimple",
           "inputs": {
-            "ckpt_name": "v1-5-pruned-emaonly.ckpt"
-          }
+            "ckpt_name": "sd_xl_base_1.0.safetensors"
+          },
+          "class_type": "CheckpointLoaderSimple"
         },
         "5": {
-          "class_type": "EmptyLatentImage",
           "inputs": {
-            "batch_size": 1,
+            "width": 512,
             "height": 512,
-            "width": 512
-          }
+            "batch_size": 1
+          },
+          "class_type": "EmptyLatentImage"
         },
         "6": {
-          "class_type": "CLIPTextEncode",
           "inputs": {
+            "text": "$POSITIVE_TEXT",
             "clip": [
-              "4",
+              "10",
               1
-            ],
-            "text": "masterpiece best quality girl"
-          }
+            ]
+          },
+          "class_type": "CLIPTextEncode"
         },
         "7": {
-          "class_type": "CLIPTextEncode",
           "inputs": {
+            "text": "$NEGATIVE_TEXT",
             "clip": [
-              "4",
+              "10",
               1
-            ],
-            "text": "bad hands"
-          }
+            ]
+          },
+          "class_type": "CLIPTextEncode"
         },
         "8": {
-          "class_type": "VAEDecode",
           "inputs": {
             "samples": [
               "3",
@@ -575,17 +574,107 @@ components:
               "4",
               2
             ]
-          }
+          },
+          "class_type": "VAEDecode"
         },
-        "9": {
-          "class_type": "SaveImage",
+        "10": {
           "inputs": {
-            "filename_prefix": "ComfyUI",
+            "lora_name": "pixel-art-xl-v1.1.safetensors",
+            "strength_model": 1,
+            "strength_clip": 1,
+            "model": [
+              "4",
+              0
+            ],
+            "clip": [
+              "4",
+              1
+            ]
+          },
+          "class_type": "LoraLoader"
+        },
+        "15": {
+          "inputs": {
+            "images": [
+              "26",
+              0
+            ]
+          },
+          "class_type": "PreviewImage"
+        },
+        "16": {
+          "inputs": {
             "images": [
               "8",
               0
             ]
-          }
+          },
+          "class_type": "PreviewImage"
+        },
+        "18": {
+          "inputs": {
+            "upscale_method": "nearest-exact",
+            "scale_by": 0.125,
+            "image": [
+              "8",
+              0
+            ]
+          },
+          "class_type": "ImageScaleBy"
+        },
+        "19": {
+          "inputs": {
+            "threshold": 250,
+            "mask": [
+              "21",
+              0
+            ]
+          },
+          "class_type": "BinarizeMask"
+        },
+        "21": {
+          "inputs": {
+            "model": "u2net",
+            "image": [
+              "18",
+              0
+            ]
+          },
+          "class_type": "ImageEstimateForegroundMask"
+        },
+        "25": {
+          "inputs": {
+            "upscale_method": "nearest-exact",
+            "scale_by": 8,
+            "image": [
+              "26",
+              0
+            ]
+          },
+          "class_type": "ImageScaleBy"
+        },
+        "26": {
+          "inputs": {
+            "image": [
+              "18",
+              0
+            ],
+            "mask": [
+              "19",
+              0
+            ]
+          },
+          "class_type": "ImageCutout"
+        },
+        "27": {
+          "inputs": {
+            "filename_prefix": "Downscale",
+            "images": [
+              "25",
+              0
+            ]
+          },
+          "class_type": "SaveImage"
         }
       }
       description: |
