@@ -83,7 +83,7 @@ class InversionDemoLazySwitch:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "switch": ("BOOL",),
+                "switch": ("BOOLEAN",),
                 "on_false": ("*", {"lazy": True}),
                 "on_true": ("*", {"lazy": True}),
             },
@@ -113,12 +113,12 @@ class InversionDemoLazyConditional:
     def INPUT_TYPES(cls):
         args = {
             "value1": ("*", {"lazy": True}),
-            "condition1": ("BOOL", {"forceInput": True}),
+            "condition1": ("BOOLEAN", {"forceInput": True}),
         }
 
         for i in range(1,NUM_IF_ELSE_NODES):
             args["value%d" % (i + 1)] = ("*", {"lazy": True})
-            args["condition%d" % (i + 1)] = ("BOOL", {"lazy": True, "forceInput": True})
+            args["condition%d" % (i + 1)] = ("BOOLEAN", {"lazy": True, "forceInput": True})
 
         args["else"] = ("*", {"lazy": True})
 

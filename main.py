@@ -100,7 +100,7 @@ def hijack_progress(server):
 
 
 def cleanup_temp():
-    temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+    temp_dir = folder_paths.get_temp_directory()
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -127,6 +127,10 @@ def load_extra_path_config(yaml_path):
 
 
 if __name__ == "__main__":
+    if args.temp_directory:
+        temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
+        print(f"Setting temp directory to: {temp_dir}")
+        folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
     loop = asyncio.new_event_loop()
@@ -160,6 +164,8 @@ if __name__ == "__main__":
     if args.auto_launch:
         def startup_server(address, port):
             import webbrowser
+            if os.name == 'nt' and address == '0.0.0.0':
+                address = '127.0.0.1'
             webbrowser.open(f"http://{address}:{port}")
         call_on_start = startup_server
 

@@ -210,11 +210,14 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, dynpromp
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
     # check if node wants the lists
-    intput_is_list = False
+    input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
-        intput_is_list = obj.INPUT_IS_LIST
+        input_is_list = obj.INPUT_IS_LIST
 
-    max_len_input = max([len(x) for x in input_data_all.values()])
+    if len(input_data_all) == 0:
+        max_len_input = 0
+    else:
+        max_len_input = max([len(x) for x in input_data_all.values()])
      
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
@@ -224,7 +227,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, executi
         return d_new
     
     results = []
-    if intput_is_list:
+    if input_is_list:
         if allow_interrupt:
             nodes.before_node_execution()
         execution_block = None
@@ -240,6 +243,10 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, executi
             results.append(getattr(obj, func)(**input_data_all))
         else:
             results.append(execution_block)
+    elif max_len_input == 0:
+        if allow_interrupt:
+            nodes.before_node_execution()
+        results.append(getattr(obj, func)())
     else: 
         for i in range(max_len_input):
             if allow_interrupt:
@@ -744,7 +751,7 @@ def validate_inputs(prompt, item, validated):
                 if type_input == "STRING":
                     val = str(val)
                     inputs[x] = val
-                if type_input == "BOOL":
+                if type_input == "BOOLEAN":
                     val = bool(val)
                     inputs[x] = val
             except Exception as ex:

@@ -9,7 +9,7 @@ class WhileLoopOpen:
     def INPUT_TYPES(cls):
         inputs = {
             "required": {
-                "condition": ("BOOL", {"default": True}),
+                "condition": ("BOOLEAN", {"default": True}),
             },
             "optional": {
             },
@@ -39,7 +39,7 @@ class WhileLoopClose:
         inputs = {
             "required": {
                 "flow_control": ("FLOW_CONTROL", {"rawLink": True}),
-                "condition": ("BOOL", {"forceInput": True}),
+                "condition": ("BOOLEAN", {"forceInput": True}),
             },
             "optional": {
             },
@@ -135,8 +135,8 @@ class ExecutionBlockerNode:
         inputs = {
             "required": {
                 "input": ("*",),
-                "block": ("BOOL",),
-                "verbose": ("BOOL", {"default": False}),
+                "block": ("BOOLEAN",),
+                "verbose": ("BOOLEAN", {"default": False}),
             },
         }
         return inputs

@@ -364,6 +364,7 @@ def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
+        #NOTE: on a Ryzen 5 7600X with 4080 it's faster to shift to GPU
         if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
             return get_torch_device()
         else:
@@ -534,7 +535,7 @@ def should_use_fp16(device=None, model_params=0):
         return False
 
     #FP16 is just broken on these cards
-    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600", "MX550", "MX450"]
+    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600", "MX550", "MX450", "CMP 30HX"]
     for x in nvidia_16_series:
         if x in props.name:
             return False

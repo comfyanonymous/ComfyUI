@@ -15,7 +15,7 @@ class IntConditions:
             },
         }
 
-    RETURN_TYPES = ("BOOL",)
+    RETURN_TYPES = ("BOOLEAN",)
     FUNCTION = "int_condition"
 
     CATEGORY = "InversionDemo Nodes/Logic"
@@ -49,7 +49,7 @@ class FloatConditions:
             },
         }
 
-    RETURN_TYPES = ("BOOL",)
+    RETURN_TYPES = ("BOOLEAN",)
     FUNCTION = "float_condition"
 
     CATEGORY = "InversionDemo Nodes/Logic"
@@ -79,11 +79,11 @@ class StringConditions:
                 "a": ("STRING", {"multiline": False}),
                 "b": ("STRING", {"multiline": False}),
                 "operation": (["a == b", "a != b", "a IN b", "a MATCH REGEX(b)", "a BEGINSWITH b", "a ENDSWITH b"],),
-                "case_sensitive": ("BOOL", {"default": True}),
+                "case_sensitive": ("BOOLEAN", {"default": True}),
             },
         }
 
-    RETURN_TYPES = ("BOOL",)
+    RETURN_TYPES = ("BOOLEAN",)
     FUNCTION = "string_condition"
 
     CATEGORY = "InversionDemo Nodes/Logic"
@@ -120,11 +120,11 @@ class ToBoolNode:
                 "value": ("*",),
             },
             "optional": {
-                "invert": ("BOOL", {"default": False}),
+                "invert": ("BOOLEAN", {"default": False}),
             },
         }
 
-    RETURN_TYPES = ("BOOL",)
+    RETURN_TYPES = ("BOOLEAN",)
     FUNCTION = "to_bool"
 
     CATEGORY = "InversionDemo Nodes/Logic"
@@ -155,13 +155,13 @@ class BoolOperationNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "a": ("BOOL",),
-                "b": ("BOOL",),
+                "a": ("BOOLEAN",),
+                "b": ("BOOLEAN",),
                 "op": (["a AND b", "a OR b", "a XOR b", "NOT a"],),
             },
         }
 
-    RETURN_TYPES = ("BOOL",)
+    RETURN_TYPES = ("BOOLEAN",)
     FUNCTION = "bool_operation"
 
     CATEGORY = "InversionDemo Nodes/Logic"

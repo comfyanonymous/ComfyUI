@@ -70,13 +70,27 @@ def load_lora(lora, to_load):
             alpha = lora[alpha_name].item()
             loaded_keys.add(alpha_name)
 
-        A_name = "{}.lora_up.weight".format(x)
-        B_name = "{}.lora_down.weight".format(x)
-        mid_name = "{}.lora_mid.weight".format(x)
+        regular_lora = "{}.lora_up.weight".format(x)
+        diffusers_lora = "{}_lora.up.weight".format(x)
+        transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
+        A_name = None
 
-        if A_name in lora.keys():
+        if regular_lora in lora.keys():
+            A_name = regular_lora
+            B_name = "{}.lora_down.weight".format(x)
+            mid_name = "{}.lora_mid.weight".format(x)
+        elif diffusers_lora in lora.keys():
+            A_name = diffusers_lora
+            B_name = "{}_lora.down.weight".format(x)
+            mid_name = None
+        elif transformers_lora in lora.keys():
+            A_name = transformers_lora
+            B_name ="{}.lora_linear_layer.down.weight".format(x)
+            mid_name = None
+
+        if A_name is not None:
             mid = None
-            if mid_name in lora.keys():
+            if mid_name is not None and mid_name in lora.keys():
                 mid = lora[mid_name]
                 loaded_keys.add(mid_name)
             patch_dict[to_load[x]] = (lora[A_name], lora[B_name], alpha, mid)
@@ -172,20 +186,29 @@ def model_lora_keys_clip(model, key_map={}):
                 key_map[lora_key] = k
                 lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])
                 key_map[lora_key] = k
+                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                key_map[lora_key] = k
 
             k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
                 key_map[lora_key] = k
                 clip_l_present = True
+                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                key_map[lora_key] = k
 
             k = "clip_g.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 if clip_l_present:
                     lora_key = "lora_te2_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                    key_map[lora_key] = k
+                    lora_key = "text_encoder_2.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                    key_map[lora_key] = k
                 else:
                     lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #TODO: test if this is correct for SDXL-Refiner
-                key_map[lora_key] = k
+                    key_map[lora_key] = k
+                    lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                    key_map[lora_key] = k
 
     return key_map
 
@@ -200,8 +223,16 @@ def model_lora_keys_unet(model, key_map={}):
     diffusers_keys = utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
         if k.endswith(".weight"):
+            unet_key = "diffusion_model.{}".format(diffusers_keys[k])
             key_lora = k[:-len(".weight")].replace(".", "_")
-            key_map["lora_unet_{}".format(key_lora)] = "diffusion_model.{}".format(diffusers_keys[k])
+            key_map["lora_unet_{}".format(key_lora)] = unet_key
+
+            diffusers_lora_prefix = ["", "unet."]
+            for p in diffusers_lora_prefix:
+                diffusers_lora_key = "{}{}".format(p, k[:-len(".weight")].replace(".to_", ".processor.to_"))
+                if diffusers_lora_key.endswith(".to_out.0"):
+                    diffusers_lora_key = diffusers_lora_key[:-2]
+                key_map[diffusers_lora_key] = unet_key
     return key_map
 
 def set_attr(obj, attr, value):
@@ -864,7 +895,7 @@ def load_controlnet(ckpt_path, model=None):
         use_fp16 = model_management.should_use_fp16()
         controlnet_config = model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
     controlnet_config.pop("out_channels")
-    controlnet_config["hint_channels"] = 3
+    controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = cldm.ControlNet(**controlnet_config)
 
     if pth:
@@ -1169,8 +1200,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
     offload_device = model_management.unet_offload_device()
-    model = model_config.get_model(sd, "model.diffusion_model.")
-    model = model.to(offload_device)
+    model = model_config.get_model(sd, "model.diffusion_model.", device=offload_device)
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
