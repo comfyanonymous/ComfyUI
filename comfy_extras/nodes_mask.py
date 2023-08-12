@@ -2,6 +2,35 @@ import torch
 
 from nodes import MAX_RESOLUTION
 
+def composite(destination, source, x, y, mask = None, multiplier = 8):
+    x = max(-source.shape[3] * multiplier, min(x, destination.shape[3] * multiplier))
+    y = max(-source.shape[2] * multiplier, min(y, destination.shape[2] * multiplier))
+
+    left, top = (x // multiplier, y // multiplier)
+    right, bottom = (left + source.shape[3], top + source.shape[2],)
+
+
+    if mask is None:
+        mask = torch.ones_like(source)
+    else:
+        mask = mask.clone()
+        mask = torch.nn.functional.interpolate(mask[None, None], size=(source.shape[2], source.shape[3]), mode="bilinear")
+        mask = mask.repeat((source.shape[0], source.shape[1], 1, 1))
+
+    # calculate the bounds of the source that will be overlapping the destination
+    # this prevents the source trying to overwrite latent pixels that are out of bounds
+    # of the destination
+    visible_width, visible_height = (destination.shape[3] - left + min(0, x), destination.shape[2] - top + min(0, y),)
+
+    mask = mask[:, :, :visible_height, :visible_width]
+    inverse_mask = torch.ones_like(mask) - mask
+
+    source_portion = mask * source[:, :, :visible_height, :visible_width]
+    destination_portion = inverse_mask  * destination[:, :, top:bottom, left:right]
+
+    destination[:, :, top:bottom, left:right] = source_portion + destination_portion
+    return destination
+
 class LatentCompositeMasked:
     @classmethod
     def INPUT_TYPES(s):
@@ -25,36 +54,31 @@ class LatentCompositeMasked:
         output = destination.copy()
         destination = destination["samples"].clone()
         source = source["samples"]
+        output["samples"] = composite(destination, source, x, y, mask, 8)
+        return (output,)
 
-        x = max(-source.shape[3] * 8, min(x, destination.shape[3] * 8))
-        y = max(-source.shape[2] * 8, min(y, destination.shape[2] * 8))
+class ImageCompositeMasked:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "destination": ("IMAGE",),
+                "source": ("IMAGE",),
+                "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+            },
+            "optional": {
+                "mask": ("MASK",),
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "composite"
 
-        left, top = (x // 8, y // 8)
-        right, bottom = (left + source.shape[3], top + source.shape[2],)
+    CATEGORY = "image"
 
-
-        if mask is None:
-            mask = torch.ones_like(source)
-        else:
-            mask = mask.clone()
-            mask = torch.nn.functional.interpolate(mask[None, None], size=(source.shape[2], source.shape[3]), mode="bilinear")
-            mask = mask.repeat((source.shape[0], source.shape[1], 1, 1))
-
-        # calculate the bounds of the source that will be overlapping the destination
-        # this prevents the source trying to overwrite latent pixels that are out of bounds
-        # of the destination
-        visible_width, visible_height = (destination.shape[3] - left + min(0, x), destination.shape[2] - top + min(0, y),)
-
-        mask = mask[:, :, :visible_height, :visible_width]
-        inverse_mask = torch.ones_like(mask) - mask
-
-        source_portion = mask * source[:, :, :visible_height, :visible_width]
-        destination_portion = inverse_mask  * destination[:, :, top:bottom, left:right]
-
-        destination[:, :, top:bottom, left:right] = source_portion + destination_portion
-
-        output["samples"] = destination
-
+    def composite(self, destination, source, x, y, mask = None):
+        destination = destination.clone().movedim(-1, 1)
+        output = composite(destination, source.movedim(-1, 1), x, y, mask, 1).movedim(1, -1)
         return (output,)
 
 class MaskToImage:
@@ -253,6 +277,7 @@ class FeatherMask:
 
 NODE_CLASS_MAPPINGS = {
     "LatentCompositeMasked": LatentCompositeMasked,
+    "ImageCompositeMasked": ImageCompositeMasked,
     "MaskToImage": MaskToImage,
     "ImageToMask": ImageToMask,
     "SolidMask": SolidMask,
