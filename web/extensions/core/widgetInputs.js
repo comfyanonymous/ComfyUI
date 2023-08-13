@@ -260,6 +260,9 @@ app.registerExtension({
 
 			onConnectOutput(slot, type, input, target_node, target_slot) {
 				// Fires before the link is made allowing us to reject it if it isn't valid
+				if (input.type == "*") {
+					return true;
+				}
 
 				// No widget, we cant connect
 				if (!input.widget) {
