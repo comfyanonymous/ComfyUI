@@ -1155,6 +1155,9 @@ export class ComfyApp {
 							} else if (type in widgets) {
 								// Standard type widgets
 								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
+							} else if (type == "*") {
+								// 'ANY' type widgets
+								Object.assign(config, widgets.STRING(this, inputName, ["STRING", {}], app) || {});
 							} else {
 								// Node connection inputs
 								this.addInput(inputName, type);

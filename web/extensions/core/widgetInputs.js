@@ -2,7 +2,7 @@ import { ComfyWidgets, addValueControlWidget } from "../../scripts/widgets.js";
 import { app } from "../../scripts/app.js";
 
 const CONVERTED_TYPE = "converted-widget";
-const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
+const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN", "*"];
 
 function isConvertableWidget(widget, config) {
 	return VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0]);
@@ -169,8 +169,8 @@ app.registerExtension({
 			const input = this.inputs[slot];
 			if (!input.widget || !input[ignoreDblClick]) {
 				// Not a widget input or already handled input
-				if (!(input.type in ComfyWidgets) && !(input.widget.config?.[0] instanceof Array)) {
-					return r; //also Not a ComfyWidgets input or combo (do nothing)
+				if (!(input.type in ComfyWidgets) && input.type != "*" && !(input.widget.config?.[0] instanceof Array)) {
+					return r; //also Not a ComfyWidgets input, 'ANY' or combo (do nothing)
 				}
 			}
 
@@ -287,7 +287,7 @@ app.registerExtension({
 				if (!input) return;
 
 
-				var _widget;
+				let _widget;
 				if (!input.widget) {
 					if (!(input.type in ComfyWidgets)) return;
 					_widget = { "name": input.name, "config": [input.type, {}] }//fake widget
@@ -315,6 +315,8 @@ app.registerExtension({
 				let widget;
 				if (type in ComfyWidgets) {
 					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
+				} else if (type == "*") {
+					widget = (ComfyWidgets.STRING(this, "value", ["STRING", {"default": ""}], app) || {}).widget;
 				} else {
 					widget = this.addWidget(type, "value", null, () => { }, {});
 				}
