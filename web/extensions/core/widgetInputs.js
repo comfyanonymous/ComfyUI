@@ -375,7 +375,11 @@ app.registerExtension({
 
 				for (const k in config1[1]) {
 					if (k !== "default") {
-						if (config1[1][k] !== config2[1][k]) {
+						if(k == "min") {
+							if(config1[1][k] < config2[1][k]) return false;
+						} else if(k == "max") {
+							if(config1[1][k] > config2[1][k]) return false;
+						} else if (config1[1][k] !== config2[1][k]) {
 							return false;
 						}
 					}
