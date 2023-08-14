@@ -164,6 +164,7 @@ class DynamicPrompt:
     def add_ephemeral_node(self, node_id, node_info, parent_id, display_id):
         self.ephemeral_prompt[node_id] = node_info
         self.ephemeral_parents[node_id] = parent_id
+        self.ephemeral_display[node_id] = display_id
 
     def get_real_node_id(self, node_id):
         while node_id in self.ephemeral_parents:
