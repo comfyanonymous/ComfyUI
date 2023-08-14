@@ -113,6 +113,7 @@ def model_config_from_unet_config(unet_config):
         if model_config.matches(unet_config):
             return model_config(unet_config)
 
+    print("no match", unet_config)
     return None
 
 def model_config_from_unet(state_dict, unet_key_prefix, use_fp16):
