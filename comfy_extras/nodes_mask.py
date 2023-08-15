@@ -2,13 +2,15 @@ import torch
 
 from nodes import MAX_RESOLUTION
 
-def composite(destination, source, x, y, mask = None, multiplier = 8):
+def composite(destination, source, x, y, mask = None, multiplier = 8, resize_source = False):
+    if resize_source:
+        source = torch.nn.functional.interpolate(source, size=(destination.shape[2], destination.shape[3]), mode="bilinear")
+
     x = max(-source.shape[3] * multiplier, min(x, destination.shape[3] * multiplier))
     y = max(-source.shape[2] * multiplier, min(y, destination.shape[2] * multiplier))
 
     left, top = (x // multiplier, y // multiplier)
     right, bottom = (left + source.shape[3], top + source.shape[2],)
-
 
     if mask is None:
         mask = torch.ones_like(source)
@@ -40,6 +42,7 @@ class LatentCompositeMasked:
                 "source": ("LATENT",),
                 "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                 "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                "resize_source": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -50,11 +53,11 @@ class LatentCompositeMasked:
 
     CATEGORY = "latent"
 
-    def composite(self, destination, source, x, y, mask = None):
+    def composite(self, destination, source, x, y, resize_source, mask = None):
         output = destination.copy()
         destination = destination["samples"].clone()
         source = source["samples"]
-        output["samples"] = composite(destination, source, x, y, mask, 8)
+        output["samples"] = composite(destination, source, x, y, mask, 8, resize_source)
         return (output,)
 
 class ImageCompositeMasked:
@@ -66,6 +69,7 @@ class ImageCompositeMasked:
                 "source": ("IMAGE",),
                 "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
                 "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                "resize_source": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -76,9 +80,9 @@ class ImageCompositeMasked:
 
     CATEGORY = "image"
 
-    def composite(self, destination, source, x, y, mask = None):
+    def composite(self, destination, source, x, y, resize_source, mask = None):
         destination = destination.clone().movedim(-1, 1)
-        output = composite(destination, source.movedim(-1, 1), x, y, mask, 1).movedim(1, -1)
+        output = composite(destination, source.movedim(-1, 1), x, y, mask, 1, resize_source).movedim(1, -1)
         return (output,)
 
 class MaskToImage:
