@@ -59,8 +59,8 @@ class Blend:
     def g(self, x):
         return torch.where(x <= 0.25, ((16 * x - 12) * x + 4) * x, torch.sqrt(x))
 
-def gaussian_kernel(kernel_size: int, sigma: float):
-    x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size), torch.linspace(-1, 1, kernel_size), indexing="ij")
+def gaussian_kernel(kernel_size: int, sigma: float, device=None):
+    x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size, device=device), torch.linspace(-1, 1, kernel_size, device=device), indexing="ij")
     d = torch.sqrt(x * x + y * y)
     g = torch.exp(-(d * d) / (2.0 * sigma * sigma))
     return g / g.sum()
@@ -101,7 +101,7 @@ class Blur:
         batch_size, height, width, channels = image.shape
 
         kernel_size = blur_radius * 2 + 1
-        kernel = gaussian_kernel(kernel_size, sigma).repeat(channels, 1, 1).unsqueeze(1)
+        kernel = gaussian_kernel(kernel_size, sigma, device=image.device).repeat(channels, 1, 1).unsqueeze(1)
 
         image = image.permute(0, 3, 1, 2) # Torch wants (B, C, H, W) we use (B, H, W, C)
         padded_image = F.pad(image, (blur_radius,blur_radius,blur_radius,blur_radius), 'reflect')
