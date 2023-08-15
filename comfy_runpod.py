@@ -96,7 +96,7 @@ def run_prompt(job):
         
         new_working_directory = "./lama-with-refiner"
         os.chdir(new_working_directory)
-        cmd = "python3 bin/predict.py model.path=$(pwd)/big-lama indir=$(pwd)/LaMa_test_images outdir=$(pwd)/output"
+        cmd = "python3.9 bin/predict.py model.path=$(pwd)/big-lama indir=$(pwd)/input outdir=$(pwd)/output"
         os.system(cmd)
         
         new_working_directory = "../"

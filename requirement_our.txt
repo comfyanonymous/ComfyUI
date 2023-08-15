@@ -1,4 +1,0 @@
-webcolors==1.13
-runpod
-websocket-client
-scikit-learn
