@@ -773,7 +773,7 @@ class StyleModelApply:
     CATEGORY = "conditioning/style_model"
 
     def apply_stylemodel(self, clip_vision_output, style_model, conditioning):
-        cond = style_model.get_cond(clip_vision_output)
+        cond = style_model.get_cond(clip_vision_output).flatten(start_dim=0, end_dim=1).unsqueeze(dim=0)
         c = []
         for t in conditioning:
             n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
@@ -1450,6 +1450,22 @@ class ImageInvert:
         s = 1.0 - image
         return (s,)
 
+class ImageBatch:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image1": ("IMAGE",), "image2": ("IMAGE",)}}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "batch"
+
+    CATEGORY = "image"
+
+    def batch(self, image1, image2):
+        if image1.shape[1:] != image2.shape[1:]:
+            image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
+        s = torch.cat((image1, image2), dim=0)
+        return (s,)
 
 class ImagePadForOutpaint:
 
@@ -1555,6 +1571,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageScale": ImageScale,
     "ImageScaleBy": ImageScaleBy,
     "ImageInvert": ImageInvert,
+    "ImageBatch": ImageBatch,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
@@ -1651,6 +1668,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
+    "ImageBatch": "Batch Images",
     # Prompts
     "DynamicPrompt": "Dynamic Prompt",
     # _for_testing
