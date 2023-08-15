@@ -49,6 +49,7 @@ except:
 try:
     if torch.backends.mps.is_available():
         cpu_state = CPUState.MPS
+        import torch.mps
 except:
     pass
 
@@ -204,7 +205,11 @@ print(f"Set vram state to: {vram_state.name}")
 def get_torch_device_name(device):
     if hasattr(device, 'type'):
         if device.type == "cuda":
-            return "{} {}".format(device, torch.cuda.get_device_name(device))
+            try:
+                allocator_backend = torch.cuda.get_allocator_backend()
+            except:
+                allocator_backend = ""
+            return "{} {} : {}".format(device, torch.cuda.get_device_name(device), allocator_backend)
         else:
             return "{}".format(device.type)
     else:
@@ -233,10 +238,9 @@ def unload_model():
             accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
             model_accelerated = False
 
-
+        current_loaded_model.unpatch_model()
         current_loaded_model.model.to(current_loaded_model.offload_device)
         current_loaded_model.model_patches_to(current_loaded_model.offload_device)
-        current_loaded_model.unpatch_model()
         current_loaded_model = None
         if vram_state != VRAMState.HIGH_VRAM:
             soft_empty_cache()
@@ -258,15 +262,11 @@ def load_model_gpu(model):
     if model is current_loaded_model:
         return
     unload_model()
-    try:
-        real_model = model.patch_model()
-    except Exception as e:
-        model.unpatch_model()
-        raise e
 
     torch_dev = model.load_device
     model.model_patches_to(torch_dev)
     model.model_patches_to(model.model_dtype())
+    current_loaded_model = model
 
     if is_device_cpu(torch_dev):
         vram_set_state = VRAMState.DISABLED
@@ -280,21 +280,33 @@ def load_model_gpu(model):
         if model_size > (current_free_mem - minimum_inference_memory()): #only switch to lowvram if really necessary
             vram_set_state = VRAMState.LOW_VRAM
 
-    current_loaded_model = model
-
+    real_model = model.model
+    patch_model_to = None
     if vram_set_state == VRAMState.DISABLED:
         pass
     elif vram_set_state == VRAMState.NORMAL_VRAM or vram_set_state == VRAMState.HIGH_VRAM or vram_set_state == VRAMState.SHARED:
         model_accelerated = False
-        real_model.to(torch_dev)
-    else:
-        if vram_set_state == VRAMState.NO_VRAM:
-            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
-        elif vram_set_state == VRAMState.LOW_VRAM:
-            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(lowvram_model_memory // (1024 * 1024)), "cpu": "16GiB"})
+        patch_model_to = torch_dev
 
+    try:
+        real_model = model.patch_model(device_to=patch_model_to)
+    except Exception as e:
+        model.unpatch_model()
+        unload_model()
+        raise e
+
+    if patch_model_to is not None:
+        real_model.to(torch_dev)
+
+    if vram_set_state == VRAMState.NO_VRAM:
+        device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
         accelerate.dispatch_model(real_model, device_map=device_map, main_device=torch_dev)
         model_accelerated = True
+    elif vram_set_state == VRAMState.LOW_VRAM:
+        device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(lowvram_model_memory // (1024 * 1024)), "cpu": "16GiB"})
+        accelerate.dispatch_model(real_model, device_map=device_map, main_device=torch_dev)
+        model_accelerated = True
+
     return current_loaded_model
 
 def load_controlnet_gpu(control_models):
@@ -352,6 +364,7 @@ def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
+        #NOTE: on a Ryzen 5 7600X with 4080 it's faster to shift to GPU
         if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
             return get_torch_device()
         else:
@@ -522,7 +535,7 @@ def should_use_fp16(device=None, model_params=0):
         return False
 
     #FP16 is just broken on these cards
-    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600"]
+    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600", "MX550", "MX450", "CMP 30HX"]
     for x in nvidia_16_series:
         if x in props.name:
             return False

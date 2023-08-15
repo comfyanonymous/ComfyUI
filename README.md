@@ -47,6 +47,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + O                  | Load workflow                                                                                                      |
 | Ctrl + A                  | Select all nodes                                                                                                   |
 | Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
+| Ctrl + B                  | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace          | Delete selected nodes                                                                                              |
 | Ctrl + Delete/Backspace   | Delete the current graph                                                                                           |
 | Space                     | Move the canvas around when held and moving the cursor                                                             |
@@ -93,8 +94,8 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
 
-This is the command to install the nightly with ROCm 5.5 that supports the 7000 series and might have some performance improvements:
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.5 -r requirements.txt```
+This is the command to install the nightly with ROCm 5.6 that supports the 7000 series and might have some performance improvements:
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.6```
 
 ### NVIDIA
 
@@ -126,10 +127,10 @@ After this you should have everything installed and can proceed to running Comfy
 
 You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
 
-1. Install pytorch. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide.
+1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
 1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
 1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
-1. Launch ComfyUI by running `python main.py`.
+1. Launch ComfyUI by running `python main.py --force-fp16`. Note that --force-fp16 will only work if you installed the latest pytorch nightly.
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
 

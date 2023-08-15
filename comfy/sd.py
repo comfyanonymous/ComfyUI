@@ -70,13 +70,27 @@ def load_lora(lora, to_load):
             alpha = lora[alpha_name].item()
             loaded_keys.add(alpha_name)
 
-        A_name = "{}.lora_up.weight".format(x)
-        B_name = "{}.lora_down.weight".format(x)
-        mid_name = "{}.lora_mid.weight".format(x)
+        regular_lora = "{}.lora_up.weight".format(x)
+        diffusers_lora = "{}_lora.up.weight".format(x)
+        transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
+        A_name = None
 
-        if A_name in lora.keys():
+        if regular_lora in lora.keys():
+            A_name = regular_lora
+            B_name = "{}.lora_down.weight".format(x)
+            mid_name = "{}.lora_mid.weight".format(x)
+        elif diffusers_lora in lora.keys():
+            A_name = diffusers_lora
+            B_name = "{}_lora.down.weight".format(x)
+            mid_name = None
+        elif transformers_lora in lora.keys():
+            A_name = transformers_lora
+            B_name ="{}.lora_linear_layer.down.weight".format(x)
+            mid_name = None
+
+        if A_name is not None:
             mid = None
-            if mid_name in lora.keys():
+            if mid_name is not None and mid_name in lora.keys():
                 mid = lora[mid_name]
                 loaded_keys.add(mid_name)
             patch_dict[to_load[x]] = (lora[A_name], lora[B_name], alpha, mid)
@@ -170,20 +184,31 @@ def model_lora_keys_clip(model, key_map={}):
             if k in sdk:
                 lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
                 key_map[lora_key] = k
+                lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c])
+                key_map[lora_key] = k
+                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                key_map[lora_key] = k
 
             k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
                 key_map[lora_key] = k
                 clip_l_present = True
+                lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                key_map[lora_key] = k
 
             k = "clip_g.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 if clip_l_present:
                     lora_key = "lora_te2_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
+                    key_map[lora_key] = k
+                    lora_key = "text_encoder_2.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                    key_map[lora_key] = k
                 else:
                     lora_key = "lora_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #TODO: test if this is correct for SDXL-Refiner
-                key_map[lora_key] = k
+                    key_map[lora_key] = k
+                    lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
+                    key_map[lora_key] = k
 
     return key_map
 
@@ -198,9 +223,25 @@ def model_lora_keys_unet(model, key_map={}):
     diffusers_keys = utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
         if k.endswith(".weight"):
+            unet_key = "diffusion_model.{}".format(diffusers_keys[k])
             key_lora = k[:-len(".weight")].replace(".", "_")
-            key_map["lora_unet_{}".format(key_lora)] = "diffusion_model.{}".format(diffusers_keys[k])
+            key_map["lora_unet_{}".format(key_lora)] = unet_key
+
+            diffusers_lora_prefix = ["", "unet."]
+            for p in diffusers_lora_prefix:
+                diffusers_lora_key = "{}{}".format(p, k[:-len(".weight")].replace(".to_", ".processor.to_"))
+                if diffusers_lora_key.endswith(".to_out.0"):
+                    diffusers_lora_key = diffusers_lora_key[:-2]
+                key_map[diffusers_lora_key] = unet_key
     return key_map
+
+def set_attr(obj, attr, value):
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    prev = getattr(obj, attrs[-1])
+    setattr(obj, attrs[-1], torch.nn.Parameter(value))
+    del prev
 
 class ModelPatcher:
     def __init__(self, model, load_device, offload_device, size=0):
@@ -330,7 +371,7 @@ class ModelPatcher:
                     sd.pop(k)
         return sd
 
-    def patch_model(self):
+    def patch_model(self, device_to=None):
         model_sd = self.model_state_dict()
         for key in self.patches:
             if key not in model_sd:
@@ -340,10 +381,14 @@ class ModelPatcher:
             weight = model_sd[key]
 
             if key not in self.backup:
-                self.backup[key] = weight.clone()
+                self.backup[key] = weight.to(self.offload_device)
 
-            temp_weight = weight.to(torch.float32, copy=True)
-            weight[:] = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+            if device_to is not None:
+                temp_weight = weight.float().to(device_to, copy=True)
+            else:
+                temp_weight = weight.to(torch.float32, copy=True)
+            out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+            set_attr(self.model, key, out_weight)
             del temp_weight
         return self.model
 
@@ -367,15 +412,19 @@ class ModelPatcher:
                     else:
                         weight += alpha * w1.type(weight.dtype).to(weight.device)
             elif len(v) == 4: #lora/locon
-                mat1 = v[0]
-                mat2 = v[1]
+                mat1 = v[0].float().to(weight.device)
+                mat2 = v[1].float().to(weight.device)
                 if v[2] is not None:
                     alpha *= v[2] / mat2.shape[0]
                 if v[3] is not None:
                     #locon mid weights, hopefully the math is fine because I didn't properly test it
-                    final_shape = [mat2.shape[1], mat2.shape[0], v[3].shape[2], v[3].shape[3]]
-                    mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1).float(), v[3].transpose(0, 1).flatten(start_dim=1).float()).reshape(final_shape).transpose(0, 1)
-                weight += (alpha * torch.mm(mat1.flatten(start_dim=1).float(), mat2.flatten(start_dim=1).float())).reshape(weight.shape).type(weight.dtype).to(weight.device)
+                    mat3 = v[3].float().to(weight.device)
+                    final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
+                    mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
+                try:
+                    weight += (alpha * torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1))).reshape(weight.shape).type(weight.dtype)
+                except Exception as e:
+                    print("ERROR", key, e)
             elif len(v) == 8: #lokr
                 w1 = v[0]
                 w2 = v[1]
@@ -389,20 +438,27 @@ class ModelPatcher:
                 if w1 is None:
                     dim = w1_b.shape[0]
                     w1 = torch.mm(w1_a.float(), w1_b.float())
+                else:
+                    w1 = w1.float().to(weight.device)
 
                 if w2 is None:
                     dim = w2_b.shape[0]
                     if t2 is None:
-                        w2 = torch.mm(w2_a.float(), w2_b.float())
+                        w2 = torch.mm(w2_a.float().to(weight.device), w2_b.float().to(weight.device))
                     else:
-                        w2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float(), w2_b.float(), w2_a.float())
+                        w2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float().to(weight.device), w2_b.float().to(weight.device), w2_a.float().to(weight.device))
+                else:
+                    w2 = w2.float().to(weight.device)
 
                 if len(w2.shape) == 4:
                     w1 = w1.unsqueeze(2).unsqueeze(2)
                 if v[2] is not None and dim is not None:
                     alpha *= v[2] / dim
 
-                weight += alpha * torch.kron(w1.float(), w2.float()).reshape(weight.shape).type(weight.dtype).to(weight.device)
+                try:
+                    weight += alpha * torch.kron(w1, w2).reshape(weight.shape).type(weight.dtype)
+                except Exception as e:
+                    print("ERROR", key, e)
             else: #loha
                 w1a = v[0]
                 w1b = v[1]
@@ -413,21 +469,24 @@ class ModelPatcher:
                 if v[5] is not None: #cp decomposition
                     t1 = v[5]
                     t2 = v[6]
-                    m1 = torch.einsum('i j k l, j r, i p -> p r k l', t1.float(), w1b.float(), w1a.float())
-                    m2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float(), w2b.float(), w2a.float())
+                    m1 = torch.einsum('i j k l, j r, i p -> p r k l', t1.float().to(weight.device), w1b.float().to(weight.device), w1a.float().to(weight.device))
+                    m2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float().to(weight.device), w2b.float().to(weight.device), w2a.float().to(weight.device))
                 else:
-                    m1 = torch.mm(w1a.float(), w1b.float())
-                    m2 = torch.mm(w2a.float(), w2b.float())
+                    m1 = torch.mm(w1a.float().to(weight.device), w1b.float().to(weight.device))
+                    m2 = torch.mm(w2a.float().to(weight.device), w2b.float().to(weight.device))
 
-                weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype).to(weight.device)
+                try:
+                    weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype)
+                except Exception as e:
+                    print("ERROR", key, e)
+
         return weight
 
     def unpatch_model(self):
-        model_sd = self.model_state_dict()
         keys = list(self.backup.keys())
+
         for k in keys:
-            model_sd[k][:] = self.backup[k]
-            del self.backup[k]
+            set_attr(self.model, k, self.backup[k])
 
         self.backup = {}
 
@@ -647,22 +706,70 @@ def broadcast_image_to(tensor, target_batch_size, batched_number):
     else:
         return torch.cat([tensor] * batched_number, dim=0)
 
-class ControlNet:
-    def __init__(self, control_model, global_average_pooling=False, device=None):
-        self.control_model = control_model
+class ControlBase:
+    def __init__(self, device=None):
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
+        self.timestep_percent_range = (1.0, 0.0)
+        self.timestep_range = None
+
         if device is None:
             device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
+
+    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(1.0, 0.0)):
+        self.cond_hint_original = cond_hint
+        self.strength = strength
+        self.timestep_percent_range = timestep_percent_range
+        return self
+
+    def pre_run(self, model, percent_to_timestep_function):
+        self.timestep_range = (percent_to_timestep_function(self.timestep_percent_range[0]), percent_to_timestep_function(self.timestep_percent_range[1]))
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.pre_run(model, percent_to_timestep_function)
+
+    def set_previous_controlnet(self, controlnet):
+        self.previous_controlnet = controlnet
+        return self
+
+    def cleanup(self):
+        if self.previous_controlnet is not None:
+            self.previous_controlnet.cleanup()
+        if self.cond_hint is not None:
+            del self.cond_hint
+            self.cond_hint = None
+        self.timestep_range = None
+
+    def get_models(self):
+        out = []
+        if self.previous_controlnet is not None:
+            out += self.previous_controlnet.get_models()
+        return out
+
+    def copy_to(self, c):
+        c.cond_hint_original = self.cond_hint_original
+        c.strength = self.strength
+        c.timestep_percent_range = self.timestep_percent_range
+
+class ControlNet(ControlBase):
+    def __init__(self, control_model, global_average_pooling=False, device=None):
+        super().__init__(device)
+        self.control_model = control_model
         self.global_average_pooling = global_average_pooling
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
             control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+
+        if self.timestep_range is not None:
+            if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
+                if control_prev is not None:
+                    return control_prev
+                else:
+                    return {}
 
         output_dtype = x_noisy.dtype
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
@@ -711,37 +818,64 @@ class ControlNet:
             out['input'] = control_prev['input']
         return out
 
-    def set_cond_hint(self, cond_hint, strength=1.0):
-        self.cond_hint_original = cond_hint
-        self.strength = strength
-        return self
-
-    def set_previous_controlnet(self, controlnet):
-        self.previous_controlnet = controlnet
-        return self
-
-    def cleanup(self):
-        if self.previous_controlnet is not None:
-            self.previous_controlnet.cleanup()
-        if self.cond_hint is not None:
-            del self.cond_hint
-            self.cond_hint = None
-
     def copy(self):
         c = ControlNet(self.control_model, global_average_pooling=self.global_average_pooling)
-        c.cond_hint_original = self.cond_hint_original
-        c.strength = self.strength
+        self.copy_to(c)
         return c
 
     def get_models(self):
-        out = []
-        if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_models()
+        out = super().get_models()
         out.append(self.control_model)
         return out
 
+
 def load_controlnet(ckpt_path, model=None):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
+
+    controlnet_config = None
+    if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
+        use_fp16 = model_management.should_use_fp16()
+        controlnet_config = model_detection.model_config_from_diffusers_unet(controlnet_data, use_fp16).unet_config
+        diffusers_keys = utils.unet_to_diffusers(controlnet_config)
+        diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
+        diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
+
+        count = 0
+        loop = True
+        while loop:
+            suffix = [".weight", ".bias"]
+            for s in suffix:
+                k_in = "controlnet_down_blocks.{}{}".format(count, s)
+                k_out = "zero_convs.{}.0{}".format(count, s)
+                if k_in not in controlnet_data:
+                    loop = False
+                    break
+                diffusers_keys[k_in] = k_out
+            count += 1
+
+        count = 0
+        loop = True
+        while loop:
+            suffix = [".weight", ".bias"]
+            for s in suffix:
+                if count == 0:
+                    k_in = "controlnet_cond_embedding.conv_in{}".format(s)
+                else:
+                    k_in = "controlnet_cond_embedding.blocks.{}{}".format(count - 1, s)
+                k_out = "input_hint_block.{}{}".format(count * 2, s)
+                if k_in not in controlnet_data:
+                    k_in = "controlnet_cond_embedding.conv_out{}".format(s)
+                    loop = False
+                diffusers_keys[k_in] = k_out
+            count += 1
+
+        new_sd = {}
+        for k in diffusers_keys:
+            if k in controlnet_data:
+                new_sd[diffusers_keys[k]] = controlnet_data.pop(k)
+
+        controlnet_data = new_sd
+
     pth_key = 'control_model.zero_convs.0.0.weight'
     pth = False
     key = 'zero_convs.0.0.weight'
@@ -757,11 +891,11 @@ def load_controlnet(ckpt_path, model=None):
             print("error checkpoint does not contain controlnet or t2i adapter data", ckpt_path)
         return net
 
-    use_fp16 = model_management.should_use_fp16()
-
-    controlnet_config = model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
+    if controlnet_config is None:
+        use_fp16 = model_management.should_use_fp16()
+        controlnet_config = model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
     controlnet_config.pop("out_channels")
-    controlnet_config["hint_channels"] = 3
+    controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = cldm.ControlNet(**controlnet_config)
 
     if pth:
@@ -799,23 +933,24 @@ def load_controlnet(ckpt_path, model=None):
     control = ControlNet(control_model, global_average_pooling=global_average_pooling)
     return control
 
-class T2IAdapter:
+class T2IAdapter(ControlBase):
     def __init__(self, t2i_model, channels_in, device=None):
+        super().__init__(device)
         self.t2i_model = t2i_model
         self.channels_in = channels_in
-        self.strength = 1.0
-        if device is None:
-            device = model_management.get_torch_device()
-        self.device = device
-        self.previous_controlnet = None
         self.control_input = None
-        self.cond_hint_original = None
-        self.cond_hint = None
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
             control_prev = self.previous_controlnet.get_control(x_noisy, t, cond, batched_number)
+
+        if self.timestep_range is not None:
+            if t[0] > self.timestep_range[0] or t[0] < self.timestep_range[1]:
+                if control_prev is not None:
+                    return control_prev
+                else:
+                    return {}
 
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
@@ -861,33 +996,11 @@ class T2IAdapter:
             out['output'] = control_prev['output']
         return out
 
-    def set_cond_hint(self, cond_hint, strength=1.0):
-        self.cond_hint_original = cond_hint
-        self.strength = strength
-        return self
-
-    def set_previous_controlnet(self, controlnet):
-        self.previous_controlnet = controlnet
-        return self
-
     def copy(self):
         c = T2IAdapter(self.t2i_model, self.channels_in)
-        c.cond_hint_original = self.cond_hint_original
-        c.strength = self.strength
+        self.copy_to(c)
         return c
 
-    def cleanup(self):
-        if self.previous_controlnet is not None:
-            self.previous_controlnet.cleanup()
-        if self.cond_hint is not None:
-            del self.cond_hint
-            self.cond_hint = None
-
-    def get_models(self):
-        out = []
-        if self.previous_controlnet is not None:
-            out += self.previous_controlnet.get_models()
-        return out
 
 def load_t2i_adapter(t2i_data):
     keys = t2i_data.keys()
@@ -997,11 +1110,11 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     if "noise_aug_config" in model_config_params:
         noise_aug_config = model_config_params["noise_aug_config"]
 
-    v_prediction = False
+    model_type = model_base.ModelType.EPS
 
     if "parameterization" in model_config_params:
         if model_config_params["parameterization"] == "v":
-            v_prediction = True
+            model_type = model_base.ModelType.V_PREDICTION
 
     clip = None
     vae = None
@@ -1021,11 +1134,11 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     model_config.latent_format = latent_formats.SD15(scale_factor=scale_factor)
 
     if config['model']["target"].endswith("LatentInpaintDiffusion"):
-        model = model_base.SDInpaint(model_config, v_prediction=v_prediction)
+        model = model_base.SDInpaint(model_config, model_type=model_type)
     elif config['model']["target"].endswith("ImageEmbeddingConditionedLatentDiffusion"):
-        model = model_base.SD21UNCLIP(model_config, noise_aug_config["params"], v_prediction=v_prediction)
+        model = model_base.SD21UNCLIP(model_config, noise_aug_config["params"], model_type=model_type)
     else:
-        model = model_base.BaseModel(model_config, v_prediction=v_prediction)
+        model = model_base.BaseModel(model_config, model_type=model_type)
 
     if fp16:
         model = model.half()
@@ -1087,8 +1200,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
     offload_device = model_management.unet_offload_device()
-    model = model_config.get_model(sd, "model.diffusion_model.")
-    model = model.to(offload_device)
+    model = model_config.get_model(sd, "model.diffusion_model.", device=offload_device)
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
@@ -1117,66 +1229,24 @@ def load_unet(unet_path): #load unet in diffusers format
     parameters = calculate_parameters(sd, "")
     fp16 = model_management.should_use_fp16(model_params=parameters)
 
-    match = {}
-    match["context_dim"] = sd["down_blocks.0.attentions.1.transformer_blocks.0.attn2.to_k.weight"].shape[1]
-    match["model_channels"] = sd["conv_in.weight"].shape[0]
-    match["in_channels"] = sd["conv_in.weight"].shape[1]
-    match["adm_in_channels"] = None
-    if "class_embedding.linear_1.weight" in sd:
-        match["adm_in_channels"] = sd["class_embedding.linear_1.weight"].shape[1]
+    model_config = model_detection.model_config_from_diffusers_unet(sd, fp16)
+    if model_config is None:
+        print("ERROR UNSUPPORTED UNET", unet_path)
+        return None
 
-    SDXL = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
-            'num_classes': 'sequential', 'adm_in_channels': 2816, 'use_fp16': fp16, 'in_channels': 4, 'model_channels': 320,
-            'num_res_blocks': 2, 'attention_resolutions': [2, 4], 'transformer_depth': [0, 2, 10], 'channel_mult': [1, 2, 4],
-            'transformer_depth_middle': 10, 'use_linear_in_transformer': True, 'context_dim': 2048}
+    diffusers_keys = utils.unet_to_diffusers(model_config.unet_config)
 
-    SDXL_refiner = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
-                    'num_classes': 'sequential', 'adm_in_channels': 2560, 'use_fp16': fp16, 'in_channels': 4, 'model_channels': 384,
-                    'num_res_blocks': 2, 'attention_resolutions': [2, 4], 'transformer_depth': [0, 4, 4, 0], 'channel_mult': [1, 2, 4, 4],
-                    'transformer_depth_middle': 4, 'use_linear_in_transformer': True, 'context_dim': 1280}
-
-    SD21 = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
-            'adm_in_channels': None, 'use_fp16': fp16, 'in_channels': 4, 'model_channels': 320, 'num_res_blocks': 2,
-            'attention_resolutions': [1, 2, 4], 'transformer_depth': [1, 1, 1, 0], 'channel_mult': [1, 2, 4, 4],
-            'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024}
-
-    SD21_uncliph = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
-                    'num_classes': 'sequential', 'adm_in_channels': 2048, 'use_fp16': True, 'in_channels': 4, 'model_channels': 320,
-                    'num_res_blocks': 2, 'attention_resolutions': [1, 2, 4], 'transformer_depth': [1, 1, 1, 0], 'channel_mult': [1, 2, 4, 4],
-                    'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024}
-
-    SD21_unclipl = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
-                    'num_classes': 'sequential', 'adm_in_channels': 1536, 'use_fp16': True, 'in_channels': 4, 'model_channels': 320,
-                    'num_res_blocks': 2, 'attention_resolutions': [1, 2, 4], 'transformer_depth': [1, 1, 1, 0], 'channel_mult': [1, 2, 4, 4],
-                    'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024}
-
-    SD15 = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
-            'adm_in_channels': None, 'use_fp16': True, 'in_channels': 4, 'model_channels': 320, 'num_res_blocks': 2,
-            'attention_resolutions': [1, 2, 4], 'transformer_depth': [1, 1, 1, 0], 'channel_mult': [1, 2, 4, 4],
-            'transformer_depth_middle': 1, 'use_linear_in_transformer': False, 'context_dim': 768}
-
-    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl]
-    print("match", match)
-    for unet_config in supported_models:
-        matches = True
-        for k in match:
-            if match[k] != unet_config[k]:
-                matches = False
-                break
-        if matches:
-            diffusers_keys = utils.unet_to_diffusers(unet_config)
-            new_sd = {}
-            for k in diffusers_keys:
-                if k in sd:
-                    new_sd[diffusers_keys[k]] = sd.pop(k)
-                else:
-                    print(diffusers_keys[k], k)
-            offload_device = model_management.unet_offload_device()
-            model_config = model_detection.model_config_from_unet_config(unet_config)
-            model = model_config.get_model(new_sd, "")
-            model = model.to(offload_device)
-            model.load_model_weights(new_sd, "")
-            return ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
+    new_sd = {}
+    for k in diffusers_keys:
+        if k in sd:
+            new_sd[diffusers_keys[k]] = sd.pop(k)
+        else:
+            print(diffusers_keys[k], k)
+    offload_device = model_management.unet_offload_device()
+    model = model_config.get_model(new_sd, "")
+    model = model.to(offload_device)
+    model.load_model_weights(new_sd, "")
+    return ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
     try:

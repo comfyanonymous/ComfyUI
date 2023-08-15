@@ -1,5 +1,4 @@
 torch
-torchdiffeq
 torchsde
 einops
 transformers>=4.25.1
@@ -10,3 +9,4 @@ pyyaml
 Pillow
 scipy
 tqdm
+psutil

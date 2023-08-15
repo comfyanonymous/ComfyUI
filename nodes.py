@@ -26,6 +26,8 @@ import comfy.utils
 import comfy.clip_vision
 
 import comfy.model_management
+from comfy.cli_args import args
+
 import importlib
 
 import folder_paths
@@ -204,6 +206,28 @@ class ConditioningZeroOut:
             c.append(n)
         return (c, )
 
+class ConditioningSetTimestepRange:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                             "start": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "set_range"
+
+    CATEGORY = "advanced/conditioning"
+
+    def set_range(self, conditioning, start, end):
+        c = []
+        for t in conditioning:
+            d = t[1].copy()
+            d['start_percent'] = 1.0 - start
+            d['end_percent'] = 1.0 - end
+            n = [t[0], d]
+            c.append(n)
+        return (c, )
+
 class VAEDecode:
     @classmethod
     def INPUT_TYPES(s):
@@ -330,12 +354,22 @@ class SaveLatent:
         if prompt is not None:
             prompt_info = json.dumps(prompt)
 
-        metadata = {"prompt": prompt_info}
-        if extra_pnginfo is not None:
-            for x in extra_pnginfo:
-                metadata[x] = json.dumps(extra_pnginfo[x])
+        metadata = None
+        if not args.disable_metadata:
+            metadata = {"prompt": prompt_info}
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata[x] = json.dumps(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
+
+        results = list()
+        results.append({
+            "filename": file,
+            "subfolder": subfolder,
+            "type": "output"
+        })
+
         file = os.path.join(full_output_folder, file)
 
         output = {}
@@ -343,7 +377,7 @@ class SaveLatent:
         output["latent_format_version_0"] = torch.tensor([])
 
         comfy.utils.save_torch_file(output, file, metadata=metadata)
-        return {}
+        return { "ui": { "latents": results } }
 
 
 class LoadLatent:
@@ -497,7 +531,9 @@ class LoraLoader:
             if self.loaded_lora[0] == lora_path:
                 lora = self.loaded_lora[1]
             else:
-                del self.loaded_lora
+                temp = self.loaded_lora
+                self.loaded_lora = None
+                del temp
 
         if lora is None:
             lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
@@ -578,8 +614,57 @@ class ControlNetApply:
             if 'control' in t[1]:
                 c_net.set_previous_controlnet(t[1]['control'])
             n[1]['control'] = c_net
+            n[1]['control_apply_to_uncond'] = True
             c.append(n)
         return (c, )
+
+
+class ControlNetApplyAdvanced:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "control_net": ("CONTROL_NET", ),
+                             "image": ("IMAGE", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
+                             }}
+
+    RETURN_TYPES = ("CONDITIONING","CONDITIONING")
+    RETURN_NAMES = ("positive", "negative")
+    FUNCTION = "apply_controlnet"
+
+    CATEGORY = "conditioning"
+
+    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent):
+        if strength == 0:
+            return (positive, negative)
+
+        control_hint = image.movedim(-1,1)
+        cnets = {}
+
+        out = []
+        for conditioning in [positive, negative]:
+            c = []
+            for t in conditioning:
+                d = t[1].copy()
+
+                prev_cnet = d.get('control', None)
+                if prev_cnet in cnets:
+                    c_net = cnets[prev_cnet]
+                else:
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (1.0 - start_percent, 1.0 - end_percent))
+                    c_net.set_previous_controlnet(prev_cnet)
+                    cnets[prev_cnet] = c_net
+
+                d['control'] = c_net
+                d['control_apply_to_uncond'] = False
+                n = [t[0], d]
+                c.append(n)
+            out.append(c)
+        return (out[0], out[1])
+
 
 class UNETLoader:
     @classmethod
@@ -686,7 +771,7 @@ class StyleModelApply:
     CATEGORY = "conditioning/style_model"
 
     def apply_stylemodel(self, clip_vision_output, style_model, conditioning):
-        cond = style_model.get_cond(clip_vision_output)
+        cond = style_model.get_cond(clip_vision_output).flatten(start_dim=0, end_dim=1).unsqueeze(dim=0)
         c = []
         for t in conditioning:
             n = [torch.cat((t[0], cond), dim=1), t[1].copy()]
@@ -970,6 +1055,47 @@ class LatentComposite:
         samples_out["samples"] = s
         return (samples_out,)
 
+class LatentBlend:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "samples1": ("LATENT",),
+            "samples2": ("LATENT",),
+            "blend_factor": ("FLOAT", {
+                "default": 0.5,
+                "min": 0,
+                "max": 1,
+                "step": 0.01
+            }),
+        }}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "blend"
+
+    CATEGORY = "_for_testing"
+
+    def blend(self, samples1, samples2, blend_factor:float, blend_mode: str="normal"):
+
+        samples_out = samples1.copy()
+        samples1 = samples1["samples"]
+        samples2 = samples2["samples"]
+
+        if samples1.shape != samples2.shape:
+            samples2.permute(0, 3, 1, 2)
+            samples2 = comfy.utils.common_upscale(samples2, samples1.shape[3], samples1.shape[2], 'bicubic', crop='center')
+            samples2.permute(0, 2, 3, 1)
+
+        samples_blended = self.blend_mode(samples1, samples2, blend_mode)
+        samples_blended = samples1 * blend_factor + samples_blended * (1 - blend_factor)
+        samples_out["samples"] = samples_blended
+        return (samples_out,)
+
+    def blend_mode(self, img1, img2, mode):
+        if mode == "normal":
+            return img2
+        else:
+            raise ValueError(f"Unsupported blend mode: {mode}")
+
 class LatentCrop:
     @classmethod
     def INPUT_TYPES(s):
@@ -1141,12 +1267,14 @@ class SaveImage:
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = PngInfo()
-            if prompt is not None:
-                metadata.add_text("prompt", json.dumps(prompt))
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            metadata = None
+            if not args.disable_metadata:
+                metadata = PngInfo()
+                if prompt is not None:
+                    metadata.add_text("prompt", json.dumps(prompt))
+                if extra_pnginfo is not None:
+                    for x in extra_pnginfo:
+                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
@@ -1320,6 +1448,22 @@ class ImageInvert:
         s = 1.0 - image
         return (s,)
 
+class ImageBatch:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image1": ("IMAGE",), "image2": ("IMAGE",)}}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "batch"
+
+    CATEGORY = "image"
+
+    def batch(self, image1, image2):
+        if image1.shape[1:] != image2.shape[1:]:
+            image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
+        s = torch.cat((image1, image2), dim=0)
+        return (s,)
 
 class ImagePadForOutpaint:
 
@@ -1405,6 +1549,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageScale": ImageScale,
     "ImageScaleBy": ImageScaleBy,
     "ImageInvert": ImageInvert,
+    "ImageBatch": ImageBatch,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "ConditioningAverage ": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
@@ -1414,6 +1559,7 @@ NODE_CLASS_MAPPINGS = {
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
     "LatentComposite": LatentComposite,
+    "LatentBlend": LatentBlend,
     "LatentRotate": LatentRotate,
     "LatentFlip": LatentFlip,
     "LatentCrop": LatentCrop,
@@ -1425,6 +1571,7 @@ NODE_CLASS_MAPPINGS = {
     "StyleModelApply": StyleModelApply,
     "unCLIPConditioning": unCLIPConditioning,
     "ControlNetApply": ControlNetApply,
+    "ControlNetApplyAdvanced": ControlNetApplyAdvanced,
     "ControlNetLoader": ControlNetLoader,
     "DiffControlNetLoader": DiffControlNetLoader,
     "StyleModelLoader": StyleModelLoader,
@@ -1442,6 +1589,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveLatent": SaveLatent,
 
     "ConditioningZeroOut": ConditioningZeroOut,
+    "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1470,6 +1618,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConditioningSetArea": "Conditioning (Set Area)",
     "ConditioningSetMask": "Conditioning (Set Mask)",
     "ControlNetApply": "Apply ControlNet",
+    "ControlNetApplyAdvanced": "Apply ControlNet (Advanced)",
     # Latent
     "VAEEncodeForInpaint": "VAE Encode (for Inpainting)",
     "SetLatentNoiseMask": "Set Latent Noise Mask",
@@ -1482,6 +1631,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentUpscale": "Upscale Latent",
     "LatentUpscaleBy": "Upscale Latent By",
     "LatentComposite": "Latent Composite",
+    "LatentBlend": "Latent Blend",
     "LatentFromBatch" : "Latent From Batch",
     "RepeatLatentBatch": "Repeat Latent Batch",
     # Image
@@ -1494,6 +1644,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
+    "ImageBatch": "Batch Images",
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",

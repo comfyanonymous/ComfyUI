@@ -6,6 +6,7 @@ from comfy import model_management
 from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 import math
+from comfy import model_base
 
 def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
     return abs(a*b) // math.gcd(a, b)
@@ -16,6 +17,14 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
         def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
+            if 'timestep_start' in cond[1]:
+                timestep_start = cond[1]['timestep_start']
+                if timestep_in[0] > timestep_start:
+                    return None
+            if 'timestep_end' in cond[1]:
+                timestep_end = cond[1]['timestep_end']
+                if timestep_in[0] < timestep_end:
+                    return None
             if 'area' in cond[1]:
                 area = cond[1]['area']
             if 'strength' in cond[1]:
@@ -180,12 +189,13 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     continue
 
                 to_run += [(p, COND)]
-            for x in uncond:
-                p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
-                if p is None:
-                    continue
+            if uncond is not None:
+                for x in uncond:
+                    p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
+                    if p is None:
+                        continue
 
-                to_run += [(p, UNCOND)]
+                    to_run += [(p, UNCOND)]
 
             while len(to_run) > 0:
                 first = to_run[0]
@@ -247,7 +257,10 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
                 c['transformer_options'] = transformer_options
 
-                output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
+                if 'model_function_wrapper' in model_options:
+                    output = model_options['model_function_wrapper'](model_function, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
+                else:
+                    output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
                 del input_x
 
                 model_management.throw_exception_if_processing_interrupted()
@@ -270,6 +283,9 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
 
         max_total_area = model_management.maximum_batch_area()
+        if math.isclose(cond_scale, 1.0):
+            uncond = None
+
         cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
         if "sampler_cfg_function" in model_options:
             args = {"cond": cond, "uncond": uncond, "cond_scale": cond_scale, "timestep": timestep}
@@ -325,6 +341,17 @@ def ddim_scheduler(model, steps):
     ddim_timesteps = make_ddim_timesteps(ddim_discr_method="uniform", num_ddim_timesteps=steps, num_ddpm_timesteps=model.inner_model.inner_model.num_timesteps, verbose=False)
     for x in range(len(ddim_timesteps) - 1, -1, -1):
         ts = ddim_timesteps[x]
+        if ts > 999:
+            ts = 999
+        sigs.append(model.t_to_sigma(torch.tensor(ts)))
+    sigs += [0.0]
+    return torch.FloatTensor(sigs)
+
+def sgm_scheduler(model, steps):
+    sigs = []
+    timesteps = torch.linspace(model.inner_model.inner_model.num_timesteps - 1, 0, steps + 1)[:-1].type(torch.int)
+    for x in range(len(timesteps)):
+        ts = timesteps[x]
         if ts > 999:
             ts = 999
         sigs.append(model.t_to_sigma(torch.tensor(ts)))
@@ -424,6 +451,35 @@ def create_cond_with_same_area_if_none(conds, c):
     n = c[1].copy()
     conds += [[smallest[0], n]]
 
+def calculate_start_end_timesteps(model, conds):
+    for t in range(len(conds)):
+        x = conds[t]
+
+        timestep_start = None
+        timestep_end = None
+        if 'start_percent' in x[1]:
+            timestep_start = model.sigma_to_t(model.t_to_sigma(torch.tensor(x[1]['start_percent'] * 999.0)))
+        if 'end_percent' in x[1]:
+            timestep_end = model.sigma_to_t(model.t_to_sigma(torch.tensor(x[1]['end_percent'] * 999.0)))
+
+        if (timestep_start is not None) or (timestep_end is not None):
+            n = x[1].copy()
+            if (timestep_start is not None):
+                n['timestep_start'] = timestep_start
+            if (timestep_end is not None):
+                n['timestep_end'] = timestep_end
+            conds[t] = [x[0], n]
+
+def pre_run_control(model, conds):
+    for t in range(len(conds)):
+        x = conds[t]
+
+        timestep_start = None
+        timestep_end = None
+        percent_to_timestep_function = lambda a: model.sigma_to_t(model.t_to_sigma(torch.tensor(a) * 999.0))
+        if 'control' in x[1]:
+            x[1]['control'].pre_run(model.inner_model, percent_to_timestep_function)
+
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []
     cond_other = []
@@ -480,19 +536,19 @@ def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
 
 
 class KSampler:
-    SCHEDULERS = ["normal", "karras", "exponential", "simple", "ddim_uniform"]
+    SCHEDULERS = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
     SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
                 "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
-                "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "ddim", "uni_pc", "uni_pc_bh2"]
+                "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddim", "uni_pc", "uni_pc_bh2"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
         self.model_denoise = CFGNoisePredictor(self.model)
-        if self.model.parameterization == "v":
+        if self.model.model_type == model_base.ModelType.V_PREDICTION:
             self.model_wrap = CompVisVDenoiser(self.model_denoise, quantize=True)
         else:
             self.model_wrap = k_diffusion_external.CompVisDenoiser(self.model_denoise, quantize=True)
-        self.model_wrap.parameterization = self.model.parameterization
+
         self.model_k = KSamplerX0Inpaint(self.model_wrap)
         self.device = device
         if scheduler not in self.SCHEDULERS:
@@ -525,6 +581,8 @@ class KSampler:
             sigmas = simple_scheduler(self.model_wrap, steps)
         elif self.scheduler == "ddim_uniform":
             sigmas = ddim_scheduler(self.model_wrap, steps)
+        elif self.scheduler == "sgm_uniform":
+            sigmas = sgm_scheduler(self.model_wrap, steps)
         else:
             print("error invalid scheduler", self.scheduler)
 
@@ -567,13 +625,18 @@ class KSampler:
         resolve_cond_masks(positive, noise.shape[2], noise.shape[3], self.device)
         resolve_cond_masks(negative, noise.shape[2], noise.shape[3], self.device)
 
+        calculate_start_end_timesteps(self.model_wrap, negative)
+        calculate_start_end_timesteps(self.model_wrap, positive)
+
         #make sure each cond area has an opposite one with the same area
         for c in positive:
             create_cond_with_same_area_if_none(negative, c)
         for c in negative:
             create_cond_with_same_area_if_none(positive, c)
 
-        apply_empty_x_to_equal_area(positive, negative, 'control', lambda cond_cnets, x: cond_cnets[x])
+        pre_run_control(self.model_wrap, negative + positive)
+
+        apply_empty_x_to_equal_area(list(filter(lambda c: c[1].get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
         apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
         if self.model.is_adm():
@@ -614,7 +677,7 @@ class KSampler:
         elif self.sampler == "ddim":
             timesteps = []
             for s in range(sigmas.shape[0]):
-                timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
+                timesteps.insert(0, self.model_wrap.sigma_to_discrete_timestep(sigmas[s]))
             noise_mask = None
             if denoise_mask is not None:
                 noise_mask = 1.0 - denoise_mask
@@ -638,7 +701,7 @@ class KSampler:
                                                     x_T=z_enc,
                                                     x0=latent_image,
                                                     img_callback=ddim_callback,
-                                                    denoise_function=sampling_function,
+                                                    denoise_function=self.model_wrap.predict_eps_discrete_timestep,
                                                     extra_args=extra_args,
                                                     mask=noise_mask,
                                                     to_zero=sigmas[-1]==0,
