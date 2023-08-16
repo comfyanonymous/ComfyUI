@@ -117,8 +117,7 @@ export default {
         "node.title.LoadLatent": "加载隐空间",
         "node.title.SaveLatent": "保存隐空间",
         "node.title.ConditioningZeroOut": "调节ZeroOut",
-        "node.title.ConditioningSetTimestepRange":
-            "ConditioningSetTimestepRange",
+        "node.title.ConditioningSetTimestepRange": "ConditioningSetTimestepRange",
 
         "node.input.text": "文本",
         "node.input.clip": "clip",
@@ -261,8 +260,7 @@ export default {
 
         "settings.Comfy.ConfirmClear": "清空工作流需要确认",
         "settings.Comfy.PromptFilename": "把工作流保存成文件",
-        "settings.Comfy.PreviewFormat":
-            "预览图格式和压缩尺寸, e.g. webp, jpeg, webp;50, etc.",
+        "settings.Comfy.PreviewFormat": "预览图格式和压缩尺寸, e.g. webp, jpeg, webp;50, etc.",
         "settings.Comfy.DisableSliders": "禁用滑动条",
         "settings.Comfy.DevMode": "启用开发模式",
         "settings.Comfy.ColorPalette": "主题",
