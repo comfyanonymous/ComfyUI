@@ -1,3 +1,5 @@
+import numpy as np
+from scipy.ndimage import grey_dilation
 import torch
 
 from nodes import MAX_RESOLUTION
@@ -276,6 +278,35 @@ class FeatherMask:
             output[-y, :] *= feather_rate
 
         return (output,)
+    
+class GrowMask:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mask": ("MASK",),
+                "expand": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                "tapered_corners": ("BOOLEAN", {"default": True}),
+            },
+        }
+    
+    CATEGORY = "mask"
+
+    RETURN_TYPES = ("MASK",)
+
+    FUNCTION = "expand_mask"
+
+    def expand_mask(self, mask, expand, tapered_corners):
+        c = 0 if tapered_corners else 1
+        kernel = np.array([[c, 1, c],
+                           [1, 1, 1],
+                           [c, 1, c]])
+        output = mask.numpy().copy()
+        while expand > 0:
+            output = grey_dilation(output, footprint=kernel)
+            expand -= 1
+        output = torch.from_numpy(output)
+        return (output,)
 
 
 
@@ -289,6 +320,7 @@ NODE_CLASS_MAPPINGS = {
     "CropMask": CropMask,
     "MaskComposite": MaskComposite,
     "FeatherMask": FeatherMask,
+    "GrowMask": GrowMask,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
