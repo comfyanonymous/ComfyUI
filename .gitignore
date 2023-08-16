@@ -7,6 +7,7 @@
 /[Cc]ustom_nodes/*
 ![Cc]ustom_nodes/__init__.py
 !/custom_nodes/example_node.py.example
+**/put*here
 /extra_model_paths.yaml
 /.vs
 .idea/
