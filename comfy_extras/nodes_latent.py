@@ -28,7 +28,7 @@ class NoisyLatentImage:
 
 
 NODE_CLASS_MAPPINGS = {
-    "Noisy Latent Image": NoisyLatentImage,
+    "NoisyLatentImage": NoisyLatentImage,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
