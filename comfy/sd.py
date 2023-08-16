@@ -835,7 +835,7 @@ def load_controlnet(ckpt_path, model=None):
     controlnet_config = None
     if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
         use_fp16 = model_management.should_use_fp16()
-        controlnet_config = model_detection.model_config_from_diffusers_unet(controlnet_data, use_fp16).unet_config
+        controlnet_config = model_detection.unet_config_from_diffusers_unet(controlnet_data, use_fp16)
         diffusers_keys = utils.unet_to_diffusers(controlnet_config)
         diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
         diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
@@ -874,6 +874,9 @@ def load_controlnet(ckpt_path, model=None):
             if k in controlnet_data:
                 new_sd[diffusers_keys[k]] = controlnet_data.pop(k)
 
+        leftover_keys = controlnet_data.keys()
+        if len(leftover_keys) > 0:
+            print("leftover keys:", leftover_keys)
         controlnet_data = new_sd
 
     pth_key = 'control_model.zero_convs.0.0.weight'
