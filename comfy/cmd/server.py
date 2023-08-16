@@ -726,11 +726,14 @@ class PromptServer():
         site = web.TCPSite(runner, address, port)
         await site.start()
 
-        if address == '':
+        address_to_print = 'localhost'
+        if address == '' or address == '0.0.0.0':
             address = '0.0.0.0'
+        else:
+            address_to_print = address
         if verbose:
             print("Starting server\n")
-            print("To see the GUI go to: http://{}:{}".format(address, port))
+            print("To see the GUI go to: http://{}:{}".format(address_to_print, port))
         if call_on_start is not None:
             call_on_start(address, port)
 

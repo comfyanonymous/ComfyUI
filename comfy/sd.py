@@ -223,13 +223,16 @@ def model_lora_keys_unet(model, key_map={}):
     diffusers_keys = utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
         if k.endswith(".weight"):
+            unet_key = "diffusion_model.{}".format(diffusers_keys[k])
             key_lora = k[:-len(".weight")].replace(".", "_")
-            key_map["lora_unet_{}".format(key_lora)] = "diffusion_model.{}".format(diffusers_keys[k])
+            key_map["lora_unet_{}".format(key_lora)] = unet_key
 
-            diffusers_lora_key = "unet.{}".format(k[:-len(".weight")].replace(".to_", ".processor.to_"))
-            if diffusers_lora_key.endswith(".to_out.0"):
-                diffusers_lora_key = diffusers_lora_key[:-2]
-            key_map[diffusers_lora_key] = "diffusion_model.{}".format(diffusers_keys[k])
+            diffusers_lora_prefix = ["", "unet."]
+            for p in diffusers_lora_prefix:
+                diffusers_lora_key = "{}{}".format(p, k[:-len(".weight")].replace(".to_", ".processor.to_"))
+                if diffusers_lora_key.endswith(".to_out.0"):
+                    diffusers_lora_key = diffusers_lora_key[:-2]
+                key_map[diffusers_lora_key] = unet_key
     return key_map
 
 def set_attr(obj, attr, value):

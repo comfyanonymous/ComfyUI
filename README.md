@@ -47,6 +47,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + O                  | Load workflow                                                                                                      |
 | Ctrl + A                  | Select all nodes                                                                                                   |
 | Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
+| Ctrl + B                  | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace          | Delete selected nodes                                                                                              |
 | Ctrl + Delete/Backspace   | Delete the current graph                                                                                           |
 | Space                     | Move the canvas around when held and moving the cursor                                                             |

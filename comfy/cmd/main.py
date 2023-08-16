@@ -1,5 +1,7 @@
 import os
 import importlib.util
+
+from comfy.cmd import cuda_malloc
 from ..cmd import folder_paths
 import time
 
@@ -124,6 +126,18 @@ def load_extra_path_config(yaml_path):
                 folder_paths.add_model_folder_path(x, full_path)
 
 
+def cuda_malloc_warning():
+    device = comfy.model_management.get_torch_device()
+    device_name = comfy.model_management.get_torch_device_name(device)
+    cuda_malloc_warning = False
+    if "cudaMallocAsync" in device_name:
+        for b in cuda_malloc.blacklist:
+            if b in device_name:
+                cuda_malloc_warning = True
+        if cuda_malloc_warning:
+            print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+
+
 def main():
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
@@ -146,6 +160,7 @@ def main():
 
     server.add_routes()
     hijack_progress(server)
+    cuda_malloc_warning()
 
     threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
 

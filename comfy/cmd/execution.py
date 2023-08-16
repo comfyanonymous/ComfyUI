@@ -5,6 +5,7 @@ import copy
 import datetime
 import heapq
 import threading
+import time
 import traceback
 import typing
 from dataclasses import dataclass
@@ -46,7 +47,7 @@ def get_good_outputs(t: QueueTuple):
 class HistoryEntry(typing.TypedDict):
     prompt: QueueTuple
     outputs: dict
-    timestamp: datetime.datetime
+    timestamp: int
 
 
 @dataclass
@@ -780,7 +781,7 @@ class PromptQueue:
         with self.mutex:
             queue_item = self.currently_running.pop(item_id)
             prompt = queue_item.queue_tuple
-            self.history[prompt[1]] = {"prompt": prompt, "outputs": {}, "timestamp": datetime.datetime.now()}
+            self.history[prompt[1]] = {"prompt": prompt, "outputs": {}, "timestamp": time.time()}
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
             self.server.queue_updated()
