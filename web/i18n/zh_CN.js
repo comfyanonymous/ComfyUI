@@ -117,7 +117,8 @@ export default {
         "node.title.LoadLatent": "加载隐空间",
         "node.title.SaveLatent": "保存隐空间",
         "node.title.ConditioningZeroOut": "调节ZeroOut",
-        "node.title.ConditioningSetTimestepRange": "ConditioningSetTimestepRange",
+        "node.title.ConditioningSetTimestepRange":
+            "ConditioningSetTimestepRange",
 
         "node.input.text": "文本",
         "node.input.clip": "clip",
@@ -260,14 +261,15 @@ export default {
 
         "settings.Comfy.ConfirmClear": "清空工作流需要确认",
         "settings.Comfy.PromptFilename": "把工作流保存成文件",
-        "settings.Comfy.PreviewFormat": "预览图格式和压缩尺寸, e.g. webp, jpeg, webp;50, etc.",
+        "settings.Comfy.PreviewFormat":
+            "预览图格式和压缩尺寸, e.g. webp, jpeg, webp;50, etc.",
         "settings.Comfy.DisableSliders": "禁用滑动条",
         "settings.Comfy.DevMode": "启用开发模式",
         "settings.Comfy.ColorPalette": "主题",
         "settings.Comfy.EditAttention.Delta": "Ctrl+up/down precision",
         "settings.Comfy.InvertMenuScrolling": "反转滚动",
         "settings.Comfy.LinkRenderMode": "链接渲染模式",
-        "settings.Comfy.NodeSuggestions.number": "Number of nodes suggestions",
+        "settings.Comfy.NodeSuggestions.number": "节点建议数量",
         "settings.Comfy.SnapToGrid.GridSize": "单元格尺寸",
         "settings.Comfy.Logging.Enabled": "记录日志",
         "settings.Comfy.MenuPosition": "保存菜单位置",
