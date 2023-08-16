@@ -105,7 +105,40 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 
 To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
 
-## Manual Install (Windows, Linux, macOS) and Development
+## Manual Install (Windows, Linux, macOS)
+
+You must have Python installed. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here.](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
+
+1. Create a virtual environment:
+      ```shell
+      python -m virtualenv venv
+      ```
+2. Activate it on
+   **Windows (PowerShell):**
+   ```pwsh
+   Set-ExecutionPolicy Unrestricted -Scope Process
+   & .\venv\Scripts\activate.ps1
+   ```
+   
+   **Linux and macOS**
+   ```shell
+   source ./venv/bin/activate
+   ```
+
+3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
+    ```shell
+    pip install git+https://github.com/hiddenswitch/ComfyUI.git
+    ```
+4. To run the web server:
+    ```shell
+    comfyui
+    ```
+    To generate python OpenAPI models:
+    ```shell
+    comfyui-openapi-gen
+    ```
+
+## Manual Install (Windows, Linux, macOS) For Development
 
  1. Clone this repo:
     ```shell
@@ -144,10 +177,8 @@ To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfy
     ```
  6. To run the web server:
     ```shell
-    python main.py
+    comfyui
     ```
-    Currently, it is not possible to install this package from the URL and run the web server as a module. Clone the repository instead.
-    
     To generate python OpenAPI models:
     ```shell
     comfyui-openapi-gen
@@ -163,7 +194,15 @@ To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfy
 
 #### DirectML (AMD Cards on Windows)
 
-```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
+Follow the manual installation steps. Then:
+
+```shell
+pip uninstall torch torchvision torchaudio
+pip install torch torchvision torchaudio
+pip install torch-directml 
+```
+
+Launch ComfyUI with: ```comfyui --directml```
 
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
@@ -181,15 +220,15 @@ And then you can use that terminal to run ComfyUI without installing any depende
 
 # Running
 
-```python main.py```
+```comfyui```
 
 ### For AMD cards not officially supported by ROCm
 
 Try running it with this command if you have issues:
 
-For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 python main.py```
+For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 comfyui```
 
-For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
+For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 comfyui```
 
 # Notes
 
