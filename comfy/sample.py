@@ -51,19 +51,24 @@ def get_models_from_cond(cond, model_type):
             models += [c[1][model_type]]
     return models
 
-def load_additional_models(positive, negative, dtype):
+def get_additional_models(positive, negative):
     """loads additional models in positive and negative conditioning"""
     control_nets = get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control")
+
+    control_models = []
+    for m in control_nets:
+        control_models += m.get_models()
+
     gligen = get_models_from_cond(positive, "gligen") + get_models_from_cond(negative, "gligen")
-    gligen = [x[1].to(dtype) for x in gligen]
-    models = control_nets + gligen
-    comfy.model_management.load_controlnet_gpu(models)
+    gligen = [x[1] for x in gligen]
+    models = control_models + gligen
     return models
 
 def cleanup_additional_models(models):
     """cleanup additional models that were loaded"""
     for m in models:
-        m.cleanup()
+        if hasattr(m, 'cleanup'):
+            m.cleanup()
 
 def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
     device = comfy.model_management.get_torch_device()
@@ -72,7 +77,8 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
         noise_mask = prepare_mask(noise_mask, noise.shape, device)
 
     real_model = None
-    comfy.model_management.load_model_gpu(model)
+    models = get_additional_models(positive, negative)
+    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[2] * noise.shape[3]))
     real_model = model.model
 
     noise = noise.to(device)
@@ -81,7 +87,6 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     positive_copy = broadcast_cond(positive, noise.shape[0], device)
     negative_copy = broadcast_cond(negative, noise.shape[0], device)
 
-    models = load_additional_models(positive, negative, model.model_dtype())
 
     sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
 
