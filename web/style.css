@@ -142,6 +142,11 @@ body {
 	cursor: pointer;
 }
 
+button#comfy-switch-workflow-button:disabled {
+	filter: brightness(1.0);
+	cursor: not-allowed;
+}
+
 .comfy-menu span.drag-handle {
 	width: 10px;
 	height: 20px;

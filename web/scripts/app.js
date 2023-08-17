@@ -1084,12 +1084,16 @@ export class ComfyApp {
 
 		// Load previous workflow
 		let restored = false;
+		this.workflow_current_id = 0;
 		try {
 			const json = localStorage.getItem("workflow");
 			if (json) {
 				const workflow = JSON.parse(json);
 				this.loadGraphData(workflow);
 				restored = true;
+				const workflow_id = localStorage.getItem("workflow_current_id");
+				if (workflow_id)
+					this.workflow_current_id = workflow_id;
 			}
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
@@ -1596,6 +1600,29 @@ export class ComfyApp {
 		this.lastNodeErrors = null;
 		this.lastExecutionError = null;
 		this.runningNodeId = null;
+	}
+
+	switchWorkflow() {
+		const workflow_count = 3;
+
+		try {
+			let current_workflow = "workflow_" + this.workflow_current_id;
+			this.workflow_current_id += 1;
+			this.workflow_current_id %= workflow_count;
+			let next_workflow = "workflow_" + this.workflow_current_id;
+
+			localStorage.setItem("workflow_current_id", this.workflow_current_id);
+			localStorage.setItem(current_workflow, JSON.stringify(this.graph.serialize()));
+
+			const json = localStorage.getItem(next_workflow);
+			if (json) {
+				const workflow = JSON.parse(json);
+				this.loadGraphData(workflow);
+				localStorage.setItem("workflow", json);
+			}
+		} catch (err) {
+			console.error("Error loading workflow", err);
+		}
 	}
 }
 

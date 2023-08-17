@@ -756,6 +756,12 @@ export class ComfyUI {
 					}
 				}
 			}),
+			$el("button", {
+				id: "comfy-switch-workflow-button", textContent: "Workflow", onclick: () => {
+					app.switchWorkflow();
+					document.getElementById("comfy-switch-workflow-button").textContent = "Workflow " + app.workflow_current_id;
+				}
+			}),
 		]);
 
 		const devMode = this.settings.addSetting({
@@ -773,7 +779,9 @@ export class ComfyUI {
 
 	setStatus(status) {
 		this.queueSize.textContent = "Queue size: " + (status ? status.exec_info.queue_remaining : "ERR");
+		const switch_btn = document.getElementById("comfy-switch-workflow-button");
 		if (status) {
+			switch_btn.disabled = status.exec_info.queue_remaining ? true : false;
 			if (
 				this.lastQueueSize != 0 &&
 				status.exec_info.queue_remaining == 0 &&
@@ -782,6 +790,9 @@ export class ComfyUI {
 				app.queuePrompt(0, this.batchCount);
 			}
 			this.lastQueueSize = status.exec_info.queue_remaining;
+		}
+		else {
+			switch_btn.disabled = false;
 		}
 	}
 }
