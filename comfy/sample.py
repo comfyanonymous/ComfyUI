@@ -53,7 +53,7 @@ def get_models_from_cond(cond, model_type):
 
 def get_additional_models(positive, negative):
     """loads additional models in positive and negative conditioning"""
-    control_nets = get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control")
+    control_nets = set(get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control"))
 
     control_models = []
     for m in control_nets:
