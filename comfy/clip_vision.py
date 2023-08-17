@@ -24,8 +24,9 @@ class ClipVisionModel():
         return self.model.load_state_dict(sd, strict=False)
 
     def encode_image(self, image):
-        img = torch.clip((255. * image[0]), 0, 255).round().int()
-        inputs = self.processor(images=[img], return_tensors="pt")
+        img = torch.clip((255. * image), 0, 255).round().int()
+        img = list(map(lambda a: a, img))
+        inputs = self.processor(images=img, return_tensors="pt")
         outputs = self.model(**inputs)
         return outputs
 
