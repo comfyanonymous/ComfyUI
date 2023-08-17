@@ -354,6 +354,7 @@ class PromptExecutor:
                     d = self.outputs_ui.pop(x)
                     del d
 
+            comfy.model_management.cleanup_models()
             if self.server.client_id is not None:
                 self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
             executed = set()
