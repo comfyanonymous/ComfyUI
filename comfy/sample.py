@@ -78,7 +78,7 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
 
     real_model = None
     models = get_additional_models(positive, negative)
-    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[2] * noise.shape[3]))
+    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[0] * noise.shape[2] * noise.shape[3]))
     real_model = model.model
 
     noise = noise.to(device)
