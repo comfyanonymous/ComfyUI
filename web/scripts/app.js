@@ -284,6 +284,11 @@ export class ComfyApp {
 				}
 			}
 
+			options.push({
+					content: "Bypass",
+					callback: (obj) => { if (this.mode === 4) this.mode = 0; else this.mode = 4; this.graph.change(); }
+				});
+
 			// prevent conflict of clipspace content
 			if(!ComfyApp.clipspace_return_node) {
 				options.push({
