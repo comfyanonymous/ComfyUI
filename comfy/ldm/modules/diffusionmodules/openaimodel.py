@@ -70,7 +70,7 @@ class Upsample(nn.Module):
                  upsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=None):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=comfy.ops):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -106,7 +106,7 @@ class Downsample(nn.Module):
                  downsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=None):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=comfy.ops):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -156,7 +156,7 @@ class ResBlock(TimestepBlock):
         down=False,
         dtype=None,
         device=None,
-        operations=None
+        operations=comfy.ops
     ):
         super().__init__()
         self.channels = channels
