@@ -1,14 +1,18 @@
+import numpy as np
+from scipy.ndimage import grey_dilation
 import torch
 
 from nodes import MAX_RESOLUTION
 
-def composite(destination, source, x, y, mask = None, multiplier = 8):
+def composite(destination, source, x, y, mask = None, multiplier = 8, resize_source = False):
+    if resize_source:
+        source = torch.nn.functional.interpolate(source, size=(destination.shape[2], destination.shape[3]), mode="bilinear")
+
     x = max(-source.shape[3] * multiplier, min(x, destination.shape[3] * multiplier))
     y = max(-source.shape[2] * multiplier, min(y, destination.shape[2] * multiplier))
 
     left, top = (x // multiplier, y // multiplier)
     right, bottom = (left + source.shape[3], top + source.shape[2],)
-
 
     if mask is None:
         mask = torch.ones_like(source)
@@ -40,6 +44,7 @@ class LatentCompositeMasked:
                 "source": ("LATENT",),
                 "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                 "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                "resize_source": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -50,11 +55,11 @@ class LatentCompositeMasked:
 
     CATEGORY = "latent"
 
-    def composite(self, destination, source, x, y, mask = None):
+    def composite(self, destination, source, x, y, resize_source, mask = None):
         output = destination.copy()
         destination = destination["samples"].clone()
         source = source["samples"]
-        output["samples"] = composite(destination, source, x, y, mask, 8)
+        output["samples"] = composite(destination, source, x, y, mask, 8, resize_source)
         return (output,)
 
 class ImageCompositeMasked:
@@ -66,6 +71,7 @@ class ImageCompositeMasked:
                 "source": ("IMAGE",),
                 "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
                 "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                "resize_source": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -76,9 +82,9 @@ class ImageCompositeMasked:
 
     CATEGORY = "image"
 
-    def composite(self, destination, source, x, y, mask = None):
+    def composite(self, destination, source, x, y, resize_source, mask = None):
         destination = destination.clone().movedim(-1, 1)
-        output = composite(destination, source.movedim(-1, 1), x, y, mask, 1).movedim(1, -1)
+        output = composite(destination, source.movedim(-1, 1), x, y, mask, 1, resize_source).movedim(1, -1)
         return (output,)
 
 class MaskToImage:
@@ -272,6 +278,35 @@ class FeatherMask:
             output[-y, :] *= feather_rate
 
         return (output,)
+    
+class GrowMask:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "mask": ("MASK",),
+                "expand": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                "tapered_corners": ("BOOLEAN", {"default": True}),
+            },
+        }
+    
+    CATEGORY = "mask"
+
+    RETURN_TYPES = ("MASK",)
+
+    FUNCTION = "expand_mask"
+
+    def expand_mask(self, mask, expand, tapered_corners):
+        c = 0 if tapered_corners else 1
+        kernel = np.array([[c, 1, c],
+                           [1, 1, 1],
+                           [c, 1, c]])
+        output = mask.numpy().copy()
+        while expand > 0:
+            output = grey_dilation(output, footprint=kernel)
+            expand -= 1
+        output = torch.from_numpy(output)
+        return (output,)
 
 
 
@@ -285,6 +320,7 @@ NODE_CLASS_MAPPINGS = {
     "CropMask": CropMask,
     "MaskComposite": MaskComposite,
     "FeatherMask": FeatherMask,
+    "GrowMask": GrowMask,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
