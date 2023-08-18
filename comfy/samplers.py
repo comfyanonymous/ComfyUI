@@ -478,7 +478,7 @@ def pre_run_control(model, conds):
         timestep_end = None
         percent_to_timestep_function = lambda a: model.sigma_to_t(model.t_to_sigma(torch.tensor(a) * 999.0))
         if 'control' in x[1]:
-            x[1]['control'].pre_run(model.inner_model, percent_to_timestep_function)
+            x[1]['control'].pre_run(model.inner_model.inner_model, percent_to_timestep_function)
 
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []

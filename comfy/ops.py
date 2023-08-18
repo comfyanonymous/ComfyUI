@@ -21,6 +21,11 @@ class Conv2d(torch.nn.Conv2d):
     def reset_parameters(self):
         return None
 
+def conv_nd(dims, *args, **kwargs):
+    if dims == 2:
+        return Conv2d(*args, **kwargs)
+    else:
+        raise ValueError(f"unsupported dimensions: {dims}")
 
 @contextmanager
 def use_comfy_ops(): # Kind of an ugly hack but I can't think of a better way
