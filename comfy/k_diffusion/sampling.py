@@ -649,7 +649,7 @@ def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
     s_in = x.new_ones([x.shape[0]])
 
     denoised_1, denoised_2 = None, None
-    h_1, h_2 = None, None
+    h, h_1, h_2 = None, None, None
 
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)

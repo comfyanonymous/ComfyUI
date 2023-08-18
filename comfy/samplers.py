@@ -88,9 +88,9 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 gligen_type = gligen[0]
                 gligen_model = gligen[1]
                 if gligen_type == "position":
-                    gligen_patch = gligen_model.set_position(input_x.shape, gligen[2], input_x.device)
+                    gligen_patch = gligen_model.model.set_position(input_x.shape, gligen[2], input_x.device)
                 else:
-                    gligen_patch = gligen_model.set_empty(input_x.shape, input_x.device)
+                    gligen_patch = gligen_model.model.set_empty(input_x.shape, input_x.device)
 
                 patches['middle_patch'] = [gligen_patch]
 
