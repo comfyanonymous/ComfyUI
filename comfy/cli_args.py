@@ -82,6 +82,9 @@ vram_group.add_argument("--novram", action="store_true", help="When lowvram isn'
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
 
+parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
+
+
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
 parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
