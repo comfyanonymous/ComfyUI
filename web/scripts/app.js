@@ -1602,13 +1602,12 @@ export class ComfyApp {
 		this.runningNodeId = null;
 	}
 
-	switchWorkflow() {
-		const workflow_count = 3;
+	switchWorkflow(seleted_id) {
+		const workflow_count = 5;
 
 		try {
 			let current_workflow = "workflow_" + this.workflow_current_id;
-			this.workflow_current_id += 1;
-			this.workflow_current_id %= workflow_count;
+			this.workflow_current_id = Math.min(Math.max(seleted_id, 0), workflow_count - 1);
 			let next_workflow = "workflow_" + this.workflow_current_id;
 
 			localStorage.setItem("workflow_current_id", this.workflow_current_id);

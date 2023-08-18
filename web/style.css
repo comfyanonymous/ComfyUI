@@ -102,6 +102,7 @@ body {
 }
 
 .comfy-menu button,
+.comfy-menu select,
 .comfy-modal button {
 	font-size: 20px;
 }
@@ -117,11 +118,13 @@ body {
 	color: var(--descrip-text) !important;
 }
 
-.comfy-menu > button {
+.comfy-menu > button,
+.comfy-menu > select {
 	width: 100%;
 }
 
 .comfy-menu > button,
+.comfy-menu > select,
 .comfy-menu-btns button,
 .comfy-menu .comfy-list button,
 .comfy-modal button {
@@ -134,6 +137,7 @@ body {
 }
 
 .comfy-menu > button:hover,
+.comfy-menu > select:hover,
 .comfy-menu-btns button:hover,
 .comfy-menu .comfy-list button:hover,
 .comfy-modal button:hover,
@@ -142,9 +146,13 @@ body {
 	cursor: pointer;
 }
 
-button#comfy-switch-workflow-button:disabled {
+select#comfy-switch-workflow-combo:disabled {
 	filter: brightness(1.0);
 	cursor: not-allowed;
+}
+
+.comfy-menu select {
+	text-align-last: center
 }
 
 .comfy-menu span.drag-handle {

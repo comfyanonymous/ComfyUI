@@ -756,12 +756,19 @@ export class ComfyUI {
 					}
 				}
 			}),
-			$el("button", {
-				id: "comfy-switch-workflow-button", textContent: "Workflow", onclick: () => {
-					app.switchWorkflow();
-					document.getElementById("comfy-switch-workflow-button").textContent = "Workflow " + app.workflow_current_id;
+			$el("select", {
+				id: "comfy-switch-workflow-combo", onchange: (event) => {
+					app.switchWorkflow(event.target.selectedIndex);
 				}
-			}),
+			}, 
+			[
+				$el("option", {value:'workflow_0'}, 'Workflow 0'),
+				$el("option", {value:'workflow_1'}, 'Workflow 1'),
+				$el("option", {value:'workflow_2'}, 'Workflow 2'),
+				$el("option", {value:'workflow_3'}, 'Workflow 3'),
+				$el("option", {value:'workflow_4'}, 'Workflow 4'),
+			]
+			),
 		]);
 
 		const devMode = this.settings.addSetting({
@@ -779,9 +786,14 @@ export class ComfyUI {
 
 	setStatus(status) {
 		this.queueSize.textContent = "Queue size: " + (status ? status.exec_info.queue_remaining : "ERR");
-		const switch_btn = document.getElementById("comfy-switch-workflow-button");
+		const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
+		if (typeof app != "undefined") {
+			// This assignment is actually only needed when launching the app.
+			switch_workflow_combo.selectedIndex = app.workflow_current_id;
+		}
+
 		if (status) {
-			switch_btn.disabled = status.exec_info.queue_remaining ? true : false;
+			switch_workflow_combo.disabled = status.exec_info.queue_remaining ? true : false;
 			if (
 				this.lastQueueSize != 0 &&
 				status.exec_info.queue_remaining == 0 &&
@@ -792,7 +804,7 @@ export class ComfyUI {
 			this.lastQueueSize = status.exec_info.queue_remaining;
 		}
 		else {
-			switch_btn.disabled = false;
+			switch_workflow_combo.disabled = false;
 		}
 	}
 }
