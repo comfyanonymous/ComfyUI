@@ -767,9 +767,50 @@ export class ComfyUI {
 				$el("option", {value:'workflow_2'}, 'Workflow 2'),
 				$el("option", {value:'workflow_3'}, 'Workflow 3'),
 				$el("option", {value:'workflow_4'}, 'Workflow 4'),
+				$el("option", {value:'workflow_5'}, 'Workflow 5'),
+				$el("option", {value:'workflow_6'}, 'Workflow 6'),
+				$el("option", {value:'workflow_7'}, 'Workflow 7'),
+				$el("option", {value:'workflow_8'}, 'Workflow 8'),
+				$el("option", {value:'workflow_9'}, 'Workflow 9'),
 			]
 			),
 		]);
+		this.is_launchTiming = true;
+
+		const id_renameWorkflow = "Comfy.RenameWorkflowDialog";
+		const renameWorkflow = this.settings.addSetting({
+			id: id_renameWorkflow,
+			name: id_renameWorkflow,
+			defaultValue: false,
+			type: (name, setter, value) => {
+				return $el("tr", [
+					$el("td", [
+						$el("label", {
+							textContent: "Rename workflows",
+							for: id_renameWorkflow.replaceAll(".", "-"),
+						}),
+					]),
+					$el("td", [
+						$el("button", {
+							textContent: "Open dialog",
+							onclick: () => {
+								this.app.ui.settings.element.close();
+
+								if ( ! RenameWorkflowDialog.instance) {
+									RenameWorkflowDialog.instance = new RenameWorkflowDialog();
+								}
+
+								RenameWorkflowDialog.instance.workflow_names = this.app.getWorkflowNames();
+								RenameWorkflowDialog.instance.show();
+							},
+							style: {
+								fontSize: "14px", // Same font size as "View Logs" button
+							},
+						}),
+					]),
+				]);
+			},
+		});
 
 		const devMode = this.settings.addSetting({
 			id: "Comfy.DevMode",
@@ -787,11 +828,6 @@ export class ComfyUI {
 	setStatus(status) {
 		this.queueSize.textContent = "Queue size: " + (status ? status.exec_info.queue_remaining : "ERR");
 		const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
-		if (typeof app != "undefined") {
-			// This assignment is actually only needed when launching the app.
-			switch_workflow_combo.selectedIndex = app.workflow_current_id;
-		}
-
 		if (status) {
 			switch_workflow_combo.disabled = status.exec_info.queue_remaining ? true : false;
 			if (
@@ -806,5 +842,103 @@ export class ComfyUI {
 		else {
 			switch_workflow_combo.disabled = false;
 		}
+
+		if (this.is_launchTiming && typeof app != "undefined") {
+			switch_workflow_combo.selectedIndex = app.workflow_current_id;
+
+			const workflow_names = app.getWorkflowNames();
+			const options = switch_workflow_combo.options;
+
+			console.assert(options.length === workflow_names.length, "workflow_count != the count of $el(option ~ )");
+
+			for (let i = 0; i < options.length; i++) {
+				options[i].text = workflow_names[i];
+			}
+
+			this.is_launchTiming = false;
+		}
+	}
+}
+
+class RenameWorkflowDialog extends ComfyDialog {
+	static instance = null;
+
+	constructor() {
+		super();
+		this.element.classList.add("comfy-rename-workflows");
+		this.workflow_names = [];
+	}
+
+	createButtons() {
+		const buttons = super.createButtons();
+		buttons[0].textContent = "Cancel";
+		buttons.unshift(
+			$el("button", {
+				type: "button",
+				textContent: "Save",
+				onclick: () => this.save(),
+			})
+		);
+		return buttons;
+	}
+
+	save() {
+		const inputs = this.element.querySelectorAll("input");
+		const updated_names = [];
+
+		for (let i = 0; i < inputs.length; i++) {
+			const input = inputs[i];
+			if (input.parentElement.style.display !== "none") {
+				const name = input.value.trim() || input.getAttribute("data-name");
+				updated_names.push(name);
+			}
+			else {
+				updated_names.push("Workflow " + i); // default name
+			}
+		}
+
+		this.workflow_names = updated_names;
+	
+		const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
+		const options = switch_workflow_combo.options;
+
+		for (let i = 0; i < updated_names.length; i++) {
+			options[i].text = updated_names[i];
+			localStorage.setItem("workflowName_" + i, updated_names[i]);
+		}
+
+		this.close();
+	}
+
+	show() {
+		super.show(
+			$el(
+				"div",
+				{
+					style: {
+						display: "grid",
+						gap: "5px",
+					},
+				},
+				this.workflow_names.flatMap((t) => {
+					let nameInput;
+					return [
+						$el(
+							"label",
+							{
+								textContent: "Name: ",
+							},
+							[
+								$el("input", {
+									value: t,
+									dataset: { name: t },
+									$: (el) => (nameInput = el),
+								}),
+							]
+						),
+					];
+				})
+			)
+		);
 	}
 }

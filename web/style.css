@@ -236,7 +236,8 @@ button.comfy-queue-btn {
 }
 
 .comfy-modal.comfy-settings,
-.comfy-modal.comfy-manage-templates {
+.comfy-modal.comfy-manage-templates,
+.comfy-modal.comfy-rename-workflows {
 	text-align: center;
 	font-family: sans-serif;
 	color: var(--descrip-text);

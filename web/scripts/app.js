@@ -1603,12 +1603,13 @@ export class ComfyApp {
 	}
 
 	switchWorkflow(seleted_id) {
-		const workflow_count = 5;
+		// If you change the value of this workflow_count, you also need to change the count of `$el("option"~` (ui.js).
+		const workflow_count = 10; // also used in getWorkflowNames function
 
 		try {
-			let current_workflow = "workflow_" + this.workflow_current_id;
+			const current_workflow = "workflow_" + this.workflow_current_id;
 			this.workflow_current_id = Math.min(Math.max(seleted_id, 0), workflow_count - 1);
-			let next_workflow = "workflow_" + this.workflow_current_id;
+			const next_workflow = "workflow_" + this.workflow_current_id;
 
 			localStorage.setItem("workflow_current_id", this.workflow_current_id);
 			localStorage.setItem(current_workflow, JSON.stringify(this.graph.serialize()));
@@ -1622,6 +1623,21 @@ export class ComfyApp {
 		} catch (err) {
 			console.error("Error loading workflow", err);
 		}
+	}
+
+	getWorkflowNames() {
+		const workflow_count = 10; // also used in switchWorkflow function
+
+		const workflow_names = [];
+		for (let i = 0; i < workflow_count; i++) {
+			const name = localStorage.getItem("workflowName_" + i);
+			if (name) {
+				workflow_names.push(name);
+			} else {
+				workflow_names.push("Workflow " + i); // default name
+			}
+		}
+		return workflow_names;
 	}
 }
 
