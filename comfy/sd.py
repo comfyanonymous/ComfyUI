@@ -649,7 +649,7 @@ class VAE:
     def decode(self, samples_in):
         self.first_stage_model = self.first_stage_model.to(self.device)
         try:
-            memory_used = (2562 * samples_in.shape[2] * samples_in.shape[3] * 64) * 1.4
+            memory_used = (2562 * samples_in.shape[2] * samples_in.shape[3] * 64) * 1.7
             model_management.free_memory(memory_used, self.device)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
@@ -677,7 +677,7 @@ class VAE:
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1)
         try:
-            memory_used = (2078 * pixel_samples.shape[2] * pixel_samples.shape[3]) * 1.4 #NOTE: this constant along with the one in the decode above are estimated from the mem usage for the VAE and could change.
+            memory_used = (2078 * pixel_samples.shape[2] * pixel_samples.shape[3]) * 1.7 #NOTE: this constant along with the one in the decode above are estimated from the mem usage for the VAE and could change.
             model_management.free_memory(memory_used, self.device)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
