@@ -53,7 +53,7 @@ def get_models_from_cond(cond, model_type):
 
 def get_additional_models(positive, negative):
     """loads additional models in positive and negative conditioning"""
-    control_nets = get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control")
+    control_nets = set(get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control"))
 
     control_models = []
     for m in control_nets:
@@ -78,7 +78,7 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
 
     real_model = None
     models = get_additional_models(positive, negative)
-    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[2] * noise.shape[3]))
+    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[0] * noise.shape[2] * noise.shape[3]))
     real_model = model.model
 
     noise = noise.to(device)
