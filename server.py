@@ -135,7 +135,6 @@ class PromptServer():
                 files = glob.glob(os.path.join(dir, '**/*.js'), recursive=True)
                 extensions.extend(list(map(lambda f: "/extensions/" + urllib.parse.quote(
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
-                print(extensions)
 
             return web.json_response(extensions)
 
