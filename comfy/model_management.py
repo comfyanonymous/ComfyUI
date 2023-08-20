@@ -397,6 +397,9 @@ def unet_inital_load_device(parameters, dtype):
         return torch_dev
 
     cpu_dev = torch.device("cpu")
+    if DISABLE_SMART_MEMORY:
+        return cpu_dev
+
     dtype_size = 4
     if dtype == torch.float16 or dtype == torch.bfloat16:
         dtype_size = 2
