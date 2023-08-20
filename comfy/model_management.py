@@ -589,7 +589,10 @@ def should_use_fp16(device=None, model_params=0):
     if cpu_mode() or mps_mode():
         return False #TODO ?
 
-    if torch.cuda.is_bf16_supported() or xpu_available:
+    if xpu_available:
+        return True
+
+    if torch.cuda.is_bf16_supported():
         return True
 
     props = torch.cuda.get_device_properties("cuda")
