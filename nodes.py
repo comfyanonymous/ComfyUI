@@ -1673,6 +1673,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "VAEEncodeTiled": "VAE Encode (Tiled)",
 }
 
+EXTENSION_WEB_DIRS = {}
+
 def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
     if os.path.isfile(module_path):
@@ -1681,11 +1683,20 @@ def load_custom_node(module_path, ignore=set()):
     try:
         if os.path.isfile(module_path):
             module_spec = importlib.util.spec_from_file_location(module_name, module_path)
+            module_dir = os.path.split(module_path)[0]
         else:
             module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
+            module_dir = module_path
+
         module = importlib.util.module_from_spec(module_spec)
         sys.modules[module_name] = module
         module_spec.loader.exec_module(module)
+
+        if hasattr(module, "WEB_DIRECTORY") and getattr(module, "WEB_DIRECTORY") is not None:
+            web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
+            if os.path.isdir(web_dir):
+                EXTENSION_WEB_DIRS[module_name] = web_dir
+
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name in module.NODE_CLASS_MAPPINGS:
                 if name not in ignore:

@@ -5,6 +5,7 @@ import nodes
 import folder_paths
 import execution
 import uuid
+import urllib
 import json
 import glob
 import struct
@@ -67,6 +68,8 @@ class PromptServer():
 
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
+
+        self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
         self.messages = asyncio.Queue()
@@ -123,8 +126,18 @@ class PromptServer():
 
         @routes.get("/extensions")
         async def get_extensions(request):
-            files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.js'), recursive=True)
-            return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
+            files = glob.glob(os.path.join(
+                self.web_root, 'extensions/**/*.js'), recursive=True)
+            
+            extensions = list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files))
+            
+            for name, dir in nodes.EXTENSION_WEB_DIRS.items():
+                files = glob.glob(os.path.join(dir, '**/*.js'), recursive=True)
+                extensions.extend(list(map(lambda f: "/extensions/" + urllib.parse.quote(
+                    name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
+                print(extensions)
+
+            return web.json_response(extensions)
 
         def get_dir_by_type(dir_type):
             if dir_type is None:
@@ -492,6 +505,12 @@ class PromptServer():
         
     def add_routes(self):
         self.app.add_routes(self.routes)
+
+        for name, dir in nodes.EXTENSION_WEB_DIRS.items():
+            self.app.add_routes([
+                web.static('/extensions/' + urllib.parse.quote(name), dir, follow_symlinks=True),
+            ])
+
         self.app.add_routes([
             web.static('/', self.web_root, follow_symlinks=True),
         ])
