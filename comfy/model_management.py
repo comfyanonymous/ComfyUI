@@ -271,8 +271,7 @@ class LoadedModel:
             self.model_accelerated = True
 
         if xpu_available and not args.disable_ipex_optimize:
-            self.real_model.training = False
-            self.real_model = torch.xpu.optimize(self.real_model, inplace=True)
+            self.real_model = torch.xpu.optimize(self.real_model.eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
 
         return self.real_model
 
@@ -515,7 +514,7 @@ def get_free_memory(dev=None, torch_free_too=False):
             mem_allocated = stats['allocated_bytes.all.current']
             mem_reserved = stats['reserved_bytes.all.current']
             mem_free_torch = mem_reserved - mem_active
-            mem_free_total = torch.xpu.get_device_properties(dev).total_memory - mem_allocated + mem_free_torch
+            mem_free_total = torch.xpu.get_device_properties(dev).total_memory - mem_allocated
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
