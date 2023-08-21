@@ -11,8 +11,11 @@ import numpy as np
 from PIL import Image
 import torch
 
+from comfy.nodes.package_typing import CustomNode
+
 MAX_RESOLUTION = 1024
 AUTO_FACTOR = 8
+
 
 def k_centroid_downscale(images, width, height, centroids=2):
     '''k-centroid scaling, based on: https://github.com/Astropulse/stable-diffusion-aseprite/blob/main/scripts/image_server.py.'''
@@ -31,13 +34,13 @@ def k_centroid_downscale(images, width, height, centroids=2):
             # get most common (median) color
             color_counts = tile.getcolors()
             most_common_idx = max(color_counts, key=lambda x: x[0])[1]
-            downscaled[ii, y, x, :] = tile.getpalette()[most_common_idx*3:(most_common_idx + 1)*3]
+            downscaled[ii, y, x, :] = tile.getpalette()[most_common_idx * 3:(most_common_idx + 1) * 3]
 
     downscaled = downscaled.astype(np.float32) / 255.0
     return torch.from_numpy(downscaled)
 
 
-class ImageKCentroidDownscale:
+class ImageKCentroidDownscale(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -58,7 +61,8 @@ class ImageKCentroidDownscale:
         s = k_centroid_downscale(image, width, height, centroids)
         return (s,)
 
-class ImageKCentroidAutoDownscale:
+
+class ImageKCentroidAutoDownscale(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {

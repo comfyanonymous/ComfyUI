@@ -7,11 +7,12 @@ import numpy as np
 import rembg
 import torch
 
+from comfy.nodes.package_typing import CustomNode
 
 MODELS = rembg.sessions.sessions_names
 
 
-class ImageRemoveBackground:
+class ImageRemoveBackground(CustomNode):
     '''Remove background from image (adds an alpha channel)'''
 
     @classmethod
@@ -59,16 +60,17 @@ class ImageRemoveBackground:
             i = 255. * i.cpu().numpy()
             i = np.clip(i, 0, 255).astype(np.uint8)
             i = rembg.remove(i,
-                    alpha_matting=(alpha_matting == "enabled"),
-                    alpha_matting_foreground_threshold=am_foreground_thr,
-                    alpha_matting_background_threshold=am_background_thr,
-                    alpha_matting_erode_size=am_erode_size,
-                    session=session,
-                    )
+                             alpha_matting=(alpha_matting == "enabled"),
+                             alpha_matting_foreground_threshold=am_foreground_thr,
+                             alpha_matting_background_threshold=am_background_thr,
+                             alpha_matting_erode_size=am_erode_size,
+                             session=session,
+                             )
             results.append(i.astype(np.float32) / 255.0)
 
         s = torch.from_numpy(np.array(results))
         return (s,)
+
 
 class ImageEstimateForegroundMask:
     '''

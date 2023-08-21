@@ -2,13 +2,14 @@
 /[Oo]utput/
 /[Ii]nput/
 !/input/example.png
-/[Mm]odels/
+/[Mm]odels/*
+![Mm]odels/deepfloyd/put_deepfloyd_hugginface_repos_or_diffusers_cache_here
+
 /[Tt]emp/
 /[Cc]ustom_nodes/*
 ![Cc]ustom_nodes/__init__.py
 !/custom_nodes/example_node.py.example
 **/put*here
-![Mm]odels/deepfloyd/put_deepfloyd_repos_here
 /extra_model_paths.yaml
 /.vs
 .idea/

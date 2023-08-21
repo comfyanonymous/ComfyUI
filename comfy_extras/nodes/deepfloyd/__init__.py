@@ -14,17 +14,17 @@ filterwarnings("ignore", category=UserWarning, message="TypedStorage is deprecat
 
 NODE_CLASS_MAPPINGS = {
     # DeepFloyd
-    "IF Loader": Loader,
-    "IF Encoder": Encoder,
-    "IF Stage I": StageI,
-    "IF Stage II": StageII,
-    "IF Stage III": StageIII,
+    "IFLoader": IFLoader,
+    "IFEncoder": IFEncoder,
+    "IFStageI": IFStageI,
+    "IFStageII": IFStageII,
+    "IFStageIII": IFStageIII,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "IF Loader": "IF Loader",
-    "IF Encoder": "IF Encoder",
-    "IF Stage I": "IF Stage I",
-    "IF Stage II": "IF Stage II",
-    "IF Stage III": "IF Stage III",
+    "IFLoader": "DeepFloyd IF Loader",
+    "IFEncoder": "DeepFloyd IF Encoder",
+    "IFStageI": "DeepFloyd IF Stage I",
+    "IFStageII": "DeepFloyd IF Stage II",
+    "IFStageIII": "DeepFloyd IF Stage III",
 }

@@ -4,13 +4,12 @@ import os.path
 import typing
 
 import torch
-import torchvision.transforms.functional as TF
 from diffusers import DiffusionPipeline, IFPipeline, StableDiffusionUpscalePipeline, IFSuperResolutionPipeline
 from diffusers.utils import is_accelerate_available, is_accelerate_version
 from transformers import T5EncoderModel, BitsAndBytesConfig
 
 from comfy.model_management import throw_exception_if_processing_interrupted, get_torch_device, cpu_state, CPUState
-# todo: this relies on the setup-py cleanup fork
+from comfy.nodes.package_typing import CustomNode
 from comfy.utils import ProgressBar, get_project_root
 
 # todo: find or download the models automatically by their config jsons instead of using well known names
@@ -83,13 +82,16 @@ def _cpu_offload(self: DiffusionPipeline, gpu_id=0):
         self.enable_model_cpu_offload(gpu_id)
 
 
-class Loader:
+class IFLoader(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model_name": (Loader._MODELS, {"default": "I-M"}),
-                "quantization": (list(Loader._QUANTIZATIONS.keys()), {"default": "16-bit"}),
+                "model_name": (IFLoader._MODELS, {"default": "I-M"}),
+                "quantization": (list(IFLoader._QUANTIZATIONS.keys()), {"default": "16-bit"}),
+            },
+            "optional": {
+                "hugging_face_token": ("STRING", {"default": ""}),
             }
         }
 
@@ -110,9 +112,8 @@ class Loader:
         "16-bit": None,
     }
 
-    # todo: correctly use load_in_8bit
-    def process(self, model_name: str, quantization: str):
-        assert model_name in Loader._MODELS
+    def process(self, model_name: str, quantization: str, hugging_face_token: str = ""):
+        assert model_name in IFLoader._MODELS
 
         model_v: DiffusionPipeline
         model_path: str
@@ -126,14 +127,22 @@ class Loader:
             "device_map": None
         }
 
-        if Loader._QUANTIZATIONS[quantization] is not None:
-            kwargs['quantization_config'] = Loader._QUANTIZATIONS[quantization]
+        if hugging_face_token is not None and hugging_face_token != "":
+            kwargs['access_token'] = hugging_face_token
+        elif 'HUGGING_FACE_HUB_TOKEN' in os.environ:
+            pass
+
+        if IFLoader._QUANTIZATIONS[quantization] is not None:
+            kwargs['quantization_config'] = IFLoader._QUANTIZATIONS[quantization]
 
         if model_name == "t5":
             # find any valid IF model
-            model_path = next(os.path.dirname(file) for file in _find_files(_model_base_path, "model_index.json") if
-                              any(x == T5EncoderModel.__name__ for x in
-                                  json.load(open(file, 'r'))["text_encoder"]))
+            try:
+                model_path = next(os.path.dirname(file) for file in _find_files(_model_base_path, "model_index.json") if
+                                  any(x == T5EncoderModel.__name__ for x in
+                                      json.load(open(file, 'r'))["text_encoder"]))
+            except:
+                model_path = "DeepFloyd/IF-I-M-v1.0"
             kwargs["unet"] = None
         elif model_name == "III":
             model_path = f"{_model_base_path}/stable-diffusion-x4-upscaler"
@@ -141,6 +150,13 @@ class Loader:
         else:
             model_path = f"{_model_base_path}/IF-{model_name}-v1.0"
             kwargs["text_encoder"] = None
+
+        if not os.path.exists(model_path):
+            kwargs['cache_dir='] = os.path.abspath(_model_base_path)
+            if model_name == "t5":
+                model_path = "DeepFloyd/IF-I-M-v1.0"
+            else:
+                model_path = f"DeepFloyd/IF-{model_name}-v1.0"
 
         model_v = DiffusionPipeline.from_pretrained(
             pretrained_model_name_or_path=model_path,
@@ -155,7 +171,7 @@ class Loader:
         return (model_v,)
 
 
-class Encoder:
+class IFEncoder(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -168,9 +184,7 @@ class Encoder:
 
     CATEGORY = "deepfloyd"
     FUNCTION = "process"
-    MODEL = None
     RETURN_TYPES = ("POSITIVE", "NEGATIVE",)
-    TEXT_ENCODER = None
 
     def process(self, model: IFPipeline, positive, negative):
         positive, negative = model.encode_prompt(
@@ -181,7 +195,7 @@ class Encoder:
         return (positive, negative,)
 
 
-class StageI:
+class IFStageI:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -228,7 +242,7 @@ class StageI:
         return (image,)
 
 
-class StageII:
+class IFStageII:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -251,10 +265,7 @@ class StageII:
     def process(self, model, images, positive, negative, seed, steps, cfg):
         images = images.permute(0, 3, 1, 2)
         progress = ProgressBar(steps)
-        batch_size, channels, height, width = images.shape
-        max_dim = max(height, width)
-        images = TF.center_crop(images, max_dim)
-        model.unet.config.sample_size = max_dim * 4
+        batch_size = images.shape[0]
 
         if batch_size > 1:
             positive = positive.repeat(batch_size, 1, 1)
@@ -268,19 +279,22 @@ class StageII:
             image=images,
             prompt_embeds=positive,
             negative_prompt_embeds=negative,
+            height=images.shape[2] // 8 * 8 * 4,
+            width=images.shape[3] // 8 * 8 * 4,
             generator=torch.manual_seed(seed),
             guidance_scale=cfg,
             num_inference_steps=steps,
             callback=callback,
             output_type="pt",
-        ).images.cpu().float()
+        ).images
 
-        images = TF.center_crop(images, [height * 4, width * 4])
+        images = images.clamp(0, 1)
         images = images.permute(0, 2, 3, 1)
+        images = images.to("cpu", torch.float32)
         return (images,)
 
 
-class StageIII:
+class IFStageIII:
     @classmethod
     def INPUT_TYPES(s):
         return {

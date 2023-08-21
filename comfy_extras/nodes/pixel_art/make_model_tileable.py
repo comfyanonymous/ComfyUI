@@ -10,6 +10,8 @@ import torch
 from torch.nn import functional as F
 from torch.nn.modules.utils import _pair
 
+from comfy.nodes.package_typing import CustomNode
+
 
 def flatten_modules(m):
     '''Return submodules of module m in flattened form.'''
@@ -38,7 +40,7 @@ def __replacementConv2DConvForward(self, input: torch.Tensor, weight: torch.Tens
     return F.conv2d(working, weight, bias, self.stride, _pair(0), self.dilation, self.groups)
 
 
-class MakeModelTileable:
+class MakeModelTileable(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {

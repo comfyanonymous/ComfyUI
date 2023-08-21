@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import typing
 from typing import Protocol, ClassVar, Tuple, Dict
 from dataclasses import dataclass, field
 
@@ -8,7 +9,7 @@ class CustomNode(Protocol):
     @classmethod
     def INPUT_TYPES(cls) -> dict: ...
 
-    RETURN_TYPES: ClassVar[Tuple[str]]
+    RETURN_TYPES: ClassVar[typing.Sequence[str]]
     RETURN_NAMES: ClassVar[Tuple[str]] = None
     OUTPUT_IS_LIST: ClassVar[Tuple[bool]] = None
     INPUT_IS_LIST: ClassVar[bool] = None

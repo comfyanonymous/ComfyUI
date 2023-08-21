@@ -9,9 +9,12 @@ import numpy as np
 from PIL import Image
 import torch
 
+from comfy.nodes.package_typing import CustomNode
+
 MAX_RESOLUTION = 8192
 
-class ImageSolidColor:
+
+class ImageSolidColor(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -32,7 +35,7 @@ class ImageSolidColor:
     def render(self, width, height, r, g, b):
         color = torch.tensor([r, g, b]) / 255.0
         result = color.expand(1, height, width, 3)
-        return (result, )
+        return (result,)
 
 
 NODE_CLASS_MAPPINGS = {
@@ -42,4 +45,3 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageSolidColor": "Solid Color",
 }
-

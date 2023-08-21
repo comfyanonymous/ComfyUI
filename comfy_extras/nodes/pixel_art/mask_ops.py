@@ -7,8 +7,10 @@ import numpy as np
 import rembg
 import torch
 
+from comfy.nodes.package_typing import CustomNode
 
-class BinarizeMask:
+
+class BinarizeMask(CustomNode):
     '''Binarize (threshold) a mask.'''
 
     @classmethod
@@ -36,7 +38,7 @@ class BinarizeMask:
         return (s,)
 
 
-class ImageCutout:
+class ImageCutout(CustomNode):
     '''Perform basic image cutout (adds alpha channel from mask).'''
 
     @classmethod
@@ -65,4 +67,3 @@ NODE_CLASS_MAPPINGS = {
     "BinarizeMask": BinarizeMask,
     "ImageCutout": ImageCutout,
 }
-

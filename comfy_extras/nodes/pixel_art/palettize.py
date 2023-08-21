@@ -9,6 +9,8 @@ import numpy as np
 from PIL import Image
 import torch
 
+from comfy.nodes.package_typing import CustomNode
+
 PALETTES_PATH = os.path.join(os.path.dirname(__file__), '../../..', 'palettes')
 PAL_EXT = '.png'
 
@@ -17,6 +19,7 @@ QUANTIZE_METHODS = {
     'max_coverage': Image.Quantize.MAXCOVERAGE,
     'fast_octree': Image.Quantize.FASTOCTREE,
 }
+
 
 # Determine optimal number of colors.
 # FROM: astropulse/sd-palettize
@@ -59,7 +62,9 @@ def determine_best_k(image, max_k, quantize_method=Image.Quantize.FASTOCTREE):
 
     return best_k
 
+
 palette_warned = False
+
 
 def list_palettes():
     global palette_warned
@@ -72,7 +77,8 @@ def list_palettes():
         pass
     if not palettes and not palette_warned:
         palette_warned = True
-        print("ImagePalettize warning: no fixed palettes found. You can put these in the palettes/ directory below the ComfyUI root.")
+        print(
+            "ImagePalettize warning: no fixed palettes found. You can put these in the palettes/ directory below the ComfyUI root.")
     return palettes
 
 
@@ -90,7 +96,7 @@ def load_palette(name):
     return get_image_colors(Image.open(os.path.join(PALETTES_PATH, name + PAL_EXT)))
 
 
-class ImagePalettize:
+class ImagePalettize(CustomNode):
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -122,7 +128,7 @@ class ImagePalettize:
         if palette not in {'auto_best_k', 'auto_fixed_k'}:
             pal_entries = load_palette(palette)
             k = len(pal_entries) // 3
-            pal_img = Image.new('P', (1, 1)) # image size doesn't matter it only holds the palette
+            pal_img = Image.new('P', (1, 1))  # image size doesn't matter it only holds the palette
             pal_img.putpalette(pal_entries)
 
         results = []
@@ -143,7 +149,7 @@ class ImagePalettize:
             results.append(np.array(i))
 
         result = np.array(results).astype(np.float32) / 255.0
-        return (torch.from_numpy(result), )
+        return (torch.from_numpy(result),)
 
 
 NODE_CLASS_MAPPINGS = {
