@@ -381,7 +381,7 @@ paths:
                   Hashing function for python:
                   ```python
                   def digest(data: dict | str) -> str:
-                    json_str = data if isinstance(data, str) else json.dumps(data)
+                    json_str = data if isinstance(data, str) else json.dumps(data, separators=(',', ':'))
                     json_bytes = json_str.encode('utf-8')
                     hash_object = hashlib.sha256(json_bytes)
                     return hash_object.hexdigest()

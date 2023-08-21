@@ -566,11 +566,13 @@ class PromptServer():
             if len(prompt_dict) == 0:
                 return web.Response(status=400, reason="no prompt was specified")
 
+            content_digest = digest(prompt_dict)
+            dump = json.dumps(prompt_dict)
+            
             valid = execution.validate_prompt(prompt_dict)
             if not valid[0]:
                 return web.Response(status=400, body=valid[1])
 
-            content_digest = digest(prompt_dict)
             cache_path = os.path.join(user_data_dir("comfyui", "comfyanonymous", roaming=False), content_digest)
             cache_url = f"/api/v1/images/{content_digest}"
 
@@ -578,7 +580,7 @@ class PromptServer():
                 return web.Response(status=200,
                                     headers={
                                         "Digest": f"SHA-256={content_digest}",
-                                        "Location": f"/api/v1/images/{content_digest}",
+                                        "Location": f"/api/v1/images/{content_digest}"
                                     },
                                     body=json.dumps({'urls': [cache_url]}))
 
