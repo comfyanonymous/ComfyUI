@@ -9898,6 +9898,24 @@ LGraphNode.prototype.executeAction = function(action)
 								if(values && values.constructor !== Array)
 									v = values[ w.value ];
 							}
+                            if (w.options.display_names) {
+                                var old_v = v;
+                                var display_names = w.options.display_names;
+                                if (display_names.constructor === Function)
+                                    display_names = display_names();
+                                if (display_names && display_names.constructor === Array) {
+                                    // search from array
+                                    var values = w.options.values;
+                                    if (values.constructor === Function)
+                                        values = values();
+                                    var index = values.indexOf(w.value);
+                                    v = display_names[index];
+                                } else if (display_names && display_names.hasOwnProperty(w.value)) {
+                                    // search from map
+                                    v = display_names[w.value];
+                                }
+                                v = v || old_v;
+                            }
                             ctx.fillText(
                                 v,
                                 widget_width - margin * 2 - 20,
@@ -10071,7 +10089,8 @@ LGraphNode.prototype.executeAction = function(action)
 									scale: Math.max(1, this.ds.scale),
 									event: event,
 									className: "dark",
-									callback: inner_clicked.bind(w)
+									callback: inner_clicked.bind(w),
+                                    widget: w
 								},
 								ref_window);
 							function inner_clicked(v, option, event) {
@@ -13720,6 +13739,13 @@ LGraphNode.prototype.executeAction = function(action)
             var name = values.constructor == Array ? values[i] : i;
             if (name != null && name.constructor !== String) {
                 name = name.content === undefined ? String(name) : name.content;
+            }
+            if(options.widget?.options?.display_names){ 
+                var display_names = options.widget.options.display_names;
+                if(display_names.constructor === Array)
+                    name = display_names[i];
+                else if(display_names.hasOwnProperty(name))
+                    name = display_names[name];
             }
             var value = values[i];
             this.addItem(name, value, options);

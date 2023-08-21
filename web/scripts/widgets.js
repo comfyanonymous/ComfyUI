@@ -308,10 +308,14 @@ export const ComfyWidgets = {
 	COMBO(node, inputName, inputData) {
 		const type = inputData[0];
 		let defaultValue = type[0];
+		let display_names = JSON.parse(JSON.stringify(type));
 		if (inputData[1] && inputData[1].default) {
 			defaultValue = inputData[1].default;
 		}
-		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
+		if (inputData[1] && inputData[1].display_names) {
+			display_names = inputData[1].display_names;
+		}
+		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type, display_names: display_names }) };
 	},
 	IMAGEUPLOAD(node, inputName, inputData, app) {
 		const imageWidget = node.widgets.find((w) => w.name === "image");
