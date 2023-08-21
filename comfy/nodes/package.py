@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import pkgutil
 import time
 import types
@@ -14,6 +15,7 @@ except:
     custom_nodes = None
 from comfy.nodes.package_typing import ExportedNodes
 from functools import reduce
+from pkg_resources import resource_filename
 
 _comfy_nodes = ExportedNodes()
 
@@ -21,10 +23,19 @@ _comfy_nodes = ExportedNodes()
 def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleType):
     node_class_mappings = getattr(module, 'NODE_CLASS_MAPPINGS', None)
     node_display_names = getattr(module, 'NODE_DISPLAY_NAME_MAPPINGS', None)
+    web_directory = getattr(module, "WEB_DIRECTORY", None)
     if node_class_mappings:
         exported_nodes.NODE_CLASS_MAPPINGS.update(node_class_mappings)
     if node_display_names:
         exported_nodes.NODE_DISPLAY_NAME_MAPPINGS.update(node_display_names)
+    if web_directory:
+        # load the extension resources path
+        abs_web_directory = os.path.abspath(resource_filename(module.__name__, web_directory))
+        if not os.path.isdir(abs_web_directory):
+            abs_web_directory = os.path.abspath(os.path.join(os.path.dirname(module.__file__), web_directory))
+        if not os.path.isdir(abs_web_directory):
+            raise ImportError(path=abs_web_directory)
+        exported_nodes.EXTENSION_WEB_DIRS[module.__name__] = abs_web_directory
 
 
 def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import_times=False) -> ExportedNodes:

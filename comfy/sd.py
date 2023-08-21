@@ -243,8 +243,15 @@ def set_attr(obj, attr, value):
     setattr(obj, attrs[-1], torch.nn.Parameter(value))
     del prev
 
+def get_attr(obj, attr):
+    attrs = attr.split(".")
+    for name in attrs:
+        obj = getattr(obj, name)
+    return obj
+
+
 class ModelPatcher:
-    def __init__(self, model, load_device, offload_device, size=0):
+    def __init__(self, model, load_device, offload_device, size=0, current_device=None):
         self.size = size
         self.model = model
         self.patches = {}
@@ -253,6 +260,10 @@ class ModelPatcher:
         self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
+        if current_device is None:
+            self.current_device = self.offload_device
+        else:
+            self.current_device = current_device
 
     def model_size(self):
         if self.size > 0:
@@ -267,7 +278,7 @@ class ModelPatcher:
         return size
 
     def clone(self):
-        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size)
+        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self.current_device)
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
@@ -275,6 +286,11 @@ class ModelPatcher:
         n.model_options = copy.deepcopy(self.model_options)
         n.model_keys = self.model_keys
         return n
+
+    def is_clone(self, other):
+        if hasattr(other, 'model') and self.model is other.model:
+            return True
+        return False
 
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
@@ -390,6 +406,11 @@ class ModelPatcher:
             out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
             set_attr(self.model, key, out_weight)
             del temp_weight
+
+        if device_to is not None:
+            self.model.to(device_to)
+            self.current_device = device_to
+
         return self.model
 
     def calculate_weight(self, patches, weight, key):
@@ -482,13 +503,18 @@ class ModelPatcher:
 
         return weight
 
-    def unpatch_model(self):
+    def unpatch_model(self, device_to=None):
         keys = list(self.backup.keys())
 
         for k in keys:
             set_attr(self.model, k, self.backup[k])
 
         self.backup = {}
+
+        if device_to is not None:
+            self.model.to(device_to)
+            self.current_device = device_to
+
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     key_map = model_lora_keys_unet(model.model)
@@ -555,7 +581,7 @@ class CLIP:
         else:
             self.cond_stage_model.reset_clip_layer()
 
-        model_management.load_model_gpu(self.patcher)
+        self.load_model()
         cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
         if return_pooled:
             return cond, pooled
@@ -571,11 +597,9 @@ class CLIP:
     def get_sd(self):
         return self.cond_stage_model.state_dict()
 
-    def patch_model(self):
-        self.patcher.patch_model()
-
-    def unpatch_model(self):
-        self.patcher.unpatch_model()
+    def load_model(self):
+        model_management.load_model_gpu(self.patcher)
+        return self.patcher
 
     def get_key_patches(self):
         return self.patcher.get_key_patches()
@@ -630,11 +654,12 @@ class VAE:
         return samples
 
     def decode(self, samples_in):
-        model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         try:
+            memory_used = (2562 * samples_in.shape[2] * samples_in.shape[3] * 64) * 1.7
+            model_management.free_memory(memory_used, self.device)
             free_memory = model_management.get_free_memory(self.device)
-            batch_number = int((free_memory * 0.7) / (2562 * samples_in.shape[2] * samples_in.shape[3] * 64))
+            batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
 
             pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * 8), round(samples_in.shape[3] * 8)), device="cpu")
@@ -650,19 +675,19 @@ class VAE:
         return pixel_samples
 
     def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
-        model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
         self.first_stage_model = self.first_stage_model.to(self.offload_device)
         return output.movedim(1,-1)
 
     def encode(self, pixel_samples):
-        model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1)
         try:
+            memory_used = (2078 * pixel_samples.shape[2] * pixel_samples.shape[3]) * 1.7 #NOTE: this constant along with the one in the decode above are estimated from the mem usage for the VAE and could change.
+            model_management.free_memory(memory_used, self.device)
             free_memory = model_management.get_free_memory(self.device)
-            batch_number = int((free_memory * 0.7) / (2078 * pixel_samples.shape[2] * pixel_samples.shape[3])) #NOTE: this constant along with the one in the decode above are estimated from the mem usage for the VAE and could change.
+            batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
             samples = torch.empty((pixel_samples.shape[0], 4, round(pixel_samples.shape[2] // 8), round(pixel_samples.shape[3] // 8)), device="cpu")
             for x in range(0, pixel_samples.shape[0], batch_number):
@@ -677,7 +702,6 @@ class VAE:
         return samples
 
     def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
-        model_management.unload_model()
         self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1)
         samples = self.encode_tiled_(pixel_samples, tile_x=tile_x, tile_y=tile_y, overlap=overlap)
@@ -757,6 +781,7 @@ class ControlNet(ControlBase):
     def __init__(self, control_model, global_average_pooling=False, device=None):
         super().__init__(device)
         self.control_model = control_model
+        self.control_model_wrapped = ModelPatcher(self.control_model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
         self.global_average_pooling = global_average_pooling
 
     def get_control(self, x_noisy, t, cond, batched_number):
@@ -780,19 +805,14 @@ class ControlNet(ControlBase):
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
-        if self.control_model.dtype == torch.float16:
-            precision_scope = torch.autocast
-        else:
-            precision_scope = contextlib.nullcontext
 
-        with precision_scope(model_management.get_autocast_device(self.device)):
-            self.control_model = model_management.load_if_low_vram(self.control_model)
-            context = torch.cat(cond['c_crossattn'], 1)
-            y = cond.get('c_adm', None)
-            control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=context, y=y)
-            self.control_model = model_management.unload_if_low_vram(self.control_model)
+        context = torch.cat(cond['c_crossattn'], 1)
+        y = cond.get('c_adm', None)
+        if y is not None:
+            y = y.to(self.control_model.dtype)
+        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=t, context=context.to(self.control_model.dtype), y=y)
+
         out = {'middle':[], 'output': []}
-        autocast_enabled = torch.is_autocast_enabled()
 
         for i in range(len(control)):
             if i == (len(control) - 1):
@@ -806,7 +826,7 @@ class ControlNet(ControlBase):
                 x = torch.mean(x, dim=(2, 3), keepdim=True).repeat(1, 1, x.shape[2], x.shape[3])
 
             x *= self.strength
-            if x.dtype != output_dtype and not autocast_enabled:
+            if x.dtype != output_dtype:
                 x = x.to(output_dtype)
 
             if control_prev is not None and key in control_prev:
@@ -825,17 +845,133 @@ class ControlNet(ControlBase):
 
     def get_models(self):
         out = super().get_models()
-        out.append(self.control_model)
+        out.append(self.control_model_wrapped)
         return out
 
+class ControlLoraOps:
+    class Linear(torch.nn.Module):
+        def __init__(self, in_features: int, out_features: int, bias: bool = True,
+                    device=None, dtype=None) -> None:
+            factory_kwargs = {'device': device, 'dtype': dtype}
+            super().__init__()
+            self.in_features = in_features
+            self.out_features = out_features
+            self.weight = None
+            self.up = None
+            self.down = None
+            self.bias = None
+
+        def forward(self, input):
+            if self.up is not None:
+                return torch.nn.functional.linear(input, self.weight.to(input.device) + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), self.bias)
+            else:
+                return torch.nn.functional.linear(input, self.weight.to(input.device), self.bias)
+
+    class Conv2d(torch.nn.Module):
+        def __init__(
+            self,
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=1,
+            padding=0,
+            dilation=1,
+            groups=1,
+            bias=True,
+            padding_mode='zeros',
+            device=None,
+            dtype=None
+        ):
+            super().__init__()
+            self.in_channels = in_channels
+            self.out_channels = out_channels
+            self.kernel_size = kernel_size
+            self.stride = stride
+            self.padding = padding
+            self.dilation = dilation
+            self.transposed = False
+            self.output_padding = 0
+            self.groups = groups
+            self.padding_mode = padding_mode
+
+            self.weight = None
+            self.bias = None
+            self.up = None
+            self.down = None
+
+
+        def forward(self, input):
+            if self.up is not None:
+                return torch.nn.functional.conv2d(input, self.weight.to(input.device) + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), self.bias, self.stride, self.padding, self.dilation, self.groups)
+            else:
+                return torch.nn.functional.conv2d(input, self.weight.to(input.device), self.bias, self.stride, self.padding, self.dilation, self.groups)
+
+    def conv_nd(self, dims, *args, **kwargs):
+        if dims == 2:
+            return self.Conv2d(*args, **kwargs)
+        else:
+            raise ValueError(f"unsupported dimensions: {dims}")
+
+
+class ControlLora(ControlNet):
+    def __init__(self, control_weights, global_average_pooling=False, device=None):
+        ControlBase.__init__(self, device)
+        self.control_weights = control_weights
+        self.global_average_pooling = global_average_pooling
+
+    def pre_run(self, model, percent_to_timestep_function):
+        super().pre_run(model, percent_to_timestep_function)
+        controlnet_config = model.model_config.unet_config.copy()
+        controlnet_config.pop("out_channels")
+        controlnet_config["hint_channels"] = self.control_weights["input_hint_block.0.weight"].shape[1]
+        controlnet_config["operations"] = ControlLoraOps()
+        self.control_model = cldm.ControlNet(**controlnet_config)
+        if model_management.should_use_fp16():
+            self.control_model.half()
+        self.control_model.to(model_management.get_torch_device())
+        diffusion_model = model.diffusion_model
+        sd = diffusion_model.state_dict()
+        cm = self.control_model.state_dict()
+
+        for k in sd:
+            weight = sd[k]
+            if weight.device == torch.device("meta"): #lowvram NOTE: this depends on the inner working of the accelerate library so it might break.
+                key_split = k.split('.')              # I have no idea why they don't just leave the weight there instead of using the meta device.
+                op = get_attr(diffusion_model, '.'.join(key_split[:-1]))
+                weight = op._hf_hook.weights_map[key_split[-1]]
+
+            try:
+                set_attr(self.control_model, k, weight)
+            except:
+                pass
+
+        for k in self.control_weights:
+            if k not in {"lora_controlnet"}:
+                set_attr(self.control_model, k, self.control_weights[k].to(model_management.get_torch_device()))
+
+    def copy(self):
+        c = ControlLora(self.control_weights, global_average_pooling=self.global_average_pooling)
+        self.copy_to(c)
+        return c
+
+    def cleanup(self):
+        del self.control_model
+        self.control_model = None
+        super().cleanup()
+
+    def get_models(self):
+        out = ControlBase.get_models(self)
+        return out
 
 def load_controlnet(ckpt_path, model=None):
     controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
+    if "lora_controlnet" in controlnet_data:
+        return ControlLora(controlnet_data)
 
     controlnet_config = None
     if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
         use_fp16 = model_management.should_use_fp16()
-        controlnet_config = model_detection.model_config_from_diffusers_unet(controlnet_data, use_fp16).unet_config
+        controlnet_config = model_detection.unet_config_from_diffusers_unet(controlnet_data, use_fp16)
         diffusers_keys = utils.unet_to_diffusers(controlnet_config)
         diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
         diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
@@ -874,6 +1010,9 @@ def load_controlnet(ckpt_path, model=None):
             if k in controlnet_data:
                 new_sd[diffusers_keys[k]] = controlnet_data.pop(k)
 
+        leftover_keys = controlnet_data.keys()
+        if len(leftover_keys) > 0:
+            print("leftover keys:", leftover_keys)
         controlnet_data = new_sd
 
     pth_key = 'control_model.zero_convs.0.0.weight'
@@ -901,8 +1040,8 @@ def load_controlnet(ckpt_path, model=None):
     if pth:
         if 'difference' in controlnet_data:
             if model is not None:
-                m = model.patch_model()
-                model_sd = m.state_dict()
+                model_management.load_models_gpu([model])
+                model_sd = model.model_state_dict()
                 for x in controlnet_data:
                     c_m = "control_model."
                     if x.startswith(c_m):
@@ -910,7 +1049,6 @@ def load_controlnet(ckpt_path, model=None):
                         if sd_key in model_sd:
                             cd = controlnet_data[x]
                             cd += model_sd[sd_key].type(cd.dtype).to(cd.device)
-                model.unpatch_model()
             else:
                 print("WARNING: Loaded a diff controlnet without a model. It will very likely not work.")
 
@@ -970,11 +1108,10 @@ class T2IAdapter(ControlBase):
         output_dtype = x_noisy.dtype
         out = {'input':[]}
 
-        autocast_enabled = torch.is_autocast_enabled()
         for i in range(len(self.control_input)):
             key = 'input'
             x = self.control_input[i] * self.strength
-            if x.dtype != output_dtype and not autocast_enabled:
+            if x.dtype != output_dtype:
                 x = x.to(output_dtype)
 
             if control_prev is not None and key in control_prev:
@@ -1000,7 +1137,6 @@ class T2IAdapter(ControlBase):
         c = T2IAdapter(self.t2i_model, self.channels_in)
         self.copy_to(c)
         return c
-
 
 def load_t2i_adapter(t2i_data):
     keys = t2i_data.keys()
@@ -1087,7 +1223,7 @@ def load_gligen(ckpt_path):
     model = gligen.load_gligen(data)
     if model_management.should_use_fp16():
         model = model.half()
-    return model
+    return ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
 
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
     #TODO: this function is a mess and should be removed eventually
@@ -1199,8 +1335,13 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         if output_clipvision:
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
+    dtype = torch.float32
+    if fp16:
+        dtype = torch.float16
+
+    inital_load_device = model_management.unet_inital_load_device(parameters, dtype)
     offload_device = model_management.unet_offload_device()
-    model = model_config.get_model(sd, "model.diffusion_model.", device=offload_device)
+    model = model_config.get_model(sd, "model.diffusion_model.", device=inital_load_device)
     model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
@@ -1221,7 +1362,12 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if len(left_over) > 0:
         print("left over keys:", left_over)
 
-    return (ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae, clipvision)
+    model_patcher = ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
+    if inital_load_device != torch.device("cpu"):
+        print("loaded straight to GPU")
+        model_management.load_model_gpu(model_patcher)
+
+    return (model_patcher, clip, vae, clipvision)
 
 
 def load_unet(unet_path): #load unet in diffusers format
@@ -1249,14 +1395,6 @@ def load_unet(unet_path): #load unet in diffusers format
     return ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
-    try:
-        model.patch_model()
-        clip.patch_model()
-        sd = model.model.state_dict_for_saving(clip.get_sd(), vae.get_sd())
-        utils.save_torch_file(sd, output_path, metadata=metadata)
-        model.unpatch_model()
-        clip.unpatch_model()
-    except Exception as e:
-        model.unpatch_model()
-        clip.unpatch_model()
-        raise e
+    model_management.load_models_gpu([model, clip.load_model()])
+    sd = model.model.state_dict_for_saving(clip.get_sd(), vae.get_sd())
+    utils.save_torch_file(sd, output_path, metadata=metadata)
