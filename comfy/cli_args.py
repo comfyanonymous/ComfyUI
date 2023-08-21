@@ -60,6 +60,11 @@ parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE"
 
 parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize when loading models with Intel GPUs.")
 
+parser.add_argument("--disable-torch-compile", action="store_true", help="Disables torch.compile for loading models.")
+parser.add_argument("--torch-compile-fullgraph", action="store_true", default=True, help="torch.compile argument for if the model should be compiled into a single graph.")
+parser.add_argument("--torch-compile-backend", type=str, default="inductor", help="torch.compile argument for what backend to use. See Pytorch documentation for available backends to choose from.")
+parser.add_argument("--torch-compile-mode", type=str, default="default", help="torch.compile argument for what compile mode to use. Options include 'default', 'reduce-overhead', or 'max-autotune'.")
+
 class LatentPreviewMethod(enum.Enum):
     NoPreviews = "none"
     Auto = "auto"
@@ -83,9 +88,7 @@ vram_group.add_argument("--lowvram", action="store_true", help="Split the unet i
 vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
-
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
-
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
