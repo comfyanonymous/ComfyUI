@@ -50,16 +50,6 @@ cpu_torch_index = "https://download.pytorch.org/whl/cpu"
 # xformers not required for new torch
 
 """
-Packages that should have a specific option set when a GPU accelerator is present
-"""
-gpu_accelerated_packages = {"rembg": "rembg[gpu]"}
-
-"""
-The URL to the bitsandbytes package to use on Windows
-"""
-bitsandbytes_windows = "https://github.com/jllllll/bitsandbytes-windows-webui/releases/download/wheels/bitsandbytes-0.40.1.post1-py3-none-win_amd64.whl"
-
-"""
 Indicates if we're installing an editable (develop) mode package
 """
 is_editable = '--editable' in sys.argv or '-e' in sys.argv or (
@@ -157,10 +147,6 @@ def dependencies() -> [str]:
         requirement = InstallRequirement(Requirement(package), comes_from=f"{package_name}=={version}")
         candidate = finder.find_best_candidate(requirement.name, requirement.specifier)
         if candidate.best_candidate is not None:
-            if requirement.name == "bitsandbytes" and platform.system().lower() == 'windows':
-                _dependencies[i] = f"{requirement.name} @ {bitsandbytes_windows}"
-            if gpu_accelerated and requirement.name in gpu_accelerated_packages:
-                _dependencies[i] = gpu_accelerated_packages[requirement.name]
             if any([url in candidate.best_candidate.link.url for url in _alternative_indices]):
                 _dependencies[i] = f"{requirement.name} @ {candidate.best_candidate.link.url}"
     return _dependencies

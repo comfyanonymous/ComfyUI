@@ -25,8 +25,5 @@ importlib_resources
 Pillow
 scipy
 tqdm
-diffusers>=0.16.1
 protobuf==3.20.3
-rembg
 psutil
-bitsandbytes>=0.40.1
