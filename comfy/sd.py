@@ -798,17 +798,14 @@ class ControlNet(ControlBase):
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
-        if self.control_model.dtype == torch.float16:
-            precision_scope = torch.autocast
-        else:
-            precision_scope = contextlib.nullcontext
 
-        with precision_scope(model_management.get_autocast_device(self.device)):
-            context = torch.cat(cond['c_crossattn'], 1)
-            y = cond.get('c_adm', None)
-            control = self.control_model(x=x_noisy, hint=self.cond_hint, timesteps=t, context=context, y=y)
+        context = torch.cat(cond['c_crossattn'], 1)
+        y = cond.get('c_adm', None)
+        if y is not None:
+            y = y.to(self.control_model.dtype)
+        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=t, context=context.to(self.control_model.dtype), y=y)
+
         out = {'middle':[], 'output': []}
-        autocast_enabled = torch.is_autocast_enabled()
 
         for i in range(len(control)):
             if i == (len(control) - 1):
@@ -822,7 +819,7 @@ class ControlNet(ControlBase):
                 x = torch.mean(x, dim=(2, 3), keepdim=True).repeat(1, 1, x.shape[2], x.shape[3])
 
             x *= self.strength
-            if x.dtype != output_dtype and not autocast_enabled:
+            if x.dtype != output_dtype:
                 x = x.to(output_dtype)
 
             if control_prev is not None and key in control_prev:
@@ -1098,11 +1095,10 @@ class T2IAdapter(ControlBase):
         output_dtype = x_noisy.dtype
         out = {'input':[]}
 
-        autocast_enabled = torch.is_autocast_enabled()
         for i in range(len(self.control_input)):
             key = 'input'
             x = self.control_input[i] * self.strength
-            if x.dtype != output_dtype and not autocast_enabled:
+            if x.dtype != output_dtype:
                 x = x.to(output_dtype)
 
             if control_prev is not None and key in control_prev:
