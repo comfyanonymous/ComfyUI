@@ -2,6 +2,7 @@ import torch
 import contextlib
 import copy
 import inspect
+import math
 
 from comfy import model_management
 from .ldm.util import instantiate_from_config
@@ -1099,6 +1100,12 @@ class T2IAdapter(ControlBase):
         self.channels_in = channels_in
         self.control_input = None
 
+    def scale_image_to(self, width, height):
+        unshuffle_amount = self.t2i_model.unshuffle_amount
+        width = math.ceil(width / unshuffle_amount) * unshuffle_amount
+        height = math.ceil(height / unshuffle_amount) * unshuffle_amount
+        return width, height
+
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
         if self.previous_controlnet is not None:
@@ -1116,7 +1123,8 @@ class T2IAdapter(ControlBase):
                 del self.cond_hint
             self.control_input = None
             self.cond_hint = None
-            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").float().to(self.device)
+            width, height = self.scale_image_to(x_noisy.shape[3] * 8, x_noisy.shape[2] * 8)
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, width, height, 'nearest-exact', "center").float().to(self.device)
             if self.channels_in == 1 and self.cond_hint.shape[1] > 1:
                 self.cond_hint = torch.mean(self.cond_hint, 1, keepdim=True)
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
