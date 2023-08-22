@@ -128,6 +128,8 @@ class Adapter(nn.Module):
             for j in range(self.nums_rb):
                 idx = i * self.nums_rb + j
                 x = self.body[idx](x)
+            features.append(None)
+            features.append(None)
             features.append(x)
 
         return features
@@ -259,6 +261,8 @@ class Adapter_light(nn.Module):
         features = []
         for i in range(len(self.channels)):
             x = self.body[i](x)
+            features.append(None)
+            features.append(None)
             features.append(x)
 
         return features
