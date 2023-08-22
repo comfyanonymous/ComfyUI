@@ -1,6 +1,6 @@
 import psutil
 from enum import Enum
-from comfy.cli_args import args
+from .cli_args import args
 import torch
 import sys
 

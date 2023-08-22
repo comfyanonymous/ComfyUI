@@ -14,9 +14,9 @@ import sys
 
 import torch
 
-from comfy.nodes.package import import_all_nodes_in_workspace
+from ..nodes.package import import_all_nodes_in_workspace
 nodes = import_all_nodes_in_workspace()
-import comfy.model_management
+from .. import model_management
 
 """
 A queued item
@@ -112,7 +112,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     results = []
     if input_is_list:
         if allow_interrupt:
-            comfy.model_management.throw_exception_if_processing_interrupted()
+            model_management.throw_exception_if_processing_interrupted()
         results.append(getattr(obj, func)(**input_data_all))
     elif max_len_input == 0:
         if allow_interrupt:
@@ -121,7 +121,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     else:
         for i in range(max_len_input):
             if allow_interrupt:
-                comfy.model_management.throw_exception_if_processing_interrupted()
+                model_management.throw_exception_if_processing_interrupted()
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
     return results
 
@@ -207,7 +207,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             if server.client_id is not None:
                 server.send_sync("executed", {"node": unique_id, "output": output_ui, "prompt_id": prompt_id},
                              server.client_id)
-    except comfy.model_management.InterruptProcessingException as iex:
+    except model_management.InterruptProcessingException as iex:
         print("Processing interrupted")
 
         # skip formatting inputs/outputs
@@ -332,7 +332,7 @@ class PromptExecutor:
 
         # First, send back the status to the frontend depending
         # on the exception type
-        if isinstance(ex, comfy.model_management.InterruptProcessingException):
+        if isinstance(ex, model_management.InterruptProcessingException):
             mes = {
                 "prompt_id": prompt_id,
                 "node_id": node_id,
@@ -369,7 +369,7 @@ class PromptExecutor:
             del d
 
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
-        comfy.model_management.interrupt_current_processing(False)
+        model_management.interrupt_current_processing(False)
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
@@ -409,7 +409,7 @@ class PromptExecutor:
                     d = self.outputs_ui.pop(x)
                     del d
 
-            comfy.model_management.cleanup_models()
+            model_management.cleanup_models()
             if self.server.client_id is not None:
                 self.server.send_sync("execution_cached", {"nodes": list(current_outputs), "prompt_id": prompt_id},
                                       self.server.client_id)

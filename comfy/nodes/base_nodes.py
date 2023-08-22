@@ -11,19 +11,17 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-import comfy.diffusers_load
-import comfy.samplers
-import comfy.sample
-import comfy.sd
-import comfy.utils
+from .. import diffusers_load
+from .. import samplers
+from .. import sample
+from .. import sd
+from .. import utils
+from .. import clip_vision as clip_vision_module
+from .. import model_management
+from ..cli_args import args
 
-import comfy.clip_vision
-
-import comfy.model_management
-from comfy.cli_args import args
-
-from comfy.cmd import folder_paths, latent_preview
-from comfy.nodes.common import MAX_RESOLUTION
+from ..cmd import folder_paths, latent_preview
+from ..nodes.common import MAX_RESOLUTION
 
 
 class CLIPTextEncode:
@@ -361,7 +359,7 @@ class SaveLatent:
         output["latent_tensor"] = samples["samples"]
         output["latent_format_version_0"] = torch.tensor([])
 
-        comfy.utils.save_torch_file(output, file, metadata=metadata)
+        utils.save_torch_file(output, file, metadata=metadata)
         return { "ui": { "latents": results } }
 
 
@@ -414,7 +412,7 @@ class CheckpointLoader:
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = folder_paths.get_full_path("configs", config_name)
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 class CheckpointLoaderSimple:
     @classmethod
@@ -428,7 +426,7 @@ class CheckpointLoaderSimple:
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        out = sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
 
 class DiffusersLoader:
@@ -455,7 +453,7 @@ class DiffusersLoader:
                     model_path = path
                     break
 
-        return comfy.diffusers_load.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return diffusers_load.load_diffusers(model_path, fp16=model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
@@ -470,7 +468,7 @@ class unCLIPCheckpointLoader:
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        out = sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
 
 class CLIPSetLastLayer:
@@ -521,10 +519,10 @@ class LoraLoader:
                 del temp
 
         if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+            lora = utils.load_torch_file(lora_path, safe_load=True)
             self.loaded_lora = (lora_path, lora)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        model_lora, clip_lora = sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
 class VAELoader:
@@ -539,7 +537,7 @@ class VAELoader:
     #TODO: scale factor?
     def load_vae(self, vae_name):
         vae_path = folder_paths.get_full_path("vae", vae_name)
-        vae = comfy.sd.VAE(ckpt_path=vae_path)
+        vae = sd.VAE(ckpt_path=vae_path)
         return (vae,)
 
 class ControlNetLoader:
@@ -554,7 +552,7 @@ class ControlNetLoader:
 
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
-        controlnet = comfy.sd.load_controlnet(controlnet_path)
+        controlnet = sd.load_controlnet(controlnet_path)
         return (controlnet,)
 
 class DiffControlNetLoader:
@@ -570,7 +568,7 @@ class DiffControlNetLoader:
 
     def load_controlnet(self, model, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
-        controlnet = comfy.sd.load_controlnet(controlnet_path, model)
+        controlnet = sd.load_controlnet(controlnet_path, model)
         return (controlnet,)
 
 
@@ -663,7 +661,7 @@ class UNETLoader:
 
     def load_unet(self, unet_name):
         unet_path = folder_paths.get_full_path("unet", unet_name)
-        model = comfy.sd.load_unet(unet_path)
+        model = sd.load_unet(unet_path)
         return (model,)
 
 class CLIPLoader:
@@ -678,7 +676,7 @@ class CLIPLoader:
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip", clip_name)
-        clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        clip = sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
 class DualCLIPLoader:
@@ -695,7 +693,7 @@ class DualCLIPLoader:
     def load_clip(self, clip_name1, clip_name2):
         clip_path1 = folder_paths.get_full_path("clip", clip_name1)
         clip_path2 = folder_paths.get_full_path("clip", clip_name2)
-        clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        clip = sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
 class CLIPVisionLoader:
@@ -710,7 +708,7 @@ class CLIPVisionLoader:
 
     def load_clip(self, clip_name):
         clip_path = folder_paths.get_full_path("clip_vision", clip_name)
-        clip_vision = comfy.clip_vision.load(clip_path)
+        clip_vision = clip_vision_module.load(clip_path)
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -740,7 +738,7 @@ class StyleModelLoader:
 
     def load_style_model(self, style_model_name):
         style_model_path = folder_paths.get_full_path("style_models", style_model_name)
-        style_model = comfy.sd.load_style_model(style_model_path)
+        style_model = sd.load_style_model(style_model_path)
         return (style_model,)
 
 
@@ -805,7 +803,7 @@ class GLIGENLoader:
 
     def load_gligen(self, gligen_name):
         gligen_path = folder_paths.get_full_path("gligen", gligen_name)
-        gligen = comfy.sd.load_gligen(gligen_path)
+        gligen = sd.load_gligen(gligen_path)
         return (gligen,)
 
 class GLIGENTextBoxApply:
@@ -933,7 +931,7 @@ class LatentUpscale:
 
     def upscale(self, samples, upscale_method, width, height, crop):
         s = samples.copy()
-        s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
+        s["samples"] = utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
 class LatentUpscaleBy:
@@ -952,7 +950,7 @@ class LatentUpscaleBy:
         s = samples.copy()
         width = round(samples["samples"].shape[3] * scale_by)
         height = round(samples["samples"].shape[2] * scale_by)
-        s["samples"] = comfy.utils.common_upscale(samples["samples"], width, height, upscale_method, "disabled")
+        s["samples"] = utils.common_upscale(samples["samples"], width, height, upscale_method, "disabled")
         return (s,)
 
 class LatentRotate:
@@ -1068,7 +1066,7 @@ class LatentBlend:
 
         if samples1.shape != samples2.shape:
             samples2.permute(0, 3, 1, 2)
-            samples2 = comfy.utils.common_upscale(samples2, samples1.shape[3], samples1.shape[2], 'bicubic', crop='center')
+            samples2 = utils.common_upscale(samples2, samples1.shape[3], samples1.shape[2], 'bicubic', crop='center')
             samples2.permute(0, 2, 3, 1)
 
         samples_blended = self.blend_mode(samples1, samples2, blend_mode)
@@ -1133,14 +1131,14 @@ class SetLatentNoiseMask:
 
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    device = comfy.model_management.get_torch_device()
+    device = model_management.get_torch_device()
     latent_image = latent["samples"]
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
         batch_inds = latent["batch_index"] if "batch_index" in latent else None
-        noise = comfy.sample.prepare_noise(latent_image, seed, batch_inds)
+        noise = sample.prepare_noise(latent_image, seed, batch_inds)
 
     noise_mask = None
     if "noise_mask" in latent:
@@ -1152,14 +1150,14 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
 
     previewer = latent_preview.get_previewer(device, model.model.latent_format)
 
-    pbar = comfy.utils.ProgressBar(steps)
+    pbar = utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
         preview_bytes = None
         if previewer:
             preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
 
-    samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
+    samples = sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, seed=seed)
     out = latent.copy()
@@ -1174,8 +1172,8 @@ class KSampler:
                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
-                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
-                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
+                    "sampler_name": (samplers.KSampler.SAMPLERS, ),
+                    "scheduler": (samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
@@ -1200,8 +1198,8 @@ class KSamplerAdvanced:
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
-                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
-                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
+                    "sampler_name": (samplers.KSampler.SAMPLERS, ),
+                    "scheduler": (samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
@@ -1397,7 +1395,7 @@ class ImageScale:
 
     def upscale(self, image, upscale_method, width, height, crop):
         samples = image.movedim(-1,1)
-        s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
+        s = utils.common_upscale(samples, width, height, upscale_method, crop)
         s = s.movedim(1,-1)
         return (s,)
 
@@ -1417,7 +1415,7 @@ class ImageScaleBy:
         samples = image.movedim(-1,1)
         width = round(samples.shape[3] * scale_by)
         height = round(samples.shape[2] * scale_by)
-        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
+        s = utils.common_upscale(samples, width, height, upscale_method, "disabled")
         s = s.movedim(1,-1)
         return (s,)
 
@@ -1449,7 +1447,7 @@ class ImageBatch:
 
     def batch(self, image1, image2):
         if image1.shape[1:] != image2.shape[1:]:
-            image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
+            image2 = utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
         s = torch.cat((image1, image2), dim=0)
         return (s,)
 

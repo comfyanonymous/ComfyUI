@@ -1,7 +1,7 @@
 import os
 
 from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig, modeling_utils
-import comfy.ops
+from . import ops
 import torch
 import traceback
 import zipfile
@@ -57,7 +57,7 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
                 textmodel_json_config = resource_filename('comfy', 'sd1_clip_config.json')
             config = CLIPTextConfig.from_json_file(textmodel_json_config)
             self.num_layers = config.num_hidden_layers
-            with comfy.ops.use_comfy_ops():
+            with ops.use_comfy_ops():
                 with modeling_utils.no_init_weights():
                     self.transformer = CLIPTextModel(config)
 

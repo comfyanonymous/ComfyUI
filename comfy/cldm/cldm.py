@@ -13,7 +13,7 @@ from ..ldm.modules.diffusionmodules.util import (
 from ..ldm.modules.attention import SpatialTransformer
 from ..ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample
 from ..ldm.util import exists
-import comfy.ops
+from .. import ops
 
 class ControlledUnetModel(UNetModel):
     #implemented in the ldm unet
@@ -54,7 +54,7 @@ class ControlNet(nn.Module):
         adm_in_channels=None,
         transformer_depth_middle=None,
         device=None,
-        operations=comfy.ops,
+        operations=ops,
     ):
         super().__init__()
         assert use_spatial_transformer == True, "use_spatial_transformer has to be true"

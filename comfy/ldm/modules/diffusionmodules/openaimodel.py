@@ -14,8 +14,8 @@ from .util import (
     timestep_embedding,
 )
 from ..attention import SpatialTransformer
-from comfy.ldm.util import exists
-import comfy.ops
+from ...util import exists
+from .... import ops
 
 class TimestepBlock(nn.Module):
     """
@@ -70,7 +70,7 @@ class Upsample(nn.Module):
                  upsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=comfy.ops):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=ops):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -106,7 +106,7 @@ class Downsample(nn.Module):
                  downsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=comfy.ops):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=ops):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -156,7 +156,7 @@ class ResBlock(TimestepBlock):
         down=False,
         dtype=None,
         device=None,
-        operations=comfy.ops
+        operations=ops
     ):
         super().__init__()
         self.channels = channels
@@ -316,7 +316,7 @@ class UNetModel(nn.Module):
         adm_in_channels=None,
         transformer_depth_middle=None,
         device=None,
-        operations=comfy.ops,
+        operations=ops,
     ):
         super().__init__()
         assert use_spatial_transformer == True, "use_spatial_transformer has to be true"

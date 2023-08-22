@@ -5,8 +5,8 @@ import numpy as np
 from tqdm import tqdm
 from functools import partial
 
-from comfy.ldm.modules.diffusionmodules.util import make_ddim_sampling_parameters, make_ddim_timesteps, noise_like
-from comfy.ldm.models.diffusion.sampling_util import norm_thresholding
+from ...modules.diffusionmodules.util import make_ddim_sampling_parameters, make_ddim_timesteps, noise_like
+from .sampling_util import norm_thresholding
 
 
 class PLMSSampler(object):

@@ -6,14 +6,14 @@ import pkgutil
 import time
 import types
 
-from comfy.nodes import base_nodes as base_nodes
-from comfy_extras import nodes as comfy_extras_nodes
+from . import base_nodes
+from ...comfy_extras import nodes as comfy_extras_nodes
 
 try:
     import custom_nodes
 except:
     custom_nodes = None
-from comfy.nodes.package_typing import ExportedNodes
+from .package_typing import ExportedNodes
 from functools import reduce
 from pkg_resources import resource_filename
 

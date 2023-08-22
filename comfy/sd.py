@@ -3,7 +3,7 @@ import contextlib
 import copy
 import inspect
 
-from comfy import model_management
+from . import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL
 import yaml

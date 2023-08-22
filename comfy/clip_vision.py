@@ -2,12 +2,12 @@ from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPIm
 from .utils import load_torch_file, transformers_convert
 import os
 import torch
-import comfy.ops
+from . import ops
 
 class ClipVisionModel():
     def __init__(self, json_config):
         config = CLIPVisionConfig.from_json_file(json_config)
-        with comfy.ops.use_comfy_ops():
+        with ops.use_comfy_ops():
             with modeling_utils.no_init_weights():
                 self.model = CLIPVisionModelWithProjection(config)
         self.processor = CLIPImageProcessor(crop_size=224,

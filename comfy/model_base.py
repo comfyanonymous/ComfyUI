@@ -1,8 +1,8 @@
 import torch
-from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel
-from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
-from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
-from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
+from .ldm.modules.diffusionmodules.openaimodel import UNetModel
+from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
+from .ldm.modules.diffusionmodules.util import make_beta_schedule
+from .ldm.modules.diffusionmodules.openaimodel import Timestep
 import numpy as np
 from enum import Enum
 from . import utils

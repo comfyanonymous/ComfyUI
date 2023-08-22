@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from PIL import Image
 import math
 
-import comfy.utils
+from ...comfy import utils
 
 
 class Blend:
@@ -35,7 +35,7 @@ class Blend:
     def blend_images(self, image1: torch.Tensor, image2: torch.Tensor, blend_factor: float, blend_mode: str):
         if image1.shape != image2.shape:
             image2 = image2.permute(0, 3, 1, 2)
-            image2 = comfy.utils.common_upscale(image2, image1.shape[2], image1.shape[1], upscale_method='bicubic', crop='center')
+            image2 = utils.common_upscale(image2, image1.shape[2], image1.shape[1], upscale_method='bicubic', crop='center')
             image2 = image2.permute(0, 2, 3, 1)
 
         blended_image = self.blend_mode(image1, image2, blend_mode)
@@ -232,7 +232,7 @@ class ImageScaleToTotalPixels:
         width = round(samples.shape[3] * scale_by)
         height = round(samples.shape[2] * scale_by)
 
-        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
+        s = utils.common_upscale(samples, width, height, upscale_method, "disabled")
         s = s.movedim(1,-1)
         return (s,)
 

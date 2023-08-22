@@ -1,12 +1,11 @@
-import comfy.sd
-import comfy.utils
-import comfy.model_base
+from ...comfy import sd
+from ...comfy import model_base
 
-from comfy.cmd import folder_paths
+from ...comfy.cmd import folder_paths
 import json
 import os
 
-from comfy.cli_args import args
+from ...comfy.cli_args import args
 
 class ModelMergeSimple:
     @classmethod
@@ -106,9 +105,9 @@ class CheckpointSave:
         metadata = {}
 
         enable_modelspec = True
-        if isinstance(model.model, comfy.model_base.SDXL):
+        if isinstance(model.model, model_base.SDXL):
             metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
-        elif isinstance(model.model, comfy.model_base.SDXLRefiner):
+        elif isinstance(model.model, model_base.SDXLRefiner):
             metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
         else:
             enable_modelspec = False
@@ -123,9 +122,9 @@ class CheckpointSave:
         # "stable-diffusion-v2-768-v", "stable-diffusion-v2-unclip-l", "stable-diffusion-v2-unclip-h",
         # "v2-inpainting"
 
-        if model.model.model_type == comfy.model_base.ModelType.EPS:
+        if model.model.model_type == model_base.ModelType.EPS:
             metadata["modelspec.predict_key"] = "epsilon"
-        elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
+        elif model.model.model_type == model_base.ModelType.V_PREDICTION:
             metadata["modelspec.predict_key"] = "v"
 
         if not args.disable_metadata:
@@ -137,7 +136,7 @@ class CheckpointSave:
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
-        comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, metadata=metadata)
+        sd.save_checkpoint(output_checkpoint, model, clip, vae, metadata=metadata)
         return {}
 
 

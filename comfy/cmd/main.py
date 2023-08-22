@@ -1,7 +1,7 @@
 import os
 import importlib.util
 
-from comfy.cmd import cuda_malloc
+from ..cmd import cuda_malloc
 from ..cmd import folder_paths
 import time
 
@@ -52,7 +52,7 @@ import shutil
 import threading
 import gc
 
-from comfy.cli_args import args
+from ..cli_args import args
 
 if os.name == "nt":
     import logging
@@ -63,13 +63,13 @@ if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
     print("Set cuda device to:", args.cuda_device)
 
-import comfy.utils
+from .. import utils
 import yaml
 
 from ..cmd import execution
 from ..cmd import server as server_module
 from .server import BinaryEventTypes
-import comfy.model_management
+from .. import model_management
 
 
 def prompt_worker(q: execution.PromptQueue, _server: server_module.PromptServer):
@@ -85,7 +85,7 @@ def prompt_worker(q: execution.PromptQueue, _server: server_module.PromptServer)
 
         print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
         gc.collect()
-        comfy.model_management.soft_empty_cache()
+        model_management.soft_empty_cache()
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
@@ -96,7 +96,7 @@ def hijack_progress(server):
         server.send_sync("progress", {"value": value, "max": total}, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
-    comfy.utils.set_progress_bar_global_hook(hook)
+    utils.set_progress_bar_global_hook(hook)
 
 
 def cleanup_temp():
@@ -127,8 +127,8 @@ def load_extra_path_config(yaml_path):
 
 
 def cuda_malloc_warning():
-    device = comfy.model_management.get_torch_device()
-    device_name = comfy.model_management.get_torch_device_name(device)
+    device = model_management.get_torch_device()
+    device_name = model_management.get_torch_device_name(device)
     cuda_malloc_warning = False
     if "cudaMallocAsync" in device_name:
         for b in cuda_malloc.blacklist:

@@ -1,6 +1,6 @@
 import torch
-import comfy.model_management
-import comfy.samplers
+from . import model_management
+from . import samplers
 import math
 import numpy as np
 
@@ -71,14 +71,14 @@ def cleanup_additional_models(models):
             m.cleanup()
 
 def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
-    device = comfy.model_management.get_torch_device()
+    device = model_management.get_torch_device()
 
     if noise_mask is not None:
         noise_mask = prepare_mask(noise_mask, noise.shape, device)
 
     real_model = None
     models = get_additional_models(positive, negative)
-    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[0] * noise.shape[2] * noise.shape[3]))
+    model_management.load_models_gpu([model] + models, model_management.batch_area_memory(noise.shape[0] * noise.shape[2] * noise.shape[3]))
     real_model = model.model
 
     noise = noise.to(device)
@@ -88,7 +88,7 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     negative_copy = broadcast_cond(negative, noise.shape[0], device)
 
 
-    sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
+    sampler = samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
 
     samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask, sigmas=sigmas, callback=callback, disable_pbar=disable_pbar, seed=seed)
     samples = samples.cpu()

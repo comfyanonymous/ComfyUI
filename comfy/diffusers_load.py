@@ -2,7 +2,7 @@ import json
 import yaml
 
 from .cmd import folder_paths
-from comfy.sd import load_checkpoint
+from .sd import load_checkpoint
 import os.path as osp
 import torch
 from safetensors.torch import load_file

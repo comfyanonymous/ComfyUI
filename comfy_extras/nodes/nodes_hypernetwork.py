@@ -1,9 +1,9 @@
-import comfy.utils
-from comfy.cmd import folder_paths
+from ...comfy import utils
+from ...comfy.cmd import folder_paths
 import torch
 
 def load_hypernetwork_patch(path, strength):
-    sd = comfy.utils.load_torch_file(path, safe_load=True)
+    sd = utils.load_torch_file(path, safe_load=True)
     activation_func = sd.get('activation_func', 'linear')
     is_layer_norm = sd.get('is_layer_norm', False)
     use_dropout = sd.get('use_dropout', False)

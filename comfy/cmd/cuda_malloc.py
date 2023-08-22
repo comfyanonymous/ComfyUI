@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from comfy.cli_args import args
+from ..cli_args import args
 
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():

@@ -23,12 +23,12 @@ from ..cmd import execution
 from ..cmd import folder_paths
 import mimetypes
 
-from comfy.digest import digest
-from comfy.cli_args import args
-import comfy.utils
-import comfy.model_management
-from comfy.nodes.package import import_all_nodes_in_workspace
-from comfy.vendor.appdirs import user_data_dir
+from ..digest import digest
+from ..cli_args import args
+from .. import utils
+from .. import model_management
+from ..nodes.package import import_all_nodes_in_workspace
+from ..vendor.appdirs import user_data_dir
 
 nodes = import_all_nodes_in_workspace()
 
@@ -358,7 +358,7 @@ class PromptServer():
             safetensors_path = folder_paths.get_full_path(folder_name, filename)
             if safetensors_path is None:
                 return web.Response(status=404)
-            out = comfy.utils.safetensors_header(safetensors_path, max_size=1024 * 1024)
+            out = utils.safetensors_header(safetensors_path, max_size=1024 * 1024)
             if out is None:
                 return web.Response(status=404)
             dt = json.loads(out)
@@ -368,10 +368,10 @@ class PromptServer():
 
         @routes.get("/system_stats")
         async def get_queue(request):
-            device = comfy.model_management.get_torch_device()
-            device_name = comfy.model_management.get_torch_device_name(device)
-            vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
-            vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            device = model_management.get_torch_device()
+            device_name = model_management.get_torch_device_name(device)
+            vram_total, torch_vram_total = model_management.get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = model_management.get_free_memory(device, torch_free_too=True)
             system_stats = {
                 "system": {
                     "os": os.name,
@@ -507,7 +507,7 @@ class PromptServer():
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            comfy.model_management.interrupt_current_processing()
+            model_management.interrupt_current_processing()
             return web.Response(status=200)
 
         @routes.post("/history")
@@ -654,7 +654,7 @@ class PromptServer():
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([
-                web.static('/extensions/' + urllib.parse.quote(name), dir, follow_symlinks=True),
+                web.static('/extensions/' + quote(name), dir, follow_symlinks=True),
             ])
 
         self.app.add_routes([
