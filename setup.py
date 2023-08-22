@@ -17,7 +17,7 @@ from setuptools import setup, find_packages
 """
 The name of the package.
 """
-package_name = "comfyui"
+package_name = "comfy"
 
 """
 The current version.
@@ -156,7 +156,7 @@ package_data = ['sd1_tokenizer/*', '**/*.json', '**/*.yaml']
 if not is_editable:
     package_data.append('web/**/*')
 setup(
-    # "comfyui"
+    # "comfy"
     name=package_name,
     description="",
     author="",

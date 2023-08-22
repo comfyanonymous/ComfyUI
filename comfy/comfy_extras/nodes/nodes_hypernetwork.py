@@ -1,5 +1,5 @@
-from ...comfy import utils
-from ...comfy.cmd import folder_paths
+from ... import utils
+from ...cmd import folder_paths
 import torch
 
 def load_hypernetwork_patch(path, strength):

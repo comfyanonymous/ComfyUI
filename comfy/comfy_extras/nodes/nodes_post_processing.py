@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from PIL import Image
 import math
 
-from ...comfy import utils
+from ... import utils
 
 
 class Blend:
