@@ -2,7 +2,7 @@ torch
 torchsde
 einops
 transformers>=4.25.1
-safetensors>=0.3.2
+safetensors==0.3.2
 aiohttp
 accelerate
 pyyaml
