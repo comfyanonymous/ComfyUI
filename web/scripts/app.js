@@ -1108,7 +1108,11 @@ export class ComfyApp {
 		}
 
 		// Save current workflow automatically
-		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
+		setInterval(() => {
+			if (document.visibilityState === "visible") {
+				localStorage.setItem("workflow", JSON.stringify(this.graph.serialize()));
+			}
+		}, 1000);
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();

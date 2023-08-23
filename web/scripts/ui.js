@@ -777,6 +777,13 @@ export class ComfyUI {
 		]);
 		this.is_launchTiming = true;
 
+		this.switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
+		document.addEventListener("visibilitychange", () => {
+			if (document.visibilityState === "visible") {
+				localStorage.setItem("workflow_current_id", this.switch_workflow_combo.selectedIndex);
+			}
+		});
+
 		const id_renameWorkflow = "Comfy.RenameWorkflowDialog";
 		const renameWorkflow = this.settings.addSetting({
 			id: id_renameWorkflow,
@@ -839,11 +846,10 @@ export class ComfyUI {
 		}
 
 		if (this.is_launchTiming && typeof app != "undefined") {
-			const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
-			switch_workflow_combo.selectedIndex = app.workflow_current_id;
+			this.switch_workflow_combo.selectedIndex = app.workflow_current_id;
 
 			const workflow_names = app.getWorkflowNames();
-			const options = switch_workflow_combo.options;
+			const options = this.switch_workflow_combo.options;
 
 			console.assert(options.length === workflow_names.length, "workflow_count != the count of $el(option ~ )");
 
