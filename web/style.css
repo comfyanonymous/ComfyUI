@@ -146,11 +146,6 @@ body {
 	cursor: pointer;
 }
 
-select#comfy-switch-workflow-combo:disabled {
-	filter: brightness(1.0);
-	cursor: not-allowed;
-}
-
 .comfy-menu select {
 	text-align-last: center
 }

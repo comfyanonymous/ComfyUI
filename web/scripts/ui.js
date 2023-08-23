@@ -760,7 +760,7 @@ export class ComfyUI {
 				id: "comfy-switch-workflow-combo", onchange: (event) => {
 					app.switchWorkflow(event.target.selectedIndex);
 				}
-			}, 
+			},
 			[
 				$el("option", {value:'workflow_0'}, 'Workflow 0'),
 				$el("option", {value:'workflow_1'}, 'Workflow 1'),
@@ -827,9 +827,7 @@ export class ComfyUI {
 
 	setStatus(status) {
 		this.queueSize.textContent = "Queue size: " + (status ? status.exec_info.queue_remaining : "ERR");
-		const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
 		if (status) {
-			switch_workflow_combo.disabled = status.exec_info.queue_remaining ? true : false;
 			if (
 				this.lastQueueSize != 0 &&
 				status.exec_info.queue_remaining == 0 &&
@@ -839,11 +837,9 @@ export class ComfyUI {
 			}
 			this.lastQueueSize = status.exec_info.queue_remaining;
 		}
-		else {
-			switch_workflow_combo.disabled = false;
-		}
 
 		if (this.is_launchTiming && typeof app != "undefined") {
+		    const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
 			switch_workflow_combo.selectedIndex = app.workflow_current_id;
 
 			const workflow_names = app.getWorkflowNames();
@@ -898,7 +894,7 @@ class RenameWorkflowDialog extends ComfyDialog {
 		}
 
 		this.workflow_names = updated_names;
-	
+
 		const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
 		const options = switch_workflow_combo.options;
 
