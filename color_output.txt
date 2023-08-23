@@ -1,5 +1,5 @@
-MC1: #323416 - darkslategray, MC2: #bfb1ab - darkgray, MC3: #73299d - darkslateblue, MC4: #5d6c2c - darkolivegreen
-AN1: #233416 - darkgreen, AN2: #342716 - black
-T1: #163234 - darkslategray, T2: #341632 - darkslategray
-C1: #181634 - midnightblue, C2: #abb9bf - silver
-MO1: #33342b - darkslategray, MO2: #bfbbb9 - silver, MO3: #907a9d - lightslategray, MO4: #686c59 - dimgray
+MC1: #5d6c2c - darkolivegreen, MC2: #c0b1ab - darkgray, MC3: #323416 - darkslategray, MC4: #73299d - darkslateblue
+AN1: #3d6c2c - darkolivegreen, AN2: #6c5b2c - darkolivegreen
+T1: #2c5d6c - darkslategray, T2: #6c2c5d - purple
+C1: #3b2c6c - darkslateblue, C2: #abbac0 - silver
+MO1: #686c59 - dimgray, MO2: #c0bbba - silver, MO3: #33342b - darkslategray, MO4: #907a9d - lightslategray

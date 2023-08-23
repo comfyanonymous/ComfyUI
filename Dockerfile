@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 
 RUN apt-get install -y python3.9 
 RUN apt-get install -y python3-pip
-
+RUN apt-get install -y git
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -27,7 +27,11 @@ RUN python3.9 -m pip install -r requirements.txt
 RUN python3.9 -m pip install scikit-learn==0.24.2
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install -y build-essential && rm -rf /var/lib/apt/lists/*
+
 RUN python3.9 -m pip install scikit-image
+#RUN cd ./custom_nodes/comfy_controlnet_preprocessors && python3.9 install.py && cd ../
+RUN cd ./custom_nodes/was-node-suite-comfyui/ && python3.9 -m pip install -r requirements.txt && cd ../
+RUN cd ./custom_nodes/ComfyUI-Impact-Pack/ && python3.9 install.py && cd ../
 
 #Give permission to script
 RUN chmod +x ./entrypoint.sh

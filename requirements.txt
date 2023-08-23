@@ -154,9 +154,3 @@ wldhx.yadisk-direct==0.0.6
 wrapt==1.15.0
 yarl==1.9.2
 zipp==3.16.2
-pyyaml
-Pillow
-scipy
-tqdm
-psutil
-
