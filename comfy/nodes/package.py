@@ -7,7 +7,7 @@ import time
 import types
 
 from . import base_nodes
-from ..comfy_extras import nodes as comfy_extras_nodes
+from comfy_extras import nodes as comfy_extras_nodes
 
 try:
     import custom_nodes

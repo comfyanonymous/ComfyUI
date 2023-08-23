@@ -12,7 +12,7 @@ from io import BytesIO
 import json
 import os
 import uuid
-from asyncio import Future
+from asyncio import Future, AbstractEventLoop
 from typing import List
 
 import aiofiles
@@ -75,6 +75,12 @@ class PromptServer():
     prompt_queue: execution.PromptQueue | None
     address: str
     port: int
+    loop: AbstractEventLoop
+    messages: asyncio.Queue
+    number: int
+    supports: List[str]
+    app: web.Application
+    routes: web.RouteTableDef
 
     def __init__(self, loop):
         PromptServer.instance = self
@@ -539,7 +545,6 @@ class PromptServer():
                 return web.Response(status=429,
                                     reason=f"the queue has {queue_size} elements and {queue_too_busy_size} is the limit for this worker")
             # read the request
-            upload_dir = PromptServer.get_upload_dir()
             prompt_dict: dict = {}
             if request.headers[aiohttp.hdrs.CONTENT_TYPE] == 'application/json':
                 prompt_dict = await request.json()
@@ -556,6 +561,7 @@ class PromptServer():
                         elif part.filename:
                             file_data = await part.read(decode=True)
                             # overwrite existing files
+                            upload_dir = PromptServer.get_upload_dir()
                             async with aiofiles.open(os.path.join(upload_dir, part.filename), mode='wb') as file:
                                 await file.write(file_data)
                 except IOError | MemoryError as ioError:
@@ -567,8 +573,7 @@ class PromptServer():
                 return web.Response(status=400, reason="no prompt was specified")
 
             content_digest = digest(prompt_dict)
-            dump = json.dumps(prompt_dict)
-            
+
             valid = execution.validate_prompt(prompt_dict)
             if not valid[0]:
                 return web.Response(status=400, body=valid[1])

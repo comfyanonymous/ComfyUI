@@ -17,7 +17,7 @@ from setuptools import setup, find_packages
 """
 The name of the package.
 """
-package_name = "comfy"
+package_name = "comfyui"
 
 """
 The current version.
