@@ -882,7 +882,7 @@ export class ComfyApp {
 
             const ctor = class extends ComfyBackendNode {
                 constructor(title) {
-                    super(title, nodeId, nodeData);
+                    super(title, app, nodeId, nodeData);
                 }
             }
 
