@@ -1,18 +1,17 @@
 import { app } from "../../scripts/app.js";
 import { LiteGraph } from "../../lib/litegraph.core.js"
+import { hook } from "../../scripts/utils.js";
 
 // Adds filtering to combo context menus
 
 const ext = {
 	name: "Comfy.ContextMenuFilter",
 	init() {
-		const ctxMenu = LiteGraph.ContextMenu;
-
-		LiteGraph.ContextMenu = function (values, options) {
-			const ctx = ctxMenu.call(this, values, options);
+		hook(LiteGraph, "onContextMenuCreated", (orig, contextMenu) => {
+			orig?.(contextMenu);
 
 			// If we are a dark menu (only used for combo boxes) then add a filter input
-			if (options?.className === "dark" && values?.length > 10) {
+			if (contextMenu.options?.className === "dark" && contextMenu.values?.length > 10) {
 				const filter = document.createElement("input");
 				filter.classList.add("comfy-context-menu-filter");
 				filter.placeholder = "Filter list";
@@ -30,7 +29,7 @@ const ext = {
 						.find(w => w.options.values.every((v, i) => v === values[i]))
 						?.value;
 
-					let selectedIndex = clickedComboValue ? values.findIndex(v => v === clickedComboValue) : 0;
+					let selectedIndex = clickedComboValue ? contextMenu.values.findIndex(v => v === clickedComboValue) : 0;
 					if (selectedIndex < 0) {
 						selectedIndex = 0;
 					} 
@@ -116,8 +115,8 @@ const ext = {
 						updateSelected();
 
 						// If we have an event then we can try and position the list under the source
-						if (options.event) {
-							let top = options.event.clientY - 10;
+						if (contextMenu.options.event) {
+							let top = contextMenu.options.event.clientY - 10;
 
 							const bodyRect = document.body.getBoundingClientRect();
 							const rootRect = this.root.getBoundingClientRect();
@@ -138,11 +137,7 @@ const ext = {
 					});
 				})
 			}
-
-			return ctx;
-		};
-
-		// LiteGraph.ContextMenu.prototype = ctxMenu.prototype;
+		});
 	},
 }
 

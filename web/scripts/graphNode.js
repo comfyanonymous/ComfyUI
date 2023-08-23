@@ -7,6 +7,7 @@ export class ComfyGraphNode extends LGraphNode {
 	constructor(title, app) {
 		super(title)
 		this.app = app;
+		this.serialize_widgets = true;
 	}
 
 	getImageTop() {
@@ -260,12 +261,6 @@ export class ComfyBackendNode extends ComfyGraphNode {
         this.comfyClass = comfyClass;
         this.isBackendNode = true;
 
-        const color = LGraphCanvas.node_colors["yellow"];
-        if (this.color == null)
-            this.color = color.color
-        if (this.bgColor == null)
-            this.bgColor = color.bgColor
-
         this.#setup(nodeDef)
 
         // if (nodeDef.output_node) {
@@ -317,7 +312,6 @@ export class ComfyBackendNode extends ComfyGraphNode {
             this.addOutput(output.name, output.type, { shape: outputShape });
         }
 
-        this.serialize_widgets = false;
         // app.#invokeExtensionsAsync("nodeCreated", this);
     }
 

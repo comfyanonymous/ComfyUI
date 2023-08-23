@@ -9,7 +9,7 @@ function getNumberDefaults(inputData, defaultStep) {
 	if (max == undefined) max = 2048;
 	if (step == undefined) step = defaultStep;
 
-	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
+	return { val: defaultVal, config: { min, max, step: step } };
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
@@ -50,20 +50,20 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 			// limit to something that javascript can handle
 			max = Math.min(1125899906842624, max);
 			min = Math.max(-1125899906842624, min);
-			let range = (max - min) / (targetWidget.options.step / 10);
+			let range = (max - min) / (targetWidget.options.step);
 
 			//adjust values based on valueControl Behaviour
 			switch (v) {
 				case "fixed":
 					break;
 				case "increment":
-					targetWidget.value += targetWidget.options.step / 10;
+					targetWidget.value += targetWidget.options.step;
 					break;
 				case "decrement":
-					targetWidget.value -= targetWidget.options.step / 10;
+					targetWidget.value -= targetWidget.options.step;
 					break;
 				case "randomize":
-					targetWidget.value = Math.floor(Math.random() * range) * (targetWidget.options.step / 10) + min;
+					targetWidget.value = Math.floor(Math.random() * range) * (targetWidget.options.step) + min;
 				default:
 					break;
 			}
@@ -276,7 +276,7 @@ export const ComfyWidgets = {
 				inputName,
 				val,
 				function (v) {
-					const s = this.options.step / 10;
+					const s = this.options.step;
 					this.value = Math.round(v / s) * s;
 				},
 				config

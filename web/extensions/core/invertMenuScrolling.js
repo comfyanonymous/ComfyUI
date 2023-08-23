@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { LiteGraph } from "../../lib/litegraph.core.js"
+import { hook } from "../../scripts/utils.js";
 
 // Inverts the scrolling of context menus
 
@@ -7,30 +8,18 @@ const id = "Comfy.InvertMenuScrolling";
 app.registerExtension({
 	name: id,
 	init() {
-		const ctxMenu = LiteGraph.ContextMenu;
-		const replace = () => {
-			LiteGraph.ContextMenu = function (values, options) {
-				options = options || {};
-				if (options.scroll_speed) {
-					options.scroll_speed *= -1;
-				} else {
-					options.scroll_speed = -0.1;
-				}
-				return ctxMenu.call(this, values, options);
-			};
-			LiteGraph.ContextMenu.prototype = ctxMenu.prototype;
-		};
+		let invert = false;
+		hook(LiteGraph, "onContextMenuCreated", (orig, contextMenu) => {
+			orig?.(contextMenu);
+			contextMenu.invert_scrolling = invert;
+		})
 		app.ui.settings.addSetting({
 			id,
 			name: "Invert Menu Scrolling",
 			type: "boolean",
 			defaultValue: false,
 			onChange(value) {
-				if (value) {
-					replace();
-				} else {
-					LiteGraph.ContextMenu = ctxMenu;
-				}
+				invert = value;
 			},
 		});
 	},
