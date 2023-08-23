@@ -546,11 +546,8 @@ class CLIP:
         offload_device = model_management.text_encoder_offload_device()
         params['device'] = load_device
         self.cond_stage_model = clip(**(params))
-        #TODO: make sure this doesn't have a quality loss before enabling.
-        # if model_management.should_use_fp16(load_device):
-        #     self.cond_stage_model.half()
-
-        self.cond_stage_model = self.cond_stage_model.to()
+        if model_management.should_use_fp16(load_device):
+            self.cond_stage_model.half()
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
