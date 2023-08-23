@@ -166,7 +166,7 @@ def get_filename_list_(folder_name):
     folders = folder_names_and_paths[folder_name]
     output_folders = {}
     for x in folders[0]:
-        files, folders_all = recursive_search(x)
+        files, folders_all = recursive_search(x, excluded_dir_names=[".git"])
         output_list.update(filter_files_extensions(files, folders[1]))
         output_folders = {**output_folders, **folders_all}
 
