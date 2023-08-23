@@ -839,7 +839,7 @@ export class ComfyUI {
 		}
 
 		if (this.is_launchTiming && typeof app != "undefined") {
-		    const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
+			const switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
 			switch_workflow_combo.selectedIndex = app.workflow_current_id;
 
 			const workflow_names = app.getWorkflowNames();
