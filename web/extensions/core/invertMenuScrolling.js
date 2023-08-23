@@ -8,8 +8,9 @@ const id = "Comfy.InvertMenuScrolling";
 app.registerExtension({
 	name: id,
 	init() {
-		hook(LiteGraph, "onContextMenuCreated", (orig, contextMenu) => {
-			orig?.(contextMenu);
+		hook(LiteGraph, "onContextMenuCreated", (orig, args) => {
+			orig?.(...args)
+			const contextMenu = args[0];
 			contextMenu.options.invert_scrolling = localStorage[`Comfy.Settings.${id}`] === "true";
 		})
 		app.ui.settings.addSetting({

@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { hook } from "../../scripts/utils.js";
 import { ComfyDialog, $el } from "../../scripts/ui.js";
 import { LGraphCanvas } from "../../lib/litegraph.core.js"
 
@@ -131,9 +132,8 @@ app.registerExtension({
 			localStorage.setItem("litegrapheditor_clipboard", old);
 		};
 
-		const orig = LGraphCanvas.prototype.getCanvasMenuOptions;
-		LGraphCanvas.prototype.getCanvasMenuOptions = function () {
-			const options = orig.apply(this, arguments);
+		hook(LGraphCanvas, "getCanvasMenuOptions", function (orig, args) {
+			const options = orig.apply(this, args);
 
 			options.push(null);
 			options.push({
@@ -180,6 +180,6 @@ app.registerExtension({
 			}
 
 			return options;
-		};
+		});
 	},
 });

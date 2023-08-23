@@ -7,8 +7,9 @@ import { hook } from "../../scripts/utils.js";
 const ext = {
 	name: "Comfy.ContextMenuFilter",
 	init() {
-		hook(LiteGraph, "onContextMenuCreated", (orig, contextMenu) => {
-			orig?.(contextMenu);
+		hook(LiteGraph, "onContextMenuCreated", (orig, args) => {
+			orig?.(...args);
+			const contextMenu = args[0];
 
 			// If we are a dark menu (only used for combo boxes) then add a filter input
 			if (contextMenu.options?.className === "dark" && contextMenu.values?.length > 10) {
@@ -32,7 +33,7 @@ const ext = {
 					let selectedIndex = clickedComboValue ? contextMenu.values.findIndex(v => v === clickedComboValue) : 0;
 					if (selectedIndex < 0) {
 						selectedIndex = 0;
-					} 
+					}
 					let selectedItem = displayedItems[selectedIndex];
 					updateSelected();
 

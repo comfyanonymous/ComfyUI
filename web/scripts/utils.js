@@ -2,22 +2,25 @@ export function range(size, startAt = 0) {
     return [...Array(size).keys()].map(i => i + startAt);
 }
 
+function isClass(obj) {
+  const isCtorClass = obj.constructor
+      && obj.constructor.toString().substring(0, 5) === 'class'
+  if(obj.prototype === undefined) {
+    return isCtorClass
+  }
+  const isPrototypeCtorClass = obj.prototype.constructor
+    && obj.prototype.constructor.toString
+    && obj.prototype.constructor.toString().substring(0, 5) === 'class'
+  return isCtorClass || isPrototypeCtorClass
+}
+
 export function hook(klass, fnName, cb) {
-    const fnLocation = klass;
+    let fnLocation = klass;
+    if (isClass(klass)) {
+        fnLocation = klass.prototype;
+    }
     const orig = fnLocation[fnName];
-    fnLocation[fnName] = (...args) => {
-        cb(orig, ...args);
+    fnLocation[fnName] = function(...args) {
+        return cb.bind(this)(orig, args);
     }
 }
-
-const a = {
-    b: (c, d, e) => {
-        console.log(c, d, e);
-    }
-}
-
-a.b(1,2,3)
-hook(a, "b", (orig, c, d, e) => {
-    orig(c, d, e);
-})
-a.b(1,2,3)
