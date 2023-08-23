@@ -1,11 +1,13 @@
 import { app } from "../../scripts/app.js";
+import { ComfyGraphNode } from "../../scripts/graphNode.js";
+import { LiteGraph } from "../../lib/litegraph.core.js"
 
 // Node that allows you to redirect connections for cleaner graphs
 
 app.registerExtension({
 	name: "Comfy.RerouteNode",
 	registerCustomNodes() {
-		class RerouteNode {
+		class RerouteNode extends ComfyGraphNode {
 			constructor() {
 				if (!this.properties) {
 					this.properties = {};
@@ -109,7 +111,7 @@ app.registerExtension({
 					}
 
 					const displayType = inputType || outputType || "*";
-					const color = LGraphCanvas.link_type_colors[displayType];
+					const color = app.canvas.link_type_colors[displayType];
 
 					// Update the types of each node
 					for (const node of updateNodes) {
@@ -219,14 +221,13 @@ app.registerExtension({
 		// Load default visibility
 		RerouteNode.setDefaultTextVisibility(!!localStorage["Comfy.RerouteNode.DefaultVisibility"]);
 
-		LiteGraph.registerNodeType(
-			"Reroute",
-			Object.assign(RerouteNode, {
-				title_mode: LiteGraph.NO_TITLE,
-				title: "Reroute",
-				collapsable: false,
-			})
-		);
+		LiteGraph.registerNodeType({
+			class: RerouteNode,
+			title_mode: LiteGraph.NO_TITLE,
+			type: "Reroute",
+			title: "Reroute",
+			collapsable: false,
+		});
 
 		RerouteNode.category = "utils";
 	},

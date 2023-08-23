@@ -1,5 +1,6 @@
 import {app} from "../../scripts/app.js";
 import {$el} from "../../scripts/ui.js";
+import { LiteGraph, LGraphCanvas } from "../../lib/litegraph.core.js"
 
 // Manage color palettes
 
@@ -341,8 +342,8 @@ app.registerExtension({
 			if (colorPalette.colors) {
 				// Sets the colors of node slots and links
 				if (colorPalette.colors.node_slot) {
-					Object.assign(app.canvas.default_connection_color_byType, colorPalette.colors.node_slot);
-					Object.assign(LGraphCanvas.link_type_colors, colorPalette.colors.node_slot);
+					Object.assign(LGraphCanvas.DEFAULT_CONNECTION_COLORS_BY_TYPE, colorPalette.colors.node_slot);
+					Object.assign(app.canvas.link_type_colors, colorPalette.colors.node_slot);
 				}
 				// Sets the colors of the LiteGraph objects
 				if (colorPalette.colors.litegraph_base) {

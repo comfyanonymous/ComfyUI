@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { LiteGraph, LINK_RENDER_MODE_NAMES } from "../../lib/litegraph.core.js"
 
 const id = "Comfy.LinkRenderMode";
 const ext = {
@@ -9,7 +10,7 @@ const ext = {
 			name: "Link Render Mode",
 			defaultValue: 2,
 			type: "combo",
-			options: LiteGraph.LINK_RENDER_MODES.map((m, i) => ({
+			options: LINK_RENDER_MODE_NAMES.map((m, i) => ({
 				value: i,
 				text: m,
 				selected: i == app.canvas.links_render_mode,

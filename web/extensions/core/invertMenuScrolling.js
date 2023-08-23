@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { LiteGraph } from "../../lib/litegraph.core.js"
 
 // Inverts the scrolling of context menus
 

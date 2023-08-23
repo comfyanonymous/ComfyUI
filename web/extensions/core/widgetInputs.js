@@ -1,5 +1,6 @@
 import { ComfyWidgets, addValueControlWidget } from "../../scripts/widgets.js";
 import { app } from "../../scripts/app.js";
+import { LiteGraph } from "../../lib/litegraph.core.js"
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
@@ -95,8 +96,8 @@ app.registerExtension({
 	name: "Comfy.WidgetInputs",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		// Add menu options to conver to/from widgets
-		const origGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
-		nodeType.prototype.getExtraMenuOptions = function (_, options) {
+		const origGetExtraMenuOptions = nodeType.class.prototype.getExtraMenuOptions;
+		nodeType.class.prototype.getExtraMenuOptions = function (_, options) {
 			const r = origGetExtraMenuOptions ? origGetExtraMenuOptions.apply(this, arguments) : undefined;
 
 			if (this.widgets) {
@@ -131,8 +132,8 @@ app.registerExtension({
 		};
 
 		// On initial configure of nodes hide all converted widgets
-		const origOnConfigure = nodeType.prototype.onConfigure;
-		nodeType.prototype.onConfigure = function () {
+		const origOnConfigure = nodeType.class.prototype.onConfigure;
+		nodeType.class.prototype.onConfigure = function () {
 			const r = origOnConfigure ? origOnConfigure.apply(this, arguments) : undefined;
 
 			if (this.inputs) {
@@ -161,9 +162,9 @@ app.registerExtension({
 		}
 
 		// Double click a widget input to automatically attach a primitive
-		const origOnInputDblClick = nodeType.prototype.onInputDblClick;
+		const origOnInputDblClick = nodeType.class.prototype.onInputDblClick;
 		const ignoreDblClick = Symbol();
-		nodeType.prototype.onInputDblClick = function (slot) {
+		nodeType.class.prototype.onInputDblClick = function (slot) {
 			const r = origOnInputDblClick ? origOnInputDblClick.apply(this, arguments) : undefined;
 
 			const input = this.inputs[slot];
@@ -403,12 +404,11 @@ app.registerExtension({
 			}
 		}
 
-		LiteGraph.registerNodeType(
-			"PrimitiveNode",
-			Object.assign(PrimitiveNode, {
-				title: "Primitive",
-			})
-		);
+		LiteGraph.registerNodeType({
+			class: PrimitiveNode,
+			type: "PrimitiveNode",
+			title: "Primitive",
+		});
 		PrimitiveNode.category = "utils";
 	},
 });

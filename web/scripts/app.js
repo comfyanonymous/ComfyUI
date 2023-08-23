@@ -4,6 +4,10 @@ import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { LiteGraph } from "../lib/litegraph.core.js"
+import ComfyGraph from "./graph.js";
+import ComfyGraphCanvas from "./graphCanvas.js";
+import { ComfyBackendNode } from "./graphNode.js";
 
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -691,270 +695,6 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Handle mouse
-	 *
-	 * Move group by header
-	 */
-	#addProcessMouseHandler() {
-		const self = this;
-
-		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
-		LGraphCanvas.prototype.processMouseDown = function(e) {
-			const res = origProcessMouseDown.apply(this, arguments);
-
-			this.selected_group_moving = false;
-
-			if (this.selected_group && !this.selected_group_resizing) {
-				var font_size =
-					this.selected_group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
-				var height = font_size * 1.4;
-
-				// Move group by header
-				if (LiteGraph.isInsideRectangle(e.canvasX, e.canvasY, this.selected_group.pos[0], this.selected_group.pos[1], this.selected_group.size[0], height)) {
-					this.selected_group_moving = true;
-				}
-			}
-
-			return res;
-		}
-
-		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
-		LGraphCanvas.prototype.processMouseMove = function(e) {
-			const orig_selected_group = this.selected_group;
-
-			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
-				this.selected_group = null;
-			}
-
-			const res = origProcessMouseMove.apply(this, arguments);
-
-			if (orig_selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
-				this.selected_group = orig_selected_group;
-			}
-
-			return res;
-		};
-	}
-
-	/**
-	 * Handle keypress
-	 *
-	 * Ctrl + M mute/unmute selected nodes
-	 */
-	#addProcessKeyHandler() {
-		const self = this;
-		const origProcessKey = LGraphCanvas.prototype.processKey;
-		LGraphCanvas.prototype.processKey = function(e) {
-			const res = origProcessKey.apply(this, arguments);
-
-			if (res === false) {
-				return res;
-			}
-
-			if (!this.graph) {
-				return;
-			}
-
-			var block_default = false;
-
-			if (e.target.localName == "input") {
-				return;
-			}
-
-			if (e.type == "keydown") {
-				// Ctrl + M mute/unmute
-				if (e.keyCode == 77 && e.ctrlKey) {
-					if (this.selected_nodes) {
-						for (var i in this.selected_nodes) {
-							if (this.selected_nodes[i].mode === 2) { // never
-								this.selected_nodes[i].mode = 0; // always
-							} else {
-								this.selected_nodes[i].mode = 2; // never
-							}
-						}
-					}
-					block_default = true;
-				}
-
-				if (e.keyCode == 66 && e.ctrlKey) {
-					if (this.selected_nodes) {
-						for (var i in this.selected_nodes) {
-							if (this.selected_nodes[i].mode === 4) { // never
-								this.selected_nodes[i].mode = 0; // always
-							} else {
-								this.selected_nodes[i].mode = 4; // never
-							}
-						}
-					}
-					block_default = true;
-				}
-			}
-
-			this.graph.change();
-
-			if (block_default) {
-				e.preventDefault();
-				e.stopImmediatePropagation();
-				return false;
-			}
-
-			return res;
-		};
-	}
-
-	/**
-	 * Draws group header bar
-	 */
-	#addDrawGroupsHandler() {
-		const self = this;
-
-		const origDrawGroups = LGraphCanvas.prototype.drawGroups;
-		LGraphCanvas.prototype.drawGroups = function(canvas, ctx) {
-			if (!this.graph) {
-				return;
-			}
-
-			var groups = this.graph._groups;
-
-			ctx.save();
-			ctx.globalAlpha = 0.7 * this.editor_alpha;
-
-			for (var i = 0; i < groups.length; ++i) {
-				var group = groups[i];
-
-				if (!LiteGraph.overlapBounding(this.visible_area, group._bounding)) {
-					continue;
-				} //out of the visible area
-
-				ctx.fillStyle = group.color || "#335";
-				ctx.strokeStyle = group.color || "#335";
-				var pos = group._pos;
-				var size = group._size;
-				ctx.globalAlpha = 0.25 * this.editor_alpha;
-				ctx.beginPath();
-				var font_size =
-					group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
-				ctx.rect(pos[0] + 0.5, pos[1] + 0.5, size[0], font_size * 1.4);
-				ctx.fill();
-				ctx.globalAlpha = this.editor_alpha;
-			}
-
-			ctx.restore();
-
-			const res = origDrawGroups.apply(this, arguments);
-			return res;
-		}
-	}
-
-	/**
-	 * Draws node highlights (executing, drag drop) and progress bar
-	 */
-	#addDrawNodeHandler() {
-		const origDrawNodeShape = LGraphCanvas.prototype.drawNodeShape;
-		const self = this;
-
-		LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
-			const res = origDrawNodeShape.apply(this, arguments);
-
-			const nodeErrors = self.lastNodeErrors?.[node.id];
-
-			let color = null;
-			let lineWidth = 1;
-			if (node.id === +self.runningNodeId) {
-				color = "#0f0";
-			} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
-				color = "dodgerblue";
-			}
-			else if (nodeErrors?.errors) {
-				color = "red";
-				lineWidth = 2;
-			}
-			else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
-				color = "#f0f";
-				lineWidth = 2;
-			}
-
-			if (color) {
-				const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
-				ctx.lineWidth = lineWidth;
-				ctx.globalAlpha = 0.8;
-				ctx.beginPath();
-				if (shape == LiteGraph.BOX_SHAPE)
-					ctx.rect(-6, -6 - LiteGraph.NODE_TITLE_HEIGHT, 12 + size[0] + 1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT);
-				else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
-					ctx.roundRect(
-						-6,
-						-6 - LiteGraph.NODE_TITLE_HEIGHT,
-						12 + size[0] + 1,
-						12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
-						this.round_radius * 2
-					);
-				else if (shape == LiteGraph.CARD_SHAPE)
-					ctx.roundRect(
-						-6,
-						-6 - LiteGraph.NODE_TITLE_HEIGHT,
-						12 + size[0] + 1,
-						12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
-						[this.round_radius * 2, this.round_radius * 2, 2, 2]
-				);
-				else if (shape == LiteGraph.CIRCLE_SHAPE)
-					ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
-				ctx.strokeStyle = color;
-				ctx.stroke();
-				ctx.strokeStyle = fgcolor;
-				ctx.globalAlpha = 1;
-			}
-
-			if (self.progress && node.id === +self.runningNodeId) {
-				ctx.fillStyle = "green";
-				ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
-				ctx.fillStyle = bgcolor;
-			}
-
-			// Highlight inputs that failed validation
-			if (nodeErrors) {
-				ctx.lineWidth = 2;
-				ctx.strokeStyle = "red";
-				for (const error of nodeErrors.errors) {
-					if (error.extra_info && error.extra_info.input_name) {
-						const inputIndex = node.findInputSlot(error.extra_info.input_name)
-						if (inputIndex !== -1) {
-							let pos = node.getConnectionPos(true, inputIndex);
-							ctx.beginPath();
-							ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 12, 0, 2 * Math.PI, false)
-							ctx.stroke();
-						}
-					}
-				}
-			}
-
-			return res;
-		};
-
-		const origDrawNode = LGraphCanvas.prototype.drawNode;
-		LGraphCanvas.prototype.drawNode = function (node, ctx) {
-			var editor_alpha = this.editor_alpha;
-			var old_color = node.bgcolor;
-
-			if (node.mode === 2) { // never
-				this.editor_alpha = 0.4;
-			}
-
-			if (node.mode === 4) { // never
-				node.bgcolor = "#FF00FF";
-				this.editor_alpha = 0.2;
-			}
-
-			const res = origDrawNode.apply(this, arguments);
-
-			this.editor_alpha = editor_alpha;
-			node.bgcolor = old_color;
-
-			return res;
-		};
-	}
-
-	/**
 	 * Handles updates from the API socket
 	 */
 	#addApiUpdateHandlers() {
@@ -1056,11 +796,8 @@ export class ComfyApp {
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
-		this.#addProcessMouseHandler();
-		this.#addProcessKeyHandler();
-
-		this.graph = new LGraph();
-		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
+		this.graph = new ComfyGraph();
+		const canvas = (this.canvas = new ComfyGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
 
 		LiteGraph.release_link_on_empty_shows_menu = true;
@@ -1106,8 +843,6 @@ export class ComfyApp {
 		// Save current workflow automatically
 		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
 
-		this.#addDrawNodeHandler();
-		this.#addDrawGroupsHandler();
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addPasteHandler();
@@ -1130,74 +865,92 @@ export class ComfyApp {
     async registerNodesFromDefs(defs) {
 		await this.#invokeExtensionsAsync("addCustomNodeDefs", defs);
 
+		// // Generate list of known widgets
+		// const widgets = Object.assign(
+		// 	{},
+		// 	ComfyWidgets,
+		// 	...(await this.#invokeExtensionsAsync("getCustomWidgets")).filter(Boolean)
+		// );
+
 		// Generate list of known widgets
-		const widgets = Object.assign(
-			{},
-			ComfyWidgets,
-			...(await this.#invokeExtensionsAsync("getCustomWidgets")).filter(Boolean)
-		);
+		const customWidgets = (await app.#invokeExtensionsAsync("getCustomWidgets")).filter(Boolean);
+        ComfyWidgets.customWidgets = customWidgets;
 
 		// Register a node for each definition
 		for (const nodeId in defs) {
 			const nodeData = defs[nodeId];
-			const node = Object.assign(
-				function ComfyNode() {
-					var inputs = nodeData["input"]["required"];
-					if (nodeData["input"]["optional"] != undefined){
-					    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
-					}
-					const config = { minWidth: 1, minHeight: 1 };
-					for (const inputName in inputs) {
-						const inputData = inputs[inputName];
-						const type = inputData[0];
 
-						if(inputData[1]?.forceInput) {
-							this.addInput(inputName, type);
-						} else {
-							if (Array.isArray(type)) {
-								// Enums
-								Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
-							} else if (`${type}:${inputName}` in widgets) {
-								// Support custom widgets by Type:Name
-								Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
-							} else if (type in widgets) {
-								// Standard type widgets
-								Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-							} else {
-								// Node connection inputs
-								this.addInput(inputName, type);
-							}
-						}
-					}
+            const ctor = class extends ComfyBackendNode {
+                constructor(title) {
+                    super(title, nodeId, nodeData);
+                }
+            }
 
-					for (const o in nodeData["output"]) {
-						const output = nodeData["output"][o];
-						const outputName = nodeData["output_name"][o] || output;
-						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
-						this.addOutput(outputName, output, { shape: outputShape });
-					}
+            const node = {
+                class: ctor,
+                title: nodeData.display_name || nodeData.name,
+                desc: `ComfyNode: ${nodeId}`
+            }
 
-					const s = this.computeSize();
-					s[0] = Math.max(config.minWidth, s[0] * 1.5);
-					s[1] = Math.max(config.minHeight, s[1]);
-					this.size = s;
-					this.serialize_widgets = true;
+			// const node = Object.assign(
+			// 	function ComfyNode() {
+			// 		var inputs = nodeData["input"]["required"];
+			// 		if (nodeData["input"]["optional"] != undefined){
+			// 		    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
+			// 		}
+			// 		const config = { minWidth: 1, minHeight: 1 };
+			// 		for (const inputName in inputs) {
+			// 			const inputData = inputs[inputName];
+			// 			const type = inputData[0];
 
-					app.#invokeExtensionsAsync("nodeCreated", this);
-				},
-				{
-					title: nodeData.display_name || nodeData.name,
-					comfyClass: nodeData.name,
-				}
-			);
-			node.prototype.comfyClass = nodeData.name;
+			// 			if(inputData[1]?.forceInput) {
+			// 				this.addInput(inputName, type);
+			// 			} else {
+			// 				if (Array.isArray(type)) {
+			// 					// Enums
+			// 					Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
+			// 				} else if (`${type}:${inputName}` in widgets) {
+			// 					// Support custom widgets by Type:Name
+			// 					Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
+			// 				} else if (type in widgets) {
+			// 					// Standard type widgets
+			// 					Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
+			// 				} else {
+			// 					// Node connection inputs
+			// 					this.addInput(inputName, type);
+			// 				}
+			// 			}
+			// 		}
 
-			this.#addNodeContextMenuHandler(node);
-			this.#addDrawBackgroundHandler(node, app);
-			this.#addNodeKeyHandler(node);
+			// 		for (const o in nodeData["output"]) {
+			// 			const output = nodeData["output"][o];
+			// 			const outputName = nodeData["output_name"][o] || output;
+			// 			const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+			// 			this.addOutput(outputName, output, { shape: outputShape });
+			// 		}
+
+			// 		const s = this.computeSize();
+			// 		s[0] = Math.max(config.minWidth, s[0] * 1.5);
+			// 		s[1] = Math.max(config.minHeight, s[1]);
+			// 		this.size = s;
+			// 		this.serialize_widgets = true;
+
+			// 		app.#invokeExtensionsAsync("nodeCreated", this);
+			// 	},
+			// 	{
+			// 		title: nodeData.display_name || nodeData.name,
+			// 		comfyClass: nodeData.name,
+			// 	}
+			// );
+			// node.prototype.comfyClass = nodeData.name;
+            node.type = nodeId;
+
+			// this.#addNodeContextMenuHandler(node);
+			// this.#addDrawBackgroundHandler(node, app);
+			// this.#addNodeKeyHandler(node);
 
 			await this.#invokeExtensionsAsync("beforeRegisterNodeDef", node, nodeData);
-			LiteGraph.registerNodeType(nodeId, node);
+			LiteGraph.registerNodeType(node);
 			node.category = nodeData.category;
 		}
 	}

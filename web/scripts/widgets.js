@@ -157,7 +157,7 @@ function addMultilineWidget(node, name, opts, app) {
 				// Calculate it here instead
 				computeSize(node.size);
 			}
-			const visible = app.canvas.ds.scale > 0.5 && this.type === "customtext";
+			const visible = window.app.canvas.ds.scale > 0.5 && this.type === "customtext";
 			const margin = 10;
 			const elRect = ctx.canvas.getBoundingClientRect();
 			const transform = new DOMMatrix()
@@ -176,7 +176,7 @@ function addMultilineWidget(node, name, opts, app) {
 				position: "absolute",
 				background: (!node.color)?'':node.color,
 				color: (!node.color)?'':'white',
-				zIndex: app.graph._nodes.indexOf(node),
+				zIndex: window.app.graph._nodes.indexOf(node),
 			});
 			this.inputEl.hidden = !visible;
 		},
@@ -195,11 +195,11 @@ function addMultilineWidget(node, name, opts, app) {
 
 	node.addCustomWidget(widget);
 
-	app.canvas.onDrawBackground = function () {
+	window.app.canvas.onDrawBackground = function () {
 		// Draw node isnt fired once the node is off the screen
 		// if it goes off screen quickly, the input may not be removed
 		// this shifts it off screen so it can be moved back if the node is visible.
-		for (let n in app.graph._nodes) {
+		for (let n in window.app.graph._nodes) {
 			n = graph._nodes[n];
 			for (let w in n.widgets) {
 				let wid = n.widgets[w];
@@ -251,7 +251,7 @@ function addMultilineWidget(node, name, opts, app) {
 }
 
 function isSlider(display, app) {
-	if (app.ui.settings.getSettingValue("Comfy.DisableSliders")) {
+	if (window.app.ui.settings.getSettingValue("Comfy.DisableSliders")) {
 		return "number"
 	}
 
@@ -321,7 +321,7 @@ export const ComfyWidgets = {
 			const img = new Image();
 			img.onload = () => {
 				node.imgs = [img];
-				app.graph.setDirtyCanvas(true);
+				window.app.graph.setDirtyCanvas(true);
 			};
 			let folder_separator = name.lastIndexOf("/");
 			let subfolder = "";
@@ -329,7 +329,7 @@ export const ComfyWidgets = {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = api.apiURL(`/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`);
+			img.src = api.apiURL(`/view?filename=${name}&type=input&subfolder=${subfolder}${window.app.getPreviewFormatParam()}`);
 			node.setSizeForImage?.();
 		}
 
@@ -457,3 +457,5 @@ export const ComfyWidgets = {
 		return { widget: uploadWidget };
 	},
 };
+
+export const customWidgets = []

@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 
 // Use widget values and dates in output filenames
 
+/*
 app.registerExtension({
 	name: "Comfy.SaveImageExtraOutput",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -98,3 +99,4 @@ app.registerExtension({
 		}
 	},
 });
+*/

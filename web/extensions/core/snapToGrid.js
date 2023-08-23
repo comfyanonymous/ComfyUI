@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { LiteGraph } from "../../lib/litegraph.core.js"
 
 // Shift + drag/resize to snap to grid
 

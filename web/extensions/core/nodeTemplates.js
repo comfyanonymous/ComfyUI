@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { ComfyDialog, $el } from "../../scripts/ui.js";
+import { LGraphCanvas } from "../../lib/litegraph.core.js"
 
 // Adds the ability to save and add multiple nodes as a template
 // To save:

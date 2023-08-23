@@ -1,4 +1,5 @@
-import {app} from "../../scripts/app.js";
+import { app } from "../../scripts/app.js";
+import { LiteGraph } from "../../lib/litegraph.core.js"
 
 // Adds filtering to combo context menus
 
@@ -141,7 +142,7 @@ const ext = {
 			return ctx;
 		};
 
-		LiteGraph.ContextMenu.prototype = ctxMenu.prototype;
+		// LiteGraph.ContextMenu.prototype = ctxMenu.prototype;
 	},
 }
 
