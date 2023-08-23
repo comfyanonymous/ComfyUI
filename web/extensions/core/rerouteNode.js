@@ -26,7 +26,7 @@ app.registerExtension({
 				this.applyOrientation();
 
 				// Prevent multiple connections to different types when we have no input
-				if (connected && type === LiteGraph.OUTPUT) {
+				if (connected && type === LConnectionKind.OUTPUT) {
 					// Ignore wildcard nodes as these will be updated to real types
 					const types = new Set(this.outputs[0].links.map((l) => app.graph.links[l].type).filter((t) => t !== "*"));
 					if (types.size > 1) {
