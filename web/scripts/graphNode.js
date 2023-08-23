@@ -2,13 +2,139 @@ import { LiteGraph, LGraphNode, LGraphCanvas, BuiltInSlotType, BuiltInSlotShape 
 import { ComfyWidgets } from "./widgets.js";
 import { iterateNodeDefOutputs, iterateNodeDefInputs } from "./nodeDef.js";
 import { api } from "./api.js";
+import { ComfyApp } from "./app.js"
 
 export class ComfyGraphNode extends LGraphNode {
-	constructor(title, app) {
+	constructor(title) {
 		super(title)
-		this.app = app;
 		this.serialize_widgets = true;
 	}
+
+	onKeyDown(e) {
+		if (super.onKeyDown && super.onKeyDown.apply(this, e) === false) {
+			return false;
+		}
+
+		if (this.flags.collapsed || !this.imgs || this.imageIndex === null) {
+			return;
+		}
+
+		let handled = false;
+
+		if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+			if (e.key === "ArrowLeft") {
+				this.imageIndex -= 1;
+			} else if (e.key === "ArrowRight") {
+				this.imageIndex += 1;
+			}
+			this.imageIndex %= this.imgs.length;
+
+			if (this.imageIndex < 0) {
+				this.imageIndex = this.imgs.length + this.imageIndex;
+			}
+			handled = true;
+		} else if (e.key === "Escape") {
+			this.imageIndex = null;
+			handled = true;
+		}
+
+		if (handled === true) {
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			return false;
+		}
+	}
+
+	/*
+	 * SnapToGrid functionality
+	 */
+	onResize() {
+		if (app.shiftDown) {
+			const w = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.size[0] / LiteGraph.CANVAS_GRID_SIZE);
+			const h = LiteGraph.CANVAS_GRID_SIZE * Math.round(node.size[1] / LiteGraph.CANVAS_GRID_SIZE);
+			node.size[0] = w;
+			node.size[1] = h;
+		}
+		return super.onResize?.();
+	}
+
+	/**
+	 * Adds special context menu handling for nodes
+	 * e.g. this adds Open Image functionality for nodes that show images
+	 * @param {*} node The node to add the menu handler
+	 */
+	getExtraMenuOptions(_, options) {
+		if (super.getExtraMenuOptions)
+			super.getExtraMenuOptions(_, options);
+
+		if (this.imgs) {
+			// If this node has images then we add an open in new tab item
+			let img;
+			if (this.imageIndex != null) {
+				// An image is selected so select that
+				img = this.imgs[this.imageIndex];
+			} else if (this.overIndex != null) {
+				// No image is selected but one is hovered
+				img = this.imgs[this.overIndex];
+			}
+			if (img) {
+				options.unshift(
+					{
+						content: "Open Image",
+						callback: () => {
+							let url = new URL(img.src);
+							url.searchParams.delete('preview');
+							window.open(url, "_blank")
+						},
+					},
+					{
+						content: "Save Image",
+						callback: () => {
+							const a = document.createElement("a");
+							let url = new URL(img.src);
+							url.searchParams.delete('preview');
+							a.href = url;
+							a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
+							document.body.append(a);
+							a.click();
+							requestAnimationFrame(() => a.remove());
+						},
+					}
+				);
+			}
+		}
+
+		options.push({
+			content: "Bypass",
+			callback: (obj) => { if (this.mode === 4) this.mode = 0; else this.mode = 4; this.graph.change(); }
+		});
+
+		// prevent conflict of clipspace content
+		if(!ComfyApp.clipspace_return_node) {
+			options.push({
+				content: "Copy (Clipspace)",
+				callback: (obj) => { ComfyApp.copyToClipspace(this); }
+			});
+
+			if(ComfyApp.clipspace != null) {
+				options.push({
+					content: "Paste (Clipspace)",
+					callback: () => { ComfyApp.pasteFromClipspace(this); }
+				});
+			}
+
+			if(ComfyApp.isImageNode(this)) {
+				options.push({
+					content: "Open in MaskEditor",
+					callback: (obj) => {
+						ComfyApp.copyToClipspace(this);
+						ComfyApp.clipspace_return_node = this;
+						ComfyApp.open_maskeditor();
+					}
+				});
+			}
+		}
+	};
 
 	getImageTop() {
 		let shiftY;
@@ -253,8 +379,8 @@ const defaultInputConfigs = {}
 
 
 export class ComfyBackendNode extends ComfyGraphNode {
-    constructor(title, app, comfyClass, nodeDef) {
-        super(title, app)
+    constructor(title, comfyClass, nodeDef) {
+        super(title)
         this.type = comfyClass; // XXX: workaround dependency in LGraphNode.addInput()
         this.displayName = nodeDef.display_name;
         this.comfyNodeDef = nodeDef;

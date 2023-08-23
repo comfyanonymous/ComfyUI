@@ -82,7 +82,7 @@ const S = class {
   static registerNodeAndSlotType(t, e, i = !1) {
     let n;
     if (typeof t == "string" ? n = S.registered_node_types[t] : "type" in t ? n = S.registered_node_types[t.type] : n = t, !n)
-      throw "Node not registered!" + t;
+      throw new Error("Node not registered!" + t);
     var s = n.class.__litegraph_type__;
     if (typeof e == "string")
       var r = e.split(",");
@@ -7102,7 +7102,7 @@ class X {
           return s.close(), d.preventDefault(), !0;
       },
       !0
-    ), i.scroll_speed = i.scroll_speed || 0.1, i.invert_scrolling = i.invert_scrolling || !1, o.addEventListener("wheel", this.onMouseWheel.bind(this), !0), o.addEventListener("mousewheel", this.onMouseWheel.bind(this), !0), this.root = o, i.title) {
+    ), i.scroll_speed || (i.scroll_speed = 0.1), o.addEventListener("wheel", this.onMouseWheel.bind(this), !0), o.addEventListener("mousewheel", this.onMouseWheel.bind(this), !0), this.root = o, i.title) {
       var a = document.createElement("div");
       a.className = "litemenu-title", a.innerHTML = i.title, o.appendChild(a);
     }

@@ -1,5 +1,6 @@
 import { ComfyWidgets, addValueControlWidget } from "../../scripts/widgets.js";
 import { app } from "../../scripts/app.js";
+import { ComfyGraphNode } from "../../scripts/graphNode.js";
 import { LiteGraph } from "../../lib/litegraph.core.js"
 
 const CONVERTED_TYPE = "converted-widget";
@@ -199,8 +200,9 @@ app.registerExtension({
 		};
 	},
 	registerCustomNodes() {
-		class PrimitiveNode {
-			constructor() {
+		class PrimitiveNode extends ComfyGraphNode {
+			constructor(title) {
+				super(title);
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
@@ -214,7 +216,7 @@ app.registerExtension({
 					for (const l of node.outputs[0].links) {
 						const linkInfo = app.graph.links[l];
 						const n = node.graph.getNodeById(linkInfo.target_id);
-						if (n.type == "Reroute") {
+						if (n.type === "Reroute") {
 							links = links.concat(get_links(n));
 						} else {
 							links.push(l);
@@ -408,7 +410,7 @@ app.registerExtension({
 			class: PrimitiveNode,
 			type: "PrimitiveNode",
 			title: "Primitive",
+			category: "utils"
 		});
-		PrimitiveNode.category = "utils";
 	},
 });

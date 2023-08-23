@@ -1,6 +1,5 @@
-import { app } from "../../scripts/app.js";
+import { app, ComfyApp } from "../../scripts/app.js";
 import { ComfyDialog, $el } from "../../scripts/ui.js";
-import { ComfyApp } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js"
 import { ClipspaceDialog } from "./clipspace.js";
 

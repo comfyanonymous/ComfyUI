@@ -17,7 +17,7 @@ const ext = {
 			})),
 			onChange(value) {
 				app.canvas.links_render_mode = +value;
-				app.graph.setDirtyCanvas(true);
+				app.canvas.draw(true, true);
 			},
 		});
 	},
