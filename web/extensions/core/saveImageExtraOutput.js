@@ -1,15 +1,13 @@
 import { app } from "../../scripts/app.js";
+import { hook } from "../../scripts/utils.js";
 
 // Use widget values and dates in output filenames
 
-/*
 app.registerExtension({
 	name: "Comfy.SaveImageExtraOutput",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		if (nodeData.name === "SaveImage") {
-			const onNodeCreated = nodeType.prototype.onNodeCreated;
-
-         // Simple date formatter
+			// Simple date formatter
 			const parts = {
 				d: (d) => d.getDate(),
 				M: (d) => d.getMonth() + 1,
@@ -18,9 +16,9 @@ app.registerExtension({
 				s: (d) => d.getSeconds(),
 			};
 			const format =
-				Object.keys(parts)
-					.map((k) => k + k + "?")
-					.join("|") + "|yyy?y?";
+				  Object.keys(parts)
+				  .map((k) => k + k + "?")
+				  .join("|") + "|yyy?y?";
 
 			function formatDate(text, date) {
 				return text.replace(new RegExp(format, "g"), function (text) {
@@ -34,16 +32,16 @@ app.registerExtension({
 				});
 			}
 
-         // When the SaveImage node is created we want to override the serialization of the output name widget to run our S&R
-			nodeType.prototype.onNodeCreated = function () {
-				const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
+			// When the SaveImage node is created we want to override the serialization of the output name widget to run our S&R
+			hook(nodeType.class, "onNodeCreated", function (origOnNodeCreated, args) {
+				const r = origOnNodeCreated ? origOnNodeCreated.apply(this, args) : undefined;
 
 				const widget = this.widgets.find((w) => w.name === "filename_prefix");
 				widget.serializeValue = () => {
 					return widget.value.replace(/%([^%]+)%/g, function (match, text) {
 						const split = text.split(".");
 						if (split.length !== 2) {
-                     // Special handling for dates
+							// Special handling for dates
 							if (split[0].startsWith("date:")) {
 								return formatDate(split[0].substring(5), new Date());
 							}
@@ -83,20 +81,18 @@ app.registerExtension({
 				};
 
 				return r;
-			};
+			});
 		} else {
-         // When any other node is created add a property to alias the node
-			const onNodeCreated = nodeType.prototype.onNodeCreated;
-			nodeType.prototype.onNodeCreated = function () {
-				const r = onNodeCreated ? onNodeCreated.apply(this, arguments) : undefined;
+			// When any other node is created add a property to alias the node
+			hook(nodeType.class, "onNodeCreated", function (origOnNodeCreated, args) {
+				const r = origOnNodeCreated ? origOnNodeCreated.apply(this, args) : undefined;
 
-				if (!this.properties || !("Node name for S&R" in this.properties)) {
-					this.addProperty("Node name for S&R", this.constructor.type, "string");
+				if (!this.hasProperty("Node name for S&R")) {
+					this.addProperty("Node name for S&R", this.type, "string");
 				}
 
 				return r;
-			};
+			});
 		}
 	},
 });
-*/

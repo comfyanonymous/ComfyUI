@@ -2006,12 +2006,13 @@ const Ne = class {
   }
   /** sets the value of a property */
   setProperty(t, e) {
+    var r;
     if (this.properties || (this.properties = {}), e !== this.properties[t]) {
       var i = this.properties[t];
       if (this.properties[t] = e, this.graph && this.graph._version++, this.onPropertyChanged && this.onPropertyChanged(t, e, i) === !1 && (this.properties[t] = i), this.widgets)
         for (var n = 0; n < this.widgets.length; ++n) {
           var s = this.widgets[n];
-          if (s && s.options.property == t) {
+          if (s && ((r = s.options) == null ? void 0 : r.property) == t) {
             s.value = e;
             break;
           }
@@ -2451,6 +2452,9 @@ const Ne = class {
       for (var r in n)
         s[r] = n[r];
     return this.properties_info || (this.properties_info = []), this.properties_info.push(s), this.properties || (this.properties = {}), this.properties[t] = e, s;
+  }
+  hasProperty(t) {
+    return this.properties != null && t in this.properties;
   }
   /**
    * add a new output slot to use in this node
