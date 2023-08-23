@@ -8,8 +8,8 @@ from importlib_resources import files, as_file
 
 from ..vendor.appdirs import user_cache_dir
 
-_openapi_jar_basename = "openapi-generator-cli-6.4.0.jar"
-_openapi_jar_url = f"https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/6.4.0/{_openapi_jar_basename}"
+_openapi_jar_basename = "openapi-generator-cli-6.6.0.jar"
+_openapi_jar_url = f"https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/6.6.0/{_openapi_jar_basename}"
 
 
 def is_java_installed():
@@ -36,9 +36,17 @@ def main():
 
     with as_file(files('comfy.api').joinpath('openapi.yaml')) as openapi_schema:
         with as_file(files('comfy.api').joinpath('openapi_python_config.yaml')) as python_config:
-            cmds = ["java", "--add-opens", "java.base/java.io=ALL-UNNAMED", "--add-opens", "java.base/java.util=ALL-UNNAMED", "--add-opens",
-                    "java.base/java.lang=ALL-UNNAMED", "-jar", jar, "generate", "--input-spec", openapi_schema, "-g", "python", "--global-property", "models",
-                    "--config", python_config]
+            cmds = [
+                "java",
+                "--add-opens", "java.base/java.io=ALL-UNNAMED",
+                "--add-opens", "java.base/java.util=ALL-UNNAMED",
+                "--add-opens", "java.base/java.lang=ALL-UNNAMED",
+                "-jar", jar,
+                "generate",
+                "--input-spec", openapi_schema,
+                "--global-property", "models",
+                "--config", python_config
+            ]
             subprocess.check_output(cmds)
 
 

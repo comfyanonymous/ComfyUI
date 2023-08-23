@@ -1,11 +1,11 @@
-from ... import sd
-from ... import model_base
+from comfy import sd
+from comfy import model_base
 
-from ...cmd import folder_paths
+from comfy.cmd import folder_paths
 import json
 import os
 
-from ...cli_args import args
+from comfy.cli_args import args
 
 class ModelMergeSimple:
     @classmethod

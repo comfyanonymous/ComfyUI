@@ -263,7 +263,7 @@ paths:
         - name: digest
           in: path
           required: true
-          description: A digest of the request used to generate the imaeg
+          description: A digest of the request used to generate the image
           schema:
             type: string
           example: e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
@@ -394,7 +394,7 @@ paths:
                     items:
                       type: string
                 example:
-                  uris: [ "/api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3", "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output" ]
+                  urls: [ "/api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3", "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output" ]
         204:
           description: |
             The prompt was run but did not contain any SaveImage outputs, so nothing will be returned.

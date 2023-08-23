@@ -1,8 +1,8 @@
 from ..chainner_models import model_loading
-from ... import model_management
+from comfy import model_management
 import torch
-from ... import utils
-from ...cmd import folder_paths
+from comfy import utils
+from comfy.cmd import folder_paths
 
 
 class UpscaleModelLoader:
