@@ -137,9 +137,9 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         if backup_embeds.weight.dtype != torch.float32:
             precision_scope = torch.autocast
         else:
-            precision_scope = contextlib.nullcontext
+            precision_scope = lambda a, b: contextlib.nullcontext(a)
 
-        with precision_scope(model_management.get_autocast_device(device)):
+        with precision_scope(model_management.get_autocast_device(device), torch.float32):
             outputs = self.transformer(input_ids=tokens, output_hidden_states=self.layer=="hidden")
             self.transformer.set_input_embeddings(backup_embeds)
 
