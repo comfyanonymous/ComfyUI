@@ -1109,7 +1109,7 @@ export class ComfyApp {
 
 		// Save current workflow automatically
 		setInterval(() => {
-			if (document.visibilityState === "visible") {
+			if (document.hasFocus()) {
 				localStorage.setItem("workflow", JSON.stringify(this.graph.serialize()));
 			}
 		}, 1000);

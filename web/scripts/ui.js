@@ -778,10 +778,8 @@ export class ComfyUI {
 		this.is_launchTiming = true;
 
 		this.switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
-		document.addEventListener("visibilitychange", () => {
-			if (document.visibilityState === "visible") {
-				localStorage.setItem("workflow_current_id", this.switch_workflow_combo.selectedIndex);
-			}
+		window.addEventListener("focus", () => {
+			localStorage.setItem("workflow_current_id", this.switch_workflow_combo.selectedIndex);
 		});
 
 		const id_renameWorkflow = "Comfy.RenameWorkflowDialog";
