@@ -1605,13 +1605,13 @@ export class ComfyApp {
 		this.runningNodeId = null;
 	}
 
-	switchWorkflow(seleted_id) {
+	switchWorkflow(selected_id) {
 		// If you change the value of this workflow_count, you also need to change the count of `$el("option"~` (ui.js).
 		const workflow_count = 10; // also used in getWorkflowNames function
 
 		try {
 			const current_workflow = "workflow_" + this.workflow_current_id;
-			this.workflow_current_id = Math.min(Math.max(seleted_id, 0), workflow_count - 1);
+			this.workflow_current_id = Math.min(Math.max(selected_id, 0), workflow_count - 1);
 			const next_workflow = "workflow_" + this.workflow_current_id;
 
 			localStorage.setItem("workflow_current_id", this.workflow_current_id);
