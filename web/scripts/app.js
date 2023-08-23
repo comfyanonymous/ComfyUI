@@ -796,8 +796,8 @@ export class ComfyApp {
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
-		this.graph = new ComfyGraph();
-		const canvas = (this.canvas = new ComfyGraphCanvas(canvasEl, this.graph));
+		this.graph = new ComfyGraph(this);
+		const canvas = (this.canvas = new ComfyGraphCanvas(canvasEl, this.graph, this));
 		this.ctx = canvasEl.getContext("2d");
 
 		LiteGraph.release_link_on_empty_shows_menu = true;

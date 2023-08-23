@@ -1,6 +1,11 @@
-import { LGraphCanvas } from "../lib/litegraph.core.js"
+import { LiteGraph, LGraphCanvas, BuiltInSlotShape } from "../lib/litegraph.core.js"
 
 export default class ComfyGraphCanvas extends LGraphCanvas {
+    constructor(canvasEl, graph, app) {
+        super(canvasEl, graph)
+        this.app = app;
+    }
+
   processKey(e) {
 	const res = super.processKey(e);
 
@@ -138,32 +143,32 @@ export default class ComfyGraphCanvas extends LGraphCanvas {
   drawNodeShape(node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
     const res = super.drawNodeShape(node, ctx, size, fgcolor, bgcolor, selected, mouse_over);
 
-	const nodeErrors = self.lastNodeErrors?.[node.id];
+	const nodeErrors = app.lastNodeErrors?.[node.id];
 
 	let color = null;
 	let lineWidth = 1;
-	if (node.id === +self.runningNodeId) {
+	if (node.id === +app.runningNodeId) {
 	  color = "#0f0";
-	} else if (self.dragOverNode && node.id === self.dragOverNode.id) {
+	} else if (app.dragOverNode && node.id === app.dragOverNode.id) {
 	  color = "dodgerblue";
 	}
 	else if (nodeErrors?.errors) {
 	  color = "red";
 	  lineWidth = 2;
 	}
-	else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
+	else if (app.lastExecutionError && +app.lastExecutionError.node_id === node.id) {
 	  color = "#f0f";
 	  lineWidth = 2;
 	}
 
 	if (color) {
-	  const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+	  const shape = node.shape || BuiltInSlotShape.ROUND_SHAPE;
 	  ctx.lineWidth = lineWidth;
 	  ctx.globalAlpha = 0.8;
 	  ctx.beginPath();
-	  if (shape == LiteGraph.BOX_SHAPE)
+	  if (shape == BuiltInSlotShape.BOX_SHAPE)
 		ctx.rect(-6, -6 - LiteGraph.NODE_TITLE_HEIGHT, 12 + size[0] + 1, 12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT);
-	  else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
+	  else if (shape == BuiltInSlotShape.ROUND_SHAPE || (shape == BuiltInSlotShape.CARD_SHAPE && node.flags.collapsed))
 		ctx.roundRect(
 		  -6,
 		  -6 - LiteGraph.NODE_TITLE_HEIGHT,
@@ -171,7 +176,7 @@ export default class ComfyGraphCanvas extends LGraphCanvas {
 		  12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
 		  this.round_radius * 2
 		);
-	  else if (shape == LiteGraph.CARD_SHAPE)
+	  else if (shape == BuiltInSlotShape.CARD_SHAPE)
 		ctx.roundRect(
 		  -6,
 		  -6 - LiteGraph.NODE_TITLE_HEIGHT,
@@ -179,7 +184,7 @@ export default class ComfyGraphCanvas extends LGraphCanvas {
 		  12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
 		  [this.round_radius * 2, this.round_radius * 2, 2, 2]
 		);
-	  else if (shape == LiteGraph.CIRCLE_SHAPE)
+	  else if (shape == BuiltInSlotShape.CIRCLE_SHAPE)
 		ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
 	  ctx.strokeStyle = color;
 	  ctx.stroke();
@@ -187,9 +192,9 @@ export default class ComfyGraphCanvas extends LGraphCanvas {
 	  ctx.globalAlpha = 1;
 	}
 
-	if (self.progress && node.id === +self.runningNodeId) {
+	if (app.progress && node.id === +app.runningNodeId) {
 	  ctx.fillStyle = "green";
-	  ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
+	  ctx.fillRect(0, 0, size[0] * (app.progress.value / app.progress.max), 6);
 	  ctx.fillStyle = bgcolor;
 	}
 
