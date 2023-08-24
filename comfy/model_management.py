@@ -394,6 +394,12 @@ def cleanup_models():
         x.model_unload()
         del x
 
+def dtype_size(dtype):
+    dtype_size = 4
+    if dtype == torch.float16 or dtype == torch.bfloat16:
+        dtype_size = 2
+    return dtype_size
+
 def unet_offload_device():
     if vram_state == VRAMState.HIGH_VRAM:
         return get_torch_device()
@@ -409,11 +415,7 @@ def unet_inital_load_device(parameters, dtype):
     if DISABLE_SMART_MEMORY:
         return cpu_dev
 
-    dtype_size = 4
-    if dtype == torch.float16 or dtype == torch.bfloat16:
-        dtype_size = 2
-
-    model_size = dtype_size * parameters
+    model_size = dtype_size(dtype) * parameters
 
     mem_dev = get_free_memory(torch_dev)
     mem_cpu = get_free_memory(cpu_dev)
