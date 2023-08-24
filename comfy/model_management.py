@@ -88,8 +88,10 @@ def get_total_memory(dev=None, torch_total_too=False):
             mem_total = 1024 * 1024 * 1024 #TODO
             mem_total_torch = mem_total
         elif xpu_available:
+            stats = torch.xpu.memory_stats(dev)
+            mem_reserved = stats['reserved_bytes.all.current']
             mem_total = torch.xpu.get_device_properties(dev).total_memory
-            mem_total_torch = mem_total
+            mem_total_torch = mem_reserved
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
@@ -208,6 +210,7 @@ if DISABLE_SMART_MEMORY:
     print("Disabling smart memory management")
 
 def get_torch_device_name(device):
+    global xpu_available
     if hasattr(device, 'type'):
         if device.type == "cuda":
             try:
@@ -217,6 +220,8 @@ def get_torch_device_name(device):
             return "{} {} : {}".format(device, torch.cuda.get_device_name(device), allocator_backend)
         else:
             return "{}".format(device.type)
+    elif xpu_available:
+        return "{} {}".format(device, torch.xpu.get_device_name(device))
     else:
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
@@ -244,6 +249,7 @@ class LoadedModel:
             return self.model_memory()
 
     def model_load(self, lowvram_model_memory=0):
+        global xpu_available
         patch_model_to = None
         if lowvram_model_memory == 0:
             patch_model_to = self.device
@@ -263,6 +269,9 @@ class LoadedModel:
             device_map = accelerate.infer_auto_device_map(self.real_model, max_memory={0: "{}MiB".format(lowvram_model_memory // (1024 * 1024)), "cpu": "16GiB"})
             accelerate.dispatch_model(self.real_model, device_map=device_map, main_device=self.device)
             self.model_accelerated = True
+
+        if xpu_available and not args.disable_ipex_optimize:
+            self.real_model = torch.xpu.optimize(self.real_model.eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
 
         return self.real_model
 
@@ -397,6 +406,9 @@ def unet_inital_load_device(parameters, dtype):
         return torch_dev
 
     cpu_dev = torch.device("cpu")
+    if DISABLE_SMART_MEMORY:
+        return cpu_dev
+
     dtype_size = 4
     if dtype == torch.float16 or dtype == torch.bfloat16:
         dtype_size = 2
@@ -420,8 +432,7 @@ def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
-        #NOTE: on a Ryzen 5 7600X with 4080 it's faster to shift to GPU
-        if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
+        if should_use_fp16(prioritize_performance=False):
             return get_torch_device()
         else:
             return torch.device("cpu")
@@ -497,8 +508,12 @@ def get_free_memory(dev=None, torch_free_too=False):
             mem_free_total = 1024 * 1024 * 1024 #TODO
             mem_free_torch = mem_free_total
         elif xpu_available:
-            mem_free_total = torch.xpu.get_device_properties(dev).total_memory - torch.xpu.memory_allocated(dev)
-            mem_free_torch = mem_free_total
+            stats = torch.xpu.memory_stats(dev)
+            mem_active = stats['active_bytes.all.current']
+            mem_allocated = stats['allocated_bytes.all.current']
+            mem_reserved = stats['reserved_bytes.all.current']
+            mem_free_torch = mem_reserved - mem_active
+            mem_free_total = torch.xpu.get_device_properties(dev).total_memory - mem_allocated
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
@@ -553,15 +568,19 @@ def is_device_mps(device):
             return True
     return False
 
-def should_use_fp16(device=None, model_params=0):
+def should_use_fp16(device=None, model_params=0, prioritize_performance=True):
     global xpu_available
     global directml_enabled
+
+    if device is not None:
+        if is_device_cpu(device):
+            return False
 
     if FORCE_FP16:
         return True
 
     if device is not None: #TODO
-        if is_device_cpu(device) or is_device_mps(device):
+        if is_device_mps(device):
             return False
 
     if FORCE_FP32:
@@ -570,8 +589,11 @@ def should_use_fp16(device=None, model_params=0):
     if directml_enabled:
         return False
 
-    if cpu_mode() or mps_mode() or xpu_available:
+    if cpu_mode() or mps_mode():
         return False #TODO ?
+
+    if xpu_available:
+        return True
 
     if torch.cuda.is_bf16_supported():
         return True
@@ -591,7 +613,7 @@ def should_use_fp16(device=None, model_params=0):
 
     if fp16_works:
         free_model_memory = (get_free_memory() * 0.9 - minimum_inference_memory())
-        if model_params * 4 > free_model_memory:
+        if (not prioritize_performance) or model_params * 4 > free_model_memory:
             return True
 
     if props.major < 7:
