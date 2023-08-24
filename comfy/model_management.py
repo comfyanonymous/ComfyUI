@@ -573,11 +573,15 @@ def should_use_fp16(device=None, model_params=0):
     global xpu_available
     global directml_enabled
 
+    if device is not None:
+        if is_device_cpu(device):
+            return False
+
     if FORCE_FP16:
         return True
 
     if device is not None: #TODO
-        if is_device_cpu(device) or is_device_mps(device):
+        if is_device_mps(device):
             return False
 
     if FORCE_FP32:
