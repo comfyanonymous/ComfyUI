@@ -1095,8 +1095,9 @@ export class ComfyApp {
 				this.loadGraphData(workflow);
 				restored = true;
 				const workflow_id = localStorage.getItem("workflow_current_id");
-				if (workflow_id)
+				if (workflow_id) {
 					this.workflow_current_id = workflow_id;
+				}
 			}
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
@@ -1109,7 +1110,7 @@ export class ComfyApp {
 
 		// Save current workflow automatically
 		setInterval(() => {
-			if (document.hasFocus()) {
+			if (document.hasFocus()) { // only workflow of the active browser tab in the active window
 				localStorage.setItem("workflow", JSON.stringify(this.graph.serialize()));
 			}
 		}, 1000);
@@ -1610,7 +1611,7 @@ export class ComfyApp {
 	}
 
 	switchWorkflow(selected_id) {
-		// If you change the value of this workflow_count, you also need to change the count of `$el("option"~` (ui.js).
+		// If you change the value of this workflow_count, you also need to change the count of `$el("option"~` (ui.js). (count up only)
 		const workflow_count = 10; // also used in getWorkflowNames function
 
 		try {

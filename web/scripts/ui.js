@@ -779,6 +779,7 @@ export class ComfyUI {
 
 		this.switch_workflow_combo = document.getElementById("comfy-switch-workflow-combo");
 		window.addEventListener("focus", () => {
+			// to need to keep the workflow_current_id and selectedIndex to be the same value
 			localStorage.setItem("workflow_current_id", this.switch_workflow_combo.selectedIndex);
 		});
 
