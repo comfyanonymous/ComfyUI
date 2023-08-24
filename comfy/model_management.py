@@ -432,8 +432,7 @@ def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
-        #NOTE: on a Ryzen 5 7600X with 4080 it's faster to shift to GPU
-        if should_use_fp16() or torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
+        if should_use_fp16(prioritize_performance=False):
             return get_torch_device()
         else:
             return torch.device("cpu")
@@ -569,7 +568,7 @@ def is_device_mps(device):
             return True
     return False
 
-def should_use_fp16(device=None, model_params=0):
+def should_use_fp16(device=None, model_params=0, prioritize_performance=True):
     global xpu_available
     global directml_enabled
 
@@ -614,7 +613,7 @@ def should_use_fp16(device=None, model_params=0):
 
     if fp16_works:
         free_model_memory = (get_free_memory() * 0.9 - minimum_inference_memory())
-        if model_params * 4 > free_model_memory:
+        if (not prioritize_performance) or model_params * 4 > free_model_memory:
             return True
 
     if props.major < 7:
