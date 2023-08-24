@@ -545,9 +545,12 @@ class CLIP:
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
         params['device'] = load_device
-        self.cond_stage_model = clip(**(params))
         if model_management.should_use_fp16(load_device):
-            self.cond_stage_model.half()
+            params['dtype'] = torch.float16
+        else:
+            params['dtype'] = torch.float32
+
+        self.cond_stage_model = clip(**(params))
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
