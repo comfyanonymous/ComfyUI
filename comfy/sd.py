@@ -564,9 +564,6 @@ class CLIP:
         n.layer_idx = self.layer_idx
         return n
 
-    def load_from_state_dict(self, sd):
-        self.cond_stage_model.load_sd(sd)
-
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         return self.patcher.add_patches(patches, strength_patch, strength_model)
 
