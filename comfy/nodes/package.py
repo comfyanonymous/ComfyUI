@@ -15,7 +15,7 @@ except:
     custom_nodes = None
 from .package_typing import ExportedNodes
 from functools import reduce
-from pkg_resources import resource_filename
+from pkg_resources import resource_filename, iter_entry_points
 
 _comfy_nodes = ExportedNodes()
 
@@ -85,10 +85,19 @@ def import_all_nodes_in_workspace() -> ExportedNodes:
                                 ExportedNodes())
         custom_nodes_mappings = ExportedNodes()
         if custom_nodes is not None:
-            custom_nodes_mappings = _import_and_enumerate_nodes_in_module(custom_nodes, print_import_times=True)
+            custom_nodes_mappings.update(_import_and_enumerate_nodes_in_module(custom_nodes, print_import_times=True))
 
-            # don't allow custom nodes to overwrite base nodes
-            custom_nodes_mappings -= base_and_extra
+        # load from entrypoints
+        for entry_point in iter_entry_points(group='comfyui.custom_nodes'):
+            # Load the module associated with the current entry point
+            module = entry_point.load()
+
+            # Ensure that what we've loaded is indeed a module
+            if isinstance(module, types.ModuleType):
+                custom_nodes_mappings.update(
+                    _import_and_enumerate_nodes_in_module(module, print_import_times=True))
+        # don't allow custom nodes to overwrite base nodes
+        custom_nodes_mappings -= base_and_extra
 
         _comfy_nodes.update(base_and_extra + custom_nodes_mappings)
     return _comfy_nodes

@@ -10,12 +10,12 @@ class CustomNode(Protocol):
     def INPUT_TYPES(cls) -> dict: ...
 
     RETURN_TYPES: ClassVar[typing.Sequence[str]]
-    RETURN_NAMES: ClassVar[Tuple[str]] = None
-    OUTPUT_IS_LIST: ClassVar[Tuple[bool]] = None
-    INPUT_IS_LIST: ClassVar[bool] = None
+    RETURN_NAMES: typing.Optional[ClassVar[Tuple[str]]]
+    OUTPUT_IS_LIST: typing.Optional[ClassVar[typing.Sequence[bool]]]
+    INPUT_IS_LIST: typing.Optional[ClassVar[bool]]
     FUNCTION: ClassVar[str]
     CATEGORY: ClassVar[str]
-    OUTPUT_NODE: ClassVar[bool] = None
+    OUTPUT_NODE: typing.Optional[ClassVar[bool]]
 
 
 @dataclass

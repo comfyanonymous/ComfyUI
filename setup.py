@@ -156,7 +156,6 @@ package_data = ['sd1_tokenizer/*', '**/*.json', '**/*.yaml']
 if not is_editable:
     package_data.append('web/**/*')
 setup(
-    # "comfy"
     name=package_name,
     description="",
     author="",
