@@ -6,6 +6,8 @@ class Example:
     -------------
     INPUT_TYPES (dict): 
         Tell the main program input parameters of nodes.
+    IS_CHANGED (dict) -> str:
+        Tells the prompt loop if the current node has change on new execution based on a string identifier
 
     Attributes
     ----------
@@ -37,7 +39,8 @@ class Example:
             The type can be a list for selection.
 
             Returns: `dict`:
-                - Key input_fields_group (`string`): Can be either required, hidden or optional. A node class must have property `required`
+                - Key input_fields_group (`string`): Can be either required, hidden or optional.
+                  - A node class must have property `required`
                 - Value input_fields (`dict`): Contains input fields config:
                     * Key field_name (`string`): Name of a entry-point method's argument
                     * Value field_config (`tuple`):

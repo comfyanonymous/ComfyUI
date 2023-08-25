@@ -30,7 +30,6 @@ from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
 
-
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
@@ -424,6 +423,10 @@ class PromptServer():
                 out[node_class] = node_info(node_class)
             return web.json_response(out)
 
+        @routes.get("/custom_nodes")
+        async def get_load_nodes(request):
+            return web.json_response(nodes.load_custom_nodes())
+
         @routes.get("/history")
         async def get_history(request):
             return web.json_response(self.prompt_queue.get_history())
@@ -446,7 +449,7 @@ class PromptServer():
             print("got prompt")
             resp_code = 200
             out_string = ""
-            json_data =  await request.json()
+            json_data = await request.json()
             json_data = self.trigger_on_prompt(json_data)
 
             if "number" in json_data:

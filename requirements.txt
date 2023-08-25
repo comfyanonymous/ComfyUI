@@ -1,7 +1,7 @@
 torch
 torchsde
 einops
-transformers>=4.25.1
+transformers==4.26.1
 safetensors>=0.3.0
 aiohttp
 accelerate
@@ -10,3 +10,4 @@ Pillow
 scipy
 tqdm
 psutil
+clip-interrogator==0.5.4

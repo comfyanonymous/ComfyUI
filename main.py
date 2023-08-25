@@ -86,11 +86,13 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
+# TODO: Prompt handler of each node recursively
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
     while True:
         item, item_id = q.get()
         execution_start_time = time.perf_counter()
+        e.prompt_message_loop()
         prompt_id = item[1]
         e.execute(item[2], prompt_id, item[3], item[4])
         q.task_done(item_id, e.outputs_ui)

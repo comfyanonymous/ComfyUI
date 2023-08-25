@@ -14,6 +14,8 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
+from message_queue import PromptExecutorMessageQueue
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
@@ -933,7 +935,7 @@ class LatentFromBatch:
         else:
             s["batch_index"] = samples["batch_index"][batch_index:batch_index + length]
         return (s,)
-    
+
 class RepeatLatentBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -948,7 +950,7 @@ class RepeatLatentBatch:
     def repeat(self, samples, amount):
         s = samples.copy()
         s_in = samples["samples"]
-        
+
         s["samples"] = s_in.repeat((amount, 1,1,1))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
@@ -1277,7 +1279,7 @@ class SaveImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": 
+        return {"required":
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
@@ -1707,8 +1709,22 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 EXTENSION_WEB_DIRS = {}
 
+
+class CustomNodeData:
+    def __init__(self, name="", reloaded=False):
+        self.name = name
+        self.reloaded = reloaded
+
+    def dict(self):
+        return self.__dict__
+
+
+# TODO: Validate custom node since it throws bad errors.
 def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
+    module_reload = False
+    loaded_custom_node_data = []
+
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
         module_name = sp[0]
@@ -1719,6 +1735,10 @@ def load_custom_node(module_path, ignore=set()):
         else:
             module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
             module_dir = module_path
+
+        if module_name in sys.modules:
+            print("Module reload: {}".format(module_name))
+            module_reload = True
 
         module = importlib.util.module_from_spec(module_spec)
         sys.modules[module_name] = module
@@ -1731,14 +1751,18 @@ def load_custom_node(module_path, ignore=set()):
 
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name in module.NODE_CLASS_MAPPINGS:
-                if name not in ignore:
+                if module_reload or name not in ignore:
                     NODE_CLASS_MAPPINGS[name] = module.NODE_CLASS_MAPPINGS[name]
+                    # TODO: Allow multiple params for node without overwriting
+                    loaded_custom_node_data.append(
+                        CustomNodeData(name, module_reload).dict()
+                    )
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
-            return True
+            return True, loaded_custom_node_data
         else:
             print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
-            return False
+            return False, loaded_custom_node_data
     except Exception as e:
         print(traceback.format_exc())
         print(f"Cannot import {module_path} module for custom nodes:", e)
@@ -1748,28 +1772,38 @@ def load_custom_nodes():
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
+    node_data = {}
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path)
-        if "__pycache__" in possible_modules:
-            possible_modules.remove("__pycache__")
-
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+            if os.path.basename(module_path).startswith("__") or os.path.splitext(module_path)[1] != ".py" or not os.path.isfile(module_path):
+                print("Invalid module found: {}".format(possible_module))
+                continue
             if module_path.endswith(".disabled"): continue
             time_before = time.perf_counter()
-            success = load_custom_node(module_path, base_node_names)
+            success, custom_node_data = load_custom_node(module_path, base_node_names)
+            if success:
+                node_data[module_path] = custom_node_data
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
+
+    print("Custom Loaded Nodes Data: {}".format(node_data))
 
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")
         for n in sorted(node_import_times):
             if n[2]:
-                import_message = ""
+                import_message = " (SUCCESS)"
             else:
                 import_message = " (IMPORT FAILED)"
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
+
+    # Notify other prompt loop thread of refresh
+    refreshed_nodes_list = [custom_node for custom_node in [custom_node_list for _, custom_node_list in node_data.items()]]
+    PromptExecutorMessageQueue.get_prompt_queue().put(["NODE_REFRESH", refreshed_nodes_list])
+
+    return node_data
 
 def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
@@ -1781,4 +1815,6 @@ def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_tomesd.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_clip_sdxl.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_canny.py"))
+    # TODO: How to load without pushing this complete addon
+    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes/comfyui_controlnet_aux"), "__init__.py"))
     load_custom_nodes()

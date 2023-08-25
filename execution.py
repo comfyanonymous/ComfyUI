@@ -1,4 +1,5 @@
 import os
+import queue
 import sys
 import copy
 import json
@@ -11,6 +12,8 @@ import torch
 import nodes
 
 import comfy.model_management
+from message_queue import PromptExecutorMessageQueue
+
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -41,6 +44,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [unique_id]
     return input_data_all
 
+# TODO: Called to execute Node's function
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     # check if node wants the lists
     input_is_list = False
@@ -72,6 +76,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
+            # TODO: Executes impl node or custom_nodes function
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
     return results
 
@@ -117,6 +122,7 @@ def format_value(x):
     else:
         return str(x)
 
+# TODO: Retrieves Node Input Data to be passed onto
 def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
@@ -152,6 +158,14 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         output_data, output_ui = get_output_data(obj, input_data_all)
         outputs[unique_id] = output_data
         if len(output_ui) > 0:
+            success, error = validate_output_ui_data(server, unique_id, prompt_id, class_type, executed, output_ui)
+            if not success:
+                raise Exception("Output UI Error: {}".format(error))
+            if "UI_TEMPLATE" in output_ui:
+                template_file = os.path.join(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)))), "custom_nodes", output_ui["UI_TEMPLATE"][0])
+                with open(template_file, "r") as f:
+                    output_ui["UI_TEMPLATE"] = f.read()
+                    if len(output_ui["UI_TEMPLATE"]) <= 0: raise Exception("UI_TEMPLATE cannot be empty!")
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:
                 server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
@@ -194,6 +208,14 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
 
     return (True, None, None)
 
+
+def validate_output_ui_data(server, node_id, prompt_id, class_type, executed, output_ui):
+    try:
+        json.dumps(output_ui)
+        return True, None
+    except Exception as error:
+        return False, error
+
 def recursive_will_execute(prompt, outputs, current_item):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
@@ -230,7 +252,9 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
                     #is_changed = class_def.IS_CHANGED(**input_data_all)
                     is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
                     prompt[unique_id]['is_changed'] = is_changed
-                except:
+                except Exception as e:
+                    # TODO: IMPL Frontend UI
+                    print("Exception occured on IS_CHANGED: {}".format(e))
                     to_delete = True
         else:
             is_changed = prompt[unique_id]['is_changed']
@@ -267,6 +291,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
 class PromptExecutor:
     def __init__(self, server):
         self.outputs = {}
+        # TODO: Caches node instances
         self.object_storage = {}
         self.outputs_ui = {}
         self.old_prompt = {}
@@ -382,6 +407,23 @@ class PromptExecutor:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
             self.server.last_node_id = None
 
+    def prompt_message_loop(self):
+        # TODO: Better refactor, is it good here?
+        try:
+            while PromptExecutorMessageQueue.get_prompt_queue().not_empty:
+                msg, data = PromptExecutorMessageQueue.get_prompt_queue().get(False)
+                if msg:
+                    if msg == "NODE_REFRESH":
+                        for refreshed_node_list in data:
+                            for refreshed_node in refreshed_node_list:
+                                keys = self.object_storage.keys()
+                                for nodeKey in keys:
+                                    if nodeKey[1] == refreshed_node["name"]:
+                                        self.object_storage.pop(nodeKey)
+                                        break
+                    print("PROMPT_EXECUTOR_MESSAGE_EVENT: {}".format(msg))
+        except queue.Empty:
+            pass # Just ignore
 
 
 def validate_inputs(prompt, item, validated):

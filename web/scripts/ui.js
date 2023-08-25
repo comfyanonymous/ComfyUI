@@ -751,7 +751,7 @@ export class ComfyUI {
 			$el("button", {
 				id: "comfy-refresh-button",
 				textContent: "Refresh",
-				onclick: () => app.refreshComboInNodes()
+				onclick: () => app.refreshComboInNodes(document.getElementById("comfy-refresh-button"))
 			}),
 			$el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
 			$el("button", {
