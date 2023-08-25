@@ -299,7 +299,7 @@ export const ComfyWidgets = {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
 
-        let res;
+		let res;
 		if (multiline) {
 			res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
 		} else {
@@ -307,9 +307,9 @@ export const ComfyWidgets = {
 		}
 
 		if(inputData[1].dynamicPrompts != undefined)
-		    res.widget.dynamicPrompts = inputData[1].dynamicPrompts;
+			res.widget.dynamicPrompts = inputData[1].dynamicPrompts;
 
-        return res;
+		return res;
 	},
 	COMBO(node, inputName, inputData) {
 		const type = inputData[0];
