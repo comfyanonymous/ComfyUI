@@ -273,9 +273,6 @@ class LoadedModel:
         if xpu_available and not args.disable_ipex_optimize:
             self.real_model = torch.xpu.optimize(self.real_model.eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
 
-        if not args.disable_torch_compile:
-            self.real_model = torch.compile(self.real_model, fullgraph=args.torch_compile_fullgraph, backend=args.torch_compile_backend, mode=args.torch_compile_mode)
-
         return self.real_model
 
     def model_unload(self):

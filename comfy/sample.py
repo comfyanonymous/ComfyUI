@@ -1,3 +1,4 @@
+from comfy.cli_args import args
 import torch
 import comfy.model_management
 import comfy.samplers
@@ -81,12 +82,14 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[0] * noise.shape[2] * noise.shape[3]))
     real_model = model.model
 
+    if not args.disable_torch_compile:
+        real_model.diffusion_model = torch.compile(real_model.diffusion_model, fullgraph=args.torch_compile_fullgraph, backend=args.torch_compile_backend, mode=args.torch_compile_mode)
+
     noise = noise.to(device)
     latent_image = latent_image.to(device)
 
     positive_copy = broadcast_cond(positive, noise.shape[0], device)
     negative_copy = broadcast_cond(negative, noise.shape[0], device)
-
 
     sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
 
