@@ -237,6 +237,20 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
             return None
         return f.read(length_of_header)
 
+def set_attr(obj, attr, value):
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    prev = getattr(obj, attrs[-1])
+    setattr(obj, attrs[-1], torch.nn.Parameter(value))
+    del prev
+
+def get_attr(obj, attr):
+    attrs = attr.split(".")
+    for name in attrs:
+        obj = getattr(obj, name)
+    return obj
+
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
         '''slerps batches b1, b2 according to ratio r, batches should be flat e.g. NxC'''
