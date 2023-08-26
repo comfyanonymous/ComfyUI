@@ -58,6 +58,8 @@ fpvae_group.add_argument("--bf16-vae", action="store_true", help="Run the VAE in
 
 parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
 
+parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize when loading models with Intel GPUs.")
+
 class LatentPreviewMethod(enum.Enum):
     NoPreviews = "none"
     Auto = "auto"
@@ -80,6 +82,9 @@ vram_group.add_argument("--normalvram", action="store_true", help="Used to force
 vram_group.add_argument("--lowvram", action="store_true", help="Split the unet in parts to use less vram.")
 vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
+
+
+parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")

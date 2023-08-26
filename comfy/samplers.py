@@ -88,9 +88,9 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 gligen_type = gligen[0]
                 gligen_model = gligen[1]
                 if gligen_type == "position":
-                    gligen_patch = gligen_model.set_position(input_x.shape, gligen[2], input_x.device)
+                    gligen_patch = gligen_model.model.set_position(input_x.shape, gligen[2], input_x.device)
                 else:
-                    gligen_patch = gligen_model.set_empty(input_x.shape, input_x.device)
+                    gligen_patch = gligen_model.model.set_empty(input_x.shape, input_x.device)
 
                 patches['middle_patch'] = [gligen_patch]
 
@@ -478,7 +478,7 @@ def pre_run_control(model, conds):
         timestep_end = None
         percent_to_timestep_function = lambda a: model.sigma_to_t(model.t_to_sigma(torch.tensor(a) * 999.0))
         if 'control' in x[1]:
-            x[1]['control'].pre_run(model.inner_model, percent_to_timestep_function)
+            x[1]['control'].pre_run(model.inner_model.inner_model, percent_to_timestep_function)
 
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []

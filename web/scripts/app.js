@@ -284,6 +284,11 @@ export class ComfyApp {
 				}
 			}
 
+			options.push({
+					content: "Bypass",
+					callback: (obj) => { if (this.mode === 4) this.mode = 0; else this.mode = 4; this.graph.change(); }
+				});
+
 			// prevent conflict of clipspace content
 			if(!ComfyApp.clipspace_return_node) {
 				options.push({
@@ -1021,18 +1026,21 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Loads all extensions from the API into the window
+	 * Loads all extensions from the API into the window in parallel
 	 */
 	async #loadExtensions() {
-		const extensions = await api.getExtensions();
-		this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
-		for (const ext of extensions) {
-			try {
-				await import(api.apiURL(ext));
-			} catch (error) {
-				console.error("Error loading extension", ext, error);
-			}
-		}
+	    const extensions = await api.getExtensions();
+	    this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
+	
+	    const extensionPromises = extensions.map(async ext => {
+	        try {
+	            await import(api.apiURL(ext));
+	        } catch (error) {
+	            console.error("Error loading extension", ext, error);
+	        }
+	    });
+	
+	    await Promise.all(extensionPromises);
 	}
 
 	/**
