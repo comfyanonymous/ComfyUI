@@ -81,6 +81,10 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 
 To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
 
+## Docker (cloud & local)
+
+A third-party [docker image](https://github.com/ai-dock/comfyui) is available for use with RunPod, Vast, Paperspace etc. A docker-compose.yaml is included for local use.
+
 ## Manual Install (Windows, Linux)
 
 Git clone this repo.
