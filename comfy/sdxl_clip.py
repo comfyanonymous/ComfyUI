@@ -11,15 +11,9 @@ class SDXLClipG(sd1_clip.SD1ClipModel):
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_config_bigg.json")
         super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, textmodel_path=textmodel_path, dtype=dtype)
         self.empty_tokens = [[49406] + [49407] + [0] * 75]
-        self.text_projection = torch.nn.Parameter(torch.empty(1280, 1280))
-        self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
         self.layer_norm_hidden_state = False
 
     def load_sd(self, sd):
-        if "text_projection" in sd:
-            self.text_projection[:] = sd.pop("text_projection")
-        if "text_projection.weight" in sd:
-            self.text_projection[:] = sd.pop("text_projection.weight").transpose(0, 1)
         return super().load_sd(sd)
 
 class SDXLClipGTokenizer(sd1_clip.SD1Tokenizer):

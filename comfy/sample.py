@@ -51,18 +51,20 @@ def get_models_from_cond(cond, model_type):
             models += [c[1][model_type]]
     return models
 
-def get_additional_models(positive, negative):
+def get_additional_models(positive, negative, dtype):
     """loads additional models in positive and negative conditioning"""
     control_nets = set(get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control"))
 
+    inference_memory = 0
     control_models = []
     for m in control_nets:
         control_models += m.get_models()
+        inference_memory += m.inference_memory_requirements(dtype)
 
     gligen = get_models_from_cond(positive, "gligen") + get_models_from_cond(negative, "gligen")
     gligen = [x[1] for x in gligen]
     models = control_models + gligen
-    return models
+    return models, inference_memory
 
 def cleanup_additional_models(models):
     """cleanup additional models that were loaded"""
@@ -77,8 +79,8 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
         noise_mask = prepare_mask(noise_mask, noise.shape, device)
 
     real_model = None
-    models = get_additional_models(positive, negative)
-    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[0] * noise.shape[2] * noise.shape[3]))
+    models, inference_memory = get_additional_models(positive, negative, model.model_dtype())
+    comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise.shape[0] * noise.shape[2] * noise.shape[3]) + inference_memory)
     real_model = model.model
 
     noise = noise.to(device)

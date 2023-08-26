@@ -111,9 +111,6 @@ if not args.normalvram and not args.cpu:
     if lowvram_available and total_vram <= 4096:
         print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
         set_vram_to = VRAMState.LOW_VRAM
-    elif total_vram > total_ram * 1.1 and total_vram > 14336:
-        print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
-        vram_state = VRAMState.HIGH_VRAM
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
@@ -302,16 +299,15 @@ def unload_model_clones(model):
 def free_memory(memory_required, device, keep_loaded=[]):
     unloaded_model = False
     for i in range(len(current_loaded_models) -1, -1, -1):
-        if DISABLE_SMART_MEMORY:
-            current_free_mem = 0
-        else:
-            current_free_mem = get_free_memory(device)
-        if current_free_mem > memory_required:
-            break
+        if not DISABLE_SMART_MEMORY:
+            if get_free_memory(device) > memory_required:
+                break
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
             if shift_model not in keep_loaded:
-                current_loaded_models.pop(i).model_unload()
+                m = current_loaded_models.pop(i)
+                m.model_unload()
+                del m
                 unloaded_model = True
 
     if unloaded_model:
@@ -394,6 +390,12 @@ def cleanup_models():
         x.model_unload()
         del x
 
+def dtype_size(dtype):
+    dtype_size = 4
+    if dtype == torch.float16 or dtype == torch.bfloat16:
+        dtype_size = 2
+    return dtype_size
+
 def unet_offload_device():
     if vram_state == VRAMState.HIGH_VRAM:
         return get_torch_device()
@@ -409,11 +411,7 @@ def unet_inital_load_device(parameters, dtype):
     if DISABLE_SMART_MEMORY:
         return cpu_dev
 
-    dtype_size = 4
-    if dtype == torch.float16 or dtype == torch.bfloat16:
-        dtype_size = 2
-
-    model_size = dtype_size * parameters
+    model_size = dtype_size(dtype) * parameters
 
     mem_dev = get_free_memory(torch_dev)
     mem_cpu = get_free_memory(cpu_dev)
