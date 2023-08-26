@@ -111,9 +111,6 @@ if not args.normalvram and not args.cpu:
     if lowvram_available and total_vram <= 4096:
         print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
         set_vram_to = VRAMState.LOW_VRAM
-    elif total_vram > total_ram * 1.1 and total_vram > 14336:
-        print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
-        vram_state = VRAMState.HIGH_VRAM
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
