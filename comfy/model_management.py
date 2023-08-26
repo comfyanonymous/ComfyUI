@@ -1,6 +1,7 @@
 import psutil
 from enum import Enum
 from comfy.cli_args import args
+import comfy.utils
 import torch
 import sys
 
@@ -636,6 +637,13 @@ def soft_empty_cache():
         if is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
+
+def resolve_lowvram_weight(weight, model, key):
+    if weight.device == torch.device("meta"): #lowvram NOTE: this depends on the inner working of the accelerate library so it might break.
+        key_split = key.split('.')              # I have no idea why they don't just leave the weight there instead of using the meta device.
+        op = comfy.utils.get_attr(model, '.'.join(key_split[:-1]))
+        weight = op._hf_hook.weights_map[key_split[-1]]
+    return weight
 
 #TODO: might be cleaner to put this somewhere else
 import threading
