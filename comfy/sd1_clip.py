@@ -66,7 +66,9 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.layer = layer
         self.layer_idx = None
         self.empty_tokens = [[49406] + [49407] * 76]
-        self.text_projection = None
+        self.text_projection = torch.nn.Parameter(torch.eye(self.transformer.get_input_embeddings().weight.shape[1]))
+        self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
+
         self.layer_norm_hidden_state = True
         if layer == "hidden":
             assert layer_idx is not None
@@ -163,6 +165,10 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         return self(tokens)
 
     def load_sd(self, sd):
+        if "text_projection" in sd:
+            self.text_projection[:] = sd.pop("text_projection")
+        if "text_projection.weight" in sd:
+            self.text_projection[:] = sd.pop("text_projection.weight").transpose(0, 1)
         return self.transformer.load_state_dict(sd, strict=False)
 
 def parse_parentheses(string):
