@@ -299,11 +299,17 @@ export const ComfyWidgets = {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
 
+		let res;
 		if (multiline) {
-			return addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
+			res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
 		} else {
-			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
+			res = { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
+
+		if(inputData[1].dynamicPrompts != undefined)
+			res.widget.dynamicPrompts = inputData[1].dynamicPrompts;
+
+		return res;
 	},
 	COMBO(node, inputName, inputData) {
 		const type = inputData[0];
