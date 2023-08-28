@@ -50,6 +50,11 @@ class ClipVisionModel():
 
         with precision_scope(comfy.model_management.get_autocast_device(self.load_device), torch.float32):
             outputs = self.model(pixel_values=pixel_values)
+
+        for k in outputs:
+            t = outputs[k]
+            if t is not None:
+                outputs[k] = t.cpu()
         return outputs
 
 def convert_to_transformers(sd, prefix):
