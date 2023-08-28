@@ -80,7 +80,7 @@ class CLIP:
 
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
-        params['device'] = load_device
+        params['device'] = offload_device
         if model_management.should_use_fp16(load_device, prioritize_performance=False):
             params['dtype'] = torch.float16
         else:
