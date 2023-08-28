@@ -283,7 +283,7 @@ class VAEEncodeTiled:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"pixels": ("IMAGE", ), "vae": ("VAE", ),
-                             "tile_size": ("INT", {"default": 512, "min": 512, "max": 4096, "step": 64})
+                             "tile_size": ("INT", {"default": 512, "min": 192, "max": 4096, "step": 64})
                             }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
