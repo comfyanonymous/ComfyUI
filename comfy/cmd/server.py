@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import traceback
 import glob
 import struct
 import sys
@@ -7,6 +8,7 @@ import shutil
 from urllib.parse import quote
 
 from PIL import Image, ImageOps
+from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
 
 import json
@@ -98,7 +100,7 @@ class PromptServer():
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
-        self.app = web.Application(client_max_size=20971520, handler_args={'max_field_size': 16380},
+        self.app = web.Application(client_max_size=104857600, handler_args={'max_field_size': 16380},
                                    middlewares=middlewares)
         self.sockets = dict()
         web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../web")
@@ -110,6 +112,8 @@ class PromptServer():
         self.routes = routes
         self.last_node_id = None
         self.client_id = None
+
+        self.on_prompt_handlers = []
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -252,13 +256,17 @@ class PromptServer():
 
                 if os.path.isfile(file):
                     with Image.open(file) as original_pil:
+                        metadata = PngInfo()
+                        if hasattr(original_pil,'text'):
+                            for key in original_pil.text:
+                                metadata.add_text(key, original_pil.text[key])
                         original_pil = original_pil.convert('RGBA')
                         mask_pil = Image.open(image.file).convert('RGBA')
 
                         # alpha copy
                         new_alpha = mask_pil.getchannel('A')
                         original_pil.putalpha(new_alpha)
-                        original_pil.save(filepath, compress_level=4)
+                        original_pil.save(filepath, compress_level=4, pnginfo=metadata)
 
             return image_upload(post, image_save_function)
 
@@ -463,6 +471,7 @@ class PromptServer():
             resp_code = 200
             out_string = ""
             json_data = await request.json()
+            json_data = self.trigger_on_prompt(json_data)
 
             if "number" in json_data:
                 number = float(json_data['number'])
@@ -760,6 +769,19 @@ class PromptServer():
             print("To see the GUI go to: http://{}:{}".format(address_to_print, port))
         if call_on_start is not None:
             call_on_start(address, port)
+
+    def add_on_prompt_handler(self, handler):
+        self.on_prompt_handlers.append(handler)
+
+    def trigger_on_prompt(self, json_data):
+        for handler in self.on_prompt_handlers:
+            try:
+                json_data = handler(json_data)
+            except Exception as e:
+                print(f"[ERROR] An error occurred during the on_prompt_handler processing")
+                traceback.print_exc()
+
+        return json_data
 
     @classmethod
     def get_output_path(cls, subfolder: str | None = None, filename: str | None = None):

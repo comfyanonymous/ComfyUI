@@ -22,7 +22,7 @@ from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
 from ..nodes.common import MAX_RESOLUTION
-
+import comfy.controlnet
 
 class CLIPTextEncode:
     @classmethod
@@ -226,14 +226,16 @@ class VAEDecode:
 class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
+        return {"required": {"samples": ("LATENT", ), "vae": ("VAE", ),
+                             "tile_size": ("INT", {"default": 512, "min": 192, "max": 4096, "step": 64})
+                            }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
     CATEGORY = "_for_testing"
 
-    def decode(self, vae, samples):
-        return (vae.decode_tiled(samples["samples"]), )
+    def decode(self, vae, samples, tile_size):
+        return (vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, ), )
 
 class VAEEncode:
     @classmethod
@@ -262,15 +264,17 @@ class VAEEncode:
 class VAEEncodeTiled:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", )}}
+        return {"required": {"pixels": ("IMAGE", ), "vae": ("VAE", ),
+                             "tile_size": ("INT", {"default": 512, "min": 320, "max": 4096, "step": 64})
+                            }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
     CATEGORY = "_for_testing"
 
-    def encode(self, vae, pixels):
+    def encode(self, vae, pixels, tile_size):
         pixels = VAEEncode.vae_encode_crop_pixels(pixels)
-        t = vae.encode_tiled(pixels[:,:,:,:3])
+        t = vae.encode_tiled(pixels[:,:,:,:3], tile_x=tile_size, tile_y=tile_size, )
         return ({"samples":t}, )
 
 class VAEEncodeForInpaint:
@@ -552,7 +556,7 @@ class ControlNetLoader:
 
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
-        controlnet = sd.load_controlnet(controlnet_path)
+        controlnet = comfy.controlnet.load_controlnet(controlnet_path)
         return (controlnet,)
 
 class DiffControlNetLoader:
@@ -568,7 +572,7 @@ class DiffControlNetLoader:
 
     def load_controlnet(self, model, control_net_name):
         controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
-        controlnet = sd.load_controlnet(controlnet_path, model)
+        controlnet = comfy.controlnet.load_controlnet(controlnet_path, model)
         return (controlnet,)
 
 
@@ -1292,7 +1296,7 @@ class LoadImage:
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(files), )},
+                    {"image": (sorted(files), {"image_upload": True})},
                 }
 
     CATEGORY = "image"
@@ -1335,7 +1339,7 @@ class LoadImageMask:
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
-                    {"image": (sorted(files), ),
+                    {"image": (sorted(files), {"image_upload": True}),
                      "channel": (s._color_channels, ), }
                 }
 
