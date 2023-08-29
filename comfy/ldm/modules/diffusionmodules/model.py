@@ -85,11 +85,10 @@ class Downsample(nn.Module):
                                         stride=2,
                                         padding=0)
 
-    def forward(self, x, already_padded=False):
+    def forward(self, x):
         if self.with_conv:
-            if not already_padded:
-                pad = (0,1,0,1)
-                x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
+            pad = (0,1,0,1)
+            x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
             x = self.conv(x)
         else:
             x = torch.nn.functional.avg_pool2d(x, kernel_size=2, stride=2)
@@ -606,9 +605,6 @@ class Encoder(nn.Module):
     def forward(self, x):
         # timestep embedding
         temb = None
-        pad = (0,1,0,1)
-        x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
-        already_padded = True
         # downsampling
         h = self.conv_in(x)
         for i_level in range(self.num_resolutions):
@@ -617,8 +613,7 @@ class Encoder(nn.Module):
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
             if i_level != self.num_resolutions-1:
-                h = self.down[i_level].downsample(h, already_padded)
-                already_padded = False
+                h = self.down[i_level].downsample(h)
 
         # middle
         h = self.mid.block_1(h, temb)
