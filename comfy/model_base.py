@@ -3,6 +3,7 @@ from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
+import comfy.model_management
 import numpy as np
 from enum import Enum
 from . import utils
@@ -93,7 +94,11 @@ class BaseModel(torch.nn.Module):
 
     def state_dict_for_saving(self, clip_state_dict, vae_state_dict):
         clip_state_dict = self.model_config.process_clip_state_dict_for_saving(clip_state_dict)
-        unet_state_dict = self.diffusion_model.state_dict()
+        unet_sd = self.diffusion_model.state_dict()
+        unet_state_dict = {}
+        for k in unet_sd:
+            unet_state_dict[k] = comfy.model_management.resolve_lowvram_weight(unet_sd[k], self.diffusion_model, k)
+
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
         vae_state_dict = self.model_config.process_vae_state_dict_for_saving(vae_state_dict)
         if self.get_dtype() == torch.float16:
@@ -148,13 +153,20 @@ class SDInpaint(BaseModel):
         super().__init__(model_config, model_type, device=device)
         self.concat_keys = ("mask", "masked_image")
 
+def sdxl_pooled(args, noise_augmentor):
+    if "unclip_conditioning" in args:
+        return unclip_adm(args.get("unclip_conditioning", None), args["device"], noise_augmentor)[:,:1280]
+    else:
+        return args["pooled_output"]
+
 class SDXLRefiner(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
         self.embedder = Timestep(256)
+        self.noise_augmentor = CLIPEmbeddingNoiseAugmentation(**{"noise_schedule_config": {"timesteps": 1000, "beta_schedule": "squaredcos_cap_v2"}, "timestep_dim": 1280})
 
     def encode_adm(self, **kwargs):
-        clip_pooled = kwargs["pooled_output"]
+        clip_pooled = sdxl_pooled(kwargs, self.noise_augmentor)
         width = kwargs.get("width", 768)
         height = kwargs.get("height", 768)
         crop_w = kwargs.get("crop_w", 0)
@@ -178,9 +190,10 @@ class SDXL(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
         self.embedder = Timestep(256)
+        self.noise_augmentor = CLIPEmbeddingNoiseAugmentation(**{"noise_schedule_config": {"timesteps": 1000, "beta_schedule": "squaredcos_cap_v2"}, "timestep_dim": 1280})
 
     def encode_adm(self, **kwargs):
-        clip_pooled = kwargs["pooled_output"]
+        clip_pooled = sdxl_pooled(kwargs, self.noise_augmentor)
         width = kwargs.get("width", 768)
         height = kwargs.get("height", 768)
         crop_w = kwargs.get("crop_w", 0)

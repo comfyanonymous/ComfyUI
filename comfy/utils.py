@@ -32,6 +32,13 @@ def save_torch_file(sd, ckpt, metadata=None):
     else:
         safetensors.torch.save_file(sd, ckpt)
 
+def calculate_parameters(sd, prefix=""):
+    params = 0
+    for k in sd.keys():
+        if k.startswith(prefix):
+            params += sd[k].nelement()
+    return params
+
 def transformers_convert(sd, prefix_from, prefix_to, number):
     keys_to_replace = {
         "{}positional_embedding": "{}embeddings.position_embedding.weight",
@@ -229,6 +236,20 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
         if length_of_header > max_size:
             return None
         return f.read(length_of_header)
+
+def set_attr(obj, attr, value):
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    prev = getattr(obj, attrs[-1])
+    setattr(obj, attrs[-1], torch.nn.Parameter(value))
+    del prev
+
+def get_attr(obj, attr):
+    attrs = attr.split(".")
+    for name in attrs:
+        obj = getattr(obj, name)
+    return obj
 
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
