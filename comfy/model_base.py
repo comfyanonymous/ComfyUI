@@ -19,8 +19,9 @@ class BaseModel(torch.nn.Module):
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
         self.model_config = model_config
-        self.register_schedule(given_betas=None, beta_schedule="linear", timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
-        self.diffusion_model = UNetModel(**unet_config, device=device)
+        self.register_schedule(given_betas=None, beta_schedule=model_config.beta_schedule, timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
+        if not unet_config.get("disable_unet_model_creation", False):
+            self.diffusion_model = UNetModel(**unet_config, device=device)
         self.model_type = model_type
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
