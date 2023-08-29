@@ -12,6 +12,7 @@ import json
 import glob
 import struct
 from PIL import Image, ImageOps
+from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
 
 try:
@@ -233,13 +234,16 @@ class PromptServer():
 
                 if os.path.isfile(file):
                     with Image.open(file) as original_pil:
+                        metadata = PngInfo()
+                        for key in original_pil.text:
+                            metadata.add_text(key, original_pil.text[key])
                         original_pil = original_pil.convert('RGBA')
                         mask_pil = Image.open(image.file).convert('RGBA')
 
                         # alpha copy
                         new_alpha = mask_pil.getchannel('A')
                         original_pil.putalpha(new_alpha)
-                        original_pil.save(filepath, compress_level=4)
+                        original_pil.save(filepath, compress_level=4, pnginfo=metadata)
 
             return image_upload(post, image_save_function)
 
