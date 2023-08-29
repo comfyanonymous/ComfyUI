@@ -465,7 +465,7 @@ def load_t2i_adapter(t2i_data):
         if len(down_opts) > 0:
             use_conv = True
         xl = False
-        if cin == 256:
+        if cin == 256 or cin == 768:
             xl = True
         model_ad = comfy.t2i_adapter.adapter.Adapter(cin=cin, channels=[channel, channel*2, channel*4, channel*4][:4], nums_rb=2, ksize=ksize, sk=True, use_conv=use_conv, xl=xl)
     else:
