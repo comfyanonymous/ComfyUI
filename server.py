@@ -235,8 +235,9 @@ class PromptServer():
                 if os.path.isfile(file):
                     with Image.open(file) as original_pil:
                         metadata = PngInfo()
-                        for key in original_pil.text:
-                            metadata.add_text(key, original_pil.text[key])
+                        if hasattr(original_pil,'text'):
+                            for key in original_pil.text:
+                                metadata.add_text(key, original_pil.text[key])
                         original_pil = original_pil.convert('RGBA')
                         mask_pil = Image.open(image.file).convert('RGBA')
 
