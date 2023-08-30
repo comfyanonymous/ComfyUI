@@ -1,6 +1,7 @@
 import psutil
 from enum import Enum
 from comfy.cli_args import args
+import comfy.utils
 import torch
 import sys
 
@@ -111,9 +112,6 @@ if not args.normalvram and not args.cpu:
     if lowvram_available and total_vram <= 4096:
         print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
         set_vram_to = VRAMState.LOW_VRAM
-    elif total_vram > total_ram * 1.1 and total_vram > 14336:
-        print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
-        vram_state = VRAMState.HIGH_VRAM
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
@@ -150,15 +148,27 @@ def is_nvidia():
             return True
 
 ENABLE_PYTORCH_ATTENTION = args.use_pytorch_cross_attention
+VAE_DTYPE = torch.float32
 
-if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
-    try:
-        if is_nvidia():
-            torch_version = torch.version.__version__
-            if int(torch_version[0]) >= 2:
+
+try:
+    if is_nvidia():
+        torch_version = torch.version.__version__
+        if int(torch_version[0]) >= 2:
+            if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
-    except:
-        pass
+            if torch.cuda.is_bf16_supported():
+                VAE_DTYPE = torch.bfloat16
+except:
+    pass
+
+if args.fp16_vae:
+    VAE_DTYPE = torch.float16
+elif args.bf16_vae:
+    VAE_DTYPE = torch.bfloat16
+elif args.fp32_vae:
+    VAE_DTYPE = torch.float32
+
 
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
@@ -230,6 +240,7 @@ try:
 except:
     print("Could not pick default device.")
 
+print("VAE dtype:", VAE_DTYPE)
 
 current_loaded_models = []
 
@@ -302,16 +313,15 @@ def unload_model_clones(model):
 def free_memory(memory_required, device, keep_loaded=[]):
     unloaded_model = False
     for i in range(len(current_loaded_models) -1, -1, -1):
-        if DISABLE_SMART_MEMORY:
-            current_free_mem = 0
-        else:
-            current_free_mem = get_free_memory(device)
-        if current_free_mem > memory_required:
-            break
+        if not DISABLE_SMART_MEMORY:
+            if get_free_memory(device) > memory_required:
+                break
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
             if shift_model not in keep_loaded:
-                current_loaded_models.pop(i).model_unload()
+                m = current_loaded_models.pop(i)
+                m.model_unload()
+                del m
                 unloaded_model = True
 
     if unloaded_model:
@@ -394,6 +404,12 @@ def cleanup_models():
         x.model_unload()
         del x
 
+def dtype_size(dtype):
+    dtype_size = 4
+    if dtype == torch.float16 or dtype == torch.bfloat16:
+        dtype_size = 2
+    return dtype_size
+
 def unet_offload_device():
     if vram_state == VRAMState.HIGH_VRAM:
         return get_torch_device()
@@ -409,11 +425,7 @@ def unet_inital_load_device(parameters, dtype):
     if DISABLE_SMART_MEMORY:
         return cpu_dev
 
-    dtype_size = 4
-    if dtype == torch.float16 or dtype == torch.bfloat16:
-        dtype_size = 2
-
-    model_size = dtype_size * parameters
+    model_size = dtype_size(dtype) * parameters
 
     mem_dev = get_free_memory(torch_dev)
     mem_cpu = get_free_memory(cpu_dev)
@@ -432,8 +444,7 @@ def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
-        #NOTE: on a Ryzen 5 7600X with 4080 it's faster to shift to GPU
-        if torch.get_num_threads() < 8: #leaving the text encoder on the CPU is faster than shifting it if the CPU is fast enough.
+        if should_use_fp16(prioritize_performance=False):
             return get_torch_device()
         else:
             return torch.device("cpu")
@@ -450,12 +461,8 @@ def vae_offload_device():
         return torch.device("cpu")
 
 def vae_dtype():
-    if args.fp16_vae:
-        return torch.float16
-    elif args.bf16_vae:
-        return torch.bfloat16
-    else:
-        return torch.float32
+    global VAE_DTYPE
+    return VAE_DTYPE
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
@@ -569,15 +576,19 @@ def is_device_mps(device):
             return True
     return False
 
-def should_use_fp16(device=None, model_params=0):
+def should_use_fp16(device=None, model_params=0, prioritize_performance=True):
     global xpu_available
     global directml_enabled
+
+    if device is not None:
+        if is_device_cpu(device):
+            return False
 
     if FORCE_FP16:
         return True
 
     if device is not None: #TODO
-        if is_device_cpu(device) or is_device_mps(device):
+        if is_device_mps(device):
             return False
 
     if FORCE_FP32:
@@ -610,7 +621,7 @@ def should_use_fp16(device=None, model_params=0):
 
     if fp16_works:
         free_model_memory = (get_free_memory() * 0.9 - minimum_inference_memory())
-        if model_params * 4 > free_model_memory:
+        if (not prioritize_performance) or model_params * 4 > free_model_memory:
             return True
 
     if props.major < 7:
@@ -635,6 +646,13 @@ def soft_empty_cache():
         if is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
+
+def resolve_lowvram_weight(weight, model, key):
+    if weight.device == torch.device("meta"): #lowvram NOTE: this depends on the inner working of the accelerate library so it might break.
+        key_split = key.split('.')              # I have no idea why they don't just leave the weight there instead of using the meta device.
+        op = comfy.utils.get_attr(model, '.'.join(key_split[:-1]))
+        weight = op._hf_hook.weights_map[key_split[-1]]
+    return weight
 
 #TODO: might be cleaner to put this somewhere else
 import threading
