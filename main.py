@@ -83,12 +83,17 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
+CURRENT_PROMPT_ID = None
+
 def prompt_worker(q, server):
+    global CURRENT_PROMPT_ID
+
     e = execution.PromptExecutor(server)
     while True:
         item, item_id = q.get()
         execution_start_time = time.perf_counter()
         prompt_id = item[1]
+        CURRENT_PROMPT_ID = prompt_id
         e.execute(item[2], prompt_id, item[3], item[4])
         q.task_done(item_id, e.outputs_ui)
         if server.client_id is not None:
@@ -104,7 +109,7 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 
 def hijack_progress(server):
     def hook(value, total, preview_image):
-        server.send_sync("progress", {"value": value, "max": total}, server.client_id)
+        server.send_sync("progress", {"value": value, "max": total, "prompt_id": CURRENT_PROMPT_ID}, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
