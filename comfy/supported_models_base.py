@@ -1,6 +1,7 @@
 import torch
 from . import model_base
 from . import utils
+from . import latent_formats
 
 
 def state_dict_key_replace(state_dict, keys_to_replace):
@@ -34,6 +35,7 @@ class BASE:
     clip_vision_prefix = None
     noise_aug_config = None
     beta_schedule = "linear"
+    latent_format = latent_formats.LatentFormat
 
     @classmethod
     def matches(s, unet_config):
