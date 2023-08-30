@@ -145,7 +145,7 @@ class ModelPatcher:
         model_sd = self.model_state_dict()
         for key in self.patches:
             if key not in model_sd:
-                print("could not patch. key doesn't exist in model:", k)
+                print("could not patch. key doesn't exist in model:", key)
                 continue
 
             weight = model_sd[key]
