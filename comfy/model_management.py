@@ -1,6 +1,7 @@
 import psutil
 from enum import Enum
 from comfy.cli_args import args
+import comfy.utils
 import torch
 import sys
 
@@ -147,15 +148,27 @@ def is_nvidia():
             return True
 
 ENABLE_PYTORCH_ATTENTION = args.use_pytorch_cross_attention
+VAE_DTYPE = torch.float32
 
-if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
-    try:
-        if is_nvidia():
-            torch_version = torch.version.__version__
-            if int(torch_version[0]) >= 2:
+
+try:
+    if is_nvidia():
+        torch_version = torch.version.__version__
+        if int(torch_version[0]) >= 2:
+            if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
-    except:
-        pass
+            if torch.cuda.is_bf16_supported():
+                VAE_DTYPE = torch.bfloat16
+except:
+    pass
+
+if args.fp16_vae:
+    VAE_DTYPE = torch.float16
+elif args.bf16_vae:
+    VAE_DTYPE = torch.bfloat16
+elif args.fp32_vae:
+    VAE_DTYPE = torch.float32
+
 
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
@@ -227,6 +240,7 @@ try:
 except:
     print("Could not pick default device.")
 
+print("VAE dtype:", VAE_DTYPE)
 
 current_loaded_models = []
 
@@ -447,12 +461,8 @@ def vae_offload_device():
         return torch.device("cpu")
 
 def vae_dtype():
-    if args.fp16_vae:
-        return torch.float16
-    elif args.bf16_vae:
-        return torch.bfloat16
-    else:
-        return torch.float32
+    global VAE_DTYPE
+    return VAE_DTYPE
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
@@ -636,6 +646,13 @@ def soft_empty_cache():
         if is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
+
+def resolve_lowvram_weight(weight, model, key):
+    if weight.device == torch.device("meta"): #lowvram NOTE: this depends on the inner working of the accelerate library so it might break.
+        key_split = key.split('.')              # I have no idea why they don't just leave the weight there instead of using the meta device.
+        op = comfy.utils.get_attr(model, '.'.join(key_split[:-1]))
+        weight = op._hf_hook.weights_map[key_split[-1]]
+    return weight
 
 #TODO: might be cleaner to put this somewhere else
 import threading

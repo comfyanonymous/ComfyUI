@@ -244,14 +244,16 @@ class VAEDecode:
 class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
+        return {"required": {"samples": ("LATENT", ), "vae": ("VAE", ),
+                             "tile_size": ("INT", {"default": 512, "min": 192, "max": 4096, "step": 64})
+                            }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
 
     CATEGORY = "_for_testing"
 
-    def decode(self, vae, samples):
-        return (vae.decode_tiled(samples["samples"]), )
+    def decode(self, vae, samples, tile_size):
+        return (vae.decode_tiled(samples["samples"], tile_x=tile_size // 8, tile_y=tile_size // 8, ), )
 
 class VAEEncode:
     @classmethod
@@ -280,15 +282,17 @@ class VAEEncode:
 class VAEEncodeTiled:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", )}}
+        return {"required": {"pixels": ("IMAGE", ), "vae": ("VAE", ),
+                             "tile_size": ("INT", {"default": 512, "min": 320, "max": 4096, "step": 64})
+                            }}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
     CATEGORY = "_for_testing"
 
-    def encode(self, vae, pixels):
+    def encode(self, vae, pixels, tile_size):
         pixels = VAEEncode.vae_encode_crop_pixels(pixels)
-        t = vae.encode_tiled(pixels[:,:,:,:3])
+        t = vae.encode_tiled(pixels[:,:,:,:3], tile_x=tile_size, tile_y=tile_size, )
         return ({"samples":t}, )
 
 class VAEEncodeForInpaint:
@@ -471,7 +475,7 @@ class DiffusersLoader:
                     model_path = path
                     break
 
-        return comfy.diffusers_load.load_diffusers(model_path, fp16=comfy.model_management.should_use_fp16(), output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        return comfy.diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
 class unCLIPCheckpointLoader:
