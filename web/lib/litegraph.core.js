@@ -6233,11 +6233,17 @@ LGraphNode.prototype.executeAction = function(action)
 																					,posAdd:[!mClikSlot_isOut?-30:30, -alphaPosY*130] //-alphaPosY*30]
 																					,posSizeFix:[!mClikSlot_isOut?-1:0, 0] //-alphaPosY*2*/
 																				});
-								
+							skip_action = true;
 						}
 					}
 				}
 			}
+
+			if (!skip_action && this.allow_dragcanvas) {
+            	//console.log("pointerevents: dragging_canvas start from middle button");
+            	this.dragging_canvas = true;
+            }
+
         	
         } else if (e.which == 3 || this.pointer_is_double) {
 			
@@ -9766,6 +9772,7 @@ LGraphNode.prototype.executeAction = function(action)
 
             switch (w.type) {
                 case "button":
+                    ctx.fillStyle = background_color;
                     if (w.clicked) {
                         ctx.fillStyle = "#AAA";
                         w.clicked = false;
@@ -9835,7 +9842,11 @@ LGraphNode.prototype.executeAction = function(action)
                         ctx.textAlign = "center";
                         ctx.fillStyle = text_color;
                         ctx.fillText(
-                            w.label || w.name + "  " + Number(w.value).toFixed(3),
+                            w.label || w.name + "  " + Number(w.value).toFixed(
+                                                            w.options.precision != null
+                                                                ? w.options.precision
+                                                                : 3
+                                                        ),
                             widget_width * 0.5,
                             y + H * 0.7
                         );
@@ -13835,7 +13846,7 @@ LGraphNode.prototype.executeAction = function(action)
         if (!disabled) {
             element.addEventListener("click", inner_onclick);
         }
-        if (options.autoopen) {
+        if (!disabled && options.autoopen) {
 			LiteGraph.pointerListenerAdd(element,"enter",inner_over);
         }
 

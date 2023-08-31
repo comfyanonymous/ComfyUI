@@ -1,3 +1,4 @@
+import { ComfyLogging } from "./logging.js";
 import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
@@ -31,6 +32,7 @@ export class ComfyApp {
 
 	constructor() {
 		this.ui = new ComfyUI(this);
+		this.logging = new ComfyLogging(this);
 
 		/**
 		 * List of extensions that are registered with the app
@@ -281,6 +283,11 @@ export class ComfyApp {
 					);
 				}
 			}
+
+			options.push({
+					content: "Bypass",
+					callback: (obj) => { if (this.mode === 4) this.mode = 0; else this.mode = 4; this.graph.change(); }
+				});
 
 			// prevent conflict of clipspace content
 			if(!ComfyApp.clipspace_return_node) {
@@ -768,6 +775,19 @@ export class ComfyApp {
 					}
 					block_default = true;
 				}
+
+				if (e.keyCode == 66 && e.ctrlKey) {
+					if (this.selected_nodes) {
+						for (var i in this.selected_nodes) {
+							if (this.selected_nodes[i].mode === 4) { // never
+								this.selected_nodes[i].mode = 0; // always
+							} else {
+								this.selected_nodes[i].mode = 4; // never
+							}
+						}
+					}
+					block_default = true;
+				}
 			}
 
 			this.graph.change();
@@ -914,14 +934,21 @@ export class ComfyApp {
 		const origDrawNode = LGraphCanvas.prototype.drawNode;
 		LGraphCanvas.prototype.drawNode = function (node, ctx) {
 			var editor_alpha = this.editor_alpha;
+			var old_color = node.bgcolor;
 
 			if (node.mode === 2) { // never
 				this.editor_alpha = 0.4;
 			}
 
+			if (node.mode === 4) { // never
+				node.bgcolor = "#FF00FF";
+				this.editor_alpha = 0.2;
+			}
+
 			const res = origDrawNode.apply(this, arguments);
 
 			this.editor_alpha = editor_alpha;
+			node.bgcolor = old_color;
 
 			return res;
 		};
@@ -999,17 +1026,21 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Loads all extensions from the API into the window
+	 * Loads all extensions from the API into the window in parallel
 	 */
 	async #loadExtensions() {
-		const extensions = await api.getExtensions();
-		for (const ext of extensions) {
-			try {
-				await import(api.apiURL(ext));
-			} catch (error) {
-				console.error("Error loading extension", ext, error);
-			}
-		}
+	    const extensions = await api.getExtensions();
+	    this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
+	
+	    const extensionPromises = extensions.map(async ext => {
+	        try {
+	            await import(api.apiURL(ext));
+	        } catch (error) {
+	            console.error("Error loading extension", ext, error);
+	        }
+	    });
+	
+	    await Promise.all(extensionPromises);
 	}
 
 	/**
@@ -1286,6 +1317,9 @@ export class ComfyApp {
 					(t) => `<li>${t}</li>`
 				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
 			);
+			this.logging.addEntry("Comfy.App", "warn", {
+				MissingNodes: missingNodeTypes,
+			});
 		}
 	}
 
@@ -1308,7 +1342,7 @@ export class ComfyApp {
 				continue;
 			}
 
-			if (node.mode === 2) {
+			if (node.mode === 2 || node.mode === 4) {
 				// Don't serialize muted nodes
 				continue;
 			}
@@ -1331,12 +1365,36 @@ export class ComfyApp {
 				let parent = node.getInputNode(i);
 				if (parent) {
 					let link = node.getInputLink(i);
-					while (parent && parent.isVirtualNode) {
-						link = parent.getInputLink(link.origin_slot);
-						if (link) {
-							parent = parent.getInputNode(link.origin_slot);
-						} else {
-							parent = null;
+					while (parent.mode === 4 || parent.isVirtualNode) {
+						let found = false;
+						if (parent.isVirtualNode) {
+							link = parent.getInputLink(link.origin_slot);
+							if (link) {
+								parent = parent.getInputNode(link.target_slot);
+								if (parent) {
+									found = true;
+								}
+							}
+						} else if (link && parent.mode === 4) {
+							let all_inputs = [link.origin_slot];
+							if (parent.inputs) {
+								all_inputs = all_inputs.concat(Object.keys(parent.inputs))
+								for (let parent_input in all_inputs) {
+									parent_input = all_inputs[parent_input];
+									if (parent.inputs[parent_input].type === node.inputs[i].type) {
+										link = parent.getInputLink(parent_input);
+										if (link) {
+											parent = parent.getInputNode(parent_input);
+										}
+										found = true;
+										break;
+									}
+								}
+							}
+						}
+
+						if (!found) {
+							break;
 						}
 					}
 
