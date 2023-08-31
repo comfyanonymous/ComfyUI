@@ -245,7 +245,7 @@ class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"samples": ("LATENT", ), "vae": ("VAE", ),
-                             "tile_size": ("INT", {"default": 512, "min": 192, "max": 4096, "step": 64})
+                             "tile_size": ("INT", {"default": 512, "min": 320, "max": 4096, "step": 64})
                             }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "decode"
