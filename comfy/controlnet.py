@@ -155,7 +155,7 @@ class ControlNet(ControlBase):
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
 
-        context = torch.cat(cond['c_crossattn'], 1)
+        context = cond['c_crossattn']
         y = cond.get('c_adm', None)
         if y is not None:
             y = y.to(self.control_model.dtype)
