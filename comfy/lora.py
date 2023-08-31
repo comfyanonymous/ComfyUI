@@ -118,6 +118,19 @@ def load_lora(lora, to_load):
         if (lokr_w1 is not None) or (lokr_w2 is not None) or (lokr_w1_a is not None) or (lokr_w2_a is not None):
             patch_dict[to_load[x]] = (lokr_w1, lokr_w2, alpha, lokr_w1_a, lokr_w1_b, lokr_w2_a, lokr_w2_b, lokr_t2)
 
+
+        w_norm_name = "{}.w_norm".format(x)
+        b_norm_name = "{}.b_norm".format(x)
+        w_norm = lora.get(w_norm_name, None)
+        b_norm = lora.get(b_norm_name, None)
+
+        if w_norm is not None:
+            loaded_keys.add(w_norm_name)
+            patch_dict[to_load[x]] = (w_norm,)
+            if b_norm is not None:
+                loaded_keys.add(b_norm_name)
+                patch_dict["{}.bias".format(to_load[x][:-len(".weight")])] = (b_norm,)
+
     for x in lora.keys():
         if x not in loaded_keys:
             print("lora key not loaded", x)
