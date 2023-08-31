@@ -50,10 +50,10 @@ class BaseModel(torch.nn.Module):
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, c_adm=None, control=None, transformer_options={}):
         if c_concat is not None:
-            xc = torch.cat([x] + c_concat, dim=1)
+            xc = torch.cat([x] + [c_concat], dim=1)
         else:
             xc = x
-        context = torch.cat(c_crossattn, 1)
+        context = c_crossattn
         dtype = self.get_dtype()
         xc = xc.to(dtype)
         t = t.to(dtype)
