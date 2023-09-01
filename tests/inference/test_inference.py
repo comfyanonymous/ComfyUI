@@ -19,8 +19,7 @@ import urllib.parse
 from comfy.samplers import KSampler
 
 """
-These tests are used to generate images compare the output 
-of inference with the ground-truth images.
+These tests are to generate and save images through a range of parameters
 """
 
 class ComfyGraph:
@@ -127,8 +126,8 @@ DEFAULT_COMFY_GRAPH = ComfyGraph(graph=default_graph, sampler_nodes=['10','14'])
 #
 comfy_graph_list = [DEFAULT_COMFY_GRAPH]
 prompt_list = [
-    'a textured painting of a wet frog',
-    'a textured painting of a wet toad',
+    'a painting of a cat',
+    'a photo of a toad',
 ]
 sampler_list = KSampler.SAMPLERS[0:2]
 scheduler_list = [KSampler.SCHEDULERS[0]]
@@ -200,5 +199,6 @@ class TestInference:
         comfy_graph.set_scheduler(scheduler)
         comfy_graph.set_prompt(prompt)
 
+        # Generate
         client.get_images(comfy_graph.graph)
 

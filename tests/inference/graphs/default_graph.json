@@ -68,7 +68,7 @@
     },
     "13": {
       "inputs": {
-        "filename_prefix": "tests/ref_ComfyUI",
+        "filename_prefix": "test_ComfyUI",
         "images": [
           "12",
           0
