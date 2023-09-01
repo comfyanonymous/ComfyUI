@@ -57,12 +57,13 @@ class BASE:
             self.unet_config[x] = self.unet_extra_config[x]
 
     def get_model(self, state_dict, prefix="", device=None):
-        if self.inpaint_model():
-            return model_base.SDInpaint(self, model_type=self.model_type(state_dict, prefix), device=device)
-        elif self.noise_aug_config is not None:
-            return model_base.SD21UNCLIP(self, self.noise_aug_config, model_type=self.model_type(state_dict, prefix), device=device)
+        if self.noise_aug_config is not None:
+            out = model_base.SD21UNCLIP(self, self.noise_aug_config, model_type=self.model_type(state_dict, prefix), device=device)
         else:
-            return model_base.BaseModel(self, model_type=self.model_type(state_dict, prefix), device=device)
+            out = model_base.BaseModel(self, model_type=self.model_type(state_dict, prefix), device=device)
+        if self.inpaint_model():
+            out.set_inpaint()
+        return out
 
     def process_clip_state_dict(self, state_dict):
         return state_dict
