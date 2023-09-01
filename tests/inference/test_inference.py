@@ -116,7 +116,7 @@ class ComfyClient:
 #
 # Initialize graphs
 #
-default_graph_file = 'tests/inference/graphs/default_graph.json'
+default_graph_file = 'tests/inference/graphs/default_graph_sdxl1_0.json'
 with open(default_graph_file, 'r') as file:
     default_graph = json.loads(file.read())
 DEFAULT_COMFY_GRAPH = ComfyGraph(graph=default_graph, sampler_nodes=['10','14'])
