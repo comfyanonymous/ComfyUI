@@ -153,7 +153,10 @@ class SDXL(supported_models_base.BASE):
             return model_base.ModelType.EPS
 
     def get_model(self, state_dict, prefix="", device=None):
-        return model_base.SDXL(self, model_type=self.model_type(state_dict, prefix), device=device)
+        out = model_base.SDXL(self, model_type=self.model_type(state_dict, prefix), device=device)
+        if self.inpaint_model():
+            out.set_inpaint()
+        return out
 
     def process_clip_state_dict(self, state_dict):
         keys_to_replace = {}
