@@ -143,7 +143,7 @@ class ControlNet(ControlBase):
                 if control_prev is not None:
                     return control_prev
                 else:
-                    return {}
+                    return None
 
         output_dtype = x_noisy.dtype
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
@@ -155,7 +155,7 @@ class ControlNet(ControlBase):
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
 
-        context = torch.cat(cond['c_crossattn'], 1)
+        context = cond['c_crossattn']
         y = cond.get('c_adm', None)
         if y is not None:
             y = y.to(self.control_model.dtype)
