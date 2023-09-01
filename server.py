@@ -124,6 +124,15 @@ class PromptServer():
         async def get_root(request):
             return web.FileResponse(os.path.join(self.web_root, "index.html"))
 
+        @routes.get("/models")
+        def get_models_lists(request):
+            which_models = request.rel_url.query.get("model", "")
+            try:
+                models_dir = folder_paths.get_filename_list(which_models.lower())
+                return web.json_response(list(models_dir))
+            except:
+                return web.json_response(list([""]))
+
         @routes.get("/embeddings")
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
