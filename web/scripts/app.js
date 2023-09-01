@@ -1165,6 +1165,7 @@ export class ComfyApp {
 							this.addInput(inputName, type);
 						}
 						if(inputData[1]?.forceInput && config?.widget) {
+							if (!config.widget.options) config.widget.options = {};
 							config.widget.options.forceInput = inputData[1].forceInput;
 						}
 					}
