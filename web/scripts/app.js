@@ -994,6 +994,10 @@ export class ComfyApp {
 		api.addEventListener("execution_start", ({ detail }) => {
 			this.runningNodeId = null;
 			this.lastExecutionError = null
+			this.graph._nodes.forEach((node) => {
+				if (node.onExecutionStart)
+					node.onExecutionStart()
+			})
 		});
 
 		api.addEventListener("execution_error", ({ detail }) => {
