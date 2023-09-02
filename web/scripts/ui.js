@@ -617,7 +617,10 @@ export class ComfyUI {
 				]),
 			]),
 			$el("div", {id: "extraOptions", style: {width: "100%", display: "none"}}, [
-				$el("label", {innerHTML: "Batch count"}, [
+				$el("div",[
+
+					$el("label", {innerHTML: "Batch count"}),
+					
 					$el("input", {
 						id: "batchCountInputNumber",
 						type: "number",
@@ -639,14 +642,23 @@ export class ComfyUI {
 							this.batchCount = i.srcElement.value;
 							document.getElementById("batchCountInputNumber").value = i.srcElement.value;
 						},
+					}),		
+				]),
+
+				$el("div",[
+					$el("label",{
+						for:"autoQueueCheckbox",
+						innerHTML: "Auto Queue"
+						// textContent: "Auto Queue"
 					}),
 					$el("input", {
 						id: "autoQueueCheckbox",
 						type: "checkbox",
 						checked: false,
-						title: "automatically queue prompt when the queue size hits 0",
+						title: "Automatically queue prompt when the queue size hits 0",
+						
 					}),
-				]),
+				])
 			]),
 			$el("div.comfy-menu-btns", [
 				$el("button", {
