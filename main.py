@@ -171,6 +171,13 @@ if __name__ == "__main__":
         print(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
+    if args.input_directory:
+        input_dir = os.path.abspath(args.input_directory)
+        print(f"Setting input directory to: {input_dir}")
+        folder_paths.set_input_directory(input_dir)
+
+    folder_paths.veryfy_input_directory()
+
     if args.quick_test_for_ci:
         exit(0)
 
