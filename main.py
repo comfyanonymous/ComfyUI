@@ -180,7 +180,16 @@ if __name__ == "__main__":
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0':
                 address = '127.0.0.1'
-            webbrowser.open(f"http://{address}:{port}")
+
+            #If the user has supplied a custom browser path, use that instead of the default browser
+            if args.custom_browser_path:
+                if os.path.isfile(args.custom_browser_path):
+                    comfy.utils.launch_custom_web_browser(args, address, port)
+                else:
+                    print(f"Custom browser path does not exist: {args.custom_browser_path}")
+            else:
+                webbrowser.open(f"http://{address}:{port}")
+
         call_on_start = startup_server
 
     try:

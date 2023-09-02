@@ -407,3 +407,19 @@ class ProgressBar:
 
     def update(self, value):
         self.update_absolute(self.current + value)
+
+def launch_custom_web_browser(args, address, port):
+    import webbrowser
+    custom_browser = webbrowser.GenericBrowser(args.custom_browser_path)
+    
+    #If the user has supplied custom browser args
+    if args.custom_browser_args_csv:
+
+        #args.browser_args_csv is a csv, split it into a list, prepend "--" to each arg and append to custom_browser.args
+        for arg in args.custom_browser_args_csv.split(","):
+            custom_browser.args.append("--" + arg)
+    
+    webbrowser.register('custom_browser', None, custom_browser)
+    customBrowser = webbrowser.get('custom_browser')
+    print(f"Launching custom browser at " + args.custom_browser_path)
+    customBrowser.open(f"http://{address}:{port}")

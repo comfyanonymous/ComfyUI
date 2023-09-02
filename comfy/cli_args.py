@@ -94,6 +94,9 @@ parser.add_argument("--windows-standalone-build", action="store_true", help="Win
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 
+parser.add_argument("--custom-browser-path",   type=str,   help="Path to custom browser instead of platform default, ex: c:/chrome.exe")
+parser.add_argument("--custom-browser-args-csv",   type=str,   help="Args to pass to browser, ex: \"incognito,start-maximized\"")
+
 args = parser.parse_args()
 
 if args.windows_standalone_build:
