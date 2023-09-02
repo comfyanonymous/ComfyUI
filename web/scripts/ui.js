@@ -431,10 +431,12 @@ class ComfySettingsDialog extends ComfyDialog {
 class ComfyList {
 	#type;
 	#text;
+	#reverse;
 
-	constructor(text, type) {
+	constructor(text, type, reverse) {
 		this.#text = text;
 		this.#type = type || text.toLowerCase();
+		this.#reverse = reverse || false;
 		this.element = $el("div.comfy-list");
 		this.element.style.display = "none";
 	}
@@ -451,7 +453,7 @@ class ComfyList {
 					textContent: section,
 				}),
 				$el("div.comfy-list-items", [
-					...items[section].map((item) => {
+					...(this.#reverse ? items[section].reverse() : items[section]).map((item) => {
 						// Allow items to specify a custom remove action (e.g. for interrupt current prompt)
 						const removeAction = item.remove || {
 							name: "Delete",
@@ -529,7 +531,7 @@ export class ComfyUI {
 		this.batchCount = 1;
 		this.lastQueueSize = 0;
 		this.queue = new ComfyList("Queue");
-		this.history = new ComfyList("History");
+		this.history = new ComfyList("History", "history", true);
 
 		api.addEventListener("status", () => {
 			this.queue.update();
