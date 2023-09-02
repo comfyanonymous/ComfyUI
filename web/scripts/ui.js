@@ -620,7 +620,6 @@ export class ComfyUI {
 				$el("div",[
 
 					$el("label", {innerHTML: "Batch count"}),
-					
 					$el("input", {
 						id: "batchCountInputNumber",
 						type: "number",
