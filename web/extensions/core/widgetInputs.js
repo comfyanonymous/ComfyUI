@@ -19,8 +19,9 @@ function hideWidget(node, widget, suffix = "") {
 		if (!node.inputs) {
 			return undefined;
 		}
-		const { link } = node.inputs.find((i) => i.widget?.name === widget.name);
-		if (link == null) {
+		let node_input = node.inputs.find((i) => i.widget?.name === widget.name);
+
+		if (!node_input || !node_input.link) {
 			return undefined;
 		}
 		return widget.origSerializeValue ? widget.origSerializeValue() : widget.value;
