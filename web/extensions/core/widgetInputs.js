@@ -16,6 +16,9 @@ function hideWidget(node, widget, suffix = "") {
 	widget.type = CONVERTED_TYPE + suffix;
 	widget.serializeValue = () => {
 		// Prevent serializing the widget if we have no input linked
+		if (!node.inputs) {
+			return undefined;
+		}
 		const { link } = node.inputs.find((i) => i.widget?.name === widget.name);
 		if (link == null) {
 			return undefined;
