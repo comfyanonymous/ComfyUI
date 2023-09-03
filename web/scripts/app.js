@@ -667,11 +667,40 @@ export class ComfyApp {
 	}
 
 	/**
-	 * Adds a handler on paste that extracts and loads workflows from pasted JSON data
+	 * Adds a handler on paste that extracts and loads images or workflows from pasted JSON data
 	 */
 	#addPasteHandler() {
 		document.addEventListener("paste", (e) => {
-			let data = (e.clipboardData || window.clipboardData).getData("text/plain");
+			let data = (e.clipboardData || window.clipboardData);
+			const items = data.items;
+
+			// Look for image paste data
+			for (const item of items) {
+				if (item.type.startsWith('image/')) {
+					var imageNode = null;
+
+					// If an image node is selected, paste into it
+					if (this.canvas.current_node &&
+						this.canvas.current_node.is_selected &&
+						ComfyApp.isImageNode(this.canvas.current_node)) {
+						imageNode = this.canvas.current_node;
+					}
+
+					// No image node selected: add a new one
+					if (!imageNode) {
+						const newNode = LiteGraph.createNode("LoadImage");
+						newNode.pos = [...this.canvas.graph_mouse];
+						imageNode = this.graph.add(newNode);
+						this.graph.change();
+					}
+					const blob = item.getAsFile();
+					imageNode.pasteFile(blob);
+					return;
+				}
+			}
+
+			// No image found. Look for node data
+			data = data.getData("text/plain");
 			let workflow;
 			try {
 				data = data.slice(data.indexOf("{"));
@@ -687,8 +716,28 @@ export class ComfyApp {
 			if (workflow && workflow.version && workflow.nodes && workflow.extra) {
 				this.loadGraphData(workflow);
 			}
+			else {
+				// Litegraph default paste
+                this.canvas.pasteFromClipboard();
+			}
+
+
 		});
 	}
+
+
+	/**
+	 * Adds a handler on copy that serializes selected nodes to JSON
+	 */
+	#addCopyHandler() {
+		document.addEventListener("copy", (e) => {
+			// copy
+			if (this.canvas.selected_nodes) {
+			    this.canvas.copyToClipboard();
+			}
+		});
+	}
+
 
 	/**
 	 * Handle mouse
@@ -745,12 +794,6 @@ export class ComfyApp {
 		const self = this;
 		const origProcessKey = LGraphCanvas.prototype.processKey;
 		LGraphCanvas.prototype.processKey = function(e) {
-			const res = origProcessKey.apply(this, arguments);
-
-			if (res === false) {
-				return res;
-			}
-
 			if (!this.graph) {
 				return;
 			}
@@ -761,9 +804,10 @@ export class ComfyApp {
 				return;
 			}
 
-			if (e.type == "keydown") {
+			if (e.type == "keydown" && !e.repeat) {
+
 				// Ctrl + M mute/unmute
-				if (e.keyCode == 77 && e.ctrlKey) {
+				if (e.key === 'm' && e.ctrlKey) {
 					if (this.selected_nodes) {
 						for (var i in this.selected_nodes) {
 							if (this.selected_nodes[i].mode === 2) { // never
@@ -776,7 +820,8 @@ export class ComfyApp {
 					block_default = true;
 				}
 
-				if (e.keyCode == 66 && e.ctrlKey) {
+				// Ctrl + B bypass
+				if (e.key === 'b' && e.ctrlKey) {
 					if (this.selected_nodes) {
 						for (var i in this.selected_nodes) {
 							if (this.selected_nodes[i].mode === 4) { // never
@@ -788,6 +833,28 @@ export class ComfyApp {
 					}
 					block_default = true;
 				}
+
+				// Ctrl+C Copy
+				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
+					if (e.shiftKey) {
+						this.copyToClipboard(true);
+						block_default = true;
+					}
+					// Trigger default onCopy
+					return true;
+				}
+
+				// Ctrl+V Paste
+				if ((e.key === 'v') && (e.metaKey || e.ctrlKey)) {
+					if (e.shiftKey) {
+						this.pasteFromClipboard(true);
+						block_default = true;
+					}
+					else {
+						// Trigger default onPaste
+						return true;
+					}
+				}
 			}
 
 			this.graph.change();
@@ -798,7 +865,8 @@ export class ComfyApp {
 				return false;
 			}
 
-			return res;
+			// Fall through to Litegraph defaults
+			return origProcessKey.apply(this, arguments);
 		};
 	}
 
@@ -1110,6 +1178,7 @@ export class ComfyApp {
 		this.#addDrawGroupsHandler();
 		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
+		this.#addCopyHandler();
 		this.#addPasteHandler();
 		this.#addKeyboardHandler();
 
