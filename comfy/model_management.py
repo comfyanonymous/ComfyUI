@@ -466,7 +466,8 @@ def vae_dtype():
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
-        return dev.type
+        return dev.type if not (dev.type == "mps" and should_use_fp16(
+            dev, prioritize_performance=False)) else "cpu"
     return "cuda"
 
 
