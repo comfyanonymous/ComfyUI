@@ -32,6 +32,27 @@ def save_torch_file(sd, ckpt, metadata=None):
     else:
         safetensors.torch.save_file(sd, ckpt)
 
+def calculate_parameters(sd, prefix=""):
+    params = 0
+    for k in sd.keys():
+        if k.startswith(prefix):
+            params += sd[k].nelement()
+    return params
+
+def state_dict_key_replace(state_dict, keys_to_replace):
+    for x in keys_to_replace:
+        if x in state_dict:
+            state_dict[keys_to_replace[x]] = state_dict.pop(x)
+    return state_dict
+
+def state_dict_prefix_replace(state_dict, replace_prefix):
+    for rp in replace_prefix:
+        replace = list(map(lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp):])), filter(lambda a: a.startswith(rp), state_dict.keys())))
+        for x in replace:
+            state_dict[x[1]] = state_dict.pop(x[0])
+    return state_dict
+
+
 def transformers_convert(sd, prefix_from, prefix_to, number):
     keys_to_replace = {
         "{}positional_embedding": "{}embeddings.position_embedding.weight",
@@ -216,6 +237,13 @@ def unet_to_diffusers(unet_config):
 
     return diffusers_unet_map
 
+def repeat_to_batch_size(tensor, batch_size):
+    if tensor.shape[0] > batch_size:
+        return tensor[:batch_size]
+    elif tensor.shape[0] < batch_size:
+        return tensor.repeat([math.ceil(batch_size / tensor.shape[0])] + [1] * (len(tensor.shape) - 1))[:batch_size]
+    return tensor
+
 def convert_sd_to(state_dict, dtype):
     keys = list(state_dict.keys())
     for k in keys:
@@ -229,6 +257,20 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
         if length_of_header > max_size:
             return None
         return f.read(length_of_header)
+
+def set_attr(obj, attr, value):
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    prev = getattr(obj, attrs[-1])
+    setattr(obj, attrs[-1], torch.nn.Parameter(value))
+    del prev
+
+def get_attr(obj, attr):
+    attrs = attr.split(".")
+    for name in attrs:
+        obj = getattr(obj, name)
+    return obj
 
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
