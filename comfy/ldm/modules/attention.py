@@ -323,8 +323,7 @@ class CrossAttentionDoggettx(nn.Module):
                 break
             except model_management.OOM_EXCEPTION as e:
                 if first_op_done == False:
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()
+                    model_management.soft_empty_cache()
                     if cleared_cache == False:
                         cleared_cache = True
                         print("out of memory error, emptying cache and trying again")
