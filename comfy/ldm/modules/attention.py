@@ -323,7 +323,7 @@ class CrossAttentionDoggettx(nn.Module):
                 break
             except model_management.OOM_EXCEPTION as e:
                 if first_op_done == False:
-                    model_management.soft_empty_cache()
+                    model_management.soft_empty_cache(True)
                     if cleared_cache == False:
                         cleared_cache = True
                         print("out of memory error, emptying cache and trying again")
