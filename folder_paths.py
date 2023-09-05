@@ -36,7 +36,7 @@ input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "inp
 
 filename_list_cache = {}
 
-def veryfy_input_directory():
+def verify_input_directory():
     global input_directory
     if not os.path.exists(input_directory):
         os.makedirs(input_directory)
