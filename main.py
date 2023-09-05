@@ -176,7 +176,7 @@ if __name__ == "__main__":
         print(f"Setting input directory to: {input_dir}")
         folder_paths.set_input_directory(input_dir)
 
-    folder_paths.veryfy_input_directory()
+    folder_paths.verify_input_directory()
 
     if args.quick_test_for_ci:
         exit(0)
