@@ -1228,6 +1228,7 @@ export class ComfyApp {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
 
+						let widgetCreated = true;
 						if (Array.isArray(type)) {
 							// Enums
 							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
@@ -1240,8 +1241,10 @@ export class ComfyApp {
 						} else {
 							// Node connection inputs
 							this.addInput(inputName, type);
+							widgetCreated = false;
 						}
-						if(inputData[1]?.forceInput && config?.widget) {
+
+						if(widgetCreated && inputData[1]?.forceInput && config?.widget) {
 							if (!config.widget.options) config.widget.options = {};
 							config.widget.options.forceInput = inputData[1].forceInput;
 						}
