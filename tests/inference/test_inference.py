@@ -1,4 +1,5 @@
 from copy import deepcopy
+from io import BytesIO
 from urllib import request
 import numpy
 import os
@@ -128,8 +129,8 @@ comfy_graph_list = [DEFAULT_COMFY_GRAPH]
 prompt_list = [
     'a painting of a cat',
 ]
-sampler_list = KSampler.SAMPLERS[0:2]
-scheduler_list = [KSampler.SCHEDULERS[0]]
+sampler_list = KSampler.SAMPLERS
+scheduler_list = KSampler.SCHEDULERS
 
 @pytest.mark.inference
 @pytest.mark.parametrize("sampler", sampler_list)
@@ -208,5 +209,13 @@ class TestInference:
         comfy_graph.set_prompt(prompt)
 
         # Generate
-        client.get_images(comfy_graph.graph)
+        images = client.get_images(comfy_graph.graph)
+
+        assert len(images) == 1, "No images generated"
+        # assert all images are not blank
+        for images_output in images.values():
+            for image_data in images_output:
+                pil_image = Image.open(BytesIO(image_data))
+                assert numpy.array(pil_image).any() != 0, "Image is blank"
+
 
