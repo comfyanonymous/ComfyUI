@@ -717,8 +717,12 @@ export class ComfyApp {
 				this.loadGraphData(workflow);
 			}
 			else {
+				if (e.target.type === "text" || e.target.type === "textarea") {
+					return;
+				}
+
 				// Litegraph default paste
-                this.canvas.pasteFromClipboard();
+				this.canvas.pasteFromClipboard();
 			}
 
 
