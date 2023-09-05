@@ -20,7 +20,7 @@ import urllib.parse
 from comfy.samplers import KSampler
 
 """
-These tests are to generate and save images through a range of parameters
+These tests generate and save images through a range of parameters
 """
 
 class ComfyGraph:
@@ -52,6 +52,8 @@ class ComfyGraph:
 
 
 class ComfyClient:
+    # From examples/websockets_api_example.py
+
     def connect(self, 
                     listen:str = '127.0.0.1', 
                     port:Union[str,int] = 8188,
@@ -63,7 +65,6 @@ class ComfyClient:
         ws.connect("ws://{}/ws?clientId={}".format(self.server_address, self.client_id))
         self.ws = ws
 
-    # From examples/websockets_api_example.py
     def queue_prompt(self, prompt):
         p = {"prompt": prompt, "client_id": self.client_id}
         data = json.dumps(p).encode('utf-8')
@@ -137,7 +138,9 @@ scheduler_list = KSampler.SCHEDULERS
 @pytest.mark.parametrize("scheduler", scheduler_list)
 @pytest.mark.parametrize("prompt", prompt_list)
 class TestInference:
-    # Initialize server
+    #
+    # Initialize server and client
+    #
     @fixture(scope="class", autouse=True)
     def _server(self, args_pytest):
         # Start server
@@ -167,6 +170,9 @@ class TestInference:
                 break
         return comfy_client
 
+    #
+    # Client and graph fixtures with server warmup
+    #
     # Returns a "_client_graph", which is client-graph pair corresponding to an initialized server
     # The "graph" is the default graph
     @fixture(scope="class", params=comfy_graph_list, autouse=True)
@@ -189,9 +195,9 @@ class TestInference:
         client = _client_graph[0]
         yield client
     
-    # function-scoped fixture for graph to avoid mutating the graph
     @fixture
     def comfy_graph(self, _client_graph):
+        # avoid mutating the graph
         graph = deepcopy(_client_graph[1])
         yield graph
 
