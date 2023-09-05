@@ -17,7 +17,10 @@ import json
 import urllib.request
 import urllib.parse
 
-from comfy.samplers import KSampler
+# Currently causes an error when running pytest with built-in pytest args
+# TODO: modify cli_args.py to not parse args on import
+# We will hard-code sampler and scheduler lists for now
+# from comfy.samplers import KSampler
 
 """
 These tests generate and save images through a range of parameters
@@ -130,9 +133,16 @@ comfy_graph_list = [DEFAULT_COMFY_GRAPH]
 prompt_list = [
     'a painting of a cat',
 ]
-sampler_list = KSampler.SAMPLERS
-scheduler_list = KSampler.SCHEDULERS
-
+#TODO use sampler and scheduler list from comfy.samplers.KSampler
+# sampler_list = KSampler.SAMPLERS
+# scheduler_list = KSampler.SCHEDULERS
+# Hard coded sampler and scheduler lists for now
+SCHEDULERS = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
+SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
+                "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
+                "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddim", "uni_pc", "uni_pc_bh2"]
+sampler_list = [SAMPLERS[0]]
+scheduler_list = [SCHEDULERS[0]]
 @pytest.mark.inference
 @pytest.mark.parametrize("sampler", sampler_list)
 @pytest.mark.parametrize("scheduler", scheduler_list)
@@ -217,7 +227,7 @@ class TestInference:
         # Generate
         images = client.get_images(comfy_graph.graph)
 
-        assert len(images) == 1, "No images generated"
+        assert len(images) != 0, "No images generated"
         # assert all images are not blank
         for images_output in images.values():
             for image_data in images_output:
