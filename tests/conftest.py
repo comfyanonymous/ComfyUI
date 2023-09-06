@@ -18,3 +18,19 @@ def args_pytest(pytestconfig):
     os.makedirs(args['output_dir'], exist_ok=True)
 
     return args
+
+def pytest_collection_modifyitems(items):
+    # Modifies items so tests run in the correct order
+    
+    LAST_TESTS = ['test_quality']
+
+    # Move the last items to the end
+    last_items = []
+    for test_name in LAST_TESTS:
+        for item in items.copy():
+            print(item.module.__name__, item)
+            if item.module.__name__  == test_name:
+                last_items.append(item)
+                items.remove(item)
+
+    items.extend(last_items)

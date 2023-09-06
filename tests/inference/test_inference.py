@@ -8,12 +8,11 @@ import pytest
 from pytest import fixture
 import time
 import torch
-from typing import Tuple, Union
+from typing import Union
 import json
 import subprocess
 import websocket #NOTE: websocket-client (https://github.com/websocket-client/websocket-client)
 import uuid
-import json
 import urllib.request
 import urllib.parse
 
@@ -52,6 +51,12 @@ class ComfyGraph:
         # sets the sampler name for the sampler nodes (eg. base and refiner)
         for node in self.sampler_nodes:
             self.graph[node]['inputs']['scheduler'] = scheduler
+    
+    def set_filename_prefix(self, prefix:str):
+        # sets the filename prefix for the save nodes
+        for node in self.graph:
+            if self.graph[node]['class_type'] == 'SaveImage':
+                self.graph[node]['inputs']['filename_prefix'] = prefix
 
 
 class ComfyClient:
@@ -125,11 +130,13 @@ default_graph_file = 'tests/inference/graphs/default_graph_sdxl1_0.json'
 with open(default_graph_file, 'r') as file:
     default_graph = json.loads(file.read())
 DEFAULT_COMFY_GRAPH = ComfyGraph(graph=default_graph, sampler_nodes=['10','14'])
+DEFAULT_COMFY_GRAPH_ID = os.path.splitext(os.path.basename(default_graph_file))[0]
 
 #
 # Loop through these variables
 #
 comfy_graph_list = [DEFAULT_COMFY_GRAPH]
+comfy_graph_ids = [DEFAULT_COMFY_GRAPH_ID]
 prompt_list = [
     'a painting of a cat',
 ]
@@ -185,7 +192,7 @@ class TestInference:
     #
     # Returns a "_client_graph", which is client-graph pair corresponding to an initialized server
     # The "graph" is the default graph
-    @fixture(scope="class", params=comfy_graph_list, autouse=True)
+    @fixture(scope="class", params=comfy_graph_list, ids=comfy_graph_ids, autouse=True)
     def _client_graph(self, request, args_pytest, _server) -> (ComfyClient, ComfyGraph):
         comfy_graph = request.param
         
@@ -218,7 +225,10 @@ class TestInference:
         sampler,
         scheduler,
         prompt,
+        request
     ):
+        test_info = request.node.name
+        comfy_graph.set_filename_prefix(test_info)
         # Settings for comfy graph
         comfy_graph.set_sampler_name(sampler)
         comfy_graph.set_scheduler(scheduler)
