@@ -717,8 +717,12 @@ export class ComfyApp {
 				this.loadGraphData(workflow);
 			}
 			else {
+				if (e.target.type === "text" || e.target.type === "textarea") {
+					return;
+				}
+
 				// Litegraph default paste
-                this.canvas.pasteFromClipboard();
+				this.canvas.pasteFromClipboard();
 			}
 
 
@@ -1224,6 +1228,7 @@ export class ComfyApp {
 						const inputData = inputs[inputName];
 						const type = inputData[0];
 
+						let widgetCreated = true;
 						if (Array.isArray(type)) {
 							// Enums
 							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
@@ -1236,8 +1241,10 @@ export class ComfyApp {
 						} else {
 							// Node connection inputs
 							this.addInput(inputName, type);
+							widgetCreated = false;
 						}
-						if(inputData[1]?.forceInput && config?.widget) {
+
+						if(widgetCreated && inputData[1]?.forceInput && config?.widget) {
 							if (!config.widget.options) config.widget.options = {};
 							config.widget.options.forceInput = inputData[1].forceInput;
 						}
