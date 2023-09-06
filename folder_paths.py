@@ -131,7 +131,6 @@ def recursive_search(directory, excluded_dir_names=None):
     result = []
     dirs = {directory: os.path.getmtime(directory)}
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
-        print("Checking directory: " + dirpath)
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
         for file_name in filenames:
             relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
@@ -139,7 +138,6 @@ def recursive_search(directory, excluded_dir_names=None):
         for d in subdirs:
             path = os.path.join(dirpath, d)
             dirs[path] = os.path.getmtime(path)
-    print("Returning from recursive_search" + repr(result))
     return result, dirs
 
 def filter_files_extensions(files, extensions):
