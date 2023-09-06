@@ -390,11 +390,20 @@ def get_mask_aabb(masks):
 
     return bounding_boxes, is_empty
 
-def resolve_cond_masks(conditions, h, w, device):
+def resolve_areas_and_cond_masks(conditions, h, w, device):
     # We need to decide on an area outside the sampling loop in order to properly generate opposite areas of equal sizes.
     # While we're doing this, we can also resolve the mask device and scaling for performance reasons
     for i in range(len(conditions)):
         c = conditions[i]
+        if 'area' in c[1]:
+            area = c[1]['area']
+            if area[0] == "percentage":
+                modified = c[1].copy()
+                area = (max(1, round(area[1] * h)), max(1, round(area[2] * w)), round(area[3] * h), round(area[4] * w))
+                modified['area'] = area
+                c = [c[0], modified]
+                conditions[i] = c
+
         if 'mask' in c[1]:
             mask = c[1]['mask']
             mask = mask.to(device=device)
@@ -622,8 +631,8 @@ class KSampler:
         positive = positive[:]
         negative = negative[:]
 
-        resolve_cond_masks(positive, noise.shape[2], noise.shape[3], self.device)
-        resolve_cond_masks(negative, noise.shape[2], noise.shape[3], self.device)
+        resolve_areas_and_cond_masks(positive, noise.shape[2], noise.shape[3], self.device)
+        resolve_areas_and_cond_masks(negative, noise.shape[2], noise.shape[3], self.device)
 
         calculate_start_end_timesteps(self.model_wrap, negative)
         calculate_start_end_timesteps(self.model_wrap, positive)
