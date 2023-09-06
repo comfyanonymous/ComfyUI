@@ -27,7 +27,7 @@
       "inputs": {
         "add_noise": "enable",
         "noise_seed": 42,
-        "steps": 40,
+        "steps": 20,
         "cfg": 7.5,
         "sampler_name": "euler",
         "scheduler": "normal",
@@ -80,7 +80,7 @@
       "inputs": {
         "add_noise": "disable",
         "noise_seed": 42,
-        "steps": 40,
+        "steps": 20,
         "cfg": 7.5,
         "sampler_name": "euler",
         "scheduler": "normal",
