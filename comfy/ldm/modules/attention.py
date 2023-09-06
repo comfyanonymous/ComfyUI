@@ -323,8 +323,7 @@ class CrossAttentionDoggettx(nn.Module):
                 break
             except model_management.OOM_EXCEPTION as e:
                 if first_op_done == False:
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()
+                    model_management.soft_empty_cache(True)
                     if cleared_cache == False:
                         cleared_cache = True
                         print("out of memory error, emptying cache and trying again")
@@ -402,8 +401,6 @@ class MemoryEfficientCrossAttention(nn.Module):
     # https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0.0, dtype=None, device=None, operations=comfy.ops):
         super().__init__()
-        print(f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
-              f"{heads} heads.")
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
 
