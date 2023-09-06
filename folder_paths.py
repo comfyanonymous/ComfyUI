@@ -121,18 +121,25 @@ def add_model_folder_path(folder_name, full_folder_path):
 def get_folder_paths(folder_name):
     return folder_names_and_paths[folder_name][0][:]
 
-def recursive_search(directory):
+def recursive_search(directory, excluded_dir_names=None):
     if not os.path.isdir(directory):
         return [], {}
+
+    if excluded_dir_names is None:
+        excluded_dir_names = []
+
     result = []
     dirs = {directory: os.path.getmtime(directory)}
-    for root, subdir, file in os.walk(directory, followlinks=True):
-        for filepath in file:
-            #we os.path,join directory with a blank string to generate a path separator at the end.
-            result.append(os.path.join(root, filepath).replace(os.path.join(directory,''),''))
-        for d in subdir:
-            path = os.path.join(root, d)
+    for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
+        print("Checking directory: " + dirpath)
+        subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
+        for file_name in filenames:
+            relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
+            result.append(relative_path)
+        for d in subdirs:
+            path = os.path.join(dirpath, d)
             dirs[path] = os.path.getmtime(path)
+    print("Returning from recursive_search" + repr(result))
     return result, dirs
 
 def filter_files_extensions(files, extensions):
@@ -159,7 +166,7 @@ def get_filename_list_(folder_name):
     folders = folder_names_and_paths[folder_name]
     output_folders = {}
     for x in folders[0]:
-        files, folders_all = recursive_search(x)
+        files, folders_all = recursive_search(x, excluded_dir_names=[".git"])
         output_list.update(filter_files_extensions(files, folders[1]))
         output_folders = {**output_folders, **folders_all}
 
