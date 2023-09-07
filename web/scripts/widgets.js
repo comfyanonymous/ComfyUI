@@ -76,7 +76,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 				targetWidget.value = max;
 		}
 	}
-	return valueControl;	
+	return valueControl;
 };
 
 function seedWidget(node, inputName, inputData, app) {
@@ -299,11 +299,17 @@ export const ComfyWidgets = {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
 
+		let res;
 		if (multiline) {
-			return addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
+			res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
 		} else {
-			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
+			res = { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
+
+		if(inputData[1].dynamicPrompts != undefined)
+			res.widget.dynamicPrompts = inputData[1].dynamicPrompts;
+
+		return res;
 	},
 	COMBO(node, inputName, inputData) {
 		const type = inputData[0];
@@ -381,11 +387,12 @@ export const ComfyWidgets = {
 			}
 		});
 
-		async function uploadFile(file, updateNode) {
+		async function uploadFile(file, updateNode, pasted = false) {
 			try {
 				// Wrap file in formdata so it includes filename
 				const body = new FormData();
 				body.append("image", file);
+				if (pasted) body.append("subfolder", "pasted");
 				const resp = await api.fetchApi("/upload/image", {
 					method: "POST",
 					body,
@@ -393,15 +400,17 @@ export const ComfyWidgets = {
 
 				if (resp.status === 200) {
 					const data = await resp.json();
-					// Add the file as an option and update the widget value
-					if (!imageWidget.options.values.includes(data.name)) {
-						imageWidget.options.values.push(data.name);
+					// Add the file to the dropdown list and update the widget value
+					let path = data.name;
+					if (data.subfolder) path = data.subfolder + "/" + path;
+
+					if (!imageWidget.options.values.includes(path)) {
+						imageWidget.options.values.push(path);
 					}
 
 					if (updateNode) {
-						showImage(data.name);
-
-						imageWidget.value = data.name;
+						showImage(path);
+						imageWidget.value = path;
 					}
 				} else {
 					alert(resp.status + " - " + resp.statusText);
@@ -453,6 +462,16 @@ export const ComfyWidgets = {
 
 			return handled;
 		};
+
+		node.pasteFile = function(file) {
+			if (file.type.startsWith("image/")) {
+				const is_pasted = (file.name === "image.png") &&
+								  (file.lastModified - Date.now() < 2000);
+				uploadFile(file, true, is_pasted);
+				return true;
+			}
+			return false;
+		}
 
 		return { widget: uploadWidget };
 	},

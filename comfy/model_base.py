@@ -3,6 +3,7 @@ from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
+import comfy.model_management
 import numpy as np
 from enum import Enum
 from . import utils
@@ -18,8 +19,9 @@ class BaseModel(torch.nn.Module):
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
         self.model_config = model_config
-        self.register_schedule(given_betas=None, beta_schedule="linear", timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
-        self.diffusion_model = UNetModel(**unet_config, device=device)
+        self.register_schedule(given_betas=None, beta_schedule=model_config.beta_schedule, timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
+        if not unet_config.get("disable_unet_model_creation", False):
+            self.diffusion_model = UNetModel(**unet_config, device=device)
         self.model_type = model_type
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -48,10 +50,10 @@ class BaseModel(torch.nn.Module):
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, c_adm=None, control=None, transformer_options={}):
         if c_concat is not None:
-            xc = torch.cat([x] + c_concat, dim=1)
+            xc = torch.cat([x] + [c_concat], dim=1)
         else:
             xc = x
-        context = torch.cat(c_crossattn, 1)
+        context = c_crossattn
         dtype = self.get_dtype()
         xc = xc.to(dtype)
         t = t.to(dtype)
@@ -93,7 +95,11 @@ class BaseModel(torch.nn.Module):
 
     def state_dict_for_saving(self, clip_state_dict, vae_state_dict):
         clip_state_dict = self.model_config.process_clip_state_dict_for_saving(clip_state_dict)
-        unet_state_dict = self.diffusion_model.state_dict()
+        unet_sd = self.diffusion_model.state_dict()
+        unet_state_dict = {}
+        for k in unet_sd:
+            unet_state_dict[k] = comfy.model_management.resolve_lowvram_weight(unet_sd[k], self.diffusion_model, k)
+
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
         vae_state_dict = self.model_config.process_vae_state_dict_for_saving(vae_state_dict)
         if self.get_dtype() == torch.float16:
@@ -104,6 +110,9 @@ class BaseModel(torch.nn.Module):
             unet_state_dict["v_pred"] = torch.tensor([])
 
         return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
+
+    def set_inpaint(self):
+        self.concat_keys = ("mask", "masked_image")
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0):
     adm_inputs = []
@@ -141,12 +150,6 @@ class SD21UNCLIP(BaseModel):
             return torch.zeros((1, self.adm_channels))
         else:
             return unclip_adm(unclip_conditioning, device, self.noise_augmentor, kwargs.get("unclip_noise_augment_merge", 0.05))
-
-
-class SDInpaint(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.EPS, device=None):
-        super().__init__(model_config, model_type, device=device)
-        self.concat_keys = ("mask", "masked_image")
 
 def sdxl_pooled(args, noise_augmentor):
     if "unclip_conditioning" in args:

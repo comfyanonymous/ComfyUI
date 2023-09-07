@@ -1,6 +1,7 @@
 import psutil
 from enum import Enum
 from comfy.cli_args import args
+import comfy.utils
 import torch
 import sys
 
@@ -57,8 +58,15 @@ except:
 if args.cpu:
     cpu_state = CPUState.CPU
 
-def get_torch_device():
+def is_intel_xpu():
+    global cpu_state
     global xpu_available
+    if cpu_state == CPUState.GPU:
+        if xpu_available:
+            return True
+    return False
+
+def get_torch_device():
     global directml_enabled
     global cpu_state
     if directml_enabled:
@@ -69,13 +77,12 @@ def get_torch_device():
     if cpu_state == CPUState.CPU:
         return torch.device("cpu")
     else:
-        if xpu_available:
+        if is_intel_xpu():
             return torch.device("xpu")
         else:
             return torch.device(torch.cuda.current_device())
 
 def get_total_memory(dev=None, torch_total_too=False):
-    global xpu_available
     global directml_enabled
     if dev is None:
         dev = get_torch_device()
@@ -87,7 +94,7 @@ def get_total_memory(dev=None, torch_total_too=False):
         if directml_enabled:
             mem_total = 1024 * 1024 * 1024 #TODO
             mem_total_torch = mem_total
-        elif xpu_available:
+        elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
             mem_total = torch.xpu.get_device_properties(dev).total_memory
@@ -111,9 +118,6 @@ if not args.normalvram and not args.cpu:
     if lowvram_available and total_vram <= 4096:
         print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
         set_vram_to = VRAMState.LOW_VRAM
-    elif total_vram > total_ram * 1.1 and total_vram > 14336:
-        print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
-        vram_state = VRAMState.HIGH_VRAM
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
@@ -148,17 +152,32 @@ def is_nvidia():
     if cpu_state == CPUState.GPU:
         if torch.version.cuda:
             return True
+    return False
 
 ENABLE_PYTORCH_ATTENTION = args.use_pytorch_cross_attention
+VAE_DTYPE = torch.float32
 
-if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
-    try:
-        if is_nvidia():
-            torch_version = torch.version.__version__
-            if int(torch_version[0]) >= 2:
+try:
+    if is_nvidia():
+        torch_version = torch.version.__version__
+        if int(torch_version[0]) >= 2:
+            if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
-    except:
-        pass
+            if torch.cuda.is_bf16_supported():
+                VAE_DTYPE = torch.bfloat16
+except:
+    pass
+
+if is_intel_xpu():
+    VAE_DTYPE = torch.bfloat16
+
+if args.fp16_vae:
+    VAE_DTYPE = torch.float16
+elif args.bf16_vae:
+    VAE_DTYPE = torch.bfloat16
+elif args.fp32_vae:
+    VAE_DTYPE = torch.float32
+
 
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
@@ -210,7 +229,6 @@ if DISABLE_SMART_MEMORY:
     print("Disabling smart memory management")
 
 def get_torch_device_name(device):
-    global xpu_available
     if hasattr(device, 'type'):
         if device.type == "cuda":
             try:
@@ -220,7 +238,7 @@ def get_torch_device_name(device):
             return "{} {} : {}".format(device, torch.cuda.get_device_name(device), allocator_backend)
         else:
             return "{}".format(device.type)
-    elif xpu_available:
+    elif is_intel_xpu():
         return "{} {}".format(device, torch.xpu.get_device_name(device))
     else:
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
@@ -230,6 +248,7 @@ try:
 except:
     print("Could not pick default device.")
 
+print("VAE dtype:", VAE_DTYPE)
 
 current_loaded_models = []
 
@@ -249,7 +268,6 @@ class LoadedModel:
             return self.model_memory()
 
     def model_load(self, lowvram_model_memory=0):
-        global xpu_available
         patch_model_to = None
         if lowvram_model_memory == 0:
             patch_model_to = self.device
@@ -270,7 +288,7 @@ class LoadedModel:
             accelerate.dispatch_model(self.real_model, device_map=device_map, main_device=self.device)
             self.model_accelerated = True
 
-        if xpu_available and not args.disable_ipex_optimize:
+        if is_intel_xpu() and not args.disable_ipex_optimize:
             self.real_model = torch.xpu.optimize(self.real_model.eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
 
         return self.real_model
@@ -450,12 +468,8 @@ def vae_offload_device():
         return torch.device("cpu")
 
 def vae_dtype():
-    if args.fp16_vae:
-        return torch.float16
-    elif args.bf16_vae:
-        return torch.bfloat16
-    else:
-        return torch.float32
+    global VAE_DTYPE
+    return VAE_DTYPE
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
@@ -464,12 +478,11 @@ def get_autocast_device(dev):
 
 
 def xformers_enabled():
-    global xpu_available
     global directml_enabled
     global cpu_state
     if cpu_state != CPUState.GPU:
         return False
-    if xpu_available:
+    if is_intel_xpu():
         return False
     if directml_enabled:
         return False
@@ -496,7 +509,6 @@ def pytorch_attention_flash_attention():
     return False
 
 def get_free_memory(dev=None, torch_free_too=False):
-    global xpu_available
     global directml_enabled
     if dev is None:
         dev = get_torch_device()
@@ -508,7 +520,7 @@ def get_free_memory(dev=None, torch_free_too=False):
         if directml_enabled:
             mem_free_total = 1024 * 1024 * 1024 #TODO
             mem_free_torch = mem_free_total
-        elif xpu_available:
+        elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
             mem_allocated = stats['allocated_bytes.all.current']
@@ -570,7 +582,6 @@ def is_device_mps(device):
     return False
 
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True):
-    global xpu_available
     global directml_enabled
 
     if device is not None:
@@ -593,7 +604,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True):
     if cpu_mode() or mps_mode():
         return False #TODO ?
 
-    if xpu_available:
+    if is_intel_xpu():
         return True
 
     if torch.cuda.is_bf16_supported():
@@ -628,17 +639,23 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True):
 
     return True
 
-def soft_empty_cache():
-    global xpu_available
+def soft_empty_cache(force=False):
     global cpu_state
     if cpu_state == CPUState.MPS:
         torch.mps.empty_cache()
-    elif xpu_available:
+    elif is_intel_xpu():
         torch.xpu.empty_cache()
     elif torch.cuda.is_available():
-        if is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
+        if force or is_nvidia(): #This seems to make things worse on ROCm so I only do it for cuda
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
+
+def resolve_lowvram_weight(weight, model, key):
+    if weight.device == torch.device("meta"): #lowvram NOTE: this depends on the inner working of the accelerate library so it might break.
+        key_split = key.split('.')              # I have no idea why they don't just leave the weight there instead of using the meta device.
+        op = comfy.utils.get_attr(model, '.'.join(key_split[:-1]))
+        weight = op._hf_hook.weights_map[key_split[-1]]
+    return weight
 
 #TODO: might be cleaner to put this somewhere else
 import threading

@@ -88,7 +88,7 @@ body {
 	top: 50%;
 	right: 0;
 	text-align: center;
-	z-index: 100;
+	z-index: 999;
 	width: 170px;
 	display: flex;
 	flex-direction: column;
