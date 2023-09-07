@@ -170,9 +170,9 @@ class PromptServer():
 
                 subfolder = post.get("subfolder", "")
                 full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
-                filepath = os.path.join(full_output_folder, filename)
+                filepath = os.path.abspath(os.path.join(full_output_folder, filename))
 
-                if os.path.commonpath((upload_dir, os.path.abspath(filepath))) != upload_dir:
+                if os.path.commonpath((upload_dir, filepath)) != upload_dir:
                     return web.Response(status=400)
 
                 if not os.path.exists(full_output_folder):
