@@ -1637,12 +1637,13 @@ export class ComfyApp {
 		const index = app.extensions.findIndex((ext) => extension.name === ext.name);
 		if (index >= 0) {
 			if (extension.version) {
-				const installed_version = app.extensions[index].version;
-				if (installed_version && (installed_version >= extension.version)) {
-					console.log(`${extension.name} version ${installed_version} already installed`)
+				var installed_version = 0;
+				if (app.extensions[index].version) { installed_version = app.extensions[index].version; }
+				if (installed_version >= extension.version) {
+					console.log(`${extension.name} version ${installed_version} already installed, won't replace with version ${extension.version}`)
 					return;
 				} else {
-					console.log(`${extension.name} being replaced with version ${extension.version}`)
+					console.log(`${extension.name} version ${installed_version} being replaced with version ${extension.version}`)
 					app.extensions.splice(index,1); 
 				}	
 			} else {
