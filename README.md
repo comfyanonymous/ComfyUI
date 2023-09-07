@@ -235,6 +235,29 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 
 After this you should have everything installed and can proceed to running ComfyUI.
 
+
+## Docker
+
+You can build a docker image with the `Dockerfile` in this repo.
+Specify, `PYTORCH_INSTALL_ARGS` build arg with one of the PyTorch commands above to build for AMD or NVIDIA GPUs.
+```shell
+docker build --build-arg PYTORCH_INSTALL_ARGS="--index-url https://download.pytorch.org/whl/cu122" .
+```
+```shell
+docker build --build-arg PYTORCH_INSTALL_ARGS="--index-url https://download.pytorch.org/whl/rocm6.2" .
+```
+The `Dockerfile` requires BuildKit to be enabled. If your Docker does not support the buildx command, you can
+enable BuildKit by setting the `DOCKER_BUILDKIT` environment variable.
+```shell
+DOCKER_BUILDKIT=1 docker build --build-arg PYTORCH_INSTALL_ARGS="--index-url https://download.pytorch.org/whl/cu124" .
+```
+> [!NOTE]
+> For building the CPU-only image, it is recommended that you add the --cpu flag to the EXTRA_ARGS build arg:
+>
+> ```shell
+> docker build --build-arg PYTORCH_INSTALL_ARGS="--index-url https://download.pytorch.org/whl/cpu" --build-arg EXTRA_ARGS=--cpu .
+> ```
+
 ### Others:
 
 #### Apple Mac silicon
