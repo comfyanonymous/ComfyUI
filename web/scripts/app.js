@@ -735,9 +735,17 @@ export class ComfyApp {
 	 */
 	#addCopyHandler() {
 		document.addEventListener("copy", (e) => {
-			// copy
+			if (e.target.type === "text" || e.target.type === "textarea") {
+				// Default system copy
+				return;
+			}
+			// copy nodes and clear clipboard
 			if (this.canvas.selected_nodes) {
-			    this.canvas.copyToClipboard();
+				this.canvas.copyToClipboard();
+				e.clipboardData.clearData();
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				return false;
 			}
 		});
 	}
@@ -842,10 +850,13 @@ export class ComfyApp {
 				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
 					if (e.shiftKey) {
 						this.copyToClipboard(true);
+						e.clipboardData.clearData();
 						block_default = true;
 					}
-					// Trigger default onCopy
-					return true;
+					else {
+						// Trigger onCopy
+						return true;
+					}
 				}
 
 				// Ctrl+V Paste
@@ -855,7 +866,7 @@ export class ComfyApp {
 						block_default = true;
 					}
 					else {
-						// Trigger default onPaste
+						// Trigger onPaste
 						return true;
 					}
 				}
