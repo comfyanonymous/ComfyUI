@@ -2,14 +2,15 @@ import { api } from "./api.js"
 
 function getNumberDefaults(inputData, defaultStep) {
 	let defaultVal = inputData[1]["default"];
-	let { min, max, step } = inputData[1];
+	let { min, max, step, round } = inputData[1];
 
 	if (defaultVal == undefined) defaultVal = 0;
 	if (min == undefined) min = 0;
 	if (max == undefined) max = 2048;
 	if (step == undefined) step = defaultStep;
+	if (round == undefined) round = 0.001;
 
-	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
+	return { val: defaultVal, config: { min, max, step: 10.0 * step, round } };
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
@@ -264,7 +265,10 @@ export const ComfyWidgets = {
 	FLOAT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 0.5);
-		return { widget: node.addWidget(widgetType, inputName, val, () => {}, config) };
+		return { widget: node.addWidget(widgetType, inputName, val, 
+			function (v) {
+				this.value = Math.round(v/config.round)*config.round;
+			}, config) };
 	},
 	INT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
