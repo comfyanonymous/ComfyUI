@@ -263,8 +263,6 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
                 del input_x
 
-                model_management.throw_exception_if_processing_interrupted()
-
                 for o in range(batch_chunks):
                     if cond_or_uncond[o] == COND:
                         out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
