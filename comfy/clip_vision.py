@@ -49,12 +49,16 @@ class ClipVisionModel():
             precision_scope = lambda a, b: contextlib.nullcontext(a)
 
         with precision_scope(comfy.model_management.get_autocast_device(self.load_device), torch.float32):
-            outputs = self.model(pixel_values=pixel_values)
+            outputs = self.model(pixel_values=pixel_values, output_hidden_states=True)
 
         for k in outputs:
             t = outputs[k]
             if t is not None:
-                outputs[k] = t.cpu()
+                if k == 'hidden_states':
+                    outputs["penultimate_hidden_states"] = t[-2].cpu()
+                else:
+                    outputs[k] = t.cpu()
+
         return outputs
 
 def convert_to_transformers(sd, prefix):
