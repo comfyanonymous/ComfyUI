@@ -104,6 +104,7 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 
 def hijack_progress(server):
     def hook(value, total, preview_image):
+        comfy.model_management.throw_exception_if_processing_interrupted()
         server.send_sync("progress", {"value": value, "max": total}, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
