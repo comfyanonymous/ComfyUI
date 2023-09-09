@@ -4928,7 +4928,7 @@ LGraphNode.prototype.executeAction = function(action)
         this.title = o.title;
         this._bounding.set(o.bounding);
         this.color = o.color;
-        this.font = o.font;
+        this.font_size = o.font_size;
     };
 
     LGraphGroup.prototype.serialize = function() {
@@ -4942,7 +4942,7 @@ LGraphNode.prototype.executeAction = function(action)
                 Math.round(b[3])
             ],
             color: this.color,
-            font: this.font
+            font_size: this.font_size
         };
     };
 
