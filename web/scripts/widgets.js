@@ -2,15 +2,19 @@ import { api } from "./api.js"
 
 function getNumberDefaults(inputData, defaultStep) {
 	let defaultVal = inputData[1]["default"];
-	let { min, max, step, round } = inputData[1];
+	let { min, max, step, round, precision } = inputData[1];
 
 	if (defaultVal == undefined) defaultVal = 0;
 	if (min == undefined) min = 0;
 	if (max == undefined) max = 2048;
 	if (step == undefined) step = defaultStep;
-	if (round == undefined) round = 0.001;
+// precision is the number of decimal places to show. 
+// by default, display the the smallest number of decimal places such that changes of size step are visible.
+	if (precision == undefined) precision = Math.max(-Math.floor(Math.log10(step)),0)
+// by default, round the value to those decimal places shown.
+	if (round == undefined) round = Math.round(1000000*Math.pow(0.1,precision))/1000000;
 
-	return { val: defaultVal, config: { min, max, step: 10.0 * step, round } };
+	return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
