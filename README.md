@@ -95,16 +95,16 @@ Note: pytorch does not support python 3.12 yet so make sure your python version 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6```
+```pip install -r requirements-rocm5.6.txt```
 
 This is the command to install the nightly with ROCm 5.7 that might have some performance improvements:
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7```
+```pip install -r requirements-rocm5.7-nightly.txt```
 
 ### NVIDIA
 
 Nvidia users should install pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121```
+```pip install -r requirements-cu121.txt```
 
 #### Troubleshooting
 

@@ -1,0 +1,5 @@
+--extra-index-url https://download.pytorch.org/whl/rocm5.6
+
+torch
+torchvision
+torchaudio
