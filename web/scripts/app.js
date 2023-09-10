@@ -742,7 +742,7 @@ export class ComfyApp {
 			// copy nodes and clear clipboard
 			if (this.canvas.selected_nodes) {
 				this.canvas.copyToClipboard();
-				e.clipboardData.clearData();
+				e.clipboardData.setData('text', ' '); //clearData doesn't remove images from clipboard
 				e.preventDefault();
 				e.stopImmediatePropagation();
 				return false;
@@ -848,27 +848,14 @@ export class ComfyApp {
 
 				// Ctrl+C Copy
 				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
-					if (e.shiftKey) {
-						this.copyToClipboard(true);
-						e.clipboardData.clearData();
-						block_default = true;
-					}
-					else {
-						// Trigger onCopy
-						return true;
-					}
+					// Trigger onCopy
+					return true;
 				}
 
 				// Ctrl+V Paste
-				if ((e.key === 'v') && (e.metaKey || e.ctrlKey)) {
-					if (e.shiftKey) {
-						this.pasteFromClipboard(true);
-						block_default = true;
-					}
-					else {
-						// Trigger onPaste
-						return true;
-					}
+				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey)) {
+					// Trigger onPaste
+					return true;
 				}
 			}
 
