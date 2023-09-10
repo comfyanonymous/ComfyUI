@@ -271,7 +271,7 @@ export const ComfyWidgets = {
 		const { val, config } = getNumberDefaults(inputData, 0.5);
 		return { widget: node.addWidget(widgetType, inputName, val, 
 			function (v) {
-				this.value = Math.round(v/config.round)*config.round;
+				this.value = Math.round(v/config.rounding)*config.rounding;
 			}, config) };
 	},
 	INT(node, inputName, inputData, app) {
