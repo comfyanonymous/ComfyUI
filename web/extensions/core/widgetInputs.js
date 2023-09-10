@@ -92,7 +92,10 @@ app.registerExtension({
 				if (type in ComfyWidgets) {
 					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
 				} else {
-					widget = this.addWidget(type, "value", null, () => { }, {});
+					if (type == "combo")
+						widget = this.addWidget("combo", "value", null, () => {}, { values: inputData[1]?.values || [] });
+					else
+						widget = this.addWidget(type, "value", null, () => {}, {});
 				}
 
 				if (node?.widgets && widget) {
@@ -154,7 +157,12 @@ app.registerExtension({
 
 				for (const k in config1[1]) {
 					if (k !== "default" && k !== 'forceInput') {
-						if (config1[1][k] !== config2[1][k]) {
+						const lhs = config1[1][k];
+						const rhs = config2[1][k];
+						if (lhs instanceof Array && rhs instanceof Array) {
+							if (lhs.length != rhs.length || !lhs.reduce((state, value, index) => state && value === rhs[index], true))
+								return false;
+						} else if (lhs !== rhs) {
 							return false;
 						}
 					}
