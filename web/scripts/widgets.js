@@ -19,7 +19,7 @@ function getNumberDefaults(inputData, defaultStep) {
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
     const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
-        values: ["fixed", "increment", "decrement", "randomize"],
+        values: ["fixed", "increment", "decrement", "randomize", "increment_loop"],
         serialize: false, // Don't include this in prompt.
     });
     valueControl.afterQueued = () => {
@@ -39,6 +39,10 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 					break;
 				case "randomize":
 					current_index = Math.floor(Math.random() * current_length);
+					break;
+				case "increment_loop":
+					current_index = (current_index + 1) % current_length;
+					break;
 				default:
 					break;
 			}
@@ -55,20 +59,25 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 			// limit to something that javascript can handle
 			max = Math.min(1125899906842624, max);
 			min = Math.max(-1125899906842624, min);
-			let range = (max - min) / (targetWidget.options.step / 10);
+			const step = targetWidget.options.step / 10;
+			const range = (max - min) / step;
 
 			//adjust values based on valueControl Behaviour
 			switch (v) {
 				case "fixed":
 					break;
 				case "increment":
-					targetWidget.value += targetWidget.options.step / 10;
+					targetWidget.value += step;
 					break;
 				case "decrement":
-					targetWidget.value -= targetWidget.options.step / 10;
+					targetWidget.value -= step;
 					break;
 				case "randomize":
-					targetWidget.value = Math.floor(Math.random() * range) * (targetWidget.options.step / 10) + min;
+					targetWidget.value = Math.floor(Math.random() * (range + 1)) * step + min;
+					break;
+				case "increment_loop":
+					targetWidget.value = (targetWidget.value + - min + step) % (range + 1) + min;
+					break;
 				default:
 					break;
 			}
