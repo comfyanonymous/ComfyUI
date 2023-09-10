@@ -33,9 +33,13 @@ class EnumAction(argparse.Action):
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0", help="Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)")
-parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
-parser.add_argument("--enable-cors-header", type=str, default=None, metavar="ORIGIN", nargs="?", const="*", help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
+webserver_group = parser.add_argument_group("Webserver Options", "Options for the configuration of the webserver")
+webserver_group.add_argument("--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0", help="Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)")
+webserver_group.add_argument("--port", type=int, default=8188, help="Set the listen port.")
+webserver_group.add_argument("--tls-keyfile", type=str, default=None, help="Enables TLS, requires --tls-certfile to function")
+webserver_group.add_argument("--tls-certfile", type=str, default=None, help="Enables TLS, requires --tls-keyfile to function")
+webserver_group.add_argument("--enable-cors-header", type=str, default=None, metavar="ORIGIN", nargs="?", const="*", help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
+
 parser.add_argument("--extra-model-paths-config", type=str, default=None, metavar="PATH", nargs='+', action='append', help="Load one or more extra_model_paths.yaml files.")
 parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory.")
 parser.add_argument("--temp-directory", type=str, default=None, help="Set the ComfyUI temp directory (default is in the ComfyUI directory).")

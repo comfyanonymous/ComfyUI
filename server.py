@@ -11,6 +11,7 @@ import urllib
 import json
 import glob
 import struct
+import ssl
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -605,16 +606,25 @@ class PromptServer():
     async def start(self, address, port, verbose=True, call_on_start=None):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
-        site = web.TCPSite(runner, address, port)
+
+        ctx = None
+        scheme = "http"
+        if args.tls_keyfile and args.tls_certfile:
+                ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
+                ctx.load_cert_chain(certfile=args.tls_certfile,
+                                keyfile=args.tls_keyfile)
+                scheme = "https"
+
+        site = web.TCPSite(runner, address, port, ssl_context=ctx)
         await site.start()
 
         if address == '':
             address = '0.0.0.0'
         if verbose:
             print("Starting server\n")
-            print("To see the GUI go to: http://{}:{}".format(address, port))
+            print("To see the GUI go to: {}://{}:{}".format(scheme, address, port))
         if call_on_start is not None:
-            call_on_start(address, port)
+            call_on_start(scheme, address, port)
 
     def add_on_prompt_handler(self, handler):
         self.on_prompt_handlers.append(handler)
