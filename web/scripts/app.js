@@ -1248,6 +1248,10 @@ export class ComfyApp {
 							if (!config.widget.options) config.widget.options = {};
 							config.widget.options.forceInput = inputData[1].forceInput;
 						}
+						if(widgetCreated && inputData[1]?.defaultInput && config?.widget) {
+							if (!config.widget.options) config.widget.options = {};
+							config.widget.options.defaultInput = inputData[1].defaultInput;
+						}
 					}
 
 					for (const o in nodeData["output"]) {
