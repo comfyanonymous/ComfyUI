@@ -5,24 +5,34 @@ import comfy.ops
 import torch
 import traceback
 import zipfile
+from . import model_management
+import contextlib
 
 class ClipTokenWeightEncoder:
     def encode_token_weights(self, token_weight_pairs):
-        z_empty, _ = self.encode(self.empty_tokens)
-        output = []
-        first_pooled = None
+        to_encode = list(self.empty_tokens)
         for x in token_weight_pairs:
-            tokens = [list(map(lambda a: a[0], x))]
-            z, pooled = self.encode(tokens)
-            if first_pooled is None:
-                first_pooled = pooled
+            tokens = list(map(lambda a: a[0], x))
+            to_encode.append(tokens)
+
+        out, pooled = self.encode(to_encode)
+        z_empty = out[0:1]
+        if pooled.shape[0] > 1:
+            first_pooled = pooled[1:2]
+        else:
+            first_pooled = pooled[0:1]
+
+        output = []
+        for k in range(1, out.shape[0]):
+            z = out[k:k+1]
             for i in range(len(z)):
                 for j in range(len(z[i])):
-                    weight = x[j][1]
+                    weight = token_weight_pairs[k - 1][j][1]
                     z[i][j] = (z[i][j] - z_empty[0][j]) * weight + z_empty[0][j]
-            output += [z]
+            output.append(z)
+
         if (len(output) == 0):
-            return self.encode(self.empty_tokens)
+            return z_empty.cpu(), first_pooled.cpu()
         return torch.cat(output, dim=-2).cpu(), first_pooled.cpu()
 
 class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
@@ -33,32 +43,38 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         "hidden"
     ]
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
-                 freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, textmodel_path=None):  # clip-vit-base-patch32
+                 freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, textmodel_path=None, dtype=None):  # clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS
+        self.num_layers = 12
         if textmodel_path is not None:
             self.transformer = CLIPTextModel.from_pretrained(textmodel_path)
         else:
             if textmodel_json_config is None:
                 textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_clip_config.json")
             config = CLIPTextConfig.from_json_file(textmodel_json_config)
-            with comfy.ops.use_comfy_ops():
+            self.num_layers = config.num_hidden_layers
+            with comfy.ops.use_comfy_ops(device, dtype):
                 with modeling_utils.no_init_weights():
                     self.transformer = CLIPTextModel(config)
 
-        self.device = device
+        if dtype is not None:
+            self.transformer.to(dtype)
         self.max_length = max_length
         if freeze:
             self.freeze()
         self.layer = layer
         self.layer_idx = None
         self.empty_tokens = [[49406] + [49407] * 76]
-        self.text_projection = None
+        self.text_projection = torch.nn.Parameter(torch.eye(self.transformer.get_input_embeddings().weight.shape[1]))
+        self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
+
         self.layer_norm_hidden_state = True
         if layer == "hidden":
             assert layer_idx is not None
-            assert abs(layer_idx) <= 12
+            assert abs(layer_idx) <= self.num_layers
             self.clip_layer(layer_idx)
+        self.layer_default = (self.layer, self.layer_idx)
 
     def freeze(self):
         self.transformer = self.transformer.eval()
@@ -67,21 +83,27 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             param.requires_grad = False
 
     def clip_layer(self, layer_idx):
-        if abs(layer_idx) >= 12:
+        if abs(layer_idx) >= self.num_layers:
             self.layer = "last"
         else:
             self.layer = "hidden"
             self.layer_idx = layer_idx
 
+    def reset_clip_layer(self):
+        self.layer = self.layer_default[0]
+        self.layer_idx = self.layer_default[1]
+
     def set_up_textual_embeddings(self, tokens, current_embeds):
         out_tokens = []
-        next_new_token = token_dict_size = current_embeds.weight.shape[0]
+        next_new_token = token_dict_size = current_embeds.weight.shape[0] - 1
         embedding_weights = []
 
         for x in tokens:
             tokens_temp = []
             for y in x:
                 if isinstance(y, int):
+                    if y == token_dict_size: #EOS token
+                        y = -1
                     tokens_temp += [y]
                 else:
                     if y.shape[0] == current_embeds.weight.shape[1]:
@@ -94,41 +116,59 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
                 tokens_temp += [self.empty_tokens[0][-1]]
             out_tokens += [tokens_temp]
 
+        n = token_dict_size
         if len(embedding_weights) > 0:
-            new_embedding = torch.nn.Embedding(next_new_token, current_embeds.weight.shape[1])
-            new_embedding.weight[:token_dict_size] = current_embeds.weight[:]
-            n = token_dict_size
+            new_embedding = torch.nn.Embedding(next_new_token + 1, current_embeds.weight.shape[1], device=current_embeds.weight.device, dtype=current_embeds.weight.dtype)
+            new_embedding.weight[:token_dict_size] = current_embeds.weight[:-1]
             for x in embedding_weights:
                 new_embedding.weight[n] = x
                 n += 1
+            new_embedding.weight[n] = current_embeds.weight[-1] #EOS embedding
             self.transformer.set_input_embeddings(new_embedding)
-        return out_tokens
+
+        processed_tokens = []
+        for x in out_tokens:
+            processed_tokens += [list(map(lambda a: n if a == -1 else a, x))] #The EOS token should always be the largest one
+
+        return processed_tokens
 
     def forward(self, tokens):
         backup_embeds = self.transformer.get_input_embeddings()
+        device = backup_embeds.weight.device
         tokens = self.set_up_textual_embeddings(tokens, backup_embeds)
-        tokens = torch.LongTensor(tokens).to(self.device)
-        outputs = self.transformer(input_ids=tokens, output_hidden_states=self.layer=="hidden")
-        self.transformer.set_input_embeddings(backup_embeds)
+        tokens = torch.LongTensor(tokens).to(device)
 
-        if self.layer == "last":
-            z = outputs.last_hidden_state
-        elif self.layer == "pooled":
-            z = outputs.pooler_output[:, None, :]
+        if backup_embeds.weight.dtype != torch.float32:
+            precision_scope = torch.autocast
         else:
-            z = outputs.hidden_states[self.layer_idx]
-            if self.layer_norm_hidden_state:
-                z = self.transformer.text_model.final_layer_norm(z)
+            precision_scope = lambda a, b: contextlib.nullcontext(a)
 
-        pooled_output = outputs.pooler_output
-        if self.text_projection is not None:
-            pooled_output = pooled_output @ self.text_projection
-        return z, pooled_output
+        with precision_scope(model_management.get_autocast_device(device), torch.float32):
+            outputs = self.transformer(input_ids=tokens, output_hidden_states=self.layer=="hidden")
+            self.transformer.set_input_embeddings(backup_embeds)
+
+            if self.layer == "last":
+                z = outputs.last_hidden_state
+            elif self.layer == "pooled":
+                z = outputs.pooler_output[:, None, :]
+            else:
+                z = outputs.hidden_states[self.layer_idx]
+                if self.layer_norm_hidden_state:
+                    z = self.transformer.text_model.final_layer_norm(z)
+
+            pooled_output = outputs.pooler_output
+            if self.text_projection is not None:
+                pooled_output = pooled_output.float().to(self.text_projection.device) @ self.text_projection.float()
+        return z.float(), pooled_output.float()
 
     def encode(self, tokens):
         return self(tokens)
 
     def load_sd(self, sd):
+        if "text_projection" in sd:
+            self.text_projection[:] = sd.pop("text_projection")
+        if "text_projection.weight" in sd:
+            self.text_projection[:] = sd.pop("text_projection.weight").transpose(0, 1)
         return self.transformer.load_state_dict(sd, strict=False)
 
 def parse_parentheses(string):
@@ -216,7 +256,7 @@ def expand_directory_list(directories):
             dirs.add(root)
     return list(dirs)
 
-def load_embed(embedding_name, embedding_directory, embedding_size):
+def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=None):
     if isinstance(embedding_directory, str):
         embedding_directory = [embedding_directory]
 
@@ -275,13 +315,15 @@ def load_embed(embedding_name, embedding_directory, embedding_size):
                         continue
                     out_list.append(t.reshape(-1, t.shape[-1]))
             embed_out = torch.cat(out_list, dim=0)
+        elif embed_key is not None and embed_key in embed:
+            embed_out = embed[embed_key]
         else:
             values = embed.values()
             embed_out = next(iter(values))
     return embed_out
 
 class SD1Tokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l'):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = CLIPTokenizer.from_pretrained(tokenizer_path)
@@ -298,17 +340,18 @@ class SD1Tokenizer:
         self.max_word_length = 8
         self.embedding_identifier = "embedding:"
         self.embedding_size = embedding_size
+        self.embedding_key = embedding_key
 
     def _try_get_embedding(self, embedding_name:str):
         '''
         Takes a potential embedding name and tries to retrieve it.
         Returns a Tuple consisting of the embedding and any leftover string, embedding can be None.
         '''
-        embed = load_embed(embedding_name, self.embedding_directory, self.embedding_size)
+        embed = load_embed(embedding_name, self.embedding_directory, self.embedding_size, self.embedding_key)
         if embed is None:
             stripped = embedding_name.strip(',')
             if len(stripped) < len(embedding_name):
-                embed = load_embed(stripped, self.embedding_directory, self.embedding_size)
+                embed = load_embed(stripped, self.embedding_directory, self.embedding_size, self.embedding_key)
                 return (embed, embedding_name[len(stripped):])
         return (embed, "")
 

@@ -1,3 +1,5 @@
+import { api } from "./api.js"
+
 function getNumberDefaults(inputData, defaultStep) {
 	let defaultVal = inputData[1]["default"];
 	let { min, max, step } = inputData[1];
@@ -6,8 +8,13 @@ function getNumberDefaults(inputData, defaultStep) {
 	if (min == undefined) min = 0;
 	if (max == undefined) max = 2048;
 	if (step == undefined) step = defaultStep;
+// precision is the number of decimal places to show. 
+// by default, display the the smallest number of decimal places such that changes of size step are visible.
+	let precision = Math.max(-Math.floor(Math.log10(step)),0)
+// by default, round the value to those decimal places shown.
+	let round = Math.round(1000000*Math.pow(0.1,precision))/1000000;
 
-	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
+	return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
@@ -74,11 +81,11 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 				targetWidget.value = max;
 		}
 	}
-	return valueControl;	
+	return valueControl;
 };
 
-function seedWidget(node, inputName, inputData) {
-	const seed = ComfyWidgets.INT(node, inputName, inputData);
+function seedWidget(node, inputName, inputData, app) {
+	const seed = ComfyWidgets.INT(node, inputName, inputData, app);
 	const seedControl = addValueControlWidget(node, seed.widget, "randomize");
 
 	seed.widget.linkedWidgets = [seedControl];
@@ -129,6 +136,7 @@ function addMultilineWidget(node, name, opts, app) {
 			w.y = y;
 			if (w.type === "customtext") {
 				y += freeSpace;
+				w.computedHeight = freeSpace - multi.length*4;
 			} else if (w.computeSize) {
 				y += w.computeSize()[1] + 4;
 			} else {
@@ -162,11 +170,12 @@ function addMultilineWidget(node, name, opts, app) {
 				.multiplySelf(ctx.getTransform())
 				.translateSelf(margin, margin + y);
 
+			const scale = new DOMMatrix().scaleSelf(transform.a, transform.d)
 			Object.assign(this.inputEl.style, {
 				transformOrigin: "0 0",
-				transform: transform,
-				left: "0px",
-				top: "0px",
+				transform: scale,
+				left: `${transform.a + transform.e}px`,
+				top: `${transform.d + transform.f}px`,
 				width: `${widgetWidth - (margin * 2)}px`,
 				height: `${this.parent.inputHeight - (margin * 2)}px`,
 				position: "absolute",
@@ -246,19 +255,32 @@ function addMultilineWidget(node, name, opts, app) {
 	return { minWidth: 400, minHeight: 200, widget };
 }
 
+function isSlider(display, app) {
+	if (app.ui.settings.getSettingValue("Comfy.DisableSliders")) {
+		return "number"
+	}
+
+	return (display==="slider") ? "slider" : "number"
+}
+
 export const ComfyWidgets = {
 	"INT:seed": seedWidget,
 	"INT:noise_seed": seedWidget,
-	FLOAT(node, inputName, inputData) {
+	FLOAT(node, inputName, inputData, app) {
+		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 0.5);
-		return { widget: node.addWidget("number", inputName, val, () => {}, config) };
+		return { widget: node.addWidget(widgetType, inputName, val, 
+			function (v) {
+				this.value = Math.round(v/config.round)*config.round;
+			}, config) };
 	},
-	INT(node, inputName, inputData) {
+	INT(node, inputName, inputData, app) {
+		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 1);
 		Object.assign(config, { precision: 0 });
 		return {
 			widget: node.addWidget(
-				"number",
+				widgetType,
 				inputName,
 				val,
 				function (v) {
@@ -269,15 +291,33 @@ export const ComfyWidgets = {
 			),
 		};
 	},
+	BOOLEAN(node, inputName, inputData) {
+		let defaultVal = inputData[1]["default"];
+		return {
+			widget: node.addWidget(
+				"toggle",
+				inputName,
+				defaultVal,
+				() => {},
+				{"on": inputData[1].label_on, "off": inputData[1].label_off}
+				)
+		};
+	},
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
 
+		let res;
 		if (multiline) {
-			return addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
+			res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
 		} else {
-			return { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
+			res = { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
 		}
+
+		if(inputData[1].dynamicPrompts != undefined)
+			res.widget.dynamicPrompts = inputData[1].dynamicPrompts;
+
+		return res;
 	},
 	COMBO(node, inputName, inputData) {
 		const type = inputData[0];
@@ -303,7 +343,7 @@ export const ComfyWidgets = {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = `/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`;
+			img.src = api.apiURL(`/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`);
 			node.setSizeForImage?.();
 		}
 
@@ -355,27 +395,30 @@ export const ComfyWidgets = {
 			}
 		});
 
-		async function uploadFile(file, updateNode) {
+		async function uploadFile(file, updateNode, pasted = false) {
 			try {
 				// Wrap file in formdata so it includes filename
 				const body = new FormData();
 				body.append("image", file);
-				const resp = await fetch("/upload/image", {
+				if (pasted) body.append("subfolder", "pasted");
+				const resp = await api.fetchApi("/upload/image", {
 					method: "POST",
 					body,
 				});
 
 				if (resp.status === 200) {
 					const data = await resp.json();
-					// Add the file as an option and update the widget value
-					if (!imageWidget.options.values.includes(data.name)) {
-						imageWidget.options.values.push(data.name);
+					// Add the file to the dropdown list and update the widget value
+					let path = data.name;
+					if (data.subfolder) path = data.subfolder + "/" + path;
+
+					if (!imageWidget.options.values.includes(path)) {
+						imageWidget.options.values.push(path);
 					}
 
 					if (updateNode) {
-						showImage(data.name);
-
-						imageWidget.value = data.name;
+						showImage(path);
+						imageWidget.value = path;
 					}
 				} else {
 					alert(resp.status + " - " + resp.statusText);
@@ -407,7 +450,7 @@ export const ComfyWidgets = {
 		// Add handler to check if an image is being dragged over our node
 		node.onDragOver = function (e) {
 			if (e.dataTransfer && e.dataTransfer.items) {
-				const image = [...e.dataTransfer.items].find((f) => f.kind === "file" && f.type.startsWith("image/"));
+				const image = [...e.dataTransfer.items].find((f) => f.kind === "file");
 				return !!image;
 			}
 
@@ -427,6 +470,16 @@ export const ComfyWidgets = {
 
 			return handled;
 		};
+
+		node.pasteFile = function(file) {
+			if (file.type.startsWith("image/")) {
+				const is_pasted = (file.name === "image.png") &&
+								  (file.lastModified - Date.now() < 2000);
+				uploadFile(file, true, is_pasted);
+				return true;
+			}
+			return false;
+		}
 
 		return { widget: uploadWidget };
 	},

@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from PIL import Image
+import math
 
 import comfy.utils
 
@@ -59,8 +60,8 @@ class Blend:
     def g(self, x):
         return torch.where(x <= 0.25, ((16 * x - 12) * x + 4) * x, torch.sqrt(x))
 
-def gaussian_kernel(kernel_size: int, sigma: float):
-    x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size), torch.linspace(-1, 1, kernel_size), indexing="ij")
+def gaussian_kernel(kernel_size: int, sigma: float, device=None):
+    x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size, device=device), torch.linspace(-1, 1, kernel_size, device=device), indexing="ij")
     d = torch.sqrt(x * x + y * y)
     g = torch.exp(-(d * d) / (2.0 * sigma * sigma))
     return g / g.sum()
@@ -101,7 +102,7 @@ class Blur:
         batch_size, height, width, channels = image.shape
 
         kernel_size = blur_radius * 2 + 1
-        kernel = gaussian_kernel(kernel_size, sigma).repeat(channels, 1, 1).unsqueeze(1)
+        kernel = gaussian_kernel(kernel_size, sigma, device=image.device).repeat(channels, 1, 1).unsqueeze(1)
 
         image = image.permute(0, 3, 1, 2) # Torch wants (B, C, H, W) we use (B, H, W, C)
         padded_image = F.pad(image, (blur_radius,blur_radius,blur_radius,blur_radius), 'reflect')
@@ -209,9 +210,36 @@ class Sharpen:
 
         return (result,)
 
+class ImageScaleToTotalPixels:
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
+    crop_methods = ["disabled", "center"]
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
+                              "megapixels": ("FLOAT", {"default": 1.0, "min": 0.01, "max": 16.0, "step": 0.01}),
+                            }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "upscale"
+
+    CATEGORY = "image/upscaling"
+
+    def upscale(self, image, upscale_method, megapixels):
+        samples = image.movedim(-1,1)
+        total = int(megapixels * 1024 * 1024)
+
+        scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
+        width = round(samples.shape[3] * scale_by)
+        height = round(samples.shape[2] * scale_by)
+
+        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
+        s = s.movedim(1,-1)
+        return (s,)
+
 NODE_CLASS_MAPPINGS = {
     "ImageBlend": Blend,
     "ImageBlur": Blur,
     "ImageQuantize": Quantize,
     "ImageSharpen": Sharpen,
+    "ImageScaleToTotalPixels": ImageScaleToTotalPixels,
 }
