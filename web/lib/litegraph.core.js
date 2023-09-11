@@ -11529,7 +11529,7 @@ LGraphNode.prototype.executeAction = function(action)
                     if (timeout) {
                         clearInterval(timeout);
                     }
-                    timeout = setTimeout(refreshHelper, 250);
+                    timeout = setTimeout(refreshHelper, 10);
                     return;
                 }
                 e.preventDefault();

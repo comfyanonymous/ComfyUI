@@ -186,6 +186,7 @@ def slice_attention(q, k, v):
                 del s2
             break
         except model_management.OOM_EXCEPTION as e:
+            model_management.soft_empty_cache(True)
             steps *= 2
             if steps > 128:
                 raise e
