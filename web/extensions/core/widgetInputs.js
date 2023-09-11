@@ -9,6 +9,7 @@ function isConvertableWidget(widget, config) {
 }
 
 function hideWidget(node, widget, suffix = "") {
+	if (widget.type.includes(CONVERTED_TYPE)) { return; } // already hidden, don't do it again
 	widget.origType = widget.type;
 	widget.origComputeSize = widget.computeSize;
 	widget.origSerializeValue = widget.serializeValue;
