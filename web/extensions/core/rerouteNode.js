@@ -111,12 +111,13 @@ app.registerExtension({
 								} else {
 									// We've found an output
 									const nodeOutType = node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type ? node.inputs[link.target_slot].type : null;
-									outputWidget = node.inputs[link.target_slot]?.widget ?? null;
 									if (inputType && nodeOutType !== inputType && inputType !== "*") {
 										// The output doesnt match our input and is not a wildcard so disconnect it
 										node.disconnectInput(link.target_slot);
 									} else {
 										outputType = nodeOutType;
+										// We are not disconnecting the output node, so store the widget of the output node
+										outputWidget = node.inputs[link.target_slot]?.widget ?? null;
 									}
 								}
 							}
@@ -141,9 +142,10 @@ app.registerExtension({
 						node.__outputType = displayType;
 						node.outputs[0].name = node.properties.showOutputText ? displayType : "";
 						if (outputWidget) {
-							// Inherit the widget from the connected input 
+							// Inherit the widget from the connected input
 							node.inputs[0].widget = outputWidget;
 						} else {
+							// Delete the widget if no output widget is found
 							delete node.inputs[0].widget;
 						}
 						node.size = node.computeSize();
