@@ -27,7 +27,7 @@ def ui_signal(signals:str|list[str]):
             returns_tuple  = returns_tuple[:-len(signals)]
 
             for i,key in enumerate(signals):
-                returns_ui[key] = popped_returns[i]
+                returns['ui']['key'] = popped_returns[i]
 
             return { "ui":returns_ui, "result": returns_tuple }
         clazz._ui_signal_decorated_function = _ui_signal_decorated_function
@@ -35,7 +35,6 @@ def ui_signal(signals:str|list[str]):
         clazz.OUTPUT_NODE = True
         clazz.UI_OUTPUT = clazz.UI_OUTPUT+"," if hasattr(clazz, 'UI_OUTPUT') else ""
         clazz.UI_OUTPUT += ",".join(signals)
-        return clazz
 
     return decorator
         
