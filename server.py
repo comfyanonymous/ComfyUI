@@ -393,6 +393,7 @@ class PromptServer():
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
+            info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
             info['output'] = obj_class.RETURN_TYPES
             info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
@@ -440,6 +441,22 @@ class PromptServer():
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
+
+        @routes.get("/debugcache")
+        async def get_debugcache(request):
+            def custom_serialize(obj):
+                from comfy.caching import Unhashable
+                if isinstance(obj, frozenset):
+                    try:
+                        return dict(obj)
+                    except:
+                        return list(obj)
+                elif isinstance(obj, Unhashable):
+                    return "NaN"
+                return str(obj)
+            def custom_dump(obj):
+                return json.dumps(obj, default=custom_serialize)
+            return web.json_response(execution.dump_cache_for_debug(), dumps=custom_dump)
 
         @routes.post("/prompt")
         async def post_prompt(request):
@@ -610,6 +627,8 @@ class PromptServer():
 
         if address == '':
             address = '0.0.0.0'
+        self.address = address
+        self.port = port
         if verbose:
             print("Starting server\n")
             print("To see the GUI go to: http://{}:{}".format(address, port))

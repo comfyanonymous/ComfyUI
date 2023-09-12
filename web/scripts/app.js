@@ -983,8 +983,8 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
-			this.nodeOutputs[detail.node] = detail.output;
-			const node = this.graph.getNodeById(detail.node);
+			this.nodeOutputs[detail.display_node] = detail.output;
+			const node = this.graph.getNodeById(detail.display_node);
 			if (node) {
 				if (node.onExecuted)
 					node.onExecuted(detail.output);
