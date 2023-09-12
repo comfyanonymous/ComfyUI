@@ -56,6 +56,7 @@ class ClipVisionModel():
             if t is not None:
                 if k == 'hidden_states':
                     outputs["penultimate_hidden_states"] = t[-2].cpu()
+                    outputs["hidden_states"] = None
                 else:
                     outputs[k] = t.cpu()
 
