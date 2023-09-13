@@ -671,6 +671,10 @@ export class ComfyApp {
 	 */
 	#addPasteHandler() {
 		document.addEventListener("paste", (e) => {
+			// ctrl+shift+v is used to paste nodes with connections
+			// this is handled by litegraph
+			if(this.shiftDown) return;
+
 			let data = (e.clipboardData || window.clipboardData);
 			const items = data.items;
 
@@ -853,7 +857,7 @@ export class ComfyApp {
 				}
 
 				// Ctrl+V Paste
-				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey)) {
+				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
 					// Trigger onPaste
 					return true;
 				}
