@@ -1297,7 +1297,13 @@ export class ComfyApp {
 
 		let reset_invalid_values = false;
 		if (!graphData) {
-			graphData = structuredClone(defaultGraph);
+			if (typeof structuredClone === "undefined")
+			{
+				graphData = JSON.parse(JSON.stringify(defaultGraph));
+			}else
+			{
+				graphData = structuredClone(defaultGraph);
+			}
 			reset_invalid_values = true;
 		}
 
