@@ -170,15 +170,15 @@ class PromptServer():
 
                 subfolder = post.get("subfolder", "")
                 full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
+                filepath = os.path.abspath(os.path.join(full_output_folder, filename))
 
-                if os.path.commonpath((upload_dir, os.path.abspath(full_output_folder))) != upload_dir:
+                if os.path.commonpath((upload_dir, filepath)) != upload_dir:
                     return web.Response(status=400)
 
                 if not os.path.exists(full_output_folder):
                     os.makedirs(full_output_folder)
 
                 split = os.path.splitext(filename)
-                filepath = os.path.join(full_output_folder, filename)
 
                 if overwrite is not None and (overwrite == "true" or overwrite == "1"):
                     pass
@@ -398,7 +398,7 @@ class PromptServer():
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
             info['name'] = node_class
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
-            info['description'] = ''
+            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
                 info['output_node'] = True
@@ -603,7 +603,7 @@ class PromptServer():
             await self.send(*msg)
 
     async def start(self, address, port, verbose=True, call_on_start=None):
-        runner = web.AppRunner(self.app)
+        runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         site = web.TCPSite(runner, address, port)
         await site.start()
