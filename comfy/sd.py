@@ -454,20 +454,26 @@ def load_unet(unet_path): #load unet in diffusers format
     sd = comfy.utils.load_torch_file(unet_path)
     parameters = comfy.utils.calculate_parameters(sd)
     fp16 = model_management.should_use_fp16(model_params=parameters)
+    if "input_blocks.0.0.weight" in sd: #ldm
+        model_config = model_detection.model_config_from_unet(sd, "", fp16)
+        if model_config is None:
+            raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+        new_sd = sd
 
-    model_config = model_detection.model_config_from_diffusers_unet(sd, fp16)
-    if model_config is None:
-        print("ERROR UNSUPPORTED UNET", unet_path)
-        return None
+    else: #diffusers
+        model_config = model_detection.model_config_from_diffusers_unet(sd, fp16)
+        if model_config is None:
+            print("ERROR UNSUPPORTED UNET", unet_path)
+            return None
 
-    diffusers_keys = comfy.utils.unet_to_diffusers(model_config.unet_config)
+        diffusers_keys = comfy.utils.unet_to_diffusers(model_config.unet_config)
 
-    new_sd = {}
-    for k in diffusers_keys:
-        if k in sd:
-            new_sd[diffusers_keys[k]] = sd.pop(k)
-        else:
-            print(diffusers_keys[k], k)
+        new_sd = {}
+        for k in diffusers_keys:
+            if k in sd:
+                new_sd[diffusers_keys[k]] = sd.pop(k)
+            else:
+                print(diffusers_keys[k], k)
     offload_device = model_management.unet_offload_device()
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
