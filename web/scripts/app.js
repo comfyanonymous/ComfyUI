@@ -671,6 +671,10 @@ export class ComfyApp {
 	 */
 	#addPasteHandler() {
 		document.addEventListener("paste", (e) => {
+			// ctrl+shift+v is used to paste nodes with connections
+			// this is handled by litegraph
+			if(this.shiftDown) return;
+
 			let data = (e.clipboardData || window.clipboardData);
 			const items = data.items;
 
@@ -735,9 +739,17 @@ export class ComfyApp {
 	 */
 	#addCopyHandler() {
 		document.addEventListener("copy", (e) => {
-			// copy
+			if (e.target.type === "text" || e.target.type === "textarea") {
+				// Default system copy
+				return;
+			}
+			// copy nodes and clear clipboard
 			if (this.canvas.selected_nodes) {
-			    this.canvas.copyToClipboard();
+				this.canvas.copyToClipboard();
+				e.clipboardData.setData('text', ' '); //clearData doesn't remove images from clipboard
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				return false;
 			}
 		});
 	}
@@ -840,24 +852,14 @@ export class ComfyApp {
 
 				// Ctrl+C Copy
 				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
-					if (e.shiftKey) {
-						this.copyToClipboard(true);
-						block_default = true;
-					}
-					// Trigger default onCopy
+					// Trigger onCopy
 					return true;
 				}
 
 				// Ctrl+V Paste
-				if ((e.key === 'v') && (e.metaKey || e.ctrlKey)) {
-					if (e.shiftKey) {
-						this.pasteFromClipboard(true);
-						block_default = true;
-					}
-					else {
-						// Trigger default onPaste
-						return true;
-					}
+				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+					// Trigger onPaste
+					return true;
 				}
 			}
 
@@ -1247,6 +1249,10 @@ export class ComfyApp {
 						if(widgetCreated && inputData[1]?.forceInput && config?.widget) {
 							if (!config.widget.options) config.widget.options = {};
 							config.widget.options.forceInput = inputData[1].forceInput;
+						}
+						if(widgetCreated && inputData[1]?.defaultInput && config?.widget) {
+							if (!config.widget.options) config.widget.options = {};
+							config.widget.options.defaultInput = inputData[1].defaultInput;
 						}
 					}
 
