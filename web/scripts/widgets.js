@@ -8,8 +8,13 @@ function getNumberDefaults(inputData, defaultStep) {
 	if (min == undefined) min = 0;
 	if (max == undefined) max = 2048;
 	if (step == undefined) step = defaultStep;
+// precision is the number of decimal places to show. 
+// by default, display the the smallest number of decimal places such that changes of size step are visible.
+	let precision = Math.max(-Math.floor(Math.log10(step)),0)
+// by default, round the value to those decimal places shown.
+	let round = Math.round(1000000*Math.pow(0.1,precision))/1000000;
 
-	return { val: defaultVal, config: { min, max, step: 10.0 * step } };
+	return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
@@ -264,7 +269,10 @@ export const ComfyWidgets = {
 	FLOAT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 0.5);
-		return { widget: node.addWidget(widgetType, inputName, val, () => {}, config) };
+		return { widget: node.addWidget(widgetType, inputName, val, 
+			function (v) {
+				this.value = Math.round(v/config.round)*config.round;
+			}, config) };
 	},
 	INT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
@@ -335,7 +343,7 @@ export const ComfyWidgets = {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = api.apiURL(`/view?filename=${name}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`);
+			img.src = api.apiURL(`/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`);
 			node.setSizeForImage?.();
 		}
 
