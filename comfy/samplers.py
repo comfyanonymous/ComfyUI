@@ -255,6 +255,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     else:
                         transformer_options["patches"] = patches
 
+                transformer_options["cond_or_uncond"] = cond_or_uncond[:]
                 c['transformer_options'] = transformer_options
 
                 if 'model_function_wrapper' in model_options:
