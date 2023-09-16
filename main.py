@@ -97,7 +97,7 @@ def prompt_worker(q, server):
         if server.client_id is not None:
             server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
 
-        print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
+        print("Prompt executed in {:.2f} seconds. ID: {}".format(time.perf_counter() - execution_start_time, prompt_id))
         gc.collect()
         comfy.model_management.soft_empty_cache()
 
