@@ -532,7 +532,17 @@ export class ComfyApp {
 								}
 							}
 							this.imageRects.push([x, y, cellWidth, cellHeight]);
-							ctx.drawImage(img, x, y, cellWidth, cellHeight);
+
+                            let wratio = cellWidth/img.width;
+                            let hratio = cellHeight/img.height;
+                            var ratio = Math.min(wratio, hratio);
+
+                            let imgHeight = ratio * img.height;
+                            let imgY = row * cellHeight + shiftY + (cellHeight - imgHeight)/2;
+                            let imgWidth = ratio * img.width;
+                            let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth)/2;
+
+							ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
 							ctx.filter = "none";
 						}
 
