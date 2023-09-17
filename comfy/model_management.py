@@ -165,6 +165,9 @@ try:
                 ENABLE_PYTORCH_ATTENTION = True
             if torch.cuda.is_bf16_supported():
                 VAE_DTYPE = torch.bfloat16
+    if is_intel_xpu():
+        if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
+            ENABLE_PYTORCH_ATTENTION = True
 except:
     pass
 
