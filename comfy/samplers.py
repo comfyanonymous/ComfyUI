@@ -544,7 +544,7 @@ def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
 
 
 class KSampler:
-    SCHEDULERS = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
+    SCHEDULERS = ["normal", "karras", "exponential", "polyexponential", "vp", "sgm_uniform", "simple", "ddim_uniform"]
     SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
                 "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
                 "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "ddim", "uni_pc", "uni_pc_bh2"]
@@ -580,9 +580,13 @@ class KSampler:
             discard_penultimate_sigma = True
 
         if self.scheduler == "karras":
-            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
+            sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max, device=self.device)
         elif self.scheduler == "exponential":
-            sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max)
+            sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max, device=self.device)
+        elif self.scheduler == "polyexponential":
+            sigmas = k_diffusion_sampling.get_sigmas_polyexponential(n=steps, sigma_min=self.sigma_min, sigma_max=self.sigma_max, device=self.device)
+        elif self.scheduler == "vp":
+            sigmas = k_diffusion_sampling.get_sigmas_vp(n=steps, device=self.device)
         elif self.scheduler == "normal":
             sigmas = self.model_wrap.get_sigmas(steps)
         elif self.scheduler == "simple":
