@@ -12,7 +12,10 @@ function getNumberDefaults(inputData, defaultStep, app) {
 	// when using the old behavior, it defaults to 3 decimal places
 	let precision = 3;
 	let round = 0.001;
-	if (!app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")) {
+	if (app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision") > 0) {
+		precision = app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision");
+		round = Math.round(1000000*Math.pow(0.1,precision))/1000000;
+	} else if (!app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")) {
 		// display the the smallest number of decimal places such that changes of size step are visible.
 		precision = Math.max(-Math.floor(Math.log10(step)),0);
 		// round the value to those decimal places shown.
