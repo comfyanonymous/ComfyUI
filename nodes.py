@@ -1,3 +1,6 @@
+import types
+from pathlib import Path
+from typing import Union
 import torch
 
 import os
@@ -16,7 +19,7 @@ import safetensors.torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
-
+from comfy.cli_args import args
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
@@ -33,6 +36,9 @@ import importlib
 
 import folder_paths
 import latent_preview
+
+from watchdog.events import FileSystemEventHandler, FileModifiedEvent, DirModifiedEvent
+from watchdog.observers import Observer
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -1730,25 +1736,23 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 EXTENSION_WEB_DIRS = {}
 
-def load_custom_node(module_path, ignore=set()):
-    module_name = os.path.basename(module_path)
-    if os.path.isfile(module_path):
-        sp = os.path.splitext(module_path)
-        module_name = sp[0]
-    try:
-        if os.path.isfile(module_path):
-            module_spec = importlib.util.spec_from_file_location(module_name, module_path)
-            module_dir = os.path.split(module_path)[0]
-        else:
-            module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
-            module_dir = module_path
+def load_custom_node(module_path, ignore=set(), reload=False):
+    module_rel_path = Path(os.path.relpath(module_path, folder_paths.base_path))
+    package = module_rel_path.parts[0]
+    module_name = module_rel_path.parts[1]
 
-        module = importlib.util.module_from_spec(module_spec)
-        sys.modules[module_name] = module
-        module_spec.loader.exec_module(module)
+    if os.path.isfile(module_path):
+        file_and_ext = os.path.splitext(module_name)
+        module_name = file_and_ext[0]
+    try:
+        module = importlib.import_module(f'{package}.{module_name}', package=package)
+        if reload:
+            node_pkg_dict, node_depth_dict = get_package_dependencies(module)
+            for (d, v) in sorted([(d, v) for v, d in node_depth_dict.items()], reverse=True):
+                importlib.reload(node_pkg_dict[v])
 
         if hasattr(module, "WEB_DIRECTORY") and getattr(module, "WEB_DIRECTORY") is not None:
-            web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
+            web_dir = os.path.abspath(os.path.join(module_rel_path, getattr(module, "WEB_DIRECTORY")))
             if os.path.isdir(web_dir):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
@@ -1794,6 +1798,104 @@ def load_custom_nodes():
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 
+
+def get_package_dependencies(package):
+    assert (hasattr(package, "__package__"))
+    fn = package.__file__
+    fn_dir = os.path.dirname(fn) + os.sep
+    node_set = {fn}  # set of module filenames
+    node_depth_dict = {fn: 0}  # tracks the greatest depth that we've seen for each node
+    node_pkg_dict = {fn: package}  # mapping of module filenames to module objects
+    link_set = set()  # tuple of (parent module filename, child module filename)
+    del fn
+
+    def dependency_traversal_recursive(module, depth):
+        for module_child in vars(module).values():
+
+            # skip anything that isn't a module
+            if not isinstance(module_child, types.ModuleType):
+                continue
+
+            fn_child = getattr(module_child, "__file__", None)
+
+            # skip anything without a filename or outside the package
+            if (fn_child is None) or (not fn_child.startswith(fn_dir)):
+                continue
+
+            # have we seen this module before? if not, add it to the database
+            if not fn_child in node_set:
+                node_set.add(fn_child)
+                node_depth_dict[fn_child] = depth
+                node_pkg_dict[fn_child] = module_child
+
+            # set the depth to be the deepest depth we've encountered the node
+            node_depth_dict[fn_child] = max(depth, node_depth_dict[fn_child])
+
+            # have we visited this child module from this parent module before?
+            if not ((module.__file__, fn_child) in link_set):
+                link_set.add((module.__file__, fn_child))
+                dependency_traversal_recursive(module_child, depth + 1)
+            else:
+                raise ValueError("Cycle detected in dependency graph!")
+
+    dependency_traversal_recursive(package, 1)
+    return (node_pkg_dict, node_depth_dict)
+
+
+def get_topmost_subdirectory_or_file(parent_path, target_path):
+    """Returns the topmost subdirectory or file of target_path that is a subdirectory of parent_path."""
+    parent_path = os.path.abspath(parent_path)
+    target_path = os.path.abspath(target_path)
+    if not target_path.startswith(parent_path):
+        raise ValueError(f"{target_path} is not a subdirectory of {parent_path}")
+
+    relative_path = os.path.relpath(target_path, parent_path)
+    topmost_subdirectory = relative_path.split(os.sep)[0]
+    return os.path.join(parent_path, topmost_subdirectory)
+
+def start_custom_node_monitor():
+    last_called = {}
+    def file_modified_handler_builder(custom_nodes_dir):
+        def file_modified_handler(event: Union[FileModifiedEvent, DirModifiedEvent]):
+            if event.is_directory:
+                return
+
+            if "__pycache__" in event.src_path:
+                return
+
+            # Ignore temporary files
+            if event.src_path.endswith("~"):
+                return
+
+            try:
+                module_path = get_topmost_subdirectory_or_file(custom_nodes_dir, event.src_path)
+            except ValueError:
+                print(f"[ERROR]: Cannot find topmost subdirectory or file of {event.src_path} in {custom_nodes_dir}. "
+                      f"Is the file in a subdirectory of {custom_nodes_dir}?")
+                return
+
+            # Race condition where the file is deleted before the event is handled
+            if not os.path.exists(module_path): return
+            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": return
+            if module_path.endswith(".disabled"): return
+
+            # Workaround for when editors do a format on save
+            path_last_seen = last_called.get(module_path, 0)
+            time_since = time.time() - path_last_seen
+
+            if time_since > 1:
+                last_called[module_path] = time.time()
+                load_custom_node(module_path, reload=True)
+
+        return file_modified_handler
+
+    for custom_node_dir in folder_paths.get_folder_paths("custom_nodes"):
+        event_handler = FileSystemEventHandler()
+        event_handler.on_modified = file_modified_handler_builder(custom_node_dir)
+        observer = Observer()
+        observer.schedule(event_handler, path=custom_node_dir, recursive=True)
+        observer.start()
+
 def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_latent.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
@@ -1807,3 +1909,5 @@ def init_custom_nodes():
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_canny.py"))
     load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_freelunch.py"))
     load_custom_nodes()
+    if args.monitor_nodes:
+        start_custom_node_monitor()
