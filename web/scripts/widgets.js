@@ -2,25 +2,24 @@ import { api } from "./api.js"
 
 function getNumberDefaults(inputData, defaultStep, app) {
 	let defaultVal = inputData[1]["default"];
-	let { min, max, step } = inputData[1];
+	let { min, max, step, round} = inputData[1];
 
 	if (defaultVal == undefined) defaultVal = 0;
 	if (min == undefined) min = 0;
 	if (max == undefined) max = 2048;
 	if (step == undefined) step = defaultStep;
-	// precision is the number of decimal places to show. 
-	// when using the old behavior, it defaults to 3 decimal places
-	let precision = 3;
-	let round = 0.001;
-	if (app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision") > 0) {
+	// precision is the number of decimal places to show.
+	// by default, display the the smallest number of decimal places such that changes of size step are visible.
+	let precision = Math.max(-Math.floor(Math.log10(step)),0);
+  if (app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision") > 0) {
 		precision = app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision");
-		round = Math.round(1000000*Math.pow(0.1,precision))/1000000;
-	} else if (!app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")) {
-		// display the the smallest number of decimal places such that changes of size step are visible.
-		precision = Math.max(-Math.floor(Math.log10(step)),0);
-		// round the value to those decimal places shown.
+	}
+
+	if (!app.ui.settings.getSettingValue("Comfy.DisableFloatRounding") && (round == undefined || round === true)) {
+		// by default, round the value to those decimal places shown.
 		round = Math.round(1000000*Math.pow(0.1,precision))/1000000;
 	}
+
 
 	return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
@@ -277,14 +276,14 @@ export const ComfyWidgets = {
 	FLOAT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
 		const { val, config } = getNumberDefaults(inputData, 0.5, app);
-		if (!app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")) {
-			return { widget: node.addWidget(widgetType, inputName, val, 
-				function (v) {
+		return { widget: node.addWidget(widgetType, inputName, val, 
+			function (v) {
+				if (config.round) {
 					this.value = Math.round(v/config.round)*config.round;
-				}, config) };
-		} else {
-			return { widget: node.addWidget(widgetType, inputName, val, () => {}, config) };
-		}
+				} else {
+					this.value = v;
+				}
+			}, config) };
 	},
 	INT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
