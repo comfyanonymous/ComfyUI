@@ -132,12 +132,12 @@ class PromptServer():
         @routes.get("/extensions")
         async def get_extensions(request):
             files = glob.glob(os.path.join(
-                self.web_root, 'extensions/**/*.js'), recursive=True)
+                glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
             
             extensions = list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files))
             
             for name, dir in nodes.EXTENSION_WEB_DIRS.items():
-                files = glob.glob(os.path.join(dir, '**/*.js'), recursive=True)
+                files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
                 extensions.extend(list(map(lambda f: "/extensions/" + urllib.parse.quote(
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
