@@ -1,6 +1,6 @@
 import { api } from "./api.js"
 
-function getNumberDefaults(inputData, defaultStep, app) {
+function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 	let defaultVal = inputData[1]["default"];
 	let { min, max, step, round} = inputData[1];
 
@@ -10,16 +10,14 @@ function getNumberDefaults(inputData, defaultStep, app) {
 	if (step == undefined) step = defaultStep;
 	// precision is the number of decimal places to show.
 	// by default, display the the smallest number of decimal places such that changes of size step are visible.
-	let precision = Math.max(-Math.floor(Math.log10(step)),0);
-  if (app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision") > 0) {
-		precision = app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision");
+	if (precision == undefined) {
+		precision = Math.max(-Math.floor(Math.log10(step)),0);
 	}
 
-	if (!app.ui.settings.getSettingValue("Comfy.DisableFloatRounding") && (round == undefined || round === true)) {
+	if (enable_rounding && (round == undefined || round === true)) {
 		// by default, round the value to those decimal places shown.
 		round = Math.round(1000000*Math.pow(0.1,precision))/1000000;
 	}
-
 
 	return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
@@ -275,7 +273,10 @@ export const ComfyWidgets = {
 	"INT:noise_seed": seedWidget,
 	FLOAT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
-		const { val, config } = getNumberDefaults(inputData, 0.5, app);
+		let precision = app.ui.settings.getSettingValue("Comfy.FloatRoundingPrecision");
+		let disable_rounding = app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")
+		if (precision == 0) precision = undefined;
+		const { val, config } = getNumberDefaults(inputData, 0.5, precision, !disable_rounding);
 		return { widget: node.addWidget(widgetType, inputName, val, 
 			function (v) {
 				if (config.round) {
@@ -287,7 +288,7 @@ export const ComfyWidgets = {
 	},
 	INT(node, inputName, inputData, app) {
 		let widgetType = isSlider(inputData[1]["display"], app);
-		const { val, config } = getNumberDefaults(inputData, 1, app);
+		const { val, config } = getNumberDefaults(inputData, 1, 0, true);
 		Object.assign(config, { precision: 0 });
 		return {
 			widget: node.addWidget(
