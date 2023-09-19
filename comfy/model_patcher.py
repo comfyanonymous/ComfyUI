@@ -154,7 +154,7 @@ class ModelPatcher:
                 self.backup[key] = weight.to(self.offload_device)
 
             if device_to is not None:
-                temp_weight = weight.float().to(device_to, copy=True)
+                temp_weight = weight.to(device_to, copy=True).float()
             else:
                 temp_weight = weight.to(torch.float32, copy=True)
             out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
