@@ -532,7 +532,17 @@ export class ComfyApp {
 								}
 							}
 							this.imageRects.push([x, y, cellWidth, cellHeight]);
-							ctx.drawImage(img, x, y, cellWidth, cellHeight);
+
+							let wratio = cellWidth/img.width;
+							let hratio = cellHeight/img.height;
+							var ratio = Math.min(wratio, hratio);
+
+							let imgHeight = ratio * img.height;
+							let imgY = row * cellHeight + shiftY + (cellHeight - imgHeight)/2;
+							let imgWidth = ratio * img.width;
+							let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth)/2;
+
+							ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
 							ctx.filter = "none";
 						}
 
@@ -671,6 +681,10 @@ export class ComfyApp {
 	 */
 	#addPasteHandler() {
 		document.addEventListener("paste", (e) => {
+			// ctrl+shift+v is used to paste nodes with connections
+			// this is handled by litegraph
+			if(this.shiftDown) return;
+
 			let data = (e.clipboardData || window.clipboardData);
 			const items = data.items;
 
@@ -853,7 +867,7 @@ export class ComfyApp {
 				}
 
 				// Ctrl+V Paste
-				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey)) {
+				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
 					// Trigger onPaste
 					return true;
 				}
@@ -1293,7 +1307,13 @@ export class ComfyApp {
 
 		let reset_invalid_values = false;
 		if (!graphData) {
-			graphData = structuredClone(defaultGraph);
+			if (typeof structuredClone === "undefined")
+			{
+				graphData = JSON.parse(JSON.stringify(defaultGraph));
+			}else
+			{
+				graphData = structuredClone(defaultGraph);
+			}
 			reset_invalid_values = true;
 		}
 

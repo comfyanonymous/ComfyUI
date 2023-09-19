@@ -889,8 +889,8 @@ class EmptyLatentImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
+        return {"required": { "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
+                              "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
@@ -1217,7 +1217,7 @@ class KSampler:
                     {"model": ("MODEL",),
                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
                     "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
@@ -1243,7 +1243,7 @@ class KSamplerAdvanced:
                     "add_noise": (["enable", "disable"], ),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
                     "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
@@ -1423,7 +1423,7 @@ class LoadImageMask:
         return True
 
 class ImageScale:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
     crop_methods = ["disabled", "center"]
 
     @classmethod
@@ -1444,7 +1444,7 @@ class ImageScale:
         return (s,)
 
 class ImageScaleBy:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
 
     @classmethod
     def INPUT_TYPES(s):
