@@ -1,0 +1,937 @@
+{
+  "last_node_id": 34,
+  "last_link_id": 46,
+  "nodes": [
+    {
+      "id": 15,
+      "type": "PrimitiveNode",
+      "pos": [
+        -107,
+        -174
+      ],
+      "size": {
+        "0": 443.08819580078125,
+        "1": 178.10165405273438
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            18,
+            19
+          ],
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "Positive Prompt",
+      "properties": {},
+      "widgets_values": [
+        "A selfie photograph of an angry man adjusting his selfie cam and realising he is surrounded by dark alien knight robots marching towards him, preparing for war in a misty field on a cold morning, in the style of a cinematic 4K sci-fi film, by Paul Verhoeven, realistic human proportions, perfectly centred composition, beautiful, intricate, insanely detailed, 8K, artistic photography, photorealistic concept art, soft natural volumetric cinematic light, chiaroscuro, award-winning photograph, masterpiece, realistic photograph, hyper-realistic, high quality, trending art, sharp focus with depth of field, studio photo, ultra-real, ray-traced octane render, a lot of textures, complex, hyper-realistic, HDR, DTM, Ultra HD, glow effects, cinematic, sensual, dramatic light, low key"
+      ],
+      "color": "#232",
+      "bgcolor": "#353",
+      "shape": 4
+    },
+    {
+      "id": 13,
+      "type": "CLIPTextEncode",
+      "pos": [
+        402,
+        -423
+      ],
+      "size": {
+        "0": 210,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 13
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 21,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            33
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "historic garb, duplicate figures, tacky, ugly, duplication, duplicates, deformed, mutation, twisted body, fused body, additional body, missing body, disfigured, imperfect anatomy, imperfect proportions, gross proportions, extra fingers, mutated hands, poorly drawn hands, extra limbs, malformed limbs, missing arms, additional arms, missing legs, additional legs, mutated feet, additional feet, fused toes, missing toes, additional toes, mutated hands, additional hands, fused fingers, missing fingers, additional fingers, long neck, duplicate heads, small head, oversized head, extra head, makeup, closed eyes, rolling eyes, weird eyes, extra eyes, additional eyebrows, coloured sclera, smudged face, blurred face, long face, poorly drawn face, cloned face, extra face, strange mouth, additional mouth, additional nose, misplaced ears, additional ears, cut-off, out-of-frame, grainy, blurred, blurry, writing, calligraphy, signature, text, numbers, coordinates, watermark, cartoon, painting, unrealistic, render, bad art, hat, b&w, frame"
+      ]
+    },
+    {
+      "id": 16,
+      "type": "PrimitiveNode",
+      "pos": [
+        -105,
+        55
+      ],
+      "size": {
+        "0": 434.10662841796875,
+        "1": 153.8605194091797
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            21,
+            22
+          ],
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "Negative Prompt",
+      "properties": {},
+      "widgets_values": [
+        "historic garb, duplicate figures, tacky, ugly, duplication, duplicates, deformed, mutation, twisted body, fused body, additional body, missing body, disfigured, imperfect anatomy, imperfect proportions, gross proportions, extra fingers, mutated hands, poorly drawn hands, extra limbs, malformed limbs, missing arms, additional arms, missing legs, additional legs, mutated feet, additional feet, fused toes, missing toes, additional toes, mutated hands, additional hands, fused fingers, missing fingers, additional fingers, long neck, duplicate heads, small head, oversized head, extra head, makeup, closed eyes, rolling eyes, weird eyes, extra eyes, additional eyebrows, coloured sclera, smudged face, blurred face, long face, poorly drawn face, cloned face, extra face, strange mouth, additional mouth, additional nose, misplaced ears, additional ears, cut-off, out-of-frame, grainy, blurred, blurry, writing, calligraphy, signature, text, numbers, coordinates, watermark, cartoon, painting, unrealistic, render, bad art, hat, b&w, frame"
+      ],
+      "color": "#332922",
+      "bgcolor": "#593930",
+      "shape": 4
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        408,
+        91
+      ],
+      "size": {
+        "0": 210,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 22,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            25
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "historic garb, duplicate figures, tacky, ugly, duplication, duplicates, deformed, mutation, twisted body, fused body, additional body, missing body, disfigured, imperfect anatomy, imperfect proportions, gross proportions, extra fingers, mutated hands, poorly drawn hands, extra limbs, malformed limbs, missing arms, additional arms, missing legs, additional legs, mutated feet, additional feet, fused toes, missing toes, additional toes, mutated hands, additional hands, fused fingers, missing fingers, additional fingers, long neck, duplicate heads, small head, oversized head, extra head, makeup, closed eyes, rolling eyes, weird eyes, extra eyes, additional eyebrows, coloured sclera, smudged face, blurred face, long face, poorly drawn face, cloned face, extra face, strange mouth, additional mouth, additional nose, misplaced ears, additional ears, cut-off, out-of-frame, grainy, blurred, blurry, writing, calligraphy, signature, text, numbers, coordinates, watermark, cartoon, painting, unrealistic, render, bad art, hat, b&w, frame"
+      ]
+    },
+    {
+      "id": 12,
+      "type": "CLIPTextEncode",
+      "pos": [
+        405,
+        -475
+      ],
+      "size": {
+        "0": 219,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 11
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 18,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            32
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "A selfie photograph of an angry man adjusting his selfie cam and realising he is surrounded by dark alien knight robots marching towards him, preparing for war in a misty field on a cold morning, in the style of a cinematic 4K sci-fi film, by Paul Verhoeven, realistic human proportions, perfectly centred composition, beautiful, intricate, insanely detailed, 8K, artistic photography, photorealistic concept art, soft natural volumetric cinematic light, chiaroscuro, award-winning photograph, masterpiece, realistic photograph, hyper-realistic, high quality, trending art, sharp focus with depth of field, studio photo, ultra-real, ray-traced octane render, a lot of textures, complex, hyper-realistic, HDR, DTM, Ultra HD, glow effects, cinematic, sensual, dramatic light, low key"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "SaveImage",
+      "pos": [
+        786,
+        -324
+      ],
+      "size": {
+        "0": 498.0664367675781,
+        "1": 450.2424621582031
+      },
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 30
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "refiner_output"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        788,
+        239
+      ],
+      "size": {
+        "0": 491.8146667480469,
+        "1": 421.54522705078125
+      },
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "base_output"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        409,
+        43
+      ],
+      "size": {
+        "0": 210,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 19,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            46
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "A selfie photograph of an angry man adjusting his selfie cam and realising he is surrounded by dark alien knight robots marching towards him, preparing for war in a misty field on a cold morning, in the style of a cinematic 4K sci-fi film, by Paul Verhoeven, realistic human proportions, perfectly centred composition, beautiful, intricate, insanely detailed, 8K, artistic photography, photorealistic concept art, soft natural volumetric cinematic light, chiaroscuro, award-winning photograph, masterpiece, realistic photograph, hyper-realistic, high quality, trending art, sharp focus with depth of field, studio photo, ultra-real, ray-traced octane render, a lot of textures, complex, hyper-realistic, HDR, DTM, Ultra HD, glow effects, cinematic, sensual, dramatic light, low key"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -90,
+        305
+      ],
+      "size": {
+        "0": 406.0855407714844,
+        "1": 98
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            27
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            3,
+            5
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            8
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "sd_xl_base_1.0.safetensors"
+      ]
+    },
+    {
+      "id": 11,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -92,
+        -324
+      ],
+      "size": {
+        "0": 409.50274658203125,
+        "1": 98
+      },
+      "flags": {
+        "collapsed": false
+      },
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            34
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            11,
+            13
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            37
+          ],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "sd_xl_refiner_1.0.safetensors"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "KSampler",
+      "pos": [
+        411,
+        315
+      ],
+      "size": {
+        "0": 301.9153137207031,
+        "1": 266.17962646484375
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 27
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 46,
+          "slot_index": 1
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 25
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            35,
+            39
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        145934470276532,
+        "randomize",
+        30,
+        6,
+        "dpmpp_2m_sde_gpu",
+        "karras",
+        1
+      ]
+    },
+    {
+      "id": 20,
+      "type": "KSampler",
+      "pos": [
+        402,
+        -374
+      ],
+      "size": {
+        "0": 315,
+        "1": 262
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 34
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 32
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 33
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 35
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            36
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "KSampler for refiner (like img2img)",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        846395754930283,
+        "randomize",
+        15,
+        8,
+        "dpmpp_2m_sde_gpu",
+        "karras",
+        0.25
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [
+        493,
+        641
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 39
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 18,
+      "type": "VAEDecode",
+      "pos": [
+        642,
+        -468
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 36
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 37
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            30
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 21,
+      "type": "EmptyLatentImage",
+      "pos": [
+        409,
+        154
+      ],
+      "size": {
+        "0": 308.3326416015625,
+        "1": 106
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            38
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "Image Size\n",
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        768,
+        1
+      ]
+    }
+  ],
+  "links": [
+    [
+      3,
+      4,
+      1,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      5,
+      4,
+      1,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      8,
+      4,
+      2,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      9,
+      8,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      11,
+      11,
+      1,
+      12,
+      0,
+      "CLIP"
+    ],
+    [
+      13,
+      11,
+      1,
+      13,
+      0,
+      "CLIP"
+    ],
+    [
+      18,
+      15,
+      0,
+      12,
+      1,
+      "STRING"
+    ],
+    [
+      19,
+      15,
+      0,
+      6,
+      1,
+      "STRING"
+    ],
+    [
+      21,
+      16,
+      0,
+      13,
+      1,
+      "STRING"
+    ],
+    [
+      22,
+      16,
+      0,
+      7,
+      1,
+      "STRING"
+    ],
+    [
+      25,
+      7,
+      0,
+      17,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      27,
+      4,
+      0,
+      17,
+      0,
+      "MODEL"
+    ],
+    [
+      30,
+      18,
+      0,
+      19,
+      0,
+      "IMAGE"
+    ],
+    [
+      32,
+      12,
+      0,
+      20,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      33,
+      13,
+      0,
+      20,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      34,
+      11,
+      0,
+      20,
+      0,
+      "MODEL"
+    ],
+    [
+      35,
+      17,
+      0,
+      20,
+      3,
+      "LATENT"
+    ],
+    [
+      36,
+      20,
+      0,
+      18,
+      0,
+      "LATENT"
+    ],
+    [
+      37,
+      11,
+      2,
+      18,
+      1,
+      "VAE"
+    ],
+    [
+      38,
+      21,
+      0,
+      17,
+      3,
+      "LATENT"
+    ],
+    [
+      39,
+      17,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      46,
+      6,
+      0,
+      17,
+      1,
+      "CONDITIONING"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "REFINER HERE",
+      "bounding": [
+        -109,
+        -404,
+        442,
+        189
+      ],
+      "color": "#3f789e"
+    },
+    {
+      "title": "BASE HERE",
+      "bounding": [
+        -109,
+        226,
+        444,
+        192
+      ],
+      "color": "#8A8"
+    },
+    {
+      "title": "RESULT WITHOUT REFINER",
+      "bounding": [
+        770,
+        153,
+        534,
+        534
+      ],
+      "color": "#b58b2a"
+    },
+    {
+      "title": "RESULT WITH REFINER",
+      "bounding": [
+        768,
+        -403,
+        534,
+        545
+      ],
+      "color": "#a1309b"
+    },
+    {
+      "title": "SDXL 0.9",
+      "bounding": [
+        400,
+        -94,
+        311,
+        80
+      ],
+      "color": "#8AA"
+    }
+  ],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

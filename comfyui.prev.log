@@ -1,0 +1,277 @@
+** ComfyUI start up time: 2023-09-19 08:07:54.847268
+
+#######################################################################
+[ComfyUI-Manager] Starting dependency installation/(de)activation for the extension
+
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'torch']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: torch in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (2.0.1+cu118)
+ Requirement already satisfied: filelock in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch) (3.12.2)
+ Requirement already satisfied: typing-extensions in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch) (4.7.1)
+ Requirement already satisfied: sympy in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch) (1.12)
+ Requirement already satisfied: networkx in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch) (3.1)
+ Requirement already satisfied: jinja2 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch) (3.1.2)
+ Requirement already satisfied: MarkupSafe>=2.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from jinja2->torch) (2.1.3)
+ Requirement already satisfied: mpmath>=0.19 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from sympy->torch) (1.3.0)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'torchsde']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: torchsde in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (0.2.5)
+ Requirement already satisfied: boltons>=20.2.1 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torchsde) (23.0.0)
+ Requirement already satisfied: torch>=1.6.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torchsde) (2.0.1+cu118)
+ Requirement already satisfied: trampoline>=0.1.2 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torchsde) (0.1.2)
+ Requirement already satisfied: numpy>=1.19.* in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torchsde) (1.23.5)
+ Requirement already satisfied: scipy>=1.5 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torchsde) (1.11.1)
+ Requirement already satisfied: filelock in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->torchsde) (3.12.2)
+ Requirement already satisfied: typing-extensions in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->torchsde) (4.7.1)
+ Requirement already satisfied: sympy in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->torchsde) (1.12)
+ Requirement already satisfied: networkx in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->torchsde) (3.1)
+ Requirement already satisfied: jinja2 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->torchsde) (3.1.2)
+ Requirement already satisfied: MarkupSafe>=2.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from jinja2->torch>=1.6.0->torchsde) (2.1.3)
+ Requirement already satisfied: mpmath>=0.19 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from sympy->torch>=1.6.0->torchsde) (1.3.0)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'einops']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: einops in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (0.6.1)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'transformers>=4.25.1']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: transformers>=4.25.1 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (4.26.1)
+ Requirement already satisfied: filelock in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (3.12.2)
+ Requirement already satisfied: huggingface-hub<1.0,>=0.11.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (0.16.4)
+ Requirement already satisfied: numpy>=1.17 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (1.23.5)
+ Requirement already satisfied: packaging>=20.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (23.1)
+ Requirement already satisfied: pyyaml>=5.1 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (6.0)
+ Requirement already satisfied: regex!=2019.12.17 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (2023.6.3)
+ Requirement already satisfied: requests in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (2.31.0)
+ Requirement already satisfied: tokenizers!=0.11.3,<0.14,>=0.11.1 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (0.13.3)
+ Requirement already satisfied: tqdm>=4.27 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from transformers>=4.25.1) (4.65.0)
+ Requirement already satisfied: fsspec in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from huggingface-hub<1.0,>=0.11.0->transformers>=4.25.1) (2023.6.0)
+ Requirement already satisfied: typing-extensions>=3.7.4.3 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from huggingface-hub<1.0,>=0.11.0->transformers>=4.25.1) (4.7.1)
+ Requirement already satisfied: colorama in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from tqdm>=4.27->transformers>=4.25.1) (0.4.6)
+ Requirement already satisfied: charset-normalizer<4,>=2 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from requests->transformers>=4.25.1) (3.2.0)
+ Requirement already satisfied: idna<4,>=2.5 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from requests->transformers>=4.25.1) (3.4)
+ Requirement already satisfied: urllib3<3,>=1.21.1 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from requests->transformers>=4.25.1) (1.26.16)
+ Requirement already satisfied: certifi>=2017.4.17 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from requests->transformers>=4.25.1) (2023.5.7)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'safetensors>=0.3.0']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: safetensors>=0.3.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (0.3.1)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'aiohttp']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: aiohttp in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (3.8.4)
+ Requirement already satisfied: attrs>=17.3.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from aiohttp) (23.1.0)
+ Requirement already satisfied: charset-normalizer<4.0,>=2.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from aiohttp) (3.2.0)
+ Requirement already satisfied: multidict<7.0,>=4.5 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from aiohttp) (6.0.4)
+ Requirement already satisfied: async-timeout<5.0,>=4.0.0a3 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from aiohttp) (4.0.2)
+ Requirement already satisfied: yarl<2.0,>=1.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from aiohttp) (1.9.2)
+ Requirement already satisfied: frozenlist>=1.1.1 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from aiohttp) (1.3.3)
+ Requirement already satisfied: aiosignal>=1.1.2 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from aiohttp) (1.3.1)
+ Requirement already satisfied: idna>=2.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from yarl<2.0,>=1.0->aiohttp) (3.4)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'accelerate']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: accelerate in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (0.20.3)
+ Requirement already satisfied: numpy>=1.17 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from accelerate) (1.23.5)
+ Requirement already satisfied: packaging>=20.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from accelerate) (23.1)
+ Requirement already satisfied: psutil in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from accelerate) (5.9.5)
+ Requirement already satisfied: pyyaml in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from accelerate) (6.0)
+ Requirement already satisfied: torch>=1.6.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from accelerate) (2.0.1+cu118)
+ Requirement already satisfied: filelock in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->accelerate) (3.12.2)
+ Requirement already satisfied: typing-extensions in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->accelerate) (4.7.1)
+ Requirement already satisfied: sympy in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->accelerate) (1.12)
+ Requirement already satisfied: networkx in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->accelerate) (3.1)
+ Requirement already satisfied: jinja2 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from torch>=1.6.0->accelerate) (3.1.2)
+ Requirement already satisfied: MarkupSafe>=2.0 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from jinja2->torch>=1.6.0->accelerate) (2.1.3)
+ Requirement already satisfied: mpmath>=0.19 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from sympy->torch>=1.6.0->accelerate) (1.3.0)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'pyyaml']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: pyyaml in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (6.0)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'Pillow']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: Pillow in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (9.5.0)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'scipy']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: scipy in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (1.11.1)
+ Requirement already satisfied: numpy<1.28.0,>=1.21.6 in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from scipy) (1.23.5)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'tqdm']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: tqdm in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (4.65.0)
+ Requirement already satisfied: colorama in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (from tqdm) (0.4.6)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+## ComfyUI-Manager: EXECUTE => ['C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python.exe', '-m', 'pip', 'install', 'psutil']
+
+## Execute install/(de)activation script for 'C:\Users\culle\Documents\ComfyUI2\ComfyUI'
+ Requirement already satisfied: psutil in c:\users\culle\appdata\local\programs\python\python310\lib\site-packages (5.9.5)
+[!] DEPRECATION: torchsde 0.2.5 has a non-standard dependency specifier numpy>=1.19.*; python_version >= "3.7". pip 23.3 will enforce this behaviour change. A possible replacement is to upgrade to a newer version of torchsde or contact the author to suggest that they release a version with a conforming dependency specifiers. Discussion can be found at https://github.com/pypa/pip/issues/12063
+
+[ComfyUI-Manager] Startup script completed.
+#######################################################################
+
+
+Prestartup times for custom nodes:
+  27.7 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI-Manager
+
+Total VRAM 4096 MB, total RAM 16143 MB
+Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram
+xformers version: 0.0.20
+Set vram state to: LOW_VRAM
+Device: cuda:0 NVIDIA GeForce GTX 1650 with Max-Q Design : cudaMallocAsync
+VAE dtype: torch.float32
+Using xformers cross attention
+Adding extra search path checkpoints C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\Stable-diffusion
+Adding extra search path configs C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\Stable-diffusion
+Adding extra search path vae C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\VAE
+Adding extra search path loras C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\Lora
+Adding extra search path loras C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\LyCORIS
+Adding extra search path upscale_models C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\ESRGAN
+Adding extra search path upscale_models C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\RealESRGAN
+Adding extra search path upscale_models C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\SwinIR
+Adding extra search path upscale_models C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\Codeformer
+Adding extra search path embeddings C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\embeddings
+Adding extra search path hypernetworks C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\hypernetworks
+Adding extra search path controlnet C:\Users\culle\Documents\Stable Diffusion 2.1\stable-diffusion-webui\models\ControlNet
+Adding extra search path checkpoints C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\Stable-Diffusion
+Adding extra search path vae C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\VAE
+Adding extra search path vae C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\VAE
+Adding extra search path loras C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\Lora
+Adding extra search path loras C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\Lora
+Adding extra search path loras C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\LyCORIS
+Adding extra search path upscale_models C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\ESRGAN
+Adding extra search path upscale_models C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\RealESRGAN
+Adding extra search path upscale_models C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\SwinIR
+Adding extra search path embeddings C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\Embeddings
+Adding extra search path embeddings C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\embeddings
+Adding extra search path hypernetworks C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\hypernetworks
+Adding extra search path controlnet C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\controlnet
+Adding extra search path controlnet C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\ControlNet
+Adding extra search path clip_vision C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\clip_vision
+Adding extra search path clip_vision C:/Users/culle/Documents/Stable Diffusion 2.1/stable-diffusion-webui/models\clip_vision
+### Loading: ComfyUI-Impact-Pack (V3.21.1)
+### Loading: ComfyUI-Impact-Pack (Subpack: V0.2)
+### Loading: ComfyUI-Manager (V0.25.6)
+### ComfyUI Revision: 1468 [b2724cc5]
+### ComfyUI-Manager: Copy .js from 'C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI-Manager\js\comfyui-manager.js' to 'C:\Users\culle\Documents\ComfyUI2\ComfyUI\web\extensions\comfyui-manager'
+Registered sys.path: ['C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src\\__init__.py', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src\\custom_pycocotools', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src\\custom_oneformer', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src\\custom_mmpkg', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src\\custom_midas_repo', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src\\custom_detectron2', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src\\controlnet_aux', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\comfyui_controlnet_aux\\src', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\comfy', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\git\\ext\\gitdb', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\python310.zip', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\DLLs', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\lib', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\win32', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\win32\\lib', 'C:\\Users\\culle\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\Pythonwin', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\ComfyUI-Impact-Pack\\modules', 'C:\\Users\\culle\\Documents\\ComfyUI2\\ComfyUI\\custom_nodes\\ComfyUI-Impact-Pack\\subpack', '../..']
+Traceback (most recent call last):
+  File "C:\Users\culle\Documents\ComfyUI2\ComfyUI\nodes.py", line 1725, in load_custom_node
+    module_spec.loader.exec_module(module)
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI_tinyterraNodes\__init__.py", line 1, in <module>
+    from .tinyterraNodes import TTN_VERSIONS
+  File "C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI_tinyterraNodes\tinyterraNodes.py", line 24, in <module>
+    from comfy.sd import ModelPatcher, CLIP, VAE
+ImportError: cannot import name 'ModelPatcher' from 'comfy.sd' (C:\Users\culle\Documents\ComfyUI2\ComfyUI\comfy\sd.py)
+
+Cannot import C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI_tinyterraNodes module for custom nodes: cannot import name 'ModelPatcher' from 'comfy.sd' (C:\Users\culle\Documents\ComfyUI2\ComfyUI\comfy\sd.py)
+[33;20m[comfy_mtb] | WARNING -> Web extensions folder at C:\Users\culle\Documents\ComfyUI2\ComfyUI\web\extensions\mtb is not a symlink, if updating please delete it before[0m
+[36;20m[comfy_mtb] | INFO -> Loaded the following nodes:
+	[96mAnimation Builder (mtb)[0m: [94mConvenient way to manage basic animation maths at the core of many of my workflows[0m
+	[96mSmart Step (mtb)[0m: [94mUtils to control the steps start/stop of the KAdvancedSampler in percentage[0m
+	[96mStyles Loader (mtb)[0m: [94mLoad csv files and populate a dropdown from the rows (à la A111)[0m
+	[96mInterpolate Clip Sequential (mtb)[0m: -
+	[96mBbox From Mask (mtb)[0m: [94mFrom a mask extract the bounding box[0m
+	[96mBbox (mtb)[0m: [94mThe bounding box (BBOX) custom type used by other nodes[0m
+	[96mCrop (mtb)[0m: [94mCrops an image and an optional mask to a given bounding box[0m
+	[96mUncrop (mtb)[0m: [94mUncrops an image to a given bounding box[0m
+	[96mDebug (mtb)[0m: [94mExperimental node to debug any Comfy values, support for more types and widgets is planned[0m
+	[96mSave Tensors (mtb)[0m: [94mSave torch tensors (image, mask or latent) to disk, useful to debug things outside comfy[0m
+	[96mDeep Bump (mtb)[0m: [94mNormal & height maps generation from single pictures[0m
+	[96mRestore Face (mtb)[0m: [94mUses GFPGan to restore faces[0m
+	[96mLoad Face Enhance Model (mtb)[0m: [94mLoads a GFPGan or RestoreFormer model for face enhancement.[0m
+	[96mFace Swap (mtb)[0m: [94mFace swap using deepinsight/insightface models[0m
+	[96mLoad Face Swap Model (mtb)[0m: [94mLoads a faceswap model[0m
+	[96mLoad Face Analysis Model (mtb)[0m: [94mLoads a face analysis model[0m
+	[96mQr Code (mtb)[0m: [94mBasic QR Code generator[0m
+	[96mUnsplash Image (mtb)[0m: [94mUnsplash Image given a keyword and a size[0m
+	[96mText To Image (mtb)[0m: [94mUtils to convert text to image using a font[0m
+	[96mString Replace (mtb)[0m: [94mBasic string replacement[0m
+	[96mFit Number (mtb)[0m: [94mFit the input float using a source and target range[0m
+	[96mGet Batch From History (mtb)[0m: [94mVery experimental node to load images from the history of the server.[0m
+	[96mAny To String (mtb)[0m: [94mTries to take any input and convert it to a string[0m
+	[96mLoad Film Model (mtb)[0m: [94mLoads a FILM model[0m
+	[96mFilm Interpolation (mtb)[0m: [94mGoogle Research FILM frame interpolation for large motion[0m
+	[96mConcat Images (mtb)[0m: [94mAdd images to batch[0m
+	[96mColor Correct (mtb)[0m: [94mVarious color correction methods[0m
+	[96mImage Compare (mtb)[0m: [94mCompare two images and return a difference image[0m
+	[96mBlur (mtb)[0m: [94mBlur an image using a Gaussian filter.[0m
+	[96mMask To Image (mtb)[0m: [94mConverts a mask (alpha) to an RGB image with a color and background[0m
+	[96mColored Image (mtb)[0m: [94mConstant color image of given size[0m
+	[96mImage Premultiply (mtb)[0m: [94mPremultiply image with mask[0m
+	[96mImage Resize Factor (mtb)[0m: [94mExtracted mostly from WAS Node Suite, with a few edits (most notably multiple image support) and less features.[0m
+	[96mSave Image Grid (mtb)[0m: [94mSave all the images in the input batch as a grid of images.[0m
+	[96mLoad Image From Url (mtb)[0m: [94mLoad an image from the given URL[0m
+	[96mSave Gif (mtb)[0m: [94mSave the images from the batch as a GIF[0m
+	[96mExport With Ffmpeg (mtb)[0m: [94mExport with FFmpeg (Experimental)[0m
+	[96mLatent Lerp (mtb)[0m: [94mLinear interpolation (blend) between two latent vectors[0m
+	[96mImage Remove Background Rembg (mtb)[0m: [94mRemoves the background from the input using Rembg.[0m
+	[96mFloat To Number (mtb)[0m: [94mNode addon for the WAS Suite. Converts a "comfy" FLOAT to a NUMBER.[0m
+	[96mInt To Bool (mtb)[0m: [94mBasic int to bool conversion[0m
+	[96mInt To Number (mtb)[0m: [94mNode addon for the WAS Suite. Converts a "comfy" INT to a NUMBER.[0m
+	[96mTransform Image (mtb)[0m: [94mSave torch tensors (image, mask or latent) to disk, useful to debug things outside comfy[0m
+	[96mLoad Image Sequence (mtb)[0m: [94mLoad an image sequence from a folder. The current frame is used to determine which image to load.[0m
+	[96mSave Image Sequence (mtb)[0m: [94mSave an image sequence to a folder. The current frame is used to determine which image to save.[0m[0m
+Total VRAM 4096 MB, total RAM 16143 MB
+Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram
+xformers version: 0.0.20
+Set vram state to: LOW_VRAM
+Device: cuda:0 NVIDIA GeForce GTX 1650 with Max-Q Design : cudaMallocAsync
+VAE dtype: torch.float32
+[34mWAS Node Suite: [0mOpenCV Python FFMPEG support is enabled[0m
+[34mWAS Node Suite [93mWarning: [0m`ffmpeg_bin_path` is not set in `C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\was-node-suite-comfyui\was_suite_config.json` config file. Will attempt to use system ffmpeg binaries if available.[0m
+[34mWAS Node Suite: [0mFinished.[0m [32mLoaded[0m [0m191[0m [32mnodes successfully.[0m
+
+	[3m[93m"Art is the daughter of freedom."[0m[3m - Friedrich Schiller[0m
+
+
+Import times for custom nodes:
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\sdxl_prompt_styler
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI-post-processing-nodes
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\mikey_nodes
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\stability-ComfyUI-nodes
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\SeargeSDXL
+   0.0 seconds (IMPORT FAILED): C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI_tinyterraNodes
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI_UltimateSDUpscale
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\Derfuu_ComfyUI_ModdedNodes
+   0.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\comfyui_controlnet_aux
+   0.6 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI-Manager
+   0.8 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\clipseg.py
+   1.9 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\was-node-suite-comfyui
+   3.0 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\comfy_mtb
+   3.5 seconds: C:\Users\culle\Documents\ComfyUI2\ComfyUI\custom_nodes\ComfyUI-Impact-Pack
+
+
+WARNING: this card most likely does not support cuda-malloc, if you get "CUDA error" please run ComfyUI with: --disable-cuda-malloc
+
+Starting server
+
+To see the GUI go to: http://127.0.0.1:7821

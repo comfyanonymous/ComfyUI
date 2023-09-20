@@ -1,0 +1,479 @@
+{
+  "last_node_id": 16,
+  "last_link_id": 20,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "SaveImage",
+      "pos": [
+        1270,
+        500
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 15
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "CLIPTextEncode",
+      "pos": [
+        51,
+        482
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            7
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "duplicate figures, duplication, duplicates, deformed, mutation, twisted body, fused body, additional body, missing body, disfigured, imperfect anatomy, imperfect proportions, gross proportions, extra fingers, mutated hands, poorly drawn hands, extra limbs, malformed limbs, missing arms, additional arms, missing legs, additional legs, mutated feet, additional feet, fused toes, missing toes, additional toes, mutated hands, additional hands, fused fingers, missing fingers, additional fingers, long neck, duplicate heads, small head, oversized head, extra head, makeup, closed eyes, rolling eyes, weird eyes, extra eyes, additional eyebrows, coloured sclera, smudged face, blurred face, long face, poorly drawn face, cloned face, extra face, strange mouth, additional mouth, additional nose, misplaced ears, additional ears, tacky, ugly, cut-off, out-of-frame, grainy, blurred, blurry, writing, calligraphy, signature, text, numbers, coordinates, watermark, cartoon, painting, unrealistic, render, lousy art, hat, b&w, frame"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 7,
+      "type": "KSampler",
+      "pos": [
+        676,
+        630
+      ],
+      "size": {
+        "0": 315,
+        "1": 262
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 12
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 5
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 7
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 17
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            13
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        1096232686664860,
+        "randomize",
+        20,
+        4.5,
+        "dpmpp_2m_sde",
+        "karras",
+        1
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 4,
+      "type": "CLIPTextEncode",
+      "pos": [
+        50,
+        233
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            5
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "Hyper-maximalist painting of a human skeleton sitting on a throne, wearing a crown, an elaborate and massive pile of treasures and golden statues in a dark mysterious tomb interior, dust and cobwebs, rotten, horror, ornate, insane details, mist, vapour, smoke, dramatic lighting, luminous mist, eerie, ethereal, cinematic, by Dariusz Zawadzki, by Anton Semenow, by H.R. Geiger, by Bastien Lecouffe-Deharm, ultra-realistic:1"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 14,
+      "type": "EmptyLatentImage",
+      "pos": [
+        -369,
+        831
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            17
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 6,
+      "type": "VAEDecode",
+      "pos": [
+        1026,
+        499
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 13
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            15
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 9,
+      "type": "VAELoader",
+      "pos": [
+        -457,
+        505
+      ],
+      "size": {
+        "0": 372.545654296875,
+        "1": 58
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            18
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "juggernautXL_version1_vae.safetensors"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LoraLoader",
+      "pos": [
+        606,
+        242
+      ],
+      "size": {
+        "0": 379.2216491699219,
+        "1": 130.51116943359375
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            12
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoader"
+      },
+      "widgets_values": [
+        "JuggerCineXL2.safetensors",
+        0.2,
+        1
+      ]
+    },
+    {
+      "id": 2,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -362,
+        229
+      ],
+      "size": {
+        "0": 381.79998779296875,
+        "1": 98
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            2,
+            6,
+            20
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "SDXL\\juggernautXL_version1.safetensors"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      2,
+      2,
+      1,
+      4,
+      0,
+      "CLIP"
+    ],
+    [
+      5,
+      4,
+      0,
+      7,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      6,
+      2,
+      1,
+      8,
+      0,
+      "CLIP"
+    ],
+    [
+      7,
+      8,
+      0,
+      7,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      12,
+      3,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      13,
+      7,
+      0,
+      6,
+      0,
+      "LATENT"
+    ],
+    [
+      15,
+      6,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      17,
+      14,
+      0,
+      7,
+      3,
+      "LATENT"
+    ],
+    [
+      18,
+      9,
+      0,
+      6,
+      1,
+      "VAE"
+    ],
+    [
+      20,
+      2,
+      1,
+      3,
+      1,
+      "CLIP"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

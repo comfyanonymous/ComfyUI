@@ -1,0 +1,1440 @@
+{
+  "last_node_id": 37,
+  "last_link_id": 72,
+  "nodes": [
+    {
+      "id": 27,
+      "type": "ControlNetLoader",
+      "pos": [
+        -1130,
+        -300
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "CONTROL_NET",
+          "type": "CONTROL_NET",
+          "links": [
+            42
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetLoader"
+      },
+      "widgets_values": [
+        "SDXL1\\controlnet_depth_sdxl1.safetensors"
+      ]
+    },
+    {
+      "id": 23,
+      "type": "LoadImage",
+      "pos": [
+        -1128,
+        -190
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            40
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "low-angle-smiley-man-posing.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 32,
+      "type": "ControlNetLoader",
+      "pos": [
+        -1115,
+        242.17436106667785
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "CONTROL_NET",
+          "type": "CONTROL_NET",
+          "links": [
+            54
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetLoader"
+      },
+      "widgets_values": [
+        "SDXL1\\t2i-adapter-canny-sdxl-1.safetensors"
+      ]
+    },
+    {
+      "id": 29,
+      "type": "LoadImage",
+      "pos": [
+        -1115,
+        370.1743610666779
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            56
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "low-angle-smiley-man-posing.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 26,
+      "type": "PreviewImage",
+      "pos": [
+        -790,
+        -190
+      ],
+      "size": [
+        314.3115827986966,
+        313.42922532156194
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 72
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 31,
+      "type": "PreviewImage",
+      "pos": [
+        -771,
+        373.1743610666779
+      ],
+      "size": [
+        315.8900484581244,
+        312.196181520417
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 69
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        162,
+        279
+      ],
+      "size": {
+        "0": 210,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 22,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            62
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "duplicate figures, tacky, ugly, duplication, duplicates, deformed, mutation, twisted body, fused body, additional body, missing body, disfigured, imperfect anatomy, imperfect proportions, gross proportions, extra fingers, mutated hands, poorly drawn hands, extra limbs, malformed limbs, missing arms, additional arms, missing legs, additional legs, mutated feet, additional feet, fused toes, missing toes, additional toes, mutated hands, additional hands, fused fingers, missing fingers, additional fingers, long neck, duplicate heads, small head, oversized head, extra head, makeup, closed eyes, rolling eyes, weird eyes, extra eyes, additional eyebrows, coloured sclera, smudged face, blurred face, long face, poorly drawn face, cloned face, extra face, strange mouth, additional mouth, additional nose, misplaced ears, additional ears, cut-off, out-of-frame, grainy, blurred, blurry, writing, calligraphy, signature, text, numbers, coordinates, watermark, cartoon, painting, unrealistic, render, bad art, hat, b&w, frame, overexposed"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -61,
+        573
+      ],
+      "size": [
+        386.4448936891571,
+        98
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            27
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            3,
+            5
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            8
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "SDXL\\sd_xl_base_1.0.safetensors"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "EmptyLatentImage",
+      "pos": [
+        -69,
+        69
+      ],
+      "size": [
+        298.713038376324,
+        169.25462309633144
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            38
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "Image Size\n",
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        768,
+        1
+      ]
+    },
+    {
+      "id": 15,
+      "type": "PrimitiveNode",
+      "pos": [
+        -73,
+        -347
+      ],
+      "size": [
+        401.46511096297445,
+        139.15320154978758
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            18,
+            19
+          ],
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "Positive Prompt",
+      "properties": {},
+      "widgets_values": [
+        "A selfie photograph of an angry man adjusting his selfie cam and realising he is surrounded by dark alien knight robots marching towards him, preparing for war in a misty field on a cold morning, in the style of an 8K sci-fi film, by Paul Verhoeven, realistic human proportions, perfectly centred composition, beautiful, intricate, insanely detailed, 8K, artistic photography, photorealistic concept art, soft natural light, chiaroscuro, award-winning photograph, masterpiece, realistic photograph, hyper-realistic, high quality, trending art, sharp focus with depth of field, studio photo, ultra-real, ray-traced octane render, a lot of textures, complex, hyper-realistic, HDR, DTM, Ultra HD, glow effects, cinematic, sensual, dramatic light, low key"
+      ],
+      "color": "#232",
+      "bgcolor": "#353",
+      "shape": 4
+    },
+    {
+      "id": 12,
+      "type": "CLIPTextEncode",
+      "pos": [
+        -65,
+        18
+      ],
+      "size": {
+        "0": 219,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 11
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 18,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            48
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "A selfie photograph of an angry man adjusting his selfie cam and realising he is surrounded by dark alien knight robots marching towards him, preparing for war in a misty field on a cold morning, in the style of an 8K sci-fi film, by Paul Verhoeven, realistic human proportions, perfectly centred composition, beautiful, intricate, insanely detailed, 8K, artistic photography, photorealistic concept art, soft natural light, chiaroscuro, award-winning photograph, masterpiece, realistic photograph, hyper-realistic, high quality, trending art, sharp focus with depth of field, studio photo, ultra-real, ray-traced octane render, a lot of textures, complex, hyper-realistic, HDR, DTM, Ultra HD, glow effects, cinematic, sensual, dramatic light, low key"
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [
+        467,
+        53
+      ],
+      "size": [
+        211.04665860262776,
+        46
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 28
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 18,
+      "type": "VAEDecode",
+      "pos": [
+        462,
+        -40
+      ],
+      "size": [
+        213.86492919921864,
+        48.330166903409065
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 36
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 37
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            30
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 13,
+      "type": "CLIPTextEncode",
+      "pos": [
+        166,
+        14
+      ],
+      "size": {
+        "0": 210,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 13
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 21,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            49
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "duplicate figures, tacky, ugly, duplication, duplicates, deformed, mutation, twisted body, fused body, additional body, missing body, disfigured, imperfect anatomy, imperfect proportions, gross proportions, extra fingers, mutated hands, poorly drawn hands, extra limbs, malformed limbs, missing arms, additional arms, missing legs, additional legs, mutated feet, additional feet, fused toes, missing toes, additional toes, mutated hands, additional hands, fused fingers, missing fingers, additional fingers, long neck, duplicate heads, small head, oversized head, extra head, makeup, closed eyes, rolling eyes, weird eyes, extra eyes, additional eyebrows, coloured sclera, smudged face, blurred face, long face, poorly drawn face, cloned face, extra face, strange mouth, additional mouth, additional nose, misplaced ears, additional ears, cut-off, out-of-frame, grainy, blurred, blurry, writing, calligraphy, signature, text, numbers, coordinates, watermark, cartoon, painting, unrealistic, render, bad art, hat, b&w, frame, overexposed"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        -65,
+        280
+      ],
+      "size": {
+        "0": 210,
+        "1": 54
+      },
+      "flags": {
+        "collapsed": true
+      },
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 19,
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            61
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "A selfie photograph of an angry man adjusting his selfie cam and realising he is surrounded by dark alien knight robots marching towards him, preparing for war in a misty field on a cold morning, in the style of an 8K sci-fi film, by Paul Verhoeven, realistic human proportions, perfectly centred composition, beautiful, intricate, insanely detailed, 8K, artistic photography, photorealistic concept art, soft natural light, chiaroscuro, award-winning photograph, masterpiece, realistic photograph, hyper-realistic, high quality, trending art, sharp focus with depth of field, studio photo, ultra-real, ray-traced octane render, a lot of textures, complex, hyper-realistic, HDR, DTM, Ultra HD, glow effects, cinematic, sensual, dramatic light, low key"
+      ]
+    },
+    {
+      "id": 33,
+      "type": "ControlNetApplyAdvanced",
+      "pos": [
+        -429,
+        382
+      ],
+      "size": {
+        "0": 315,
+        "1": 166
+      },
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 61,
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 62
+        },
+        {
+          "name": "control_net",
+          "type": "CONTROL_NET",
+          "link": 54
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 70
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            59
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            60
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetApplyAdvanced"
+      },
+      "widgets_values": [
+        0.85,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "id": 35,
+      "type": "CannyEdgePreprocessor",
+      "pos": [
+        -772,
+        246.17436106667785
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 56
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            69,
+            70
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CannyEdgePreprocessor"
+      },
+      "widgets_values": [
+        110,
+        180
+      ]
+    },
+    {
+      "id": 25,
+      "type": "Zoe-DepthMapPreprocessor",
+      "pos": [
+        -790,
+        -295
+      ],
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            71,
+            72
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Zoe-DepthMapPreprocessor"
+      }
+    },
+    {
+      "id": 28,
+      "type": "ControlNetApplyAdvanced",
+      "pos": [
+        -447,
+        -190
+      ],
+      "size": {
+        "0": 315,
+        "1": 166
+      },
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": null,
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": null
+        },
+        {
+          "name": "control_net",
+          "type": "CONTROL_NET",
+          "link": 42
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 71
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetApplyAdvanced"
+      },
+      "widgets_values": [
+        1,
+        0.1,
+        0.9
+      ]
+    },
+    {
+      "id": 11,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -55,
+        378
+      ],
+      "size": [
+        377.1760409057613,
+        98
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 8,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            34
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            11,
+            13
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            37
+          ],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "SDXL\\sd_xl_refiner_1.0.safetensors"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "KSampler",
+      "pos": [
+        376,
+        150
+      ],
+      "size": [
+        303.90286843627746,
+        269.53208406188855
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 27
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 59
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 60
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            28,
+            35
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        1022862313210558,
+        "randomize",
+        20,
+        7,
+        "dpmpp_2s_ancestral",
+        "karras",
+        0.65
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 20,
+      "type": "KSampler",
+      "pos": [
+        363,
+        -347
+      ],
+      "size": {
+        "0": 315,
+        "1": 262
+      },
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 34
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 48
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 49
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 35
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            36
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "KSampler for refiner (like img2img)",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        766896543986119,
+        "randomize",
+        15,
+        7,
+        "dpmpp_2m",
+        "karras",
+        0.25
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 16,
+      "type": "PrimitiveNode",
+      "pos": [
+        -71,
+        -164
+      ],
+      "size": [
+        398.166873898673,
+        134.89904166033403
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            21,
+            22
+          ],
+          "widget": {
+            "name": "text",
+            "config": [
+              "STRING",
+              {
+                "multiline": true
+              }
+            ]
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "Negative Prompt",
+      "properties": {},
+      "widgets_values": [
+        "duplicate figures, tacky, ugly, duplication, duplicates, deformed, mutation, twisted body, fused body, additional body, missing body, disfigured, imperfect anatomy, imperfect proportions, gross proportions, extra fingers, mutated hands, poorly drawn hands, extra limbs, malformed limbs, missing arms, additional arms, missing legs, additional legs, mutated feet, additional feet, fused toes, missing toes, additional toes, mutated hands, additional hands, fused fingers, missing fingers, additional fingers, long neck, duplicate heads, small head, oversized head, extra head, makeup, closed eyes, rolling eyes, weird eyes, extra eyes, additional eyebrows, coloured sclera, smudged face, blurred face, long face, poorly drawn face, cloned face, extra face, strange mouth, additional mouth, additional nose, misplaced ears, additional ears, cut-off, out-of-frame, grainy, blurred, blurry, writing, calligraphy, signature, text, numbers, coordinates, watermark, cartoon, painting, unrealistic, render, bad art, hat, b&w, frame, overexposed"
+      ],
+      "color": "#322",
+      "bgcolor": "#533",
+      "shape": 4
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        741,
+        189
+      ],
+      "size": [
+        484.1488158112561,
+        484.6136054415615
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "base_output"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 19,
+      "type": "SaveImage",
+      "pos": [
+        741,
+        -407
+      ],
+      "size": [
+        484.9878418894841,
+        458.8930988091416
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 30
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "refiner_output"
+      ],
+      "shape": 1
+    }
+  ],
+  "links": [
+    [
+      3,
+      4,
+      1,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      5,
+      4,
+      1,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      8,
+      4,
+      2,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      9,
+      8,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      11,
+      11,
+      1,
+      12,
+      0,
+      "CLIP"
+    ],
+    [
+      13,
+      11,
+      1,
+      13,
+      0,
+      "CLIP"
+    ],
+    [
+      18,
+      15,
+      0,
+      12,
+      1,
+      "STRING"
+    ],
+    [
+      19,
+      15,
+      0,
+      6,
+      1,
+      "STRING"
+    ],
+    [
+      21,
+      16,
+      0,
+      13,
+      1,
+      "STRING"
+    ],
+    [
+      22,
+      16,
+      0,
+      7,
+      1,
+      "STRING"
+    ],
+    [
+      27,
+      4,
+      0,
+      17,
+      0,
+      "MODEL"
+    ],
+    [
+      28,
+      17,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      30,
+      18,
+      0,
+      19,
+      0,
+      "IMAGE"
+    ],
+    [
+      34,
+      11,
+      0,
+      20,
+      0,
+      "MODEL"
+    ],
+    [
+      35,
+      17,
+      0,
+      20,
+      3,
+      "LATENT"
+    ],
+    [
+      36,
+      20,
+      0,
+      18,
+      0,
+      "LATENT"
+    ],
+    [
+      37,
+      11,
+      2,
+      18,
+      1,
+      "VAE"
+    ],
+    [
+      38,
+      21,
+      0,
+      17,
+      3,
+      "LATENT"
+    ],
+    [
+      40,
+      23,
+      0,
+      25,
+      0,
+      "IMAGE"
+    ],
+    [
+      42,
+      27,
+      0,
+      28,
+      2,
+      "CONTROL_NET"
+    ],
+    [
+      48,
+      12,
+      0,
+      20,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      49,
+      13,
+      0,
+      20,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      54,
+      32,
+      0,
+      33,
+      2,
+      "CONTROL_NET"
+    ],
+    [
+      56,
+      29,
+      0,
+      35,
+      0,
+      "IMAGE"
+    ],
+    [
+      59,
+      33,
+      0,
+      17,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      60,
+      33,
+      1,
+      17,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      61,
+      6,
+      0,
+      33,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      62,
+      7,
+      0,
+      33,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      69,
+      35,
+      0,
+      31,
+      0,
+      "IMAGE"
+    ],
+    [
+      70,
+      35,
+      0,
+      33,
+      3,
+      "IMAGE"
+    ],
+    [
+      71,
+      25,
+      0,
+      28,
+      3,
+      "IMAGE"
+    ],
+    [
+      72,
+      25,
+      0,
+      26,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "BASE HERE",
+      "bounding": [
+        -69,
+        505,
+        404,
+        187
+      ],
+      "color": "#8A8"
+    },
+    {
+      "title": "RESULT WITHOUT REFINER",
+      "bounding": [
+        710,
+        114,
+        546,
+        574
+      ],
+      "color": "#8A8"
+    },
+    {
+      "title": "RESULT WITH REFINER",
+      "bounding": [
+        706,
+        -485,
+        552,
+        562
+      ],
+      "color": "#3f789e"
+    },
+    {
+      "title": "SDXL 1.0 ControlNet",
+      "bounding": [
+        -1156,
+        -485,
+        1834,
+        90
+      ],
+      "color": "#8AA"
+    },
+    {
+      "title": "depth",
+      "bounding": [
+        -1156,
+        -381,
+        1050,
+        520
+      ],
+      "color": "#A88"
+    },
+    {
+      "title": "canny",
+      "bounding": [
+        -1155,
+        153,
+        1052,
+        541
+      ],
+      "color": "#b58b2a"
+    },
+    {
+      "title": "REFINER HERE",
+      "bounding": [
+        -72,
+        297,
+        411,
+        196
+      ],
+      "color": "#3f789e"
+    }
+  ],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}
