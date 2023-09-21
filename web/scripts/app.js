@@ -753,8 +753,9 @@ export class ComfyApp {
 				// Default system copy
 				return;
 			}
+
 			// copy nodes and clear clipboard
-			if (this.canvas.selected_nodes) {
+			if (e.target.className === "litegraph" && this.canvas.selected_nodes) {
 				this.canvas.copyToClipboard();
 				e.clipboardData.setData('text', ' '); //clearData doesn't remove images from clipboard
 				e.preventDefault();
