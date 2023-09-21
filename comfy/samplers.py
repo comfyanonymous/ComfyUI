@@ -7,6 +7,7 @@ from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 import math
 from comfy import model_base
+import comfy.utils
 
 def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
     return abs(a*b) // math.gcd(a, b)
@@ -538,7 +539,7 @@ def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
 
         if adm_out is not None:
             x[1] = x[1].copy()
-            x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size).to(device)
+            x[1]["adm_encoded"] = comfy.utils.repeat_to_batch_size(adm_out, batch_size).to(device)
 
     return conds
 
