@@ -13,8 +13,8 @@ import nodes
 
 import comfy.model_management
 import comfy.graph_utils
-from comfy.graph import get_input_info, ExecutionList, DynamicPrompt
-from comfy.graph_utils import is_link, ExecutionBlocker, GraphBuilder
+from comfy.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
+from comfy.graph_utils import is_link, GraphBuilder
 from comfy.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetInputSignatureWithID, CacheKeySetID
 
 class ExecutionResult(Enum):

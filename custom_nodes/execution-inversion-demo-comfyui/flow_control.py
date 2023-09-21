@@ -1,4 +1,5 @@
-from comfy.graph_utils import GraphBuilder, is_link, ExecutionBlocker
+from comfy.graph_utils import GraphBuilder, is_link
+from comfy.graph import ExecutionBlocker
 
 NUM_FLOW_SOCKETS = 5
 class WhileLoopOpen:

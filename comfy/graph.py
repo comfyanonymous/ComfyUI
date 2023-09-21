@@ -164,3 +164,9 @@ class ExecutionList(TopologicalSort):
         node_id = self.staged_node_id
         self.pop_node(node_id)
         self.staged_node_id = None
+
+# Return this from a node and any users will be blocked with the given error message.
+class ExecutionBlocker:
+    def __init__(self, message):
+        self.message = message
+
