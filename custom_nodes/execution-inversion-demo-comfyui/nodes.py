@@ -21,7 +21,34 @@ class InversionDemoAdvancedPromptNode:
 
     CATEGORY = "InversionDemo Nodes/Demo"
 
-    def parse_prompt(self, prompt):
+    def parse_timesteps(self, text):
+        text = re.sub(r'<[^<]*>', lambda m: m.group(0).replace(':', '||COLON||'), text)
+        text = re.sub(r':\d+\.\d+\)', lambda m: m.group(0).replace(':', '||COLON||'), text)
+        def recurse(text, min_value, max_value):
+            # First, replace any colons in angle brackets with a placeholder
+            pattern = r'\[([^:\[\]]*):([^:\[\]]*):(\d+\.\d+)\]'
+            m = re.search(pattern, text)
+            if m is None:
+                return [{
+                    "text": re.sub(r'\|\|COLON\|\|', ':', text),
+                    "min": min_value,
+                    "max": max_value,
+                }]
+
+            # If we have a match, check if the value is in range
+            start, end = m.span()
+            value = float(m.group(3))
+            before = text[:start] + m.group(1) + text[end:]
+            after = text[:start] + m.group(2) + text[end:]
+            if value <= min_value:
+                return recurse(after, min_value, max_value)
+            elif value >= max_value:
+                return recurse(before, min_value, max_value)
+            else:
+                return recurse(before, min_value, value) + recurse(after, value, max_value)
+        return recurse(text, 0, 1)
+
+    def parse_loras(self, prompt):
         # Get all string pieces matching the pattern "<lora:(name):(strength)(:(clip_strength))?>"
         # where name is a string and strength is a float
         # and clip_strength is an optional float
@@ -30,13 +57,12 @@ class InversionDemoAdvancedPromptNode:
         if len(loras) == 0:
             return prompt, loras
         cleaned_prompt = re.sub(pattern, "", prompt).strip()
-        print("Cleaned prompt: '%s'" % cleaned_prompt)
         return cleaned_prompt, loras
 
 
     def advanced_prompt(self, prompt, clip, model):
-        cleaned_prompt, loras = self.parse_prompt(prompt)
         graph = GraphBuilder()
+        cleaned_prompt, loras = self.parse_loras(prompt)
         for lora in loras:
             lora_name = lora[0]
             lora_model_strength = float(lora[1])
@@ -45,9 +71,19 @@ class InversionDemoAdvancedPromptNode:
             loader = graph.node("LoraLoader", model=model, clip=clip, lora_name = lora_name, strength_model = lora_model_strength, strength_clip = lora_clip_strength)
             model = loader.out(0)
             clip = loader.out(1)
-        encoder = graph.node("CLIPTextEncode", clip=clip, text=cleaned_prompt)
+
+        timesteps = self.parse_timesteps(cleaned_prompt)
+        prev_output = None
+        for timestep in timesteps:
+            encoder = graph.node("CLIPTextEncode", clip=clip, text=timestep["text"])
+            ranger = graph.node("ConditioningSetTimestepRange", conditioning=encoder.out(0), start=timestep["min"], end=timestep["max"])
+            if prev_output is None:
+                prev_output = ranger.out(0)
+            else:
+                prev_output = graph.node("ConditioningCombine", conditioning_1=prev_output, conditioning_2=ranger.out(0)).out(0)
+
         return {
-            "result": (model, clip, encoder.out(0)),
+            "result": (model, clip, prev_output),
             "expand": graph.finalize(),
         }
 
