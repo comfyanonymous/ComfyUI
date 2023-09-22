@@ -66,7 +66,9 @@ def get_previewer(device, latent_format=None, latent=None, force=False):
     method = args.preview_method
     if method != LatentPreviewMethod.NoPreviews or force:
         # TODO previewer methods
-        taesd_decoder_path = folder_paths.get_full_path("vae_approx", latent_format.taesd_decoder_name)
+        taesd_decoder_path = None
+        if latent_format.taesd_decoder_name is not None:
+            taesd_decoder_path = folder_paths.get_full_path("vae_approx", latent_format.taesd_decoder_name)
 
         if method == LatentPreviewMethod.Auto:
             method = LatentPreviewMethod.Latent2RGB
@@ -81,7 +83,8 @@ def get_previewer(device, latent_format=None, latent=None, force=False):
                 print("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
 
         if previewer is None:
-            previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors)
+            if latent_format.latent_rgb_factors is not None:
+                previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors)
     return previewer
 
 

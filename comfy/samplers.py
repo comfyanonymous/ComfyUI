@@ -7,6 +7,7 @@ from .ldm.models.diffusion.ddim import DDIMSampler
 from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 import math
 from comfy import model_base
+import comfy.utils
 
 def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
     return abs(a*b) // math.gcd(a, b)
@@ -255,6 +256,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     else:
                         transformer_options["patches"] = patches
 
+                transformer_options["cond_or_uncond"] = cond_or_uncond[:]
                 c['transformer_options'] = transformer_options
 
                 if 'model_function_wrapper' in model_options:
@@ -537,7 +539,7 @@ def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
 
         if adm_out is not None:
             x[1] = x[1].copy()
-            x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size).to(device)
+            x[1]["adm_encoded"] = comfy.utils.repeat_to_batch_size(adm_out, batch_size).to(device)
 
     return conds
 
@@ -546,7 +548,7 @@ class KSampler:
     SCHEDULERS = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
     SAMPLERS = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
                 "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
-                "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddim", "uni_pc", "uni_pc_bh2"]
+                "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "ddim", "uni_pc", "uni_pc_bh2"]
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
