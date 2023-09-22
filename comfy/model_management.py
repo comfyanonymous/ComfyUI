@@ -165,6 +165,9 @@ try:
                 ENABLE_PYTORCH_ATTENTION = True
             if torch.cuda.is_bf16_supported():
                 VAE_DTYPE = torch.bfloat16
+    if is_intel_xpu():
+        if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
+            ENABLE_PYTORCH_ATTENTION = True
 except:
     pass
 
@@ -478,6 +481,23 @@ def get_autocast_device(dev):
         return dev.type
     return "cuda"
 
+def cast_to_device(tensor, device, dtype, copy=False):
+    device_supports_cast = False
+    if tensor.dtype == torch.float32 or tensor.dtype == torch.float16:
+        device_supports_cast = True
+    elif tensor.dtype == torch.bfloat16:
+        if hasattr(device, 'type') and device.type.startswith("cuda"):
+            device_supports_cast = True
+
+    if device_supports_cast:
+        if copy:
+            if tensor.device == device:
+                return tensor.to(dtype, copy=copy)
+            return tensor.to(device, copy=copy).to(dtype)
+        else:
+            return tensor.to(device).to(dtype)
+    else:
+        return tensor.to(dtype).to(device, copy=copy)
 
 def xformers_enabled():
     global directml_enabled
