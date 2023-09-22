@@ -532,7 +532,17 @@ export class ComfyApp {
 								}
 							}
 							this.imageRects.push([x, y, cellWidth, cellHeight]);
-							ctx.drawImage(img, x, y, cellWidth, cellHeight);
+
+							let wratio = cellWidth/img.width;
+							let hratio = cellHeight/img.height;
+							var ratio = Math.min(wratio, hratio);
+
+							let imgHeight = ratio * img.height;
+							let imgY = row * cellHeight + shiftY + (cellHeight - imgHeight)/2;
+							let imgWidth = ratio * img.width;
+							let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth)/2;
+
+							ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
 							ctx.filter = "none";
 						}
 
@@ -743,8 +753,9 @@ export class ComfyApp {
 				// Default system copy
 				return;
 			}
+
 			// copy nodes and clear clipboard
-			if (this.canvas.selected_nodes) {
+			if (e.target.className === "litegraph" && this.canvas.selected_nodes) {
 				this.canvas.copyToClipboard();
 				e.clipboardData.setData('text', ' '); //clearData doesn't remove images from clipboard
 				e.preventDefault();
@@ -1297,7 +1308,13 @@ export class ComfyApp {
 
 		let reset_invalid_values = false;
 		if (!graphData) {
-			graphData = structuredClone(defaultGraph);
+			if (typeof structuredClone === "undefined")
+			{
+				graphData = JSON.parse(JSON.stringify(defaultGraph));
+			}else
+			{
+				graphData = structuredClone(defaultGraph);
+			}
 			reset_invalid_values = true;
 		}
 

@@ -37,7 +37,7 @@ class ModelSubtract:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "merge"
 
-    CATEGORY = "_for_testing/model_merging"
+    CATEGORY = "advanced/model_merging"
 
     def merge(self, model1, model2, multiplier):
         m = model1.clone()
@@ -55,7 +55,7 @@ class ModelAdd:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "merge"
 
-    CATEGORY = "_for_testing/model_merging"
+    CATEGORY = "advanced/model_merging"
 
     def merge(self, model1, model2):
         m = model1.clone()

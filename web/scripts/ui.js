@@ -577,6 +577,25 @@ export class ComfyUI {
 			defaultValue: false,
 		});
 
+		this.settings.addSetting({
+			id: "Comfy.DisableFloatRounding",
+			name: "Disable rounding floats (requires page reload).",
+			type: "boolean",
+			defaultValue: false,
+		});
+
+		this.settings.addSetting({
+			id: "Comfy.FloatRoundingPrecision",
+			name: "Decimal places [0 = auto] (requires page reload).",
+			type: "slider",
+			attrs: {
+				min: 0,
+				max: 6,
+				step: 1,
+			},
+			defaultValue: 0,
+		});
+
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
