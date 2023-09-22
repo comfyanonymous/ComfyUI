@@ -6,6 +6,7 @@ import threading
 import heapq
 import traceback
 import gc
+import re
 
 import torch
 import nodes
@@ -39,6 +40,25 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                     input_data_all[x] = [extra_data['extra_pnginfo']]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
+
+    input_data_all_remove = []
+    input_data_all_add = {}
+
+    for x in input_data_all:
+        m = re.search("(.+)\[(\d*)\]$", x)
+        if m:
+            input_data_all_remove.append(x)
+            x_multiple = m.group(1)
+            if x_multiple not in input_data_all_add:
+                input_data_all_add[x_multiple] = [[] for v in input_data_all[x]]
+            for k, v in enumerate(input_data_all[x]):
+                input_data_all_add[x_multiple][k].append(v)
+
+    for x in input_data_all_remove:
+        del input_data_all[x]
+
+    input_data_all.update(input_data_all_add)
+
     return input_data_all
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
