@@ -48,7 +48,7 @@ class LatentSubtract:
         samples_out["samples"] = s1 - s2
         return (samples_out,)
 
-class LatentMuliply:
+class LatentMultiply:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -70,5 +70,5 @@ class LatentMuliply:
 NODE_CLASS_MAPPINGS = {
     "LatentAdd": LatentAdd,
     "LatentSubtract": LatentSubtract,
-    "LatentMuliply": LatentMuliply,
+    "LatentMultiply": LatentMultiply,
 }
