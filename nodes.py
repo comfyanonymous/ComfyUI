@@ -1372,6 +1372,31 @@ class LoadImage:
 
         return True
 
+class LoadImageWithAlpha(LoadImage):
+    @classmethod
+    def INPUT_TYPES(s):
+        input_dir = folder_paths.get_input_directory()
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        return {"required":
+                    {"image": (sorted(files), {"image_upload": True})},
+                }
+
+    CATEGORY = "compositing"
+
+    RETURN_TYPES = ("IMAGE", "ALPHA")
+
+    FUNCTION = "load_image"
+    def load_image(self, image):
+        image_path = folder_paths.get_annotated_filepath(image)
+        i = Image.open(image_path)
+        i = ImageOps.exif_transpose(i)
+        image = i.convert("RGBA")
+        alpha = np.array(image.getchannel("A")).astype(np.float32) / 255.0
+        alpha = torch.from_numpy(alpha)[None,]
+        image = np.array(image).astype(np.float32) / 255.0
+        image = torch.from_numpy(image)[None,]
+        return (image, alpha)
+
 class LoadImageMask:
     _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
@@ -1606,6 +1631,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveImage": SaveImage,
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
+    "LoadImageWithAlpha": LoadImageWithAlpha,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
     "ImageScaleBy": ImageScaleBy,
@@ -1702,6 +1728,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveImage": "Save Image",
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
+    "LoadImageWithAlpha": "Load Image with Alpha",
     "LoadImageMask": "Load Image (as Mask)",
     "ImageScale": "Upscale Image",
     "ImageScaleBy": "Upscale Image By",
@@ -1788,6 +1815,7 @@ def init_custom_nodes():
         "nodes_upscale_model.py",
         "nodes_post_processing.py",
         "nodes_mask.py",
+        "nodes_compositing.py",
         "nodes_rebatch.py",
         "nodes_model_merging.py",
         "nodes_tomesd.py",
