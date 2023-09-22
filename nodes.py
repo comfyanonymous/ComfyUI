@@ -323,7 +323,7 @@ class VAEEncodeTiled:
 class VAEEncodeForInpaint:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", ), "mask": ("MASK", ), "grow_mask_by": ("INT", {"default": 6, "min": 0, "max": 64, "step": 1}),}}
+        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", ), "mask": ("MASK", ), "grow_mask_by": ("INT", {"default": 6, "min": -128, "max": 128, "step": 1}),}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
@@ -341,16 +341,9 @@ class VAEEncodeForInpaint:
             pixels = pixels[:,x_offset:x + x_offset, y_offset:y + y_offset,:]
             mask = mask[:,:,x_offset:x + x_offset, y_offset:y + y_offset]
 
-        #grow mask by a few pixels to keep things seamless in latent space
-        if grow_mask_by == 0:
-            mask_erosion = mask
-        else:
-            kernel_tensor = torch.ones((1, 1, grow_mask_by, grow_mask_by))
-            padding = math.ceil((grow_mask_by - 1) / 2)
+        mask_erosion = self.modify_mask(mask, grow_mask_by)
 
-            mask_erosion = torch.clamp(torch.nn.functional.conv2d(mask.round(), kernel_tensor, padding=padding), 0, 1)
-
-        m = (1.0 - mask.round()).squeeze(1)
+        m = (1.0 - mask_erosion.round()).squeeze(1)
         for i in range(3):
             pixels[:,:,:,i] -= 0.5
             pixels[:,:,:,i] *= m
@@ -358,6 +351,22 @@ class VAEEncodeForInpaint:
         t = vae.encode(pixels)
 
         return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
+        
+    def modify_mask(self, mask, modify_by):
+        if modify_by == 0:
+            return mask
+        if modify_by > 0:
+            kernel_size = 2 * modify_by + 1
+            kernel_tensor = torch.ones((1, 1, kernel_size, kernel_size))
+            padding = modify_by
+            modified_mask = torch.clamp(torch.nn.functional.conv2d(mask.round(), kernel_tensor, padding=padding), 0, 1)
+        else:
+            kernel_size = 2 * abs(modify_by) + 1
+            kernel_tensor = torch.ones((1, 1, kernel_size, kernel_size))
+            padding = abs(modify_by)
+            eroded_mask = torch.nn.functional.conv2d(1 - mask.round(), kernel_tensor, padding=padding)
+            modified_mask = torch.clamp(1 - eroded_mask, 0, 1)
+        return modified_mask
 
 class SaveLatent:
     def __init__(self):
