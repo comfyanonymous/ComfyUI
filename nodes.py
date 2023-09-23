@@ -1383,7 +1383,7 @@ class LoadImageWithAlpha(LoadImage):
 
     CATEGORY = "compositing"
 
-    RETURN_TYPES = ("IMAGE", "ALPHA")
+    RETURN_TYPES = ("IMAGE", "MASK")
 
     FUNCTION = "load_image"
     def load_image(self, image):

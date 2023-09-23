@@ -93,14 +93,14 @@ class PorterDuffImageComposite:
         return {
             "required": {
                 "source": ("IMAGE",),
-                "source_alpha": ("ALPHA",),
+                "source_alpha": ("MASK",),
                 "destination": ("IMAGE",),
-                "destination_alpha": ("ALPHA",),
+                "destination_alpha": ("MASK",),
                 "mode": ([mode.name for mode in PorterDuffMode], {"default": PorterDuffMode.DST.name}),
             },
         }
 
-    RETURN_TYPES = ("IMAGE", "ALPHA")
+    RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "composite"
     CATEGORY = "compositing"
 
@@ -148,7 +148,7 @@ class SplitImageWithAlpha:
         }
 
     CATEGORY = "compositing"
-    RETURN_TYPES = ("IMAGE", "ALPHA")
+    RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "split_image_with_alpha"
 
     def split_image_with_alpha(self, image: torch.Tensor):
@@ -164,7 +164,7 @@ class JoinImageWithAlpha:
         return {
                 "required": {
                     "image": ("IMAGE",),
-                    "alpha": ("ALPHA",),
+                    "alpha": ("MASK",),
                 }
         }
 
@@ -183,50 +183,10 @@ class JoinImageWithAlpha:
         return result
 
 
-class ConvertAlphaToImage:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-                "required": {
-                    "alpha": ("ALPHA",),
-                }
-        }
-
-    CATEGORY = "compositing"
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "alpha_to_image"
-
-    def alpha_to_image(self, alpha):
-        result = alpha.reshape((-1, 1, alpha.shape[-2], alpha.shape[-1])).movedim(1, -1).expand(-1, -1, -1, 3)
-        return (result,)
-
-
-class ConvertImageToAlpha:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-                "required": {
-                    "image": ("IMAGE",),
-                    "channel": (["red", "green", "blue", "alpha"],),
-                }
-        }
-
-    CATEGORY = "compositing"
-    RETURN_TYPES = ("ALPHA",)
-    FUNCTION = "image_to_alpha"
-
-    def image_to_alpha(self, image, channel):
-        channels = ["red", "green", "blue", "alpha"]
-        alpha = image[0, :, :, channels.index(channel)]
-        return (alpha,)
-
-
 NODE_CLASS_MAPPINGS = {
     "PorterDuffImageComposite": PorterDuffImageComposite,
     "SplitImageWithAlpha": SplitImageWithAlpha,
     "JoinImageWithAlpha": JoinImageWithAlpha,
-    "ConvertAlphaToImage": ConvertAlphaToImage,
-    "ConvertImageToAlpha": ConvertImageToAlpha,
 }
 
 
@@ -234,6 +194,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "PorterDuffImageComposite": "Porter-Duff Image Composite",
     "SplitImageWithAlpha": "Split Image with Alpha",
     "JoinImageWithAlpha": "Join Image with Alpha",
-    "ConvertAlphaToImage": "Convert Alpha to Image",
-    "ConvertImageToAlpha": "Convert Image to Alpha",
 }
