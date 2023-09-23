@@ -27,7 +27,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
         values: ["fixed", "increment", "decrement", "randomize"],
         serialize: false, // Don't include this in prompt.
     });
-    valueControl.afterQueued = () => {
+    valueControl.beforeQueued = () => {
 
 		var v = valueControl.value;
 

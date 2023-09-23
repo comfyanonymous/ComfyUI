@@ -1581,6 +1581,21 @@ export class ComfyApp {
 				({ number, batchCount } = this.#queueItems.pop());
 
 				for (let i = 0; i < batchCount; i++) {
+					const pBefore = await this.graphToPrompt();
+							
+					for (const n of pBefore.workflow.nodes) {
+						const node = graph.getNodeById(n.id);
+						if (node.widgets) {
+							for (const widget of node.widgets) {
+								// Allow widgets to run callbacks after a prompt has been queued
+								// e.g. random seed after every gen
+								if (widget.beforeQueued) {
+									widget.beforeQueued();
+								}
+							}
+						}
+					}
+
 					const p = await this.graphToPrompt();
 
 					try {
