@@ -88,6 +88,9 @@ class ModelPatcher:
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
 
+    def set_model_output_block_patch(self, patch):
+        self.set_model_patch(patch, "output_block_patch")
+
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]
         if "patches" in to:
