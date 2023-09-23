@@ -95,7 +95,7 @@ app.registerExtension({
 								} else {
 									// We've found an output
 									const nodeOutType = node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type ? node.inputs[link.target_slot].type : null;
-									if (inputType && nodeOutType !== inputType) {
+									if (inputType && nodeOutType !== inputType && inputType !== "*" && nodeOutType !== "*") {
 										// The output doesnt match our input so disconnect it
 										node.disconnectInput(link.target_slot);
 									} else {
