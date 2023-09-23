@@ -153,7 +153,7 @@ class SplitImageWithAlpha:
 
     def split_image_with_alpha(self, image: torch.Tensor):
         out_images = [i[:,:,:3] for i in image]
-        out_alphas = [i[:,:,3] for i in image]
+        out_alphas = [i[:,:,3] if i.shape[2] > 3 else torch.ones_like(i[:,:,0]) for i in image]
         result = (torch.stack(out_images), torch.stack(out_alphas))
         return result
 
