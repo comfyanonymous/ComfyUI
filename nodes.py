@@ -1604,7 +1604,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageBatch": ImageBatch,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "EmptyImage": EmptyImage,
-    "ConditioningAverage ": ConditioningAverage ,
+    "ConditioningAverage": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
