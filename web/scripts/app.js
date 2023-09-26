@@ -1255,8 +1255,8 @@ export class ComfyApp {
 						} else {
 							// Node connection inputs
 							if (inputData[1]?.multiple) {
-								extraInfo.multiple = inputData[1].multiple;
-								extraInfo.shape = inputData[1].multiple ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
+								extraInfo.multiple = true;
+								extraInfo.shape = LiteGraph.GRID_SHAPE;
 							}
 							this.addInput(inputName, type, extraInfo);
 							widgetCreated = false;
