@@ -1369,7 +1369,7 @@ class LoadImage:
             mask = 1. - torch.from_numpy(mask)
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (image, mask)
+        return (image, mask.unsqueeze(0))
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -1416,7 +1416,7 @@ class LoadImageMask:
                 mask = 1. - mask
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (mask,)
+        return (mask.unsqueeze(0),)
 
     @classmethod
     def IS_CHANGED(s, image, channel):
