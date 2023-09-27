@@ -1189,11 +1189,8 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
         return (s,)
 
-
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
-
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
@@ -1204,19 +1201,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
-    preview_format = "JPEG"
-    if preview_format not in ["JPEG", "PNG"]:
-        preview_format = "JPEG"
-
-    previewer = latent_preview.get_previewer(device, model.model.latent_format)
-
-    pbar = comfy.utils.ProgressBar(steps)
-    def callback(step, x0, x, total_steps):
-        preview_bytes = None
-        if previewer:
-            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
-        pbar.update_absolute(step + 1, total_steps, preview_bytes)
-
+    callback = latent_preview.prepare_callback(model, steps)
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, seed=seed)
