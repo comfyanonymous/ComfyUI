@@ -1359,6 +1359,10 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
+        return self._load_image(image_path)
+
+    @staticmethod
+    def _load_image(image_path):
         i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
         image = i.convert("RGB")
@@ -1384,6 +1388,81 @@ class LoadImage:
         if not folder_paths.exists_annotated_filepath(image):
             return "Invalid image file: {}".format(image)
 
+        return True
+    
+class LoadImages:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "directory": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "max_image_load_count": ("INT", { "default": 0, "min": 0, "step": 1 }),
+                "start_index": ("INT", { "default": 0, "min": 0, "step": 1 }),
+            },
+        }
+
+    CATEGORY = "image"
+    RETURN_TYPES = ("IMAGE", "MASK", "INT")
+    FUNCTION = "load_images"
+
+    def load_images(self, directory, max_image_load_count = 0, start_index = 0):
+        image_paths = self.get_image_paths(directory, max_image_load_count, start_index)
+
+        images = []
+        masks = []
+
+        for image_path in image_paths:
+            image, mask = LoadImage._load_image(image_path)
+
+            images.append(image)
+            masks.append(mask)
+
+        if len(images) == 0:
+            raise FileNotFoundError(f"No valid image files found in directory '{directory}'.")
+
+        return (torch.cat(images, dim=0), torch.cat(masks, dim=0), len(images))
+    
+    @classmethod
+    def get_image_paths(s, directory, max_image_load_count, start_index):
+        dir_files = os.listdir(directory)
+        dir_files = sorted(dir_files)
+        dir_files = [os.path.join(directory, file) for file in dir_files]
+        dir_files = dir_files[start_index:]
+
+        image_paths = []
+        limit_images = max_image_load_count > 0
+
+        for image_path in dir_files:
+            if os.path.isdir(image_path):
+                continue
+            if limit_images and len(image_paths) >= max_image_load_count:
+                break
+            image_paths.append(image_path)
+        
+        return image_paths
+
+    @classmethod
+    def IS_CHANGED(s, directory, max_image_load_count, start_index):
+        image_paths = s.get_image_paths(directory, max_image_load_count, start_index)
+        m = hashlib.sha256()
+
+        for image_path in image_paths:
+            with open(image_path, 'rb') as f:
+                m.update(f.read())
+
+        return m.digest().hex()
+
+    @classmethod
+    def VALIDATE_INPUTS(s, directory, max_image_load_count, start_index):
+        if not os.path.isdir(directory):
+            return f"Directory '{directory}' does not exist."
+        
+        image_paths = s.get_image_paths(directory, max_image_load_count, start_index)
+
+        if len(image_paths) == 0:
+            return f"No valid image files found in directory '{directory}'."
         return True
 
 class LoadImageMask:
@@ -1620,6 +1699,7 @@ NODE_CLASS_MAPPINGS = {
     "SaveImage": SaveImage,
     "PreviewImage": PreviewImage,
     "LoadImage": LoadImage,
+    "LoadImages": LoadImages,
     "LoadImageMask": LoadImageMask,
     "ImageScale": ImageScale,
     "ImageScaleBy": ImageScaleBy,
@@ -1716,6 +1796,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveImage": "Save Image",
     "PreviewImage": "Preview Image",
     "LoadImage": "Load Image",
+    "LoadImages": "Load Images",
     "LoadImageMask": "Load Image (as Mask)",
     "ImageScale": "Upscale Image",
     "ImageScaleBy": "Upscale Image By",

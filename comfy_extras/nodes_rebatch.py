@@ -99,10 +99,29 @@ class LatentRebatch:
 
         return (output_list,)
 
+class ImageRebatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "images": ("IMAGE",),
+                              "batch_size": ("INT", {"default": 1, "min": 1}),
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+
+    OUTPUT_IS_LIST = (True, )
+    FUNCTION = "rebatch_images"
+    CATEGORY = "image/batch"
+
+    def rebatch_images(self, images, batch_size):
+        batched_images = [images[i:i + batch_size] for i in range(0, len(images), batch_size)]
+
+        return (batched_images,)
+    
 NODE_CLASS_MAPPINGS = {
     "RebatchLatents": LatentRebatch,
+    "RebatchImages": ImageRebatch,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "RebatchLatents": "Rebatch Latents",
+    "RebatchImages": "Rebatch Images",
 }
