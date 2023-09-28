@@ -68,7 +68,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         if allow_interrupt:
             nodes.before_node_execution()
         results.append(getattr(obj, func)())
-    else:
+    elif all(len(v) > 0 for v in input_data_all.values()): # Skip if any list is empty
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
