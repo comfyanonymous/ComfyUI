@@ -58,7 +58,7 @@ class SplitSigmas:
 
     def get_sigmas(self, sigmas, step):
         sigmas1 = sigmas[:step + 1]
-        sigmas2 = sigmas[step + 1:]
+        sigmas2 = sigmas[step:]
         return (sigmas1, sigmas2)
 
 class KSamplerSelect:
