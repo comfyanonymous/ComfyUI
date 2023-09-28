@@ -302,6 +302,7 @@ class PromptServer():
 
                     if channel == 'rgb':
                         with Image.open(file) as img:
+                            img = ImageOps.exif_transpose(img)
                             if img.mode == "RGBA":
                                 r, g, b, a = img.split()
                                 new_img = Image.merge('RGB', (r, g, b))
