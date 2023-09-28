@@ -277,6 +277,7 @@ class PromptServer():
                 if os.path.isfile(file):
                     if 'preview' in request.rel_url.query:
                         with Image.open(file) as img:
+                            img = ImageOps.exif_transpose(img)
                             preview_info = request.rel_url.query['preview'].split(';')
                             image_format = preview_info[0]
                             if image_format not in ['webp', 'jpeg'] or 'a' in request.rel_url.query.get('channel', ''):
@@ -318,6 +319,7 @@ class PromptServer():
 
                     elif channel == 'a':
                         with Image.open(file) as img:
+                            img = ImageOps.exif_transpose(img)
                             if img.mode == "RGBA":
                                 _, _, _, a = img.split()
                             else:
