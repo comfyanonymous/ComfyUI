@@ -325,8 +325,8 @@ class GrowMask:
     def expand_mask(self, mask, expand, tapered_corners):
         c = 0 if tapered_corners else 1
         kernel = np.array([[c, 1, c],
-                        [1, 1, 1],
-                        [c, 1, c]])
+                           [1, 1, 1],
+                           [c, 1, c]])
         mask = mask.reshape((-1, mask.shape[-2], mask.shape[-1]))
         out = []
         for m in mask:
