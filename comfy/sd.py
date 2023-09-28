@@ -152,7 +152,9 @@ class VAE:
             sd = comfy.utils.load_torch_file(ckpt_path)
             if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
                 sd = diffusers_convert.convert_vae_state_dict(sd)
-            self.first_stage_model.load_state_dict(sd, strict=False)
+            m, u = self.first_stage_model.load_state_dict(sd, strict=False)
+            if len(m) > 0:
+                print("Missing VAE keys", m)
 
         if device is None:
             device = model_management.vae_device()
