@@ -43,6 +43,23 @@ class KarrasScheduler:
         sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, rho=rho)
         return (sigmas, )
 
+class SplitSigmas:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                    "step": ("INT", {"default": 0, "min": 0, "max": 10000}),
+                     }
+                }
+    RETURN_TYPES = ("SIGMAS","SIGMAS")
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, sigmas, step):
+        sigmas1 = sigmas[:step + 1]
+        sigmas2 = sigmas[step + 1:]
+        return (sigmas1, sigmas2)
 
 class KSamplerSelect:
     @classmethod
@@ -116,4 +133,5 @@ NODE_CLASS_MAPPINGS = {
     "KarrasScheduler": KarrasScheduler,
     "KSamplerSelect": KSamplerSelect,
     "BasicScheduler": BasicScheduler,
+    "SplitSigmas": SplitSigmas,
 }
