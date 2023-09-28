@@ -4,6 +4,26 @@ from comfy.k_diffusion import sampling as k_diffusion_sampling
 import latent_preview
 import torch
 
+
+class BasicScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                     "scheduler": (comfy.samplers.SCHEDULER_NAMES, ),
+                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                      }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, model, scheduler, steps):
+        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, steps).cpu()
+        return (sigmas, )
+
+
 class KarrasScheduler:
     @classmethod
     def INPUT_TYPES(s):
@@ -95,4 +115,5 @@ NODE_CLASS_MAPPINGS = {
     "SamplerCustom": SamplerCustom,
     "KarrasScheduler": KarrasScheduler,
     "KSamplerSelect": KSamplerSelect,
+    "BasicScheduler": BasicScheduler,
 }
