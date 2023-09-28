@@ -28,7 +28,7 @@ class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"sampler_name": (comfy.samplers.KSAMPLER_NAMES, ),
+                    {"sampler_name": (comfy.samplers.SAMPLER_NAMES, ),
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
@@ -37,7 +37,7 @@ class KSamplerSelect:
     FUNCTION = "get_sampler"
 
     def get_sampler(self, sampler_name):
-        sampler = comfy.samplers.ksampler(sampler_name)()
+        sampler = comfy.samplers.sampler_class(sampler_name)()
         return (sampler, )
 
 class SamplerCustom:
