@@ -636,15 +636,26 @@ class ControlNetApply:
         if strength == 0:
             return (conditioning, )
 
+
         c = []
-        control_hint = image.movedim(-1,1)
+        if isinstance(image, dict):
+            control_hint = image['image'].movedim(-1, 1)
+            is_soft_injection = image['soft_injection']
+        else: #check if image tells to do a soft injection method
+            control_hint = image.movedim(-1,1)
+            is_soft_injection = False
         for t in conditioning:
             n = [t[0], t[1].copy()]
-            c_net = control_net.copy().set_cond_hint(control_hint, strength)
+            c_net = control_net.copy().set_cond_hint(control_hint, strength, is_soft_injection)
             if 'control' in t[1]:
                 c_net.set_previous_controlnet(t[1]['control'])
             n[1]['control'] = c_net
             n[1]['control_apply_to_uncond'] = True
+            if is_soft_injection:
+                scaled_weights = [strength * (0.825 ** float(12 - i)) for i in range(13)]
+                if len(c_net.control_model.input_blocks) == 9: #is a sdxl controlnet
+                    scaled_weights = scaled_weights[:10]
+                c_net.set_cond_scaled_weight(scaled_weights)
             c.append(n)
         return (c, )
 
@@ -671,7 +682,12 @@ class ControlNetApplyAdvanced:
         if strength == 0:
             return (positive, negative)
 
-        control_hint = image.movedim(-1,1)
+        if isinstance(image, dict):
+            control_hint = image['image'].movedim(-1, 1)
+            is_soft_injection = image['soft_injection']
+        else:  # check if image tells to do a soft injection method
+            control_hint = image.movedim(-1, 1)
+            is_soft_injection = False
         cnets = {}
 
         out = []
@@ -684,12 +700,17 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (1.0 - start_percent, 1.0 - end_percent))
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, is_soft_injection, (1.0 - start_percent, 1.0 - end_percent))
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
                 d['control'] = c_net
                 d['control_apply_to_uncond'] = False
+                if is_soft_injection:
+                    scaled_weights = [strength * (0.825 ** float(12 - i)) for i in range(13)]
+                    if len(c_net.control_model.input_blocks) == 9:  # is a sdxl controlnet
+                        scaled_weights = scaled_weights[:10]
+                    c_net.set_cond_scaled_weight(scaled_weights)
                 n = [t[0], d]
                 c.append(n)
             out.append(c)
@@ -1189,8 +1210,11 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
         return (s,)
 
+
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+    device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
+
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
