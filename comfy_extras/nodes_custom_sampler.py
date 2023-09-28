@@ -2,7 +2,7 @@ import comfy.samplers
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
 import latent_preview
-
+import torch
 
 class KarrasScheduler:
     @classmethod
@@ -45,7 +45,7 @@ class SamplerCustom:
     def INPUT_TYPES(s):
         return {"required":
                     {"model": ("MODEL",),
-                    "add_noise": (["enable", "disable"], ),
+                    "add_noise": ("BOOLEAN", {"default": True}),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
                     "positive": ("CONDITIONING", ),
@@ -66,7 +66,7 @@ class SamplerCustom:
     def sample(self, model, add_noise, noise_seed, cfg, positive, negative, sampler, sigmas, latent_image):
         latent = latent_image
         latent_image = latent["samples"]
-        if add_noise == "disable":
+        if not add_noise:
             noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
         else:
             batch_inds = latent["batch_index"] if "batch_index" in latent else None
