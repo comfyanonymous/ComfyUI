@@ -331,15 +331,14 @@ class GrowMask:
         out = []
         for m in mask:
             output = m.numpy()
-            while expand < 0:
-                output = scipy.ndimage.grey_erosion(output, footprint=kernel)
-                expand += 1
-            while expand > 0:
-                output = scipy.ndimage.grey_dilation(output, footprint=kernel)
-                expand -= 1
+            for _ in range(abs(expand)):
+                if expand < 0:
+                    output = scipy.ndimage.grey_erosion(output, footprint=kernel)
+                else:
+                    output = scipy.ndimage.grey_dilation(output, footprint=kernel)
             output = torch.from_numpy(output)
             out.append(output)
-        return (torch.cat(out, dim=0),)
+        return (torch.stack(out, dim=0),)
 
 
 
