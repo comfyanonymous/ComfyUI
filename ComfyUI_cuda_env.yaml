@@ -3,6 +3,7 @@ channels:
   - pytorch
   - nvidia
   - conda-forge
+  - sdy623
   - defaults
 dependencies:
   - accelerate=0.23.0=pyhd8ed1ab_0
@@ -23,6 +24,7 @@ dependencies:
   - aws-checksums=0.1.17=h04c9df6_1
   - aws-crt-cpp=0.23.1=hfd73fcf_2
   - aws-sdk-cpp=1.11.156=h03febf0_2
+  - bitsandbytes-windows=0.37.5=py310_0
   - blas=2.118=mkl
   - blas-devel=3.9.0=18_win64_mkl
   - brotli-python=1.1.0=py310h00ffb61_0
@@ -158,7 +160,11 @@ dependencies:
   - tbb=2021.10.0=h91493d7_1
   - tk=8.6.13=hcfcfb64_0
   - tokenizers=0.13.3=py310h2790ac9_0
+  - torchvision=0.15.2=py310_cu118
+  - torchaudio=2.0.2=py310_cu118
+  - torchsde=0.2.6=py310h82bb817_0
   - tqdm=4.66.1=pyhd8ed1ab_0
+  - trampoline=0.1.2
   - transformers=4.33.2=pyhd8ed1ab_0
   - typing-extensions=4.8.0=hd8ed1ab_0
   - typing_extensions=4.8.0=pyha770c72_0
@@ -178,10 +184,4 @@ dependencies:
   - yarl=1.9.2=py310h8d17308_0
   - zipp=3.17.0=pyhd8ed1ab_0
   - zstd=1.5.5=h12be248_0
-  - pip:
-      - bitsandbytes-windows==0.37.5
-      - torchaudio==2.0.2
-      - torchsde==0.2.6
-      - torchvision==0.15.2
-      - trampoline==0.1.2
 prefix: C:\Users\Dev\miniconda3\envs\comfyui
