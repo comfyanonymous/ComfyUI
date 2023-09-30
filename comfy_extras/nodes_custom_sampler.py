@@ -138,6 +138,29 @@ class SamplerDPMPP_2M_SDE:
         return (sampler, )
 
 
+class SamplerDPMPP_SDE:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "r": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "noise_device": (['gpu', 'cpu'], ),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise, r, noise_device):
+        if noise_device == 'cpu':
+            sampler_name = "dpmpp_sde"
+        else:
+            sampler_name = "dpmpp_sde_gpu"
+        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})()
+        return (sampler, )
+
 class SamplerCustom:
     @classmethod
     def INPUT_TYPES(s):
@@ -196,6 +219,7 @@ NODE_CLASS_MAPPINGS = {
     "PolyexponentialScheduler": PolyexponentialScheduler,
     "KSamplerSelect": KSamplerSelect,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
+    "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "BasicScheduler": BasicScheduler,
     "SplitSigmas": SplitSigmas,
 }
