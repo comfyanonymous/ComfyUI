@@ -1715,7 +1715,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 EXTENSION_WEB_DIRS = {}
-MODULE_NODE_MAPPINGS = {os.path.abspath(__file__): dict(NODE_CLASS_MAPPINGS)}
+MODULE_NODE_MAPPINGS = {os.path.realpath(__file__): dict(NODE_CLASS_MAPPINGS)}
 
 def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
@@ -1747,7 +1747,7 @@ def load_custom_node(module_path, ignore=set()):
                     module_node_mappings[name] = module.NODE_CLASS_MAPPINGS[name]
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
-            MODULE_NODE_MAPPINGS[os.path.abspath(module_path)] = module_node_mappings
+            MODULE_NODE_MAPPINGS[os.path.realpath(module_path)] = module_node_mappings
             return True
         else:
             print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
