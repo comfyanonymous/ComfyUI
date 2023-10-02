@@ -411,6 +411,8 @@ def validate_inputs(prompt, item, validated, stack=[]):
         validated[unique_id] = ret
         # don't continue, because we're already here further up the stack
         return ret
+    
+# add this node to the stack
     stack.append(unique_id)
 
     for x in required_inputs:
@@ -591,6 +593,9 @@ def validate_inputs(prompt, item, validated, stack=[]):
                         errors.append(error)
                         continue
 
+# pop the node back off the stack:
+    stack.pop()
+
     if len(errors) > 0 or valid is not True:
         ret = (False, errors, unique_id)
     else:
@@ -675,25 +680,23 @@ def validate_prompt(prompt):
                         print(f"* {class_type} {node_id}:")
                         for reason in reasons:
                             print(f"  - {reason['message']}: {reason['details']}")
+                            if 'extra_info' in reason:
+                                print(f"    - {reason['extra_info']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
             print("Output will be ignored")
 
     if len(good_outputs) == 0:
         errors_list = []
-        extra_info = {}
         for o, errors in errors:
-            if errors:
-                extra_info[o] = []
-                for error in errors:
-                    errors_list.append(f"{error['message']}: {error['details']}")
-                    extra_info[o].append(error.get('extra_info',""))
+            for error in errors:
+                errors_list.append(f"{error['message']}: {error['details']}")
         errors_list = "\n".join(errors_list)
 
         error = {
             "type": "prompt_outputs_failed_validation",
             "message": "Prompt outputs failed validation",
             "details": errors_list,
-            "extra_info": extra_info,
+            "extra_info": {}
         }
 
         return (False, error, list(good_outputs), node_errors)
