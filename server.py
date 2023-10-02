@@ -411,10 +411,8 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            out = {}
-            for x in nodes.NODE_CLASS_MAPPINGS:
-                out[x] = node_info(x)
-            return web.json_response(out)
+            node_info_dict = {node_name: node_info(node_name) for node_name in nodes.NODE_CLASS_MAPPINGS}
+            return web.json_response(node_info_dict)
 
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
