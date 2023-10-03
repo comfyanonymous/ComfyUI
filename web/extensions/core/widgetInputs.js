@@ -4,6 +4,11 @@ import { app } from "../../scripts/app.js";
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
 
+function getConfig(widgetName) {
+	const { nodeData } = this.constructor;
+	return nodeData?.input?.required[widgetName] ?? nodeData?.input?.optional?.[widgetName];
+}
+
 function isConvertableWidget(widget, config) {
 	return (VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0])) && !widget.options?.forceInput;
 }
@@ -55,12 +60,12 @@ function showWidget(widget) {
 function convertToInput(node, widget, config) {
 	hideWidget(node, widget);
 
-	const { linkType } = getWidgetType(config);
+	const { linkType } = getWidgetType(config, `${node.comfyClass}|${widget.name}`);
 
 	// Add input and store widget config for creating on primitive node
 	const sz = node.size;
 	node.addInput(widget.name, linkType, {
-		widget: { name: widget.name, config },
+		widget: { name: widget.name, getConfig: () => config },
 	});
 
 	for (const widget of node.widgets) {
@@ -84,13 +89,13 @@ function convertToWidget(node, widget) {
 	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
 }
 
-function getWidgetType(config) {
+function getWidgetType(config, comboType) {
 	// Special handling for COMBO so we restrict links based on the entries
 	let type = config[0];
 	let linkType = type;
 	if (type instanceof Array) {
 		type = "COMBO";
-		linkType = linkType.join(",");
+		linkType = comboType;
 	}
 	return { type, linkType };
 }
@@ -116,7 +121,7 @@ app.registerExtension({
 							callback: () => convertToWidget(this, w),
 						});
 					} else {
-						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
+						const config = getConfig.call(this, w.name) ?? [w.type, w.options || {}];
 						if (isConvertableWidget(w, config)) {
 							toInput.push({
 								content: `Convert ${w.name} to input`,
@@ -137,34 +142,56 @@ app.registerExtension({
 			return r;
 		};
 
-		const origOnNodeCreated = nodeType.prototype.onNodeCreated
+		nodeType.prototype.onGraphConfigured = function () {
+			if (!this.inputs) return;
+
+			for (const input of this.inputs) {
+				if (input.widget) {
+					// Cleanup old widget config
+					delete input.widget.config;
+
+					if (!input.widget.getConfig) {
+						input.widget.getConfig = getConfig.bind(this, input.widget.name);
+					}
+
+					const config = input.widget.getConfig();
+					if (config[1]?.forceInput) continue;
+
+					const w = this.widgets.find((w) => w.name === input.widget.name);
+					if (w) {
+						hideWidget(this, w);
+					} else {
+						convertToWidget(this, input);
+					}
+				}
+			}
+		};
+
+		const origOnNodeCreated = nodeType.prototype.onNodeCreated;
 		nodeType.prototype.onNodeCreated = function () {
 			const r = origOnNodeCreated ? origOnNodeCreated.apply(this) : undefined;
-			if (this.widgets) {
+
+			// When node is created, convert any force/default inputs
+			if (!app.configuringGraph && this.widgets) {
 				for (const w of this.widgets) {
 					if (w?.options?.forceInput || w?.options?.defaultInput) {
-						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
+						const config = getConfig.call(this, w.name) ?? [w.type, w.options || {}];
 						convertToInput(this, w, config);
 					}
 				}
 			}
-			return r;
-		}
 
-		// On initial configure of nodes hide all converted widgets
+			return r;
+		};
+
 		const origOnConfigure = nodeType.prototype.onConfigure;
 		nodeType.prototype.onConfigure = function () {
 			const r = origOnConfigure ? origOnConfigure.apply(this, arguments) : undefined;
-
-			if (this.inputs) {
+			if (!app.configuringGraph && this.inputs) {
+				// On copy + paste of nodes, ensure that widget configs are set up
 				for (const input of this.inputs) {
-					if (input.widget && !input.widget.config[1]?.forceInput) {
-						const w = this.widgets.find((w) => w.name === input.widget.name);
-						if (w) {
-							hideWidget(this, w);
-						} else {
-							convertToWidget(this, input)
-						}
+					if (input.widget && !input.widget.getConfig) {
+						input.widget.getConfig = getConfig.bind(this, input.widget.name);
 					}
 				}
 			}
@@ -190,7 +217,7 @@ app.registerExtension({
 			const input = this.inputs[slot];
 			if (!input.widget || !input[ignoreDblClick]) {
 				// Not a widget input or already handled input
-				if (!(input.type in ComfyWidgets) && !(input.widget.config?.[0] instanceof Array)) {
+				if (!(input.type in ComfyWidgets) && !(input.widget.getConfig?.()?.[0] instanceof Array)) {
 					return r; //also Not a ComfyWidgets input or combo (do nothing)
 				}
 			}
@@ -262,17 +289,38 @@ app.registerExtension({
 				}
 			}
 
+			refreshComboInNode() {
+				const widget = this.widgets?.[0];
+				if (widget?.type === "combo") {
+					widget.options.values = this.outputs[0].widget.getConfig()[0];
+
+					if (!widget.options.values.includes(widget.value)) {
+						widget.value = widget.options.values[0];
+						widget.callback(widget.value);
+					}
+				}
+			}
+
+			onAfterGraphConfigured() {
+				if (this.outputs[0].links?.length && !this.widgets?.length) {
+					this.#onFirstConnection();
+
+					// Populate widget values from config data
+					for (let i = 0; i < this.widgets_values.length; i++) {
+						this.widgets[i].value = this.widgets_values[i];
+					}
+				}
+			}
+
 			onConnectionsChange(_, index, connected) {
+				if (app.configuringGraph) {
+					// Dont run while the graph is still setting up
+					return;
+				}
+
 				if (connected) {
-					if (this.outputs[0].links?.length) {
-						if (!this.widgets?.length) {
-							this.#onFirstConnection();
-						}
-						if (!this.widgets?.length && this.outputs[0].widget) {
-							// On first load it often cant recreate the widget as the other node doesnt exist yet
-							// Manually recreate it from the output info
-							this.#createWidget(this.outputs[0].widget.config);
-						}
+					if (this.outputs[0].links?.length && !this.widgets?.length) {
+						this.#onFirstConnection();
 					}
 				} else if (!this.outputs[0].links?.length) {
 					this.#onLastDisconnect();
@@ -304,23 +352,21 @@ app.registerExtension({
 				const input = theirNode.inputs[link.target_slot];
 				if (!input) return;
 
-
-				var _widget;
+				let widget;
 				if (!input.widget) {
 					if (!(input.type in ComfyWidgets)) return;
-					_widget = { "name": input.name, "config": [input.type, {}] }//fake widget
+					widget = { name: input.name, getConfig: () => [input.type, {}] }; //fake widget
 				} else {
-					_widget = input.widget;
+					widget = input.widget;
 				}
 
-				const widget = _widget;
-				const { type, linkType } = getWidgetType(widget.config);
+				const { type, linkType } = getWidgetType(widget.getConfig(), `${theirNode.comfyClass}|${widget.name}`);
 				// Update our output to restrict to the widget type
 				this.outputs[0].type = linkType;
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
-				this.#createWidget(widget.config, theirNode, widget.name);
+				this.#createWidget(widget.getConfig(), theirNode, widget.name);
 			}
 
 			#createWidget(inputData, node, widgetName) {
@@ -334,7 +380,7 @@ app.registerExtension({
 				if (type in ComfyWidgets) {
 					widget = (ComfyWidgets[type](this, "value", inputData, app) || {}).widget;
 				} else {
-					widget = this.addWidget(type, "value", null, () => { }, {});
+					widget = this.addWidget(type, "value", null, () => {}, {});
 				}
 
 				if (node?.widgets && widget) {
@@ -376,8 +422,8 @@ app.registerExtension({
 
 			#isValidConnection(input) {
 				// Only allow connections where the configs match
-				const config1 = this.outputs[0].widget.config;
-				const config2 = input.widget.config;
+				const config1 = this.outputs[0].widget.getConfig();
+				const config2 = input.widget.getConfig();
 
 				if (config1[0] instanceof Array) {
 					// These checks shouldnt actually be necessary as the types should match
@@ -395,7 +441,7 @@ app.registerExtension({
 				}
 
 				for (const k in config1[1]) {
-					if (k !== "default" && k !== 'forceInput') {
+					if (k !== "default" && k !== "forceInput") {
 						if (config1[1][k] !== config2[1][k]) {
 							return false;
 						}
