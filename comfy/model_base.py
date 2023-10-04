@@ -3,6 +3,7 @@ from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
+import comfy.model_management
 import numpy as np
 from enum import Enum
 from . import utils
@@ -18,8 +19,9 @@ class BaseModel(torch.nn.Module):
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
         self.model_config = model_config
-        self.register_schedule(given_betas=None, beta_schedule="linear", timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
-        self.diffusion_model = UNetModel(**unet_config, device=device)
+        self.register_schedule(given_betas=None, beta_schedule=model_config.beta_schedule, timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
+        if not unet_config.get("disable_unet_model_creation", False):
+            self.diffusion_model = UNetModel(**unet_config, device=device)
         self.model_type = model_type
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -48,10 +50,10 @@ class BaseModel(torch.nn.Module):
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, c_adm=None, control=None, transformer_options={}):
         if c_concat is not None:
-            xc = torch.cat([x] + c_concat, dim=1)
+            xc = torch.cat([x] + [c_concat], dim=1)
         else:
             xc = x
-        context = torch.cat(c_crossattn, 1)
+        context = c_crossattn
         dtype = self.get_dtype()
         xc = xc.to(dtype)
         t = t.to(dtype)
@@ -93,7 +95,11 @@ class BaseModel(torch.nn.Module):
 
     def state_dict_for_saving(self, clip_state_dict, vae_state_dict):
         clip_state_dict = self.model_config.process_clip_state_dict_for_saving(clip_state_dict)
-        unet_state_dict = self.diffusion_model.state_dict()
+        unet_sd = self.diffusion_model.state_dict()
+        unet_state_dict = {}
+        for k in unet_sd:
+            unet_state_dict[k] = comfy.model_management.resolve_lowvram_weight(unet_sd[k], self.diffusion_model, k)
+
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
         vae_state_dict = self.model_config.process_vae_state_dict_for_saving(vae_state_dict)
         if self.get_dtype() == torch.float16:
@@ -105,6 +111,32 @@ class BaseModel(torch.nn.Module):
 
         return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
 
+    def set_inpaint(self):
+        self.concat_keys = ("mask", "masked_image")
+
+def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0):
+    adm_inputs = []
+    weights = []
+    noise_aug = []
+    for unclip_cond in unclip_conditioning:
+        for adm_cond in unclip_cond["clip_vision_output"].image_embeds:
+            weight = unclip_cond["strength"]
+            noise_augment = unclip_cond["noise_augmentation"]
+            noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
+            c_adm, noise_level_emb = noise_augmentor(adm_cond.to(device), noise_level=torch.tensor([noise_level], device=device))
+            adm_out = torch.cat((c_adm, noise_level_emb), 1) * weight
+            weights.append(weight)
+            noise_aug.append(noise_augment)
+            adm_inputs.append(adm_out)
+
+    if len(noise_aug) > 1:
+        adm_out = torch.stack(adm_inputs).sum(0)
+        noise_augment = noise_augment_merge
+        noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
+        c_adm, noise_level_emb = noise_augmentor(adm_out[:, :noise_augmentor.time_embed.dim], noise_level=torch.tensor([noise_level], device=device))
+        adm_out = torch.cat((c_adm, noise_level_emb), 1)
+
+    return adm_out
 
 class SD21UNCLIP(BaseModel):
     def __init__(self, model_config, noise_aug_config, model_type=ModelType.V_PREDICTION, device=None):
@@ -114,46 +146,25 @@ class SD21UNCLIP(BaseModel):
     def encode_adm(self, **kwargs):
         unclip_conditioning = kwargs.get("unclip_conditioning", None)
         device = kwargs["device"]
-
-        if unclip_conditioning is not None:
-            adm_inputs = []
-            weights = []
-            noise_aug = []
-            for unclip_cond in unclip_conditioning:
-                adm_cond = unclip_cond["clip_vision_output"].image_embeds
-                weight = unclip_cond["strength"]
-                noise_augment = unclip_cond["noise_augmentation"]
-                noise_level = round((self.noise_augmentor.max_noise_level - 1) * noise_augment)
-                c_adm, noise_level_emb = self.noise_augmentor(adm_cond.to(device), noise_level=torch.tensor([noise_level], device=device))
-                adm_out = torch.cat((c_adm, noise_level_emb), 1) * weight
-                weights.append(weight)
-                noise_aug.append(noise_augment)
-                adm_inputs.append(adm_out)
-
-            if len(noise_aug) > 1:
-                adm_out = torch.stack(adm_inputs).sum(0)
-                #TODO: add a way to control this
-                noise_augment = 0.05
-                noise_level = round((self.noise_augmentor.max_noise_level - 1) * noise_augment)
-                c_adm, noise_level_emb = self.noise_augmentor(adm_out[:, :self.noise_augmentor.time_embed.dim], noise_level=torch.tensor([noise_level], device=device))
-                adm_out = torch.cat((c_adm, noise_level_emb), 1)
+        if unclip_conditioning is None:
+            return torch.zeros((1, self.adm_channels))
         else:
-            adm_out = torch.zeros((1, self.adm_channels))
+            return unclip_adm(unclip_conditioning, device, self.noise_augmentor, kwargs.get("unclip_noise_augment_merge", 0.05))
 
-        return adm_out
-
-class SDInpaint(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.EPS, device=None):
-        super().__init__(model_config, model_type, device=device)
-        self.concat_keys = ("mask", "masked_image")
+def sdxl_pooled(args, noise_augmentor):
+    if "unclip_conditioning" in args:
+        return unclip_adm(args.get("unclip_conditioning", None), args["device"], noise_augmentor)[:,:1280]
+    else:
+        return args["pooled_output"]
 
 class SDXLRefiner(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
         self.embedder = Timestep(256)
+        self.noise_augmentor = CLIPEmbeddingNoiseAugmentation(**{"noise_schedule_config": {"timesteps": 1000, "beta_schedule": "squaredcos_cap_v2"}, "timestep_dim": 1280})
 
     def encode_adm(self, **kwargs):
-        clip_pooled = kwargs["pooled_output"]
+        clip_pooled = sdxl_pooled(kwargs, self.noise_augmentor)
         width = kwargs.get("width", 768)
         height = kwargs.get("height", 768)
         crop_w = kwargs.get("crop_w", 0)
@@ -170,16 +181,17 @@ class SDXLRefiner(BaseModel):
         out.append(self.embedder(torch.Tensor([crop_h])))
         out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([aesthetic_score])))
-        flat = torch.flatten(torch.cat(out))[None, ]
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
 
 class SDXL(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
         self.embedder = Timestep(256)
+        self.noise_augmentor = CLIPEmbeddingNoiseAugmentation(**{"noise_schedule_config": {"timesteps": 1000, "beta_schedule": "squaredcos_cap_v2"}, "timestep_dim": 1280})
 
     def encode_adm(self, **kwargs):
-        clip_pooled = kwargs["pooled_output"]
+        clip_pooled = sdxl_pooled(kwargs, self.noise_augmentor)
         width = kwargs.get("width", 768)
         height = kwargs.get("height", 768)
         crop_w = kwargs.get("crop_w", 0)
@@ -194,5 +206,5 @@ class SDXL(BaseModel):
         out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([target_height])))
         out.append(self.embedder(torch.Tensor([target_width])))
-        flat = torch.flatten(torch.cat(out))[None, ]
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)

@@ -21,7 +21,8 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                return None
+                input_data_all[x] = (None,)
+                continue
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
         else:
@@ -354,6 +355,7 @@ class PromptExecutor:
                     d = self.outputs_ui.pop(x)
                     del d
 
+            comfy.model_management.cleanup_models()
             if self.server.client_id is not None:
                 self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
             executed = set()

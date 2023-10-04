@@ -1,6 +1,6 @@
 ComfyUI
 =======
-A powerful and modular stable diffusion GUI and backend.
+The most powerful and modular stable diffusion GUI and backend.
 -----------
 ![ComfyUI Screenshot](comfyui_screenshot.png)
 
@@ -47,6 +47,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + O                  | Load workflow                                                                                                      |
 | Ctrl + A                  | Select all nodes                                                                                                   |
 | Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
+| Ctrl + B                  | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace          | Delete selected nodes                                                                                              |
 | Ctrl + Delete/Backspace   | Delete the current graph                                                                                           |
 | Space                     | Move the canvas around when held and moving the cursor                                                             |
@@ -76,9 +77,9 @@ Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you 
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
 
-## Colab Notebook
+## Jupyter Notebook
 
-To run it on colab or paperspace you can use my [Colab Notebook](notebooks/comfyui_colab.ipynb) here: [Link to open with google colab](https://colab.research.google.com/github/comfyanonymous/ComfyUI/blob/master/notebooks/comfyui_colab.ipynb)
+To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
 
 ## Manual Install (Windows, Linux)
 
@@ -93,8 +94,8 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
 
-This is the command to install the nightly with ROCm 5.6 that supports the 7000 series and might have some performance improvements:
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.6```
+This is the command to install the nightly with ROCm 5.7 that supports the 7000 series and might have some performance improvements:
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7```
 
 ### NVIDIA
 
