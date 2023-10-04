@@ -237,24 +237,24 @@ class MaskComposite:
         source = source.reshape((-1, source.shape[-2], source.shape[-1]))
 
         left, top = (x, y,)
-        right, bottom = (min(left + source.shape[-2], destination.shape[-2]), min(top + source.shape[-1], destination.shape[-1]))
+        right, bottom = (min(left + source.shape[-1], destination.shape[-1]), min(top + source.shape[-2], destination.shape[-2]))
         visible_width, visible_height = (right - left, bottom - top,)
 
-        source_portion = source[:visible_height, :visible_width]
-        destination_portion = destination[top:bottom, left:right]
+        source_portion = source[:, :visible_height, :visible_width]
+        destination_portion = destination[:, top:bottom, left:right]
 
         if operation == "multiply":
-            output[:, left:right, top:bottom] = destination_portion * source_portion
+            output[:, top:bottom, left:right] = destination_portion * source_portion
         elif operation == "add":
-            output[:, left:right, top:bottom] = destination_portion + source_portion
+            output[:, top:bottom, left:right] = destination_portion + source_portion
         elif operation == "subtract":
-            output[:, left:right, top:bottom] = destination_portion - source_portion
+            output[:, top:bottom, left:right] = destination_portion - source_portion
         elif operation == "and":
-            output[:, left:right, top:bottom] = torch.bitwise_and(destination_portion.round().bool(), source_portion.round().bool()).float()
+            output[:, top:bottom, left:right] = torch.bitwise_and(destination_portion.round().bool(), source_portion.round().bool()).float()
         elif operation == "or":
-            output[:, left:right, top:bottom] = torch.bitwise_or(destination_portion.round().bool(), source_portion.round().bool()).float()
+            output[:, top:bottom, left:right] = torch.bitwise_or(destination_portion.round().bool(), source_portion.round().bool()).float()
         elif operation == "xor":
-            output[:, left:right, top:bottom] = torch.bitwise_xor(destination_portion.round().bool(), source_portion.round().bool()).float()
+            output[:, top:bottom, left:right] = torch.bitwise_xor(destination_portion.round().bool(), source_portion.round().bool()).float()
 
         output = torch.clamp(output, 0.0, 1.0)
 
