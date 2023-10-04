@@ -43,6 +43,62 @@ class KarrasScheduler:
         sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, rho=rho)
         return (sigmas, )
 
+class ExponentialScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "sigma_max": ("FLOAT", {"default": 14.614642, "min": 0.0, "max": 1000.0, "step":0.01, "round": False}),
+                     "sigma_min": ("FLOAT", {"default": 0.0291675, "min": 0.0, "max": 1000.0, "step":0.01, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, steps, sigma_max, sigma_min):
+        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=sigma_min, sigma_max=sigma_max)
+        return (sigmas, )
+
+class PolyexponentialScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "sigma_max": ("FLOAT", {"default": 14.614642, "min": 0.0, "max": 1000.0, "step":0.01, "round": False}),
+                     "sigma_min": ("FLOAT", {"default": 0.0291675, "min": 0.0, "max": 1000.0, "step":0.01, "round": False}),
+                     "rho": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, steps, sigma_max, sigma_min, rho):
+        sigmas = k_diffusion_sampling.get_sigmas_polyexponential(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, rho=rho)
+        return (sigmas, )
+
+class VPScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "beta_d": ("FLOAT", {"default": 19.9, "min": 0.0, "max": 1000.0, "step":0.01, "round": False}), #TODO: fix default values
+                     "beta_min": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 1000.0, "step":0.01, "round": False}),
+                     "eps_s": ("FLOAT", {"default": 0.001, "min": 0.0, "max": 1.0, "step":0.0001, "round": False}),
+                    }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, steps, beta_d, beta_min, eps_s):
+        sigmas = k_diffusion_sampling.get_sigmas_vp(n=steps, beta_d=beta_d, beta_min=beta_min, eps_s=eps_s)
+        return (sigmas, )
+
 class SplitSigmas:
     @classmethod
     def INPUT_TYPES(s):
@@ -58,7 +114,7 @@ class SplitSigmas:
 
     def get_sigmas(self, sigmas, step):
         sigmas1 = sigmas[:step + 1]
-        sigmas2 = sigmas[step + 1:]
+        sigmas2 = sigmas[step:]
         return (sigmas1, sigmas2)
 
 class KSamplerSelect:
@@ -75,6 +131,53 @@ class KSamplerSelect:
 
     def get_sampler(self, sampler_name):
         sampler = comfy.samplers.sampler_class(sampler_name)()
+        return (sampler, )
+
+class SamplerDPMPP_2M_SDE:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"solver_type": (['midpoint', 'heun'], ),
+                     "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "noise_device": (['gpu', 'cpu'], ),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, solver_type, eta, s_noise, noise_device):
+        if noise_device == 'cpu':
+            sampler_name = "dpmpp_2m_sde"
+        else:
+            sampler_name = "dpmpp_2m_sde_gpu"
+        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "solver_type": solver_type})()
+        return (sampler, )
+
+
+class SamplerDPMPP_SDE:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "r": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "noise_device": (['gpu', 'cpu'], ),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "_for_testing/custom_sampling"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise, r, noise_device):
+        if noise_device == 'cpu':
+            sampler_name = "dpmpp_sde"
+        else:
+            sampler_name = "dpmpp_sde_gpu"
+        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})()
         return (sampler, )
 
 class SamplerCustom:
@@ -131,7 +234,12 @@ class SamplerCustom:
 NODE_CLASS_MAPPINGS = {
     "SamplerCustom": SamplerCustom,
     "KarrasScheduler": KarrasScheduler,
+    "ExponentialScheduler": ExponentialScheduler,
+    "PolyexponentialScheduler": PolyexponentialScheduler,
+    "VPScheduler": VPScheduler,
     "KSamplerSelect": KSamplerSelect,
+    "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
+    "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "BasicScheduler": BasicScheduler,
     "SplitSigmas": SplitSigmas,
 }
