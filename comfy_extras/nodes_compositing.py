@@ -102,7 +102,7 @@ class PorterDuffImageComposite:
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "composite"
-    CATEGORY = "compositing"
+    CATEGORY = "mask/compositing"
 
     def composite(self, source: torch.Tensor, source_alpha: torch.Tensor, destination: torch.Tensor, destination_alpha: torch.Tensor, mode):
         batch_size = min(len(source), len(source_alpha), len(destination), len(destination_alpha))
@@ -149,7 +149,7 @@ class SplitImageWithAlpha:
                 }
         }
 
-    CATEGORY = "compositing"
+    CATEGORY = "mask/compositing"
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "split_image_with_alpha"
 
@@ -170,7 +170,7 @@ class JoinImageWithAlpha:
                 }
         }
 
-    CATEGORY = "compositing"
+    CATEGORY = "mask/compositing"
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "join_image_with_alpha"
 
