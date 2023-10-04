@@ -46,6 +46,10 @@ def set_temp_directory(temp_dir):
     global temp_directory
     temp_directory = temp_dir
 
+def set_input_directory(input_dir):
+    global input_directory
+    input_directory = input_dir
+
 def get_output_directory():
     global output_directory
     return output_directory
