@@ -3,6 +3,8 @@ import torch
 import comfy.utils
 from enum import Enum
 
+def resize_mask(mask, shape):
+    return torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(shape[0], shape[1]), mode="bilinear").squeeze(1)
 
 class PorterDuffMode(Enum):
     ADD = 0
@@ -178,6 +180,7 @@ class JoinImageWithAlpha:
         batch_size = min(len(image), len(alpha))
         out_images = []
 
+        alpha = resize_mask(alpha, image.shape[1:])
         for i in range(batch_size):
            out_images.append(torch.cat((image[i][:,:,:3], alpha[i].unsqueeze(2)), dim=2))
 
