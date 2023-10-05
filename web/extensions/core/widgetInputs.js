@@ -61,11 +61,11 @@ function showWidget(widget) {
 function convertToInput(node, widget, config) {
 	hideWidget(node, widget);
 
-	const { linkType } = getWidgetType(config, `${node.comfyClass}|${widget.name}`);
+	const { type } = getWidgetType(config);
 
 	// Add input and store widget config for creating on primitive node
 	const sz = node.size;
-	node.addInput(widget.name, linkType, {
+	node.addInput(widget.name, type, {
 		widget: { name: widget.name, getConfig: () => config },
 	});
 
@@ -90,15 +90,13 @@ function convertToWidget(node, widget) {
 	node.setSize([Math.max(sz[0], node.size[0]), Math.max(sz[1], node.size[1])]);
 }
 
-function getWidgetType(config, comboType) {
+function getWidgetType(config) {
 	// Special handling for COMBO so we restrict links based on the entries
 	let type = config[0];
-	let linkType = type;
 	if (type instanceof Array) {
 		type = "COMBO";
-		linkType = comboType;
 	}
-	return { type, linkType };
+	return { type };
 }
 
 app.registerExtension({
@@ -148,11 +146,22 @@ app.registerExtension({
 
 			for (const input of this.inputs) {
 				if (input.widget) {
-					// Cleanup old widget config
-					delete input.widget.config;
-
 					if (!input.widget.getConfig) {
 						input.widget.getConfig = getConfig.bind(this, input.widget.name);
+					}
+
+					// Cleanup old widget config
+					if (input.widget.config) {
+						if (input.widget.config[0] instanceof Array) {
+							// If we are an old converted combo then replace the input type and the stored link data
+							input.type = "COMBO";
+
+							const link = app.graph.links[input.link];
+							if (link) {
+								link.type = input.type;
+							}
+						}
+						delete input.widget.config;
 					}
 
 					const w = this.widgets.find((w) => w.name === input.widget.name);
@@ -372,9 +381,9 @@ app.registerExtension({
 					widget = input.widget;
 				}
 
-				const { type, linkType } = getWidgetType(widget.getConfig(), `${theirNode.comfyClass}|${widget.name}`);
+				const { type } = getWidgetType(widget.getConfig());
 				// Update our output to restrict to the widget type
-				this.outputs[0].type = linkType;
+				this.outputs[0].type = type;
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
@@ -483,9 +492,6 @@ app.registerExtension({
 				const config2 = input.widget.getConfig();
 
 				if (config1[0] instanceof Array) {
-					// These checks shouldnt actually be necessary as the types should match
-					// but double checking doesn't hurt
-
 					// New input isnt a combo
 					if (!(config2[0] instanceof Array)) {
 						console.log(`connection rejected: tried to connect combo to ${config2[0]}`);
