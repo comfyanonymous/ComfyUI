@@ -533,7 +533,7 @@ app.registerExtension({
 							if (k === "min") {
 								const theirMax = config2[1]["max"];
 								if (theirMax != null && v1 > theirMax) {
-									console.log("Invalid connection, min > max");
+									console.log("connection rejected: min > max", v1, theirMax);
 									return false;
 								}
 								getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.max(v1, v2);
@@ -541,7 +541,7 @@ app.registerExtension({
 							} else if (k === "max") {
 								const theirMin = config2[1]["min"];
 								if (theirMin != null && v1 < theirMin) {
-									console.log("Invalid connection, max < min");
+									console.log("connection rejected: max < min", v1, theirMin);
 									return false;
 								}
 								getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.min(v1, v2);
@@ -549,17 +549,20 @@ app.registerExtension({
 							} else if (k === "step") {
 								let step;
 								if (v1 == null) {
+									// No current step
 									step = v2;
 								} else if (v2 == null) {
+									// No new step
 									step = v1;
 								} else {
 									if (v1 < v2) {
+										// Ensure v1 is larger for the mod
 										const a = v2;
 										v2 = v1;
 										v1 = a;
 									}
 									if (v1 % v2) {
-										console.log("Steps not divisible", "current:", v1, "new:", v2);
+										console.log("connection rejected: steps not divisible", "current:", v1, "new:", v2);
 										return false;
 									}
 
