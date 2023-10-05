@@ -1114,6 +1114,40 @@ export class ComfyApp {
 		});
 	}
 
+	#addConfigureHandler() {
+		const app = this;
+		const configure = LGraph.prototype.configure;
+		// Flag that the graph is configuring to prevent nodes from running checks while its still loading
+		LGraph.prototype.configure = function () {
+			app.configuringGraph = true;
+			try {
+				return configure.apply(this, arguments);
+			} finally {
+				app.configuringGraph = false;
+			}
+		};
+	}
+
+	#addAfterConfigureHandler() {
+		const app = this;
+		const onConfigure = app.graph.onConfigure;
+		app.graph.onConfigure = function () {
+			// Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
+			for (const node of app.graph._nodes) {
+				node.onGraphConfigured?.();
+			}
+			
+			const r = onConfigure?.apply(this, arguments);
+			
+			// Fire after onConfigure, used by primitves to generate widget using input nodes config
+			for (const node of app.graph._nodes) {
+				node.onAfterGraphConfigured?.();
+			}
+
+			return r;
+		};
+	}
+
 	/**
 	 * Loads all extensions from the API into the window in parallel
 	 */
@@ -1147,8 +1181,12 @@ export class ComfyApp {
 
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
+		this.#addConfigureHandler();
 
 		this.graph = new LGraph();
+
+		this.#addAfterConfigureHandler();
+
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
 
@@ -1285,6 +1323,7 @@ export class ComfyApp {
 				{
 					title: nodeData.display_name || nodeData.name,
 					comfyClass: nodeData.name,
+					nodeData
 				}
 			);
 			node.prototype.comfyClass = nodeData.name;
@@ -1670,13 +1709,21 @@ export class ComfyApp {
 	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
+		for(const nodeId in LiteGraph.registered_node_types) {
+			const node = LiteGraph.registered_node_types[nodeId];
+			const nodeDef = defs[nodeId];
+			if(!nodeDef) continue;
+
+			node.nodeData = nodeDef;
+		}
+
 		for(let nodeNum in this.graph._nodes) {
 			const node = this.graph._nodes[nodeNum];
-
 			const def = defs[node.type];
 
-			// HOTFIX: The current patch is designed to prevent the rest of the code from breaking due to primitive nodes,
-			//         and additional work is needed to consider the primitive logic in the refresh logic.
+			// Allow primitive nodes to handle refresh
+			node.refreshComboInNode?.(defs);
+
 			if(!def)
 				continue;
 
