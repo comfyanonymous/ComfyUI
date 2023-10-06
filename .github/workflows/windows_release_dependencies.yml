@@ -1,0 +1,53 @@
+name: "Windows Release dependencies"
+
+on:
+  workflow_dispatch:
+    inputs:
+      xformers:
+        description: 'xformers version'
+        required: true
+        type: string
+        default: ""
+      cu:
+        description: 'cuda version'
+        required: true
+        type: string
+        default: "121"
+
+      python_minor:
+        description: 'python minor version'
+        required: true
+        type: string
+        default: "11"
+
+      python_patch:
+        description: 'python patch version'
+        required: true
+        type: string
+        default: "6"
+#  push:
+#    branches:
+#      - master
+
+jobs:
+  build_dependencies:
+    runs-on: windows-latest
+    steps:
+        - uses: actions/checkout@v3
+        - uses: actions/setup-python@v4
+          with:
+            python-version: 3.${{ inputs.python_minor }}.${{ inputs.python_patch }}
+
+        - shell: bash
+          run: |
+            python -m pip wheel --no-cache-dir torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r requirements.txt pygit2 -w ./temp_wheel_dir
+            python -m pip install --no-cache-dir ./temp_wheel_dir/*
+            echo installed basic
+            ls -lah temp_wheel_dir
+            mv temp_wheel_dir cu${{ inputs.cu }}_python_deps
+            tar cf cu${{ inputs.cu }}_python_deps.tar cu${{ inputs.cu }}_python_deps
+
+        - uses: actions/cache/save@v3
+          with:
+            path: cu${{ inputs.cu }}_python_deps.tar
+            key: ${{ runner.os }}-build-cu${{ inputs.cu }}-${{ inputs.python_minor }}
