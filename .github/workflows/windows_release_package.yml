@@ -2,6 +2,7 @@ name: "Windows Release packaging"
 
 on:
   workflow_dispatch:
+    inputs:
       cu:
         description: 'cuda version'
         required: true
