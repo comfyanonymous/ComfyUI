@@ -40,6 +40,18 @@ jobs:
 
         - shell: bash
           run: |
+            echo "@echo off
+            ..\python_embeded\python.exe .\update.py ..\ComfyUI\
+            echo
+            echo This will try to update pytorch and all python dependencies, if you get an error wait for pytorch/xformers to fix their stuff
+            echo You should not be running this anyways unless you really have to
+            echo
+            echo If you just want to update normally, close this and run update_comfyui.bat instead.
+            echo
+            pause
+            ..\python_embeded\python.exe -s -m pip install --upgrade torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
+            pause" > update_comfyui_and_python_dependencies.bat
+
             python -m pip wheel --no-cache-dir torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r requirements.txt pygit2 -w ./temp_wheel_dir
             python -m pip install --no-cache-dir ./temp_wheel_dir/*
             echo installed basic
@@ -49,5 +61,7 @@ jobs:
 
         - uses: actions/cache/save@v3
           with:
-            path: cu${{ inputs.cu }}_python_deps.tar
+            path: |
+              cu${{ inputs.cu }}_python_deps.tar
+              update_comfyui_and_python_dependencies.bat
             key: ${{ runner.os }}-build-cu${{ inputs.cu }}-${{ inputs.python_minor }}
