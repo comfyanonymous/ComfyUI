@@ -4,6 +4,7 @@ import { app } from "../../scripts/app.js";
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
 const CONFIG = Symbol();
+const GET_CONFIG = Symbol();
 
 function getConfig(widgetName) {
 	const { nodeData } = this.constructor;
@@ -66,7 +67,7 @@ function convertToInput(node, widget, config) {
 	// Add input and store widget config for creating on primitive node
 	const sz = node.size;
 	node.addInput(widget.name, type, {
-		widget: { name: widget.name, getConfig: () => config },
+		widget: { name: widget.name, [GET_CONFIG]: () => config },
 	});
 
 	for (const widget of node.widgets) {
@@ -146,8 +147,8 @@ app.registerExtension({
 
 			for (const input of this.inputs) {
 				if (input.widget) {
-					if (!input.widget.getConfig) {
-						input.widget.getConfig = getConfig.bind(this, input.widget.name);
+					if (!input.widget[GET_CONFIG]) {
+						input.widget[GET_CONFIG] = () => getConfig.call(this, input.widget.name);
 					}
 
 					// Cleanup old widget config
@@ -197,8 +198,8 @@ app.registerExtension({
 			if (!app.configuringGraph && this.inputs) {
 				// On copy + paste of nodes, ensure that widget configs are set up
 				for (const input of this.inputs) {
-					if (input.widget && !input.widget.getConfig) {
-						input.widget.getConfig = getConfig.bind(this, input.widget.name);
+					if (input.widget && !input.widget[GET_CONFIG]) {
+						input.widget[GET_CONFIG] = () => getConfig.call(this, input.widget.name);
 					}
 				}
 			}
@@ -224,7 +225,7 @@ app.registerExtension({
 			const input = this.inputs[slot];
 			if (!input.widget || !input[ignoreDblClick]) {
 				// Not a widget input or already handled input
-				if (!(input.type in ComfyWidgets) && !(input.widget.getConfig?.()?.[0] instanceof Array)) {
+				if (!(input.type in ComfyWidgets) && !(input.widget[GET_CONFIG]?.()?.[0] instanceof Array)) {
 					return r; //also Not a ComfyWidgets input or combo (do nothing)
 				}
 			}
@@ -299,7 +300,7 @@ app.registerExtension({
 			refreshComboInNode() {
 				const widget = this.widgets?.[0];
 				if (widget?.type === "combo") {
-					widget.options.values = this.outputs[0].widget.getConfig()[0];
+					widget.options.values = this.outputs[0].widget[GET_CONFIG]()[0];
 
 					if (!widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
@@ -376,18 +377,18 @@ app.registerExtension({
 				let widget;
 				if (!input.widget) {
 					if (!(input.type in ComfyWidgets)) return;
-					widget = { name: input.name, getConfig: () => [input.type, {}] }; //fake widget
+					widget = { name: input.name, [GET_CONFIG]: () => [input.type, {}] }; //fake widget
 				} else {
 					widget = input.widget;
 				}
 
-				const { type } = getWidgetType(widget.getConfig());
+				const { type } = getWidgetType(widget[GET_CONFIG]());
 				// Update our output to restrict to the widget type
 				this.outputs[0].type = type;
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
-				this.#createWidget(widget[CONFIG] ?? widget.getConfig(), theirNode, widget.name, recreating);
+				this.#createWidget(widget[CONFIG] ?? widget[GET_CONFIG](), theirNode, widget.name, recreating);
 			}
 
 			#createWidget(inputData, node, widgetName, recreating) {
@@ -469,7 +470,7 @@ app.registerExtension({
 					return;
 				}
 
-				const config1 = output.widget.getConfig();
+				const config1 = output.widget[GET_CONFIG]();
 				const isNumber = config1[0] === "INT" || config1[0] === "FLOAT";
 				if (!isNumber) return;
 
@@ -488,8 +489,8 @@ app.registerExtension({
 			#isValidConnection(input, forceUpdate) {
 				// Only allow connections where the configs match
 				const output = this.outputs[0];
-				const config1 = output.widget[CONFIG] ?? output.widget.getConfig();
-				const config2 = input.widget.getConfig();
+				const config1 = output.widget[CONFIG] ?? output.widget[GET_CONFIG]();
+				const config2 = input.widget[GET_CONFIG]();
 
 				if (config1[0] instanceof Array) {
 					// New input isnt a combo
