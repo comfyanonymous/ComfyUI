@@ -35,11 +35,14 @@ jobs:
         - uses: actions/cache/restore@v3
           id: cache
           with:
-            path: cu${{ inputs.cu }}_python_deps.tar
+            path: |
+              cu${{ inputs.cu }}_python_deps.tar
+              update_comfyui_and_python_dependencies.bat
             key: ${{ runner.os }}-build-cu${{ inputs.cu }}-${{ inputs.python_minor }}
         - shell: bash
           run: |
             mv cu${{ inputs.cu }}_python_deps.tar ../
+            mv update_comfyui_and_python_dependencies.bat ../
             cd ..
             tar xf cu${{ inputs.cu }}_python_deps.tar
             pwd
@@ -74,8 +77,8 @@ jobs:
 
             mkdir update
             cp -r ComfyUI/.ci/update_windows/* ./update/
-            cp -r ComfyUI/.ci/update_windows_cu${{ inputs.cu }}/* ./update/
             cp -r ComfyUI/.ci/windows_base_files/* ./
+            cp ../update_comfyui_and_python_dependencies.bat ./update/
 
             cd ..
 
