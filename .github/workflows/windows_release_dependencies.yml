@@ -5,7 +5,7 @@ on:
     inputs:
       xformers:
         description: 'xformers version'
-        required: true
+        required: false
         type: string
         default: ""
       cu:
