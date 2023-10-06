@@ -1,6 +1,6 @@
 import argparse
 import enum
-
+import comfy.options
 
 class EnumAction(argparse.Action):
     """
@@ -94,7 +94,10 @@ parser.add_argument("--windows-standalone-build", action="store_true", help="Win
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 
-args = parser.parse_args()
+if comfy.options.args_parsing:
+    args = parser.parse_args()
+else:
+    args = parser.parse_args([])
 
 if args.windows_standalone_build:
     args.auto_launch = True

@@ -1,5 +1,9 @@
 
 class LatentFormat:
+    scale_factor = 1.0
+    latent_rgb_factors = None
+    taesd_decoder_name = None
+
     def process_in(self, latent):
         return latent * self.scale_factor
 

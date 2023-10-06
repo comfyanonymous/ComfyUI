@@ -1,9 +1,14 @@
+from .. import options
+
+options.enable_args_parsing()
+
 import os
 import importlib.util
 
 from ..cmd import cuda_malloc
 from ..cmd import folder_paths
 import time
+
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -42,8 +47,8 @@ def execute_prestartup_script():
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 
-execute_prestartup_script()
 
+execute_prestartup_script()
 
 # Main code
 import asyncio
@@ -56,8 +61,9 @@ from ..cli_args import args
 
 if os.name == "nt":
     import logging
-    logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
+    logging.getLogger("xformers").addFilter(
+        lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
@@ -81,11 +87,12 @@ def prompt_worker(q: execution.PromptQueue, _server: server_module.PromptServer)
         e.execute(item[2], prompt_id, item[3], item[4])
         q.task_done(item_id, e.outputs_ui)
         if _server.client_id is not None:
-            _server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, _server.client_id)
+            _server.send_sync("executing", {"node": None, "prompt_id": prompt_id}, _server.client_id)
 
         print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
         gc.collect()
         model_management.soft_empty_cache()
+
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
@@ -96,6 +103,7 @@ def hijack_progress(server):
         server.send_sync("progress", {"value": value, "max": total}, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
+
     utils.set_progress_bar_global_hook(hook)
 
 
@@ -135,7 +143,8 @@ def cuda_malloc_warning():
             if b in device_name:
                 cuda_malloc_warning = True
         if cuda_malloc_warning:
-            print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+            print(
+                "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
 def main():
@@ -179,16 +188,19 @@ def main():
             if os.name == 'nt' and address == '0.0.0.0':
                 address = '127.0.0.1'
             webbrowser.open(f"http://{address}:{port}")
+
         call_on_start = startup_server
 
     server.address = args.listen
     server.port = args.port
     try:
-        loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
+        loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
+                                    call_on_start=call_on_start))
     except KeyboardInterrupt:
         print("\nStopped server")
 
     cleanup_temp()
+
 
 if __name__ == "__main__":
     main()

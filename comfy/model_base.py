@@ -19,8 +19,9 @@ class BaseModel(torch.nn.Module):
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
         self.model_config = model_config
-        self.register_schedule(given_betas=None, beta_schedule="linear", timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
-        self.diffusion_model = UNetModel(**unet_config, device=device)
+        self.register_schedule(given_betas=None, beta_schedule=model_config.beta_schedule, timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
+        if not unet_config.get("disable_unet_model_creation", False):
+            self.diffusion_model = UNetModel(**unet_config, device=device)
         self.model_type = model_type
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -49,10 +50,10 @@ class BaseModel(torch.nn.Module):
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, c_adm=None, control=None, transformer_options={}):
         if c_concat is not None:
-            xc = torch.cat([x] + c_concat, dim=1)
+            xc = torch.cat([x] + [c_concat], dim=1)
         else:
             xc = x
-        context = torch.cat(c_crossattn, 1)
+        context = c_crossattn
         dtype = self.get_dtype()
         xc = xc.to(dtype)
         t = t.to(dtype)
@@ -110,6 +111,9 @@ class BaseModel(torch.nn.Module):
 
         return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
 
+    def set_inpaint(self):
+        self.concat_keys = ("mask", "masked_image")
+
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0):
     adm_inputs = []
     weights = []
@@ -147,12 +151,6 @@ class SD21UNCLIP(BaseModel):
         else:
             return unclip_adm(unclip_conditioning, device, self.noise_augmentor, kwargs.get("unclip_noise_augment_merge", 0.05))
 
-
-class SDInpaint(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.EPS, device=None):
-        super().__init__(model_config, model_type, device=device)
-        self.concat_keys = ("mask", "masked_image")
-
 def sdxl_pooled(args, noise_augmentor):
     if "unclip_conditioning" in args:
         return unclip_adm(args.get("unclip_conditioning", None), args["device"], noise_augmentor)[:,:1280]
@@ -183,7 +181,7 @@ class SDXLRefiner(BaseModel):
         out.append(self.embedder(torch.Tensor([crop_h])))
         out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([aesthetic_score])))
-        flat = torch.flatten(torch.cat(out))[None, ]
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
 
 class SDXL(BaseModel):
@@ -208,5 +206,5 @@ class SDXL(BaseModel):
         out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([target_height])))
         out.append(self.embedder(torch.Tensor([target_width])))
-        flat = torch.flatten(torch.cat(out))[None, ]
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
