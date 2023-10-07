@@ -611,14 +611,14 @@ export class ComfyApp {
 						};
 
 						if (numImages > 1) {
-							if (drawButton(x + w - 35, y + h - 35, 30, `${this.imageIndex + 1}/${numImages}`)) {
+							if (drawButton(dw - 40, dh + top - 40, 30, `${this.imageIndex + 1}/${numImages}`)) {
 								let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
 								if (!this.pointerDown || !this.pointerDown.index === i) {
 									this.pointerDown = { index: i, pos: [...mouse] };
 								}
 							}
 
-							if (drawButton(x + w - 35, y + 5, 30, `x`)) {
+							if (drawButton(dw - 40, top + 10, 30, `x`)) {
 								if (!this.pointerDown || !this.pointerDown.index === null) {
 									this.pointerDown = { index: null, pos: [...mouse] };
 								}
