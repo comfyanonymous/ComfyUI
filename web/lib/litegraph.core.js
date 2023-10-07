@@ -12949,6 +12949,69 @@ LGraphNode.prototype.executeAction = function(action)
         return false;
     };
 
+    LGraphCanvas.onMenuNodeExport = function(value, options, e, menu, node) {
+        if (!node) {
+            throw "no node passed";
+        }
+
+        const getOption = ({ name, type }, pinType) => {
+            const color = LGraphCanvas.link_type_colors[type];
+            const innerHtml = `<span style='display: block; padding-left: 4px; background-color: ${color}; color: white'>${name}</span>`;
+            return {
+                name,
+                type: pinType,
+                content: innerHtml
+            };
+        };
+
+        let inputs = node.inputs ?? [];
+        let outputs = node.outputs ?? [];
+        if (node.properties?.exports?.inputs) {
+            inputs = inputs.filter(({name}) => !node.properties.exports.inputs.includes(name));
+        }
+        if (node.properties?.exports?.outputs) {
+            outputs = outputs.filter(({name})  => !node.properties.exports.outputs.includes(name));
+        }
+
+        const exportableVars = [
+            ...inputs.map((node) => getOption(node, "input")),
+            null,
+            ...outputs.map((node) => getOption(node, "output")),
+        ];
+        new LiteGraph.ContextMenu(exportableVars, {
+            event: e,
+            callback: inner_clicked,
+            parentMenu: menu,
+            node: node
+        });
+
+        function inner_clicked(v) {
+            if (!node) {
+                return;
+            }
+            node.graph.beforeChange(/*?*/); //node
+
+            const exportVar = () => {
+                if (!node.properties.exports) {
+                    node.properties.exports = { inputs: [], outputs: [] };
+                }
+
+                console.log(v);
+                if (v.type == "input") {
+                    node.properties.exports.inputs.push(v.name);
+                } else if (v.type == "output") {
+                    node.properties.exports.outputs.push(v.name);
+                }
+            };
+            exportVar();
+
+            node.graph.afterChange(/*?*/); //node
+            node.setDirtyCanvas(true);
+        }
+
+        return false;
+    };
+
     LGraphCanvas.onMenuNodeRemove = function(value, options, e, menu, node) {
         if (!node) {
             throw "no node passed";
@@ -13157,6 +13220,11 @@ LGraphNode.prototype.executeAction = function(action)
                     content: "Shapes",
                     has_submenu: true,
                     callback: LGraphCanvas.onMenuNodeShapes
+                },
+                {
+                    content: "Export",
+                    has_submenu: true,
+                    callback: LGraphCanvas.onMenuNodeExport
                 },
                 null
             );
