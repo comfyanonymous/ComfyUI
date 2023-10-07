@@ -2,6 +2,7 @@ import os
 import time
 
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
+supported_subflow_extensions = set(['.json', '.png'])
 
 folder_names_and_paths = {}
 
@@ -29,14 +30,20 @@ folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
+folder_names_and_paths["subflows"] = ([os.path.join(base_path, "subflows")], supported_subflow_extensions)
+
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+subflows_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "subflows")
 
 filename_list_cache = {}
 
 if not os.path.exists(input_directory):
     os.makedirs(input_directory)
+
+if not os.path.exists(subflows_directory):
+    os.makedirs(subflows_directory)
 
 def set_output_directory(output_dir):
     global output_directory
@@ -58,6 +65,9 @@ def get_input_directory():
     global input_directory
     return input_directory
 
+def get_subflows_directory():
+    global subflows_directory
+    return subflows_directory
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name):
@@ -67,6 +77,8 @@ def get_directory_by_type(type_name):
         return get_temp_directory()
     if type_name == "input":
         return get_input_directory()
+    if type_name == "subflows":
+        return get_subflows_directory()
     return None
 
 
@@ -82,6 +94,9 @@ def annotated_filepath(name):
     elif name.endswith("[temp]"):
         base_dir = get_temp_directory()
         name = name[:-7]
+    elif name.endswith("[subflows]"):
+        base_dir = get_subflows_directory()
+        name = name[:-11]
     else:
         return name, None
 
