@@ -114,7 +114,7 @@ class ImageToMask:
         return {
                 "required": {
                     "image": ("IMAGE",),
-                    "channel": (["red", "green", "blue"],),
+                    "channel": (["red", "green", "blue", "alpha"],),
                 }
         }
 
@@ -124,7 +124,7 @@ class ImageToMask:
     FUNCTION = "image_to_mask"
 
     def image_to_mask(self, image, channel):
-        channels = ["red", "green", "blue"]
+        channels = ["red", "green", "blue", "alpha"]
         mask = image[:, :, :, channels.index(channel)]
         return (mask,)
 
