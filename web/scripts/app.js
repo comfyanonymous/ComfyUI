@@ -451,30 +451,44 @@ export class ComfyApp {
 				}
 
 				function calculateGrid(w, h, n) {
-					let cols, rows, cellsize;
+					let columns, rows, cellsize;
 
 					if (w > h) {
 						cellsize = h;
-						cols = Math.ceil(w / cellsize);
-						rows = Math.ceil(n / cols);
+						columns = Math.ceil(w / cellsize);
+						rows = Math.ceil(n / columns);
 					} else {
 						cellsize = w;
 						rows = Math.ceil(h / cellsize);
-						cols = Math.ceil(n / rows);
+						columns = Math.ceil(n / rows);
 					}
 
-					while (cols * rows < n) {
+					while (columns * rows < n) {
 						cellsize++;
 						if (w >= h) {
-							cols = Math.ceil(w / cellsize);
-							rows = Math.ceil(n / cols);
+							columns = Math.ceil(w / cellsize);
+							rows = Math.ceil(n / columns);
 						} else {
 							rows = Math.ceil(h / cellsize);
-							cols = Math.ceil(n / rows);
+							columns = Math.ceil(n / rows);
 						}
 					}
 
-					return {cols, rows};
+					const cell_size = Math.min(w/columns, h/rows);
+					return {cell_size, columns, rows};
+				}
+
+				function is_all_same_aspect_ratio(imgs) {
+					// assume: imgs.length >= 2
+					let ratio = imgs[0].naturalWidth/imgs[0].naturalHeight;
+
+					for(let i=1; i<imgs.length; i++) {
+						let this_ratio = imgs[i].naturalWidth/imgs[i].naturalHeight;
+						if(ratio != this_ratio)
+							return false;
+					}
+
+					return true;
 				}
 
 				if (this.imgs && this.imgs.length) {
@@ -500,15 +514,49 @@ export class ComfyApp {
 					let dh = this.size[1];
 					dh -= shiftY;
 
-					const cell_padding = 2;
-					const { cellsize, cols, rows } = calculateGrid(dw, dh, numImages);
-					var cell_size = Math.min(dw/cols, dh/rows);
-
 					if (imageIndex == null) {
-						let cellWidth = cell_size;
-						let cellHeight = cell_size;
-						let shiftX = (dw-cell_size*cols)/2;
-						shiftY = (dh-cell_size*rows)/2 + top;
+						var cellWidth, cellHeight, shiftX, cell_padding, cols;
+
+						const compact_mode = is_all_same_aspect_ratio(this.imgs);
+						if(!compact_mode) {
+							// use rectangle cell style and border line
+							cell_padding = 2;
+							const { cell_size, columns, rows } = calculateGrid(dw, dh, numImages);
+							cols = columns;
+
+							cellWidth = cell_size;
+							cellHeight = cell_size;
+							shiftX = (dw-cell_size*cols)/2;
+							shiftY = (dh-cell_size*rows)/2 + top;
+						}
+						else {
+							cell_padding = 0;
+							let best = 0;
+							let w = this.imgs[0].naturalWidth;
+							let h = this.imgs[0].naturalHeight;
+
+							// compact style
+							for (let c = 1; c <= numImages; c++) {
+								const rows = Math.ceil(numImages / c);
+								const cW = dw / c;
+								const cH = dh / rows;
+								const scaleX = cW / w;
+								const scaleY = cH / h;
+
+								const scale = Math.min(scaleX, scaleY, 1);
+								const imageW = w * scale;
+								const imageH = h * scale;
+								const area = imageW * imageH * numImages;
+
+								if (area > best) {
+									best = area;
+									cellWidth = imageW;
+									cellHeight = imageH;
+									cols = c;
+									shiftX = c * ((cW - imageW) / 2);
+								}
+							}
+						}
 
 						let anyHovered = false;
 						this.imageRects = [];
@@ -551,11 +599,13 @@ export class ComfyApp {
 							let imgWidth = ratio * img.width;
 							let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth)/2;
 
-							// draw cell rectangle
 							ctx.drawImage(img, imgX+cell_padding, imgY+cell_padding, imgWidth-cell_padding*2, imgHeight-cell_padding*2);
-							ctx.strokeStyle = "#8F8F8F";
-							ctx.lineWidth = 1;
-							ctx.strokeRect(x+cell_padding, y+cell_padding, cellWidth-cell_padding*2, cellHeight-cell_padding*2);
+							if(!compact_mode) {
+								// rectangle cell and border line style
+								ctx.strokeStyle = "#8F8F8F";
+								ctx.lineWidth = 1;
+								ctx.strokeRect(x+cell_padding, y+cell_padding, cellWidth-cell_padding*2, cellHeight-cell_padding*2);
+							}
 
 							ctx.filter = "none";
 						}
