@@ -450,6 +450,47 @@ export class ComfyApp {
 					}
 				}
 
+				function calculateGrid(w, h, n) {
+					let columns, rows, cellsize;
+
+					if (w > h) {
+						cellsize = h;
+						columns = Math.ceil(w / cellsize);
+						rows = Math.ceil(n / columns);
+					} else {
+						cellsize = w;
+						rows = Math.ceil(h / cellsize);
+						columns = Math.ceil(n / rows);
+					}
+
+					while (columns * rows < n) {
+						cellsize++;
+						if (w >= h) {
+							columns = Math.ceil(w / cellsize);
+							rows = Math.ceil(n / columns);
+						} else {
+							rows = Math.ceil(h / cellsize);
+							columns = Math.ceil(n / rows);
+						}
+					}
+
+					const cell_size = Math.min(w/columns, h/rows);
+					return {cell_size, columns, rows};
+				}
+
+				function is_all_same_aspect_ratio(imgs) {
+					// assume: imgs.length >= 2
+					let ratio = imgs[0].naturalWidth/imgs[0].naturalHeight;
+
+					for(let i=1; i<imgs.length; i++) {
+						let this_ratio = imgs[i].naturalWidth/imgs[i].naturalHeight;
+						if(ratio != this_ratio)
+							return false;
+					}
+
+					return true;
+				}
+
 				if (this.imgs && this.imgs.length) {
 					const canvas = graph.list_of_graphcanvas[0];
 					const mouse = canvas.graph_mouse;
@@ -460,44 +501,60 @@ export class ComfyApp {
 						this.pointerDown = null;
 					}
 
-					let w = this.imgs[0].naturalWidth;
-					let h = this.imgs[0].naturalHeight;
 					let imageIndex = this.imageIndex;
 					const numImages = this.imgs.length;
 					if (numImages === 1 && !imageIndex) {
 						this.imageIndex = imageIndex = 0;
 					}
 
-					const shiftY = getImageTop(this);
+					const top = getImageTop(this);
+					var shiftY = top;
 
 					let dw = this.size[0];
 					let dh = this.size[1];
 					dh -= shiftY;
 
 					if (imageIndex == null) {
-						let best = 0;
-						let cellWidth;
-						let cellHeight;
-						let cols = 0;
-						let shiftX = 0;
-						for (let c = 1; c <= numImages; c++) {
-							const rows = Math.ceil(numImages / c);
-							const cW = dw / c;
-							const cH = dh / rows;
-							const scaleX = cW / w;
-							const scaleY = cH / h;
+						var cellWidth, cellHeight, shiftX, cell_padding, cols;
 
-							const scale = Math.min(scaleX, scaleY, 1);
-							const imageW = w * scale;
-							const imageH = h * scale;
-							const area = imageW * imageH * numImages;
+						const compact_mode = is_all_same_aspect_ratio(this.imgs);
+						if(!compact_mode) {
+							// use rectangle cell style and border line
+							cell_padding = 2;
+							const { cell_size, columns, rows } = calculateGrid(dw, dh, numImages);
+							cols = columns;
 
-							if (area > best) {
-								best = area;
-								cellWidth = imageW;
-								cellHeight = imageH;
-								cols = c;
-								shiftX = c * ((cW - imageW) / 2);
+							cellWidth = cell_size;
+							cellHeight = cell_size;
+							shiftX = (dw-cell_size*cols)/2;
+							shiftY = (dh-cell_size*rows)/2 + top;
+						}
+						else {
+							cell_padding = 0;
+							let best = 0;
+							let w = this.imgs[0].naturalWidth;
+							let h = this.imgs[0].naturalHeight;
+
+							// compact style
+							for (let c = 1; c <= numImages; c++) {
+								const rows = Math.ceil(numImages / c);
+								const cW = dw / c;
+								const cH = dh / rows;
+								const scaleX = cW / w;
+								const scaleY = cH / h;
+
+								const scale = Math.min(scaleX, scaleY, 1);
+								const imageW = w * scale;
+								const imageH = h * scale;
+								const area = imageW * imageH * numImages;
+
+								if (area > best) {
+									best = area;
+									cellWidth = imageW;
+									cellHeight = imageH;
+									cols = c;
+									shiftX = c * ((cW - imageW) / 2);
+								}
 							}
 						}
 
@@ -542,7 +599,14 @@ export class ComfyApp {
 							let imgWidth = ratio * img.width;
 							let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth)/2;
 
-							ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+							ctx.drawImage(img, imgX+cell_padding, imgY+cell_padding, imgWidth-cell_padding*2, imgHeight-cell_padding*2);
+							if(!compact_mode) {
+								// rectangle cell and border line style
+								ctx.strokeStyle = "#8F8F8F";
+								ctx.lineWidth = 1;
+								ctx.strokeRect(x+cell_padding, y+cell_padding, cellWidth-cell_padding*2, cellHeight-cell_padding*2);
+							}
+
 							ctx.filter = "none";
 						}
 
@@ -552,6 +616,9 @@ export class ComfyApp {
 						}
 					} else {
 						// Draw individual
+						let w = this.imgs[imageIndex].naturalWidth;
+						let h = this.imgs[imageIndex].naturalHeight;
+
 						const scaleX = dw / w;
 						const scaleY = dh / h;
 						const scale = Math.min(scaleX, scaleY, 1);
@@ -594,14 +661,14 @@ export class ComfyApp {
 						};
 
 						if (numImages > 1) {
-							if (drawButton(x + w - 35, y + h - 35, 30, `${this.imageIndex + 1}/${numImages}`)) {
+							if (drawButton(dw - 40, dh + top - 40, 30, `${this.imageIndex + 1}/${numImages}`)) {
 								let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
 								if (!this.pointerDown || !this.pointerDown.index === i) {
 									this.pointerDown = { index: i, pos: [...mouse] };
 								}
 							}
 
-							if (drawButton(x + w - 35, y + 5, 30, `x`)) {
+							if (drawButton(dw - 40, top + 10, 30, `x`)) {
 								if (!this.pointerDown || !this.pointerDown.index === null) {
 									this.pointerDown = { index: null, pos: [...mouse] };
 								}
