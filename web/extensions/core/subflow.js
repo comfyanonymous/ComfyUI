@@ -57,7 +57,7 @@ app.registerExtension({
       node.subflow = subflow;
     };
 
-    // node.onSerialize = () =>
+    node.onAdded = () => refreshPins(node.widgets[0].value);
     node.onConfigure = () => refreshPins(node.widgets[0].value);
     node.widgets[0].callback = (subflowName) => refreshPins(subflowName);
 

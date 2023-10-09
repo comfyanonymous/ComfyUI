@@ -12957,9 +12957,9 @@ LGraphNode.prototype.executeAction = function(action)
             throw "no node passed";
         }
 
-        const getOption = ({ name, type }, pinType) => {
+        const getOption = ({ name, type, isExported }, pinType) => {
             const color = LGraphCanvas.link_type_colors[type];
-            const innerHtml = `<span style='display: block; padding-left: 4px; background-color: ${color}; color: white'>${name}</span>`;
+            const innerHtml = `<span style='display: block; padding-left: 4px; color: ${color};'>${name}${isExported ? " (exported)" : ""} </span>`;
             return {
                 name,
                 type: pinType,
@@ -12970,16 +12970,16 @@ LGraphNode.prototype.executeAction = function(action)
         let inputs = node.inputs ?? [];
         let outputs = node.outputs ?? [];
         if (node.properties?.exports?.inputs) {
-            inputs = inputs.filter(({name}) => !node.properties.exports.inputs.includes(name));
+            inputs = inputs.map( input => ( {...input, isExported: node.properties.exports.inputs.includes(input.name) }) );
         }
         if (node.properties?.exports?.outputs) {
-            outputs = outputs.filter(({name})  => !node.properties.exports.outputs.includes(name));
+            outputs = outputs.map( output => ( {...output, isExported: node.properties.exports.outputs.includes(output.name) }) );
         }
 
         const exportableVars = [
-            ...inputs.map((node) => getOption(node, "input")),
+            ...inputs.map((input) => getOption(input, "input")),
             null,
-            ...outputs.map((node) => getOption(node, "output")),
+            ...outputs.map((output) => getOption(output, "output")),
         ];
         new LiteGraph.ContextMenu(exportableVars, {
             event: e,
@@ -12999,11 +12999,19 @@ LGraphNode.prototype.executeAction = function(action)
                     node.properties.exports = { inputs: [], outputs: [] };
                 }
 
-                console.log(v);
+                const toggle = (arr, val) => {
+                    if (arr.includes(val)) {
+                        const i = arr.indexOf(val);
+                        arr.splice(i, 1);
+                    } else {
+                        arr.push(val);
+                    }
+                };
+
                 if (v.type == "input") {
-                    node.properties.exports.inputs.push(v.name);
+                    toggle(node.properties.exports.inputs, v.name);
                 } else if (v.type == "output") {
-                    node.properties.exports.outputs.push(v.name);
+                    toggle(node.properties.exports.outputs, v.name);
                 }
             };
             exportVar();
