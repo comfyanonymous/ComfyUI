@@ -928,6 +928,20 @@ export class ComfyApp {
 					block_default = true;
 				}
 
+				// Ctrl + Z undo last operation
+				if (e.key === 'z' && e.ctrlKey) {
+					try {
+						const json = localStorage.getItem("ctrlZ");
+						if (json) {
+							const workflow = JSON.parse(json);
+							self.loadGraphData(workflow, false);
+						}
+					} catch (err) {
+						console.error("Error loading previous workflow", err);
+					}
+					block_default = true;
+				}
+
 				// Ctrl+C Copy
 				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
 					// Trigger onCopy
@@ -1298,7 +1312,14 @@ export class ComfyApp {
 		}
 
 		// Save current workflow automatically
-		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
+		setInterval(function(){
+			const previous_workflow = localStorage.getItem("workflow")
+			const workflow = JSON.stringify(this.graph.serialize())
+			if(previous_workflow !== workflow){
+				localStorage.setItem("ctrlZ", previous_workflow);  // Save workflow for loading at ctrl + Z
+			}
+			localStorage.setItem("workflow", workflow);  // Save current workflow for loading at startup
+		},1000);
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
@@ -1409,9 +1430,12 @@ export class ComfyApp {
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
+	 * @param state_reset if given and set to true, the state will not be updated
 	 */
-	loadGraphData(graphData) {
-		this.clean();
+	loadGraphData(graphData, state_reset = true) {
+		if (state_reset){
+			this.clean();
+		}
 
 		let reset_invalid_values = false;
 		if (!graphData) {
