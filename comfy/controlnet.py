@@ -354,7 +354,7 @@ def load_controlnet(ckpt_path, model=None):
 
     if controlnet_config is None:
         use_fp16 = comfy.model_management.should_use_fp16()
-        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
+        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16, True).unet_config
     controlnet_config.pop("out_channels")
     controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
@@ -449,10 +449,18 @@ class T2IAdapter(ControlBase):
         return c
 
 def load_t2i_adapter(t2i_data):
-    keys = t2i_data.keys()
-    if 'adapter' in keys:
+    if 'adapter' in t2i_data:
         t2i_data = t2i_data['adapter']
-        keys = t2i_data.keys()
+    if 'adapter.body.0.resnets.0.block1.weight' in t2i_data: #diffusers format
+        prefix_replace = {}
+        for i in range(4):
+            for j in range(2):
+                prefix_replace["adapter.body.{}.resnets.{}.".format(i, j)] = "body.{}.".format(i * 2 + j)
+            prefix_replace["adapter.body.{}.".format(i, j)] = "body.{}.".format(i * 2)
+        prefix_replace["adapter."] = ""
+        t2i_data = comfy.utils.state_dict_prefix_replace(t2i_data, prefix_replace)
+    keys = t2i_data.keys()
+
     if "body.0.in_conv.weight" in keys:
         cin = t2i_data['body.0.in_conv.weight'].shape[1]
         model_ad = comfy.t2i_adapter.adapter.Adapter_light(cin=cin, channels=[320, 640, 1280, 1280], nums_rb=4)

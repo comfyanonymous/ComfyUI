@@ -323,8 +323,7 @@ class CrossAttentionDoggettx(nn.Module):
                 break
             except model_management.OOM_EXCEPTION as e:
                 if first_op_done == False:
-                    torch.cuda.empty_cache()
-                    torch.cuda.ipc_collect()
+                    model_management.soft_empty_cache(True)
                     if cleared_cache == False:
                         cleared_cache = True
                         print("out of memory error, emptying cache and trying again")
@@ -539,6 +538,8 @@ class BasicTransformerBlock(nn.Module):
         if "block" in transformer_options:
             block = transformer_options["block"]
             extra_options["block"] = block
+        if "cond_or_uncond" in transformer_options:
+            extra_options["cond_or_uncond"] = transformer_options["cond_or_uncond"]
         if "patches" in transformer_options:
             transformer_patches = transformer_options["patches"]
         else:

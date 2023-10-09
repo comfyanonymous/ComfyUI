@@ -111,6 +111,9 @@ class BaseModel(torch.nn.Module):
 
         return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
 
+    def set_inpaint(self):
+        self.concat_keys = ("mask", "masked_image")
+
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0):
     adm_inputs = []
     weights = []
@@ -148,12 +151,6 @@ class SD21UNCLIP(BaseModel):
         else:
             return unclip_adm(unclip_conditioning, device, self.noise_augmentor, kwargs.get("unclip_noise_augment_merge", 0.05))
 
-
-class SDInpaint(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.EPS, device=None):
-        super().__init__(model_config, model_type, device=device)
-        self.concat_keys = ("mask", "masked_image")
-
 def sdxl_pooled(args, noise_augmentor):
     if "unclip_conditioning" in args:
         return unclip_adm(args.get("unclip_conditioning", None), args["device"], noise_augmentor)[:,:1280]
@@ -184,7 +181,7 @@ class SDXLRefiner(BaseModel):
         out.append(self.embedder(torch.Tensor([crop_h])))
         out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([aesthetic_score])))
-        flat = torch.flatten(torch.cat(out))[None, ]
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
 
 class SDXL(BaseModel):
@@ -209,5 +206,5 @@ class SDXL(BaseModel):
         out.append(self.embedder(torch.Tensor([crop_w])))
         out.append(self.embedder(torch.Tensor([target_height])))
         out.append(self.embedder(torch.Tensor([target_width])))
-        flat = torch.flatten(torch.cat(out))[None, ]
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)

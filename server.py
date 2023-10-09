@@ -132,12 +132,12 @@ class PromptServer():
         @routes.get("/extensions")
         async def get_extensions(request):
             files = glob.glob(os.path.join(
-                self.web_root, 'extensions/**/*.js'), recursive=True)
+                glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
             
             extensions = list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files))
             
             for name, dir in nodes.EXTENSION_WEB_DIRS.items():
-                files = glob.glob(os.path.join(dir, '**/*.js'), recursive=True)
+                files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
                 extensions.extend(list(map(lambda f: "/extensions/" + urllib.parse.quote(
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
@@ -170,15 +170,15 @@ class PromptServer():
 
                 subfolder = post.get("subfolder", "")
                 full_output_folder = os.path.join(upload_dir, os.path.normpath(subfolder))
+                filepath = os.path.abspath(os.path.join(full_output_folder, filename))
 
-                if os.path.commonpath((upload_dir, os.path.abspath(full_output_folder))) != upload_dir:
+                if os.path.commonpath((upload_dir, filepath)) != upload_dir:
                     return web.Response(status=400)
 
                 if not os.path.exists(full_output_folder):
                     os.makedirs(full_output_folder)
 
                 split = os.path.splitext(filename)
-                filepath = os.path.join(full_output_folder, filename)
 
                 if overwrite is not None and (overwrite == "true" or overwrite == "1"):
                     pass
@@ -398,7 +398,7 @@ class PromptServer():
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
             info['name'] = node_class
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
-            info['description'] = ''
+            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
                 info['output_node'] = True
@@ -413,7 +413,11 @@ class PromptServer():
         async def get_object_info(request):
             out = {}
             for x in nodes.NODE_CLASS_MAPPINGS:
-                out[x] = node_info(x)
+                try:
+                    out[x] = node_info(x)
+                except Exception as e:
+                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
+                    traceback.print_exc()
             return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
@@ -603,7 +607,7 @@ class PromptServer():
             await self.send(*msg)
 
     async def start(self, address, port, verbose=True, call_on_start=None):
-        runner = web.AppRunner(self.app)
+        runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         site = web.TCPSite(runner, address, port)
         await site.start()

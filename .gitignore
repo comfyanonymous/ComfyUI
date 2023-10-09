@@ -1,11 +1,11 @@
 __pycache__/
 *.py[cod]
-output/
-input/
-!input/example.png
-models/
-temp/
-custom_nodes/
+/output/
+/input/
+!/input/example.png
+/models/
+/temp/
+/custom_nodes/
 !custom_nodes/example_node.py.example
 extra_model_paths.yaml
 /.vs
