@@ -20,12 +20,12 @@ jobs:
             persist-credentials: false
         - uses: actions/setup-python@v4
           with:
-            python-version: '3.11.3'
+            python-version: '3.11.6'
         - shell: bash
           run: |
             cd ..
             cp -r ComfyUI ComfyUI_copy
-            curl https://www.python.org/ftp/python/3.11.3/python-3.11.3-embed-amd64.zip -o python_embeded.zip
+            curl https://www.python.org/ftp/python/3.11.6/python-3.11.6-embed-amd64.zip -o python_embeded.zip
             unzip python_embeded.zip -d python_embeded
             cd python_embeded
             echo 'import site' >> ./python311._pth
