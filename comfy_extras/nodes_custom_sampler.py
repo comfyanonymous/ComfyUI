@@ -15,7 +15,7 @@ class BasicScheduler:
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -35,7 +35,7 @@ class KarrasScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -53,7 +53,7 @@ class ExponentialScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -72,7 +72,7 @@ class PolyexponentialScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -91,7 +91,7 @@ class VPScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -108,7 +108,7 @@ class SplitSigmas:
                      }
                 }
     RETURN_TYPES = ("SIGMAS","SIGMAS")
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -125,7 +125,7 @@ class KSamplerSelect:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sampler"
 
@@ -144,7 +144,7 @@ class SamplerDPMPP_2M_SDE:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sampler"
 
@@ -168,7 +168,7 @@ class SamplerDPMPP_SDE:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sampler"
 
@@ -201,7 +201,7 @@ class SamplerCustom:
 
     FUNCTION = "sample"
 
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     def sample(self, model, add_noise, noise_seed, cfg, positive, negative, sampler, sigmas, latent_image):
         latent = latent_image
