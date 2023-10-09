@@ -89,6 +89,8 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
+Note: pytorch does not support python 3.12 yet so make sure your python version is 3.11 or earlier.
+
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
