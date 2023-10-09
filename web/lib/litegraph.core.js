@@ -2618,6 +2618,9 @@
         if (this.shape) {
             o.shape = this.shape;
         }
+        if (this.subflow) {
+            o.subflow = this.subflow;
+        }
 
         if (this.onSerialize) {
             if (this.onSerialize(o)) {

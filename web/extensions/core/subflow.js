@@ -8,10 +8,21 @@ app.registerExtension({
     if (!node.widgets) return;
     if (node.widgets[0].name !== "subflow_name") return;
 
-    const refreshPins = (subflowNodes) => {
+    let outputSlots = []; // (int (node), int (slot))
+    let inputSlots = [];
+
+    const refreshPins = async (subflowName) => {
+      const subflowData = await api.getSubflow(subflowName);
+      if (!subflowData.subflow) return;
+
+      inputSlots = [];
+      outputSlots = [];
+
+      const subflowNodes = subflowData.subflow.nodes
+      updateSubflowPrompt(subflowData.subflow);
       // remove all existing pins
-      const numInputs = node.inputs.length;
-      const numOutputs = node.outputs.length;
+      const numInputs = node.inputs?.length ?? 0;
+      const numOutputs = node.outputs?.length ?? 0;
       for(let i = numInputs-1; i > -1; i--) {
         node.removeInput(i);
       }
@@ -22,33 +33,41 @@ app.registerExtension({
       for (const subflowNode of subflowNodes) {
         const exports = subflowNode.properties.exports;
         if (exports) {
+          let pinNum = 0;
           for (const inputRef of exports.inputs) {
             const input = subflowNode.inputs.find(q => q.name === inputRef);
             if (!input) continue;
             node.addInput(input.name, input.type);
+            inputSlots.push([subflowNode.id, pinNum]);
+            pinNum++;
           }
+          pinNum = 0;
           for (const outputRef of exports.outputs) {
             const output = subflowNode.outputs.find(q => q.name === outputRef);
             if (!output) continue;
             node.addOutput(output.name, output.type);
+            outputSlots.push([subflowNode.id, pinNum]);
+            pinNum++;
           }
         }
       }
     };
 
-    node.onConfigure = async function () {
-      const subflowData = await api.getSubflow(node.widgets[0].value);
-      if (subflowData.subflow) {
-        refreshPins(subflowData.subflow.nodes);
-      }
-		};
+    const updateSubflowPrompt = (subflow) => {
+      node.subflow = subflow;
+    };
 
-    node.widgets[0].callback = async function (subflowName) {
-      const subflowData = await api.getSubflow(subflowName);
-      if (subflowData.subflow) {
-        refreshPins(subflowData.subflow.nodes);
-      }
-		};
+    // node.onSerialize = () =>
+    node.onConfigure = () => refreshPins(node.widgets[0].value);
+    node.widgets[0].callback = (subflowName) => refreshPins(subflowName);
+
+    node.getExportedOutput = (slot) => {
+      return outputSlots[slot];
+    };
+
+    node.getExportedInput = (slot) => {
+      return inputSlots[slot];
+    };
 
   }
 });
