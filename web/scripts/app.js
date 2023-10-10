@@ -1311,13 +1311,16 @@ export class ComfyApp {
 			this.loadGraphData();
 		}
 
+		this.changing = false  // only used for administration for saved values for ctrl + Z
+
 		// Save current workflow automatically
 		setInterval(function(){
 			const previous_workflow = localStorage.getItem("workflow")
 			const workflow = JSON.stringify(this.graph.serialize())
 			if(previous_workflow !== workflow){
-				localStorage.setItem("ctrlZ", previous_workflow);  // Save workflow for loading at ctrl + Z
-			}
+				if(!this.changing) localStorage.setItem("ctrlZ", previous_workflow);  // Save workflow for loading at ctrl + Z
+				this.changing = truep
+			}else this.changing = false;
 			localStorage.setItem("workflow", workflow);  // Save current workflow for loading at startup
 		},1000);
 
