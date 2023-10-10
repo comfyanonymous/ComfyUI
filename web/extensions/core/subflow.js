@@ -23,7 +23,6 @@ app.registerExtension({
     };
 
     const refreshPins = (subflowNodes) => {
-      console.log(subflowNodes);
       inputSlots = [];
       outputSlots = [];
 
@@ -81,5 +80,6 @@ app.registerExtension({
       return inputSlots[slot];
     };
 
+    refreshNode(node.widgets[0].value);
   }
 });
