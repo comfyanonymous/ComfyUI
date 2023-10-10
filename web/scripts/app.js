@@ -1433,7 +1433,7 @@ export class ComfyApp {
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
-	 * @param state_reset if given and set to true, the state will not be updated
+	 * @param state_reset if set to true, the state will be updated
 	 */
 	loadGraphData(graphData, state_reset = true) {
 		if (state_reset){
