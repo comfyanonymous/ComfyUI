@@ -68,7 +68,7 @@ class SD20(supported_models_base.BASE):
     def process_clip_state_dict_for_saving(self, state_dict):
         replace_prefix = {}
         replace_prefix[""] = "cond_stage_model.model."
-        state_dict = supported_models_base.state_dict_prefix_replace(state_dict, replace_prefix)
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
         state_dict = diffusers_convert.convert_text_enc_state_dict_v20(state_dict)
         return state_dict
 
@@ -120,7 +120,7 @@ class SDXLRefiner(supported_models_base.BASE):
         keys_to_replace["conditioner.embedders.0.model.text_projection"] = "cond_stage_model.clip_g.text_projection"
         keys_to_replace["conditioner.embedders.0.model.logit_scale"] = "cond_stage_model.clip_g.logit_scale"
 
-        state_dict = supported_models_base.state_dict_key_replace(state_dict, keys_to_replace)
+        state_dict = utils.state_dict_key_replace(state_dict, keys_to_replace)
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
@@ -129,7 +129,7 @@ class SDXLRefiner(supported_models_base.BASE):
         if "clip_g.transformer.text_model.embeddings.position_ids" in state_dict_g:
             state_dict_g.pop("clip_g.transformer.text_model.embeddings.position_ids")
         replace_prefix["clip_g"] = "conditioner.embedders.0.model"
-        state_dict_g = supported_models_base.state_dict_prefix_replace(state_dict_g, replace_prefix)
+        state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
     def clip_target(self):
@@ -153,7 +153,10 @@ class SDXL(supported_models_base.BASE):
             return model_base.ModelType.EPS
 
     def get_model(self, state_dict, prefix="", device=None):
-        return model_base.SDXL(self, model_type=self.model_type(state_dict, prefix), device=device)
+        out = model_base.SDXL(self, model_type=self.model_type(state_dict, prefix), device=device)
+        if self.inpaint_model():
+            out.set_inpaint()
+        return out
 
     def process_clip_state_dict(self, state_dict):
         keys_to_replace = {}
@@ -164,8 +167,8 @@ class SDXL(supported_models_base.BASE):
         keys_to_replace["conditioner.embedders.1.model.text_projection"] = "cond_stage_model.clip_g.text_projection"
         keys_to_replace["conditioner.embedders.1.model.logit_scale"] = "cond_stage_model.clip_g.logit_scale"
 
-        state_dict = supported_models_base.state_dict_prefix_replace(state_dict, replace_prefix)
-        state_dict = supported_models_base.state_dict_key_replace(state_dict, keys_to_replace)
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
+        state_dict = utils.state_dict_key_replace(state_dict, keys_to_replace)
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
@@ -180,7 +183,7 @@ class SDXL(supported_models_base.BASE):
 
         replace_prefix["clip_g"] = "conditioner.embedders.1.model"
         replace_prefix["clip_l"] = "conditioner.embedders.0"
-        state_dict_g = supported_models_base.state_dict_prefix_replace(state_dict_g, replace_prefix)
+        state_dict_g = utils.state_dict_prefix_replace(state_dict_g, replace_prefix)
         return state_dict_g
 
     def clip_target(self):

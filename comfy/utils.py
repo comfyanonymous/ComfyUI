@@ -3,6 +3,8 @@ import math
 import struct
 import comfy.checkpoint_pickle
 import safetensors.torch
+import numpy as np
+from PIL import Image
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -38,6 +40,20 @@ def calculate_parameters(sd, prefix=""):
         if k.startswith(prefix):
             params += sd[k].nelement()
     return params
+
+def state_dict_key_replace(state_dict, keys_to_replace):
+    for x in keys_to_replace:
+        if x in state_dict:
+            state_dict[keys_to_replace[x]] = state_dict.pop(x)
+    return state_dict
+
+def state_dict_prefix_replace(state_dict, replace_prefix):
+    for rp in replace_prefix:
+        replace = list(map(lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp):])), filter(lambda a: a.startswith(rp), state_dict.keys())))
+        for x in replace:
+            state_dict[x[1]] = state_dict.pop(x[0])
+    return state_dict
+
 
 def transformers_convert(sd, prefix_from, prefix_to, number):
     keys_to_replace = {
@@ -223,6 +239,13 @@ def unet_to_diffusers(unet_config):
 
     return diffusers_unet_map
 
+def repeat_to_batch_size(tensor, batch_size):
+    if tensor.shape[0] > batch_size:
+        return tensor[:batch_size]
+    elif tensor.shape[0] < batch_size:
+        return tensor.repeat([math.ceil(batch_size / tensor.shape[0])] + [1] * (len(tensor.shape) - 1))[:batch_size]
+    return tensor
+
 def convert_sd_to(state_dict, dtype):
     keys = list(state_dict.keys())
     for k in keys:
@@ -325,6 +348,13 @@ def bislerp(samples, width, height):
     result = result.reshape(n, h_new, w_new, c).movedim(-1, 1)
     return result
 
+def lanczos(samples, width, height):
+    images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
+    images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
+    images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
+    result = torch.stack(images)
+    return result
+
 def common_upscale(samples, width, height, upscale_method, crop):
         if crop == "center":
             old_width = samples.shape[3]
@@ -343,6 +373,8 @@ def common_upscale(samples, width, height, upscale_method, crop):
 
         if upscale_method == "bislerp":
             return bislerp(s, width, height)
+        elif upscale_method == "lanczos":
+            return lanczos(s, width, height)
         else:
             return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
 

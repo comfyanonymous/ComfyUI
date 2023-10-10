@@ -3,6 +3,7 @@ import copy
 import inspect
 
 import comfy.utils
+import comfy.model_management
 
 class ModelPatcher:
     def __init__(self, model, load_device, offload_device, size=0, current_device=None):
@@ -87,6 +88,9 @@ class ModelPatcher:
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
 
+    def set_model_output_block_patch(self, patch):
+        self.set_model_patch(patch, "output_block_patch")
+
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]
         if "patches" in to:
@@ -145,7 +149,7 @@ class ModelPatcher:
         model_sd = self.model_state_dict()
         for key in self.patches:
             if key not in model_sd:
-                print("could not patch. key doesn't exist in model:", k)
+                print("could not patch. key doesn't exist in model:", key)
                 continue
 
             weight = model_sd[key]
@@ -154,7 +158,7 @@ class ModelPatcher:
                 self.backup[key] = weight.to(self.offload_device)
 
             if device_to is not None:
-                temp_weight = weight.float().to(device_to, copy=True)
+                temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
             else:
                 temp_weight = weight.to(torch.float32, copy=True)
             out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
@@ -185,15 +189,15 @@ class ModelPatcher:
                     if w1.shape != weight.shape:
                         print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
                     else:
-                        weight += alpha * w1.type(weight.dtype).to(weight.device)
+                        weight += alpha * comfy.model_management.cast_to_device(w1, weight.device, weight.dtype)
             elif len(v) == 4: #lora/locon
-                mat1 = v[0].float().to(weight.device)
-                mat2 = v[1].float().to(weight.device)
+                mat1 = comfy.model_management.cast_to_device(v[0], weight.device, torch.float32)
+                mat2 = comfy.model_management.cast_to_device(v[1], weight.device, torch.float32)
                 if v[2] is not None:
                     alpha *= v[2] / mat2.shape[0]
                 if v[3] is not None:
                     #locon mid weights, hopefully the math is fine because I didn't properly test it
-                    mat3 = v[3].float().to(weight.device)
+                    mat3 = comfy.model_management.cast_to_device(v[3], weight.device, torch.float32)
                     final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
                     mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
                 try:
@@ -212,18 +216,23 @@ class ModelPatcher:
 
                 if w1 is None:
                     dim = w1_b.shape[0]
-                    w1 = torch.mm(w1_a.float(), w1_b.float())
+                    w1 = torch.mm(comfy.model_management.cast_to_device(w1_a, weight.device, torch.float32),
+                                  comfy.model_management.cast_to_device(w1_b, weight.device, torch.float32))
                 else:
-                    w1 = w1.float().to(weight.device)
+                    w1 = comfy.model_management.cast_to_device(w1, weight.device, torch.float32)
 
                 if w2 is None:
                     dim = w2_b.shape[0]
                     if t2 is None:
-                        w2 = torch.mm(w2_a.float().to(weight.device), w2_b.float().to(weight.device))
+                        w2 = torch.mm(comfy.model_management.cast_to_device(w2_a, weight.device, torch.float32),
+                                      comfy.model_management.cast_to_device(w2_b, weight.device, torch.float32))
                     else:
-                        w2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float().to(weight.device), w2_b.float().to(weight.device), w2_a.float().to(weight.device))
+                        w2 = torch.einsum('i j k l, j r, i p -> p r k l',
+                                          comfy.model_management.cast_to_device(t2, weight.device, torch.float32),
+                                          comfy.model_management.cast_to_device(w2_b, weight.device, torch.float32),
+                                          comfy.model_management.cast_to_device(w2_a, weight.device, torch.float32))
                 else:
-                    w2 = w2.float().to(weight.device)
+                    w2 = comfy.model_management.cast_to_device(w2, weight.device, torch.float32)
 
                 if len(w2.shape) == 4:
                     w1 = w1.unsqueeze(2).unsqueeze(2)
@@ -244,11 +253,20 @@ class ModelPatcher:
                 if v[5] is not None: #cp decomposition
                     t1 = v[5]
                     t2 = v[6]
-                    m1 = torch.einsum('i j k l, j r, i p -> p r k l', t1.float().to(weight.device), w1b.float().to(weight.device), w1a.float().to(weight.device))
-                    m2 = torch.einsum('i j k l, j r, i p -> p r k l', t2.float().to(weight.device), w2b.float().to(weight.device), w2a.float().to(weight.device))
+                    m1 = torch.einsum('i j k l, j r, i p -> p r k l',
+                                      comfy.model_management.cast_to_device(t1, weight.device, torch.float32),
+                                      comfy.model_management.cast_to_device(w1b, weight.device, torch.float32),
+                                      comfy.model_management.cast_to_device(w1a, weight.device, torch.float32))
+
+                    m2 = torch.einsum('i j k l, j r, i p -> p r k l',
+                                      comfy.model_management.cast_to_device(t2, weight.device, torch.float32),
+                                      comfy.model_management.cast_to_device(w2b, weight.device, torch.float32),
+                                      comfy.model_management.cast_to_device(w2a, weight.device, torch.float32))
                 else:
-                    m1 = torch.mm(w1a.float().to(weight.device), w1b.float().to(weight.device))
-                    m2 = torch.mm(w2a.float().to(weight.device), w2b.float().to(weight.device))
+                    m1 = torch.mm(comfy.model_management.cast_to_device(w1a, weight.device, torch.float32),
+                                  comfy.model_management.cast_to_device(w1b, weight.device, torch.float32))
+                    m2 = torch.mm(comfy.model_management.cast_to_device(w2a, weight.device, torch.float32),
+                                  comfy.model_management.cast_to_device(w2b, weight.device, torch.float32))
 
                 try:
                     weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype)

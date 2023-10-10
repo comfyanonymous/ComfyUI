@@ -56,7 +56,17 @@ class OmniSR(nn.Module):
         residual_layer = []
         self.res_num = res_num
 
-        self.window_size = 8  # we can just assume this for now, but there's probably a way to calculate it (just need to get the sqrt of the right layer)
+        if (
+            "residual_layer.0.residual_layer.0.layer.2.fn.rel_pos_bias.weight"
+            in state_dict.keys()
+        ):
+            rel_pos_bias_weight = state_dict[
+                "residual_layer.0.residual_layer.0.layer.2.fn.rel_pos_bias.weight"
+            ].shape[0]
+            self.window_size = int((math.sqrt(rel_pos_bias_weight) + 1) / 2)
+        else:
+            self.window_size = 8
+
         self.up_scale = up_scale
 
         for _ in range(res_num):

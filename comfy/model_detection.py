@@ -1,5 +1,5 @@
-
-from . import supported_models
+import comfy.supported_models
+import comfy.supported_models_base
 
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
@@ -109,17 +109,20 @@ def detect_unet_config(state_dict, key_prefix, use_fp16):
     return unet_config
 
 def model_config_from_unet_config(unet_config):
-    for model_config in supported_models.models:
+    for model_config in comfy.supported_models.models:
         if model_config.matches(unet_config):
             return model_config(unet_config)
 
     print("no match", unet_config)
     return None
 
-def model_config_from_unet(state_dict, unet_key_prefix, use_fp16):
+def model_config_from_unet(state_dict, unet_key_prefix, use_fp16, use_base_if_no_match=False):
     unet_config = detect_unet_config(state_dict, unet_key_prefix, use_fp16)
-    return model_config_from_unet_config(unet_config)
-
+    model_config = model_config_from_unet_config(unet_config)
+    if model_config is None and use_base_if_no_match:
+        return comfy.supported_models_base.BASE(unet_config)
+    else:
+        return model_config
 
 def unet_config_from_diffusers_unet(state_dict, use_fp16):
     match = {}
@@ -183,8 +186,12 @@ def unet_config_from_diffusers_unet(state_dict, use_fp16):
             'num_res_blocks': 2, 'attention_resolutions': [], 'transformer_depth': [0, 0, 0], 'channel_mult': [1, 2, 4],
             'transformer_depth_middle': 0, 'use_linear_in_transformer': True, "num_head_channels": 64, 'context_dim': 1}
 
+    SDXL_diffusers_inpaint = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
+            'num_classes': 'sequential', 'adm_in_channels': 2816, 'use_fp16': use_fp16, 'in_channels': 9, 'model_channels': 320,
+            'num_res_blocks': 2, 'attention_resolutions': [2, 4], 'transformer_depth': [0, 2, 10], 'channel_mult': [1, 2, 4],
+            'transformer_depth_middle': 10, 'use_linear_in_transformer': True, 'context_dim': 2048, "num_head_channels": 64}
 
-    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet]
+    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint]
 
     for unet_config in supported_models:
         matches = True

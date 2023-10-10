@@ -60,6 +60,9 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
         if dtype is not None:
             self.transformer.to(dtype)
+            self.transformer.text_model.embeddings.token_embedding.to(torch.float32)
+            self.transformer.text_model.embeddings.position_embedding.to(torch.float32)
+
         self.max_length = max_length
         if freeze:
             self.freeze()
@@ -68,6 +71,7 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.empty_tokens = [[49406] + [49407] * 76]
         self.text_projection = torch.nn.Parameter(torch.eye(self.transformer.get_input_embeddings().weight.shape[1]))
         self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
+        self.enable_attention_masks = False
 
         self.layer_norm_hidden_state = True
         if layer == "hidden":
@@ -138,13 +142,23 @@ class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         tokens = self.set_up_textual_embeddings(tokens, backup_embeds)
         tokens = torch.LongTensor(tokens).to(device)
 
-        if backup_embeds.weight.dtype != torch.float32:
+        if self.transformer.text_model.final_layer_norm.weight.dtype != torch.float32:
             precision_scope = torch.autocast
         else:
             precision_scope = lambda a, b: contextlib.nullcontext(a)
 
         with precision_scope(model_management.get_autocast_device(device), torch.float32):
-            outputs = self.transformer(input_ids=tokens, output_hidden_states=self.layer=="hidden")
+            attention_mask = None
+            if self.enable_attention_masks:
+                attention_mask = torch.zeros_like(tokens)
+                max_token = self.transformer.get_input_embeddings().weight.shape[0] - 1
+                for x in range(attention_mask.shape[0]):
+                    for y in range(attention_mask.shape[1]):
+                        attention_mask[x, y] = 1
+                        if tokens[x, y] == max_token:
+                            break
+
+            outputs = self.transformer(input_ids=tokens, attention_mask=attention_mask, output_hidden_states=self.layer=="hidden")
             self.transformer.set_input_embeddings(backup_embeds)
 
             if self.layer == "last":

@@ -5,6 +5,7 @@ import numpy as np
 from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
 import folder_paths
+import comfy.utils
 
 MAX_PREVIEW_RESOLUTION = 512
 
@@ -53,7 +54,9 @@ def get_previewer(device, latent_format):
     method = args.preview_method
     if method != LatentPreviewMethod.NoPreviews:
         # TODO previewer methods
-        taesd_decoder_path = folder_paths.get_full_path("vae_approx", latent_format.taesd_decoder_name)
+        taesd_decoder_path = None
+        if latent_format.taesd_decoder_name is not None:
+            taesd_decoder_path = folder_paths.get_full_path("vae_approx", latent_format.taesd_decoder_name)
 
         if method == LatentPreviewMethod.Auto:
             method = LatentPreviewMethod.Latent2RGB
@@ -68,7 +71,25 @@ def get_previewer(device, latent_format):
                 print("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
 
         if previewer is None:
-            previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors)
+            if latent_format.latent_rgb_factors is not None:
+                previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors)
     return previewer
 
+def prepare_callback(model, steps, x0_output_dict=None):
+    preview_format = "JPEG"
+    if preview_format not in ["JPEG", "PNG"]:
+        preview_format = "JPEG"
+
+    previewer = get_previewer(model.load_device, model.model.latent_format)
+
+    pbar = comfy.utils.ProgressBar(steps)
+    def callback(step, x0, x, total_steps):
+        if x0_output_dict is not None:
+            x0_output_dict["x0"] = x0
+
+        preview_bytes = None
+        if previewer:
+            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
+        pbar.update_absolute(step + 1, total_steps, preview_bytes)
+    return callback
 

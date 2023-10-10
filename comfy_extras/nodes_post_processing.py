@@ -211,7 +211,7 @@ class Sharpen:
         return (result,)
 
 class ImageScaleToTotalPixels:
-    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic"]
+    upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
     crop_methods = ["disabled", "center"]
 
     @classmethod

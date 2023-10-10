@@ -60,7 +60,6 @@ class SPSRNet(nn.Module):
         self.out_nc: int = self.state["f_HR_conv1.0.bias"].shape[0]
 
         self.scale = self.get_scale(4)
-        print(self.scale)
         self.num_filters: int = self.state["model.0.weight"].shape[0]
 
         self.supports_fp16 = True
