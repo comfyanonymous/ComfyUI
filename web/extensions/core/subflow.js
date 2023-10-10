@@ -11,15 +11,22 @@ app.registerExtension({
     let outputSlots = []; // (int (node), int (slot))
     let inputSlots = [];
 
-    const refreshPins = async (subflowName) => {
+    const refreshNode = async (subflowName) => {
       const subflowData = await api.getSubflow(subflowName);
       if (!subflowData.subflow) return;
 
+      const subflowNodes = subflowData.subflow.nodes
+      updateSubflowPrompt(subflowData.subflow);
+      refreshPins(subflowNodes);
+
+      node.size[0] = computeSizeX(subflowName);
+    };
+
+    const refreshPins = (subflowNodes) => {
+      console.log(subflowNodes);
       inputSlots = [];
       outputSlots = [];
 
-      const subflowNodes = subflowData.subflow.nodes
-      updateSubflowPrompt(subflowData.subflow);
       // remove all existing pins
       const numInputs = node.inputs?.length ?? 0;
       const numOutputs = node.outputs?.length ?? 0;
@@ -30,6 +37,7 @@ app.registerExtension({
         node.removeOutput(i);
       }
 
+      // add the new pins and keep track of where the exported vars go to within the inner nodes
       for (const subflowNode of subflowNodes) {
         const exports = subflowNode.properties.exports;
         if (exports) {
@@ -57,9 +65,13 @@ app.registerExtension({
       node.subflow = subflow;
     };
 
-    node.onAdded = () => refreshPins(node.widgets[0].value);
-    node.onConfigure = () => refreshPins(node.widgets[0].value);
-    node.widgets[0].callback = (subflowName) => refreshPins(subflowName);
+    const computeSizeX = (subflowName) => {
+      return Math.max(100, LiteGraph.NODE_TEXT_SIZE * subflowName.length * 0.45 + 160);
+    };
+
+    node.onAdded = () => updateSubflowPrompt(node.widgets[0].value);
+    node.onConfigure = () => updateSubflowPrompt(node.widgets[0].value);
+    node.widgets[0].callback = (subflowName) => refreshNode(subflowName);
 
     node.getExportedOutput = (slot) => {
       return outputSlots[slot];
