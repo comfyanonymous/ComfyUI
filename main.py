@@ -175,6 +175,11 @@ if __name__ == "__main__":
         print(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
+    #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
+    folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
+    folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
+    folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
+
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
         print(f"Setting input directory to: {input_dir}")
