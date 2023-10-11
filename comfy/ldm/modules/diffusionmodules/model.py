@@ -6,7 +6,6 @@ import numpy as np
 from einops import rearrange
 from typing import Optional, Any
 
-from ..attention import MemoryEfficientCrossAttention
 from comfy import model_management
 import comfy.ops
 
@@ -352,15 +351,6 @@ class MemoryEfficientAttnBlockPytorch(nn.Module):
         out = self.proj_out(out)
         return x+out
 
-class MemoryEfficientCrossAttentionWrapper(MemoryEfficientCrossAttention):
-    def forward(self, x, context=None, mask=None):
-        b, c, h, w = x.shape
-        x = rearrange(x, 'b c h w -> b (h w) c')
-        out = super().forward(x, context=context, mask=mask)
-        out = rearrange(out, 'b (h w) c -> b c h w', h=h, w=w, c=c)
-        return x + out
-
-
 def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
     assert attn_type in ["vanilla", "vanilla-xformers", "memory-efficient-cross-attn", "linear", "none"], f'attn_type {attn_type} unknown'
     if model_management.xformers_enabled_vae() and attn_type == "vanilla":
@@ -376,9 +366,6 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
         return MemoryEfficientAttnBlock(in_channels)
     elif attn_type == "vanilla-pytorch":
         return MemoryEfficientAttnBlockPytorch(in_channels)
-    elif type == "memory-efficient-cross-attn":
-        attn_kwargs["query_dim"] = in_channels
-        return MemoryEfficientCrossAttentionWrapper(**attn_kwargs)
     elif attn_type == "none":
         return nn.Identity(in_channels)
     else:
