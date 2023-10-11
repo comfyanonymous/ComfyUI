@@ -1533,7 +1533,7 @@ export class ComfyApp {
 			}
 
 			const getInputRef = (inputNode, inputSlot) => {
-				if (inputNode.type == "Subflow") {
+				if (inputNode.subflow) {
 					// input should be mapped to inner node
 					const [ localOriginId, originSlot ] = inputNode.getExportedOutput(inputSlot);
 					const originId = subflowIdMapping[inputNode.id] + localOriginId;
@@ -1582,7 +1582,7 @@ export class ComfyApp {
 					}
 
 					if (link) {
-						if (node.type == "Subflow") {
+						if (node.subflow) {
 							// inner node's input should be used
 							const [ localTargetId, targetSlot ] = node.getExportedInput(link.target_slot);
 							const targetId = subflowIdMapping[node.id] + localTargetId;
@@ -1594,7 +1594,7 @@ export class ComfyApp {
 				}
 			}
 
-			if (node.type != "Subflow") {
+			if (!node.subflow) {
 				output[String(node.id)] = {
 					inputs,
 					class_type: node.comfyClass,
