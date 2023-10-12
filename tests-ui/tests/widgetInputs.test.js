@@ -13,9 +13,52 @@ afterEach(() => {
 	jest.resetModules();
 });
 
+test("widget conversion + primitive works on all standard types", async () => {
+	/**
+	 * Test node with widgets of each type
+	 * @type { import("../../web/types/comfy").ComfyObjectInfo } ComfyObjectInfo
+	 */
+	const WidgetTestNode = {
+		category: "test",
+		name: "WidgetTestNode",
+		output_name: [],
+		input: {
+			required: {
+				int: ["INT", {}],
+				float: ["FLOAT", {}],
+				text: ["STRING", {}],
+				multiline: ["STRING", { multiline: true }],
+				bool: ["BOOLEAN", {}],
+				combo: [["a", "b", "c"], {}],
+			},
+		},
+	};
+
+	const { graph, ez } = await start({
+		mockNodeDefs: {
+			WidgetTestNode,
+		},
+	});
+
+	const n = ez.WidgetTestNode();
+
+	for (const name in WidgetTestNode.input?.required) {
+		const w = n.widgets[name];
+		w.convertToInput();
+		expect(w.isConvertedToInput).toBeTruthy();
+		const input = w.getConvertedInput();
+		expect(input).toBeTruthy();
+
+		const p1 = ez.PrimitiveNode();
+		// @ts-ignore : input is valid
+		p1.outputs[0].connectTo(input);
+		expect(p1.outputs[0].connectTo).toHaveLength(1);
+	}
+});
+
 test("converted widget works after reload", async () => {
 	const { graph, ez } = await start();
-	let { $: n } = ez.CheckpointLoaderSimple();
+	let n = ez.CheckpointLoaderSimple();
 
 	const inputCount = n.inputs.length;
 
@@ -35,7 +78,7 @@ test("converted widget works after reload", async () => {
 	n.widgets.ckpt_name.convertToInput();
 	expect(n.inputs.length).toEqual(inputCount + 1);
 
-	let { $: primitive } = ez.PrimitiveNode();
+	let primitive = ez.PrimitiveNode();
 	primitive.outputs[0].connectTo(n.inputs.ckpt_name);
 
 	await graph.reload();
@@ -73,7 +116,7 @@ test("converted widget works after reload", async () => {
 
 test("converted widget works on clone", async () => {
 	const { graph, ez } = await start();
-	let { $: n } = ez.CheckpointLoaderSimple();
+	let n = ez.CheckpointLoaderSimple();
 
 	// Convert the widget to an input
 	n.widgets.ckpt_name.convertToInput();
@@ -90,7 +133,7 @@ test("converted widget works on clone", async () => {
 	expect(clone.inputs.ckpt_name).toBeTruthy();
 
 	// Ensure primitive connects to both nodes
-	let { $: primitive } = ez.PrimitiveNode();
+	let primitive = ez.PrimitiveNode();
 	primitive.outputs[0].connectTo(n.inputs.ckpt_name);
 	primitive.outputs[0].connectTo(clone.inputs.ckpt_name);
 	expect(primitive.outputs[0].connections).toHaveLength(2);
