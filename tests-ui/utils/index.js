@@ -3,7 +3,7 @@ const { Ez } = require("./ezgraph");
 
 /**
  *
- * @param { Parameters<mockApi> } config
+ * @param { Parameters<mockApi>[0] } config
  * @returns
  */
 export async function start(config = undefined) {
