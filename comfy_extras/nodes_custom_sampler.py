@@ -3,6 +3,7 @@ import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
 import latent_preview
 import torch
+import comfy.utils
 
 
 class BasicScheduler:
@@ -219,7 +220,7 @@ class SamplerCustom:
         x0_output = {}
         callback = latent_preview.prepare_callback(model, sigmas.shape[-1] - 1, x0_output)
 
-        disable_pbar = False
+        disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
         samples = comfy.sample.sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise_seed)
 
         out = latent.copy()
