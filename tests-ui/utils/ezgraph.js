@@ -9,7 +9,7 @@
  * @typedef { import("../../web/types/litegraph").INodeInputSlot } INodeInputSlot
  * @typedef { import("../../web/types/litegraph").INodeOutputSlot } INodeOutputSlot
  * @typedef { InstanceType<LG["LGraphNode"]> & { widgets?: Array<IWidget> } } LGNode
- * @typedef { (...args: EzOutput[] | [...EzOutput[], Record<string, unknown>]) => Array<EzOutput> & { $: EzNode, node: LG["LGraphNode"]} } EzNodeFactory
+ * @typedef { (...args: EzOutput[] | [...EzOutput[], Record<string, unknown>]) => EzNode } EzNodeFactory
  */
 
 class EzConnection {
@@ -175,6 +175,13 @@ class EzWidget {
 		return this.widget.type === "converted-widget";
 	}
 
+	getConvertedInput() {
+		if (!this.isConvertedToInput)
+			throw new Error(`Widget ${this.widget.name} is not converted to input.`);
+		
+		return this.node.inputs.find(inp => inp.input["widget"]?.name === this.widget.name);
+	}
+
 	convertToWidget() {
 		if (!this.isConvertedToInput)
 			throw new Error(`Widget ${this.widget.name} cannot be converted as it is already a widget.`);
@@ -279,6 +286,10 @@ class EzGraph {
 		this.app.graph.arrange();
 	}
 
+	stringify() {
+		return JSON.stringify(this.app.graph.serialize(), undefined, "\t");
+	}
+
 	/**
 	 * @param { number | LGNode | EzNode } obj
 	 * @returns { EzNode }
@@ -359,7 +370,6 @@ export const Ez = {
 					 */
 					return function (...args) {
 						const ezNode = new EzNode(app, node);
-						const outputs = ezNode.outputs;
 						const inputs = ezNode.inputs;
 
 						let slot = 0;
@@ -374,7 +384,7 @@ export const Ez = {
 							}
 						}
 
-						return outputs;
+						return ezNode;
 					};
 				},
 			}
