@@ -355,7 +355,7 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
     assert attn_type in ["vanilla", "vanilla-xformers", "memory-efficient-cross-attn", "linear", "none"], f'attn_type {attn_type} unknown'
     if model_management.xformers_enabled_vae() and attn_type == "vanilla":
         attn_type = "vanilla-xformers"
-    if model_management.pytorch_attention_enabled() and attn_type == "vanilla":
+    elif model_management.pytorch_attention_enabled() and attn_type == "vanilla":
         attn_type = "vanilla-pytorch"
     print(f"making attention of type '{attn_type}' with {in_channels} in_channels")
     if attn_type == "vanilla":
