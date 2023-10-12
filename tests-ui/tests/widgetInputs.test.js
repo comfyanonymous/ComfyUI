@@ -13,48 +13,69 @@ afterEach(() => {
 	jest.resetModules();
 });
 
-test("widget conversion + primitive works on all standard types", async () => {
-	/**
-	 * Test node with widgets of each type
-	 * @type { import("../../web/types/comfy").ComfyObjectInfo } ComfyObjectInfo
-	 */
-	const WidgetTestNode = {
-		category: "test",
-		name: "WidgetTestNode",
-		output_name: [],
-		input: {
-			required: {
-				int: ["INT", {}],
-				float: ["FLOAT", {}],
-				text: ["STRING", {}],
-				multiline: ["STRING", { multiline: true }],
-				bool: ["BOOLEAN", {}],
-				combo: [["a", "b", "c"], {}],
+[
+	{ name: "int", type: "INT", widget: "number", control: true },
+	{ name: "float", type: "FLOAT", widget: "number", control: true },
+	{ name: "text", type: "STRING" },
+	{
+		name: "customtext",
+		type: "STRING",
+		opt: { multiline: true },
+	},
+	{ name: "toggle", type: "BOOLEAN" },
+	{ name: "combo", type: ["a", "b", "c"], control: true },
+].forEach((c) => {
+	test(`widget conversion + primitive works on ${c.name}`, async () => {
+		/**
+		 * Test node with widgets of each type
+		 * @type { import("../../web/types/comfy").ComfyObjectInfo } ComfyObjectInfo
+		 */
+		const WidgetTestNode = {
+			category: "test",
+			name: "WidgetTestNode",
+			output_name: [],
+			input: {
+				required: {
+					[c.name]: [c.type, c.opt ?? {}],
+				},
 			},
-		},
-	};
+		};
 
-	const { graph, ez } = await start({
-		mockNodeDefs: {
-			WidgetTestNode,
-		},
-	});
+		const { ez } = await start({
+			mockNodeDefs: {
+				WidgetTestNode,
+			},
+		});
 
-	const n = ez.WidgetTestNode();
-
-	for (const name in WidgetTestNode.input?.required) {
-		const w = n.widgets[name];
+		// Create test node and convert to input
+		const n = ez.WidgetTestNode();
+		const w = n.widgets[c.name];
 		w.convertToInput();
 		expect(w.isConvertedToInput).toBeTruthy();
 		const input = w.getConvertedInput();
 		expect(input).toBeTruthy();
 
+		// Connect to primitive
 		const p1 = ez.PrimitiveNode();
 		// @ts-ignore : input is valid
 		p1.outputs[0].connectTo(input);
 		expect(p1.outputs[0].connectTo).toHaveLength(1);
-	}
+
+		// Ensure widget is correct type
+		const valueWidget = p1.widgets.value;
+		expect(valueWidget.widget.type).toBe(c.widget ?? c.name);
+
+		// Check if control_after_generate should be added
+		if (c.control) {
+			const controlWidget = p1.widgets.control_after_generate;
+			expect(controlWidget.widget.type).toBe("combo");
+		}
+
+		// Ensure we dont have other widgets
+		expect(p1.node.widgets).toHaveLength(1 + +!!c.control);
+	});
 });
+
 
 test("converted widget works after reload", async () => {
 	const { graph, ez } = await start();
