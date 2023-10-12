@@ -1592,7 +1592,7 @@ export class ComfyApp {
 								all_inputs = all_inputs.concat(Object.keys(parent.inputs))
 								for (let parent_input in all_inputs) {
 									parent_input = all_inputs[parent_input];
-									if (parent.inputs[parent_input].type === node.inputs[i].type) {
+									if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
 										link = parent.getInputLink(parent_input);
 										if (link) {
 											parent = parent.getInputNode(parent_input);
