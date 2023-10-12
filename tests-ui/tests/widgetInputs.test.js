@@ -28,27 +28,46 @@ test("converted widget works after reload", async () => {
 	// Convert back to widget and ensure input is removed
 	n.widgets.ckpt_name.convertToWidget();
 	expect(n.widgets.ckpt_name.isConvertedToInput).toBeFalsy();
-	expect(() => n.inputs.ckpt_name).toThrow(/Unknown input/);
+	expect(n.inputs.ckpt_name).toBeFalsy();
 	expect(n.inputs.length).toEqual(inputCount);
 
 	// Convert again and reload the graph to ensure it maintains state
 	n.widgets.ckpt_name.convertToInput();
 	expect(n.inputs.length).toEqual(inputCount + 1);
 
-	// TODO: connect primitive
-	await graph.reload();
-	// TODO: ensure primitive connected, disconnect, reconnect
+	let { $: primitive } = ez.PrimitiveNode();
+	primitive.outputs[0].connectTo(n.inputs.ckpt_name);
 
-	// Find the reloaded node in the graph
+	await graph.reload();
+
+	// Find the reloaded nodes in the graph
 	n = graph.find(n);
+	primitive = graph.find(primitive);
+
+	// Ensure widget is converted
 	expect(n.widgets.ckpt_name.isConvertedToInput).toBeTruthy();
 	expect(n.inputs.ckpt_name).toBeTruthy();
 	expect(n.inputs.length).toEqual(inputCount + 1);
 
+	// Ensure primitive is connected
+	let { connections } = primitive.outputs[0];
+	expect(connections).toHaveLength(1);
+	expect(connections[0].targetNode.id).toBe(n.node.id);
+
+	// Disconnect & reconnect
+	connections[0].disconnect();
+	({ connections } = primitive.outputs[0]);
+	expect(connections).toHaveLength(0);
+	primitive.outputs[0].connectTo(n.inputs.ckpt_name);
+
+	({ connections } = primitive.outputs[0]);
+	expect(connections).toHaveLength(1);
+	expect(connections[0].targetNode.id).toBe(n.node.id);
+
 	// Convert back to widget and ensure input is removed
 	n.widgets.ckpt_name.convertToWidget();
 	expect(n.widgets.ckpt_name.isConvertedToInput).toBeFalsy();
-	expect(() => n.inputs.ckpt_name).toThrow(/Unknown input/);
+	expect(n.inputs.ckpt_name).toBeFalsy();
 	expect(n.inputs.length).toEqual(inputCount);
 });
 
@@ -70,10 +89,14 @@ test("converted widget works on clone", async () => {
 	expect(clone.widgets.ckpt_name.isConvertedToInput).toBeTruthy();
 	expect(clone.inputs.ckpt_name).toBeTruthy();
 
-	// TODO: connect primitive to clone
+	// Ensure primitive connects to both nodes
+	let { $: primitive } = ez.PrimitiveNode();
+	primitive.outputs[0].connectTo(n.inputs.ckpt_name);
+	primitive.outputs[0].connectTo(clone.inputs.ckpt_name);
+	expect(primitive.outputs[0].connections).toHaveLength(2);
 
 	// Convert back to widget and ensure input is removed
 	clone.widgets.ckpt_name.convertToWidget();
 	expect(clone.widgets.ckpt_name.isConvertedToInput).toBeFalsy();
-	expect(() => clone.inputs.ckpt_name).toThrow(/Unknown input/);
+	expect(clone.inputs.ckpt_name).toBeFalsy();
 });

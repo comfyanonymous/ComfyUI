@@ -1,37 +1,125 @@
 // @ts-check
 /// <reference path="../../web/types/litegraph.d.ts" />
 
-const NODE = Symbol();
-
 /**
  * @typedef { import("../../web/scripts/app")["app"] } app
  * @typedef { import("../../web/types/litegraph") } LG
  * @typedef { import("../../web/types/litegraph").IWidget } IWidget
  * @typedef { import("../../web/types/litegraph").ContextMenuItem } ContextMenuItem
  * @typedef { import("../../web/types/litegraph").INodeInputSlot } INodeInputSlot
+ * @typedef { import("../../web/types/litegraph").INodeOutputSlot } INodeOutputSlot
  * @typedef { InstanceType<LG["LGraphNode"]> & { widgets?: Array<IWidget> } } LGNode
- * @typedef { { [k in keyof typeof Ez["util"]]: typeof Ez["util"][k] extends (app: any, ...rest: infer A) => infer R ? (...args: A) => R : never } } EzUtils
  * @typedef { (...args: EzOutput[] | [...EzOutput[], Record<string, unknown>]) => Array<EzOutput> & { $: EzNode, node: LG["LGraphNode"]} } EzNodeFactory
- * @typedef { ReturnType<EzNode["outputs"]>[0] } EzOutput
  */
 
-class EzInput {
+class EzConnection {
+	/** @type { app } */
+	app;
+	/** @type { InstanceType<LG["LLink"]> } */
+	link;
+
+	get originNode() {
+		return new EzNode(this.app, this.app.graph.getNodeById(this.link.origin_id));
+	}
+
+	get originOutput() {
+		return this.originNode.outputs[this.link.origin_slot];
+	}
+
+	get targetNode() {
+		return new EzNode(this.app, this.app.graph.getNodeById(this.link.target_id));
+	}
+
+	get targetInput() {
+		return this.targetNode.inputs[this.link.target_slot];
+	}
+
+	/**
+	 * @param { app } app
+	 * @param { InstanceType<LG["LLink"]> } link
+	 */
+	constructor(app, link) {
+		this.app = app;
+		this.link = link;
+	}
+
+	disconnect() {
+		this.targetInput.disconnect();
+	}
+}
+
+class EzSlot {
 	/** @type { EzNode } */
 	node;
-	/** @type { INodeInputSlot } */
-	input;
 	/** @type { number } */
 	index;
 
 	/**
 	 * @param { EzNode } node
-	 * @param { INodeInputSlot } input
 	 * @param { number } index
 	 */
-	constructor(node, input, index) {
+	constructor(node, index) {
 		this.node = node;
-		this.input = input;
 		this.index = index;
+	}
+}
+
+class EzInput extends EzSlot {
+	/** @type { INodeInputSlot } */
+	input;
+
+	/**
+	 * @param { EzNode } node
+	 * @param { number } index
+	 * @param { INodeInputSlot } input
+	 */
+	constructor(node, index, input) {
+		super(node, index);
+		this.input = input;
+	}
+
+	disconnect() {
+		this.node.node.disconnectInput(this.index);
+	}
+}
+
+class EzOutput extends EzSlot {
+	/** @type { INodeOutputSlot } */
+	output;
+
+	/**
+	 * @param { EzNode } node
+	 * @param { number } index
+	 * @param { INodeOutputSlot } output
+	 */
+	constructor(node, index, output) {
+		super(node, index);
+		this.output = output;
+	}
+
+	get connections() {
+		return (this.node.node.outputs?.[this.index]?.links ?? [])
+			.map(l => new EzConnection(this.node.app, this.node.app.graph.links[l]));
+	}
+
+	/**
+	 * @param { EzInput } input
+	 */
+	connectTo(input) {
+		/**
+		 * @type { LG["LLink"] | null }
+		 */
+		const link = this.node.node.connect(this.index, input.node.node, input.index);
+		if (!link) {
+			const inp = input.input;
+			const inName = inp.name || inp.label || inp.type;
+			throw new Error(
+				`Connecting from ${input.node.node.type}[${inName}#${input.index}] -> ${this.node.node.type}[${
+					this.output.name ?? this.output.type
+				}#${this.index}] failed.`
+			);
+		}
+		return link;
 	}
 }
 
@@ -105,12 +193,6 @@ class EzNode {
 	app;
 	/** @type { LGNode } */
 	node;
-	/** @type { { length: number } & Record<string, EzInput> } */
-	inputs;
-	/** @type { Record<string, EzWidget> } */
-	widgets;
-	/** @type { Record<string, EzNodeMenuItem> } */
-	menu;
 
 	/**
 	 * @param { app } app
@@ -119,71 +201,58 @@ class EzNode {
 	constructor(app, node) {
 		this.app = app;
 		this.node = node;
-
-		// @ts-ignore : this proxy returns the length
-		this.inputs = new Proxy(
-			{},
-			{
-				get: (_, p) => {
-					if (typeof p !== "string") throw new Error(`Invalid widget name.`);
-					if (p === "length") return this.node.inputs?.length ?? 0;
-					const index = this.node.inputs.findIndex((i) => i.name === p);
-					if (index === -1) throw new Error(`Unknown input "${p}" on node "${this.node.type}".`);
-					return new EzInput(this, this.node.inputs[index], index);
-				},
-			}
-		);
-
-		this.widgets = new Proxy(
-			{},
-			{
-				get: (_, p) => {
-					if (typeof p !== "string") throw new Error(`Invalid widget name.`);
-					const widget = this.node.widgets?.find((w) => w.name === p);
-					if (!widget) throw new Error(`Unknown widget "${p}" on node "${this.node.type}".`);
-
-					return new EzWidget(this, widget);
-				},
-			}
-		);
-
-		this.menu = new Proxy(
-			{},
-			{
-				get: (_, p) => {
-					if (typeof p !== "string") throw new Error(`Invalid menu item name.`);
-					const options = this.menuItems();
-					const option = options.find((o) => o?.content === p);
-					if (!option) throw new Error(`Unknown menu item "${p}" on node "${this.node.type}".`);
-
-					return new EzNodeMenuItem(this, option);
-				},
-			}
-		);
 	}
 
 	get id() {
 		return this.node.id;
 	}
 
-	menuItems() {
-		return this.app.canvas.getNodeMenuOptions(this.node);
+	get inputs() {
+		return this.#getSlotItems("inputs");
 	}
 
-	outputs() {
-		return (
-			this.node.outputs?.map((data, index) => {
-				return {
-					[NODE]: this.node,
-					index,
-					data,
-				};
-			}) ?? []
-		);
+	get outputs() {
+		return this.#getSlotItems("outputs");
+	}
+
+	 /** @returns { Record<string, EzWidget> } */
+	get widgets() {
+		return (this.node.widgets ?? []).reduce((p, w, i) => {
+			p[w.name ?? i] = new EzWidget(this, w);
+			return p;
+		}, {});
+	}
+
+	get menu() {
+		const items = this.app.canvas.getNodeMenuOptions(this.node);
+		return items.reduce((p, w) => {
+			if(w?.content) {
+				p[w.content] = new EzNodeMenuItem(this, w);
+			}
+			return p;
+		}, {});
 	}
 
 	select() {
 		this.app.canvas.selectNode(this.node);
+	}
+
+	/** 
+	 * @template { "inputs" | "outputs" } T
+	 * @param { T } type 
+	 * @returns { Record<string, type extends "inputs" ? EzInput : EzOutput> & (type extends "inputs" ? EzInput [] : EzOutput[]) }
+	*/
+	#getSlotItems(type) {
+		// @ts-ignore : these items are correct
+		return (this.node[type] ?? []).reduce((p, s, i) => {
+			if(s.name in p) {
+				throw new Error(`Unable to store input ${s.name} on array as name conflicts.`);
+			}
+			;
+			// @ts-ignore
+			p.push(p[s.name] = new (type === "inputs" ? EzInput : EzOutput)(this, i, s));
+			return p;
+		}, Object.assign([], {$: this}))
 	}
 }
 
@@ -267,7 +336,7 @@ export const Ez = {
 	 * @param { boolean } clearGraph
 	 * @returns { { graph: EzGraph, ez: Record<string, EzNodeFactory> } }
 	 */
-	graph(app, LiteGraph, LGraphCanvas, clearGraph = true) {
+	graph(app, LiteGraph = window["LiteGraph"], LGraphCanvas = window["LGraphCanvas"], clearGraph = true) {
 		// Always set the active canvas so things work
 		LGraphCanvas.active_canvas = app.canvas;
 
@@ -290,13 +359,14 @@ export const Ez = {
 					 */
 					return function (...args) {
 						const ezNode = new EzNode(app, node);
+						const outputs = ezNode.outputs;
+						const inputs = ezNode.inputs;
 
-						// console.log("Created " + node.type, "Populating:", args);
 						let slot = 0;
 						for (let i = 0; i < args.length; i++) {
 							const arg = args[i];
-							if (arg[NODE]) {
-								arg[NODE].connect(arg.index, node, slot++);
+							if (arg instanceof EzOutput) {
+								arg.connectTo(inputs[slot++]);
 							} else {
 								for (const k in arg) {
 									ezNode.widgets[k].value = arg[k];
@@ -304,9 +374,6 @@ export const Ez = {
 							}
 						}
 
-						const outputs = ezNode.outputs();
-						outputs["$"] = ezNode;
-						outputs["node"] = node;
 						return outputs;
 					};
 				},
