@@ -1,101 +1,146 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { ComfyWidgets } from "/scripts/widgets.js";
+const CONFIG = Symbol();
+// const GET_CONFIG = Symbol();
+import { GET_CONFIG } from "./widgetInputs.js";
 
-class InMemorySubflow {
-  constructor() {}
-
-  onConfigure() {
-    console.log(this);
-  }
-
-  getExportedOutput(slot) {
-    return this.subflow.extras.outputSlots[slot];
-  };
-
-  getExportedInput(slot) {
-    return this.subflow.extras.inputSlots[slot];
-  };
-
-  async refreshNode(subflow) {
-    if (!subflow) return;
-    this.updateSubflowPrompt(subflow);
-    this.refreshPins(subflow);
-  }
-
-  refreshPins(subflow) {
-    if(!subflow)
-      return;
-
-    subflow.extras = { inputSlots: [], outputSlots: [] };
-    const { inputSlots } = subflow.extras;
-    const { outputSlots } = subflow.extras;
-
-    // remove all existing pins
-    const numInputs = this.inputs?.length ?? 0;
-    const numOutputs = this.outputs?.length ?? 0;
-    for(let i = numInputs-1; i > -1; i--) {
-      this.removeInput(i);
-    }
-    for(let i = numOutputs-1; i > -1; i--) {
-      this.removeOutput(i);
-    }
-
-    const subflowNodes = subflow.nodes;
-    // add the new pins and keep track of where the exported vars go to within the inner nodes
-    for (const subflowNode of subflowNodes) {
-      const exports = subflowNode.properties?.exports;
-      if (exports) {
-        let pinNum = 0;
-        for (const inputRef of exports.inputs) {
-          const input = subflowNode.inputs.find(q => q.name === inputRef);
-          if (!input) continue;
-          this.addInput(input.name, input.type);
-          inputSlots.push([subflowNode.id, pinNum]);
-          pinNum++;
-        }
-        pinNum = 0;
-        for (const outputRef of exports.outputs) {
-          const output = subflowNode.outputs.find(q => q.name === outputRef);
-          if (!output) continue;
-          this.addOutput(output.name, output.type);
-          outputSlots.push([subflowNode.id, pinNum]);
-          pinNum++;
-        }
-      }
-    }
-
-    this.size[0] = 180;
-  };
-
-  updateSubflowPrompt(subflow) {
-    this.subflow = subflow;
-  };
+function getConfig(widgetName) {
+	const { nodeData } = this.constructor;
+	return nodeData?.input?.required[widgetName] ?? nodeData?.input?.optional?.[widgetName];
 }
+
+// class InMemorySubflow extends LGraphNode {
+//   constructor(title) {
+//     super(title ?? "InMemorySubflow");
+//   }
+
+//   onConfigure() {
+//     console.log(this);
+//   }
+
+//   getExportedOutput(slot) {
+//     return this.subflow.extras.outputSlots[slot];
+//   };
+
+//   getExportedInput(slot) {
+//     return this.subflow.extras.inputSlots[slot];
+//   };
+
+//   async refreshNode(subflow) {
+//     if (!subflow) return;
+//     this.updateSubflowPrompt(subflow);
+//     this.refreshPins(subflow);
+//   }
+
+//   refreshPins(subflow) {
+//     if(!subflow)
+//       return;
+
+//     subflow.extras = { inputSlots: [], outputSlots: [] };
+//     const { inputSlots } = subflow.extras;
+//     const { outputSlots } = subflow.extras;
+
+//     // remove all existing pins
+//     const numInputs = this.inputs?.length ?? 0;
+//     const numOutputs = this.outputs?.length ?? 0;
+//     for(let i = numInputs-1; i > -1; i--) {
+//       this.removeInput(i);
+//     }
+//     for(let i = numOutputs-1; i > -1; i--) {
+//       this.removeOutput(i);
+//     }
+
+//     const subflowNodes = subflow.nodes;
+//     // add the new pins and keep track of where the exported vars go to within the inner nodes
+//     for (const subflowNode of subflowNodes) {
+//       const exports = subflowNode.properties?.exports;
+//       if (exports) {
+//         let pinNum = 0;
+//         for (const inputRef of exports.inputs) {
+//           console.log(subflowNode.inputs);
+//           const input = subflowNode.inputs.find(q => q.name === inputRef);
+//           if (!input) continue;
+//           const { name, type, link, slot_index, ...extras } = input;
+//           console.log("Input");
+//           console.log(input);
+//           console.log(extras);
+//           if (extras.widget) {
+//             extras.widget[GET_CONFIG] = () => config;
+//           }
+//           this.addInput(input.name, input.type, extras );
+//           inputSlots.push([subflowNode.id, pinNum]);
+//           pinNum++;
+//         }
+//         pinNum = 0;
+//         for (const outputRef of exports.outputs) {
+//           const output = subflowNode.outputs.find(q => q.name === outputRef);
+//           if (!output) continue;
+//           this.addOutput(output.name, output.type);
+//           outputSlots.push([subflowNode.id, pinNum]);
+//           pinNum++;
+//         }
+//       }
+//     }
+
+//     this.size[0] = 180;
+//   };
+
+//   updateSubflowPrompt(subflow) {
+//     this.subflow = subflow;
+//   };
+// }
+
+// class FileSubflow extends InMemorySubflow {
+//   constructor() {
+//     super("FileSubflow");
+
+//     console.log("constructor called");
+//     // ComfyWidgets.SUBFLOWUPLOAD(this, null, null, app);
+//   }
+
+//   async refreshNode(subflow) {
+//     if (!subflow) return;
+
+//     this.updateSubflowPrompt(subflow);
+//     this.refreshPins(subflow);
+
+//     this.size[0] = this.computeSizeX();
+//   }
+
+//   computeSizeX() {
+//     return Math.max(100, LiteGraph.NODE_TEXT_SIZE * this.title.length * 0.45 + 160);
+//   }
+// }
 
 app.registerExtension({
   name: "Comfy.Subflow",
-  async nodeCreated(node) {
-    if (!node.widgets) return;
-    if (node.widgets[0].name !== "subflow_name") return;
+  beforeRegisterNodeDef(nodeType, nodeData, app) {
 
-    let outputSlots = []; // (int (node), int (slot))
-    let inputSlots = [];
+    // console.log("in init")
+		// LiteGraph.registerNodeType(
+		// 	"InMemorySubflow",
+		// 	Object.assign(InMemorySubflow, {
+		// 		title: "InMemorySubflow",
+		// 	})
+		// );
 
-    const refreshNode = async (subflowName) => {
-      const subflowData = await api.getSubflow(subflowName);
-      if (!subflowData.subflow) return;
+    // LiteGraph.registerNodeType(
+		// 	"FileSubflow",
+		// 	Object.assign(FileSubflow, {
+		// 		title: "FileSubflow",
+		// 	})
+    // );
 
-      const subflowNodes = subflowData.subflow.nodes
-      updateSubflowPrompt(subflowData.subflow);
-      refreshPins(subflowNodes);
-
-      node.size[0] = computeSizeX(subflowName);
-    };
-
-    const refreshPins = (subflowNodes) => {
-      inputSlots = [];
-      outputSlots = [];
-
+    // FileSubflow.category = "utils";
+    const refreshPins = (node, subflow) => {
+      if(!subflow)
+        return;
+  
+      subflow.extras = { inputSlots: [], outputSlots: [] };
+      const { inputSlots } = subflow.extras;
+      const { outputSlots } = subflow.extras;
+  
       // remove all existing pins
       const numInputs = node.inputs?.length ?? 0;
       const numOutputs = node.outputs?.length ?? 0;
@@ -105,16 +150,29 @@ app.registerExtension({
       for(let i = numOutputs-1; i > -1; i--) {
         node.removeOutput(i);
       }
-
+  
+      const subflowNodes = subflow.nodes;
       // add the new pins and keep track of where the exported vars go to within the inner nodes
       for (const subflowNode of subflowNodes) {
-        const exports = subflowNode.properties.exports;
+        const exports = subflowNode.properties?.exports;
         if (exports) {
           let pinNum = 0;
           for (const inputRef of exports.inputs) {
+            console.log(subflowNode.inputs);
             const input = subflowNode.inputs.find(q => q.name === inputRef);
             if (!input) continue;
-            node.addInput(input.name, input.type);
+            const { name, type, link, slot_index, ...extras } = input;
+            console.log("Input");
+            console.log(input);
+            console.log(extras);
+            if (extras.widget) {
+              const w = extras.widget;
+              const config = getConfig.call(this, input.name) ?? [input.type, w.options || {}];
+              extras.widget[GET_CONFIG] = () => config;
+              console.log(extras);
+              console.log(input.type);
+            }
+            node.addInput(input.name, input.type, extras );
             inputSlots.push([subflowNode.id, pinNum]);
             pinNum++;
           }
@@ -128,32 +186,29 @@ app.registerExtension({
           }
         }
       }
+  
+      node.size[0] = 180;
     };
 
-    const updateSubflowPrompt = (subflow) => {
+    const refreshNode = async (node, subflow) => {
+      if (!subflow) return;
+  
       node.subflow = subflow;
+      refreshPins(node, subflow);
+  
+      node.size[0] = Math.max(100, LiteGraph.NODE_TEXT_SIZE * node.title.length * 0.45 + 160);
     };
 
-    const computeSizeX = (subflowName) => {
-      return Math.max(100, LiteGraph.NODE_TEXT_SIZE * subflowName.length * 0.45 + 160);
-    };
+    // if (nodeData.name == "InMemorySubflow") {
+    //   Object.assign(nodeData, new InMemorySubflow());
+    // }
 
-    node.widgets[0].callback = (subflowName) => refreshNode(subflowName);
+    if (nodeData.name == "FileSubflow") {
+      nodeType.prototype.refreshNode = function(subflow) {  refreshNode(this, subflow); };
+      nodeType.prototype.getExportedOutput = function(slot) { return this.subflow.extras.outputSlots[slot]; }
+      nodeType.prototype.getExportedInput =  function(slot) { return this.subflow.extras.inputSlots[slot]; }
 
-    node.getExportedOutput = (slot) => {
-      return outputSlots[slot];
-    };
-
-    node.getExportedInput = (slot) => {
-      return inputSlots[slot];
-    };
-  },
-  registerCustomNodes() {
-		LiteGraph.registerNodeType(
-			"InMemorySubflow",
-			Object.assign(InMemorySubflow, {
-				title: "InMemorySubflow",
-			})
-		);
-	},
+      nodeData.input.required = { subflow: ["SUBFLOWUPLOAD"] };
+    }
+	}
 });

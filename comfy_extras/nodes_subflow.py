@@ -1,6 +1,6 @@
 import folder_paths
 
-class Subflow:
+class LoadSubflow:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "subflow_name": (folder_paths.get_filename_list("subflows"), ), }}
@@ -8,11 +8,33 @@ class Subflow:
     FUNCTION = ""
 
     CATEGORY = "loaders"
+
+class FileSubflow:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "subflow_name": (folder_paths.get_filename_list("subflows"), )} }
+    RETURN_TYPES = ()
+    FUNCTION = ""
+
+    CATEGORY = "utils"
+
+class InMemorySubflow:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {} }
+    RETURN_TYPES = ()
+    FUNCTION = ""
+
+    CATEGORY = ""
     
 NODE_CLASS_MAPPINGS = {
-    "Subflow": Subflow,
+    "LoadSubflow": LoadSubflow,
+    "FileSubflow": FileSubflow,
+    "InMemorySubflow": InMemorySubflow
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "Subflow": "Load Subflow"
+    "Subflow": "Load Subflow",
+    "FileSubflow": "File Subflow",
+    "InMemorySubflow": "In Memory Subflow"
 }

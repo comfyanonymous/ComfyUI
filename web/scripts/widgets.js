@@ -495,4 +495,121 @@ export const ComfyWidgets = {
 
 		return { widget: uploadWidget };
 	},
+	SUBFLOWUPLOAD(node, inputName, inputData, app) {
+		// const subflowWidget = node.widgets.find((w) => w.name === "subflow");
+		let uploadWidget;
+
+		// var default_value = subflowWidget.value;
+		// Object.defineProperty(subflowWidget, "value", {
+		// 	set : function(value) {
+		// 		this._real_value = value;
+		// 	},
+
+		// 	get : function() {
+		// 		let value = "";
+		// 		if (this._real_value) {
+		// 			value = this._real_value;
+		// 		} else {
+		// 			return default_value;
+		// 		}
+
+		// 		if (value.filename) {
+		// 			let real_value = value;
+		// 			value = "";
+		// 			if (real_value.subfolder) {
+		// 				value = real_value.subfolder + "/";
+		// 			}
+
+		// 			value += real_value.filename;
+
+		// 			if(real_value.type && real_value.type !== "input")
+		// 				value += ` [${real_value.type}]`;
+		// 		}
+		// 		return value;
+		// 	}
+		// });
+
+		// Add our own callback to the combo widget to render an image when it changes
+		// const cb = node.callback;
+		// imageWidget.callback = function () {
+		// 	if (cb) {
+		// 		return cb.apply(this, arguments);
+		// 	}
+		// };
+
+		// On load if we have a value then render the image
+		// The value isnt set immediately so we need to wait a moment
+		// No change callbacks seem to be fired on initial setting of the value
+		// requestAnimationFrame(() => {
+
+		// });
+
+		const uploadFile = async (file) => {
+			const reader = new FileReader();
+			reader.onload = (e) => {
+				const subflow = JSON.parse(e.target.result);
+				console.log(node);
+				node.refreshNode(subflow);	
+			};
+			reader.readAsText(file);
+		};
+
+
+		const fileInput = document.createElement("input");
+		Object.assign(fileInput, {
+			type: "file",
+			accept: "image/png,application/json",
+			style: "display: none",
+			onchange: async () => {
+				if (fileInput.files.length) {
+					await uploadFile(fileInput.files[0], true);
+				}
+			},
+		});
+		document.body.append(fileInput);
+
+		// Create the button widget for selecting the files
+		console.log("adding widge")
+		uploadWidget = node.addWidget("button", "choose file with subflow", "subflow", () => {
+			fileInput.click();
+		});
+		console.log(node.widgets);
+		uploadWidget.serialize = false;
+
+		// Add handler to check if an image is being dragged over our node
+		node.onDragOver = function (e) {
+			if (e.dataTransfer && e.dataTransfer.items) {
+				const image = [...e.dataTransfer.items].find((f) => f.kind === "file");
+				return !!image;
+			}
+
+			return false;
+		};
+
+		// On drop upload files
+		node.onDragDrop = function (e) {
+			console.log("onDragDrop called");
+			let handled = false;
+			for (const file of e.dataTransfer.files) {
+				if (file.type === "image/png" || file.type === "application/json") {
+					uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
+					handled = true;
+				}
+			}
+
+			return handled;
+		};
+
+		node.pasteFile = function(file) {
+			if (file.type === "image/png" || file.type === "application/json") {
+				const is_pasted = (file.name === "image.png") &&
+								  (file.lastModified - Date.now() < 2000);
+				uploadFile(file, true, is_pasted);
+				return true;
+			}
+			return false;
+		}
+
+		return { widget: uploadWidget };
+	}
 };
