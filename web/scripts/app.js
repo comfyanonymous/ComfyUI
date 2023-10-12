@@ -933,6 +933,7 @@ export class ComfyApp {
 					try {
 						const json = localStorage.getItem("ctrlZ");
 						if (json) {
+							localStorage.setItem("ctrlZ", JSON.stringify(this.graph.serialize()));  // to make sure the next ctrlZ undoes this one
 							const workflow = JSON.parse(json);
 							self.loadGraphData(workflow, false);
 						}
@@ -1319,7 +1320,7 @@ export class ComfyApp {
 			const workflow = JSON.stringify(this.graph.serialize())
 			if(previous_workflow !== workflow){
 				if(!this.changing) localStorage.setItem("ctrlZ", previous_workflow);  // Save workflow for loading at ctrl + Z
-				this.changing = truep
+				this.changing = true
 			}else this.changing = false;
 			localStorage.setItem("workflow", workflow);  // Save current workflow for loading at startup
 		},1000);
