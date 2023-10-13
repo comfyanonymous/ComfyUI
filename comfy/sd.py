@@ -327,7 +327,9 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         if "params" in model_config_params["unet_config"]:
             unet_config = model_config_params["unet_config"]["params"]
             if "use_fp16" in unet_config:
-                fp16 = unet_config["use_fp16"]
+                fp16 = unet_config.pop("use_fp16")
+                if fp16:
+                    unet_config["dtype"] = torch.float16
 
     noise_aug_config = None
     if "noise_aug_config" in model_config_params:
@@ -405,12 +407,12 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     clip_target = None
 
     parameters = comfy.utils.calculate_parameters(sd, "model.diffusion_model.")
-    fp16 = model_management.should_use_fp16(model_params=parameters)
+    unet_dtype = model_management.unet_dtype(model_params=parameters)
 
     class WeightsLoader(torch.nn.Module):
         pass
 
-    model_config = model_detection.model_config_from_unet(sd, "model.diffusion_model.", fp16)
+    model_config = model_detection.model_config_from_unet(sd, "model.diffusion_model.", unet_dtype)
     if model_config is None:
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
 
@@ -418,12 +420,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         if output_clipvision:
             clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
-    dtype = torch.float32
-    if fp16:
-        dtype = torch.float16
-
     if output_model:
-        inital_load_device = model_management.unet_inital_load_device(parameters, dtype)
+        inital_load_device = model_management.unet_inital_load_device(parameters, unet_dtype)
         offload_device = model_management.unet_offload_device()
         model = model_config.get_model(sd, "model.diffusion_model.", device=inital_load_device)
         model.load_model_weights(sd, "model.diffusion_model.")
@@ -458,15 +456,15 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 def load_unet(unet_path): #load unet in diffusers format
     sd = comfy.utils.load_torch_file(unet_path)
     parameters = comfy.utils.calculate_parameters(sd)
-    fp16 = model_management.should_use_fp16(model_params=parameters)
+    unet_dtype = model_management.unet_dtype(model_params=parameters)
     if "input_blocks.0.0.weight" in sd: #ldm
-        model_config = model_detection.model_config_from_unet(sd, "", fp16)
+        model_config = model_detection.model_config_from_unet(sd, "", unet_dtype)
         if model_config is None:
             raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
         new_sd = sd
 
     else: #diffusers
-        model_config = model_detection.model_config_from_diffusers_unet(sd, fp16)
+        model_config = model_detection.model_config_from_diffusers_unet(sd, unet_dtype)
         if model_config is None:
             print("ERROR UNSUPPORTED UNET", unet_path)
             return None
