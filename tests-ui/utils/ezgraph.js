@@ -319,8 +319,8 @@ class EzGraph {
 		const graph = JSON.parse(JSON.stringify(this.app.graph.serialize()));
 		return new Promise((r) => {
 			this.app.graph.clear();
-			setTimeout(() => {
-				this.app.loadGraphData(graph);
+			setTimeout(async () => {
+				await this.app.loadGraphData(graph);
 				r();
 			}, 10);
 		});
