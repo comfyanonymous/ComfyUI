@@ -22,13 +22,26 @@ function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
 
+export function getWidgetType(inputData, inputName) {
+	const type = inputData[0];
+
+	if (Array.isArray(type)) {
+		return "COMBO";
+	} else if (`${type}:${inputName}` in ComfyWidgets) {
+		return `${type}:${inputName}`;
+	} else if (type in ComfyWidgets) {
+		return type;
+	} else {
+		return null;
+	}
+}
+
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
     const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
         values: ["fixed", "increment", "decrement", "randomize"],
         serialize: false, // Don't include this in prompt.
     });
     valueControl.afterQueued = () => {
-
 		var v = valueControl.value;
 
 		if (targetWidget.type == "combo" && v !== "fixed") {
@@ -77,24 +90,44 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 				default:
 					break;
 			}
-		/*check if values are over or under their respective
-		* ranges and set them to min or max.*/
-			if (targetWidget.value < min)
-				targetWidget.value = min;
+			/*check if values are over or under their respective
+			 * ranges and set them to min or max.*/
+			if (targetWidget.value < min) targetWidget.value = min;
 
-			if (targetWidget.value > max)
-				targetWidget.value = max;
+			if (targetWidget.value > max) targetWidget.value = max;
 		}
-	}
+	};
 	return valueControl;
-};
+}
 
 function seedWidget(node, inputName, inputData, app) {
-	const seed = ComfyWidgets.INT(node, inputName, inputData, app);
+	const seed = createIntWidget(node, inputName, inputData, app, true);
 	const seedControl = addValueControlWidget(node, seed.widget, "randomize");
 
 	seed.widget.linkedWidgets = [seedControl];
 	return seed;
+}
+
+function createIntWidget(node, inputName, inputData, app, isSeedInput) {
+	if (!isSeedInput && inputData[1]?.control_after_generate) {
+		return seedWidget(node, inputName, inputData, app);
+	}
+
+	let widgetType = isSlider(inputData[1]["display"], app);
+	const { val, config } = getNumberDefaults(inputData, 1, 0, true);
+	Object.assign(config, { precision: 0 });
+	return {
+		widget: node.addWidget(
+			widgetType,
+			inputName,
+			val,
+			function (v) {
+				const s = this.options.step / 10;
+				this.value = Math.round(v / s) * s;
+			},
+			config
+		),
+	};
 }
 
 const MultilineSymbol = Symbol();
@@ -175,22 +208,22 @@ function addMultilineWidget(node, name, opts, app) {
 				.multiplySelf(ctx.getTransform())
 				.translateSelf(margin, margin + y);
 
-			const scale = new DOMMatrix().scaleSelf(transform.a, transform.d)
-			Object.assign(this.inputEl.style, {
-				transformOrigin: "0 0",
-				transform: scale,
-				left: `${transform.a + transform.e}px`,
-				top: `${transform.d + transform.f}px`,
-				width: `${widgetWidth - (margin * 2)}px`,
-				height: `${this.parent.inputHeight - (margin * 2)}px`,
-				position: "absolute",
-				background: (!node.color)?'':node.color,
-				color: (!node.color)?'':'white',
-				zIndex: app.graph._nodes.indexOf(node),
-			});
-			this.inputEl.hidden = !visible;
-		},
-	};
+				const scale = new DOMMatrix().scaleSelf(transform.a, transform.d)
+				Object.assign(this.inputEl.style, {
+					transformOrigin: "0 0",
+					transform: scale,
+					left: `${transform.a + transform.e}px`,
+					top: `${transform.d + transform.f}px`,
+					width: `${widgetWidth - (margin * 2)}px`,
+					height: `${this.parent.inputHeight - (margin * 2)}px`,
+					position: "absolute",
+					background: (!node.color)?'':node.color,
+					color: (!node.color)?'':'white',
+					zIndex: app.graph._nodes.indexOf(node),
+				});
+				this.inputEl.hidden = !visible;
+			},
+		};
 	widget.inputEl = document.createElement("textarea");
 	widget.inputEl.className = "comfy-multiline-input";
 	widget.inputEl.value = opts.defaultVal;
@@ -287,21 +320,7 @@ export const ComfyWidgets = {
 			}, config) };
 	},
 	INT(node, inputName, inputData, app) {
-		let widgetType = isSlider(inputData[1]["display"], app);
-		const { val, config } = getNumberDefaults(inputData, 1, 0, true);
-		Object.assign(config, { precision: 0 });
-		return {
-			widget: node.addWidget(
-				widgetType,
-				inputName,
-				val,
-				function (v) {
-					const s = this.options.step / 10;
-					this.value = Math.round(v / s) * s;
-				},
-				config
-			),
-		};
+		return createIntWidget(node, inputName, inputData, app);
 	},
 	BOOLEAN(node, inputName, inputData) {
 		let defaultVal = inputData[1]["default"];

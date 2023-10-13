@@ -416,7 +416,7 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "number" || widget.type === "combo") {
+				if ((widget.type === "number" && !inputData?.[1]?.control_after_generate) || widget.type === "combo") {
 					addValueControlWidget(this, widget, "fixed");
 				}
 
