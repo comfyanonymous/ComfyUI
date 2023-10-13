@@ -215,8 +215,13 @@ const ext = {
 
 					groupNodes[name] = config;
 
+					const newNode = LiteGraph.createNode("workflow/" + name);
+					app.graph.add(newNode);
+
 					let top;
 					let left;
+					let index = 0;
+					const slots = def[GROUP_SLOTS];
 					for (const id in app.canvas.selected_nodes) {
 						const node = app.graph.getNodeById(id);
 						if (left == null || node.pos[0] < left) {
@@ -225,12 +230,40 @@ const ext = {
 						if (top == null || node.pos[1] < top) {
 							top = node.pos[1];
 						}
+
+						// Relink outputs to the group
+						if (node.outputs) {
+							for (const output of node.outputs) {
+								if (!output.links) continue;
+								for (const l of output.links) {
+									const link = app.graph.links[l];
+
+									const targetNode = app.graph.getNodeById(link.target_id);
+									const outputMap = slots.outputs;
+									for (const k in outputMap) {
+										const o = outputMap[k];
+										if (o.node === index && o.slot === link.origin_slot) {
+											newNode.connect(+k, targetNode, link.target_slot);
+											break;
+										}
+									}
+								}
+							}
+						}
+
+						index++;
 						app.graph.remove(node);
 					}
 
-					const newNode = LiteGraph.createNode("workflow/" + name);
+					// Relink inputs to the group
+					for (const link of config.links ?? []) {
+						const [_, originSlot, targetId, targetSlot, actualOriginId] = link;
+						const originNode = app.graph.getNodeById(actualOriginId);
+						if (!originNode) continue; // this node is in the group
+						originNode.connect(originSlot, newNode.id, slots.inputs[targetId][targetSlot]);
+					}
+
 					newNode.pos = [left, top];
-					app.graph.add(newNode);
 				},
 			});
 
@@ -263,16 +296,48 @@ const ext = {
 					if (!widgets) continue;
 
 					const names = Object.values(widgets);
+					let seedShift = 0;
 					for (let i = 0; i < names.length; i++) {
-						if (values[i] == null) continue;
+						if (values[i + seedShift] == null) continue;
 						const widget = this.widgets.find((w) => w.name === names[i]);
 						if (widget) {
-							widget.value = values[i];
+							widget.value = values[i + seedShift];
+						}
+
+						// We need to shift the value lookup for the widget values if its a seed
+						if (
+							names[i] === "seed" ||
+							names[i] === "noise_seed" ||
+							node.constructor.nodeData.input.required[names[i]]?.[1]?.control_after_generate
+						) {
+							// TODO: need to populate control_after_generate values
+							seedShift++;
 						}
 					}
 				}
 
 				return onNodeCreated?.apply(this, arguments);
+			};
+
+			const getExtraMenuOptions = node.getExtraMenuOptions ?? node.prototype.getExtraMenuOptions;
+			node.getExtraMenuOptions = function (_, options) {
+				let i = options.findIndex((o) => o.content === "Outputs");
+				if (i === -1) i = options.length;
+				else i++;
+
+				options.splice(i, 0, null, {
+					content: "Convert to nodes",
+					callback: () => {
+						const backup = localStorage.getItem("litegrapheditor_clipboard");
+						localStorage.setItem("litegrapheditor_clipboard", JSON.stringify(config));
+						app.canvas.pasteFromClipboard();
+						localStorage.setItem("litegrapheditor_clipboard", backup);
+						app.graph.remove(this);
+						// TODO: relink
+					},
+				});
+
+				return getExtraMenuOptions?.apply(this, arguments);
 			};
 
 			node.updateLink = function (link, innerNodes) {
