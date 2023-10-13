@@ -282,10 +282,10 @@ class FeatherMask:
     def feather(self, mask, left, top, right, bottom):
         output = mask.reshape((-1, mask.shape[-2], mask.shape[-1])).clone()
 
-        left = min(left, output.shape[1])
-        right = min(right, output.shape[1])
-        top = min(top, output.shape[0])
-        bottom = min(bottom, output.shape[0])
+        left = min(left, output.shape[-1])
+        right = min(right, output.shape[-1])
+        top = min(top, output.shape[-2])
+        bottom = min(bottom, output.shape[-2])
 
         for x in range(left):
             feather_rate = (x + 1.0) / left
