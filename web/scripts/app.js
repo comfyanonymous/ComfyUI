@@ -1546,10 +1546,8 @@ export class ComfyApp {
 		const output = {};
 		// Process nodes in order of execution
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
-			const n = workflow.nodes.find((n) => n.id === outerNode.id);
 			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
-				console.log(node.id, node.title ?? node.comfyClass);
 				if (node.isVirtualNode) {
 					// Don't serialize frontend only nodes but let them make changes
 					if (node.applyToGraph) {
@@ -1571,7 +1569,7 @@ export class ComfyApp {
 					for (const i in widgets) {
 						const widget = widgets[i];
 						if (!widget.options || widget.options.serialize !== false) {
-							inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+							inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(node, i) : widget.value;
 						}
 					}
 				}
