@@ -931,11 +931,10 @@ export class ComfyApp {
 				// Ctrl + Z undo last operation
 				if (e.key === 'z' && e.ctrlKey) {
 					try {
-						const json = localStorage.getItem("ctrlZ");
+						const json = self.ctrl_z_history;
 						if (json) {
-							localStorage.setItem("ctrlZ", JSON.stringify(this.graph.serialize()));  // to make sure the next ctrlZ undoes this one
-							const workflow = JSON.parse(json);
-							self.loadGraphData(workflow, false);
+							self.ctrl_z_history = JSON.stringify(this.graph.serialize());  // to make sure the next ctrlZ undoes this one
+							self.loadGraphData(JSON.parse(json), false);
 						}
 					} catch (err) {
 						console.error("Error loading previous workflow", err);
@@ -1313,13 +1312,13 @@ export class ComfyApp {
 		}
 
 		this.changing = false  // only used for administration for saved values for ctrl + Z
-
+		const app = this;
 		// Save current workflow automatically
 		setInterval(function(){
 			const previous_workflow = localStorage.getItem("workflow")
 			const workflow = JSON.stringify(this.graph.serialize())
 			if(previous_workflow !== workflow){
-				if(!this.changing) localStorage.setItem("ctrlZ", previous_workflow);  // Save workflow for loading at ctrl + Z
+				if(!this.changing) app.ctrl_z_history = previous_workflow;  // Save workflow for loading at ctrl + Z
 				this.changing = true
 			}else this.changing = false;
 			localStorage.setItem("workflow", workflow);  // Save current workflow for loading at startup
