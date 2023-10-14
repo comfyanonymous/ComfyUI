@@ -13,7 +13,7 @@ def get_extension_calling():
         if "/custom_nodes/" in frame.filename:
             stack_module = inspect.getmodule(frame[0]) 
             if stack_module:
-                return re.sub(r".*\.?custom_nodes\.([^\.]+).*", r"\1", stack_module.__name__).split(".")[0]
+                return re.sub(r".*\.?custom_nodes\.([^\.]+).*", r"\1", stack_module.__name__.replace("\\", ".").replace("/", ".")).split(".")[0]
 
     return None
 
