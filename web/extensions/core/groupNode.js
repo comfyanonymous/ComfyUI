@@ -12,20 +12,20 @@ function getLinks(config) {
 
 	// Extract links for easy lookup
 	for (const l of config.links) {
-		const [outputNodeId, outputNodeSlot, inputNodeId, inputNodeSlot] = l;
+		const [sourceNodeId, sourceNodeSlot, targetNodeId, targetNodeSlot] = l;
 
 		// Skip links outside the copy config
-		if (outputNodeId == null) continue;
+		if (sourceNodeId == null) continue;
 
-		if (!linksFrom[outputNodeId]) {
-			linksFrom[outputNodeId] = {};
+		if (!linksFrom[sourceNodeId]) {
+			linksFrom[sourceNodeId] = {};
 		}
-		linksFrom[outputNodeId][outputNodeSlot] = l;
+		linksFrom[sourceNodeId][sourceNodeSlot] = l;
 
-		if (!linksTo[inputNodeId]) {
-			linksTo[inputNodeId] = {};
+		if (!linksTo[targetNodeId]) {
+			linksTo[targetNodeId] = {};
 		}
-		linksTo[inputNodeId][inputNodeSlot] = l;
+		linksTo[targetNodeId][targetNodeSlot] = l;
 	}
 	return { linksTo, linksFrom };
 }
@@ -76,13 +76,21 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 					continue;
 				}
 
-				let rerouteType;
+				let rerouteType = "*";
 				if (linksFrom) {
 					const [, , id, slot] = linksFrom["0"];
 					rerouteType = config.nodes[id].inputs[slot].type;
-				} else {
+				} else if (linksTo) {
 					const [id, slot] = linksTo["0"];
 					rerouteType = config.nodes[id].outputs[slot].type;
+				} else {
+					// Reroute used as a pipe
+					for (const l of config.links) {
+						if (l[2] === nodeId) {
+							rerouteType = l[5];
+							break;
+						}
+					}
 				}
 
 				def = {
@@ -195,6 +203,14 @@ class ConvertToGroupAction {
 		app.canvas.copyToClipboard();
 		const config = JSON.parse(localStorage.getItem("litegrapheditor_clipboard"));
 		localStorage.setItem("litegrapheditor_clipboard", backup);
+
+		// Store link types to allow reconstructing reroute types
+		for (const link of config.links) {
+			const origin = app.graph.getNodeById(link[4]);
+			const type = origin.outputs[link[1]].type;
+			link.push(type);
+		}
+
 		const def = buildNodeDef(config, name, globalDefs, true);
 		await app.registerNodeDef("workflow/" + name, def);
 		return { config, def };
@@ -349,9 +365,9 @@ const ext = {
 					let seedShift = 0;
 					for (let i = 0; i < names.length; i++) {
 						if (values[i + seedShift] == null) continue;
-						const widget = this.widgets.find((w) => w.name === names[i]);
-						if (widget) {
-							widget.value = values[i + seedShift];
+						const widgetIndex = this.widgets.findIndex((w) => w.name === names[i]);
+						if (widgetIndex > -1) {
+							this.widgets[widgetIndex].value = values[i + seedShift];
 						}
 
 						// We need to shift the value lookup for the widget values if its a seed
@@ -360,8 +376,9 @@ const ext = {
 							names[i] === "noise_seed" ||
 							def.input.required[names[i]]?.[1]?.control_after_generate
 						) {
-							// TODO: need to populate control_after_generate values
 							seedShift++;
+							// As this is a seed we need to populate control_after_generate, which will be the next widget
+							this.widgets[widgetIndex + 1].value = values[i + seedShift];
 						}
 					}
 				}
