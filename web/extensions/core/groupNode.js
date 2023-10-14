@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 import { getWidgetType } from "../../scripts/widgets.js";
 
 const IS_GROUP_NODE = Symbol();
@@ -295,6 +296,28 @@ const ext = {
 			new ConvertToGroupAction().addOption(options, options.length);
 			return options;
 		};
+
+		api.addEventListener("executing", ({ detail }) => {
+			if (detail) {
+				const node = app.graph.getNodeById(detail);
+				if (!node) {
+					const split = detail.split(":");
+					if (split.length === 2) {
+						api.dispatchEvent(new CustomEvent("executing", { detail: split[0] }));
+					}
+				}
+			}
+		});
+
+		api.addEventListener("executed", ({ detail }) => {
+			const node = app.graph.getNodeById(detail.node);
+			if (!node) {
+				const split = detail.node.split(":");
+				if (split.length === 2) {
+					api.dispatchEvent(new CustomEvent("executed", { detail: { ...detail, node: split[0] } }));
+				}
+			}
+		});
 	},
 	async beforeConfigureGraph(graphData) {
 		const groupNodes = graphData?.extra?.groupNodes;
@@ -399,7 +422,7 @@ const ext = {
 						}
 
 						// Reconnect outputs
-						for (let outputId = 0; outputId < node.outputs.length; outputId++) {
+						for (let outputId = 0; outputId < node.outputs?.length; outputId++) {
 							const output = node.outputs[outputId];
 							if (!output.links) continue;
 							for (const l of output.links) {
@@ -418,7 +441,7 @@ const ext = {
 				return getExtraMenuOptions?.apply(this, arguments);
 			};
 
-			node.updateLink = function (link, innerNodes) {
+			node.updateLink = function (link) {
 				// Replace the group node reference with the internal node
 				link = { ...link };
 				const output = slots.outputs[link.origin_slot];
