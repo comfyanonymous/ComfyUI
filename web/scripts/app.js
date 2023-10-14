@@ -928,6 +928,16 @@ export class ComfyApp {
 					block_default = true;
 				}
 
+				// Alt + C collapse/uncollapse
+				if (e.key === 'c' && e.altKey) {
+					if (this.selected_nodes) {
+						for (var i in this.selected_nodes) {
+							this.selected_nodes[i].collapse()
+						}
+					}
+					block_default = true;
+				}
+
 				// Ctrl+C Copy
 				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
 					// Trigger onCopy
