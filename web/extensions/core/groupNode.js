@@ -29,11 +29,6 @@ function getLinks(config) {
 	return { linksTo, linksFrom };
 }
 
-// function getInnerLinkType(config, link) {
-// 	const [outputNodeId, outputNodeSlot] = link;
-// 	return config.nodes[outputNodeId].outputs[outputNodeSlot].type;
-// }
-
 function buildNodeDef(config, nodeName, defs, workflow) {
 	const slots = {
 		inputs: {},
@@ -168,6 +163,127 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 	return newDef;
 }
 
+class ConvertToGroupAction {
+	getName() {
+		const name = prompt("Enter group name");
+		if (!name) return;
+
+		const nodeId = "workflow/" + name;
+
+		if (app.graph.extra?.groupNodes?.[name]) {
+			if (app.graph._nodes.find((n) => n.type === nodeId)) {
+				alert(
+					"An in use group node with this name already exists embedded in this workflow, please remove any instances or use a new name."
+				);
+				return;
+			} else if (
+				!confirm(
+					"An group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?"
+				)
+			) {
+				return;
+			}
+		}
+
+		return name;
+	}
+
+	async register(name) {
+		// Use the built in copyToClipboard function to generate the node data we need
+		const backup = localStorage.getItem("litegrapheditor_clipboard");
+		app.canvas.copyToClipboard();
+		const config = JSON.parse(localStorage.getItem("litegrapheditor_clipboard"));
+		localStorage.setItem("litegrapheditor_clipboard", backup);
+		const def = buildNodeDef(config, name, globalDefs, true);
+		await app.registerNodeDef("workflow/" + name, def);
+		return { config, def };
+	}
+
+	findOutput(slots, link, index) {
+		const outputMap = slots.outputs;
+		for (const k in outputMap) {
+			const o = outputMap[k];
+			if (o.node === index && o.slot === link.origin_slot) {
+				return +k;
+			}
+		}
+	}
+
+	linkOutputs(newNode, node, slots, index) {
+		if (node.outputs) {
+			for (const output of node.outputs) {
+				if (!output.links) continue;
+				for (const l of output.links) {
+					const link = app.graph.links[l];
+
+					const targetNode = app.graph.getNodeById(link.target_id);
+					const slot = this.findOutput(slots, link, index);
+					if (slot != null) {
+						newNode.connect(slot, targetNode, link.target_slot);
+					}
+				}
+			}
+		}
+	}
+
+	linkInputs(newNode, config, slots) {
+		for (const link of config.links ?? []) {
+			const [, originSlot, targetId, targetSlot, actualOriginId] = link;
+			const originNode = app.graph.getNodeById(actualOriginId);
+			if (!originNode) continue; // this node is in the group
+			originNode.connect(originSlot, newNode.id, slots.inputs[targetId][targetSlot]);
+		}
+	}
+
+	convert(name, config, def) {
+		const newNode = LiteGraph.createNode("workflow/" + name);
+		app.graph.add(newNode);
+
+		let top;
+		let left;
+		let index = 0;
+		const slots = def[GROUP_SLOTS];
+		for (const id in app.canvas.selected_nodes) {
+			const node = app.graph.getNodeById(id);
+			if (left == null || node.pos[0] < left) {
+				left = node.pos[0];
+			}
+			if (top == null || node.pos[1] < top) {
+				top = node.pos[1];
+			}
+
+			this.linkOutputs(newNode, node, slots, index++);
+
+			app.graph.remove(node);
+		}
+
+		this.linkInputs(newNode, config, slots);
+
+		newNode.pos = [left, top];
+	}
+
+	addOption(options, index) {
+		options.splice(index + 1, null, {
+			content: `Convert to Group Node`,
+			disabled:
+				Object.keys(app.canvas.selected_nodes || {}).length < 2 ||
+				Object.values(app.canvas.selected_nodes).find((n) => n.constructor.nodeData?.[IS_GROUP_NODE]),
+			callback: async () => {
+				const name = this.getName();
+				let extra = app.graph.extra;
+				if (!extra) app.graph.extra = extra = {};
+				let groupNodes = extra.groupNodes;
+				if (!groupNodes) extra.groupNodes = groupNodes = {};
+
+				const { config, def } = await this.register(name);
+				groupNodes[name] = config;
+
+				this.convert(name, config, def);
+			},
+		});
+	}
+}
+
 const id = "Comfy.GroupNode";
 let globalDefs;
 const ext = {
@@ -176,99 +292,7 @@ const ext = {
 		const orig = LGraphCanvas.prototype.getCanvasMenuOptions;
 		LGraphCanvas.prototype.getCanvasMenuOptions = function () {
 			const options = orig.apply(this, arguments);
-
-			options.push(null);
-			options.push({
-				content: `Convert to Group Node`,
-				disabled: !Object.keys(app.canvas.selected_nodes || {}).length,
-				callback: async () => {
-					const name = prompt("Enter group name");
-					if (!name) return;
-
-					const nodeId = "workflow/" + name;
-
-					let extra = app.graph.extra;
-					if (!extra) app.graph.extra = extra = {};
-					let groupNodes = extra.groupNodes;
-					if (!groupNodes) extra.groupNodes = groupNodes = {};
-
-					if (name in groupNodes) {
-						if (app.graph._nodes.find((n) => n.type === nodeId)) {
-							alert(
-								"An in use group node with this name already exists embedded in this workflow, please remove any instances or use a new name."
-							);
-							return;
-						} else if (
-							!confirm(
-								"An group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?"
-							)
-						) {
-							return;
-						}
-					}
-
-					// Use the built in copyToClipboard function to generate the node data we need
-					const backup = localStorage.getItem("litegrapheditor_clipboard");
-					app.canvas.copyToClipboard();
-					const config = JSON.parse(localStorage.getItem("litegrapheditor_clipboard"));
-					localStorage.setItem("litegrapheditor_clipboard", backup);
-					const def = buildNodeDef(config, name, globalDefs, true);
-					await app.registerNodeDef("workflow/" + name, def);
-
-					groupNodes[name] = config;
-
-					const newNode = LiteGraph.createNode("workflow/" + name);
-					app.graph.add(newNode);
-
-					let top;
-					let left;
-					let index = 0;
-					const slots = def[GROUP_SLOTS];
-					for (const id in app.canvas.selected_nodes) {
-						const node = app.graph.getNodeById(id);
-						if (left == null || node.pos[0] < left) {
-							left = node.pos[0];
-						}
-						if (top == null || node.pos[1] < top) {
-							top = node.pos[1];
-						}
-
-						// Relink outputs to the group
-						if (node.outputs) {
-							for (const output of node.outputs) {
-								if (!output.links) continue;
-								for (const l of output.links) {
-									const link = app.graph.links[l];
-
-									const targetNode = app.graph.getNodeById(link.target_id);
-									const outputMap = slots.outputs;
-									for (const k in outputMap) {
-										const o = outputMap[k];
-										if (o.node === index && o.slot === link.origin_slot) {
-											newNode.connect(+k, targetNode, link.target_slot);
-											break;
-										}
-									}
-								}
-							}
-						}
-
-						index++;
-						app.graph.remove(node);
-					}
-
-					// Relink inputs to the group
-					for (const link of config.links ?? []) {
-						const [_, originSlot, targetId, targetSlot, actualOriginId] = link;
-						const originNode = app.graph.getNodeById(actualOriginId);
-						if (!originNode) continue; // this node is in the group
-						originNode.connect(originSlot, newNode.id, slots.inputs[targetId][targetSlot]);
-					}
-
-					newNode.pos = [left, top];
-				},
-			});
-
+			new ConvertToGroupAction().addOption(options, options.length);
 			return options;
 		};
 	},
@@ -341,8 +365,7 @@ const ext = {
 						let top;
 						let left;
 						const selectedIds = Object.keys(app.canvas.selected_nodes);
-						for (let nodeIndex = 0; nodeIndex < selectedIds.length; nodeIndex++) {
-							const id = selectedIds[nodeIndex];
+						for (const id of selectedIds) {
 							const newNode = app.graph.getNodeById(id);
 							if (left == null || newNode.pos[0] < left) {
 								left = newNode.pos[0];
@@ -487,6 +510,17 @@ const ext = {
 				this.innerNodes = innerNodes;
 
 				return innerNodes;
+			};
+		} else {
+			const getExtraMenuOptions = node.getExtraMenuOptions ?? node.prototype.getExtraMenuOptions;
+			node.getExtraMenuOptions = function (_, options) {
+				let i = options.findIndex((o) => o.content === "Outputs");
+				if (i === -1) i = options.length;
+				else i++;
+
+				new ConvertToGroupAction().addOption(options, i);
+
+				return getExtraMenuOptions.apply(this, arguments);
 			};
 		}
 	},
