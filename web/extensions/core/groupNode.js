@@ -185,13 +185,15 @@ const ext = {
 					const name = prompt("Enter group name");
 					if (!name) return;
 
+					const nodeId = "workflow/" + name;
+
 					let extra = app.graph.extra;
 					if (!extra) app.graph.extra = extra = {};
 					let groupNodes = extra.groupNodes;
 					if (!groupNodes) extra.groupNodes = groupNodes = {};
 
 					if (name in groupNodes) {
-						if (app.graph._nodes.find((n) => n.type === name)) {
+						if (app.graph._nodes.find((n) => n.type === nodeId)) {
 							alert(
 								"An in use group node with this name already exists embedded in this workflow, please remove any instances or use a new name."
 							);
@@ -283,9 +285,10 @@ const ext = {
 		globalDefs = defs;
 	},
 	nodeCreated(node) {
-		if (node.constructor.nodeData?.[IS_GROUP_NODE]) {
-			const config = node.constructor.nodeData[GROUP_DATA];
-			const slots = node.constructor.nodeData[GROUP_SLOTS];
+		const def = node.constructor.nodeData;
+		if (def?.[IS_GROUP_NODE]) {
+			const config = def[GROUP_DATA];
+			const slots = def[GROUP_SLOTS];
 
 			const onNodeCreated = node.onNodeCreated;
 			node.onNodeCreated = function () {
@@ -308,7 +311,7 @@ const ext = {
 						if (
 							names[i] === "seed" ||
 							names[i] === "noise_seed" ||
-							node.constructor.nodeData.input.required[names[i]]?.[1]?.control_after_generate
+							def.input.required[names[i]]?.[1]?.control_after_generate
 						) {
 							// TODO: need to populate control_after_generate values
 							seedShift++;
@@ -332,8 +335,60 @@ const ext = {
 						localStorage.setItem("litegrapheditor_clipboard", JSON.stringify(config));
 						app.canvas.pasteFromClipboard();
 						localStorage.setItem("litegrapheditor_clipboard", backup);
+
+						// Calculate position shift
+						const [x, y] = this.pos;
+						let top;
+						let left;
+						const selectedIds = Object.keys(app.canvas.selected_nodes);
+						for (let nodeIndex = 0; nodeIndex < selectedIds.length; nodeIndex++) {
+							const id = selectedIds[nodeIndex];
+							const newNode = app.graph.getNodeById(id);
+							if (left == null || newNode.pos[0] < left) {
+								left = newNode.pos[0];
+							}
+							if (top == null || newNode.pos[1] < top) {
+								top = newNode.pos[1];
+							}
+						}
+
+						// Shift each node
+						for (const id in app.canvas.selected_nodes) {
+							const newNode = app.graph.getNodeById(id);
+							newNode.pos = [newNode.pos[0] - (left - x), newNode.pos[1] - (top - y)];
+						}
+
+						// Reconnect inputs
+						const slots = def[GROUP_SLOTS];
+						for (const nodeIndex in slots.inputs) {
+							const id = selectedIds[nodeIndex];
+							const newNode = app.graph.getNodeById(id);
+							for (const inputId in slots.inputs[nodeIndex]) {
+								const outerSlotId = slots.inputs[nodeIndex][inputId];
+								if (outerSlotId == null) continue;
+								const slot = node.inputs[outerSlotId];
+								if (slot.link == null) continue;
+								const link = app.graph.links[slot.link];
+								//  connect this node output to the input of another node
+								const originNode = app.graph.getNodeById(link.origin_id);
+								originNode.connect(link.origin_slot, newNode, +inputId);
+							}
+						}
+
+						// Reconnect outputs
+						for (let outputId = 0; outputId < node.outputs.length; outputId++) {
+							const output = node.outputs[outputId];
+							if (!output.links) continue;
+							for (const l of output.links) {
+								const slot = slots.outputs[outputId];
+								const link = app.graph.links[l];
+								const targetNode = app.graph.getNodeById(link.target_id);
+								const newNode = app.graph.getNodeById(selectedIds[slot.node]);
+								newNode.connect(slot.slot, targetNode, link.target_slot);
+							}
+						}
+
 						app.graph.remove(this);
-						// TODO: relink
 					},
 				});
 
