@@ -146,7 +146,7 @@ def recursive_search(directory, excluded_dir_names=None):
     return result, dirs
 
 def filter_files_extensions(files, extensions):
-    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
+    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions or len(extensions) == 0, files)))
 
 
 
