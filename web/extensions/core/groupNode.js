@@ -312,14 +312,17 @@ const ext = {
 			new ConvertToGroupAction().addOption(options, options.length);
 			return options;
 		};
-
+		
 		api.addEventListener("executing", ({ detail }) => {
 			if (detail) {
 				const node = app.graph.getNodeById(detail);
 				if (!node) {
 					const split = detail.split(":");
 					if (split.length === 2) {
-						api.dispatchEvent(new CustomEvent("executing", { detail: split[0] }));
+						const outerNode = app.graph.getNodeById(+split[0]);
+						if (outerNode?.constructor.nodeData?.[IS_GROUP_NODE]) {
+							api.dispatchEvent(new CustomEvent("executing", { detail: split[0] }));
+						}
 					}
 				}
 			}
@@ -330,7 +333,11 @@ const ext = {
 			if (!node) {
 				const split = detail.node.split(":");
 				if (split.length === 2) {
-					api.dispatchEvent(new CustomEvent("executed", { detail: { ...detail, node: split[0] } }));
+					const outerNode = app.graph.getNodeById(+split[0]);
+					if(outerNode?.constructor.nodeData?.[IS_GROUP_NODE]) {
+						api.dispatchEvent(new CustomEvent("executed", { detail: { ...detail, node: split[0], merge: !outerNode.resetExecution } }));
+						outerNode.resetExecution = false;
+					}
 				}
 			}
 		});
@@ -352,6 +359,12 @@ const ext = {
 		if (def?.[IS_GROUP_NODE]) {
 			const config = def[GROUP_DATA];
 			const slots = def[GROUP_SLOTS];
+
+			const onExecutionStart = node.onExecutionStart;
+			node.onExecutionStart = function() {
+				node.resetExecution = true;
+				return onExecutionStart?.apply(this, arguments);
+			}
 
 			const onNodeCreated = node.onNodeCreated;
 			node.onNodeCreated = function () {

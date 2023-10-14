@@ -1135,7 +1135,19 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
-			this.nodeOutputs[detail.node] = detail.output;
+			const output = this.nodeOutputs[detail.node];
+			if (detail.merge && output) {
+				for (const k in detail.output ?? {}) {
+					const v = output[k];
+					if (v instanceof Array) {
+						output[k] = v.concat(detail.output[k]);
+					} else {
+						output[k] = detail.output[k];
+					}
+				}
+			} else {
+				this.nodeOutputs[detail.node] = detail.output;
+			}
 			const node = this.graph.getNodeById(detail.node);
 			if (node) {
 				if (node.onExecuted)
