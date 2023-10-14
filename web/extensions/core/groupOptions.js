@@ -38,6 +38,15 @@ app.registerExtension({
                 }
             }
 
+            options.push({
+                content: "Select Nodes",
+                callback: () => {
+                    this.selectNodes(nodesInGroup);
+                    this.graph.change();
+                    this.canvas.focus();
+                }
+            });
+
             // Modes
             // 0: Always
             // 1: On Event
