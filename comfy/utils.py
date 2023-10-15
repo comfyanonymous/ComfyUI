@@ -408,6 +408,10 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
         output[b:b+1] = out/out_div
     return output
 
+PROGRESS_BAR_ENABLED = True
+def set_progress_bar_enabled(enabled):
+    global PROGRESS_BAR_ENABLED
+    PROGRESS_BAR_ENABLED = enabled
 
 PROGRESS_BAR_HOOK = None
 def set_progress_bar_global_hook(function):
