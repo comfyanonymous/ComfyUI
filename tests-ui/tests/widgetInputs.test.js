@@ -1,9 +1,49 @@
-/// <reference path="../node_modules/@types/jest/index.d.ts" />
 // @ts-check
+/// <reference path="../node_modules/@types/jest/index.d.ts" />
 
-const { start } = require("../utils");
+const { start, makeNodeDef, checkBeforeAndAfterReload, assertNotNullOrUndefined } = require("../utils");
 const lg = require("../utils/litegraph");
 
+/**
+ * @typedef { import("../utils/ezgraph") } Ez
+ * @typedef { ReturnType<Ez["Ez"]["graph"]>["ez"] } EzNodeFactory
+ */
+
+/**
+ * @param { EzNodeFactory } ez
+ * @param { InstanceType<Ez["EzGraph"]> } graph
+ * @param { InstanceType<Ez["EzInput"]> } input
+ * @param { string } widgetType
+ * @param { boolean } hasControlWidget
+ * @returns
+ */
+async function connectPrimitiveAndReload(ez, graph, input, widgetType, hasControlWidget) {
+	// Connect to primitive and ensure its still connected after
+	let primitive = ez.PrimitiveNode();
+	primitive.outputs[0].connectTo(input);
+
+	await checkBeforeAndAfterReload(graph, async () => {
+		primitive = graph.find(primitive);
+		let { connections } = primitive.outputs[0];
+		expect(connections).toHaveLength(1);
+		expect(connections[0].targetNode.id).toBe(input.node.node.id);
+
+		// Ensure widget is correct type
+		const valueWidget = primitive.widgets.value;
+		expect(valueWidget.widget.type).toBe(widgetType);
+
+		// Check if control_after_generate should be added
+		if (hasControlWidget) {
+			const controlWidget = primitive.widgets.control_after_generate;
+			expect(controlWidget.widget.type).toBe("combo");
+		}
+
+		// Ensure we dont have other widgets
+		expect(primitive.node.widgets).toHaveLength(1 + +!!hasControlWidget);
+	});
+
+	return primitive;
+}
 
 describe("widget inputs", () => {
 	beforeEach(() => {
@@ -12,7 +52,6 @@ describe("widget inputs", () => {
 
 	afterEach(() => {
 		lg.teardown(global);
-		jest.resetModules();
 	});
 
 	[
@@ -28,58 +67,27 @@ describe("widget inputs", () => {
 		{ name: "combo", type: ["a", "b", "c"], control: true },
 	].forEach((c) => {
 		test(`widget conversion + primitive works on ${c.name}`, async () => {
-			/**
-			 * Test node with widgets of each type
-			 * @type { import("../../web/types/comfy").ComfyObjectInfo } ComfyObjectInfo
-			 */
-			const WidgetTestNode = {
-				category: "test",
-				name: "WidgetTestNode",
-				output_name: [],
-				input: {
-					required: {
-						[c.name]: [c.type, c.opt ?? {}],
-					},
-				},
-			};
-
-			const { ez } = await start({
+			const { ez, graph } = await start({
 				mockNodeDefs: {
-					WidgetTestNode,
+					["TestNode"]: makeNodeDef("TestNode", { [c.name]: [c.type, c.opt ?? {}] }),
 				},
 			});
 
 			// Create test node and convert to input
-			const n = ez.WidgetTestNode();
+			const n = ez.TestNode();
 			const w = n.widgets[c.name];
 			w.convertToInput();
 			expect(w.isConvertedToInput).toBeTruthy();
 			const input = w.getConvertedInput();
 			expect(input).toBeTruthy();
 
-			// Connect to primitive
-			const p1 = ez.PrimitiveNode();
-			// @ts-ignore : input is valid
-			p1.outputs[0].connectTo(input);
-			expect(p1.outputs[0].connectTo).toHaveLength(1);
-
-			// Ensure widget is correct type
-			const valueWidget = p1.widgets.value;
-			expect(valueWidget.widget.type).toBe(c.widget ?? c.name);
-
-			// Check if control_after_generate should be added
-			if (c.control) {
-				const controlWidget = p1.widgets.control_after_generate;
-				expect(controlWidget.widget.type).toBe("combo");
-			}
-
-			// Ensure we dont have other widgets
-			expect(p1.node.widgets).toHaveLength(1 + +!!c.control);
+			// @ts-ignore : input is valid here
+			await connectPrimitiveAndReload(ez, graph, input, c.widget ?? c.name, c.control);
 		});
 	});
 
 	test("converted widget works after reload", async () => {
-		const { graph, ez } = await start();
+		const { ez, graph } = await start();
 		let n = ez.CheckpointLoaderSimple();
 
 		const inputCount = n.inputs.length;
@@ -100,31 +108,14 @@ describe("widget inputs", () => {
 		n.widgets.ckpt_name.convertToInput();
 		expect(n.inputs.length).toEqual(inputCount + 1);
 
-		let primitive = ez.PrimitiveNode();
-		primitive.outputs[0].connectTo(n.inputs.ckpt_name);
-
-		await graph.reload();
-
-		// Find the reloaded nodes in the graph
-		n = graph.find(n);
-		primitive = graph.find(primitive);
-
-		// Ensure widget is converted
-		expect(n.widgets.ckpt_name.isConvertedToInput).toBeTruthy();
-		expect(n.inputs.ckpt_name).toBeTruthy();
-		expect(n.inputs.length).toEqual(inputCount + 1);
-
-		// Ensure primitive is connected
-		let { connections } = primitive.outputs[0];
-		expect(connections).toHaveLength(1);
-		expect(connections[0].targetNode.id).toBe(n.node.id);
+		const primitive = await connectPrimitiveAndReload(ez, graph, n.inputs.ckpt_name, "combo", true);
 
 		// Disconnect & reconnect
-		connections[0].disconnect();
-		({ connections } = primitive.outputs[0]);
+		primitive.outputs[0].connections[0].disconnect();
+		let { connections } = primitive.outputs[0];
 		expect(connections).toHaveLength(0);
-		primitive.outputs[0].connectTo(n.inputs.ckpt_name);
 
+		primitive.outputs[0].connectTo(n.inputs.ckpt_name);
 		({ connections } = primitive.outputs[0]);
 		expect(connections).toHaveLength(1);
 		expect(connections[0].targetNode.id).toBe(n.node.id);
@@ -169,7 +160,7 @@ describe("widget inputs", () => {
 	test("shows missing node error on custom node with converted input", async () => {
 		const { graph } = await start();
 
-		const dialogShow = jest.spyOn(graph.app.ui.dialog, "show")
+		const dialogShow = jest.spyOn(graph.app.ui.dialog, "show");
 
 		await graph.app.loadGraphData({
 			last_node_id: 3,
@@ -211,5 +202,76 @@ describe("widget inputs", () => {
 		expect(dialogShow).toBeCalledTimes(1);
 		expect(dialogShow.mock.calls[0][0]).toContain("the following node types were not found");
 		expect(dialogShow.mock.calls[0][0]).toContain("TestNode");
+	});
+
+	test("defaultInput widgets can be converted back to inputs", async () => {
+		const { graph, ez } = await start({
+			mockNodeDefs: {
+				["TestNode"]: makeNodeDef("TestNode", { example: ["INT", { defaultInput: true }] }),
+			},
+		});
+
+		// Create test node and ensure it starts as an input
+		let n = ez.TestNode();
+		let w = n.widgets.example;
+		expect(w.isConvertedToInput).toBeTruthy();
+		let input = w.getConvertedInput();
+		expect(input).toBeTruthy();
+
+		// Ensure it can be converted to
+		w.convertToWidget();
+		expect(w.isConvertedToInput).toBeFalsy();
+		expect(n.inputs.length).toEqual(0);
+		// and from
+		w.convertToInput();
+		expect(w.isConvertedToInput).toBeTruthy();
+		input = w.getConvertedInput();
+
+		// Reload and ensure it still only has 1 converted widget
+		if (!assertNotNullOrUndefined(input)) return;
+
+		await connectPrimitiveAndReload(ez, graph, input, "number", true);
+		n = graph.find(n);
+		expect(n.widgets).toHaveLength(1);
+		w = n.widgets.example;
+		expect(w.isConvertedToInput).toBeTruthy();
+
+		// Convert back to widget and ensure it is still a widget after reload
+		w.convertToWidget();
+		await graph.reload();
+		n = graph.find(n);
+		expect(n.widgets).toHaveLength(1);
+		expect(n.widgets[0].isConvertedToInput).toBeFalsy();
+		expect(n.inputs.length).toEqual(0);
+	});
+
+	test("forceInput widgets can not be converted back to inputs", async () => {
+		const { graph, ez } = await start({
+			mockNodeDefs: {
+				["TestNode"]: makeNodeDef("TestNode", { example: ["INT", { forceInput: true }] }),
+			},
+		});
+
+		// Create test node and ensure it starts as an input
+		let n = ez.TestNode();
+		let w = n.widgets.example;
+		expect(w.isConvertedToInput).toBeTruthy();
+		const input = w.getConvertedInput();
+		expect(input).toBeTruthy();
+
+		// Convert to widget should error
+		expect(() => w.convertToWidget()).toThrow();
+
+		// Reload and ensure it still only has 1 converted widget
+		if (assertNotNullOrUndefined(input)) {
+			await connectPrimitiveAndReload(ez, graph, input, "number", true);
+			n = graph.find(n);
+			expect(n.widgets).toHaveLength(1);
+			expect(n.widgets.example.isConvertedToInput).toBeTruthy();
+		}
+	});
+
+	test("primitive combo cannot connect to non matching list", () => {
+		throw new Error("not implemented");
 	});
 });
