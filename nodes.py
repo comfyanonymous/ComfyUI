@@ -1660,7 +1660,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "KSampler": "KSampler",
     "KSamplerAdvanced": "KSampler (Advanced)",
     # Loaders
-    "CheckpointLoader": "Load Checkpoint (With Config)",
+    "CheckpointLoader": "Load Checkpoint With Config (DEPRECATED)",
     "CheckpointLoaderSimple": "Load Checkpoint",
     "VAELoader": "Load VAE",
     "LoraLoader": "Load LoRA",
