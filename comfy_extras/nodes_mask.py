@@ -1,12 +1,15 @@
 import numpy as np
-from scipy.ndimage import grey_dilation
+import scipy.ndimage
 import torch
+import comfy.utils
 
 from nodes import MAX_RESOLUTION
 
 def composite(destination, source, x, y, mask = None, multiplier = 8, resize_source = False):
     if resize_source:
         source = torch.nn.functional.interpolate(source, size=(destination.shape[2], destination.shape[3]), mode="bilinear")
+
+    source = comfy.utils.repeat_to_batch_size(source, destination.shape[0])
 
     x = max(-source.shape[3] * multiplier, min(x, destination.shape[3] * multiplier))
     y = max(-source.shape[2] * multiplier, min(y, destination.shape[2] * multiplier))
@@ -18,8 +21,8 @@ def composite(destination, source, x, y, mask = None, multiplier = 8, resize_sou
         mask = torch.ones_like(source)
     else:
         mask = mask.clone()
-        mask = torch.nn.functional.interpolate(mask[None, None], size=(source.shape[2], source.shape[3]), mode="bilinear")
-        mask = mask.repeat((source.shape[0], source.shape[1], 1, 1))
+        mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(source.shape[2], source.shape[3]), mode="bilinear")
+        mask = comfy.utils.repeat_to_batch_size(mask, source.shape[0])
 
     # calculate the bounds of the source that will be overlapping the destination
     # this prevents the source trying to overwrite latent pixels that are out of bounds
@@ -111,7 +114,7 @@ class ImageToMask:
         return {
                 "required": {
                     "image": ("IMAGE",),
-                    "channel": (["red", "green", "blue"],),
+                    "channel": (["red", "green", "blue", "alpha"],),
                 }
         }
 
@@ -121,8 +124,8 @@ class ImageToMask:
     FUNCTION = "image_to_mask"
 
     def image_to_mask(self, image, channel):
-        channels = ["red", "green", "blue"]
-        mask = image[0, :, :, channels.index(channel)]
+        channels = ["red", "green", "blue", "alpha"]
+        mask = image[:, :, :, channels.index(channel)]
         return (mask,)
 
 class ImageColorToMask:
@@ -141,8 +144,8 @@ class ImageColorToMask:
     FUNCTION = "image_to_mask"
 
     def image_to_mask(self, image, color):
-        temp = (torch.clamp(image[0], 0, 1.0) * 255.0).round().to(torch.int)
-        temp = torch.bitwise_left_shift(temp[:,:,0], 16) + torch.bitwise_left_shift(temp[:,:,1], 8) + temp[:,:,2]
+        temp = (torch.clamp(image, 0, 1.0) * 255.0).round().to(torch.int)
+        temp = torch.bitwise_left_shift(temp[:,:,:,0], 16) + torch.bitwise_left_shift(temp[:,:,:,1], 8) + temp[:,:,:,2]
         mask = torch.where(temp == color, 255, 0).float()
         return (mask,)
 
@@ -164,7 +167,7 @@ class SolidMask:
     FUNCTION = "solid"
 
     def solid(self, value, width, height):
-        out = torch.full((height, width), value, dtype=torch.float32, device="cpu")
+        out = torch.full((1, height, width), value, dtype=torch.float32, device="cpu")
         return (out,)
 
 class InvertMask:
@@ -206,7 +209,8 @@ class CropMask:
     FUNCTION = "crop"
 
     def crop(self, mask, x, y, width, height):
-        out = mask[y:y + height, x:x + width]
+        mask = mask.reshape((-1, mask.shape[-2], mask.shape[-1]))
+        out = mask[:, y:y + height, x:x + width]
         return (out,)
 
 class MaskComposite:
@@ -229,27 +233,28 @@ class MaskComposite:
     FUNCTION = "combine"
 
     def combine(self, destination, source, x, y, operation):
-        output = destination.clone()
+        output = destination.reshape((-1, destination.shape[-2], destination.shape[-1])).clone()
+        source = source.reshape((-1, source.shape[-2], source.shape[-1]))
 
         left, top = (x, y,)
-        right, bottom = (min(left + source.shape[1], destination.shape[1]), min(top + source.shape[0], destination.shape[0]))
+        right, bottom = (min(left + source.shape[-1], destination.shape[-1]), min(top + source.shape[-2], destination.shape[-2]))
         visible_width, visible_height = (right - left, bottom - top,)
 
-        source_portion = source[:visible_height, :visible_width]
-        destination_portion = destination[top:bottom, left:right]
+        source_portion = source[:, :visible_height, :visible_width]
+        destination_portion = destination[:, top:bottom, left:right]
 
         if operation == "multiply":
-            output[top:bottom, left:right] = destination_portion * source_portion
+            output[:, top:bottom, left:right] = destination_portion * source_portion
         elif operation == "add":
-            output[top:bottom, left:right] = destination_portion + source_portion
+            output[:, top:bottom, left:right] = destination_portion + source_portion
         elif operation == "subtract":
-            output[top:bottom, left:right] = destination_portion - source_portion
+            output[:, top:bottom, left:right] = destination_portion - source_portion
         elif operation == "and":
-            output[top:bottom, left:right] = torch.bitwise_and(destination_portion.round().bool(), source_portion.round().bool()).float()
+            output[:, top:bottom, left:right] = torch.bitwise_and(destination_portion.round().bool(), source_portion.round().bool()).float()
         elif operation == "or":
-            output[top:bottom, left:right] = torch.bitwise_or(destination_portion.round().bool(), source_portion.round().bool()).float()
+            output[:, top:bottom, left:right] = torch.bitwise_or(destination_portion.round().bool(), source_portion.round().bool()).float()
         elif operation == "xor":
-            output[top:bottom, left:right] = torch.bitwise_xor(destination_portion.round().bool(), source_portion.round().bool()).float()
+            output[:, top:bottom, left:right] = torch.bitwise_xor(destination_portion.round().bool(), source_portion.round().bool()).float()
 
         output = torch.clamp(output, 0.0, 1.0)
 
@@ -275,28 +280,28 @@ class FeatherMask:
     FUNCTION = "feather"
 
     def feather(self, mask, left, top, right, bottom):
-        output = mask.clone()
+        output = mask.reshape((-1, mask.shape[-2], mask.shape[-1])).clone()
 
-        left = min(left, output.shape[1])
-        right = min(right, output.shape[1])
-        top = min(top, output.shape[0])
-        bottom = min(bottom, output.shape[0])
+        left = min(left, output.shape[-1])
+        right = min(right, output.shape[-1])
+        top = min(top, output.shape[-2])
+        bottom = min(bottom, output.shape[-2])
 
         for x in range(left):
             feather_rate = (x + 1.0) / left
-            output[:, x] *= feather_rate
+            output[:, :, x] *= feather_rate
 
         for x in range(right):
             feather_rate = (x + 1) / right
-            output[:, -x] *= feather_rate
+            output[:, :, -x] *= feather_rate
 
         for y in range(top):
             feather_rate = (y + 1) / top
-            output[y, :] *= feather_rate
+            output[:, y, :] *= feather_rate
 
         for y in range(bottom):
             feather_rate = (y + 1) / bottom
-            output[-y, :] *= feather_rate
+            output[:, -y, :] *= feather_rate
 
         return (output,)
     
@@ -306,7 +311,7 @@ class GrowMask:
         return {
             "required": {
                 "mask": ("MASK",),
-                "expand": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                "expand": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION, "step": 1}),
                 "tapered_corners": ("BOOLEAN", {"default": True}),
             },
         }
@@ -322,12 +327,18 @@ class GrowMask:
         kernel = np.array([[c, 1, c],
                            [1, 1, 1],
                            [c, 1, c]])
-        output = mask.numpy().copy()
-        while expand > 0:
-            output = grey_dilation(output, footprint=kernel)
-            expand -= 1
-        output = torch.from_numpy(output)
-        return (output,)
+        mask = mask.reshape((-1, mask.shape[-2], mask.shape[-1]))
+        out = []
+        for m in mask:
+            output = m.numpy()
+            for _ in range(abs(expand)):
+                if expand < 0:
+                    output = scipy.ndimage.grey_erosion(output, footprint=kernel)
+                else:
+                    output = scipy.ndimage.grey_dilation(output, footprint=kernel)
+            output = torch.from_numpy(output)
+            out.append(output)
+        return (torch.stack(out, dim=0),)
 
 
 

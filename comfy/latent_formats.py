@@ -20,7 +20,7 @@ class SD15(LatentFormat):
                     [-0.2829,  0.1762,  0.2721],
                     [-0.2120, -0.2616, -0.7177]
                 ]
-        self.taesd_decoder_name = "taesd_decoder.pth"
+        self.taesd_decoder_name = "taesd_decoder"
 
 class SDXL(LatentFormat):
     def __init__(self):
@@ -32,4 +32,4 @@ class SDXL(LatentFormat):
                     [ 0.0568,  0.1687, -0.0755],
                     [-0.3112, -0.2359, -0.2076]
                 ]
-        self.taesd_decoder_name = "taesdxl_decoder.pth"
+        self.taesd_decoder_name = "taesdxl_decoder"
