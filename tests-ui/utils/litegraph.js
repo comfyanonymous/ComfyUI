@@ -30,4 +30,7 @@ export function setup(ctx) {
 
 export function teardown(ctx) {
 	forEachKey((k) => delete ctx[k]);
+
+	// Clear document after each run
+	document.getElementsByTagName("html")[0].innerHTML = ""; 
 }

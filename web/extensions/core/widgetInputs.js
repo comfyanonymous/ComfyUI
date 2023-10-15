@@ -315,7 +315,7 @@ app.registerExtension({
 
 			onAfterGraphConfigured() {
 				if (this.outputs[0].links?.length && !this.widgets?.length) {
-					this.#onFirstConnection();
+					if(!this.#onFirstConnection()) return;
 
 					// Populate widget values from config data
 					if (this.widgets) {
@@ -386,13 +386,16 @@ app.registerExtension({
 					widget = input.widget;
 				}
 
-				const { type } = getWidgetType(widget[GET_CONFIG]());
+				const config = widget[GET_CONFIG]?.();
+				if(!config) return;
+
+				const { type } = getWidgetType(config);
 				// Update our output to restrict to the widget type
 				this.outputs[0].type = type;
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
-				this.#createWidget(widget[CONFIG] ?? widget[GET_CONFIG](), theirNode, widget.name, recreating);
+				this.#createWidget(widget[CONFIG] ?? config, theirNode, widget.name, recreating);
 			}
 
 			#createWidget(inputData, node, widgetName, recreating) {

@@ -165,4 +165,51 @@ describe("widget inputs", () => {
 		expect(clone.widgets.ckpt_name.isConvertedToInput).toBeFalsy();
 		expect(clone.inputs.ckpt_name).toBeFalsy();
 	});
+
+	test("shows missing node error on custom node with converted input", async () => {
+		const { graph } = await start();
+
+		const dialogShow = jest.spyOn(graph.app.ui.dialog, "show")
+
+		await graph.app.loadGraphData({
+			last_node_id: 3,
+			last_link_id: 4,
+			nodes: [
+				{
+					id: 1,
+					type: "TestNode",
+					pos: [41.87329101561909, 389.7381480823742],
+					size: { 0: 220, 1: 374 },
+					flags: {},
+					order: 1,
+					mode: 0,
+					inputs: [{ name: "test", type: "FLOAT", link: 4, widget: { name: "test" }, slot_index: 0 }],
+					outputs: [],
+					properties: { "Node name for S&R": "TestNode" },
+					widgets_values: [1],
+				},
+				{
+					id: 3,
+					type: "PrimitiveNode",
+					pos: [-312, 433],
+					size: { 0: 210, 1: 82 },
+					flags: {},
+					order: 0,
+					mode: 0,
+					outputs: [{ links: [4], widget: { name: "test" } }],
+					title: "test",
+					properties: {},
+				},
+			],
+			links: [[4, 3, 0, 1, 6, "FLOAT"]],
+			groups: [],
+			config: {},
+			extra: {},
+			version: 0.4,
+		});
+
+		expect(dialogShow).toBeCalledTimes(1);
+		expect(dialogShow.mock.calls[0][0]).toContain("the following node types were not found");
+		expect(dialogShow.mock.calls[0][0]).toContain("TestNode");
+	});
 });
