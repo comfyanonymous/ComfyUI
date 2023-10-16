@@ -9,4 +9,6 @@ module.exports = async function () {
 	global.enableWebGLCanvas = nop;
 
 	HTMLCanvasElement.prototype.getContext = nop;
+
+	localStorage["Comfy.Settings.Comfy.Logging.Enabled"] = "false";
 };

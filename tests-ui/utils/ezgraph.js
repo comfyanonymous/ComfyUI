@@ -12,7 +12,7 @@
  * @typedef { (...args: EzOutput[] | [...EzOutput[], Record<string, unknown>]) => EzNode } EzNodeFactory
  */
 
-class EzConnection {
+export class EzConnection {
 	/** @type { app } */
 	app;
 	/** @type { InstanceType<LG["LLink"]> } */
@@ -48,7 +48,7 @@ class EzConnection {
 	}
 }
 
-class EzSlot {
+export class EzSlot {
 	/** @type { EzNode } */
 	node;
 	/** @type { number } */
@@ -64,7 +64,7 @@ class EzSlot {
 	}
 }
 
-class EzInput extends EzSlot {
+export class EzInput extends EzSlot {
 	/** @type { INodeInputSlot } */
 	input;
 
@@ -83,7 +83,7 @@ class EzInput extends EzSlot {
 	}
 }
 
-class EzOutput extends EzSlot {
+export class EzOutput extends EzSlot {
 	/** @type { INodeOutputSlot } */
 	output;
 
@@ -98,14 +98,17 @@ class EzOutput extends EzSlot {
 	}
 
 	get connections() {
-		return (this.node.node.outputs?.[this.index]?.links ?? [])
-			.map(l => new EzConnection(this.node.app, this.node.app.graph.links[l]));
+		return (this.node.node.outputs?.[this.index]?.links ?? []).map(
+			(l) => new EzConnection(this.node.app, this.node.app.graph.links[l])
+		);
 	}
 
 	/**
 	 * @param { EzInput } input
 	 */
 	connectTo(input) {
+		if (!input) throw new Error("Invalid input");
+
 		/**
 		 * @type { LG["LLink"] | null }
 		 */
@@ -123,18 +126,22 @@ class EzOutput extends EzSlot {
 	}
 }
 
-class EzNodeMenuItem {
+export class EzNodeMenuItem {
 	/** @type { EzNode } */
 	node;
+	/** @type { number } */
+	index;
 	/** @type { ContextMenuItem } */
 	item;
 
 	/**
 	 * @param { EzNode } node
+	 * @param { number } index
 	 * @param { ContextMenuItem } item
 	 */
-	constructor(node, item) {
+	constructor(node, index, item) {
 		this.node = node;
+		this.index = index;
 		this.item = item;
 	}
 
@@ -147,18 +154,22 @@ class EzNodeMenuItem {
 	}
 }
 
-class EzWidget {
+export class EzWidget {
 	/** @type { EzNode } */
 	node;
+	/** @type { number } */
+	index;
 	/** @type { IWidget } */
 	widget;
 
 	/**
 	 * @param { EzNode } node
+	 * @param { number } index
 	 * @param { IWidget } widget
 	 */
-	constructor(node, widget) {
+	constructor(node, index, widget) {
 		this.node = node;
+		this.index = index;
 		this.widget = widget;
 	}
 
@@ -176,10 +187,9 @@ class EzWidget {
 	}
 
 	getConvertedInput() {
-		if (!this.isConvertedToInput)
-			throw new Error(`Widget ${this.widget.name} is not converted to input.`);
-		
-		return this.node.inputs.find(inp => inp.input["widget"]?.name === this.widget.name);
+		if (!this.isConvertedToInput) throw new Error(`Widget ${this.widget.name} is not converted to input.`);
+
+		return this.node.inputs.find((inp) => inp.input["widget"]?.name === this.widget.name);
 	}
 
 	convertToWidget() {
@@ -195,7 +205,7 @@ class EzWidget {
 	}
 }
 
-class EzNode {
+export class EzNode {
 	/** @type { app } */
 	app;
 	/** @type { LGNode } */
@@ -215,55 +225,68 @@ class EzNode {
 	}
 
 	get inputs() {
-		return this.#getSlotItems("inputs");
+		return this.#makeLookupArray("inputs", "name", EzInput);
 	}
 
 	get outputs() {
-		return this.#getSlotItems("outputs");
+		return this.#makeLookupArray("outputs", "name", EzOutput);
 	}
 
-	 /** @returns { Record<string, EzWidget> } */
 	get widgets() {
-		return (this.node.widgets ?? []).reduce((p, w, i) => {
-			p[w.name ?? i] = new EzWidget(this, w);
-			return p;
-		}, {});
+		return this.#makeLookupArray("widgets", "name", EzWidget);
 	}
 
 	get menu() {
-		const items = this.app.canvas.getNodeMenuOptions(this.node);
-		return items.reduce((p, w) => {
-			if(w?.content) {
-				p[w.content] = new EzNodeMenuItem(this, w);
-			}
-			return p;
-		}, {});
+		return this.#makeLookupArray(() => this.app.canvas.getNodeMenuOptions(this.node), "content", EzNodeMenuItem);
 	}
 
 	select() {
 		this.app.canvas.selectNode(this.node);
 	}
 
-	/** 
-	 * @template { "inputs" | "outputs" } T
-	 * @param { T } type 
-	 * @returns { Record<string, type extends "inputs" ? EzInput : EzOutput> & (type extends "inputs" ? EzInput [] : EzOutput[]) }
-	*/
-	#getSlotItems(type) {
-		// @ts-ignore : these items are correct
-		return (this.node[type] ?? []).reduce((p, s, i) => {
-			if(s.name in p) {
-				throw new Error(`Unable to store input ${s.name} on array as name conflicts.`);
-			}
-			;
+	// /**
+	//  * @template { "inputs" | "outputs" } T
+	//  * @param { T } type
+	//  * @returns { Record<string, type extends "inputs" ? EzInput : EzOutput> & (type extends "inputs" ? EzInput [] : EzOutput[]) }
+	//  */
+	// #getSlotItems(type) {
+	// 	// @ts-ignore : these items are correct
+	// 	return (this.node[type] ?? []).reduce((p, s, i) => {
+	// 		if (s.name in p) {
+	// 			throw new Error(`Unable to store input ${s.name} on array as name conflicts.`);
+	// 		}
+	// 		// @ts-ignore
+	// 		p.push((p[s.name] = new (type === "inputs" ? EzInput : EzOutput)(this, i, s)));
+	// 		return p;
+	// 	}, Object.assign([], { $: this }));
+	// }
+
+	/**
+	 * @template { { new(node: EzNode, index: number, obj: any): any } } T
+	 * @param { "inputs" | "outputs" | "widgets" | (() => Array<unknown>) } nodeProperty
+	 * @param { string } nameProperty
+	 * @param { T } ctor
+	 * @returns { Record<string, InstanceType<T>> & Array<InstanceType<T>> }
+	 */
+	#makeLookupArray(nodeProperty, nameProperty, ctor) {
+		const items = typeof nodeProperty === "function" ? nodeProperty() : this.node[nodeProperty];
+		// @ts-ignore
+		return (items ?? []).reduce((p, s, i) => {
+			if (!s) return p;
+
+			const name = s[nameProperty];
 			// @ts-ignore
-			p.push(p[s.name] = new (type === "inputs" ? EzInput : EzOutput)(this, i, s));
+			if (!name || name in p) {
+				throw new Error(`Unable to store ${nodeProperty} ${name} on array as name conflicts.`);
+			}
+			// @ts-ignore
+			p.push((p[name] = new ctor(this, i, s)));
 			return p;
-		}, Object.assign([], {$: this}))
+		}, Object.assign([], { $: this }));
 	}
 }
 
-class EzGraph {
+export class EzGraph {
 	/** @type { app } */
 	app;
 
@@ -373,8 +396,7 @@ export const Ez = {
 						const inputs = ezNode.inputs;
 
 						let slot = 0;
-						for (let i = 0; i < args.length; i++) {
-							const arg = args[i];
+						for (const arg of args) {
 							if (arg instanceof EzOutput) {
 								arg.connectTo(inputs[slot++]);
 							} else {
