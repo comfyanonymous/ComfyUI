@@ -75,6 +75,15 @@ app.registerExtension({
             group.recomputeInsideNodes();
             const nodesInGroup = group._nodes;
 
+            options.push({
+                content: "Add Selected Nodes To Group",
+                disabled: !Object.keys(app.canvas.selected_nodes || {}).length,
+                callback: () => {
+                    addNodesToGroup(group, this.selected_nodes)
+                    this.graph.change();
+                }
+            });
+
             // No nodes in group, return default options
             if (nodesInGroup.length === 0) {
                 return options;
@@ -91,15 +100,6 @@ app.registerExtension({
                     break;
                 }
             }
-
-            options.push({
-                content: "Add Selected Nodes To Group",
-                disabled: !Object.keys(app.canvas.selected_nodes || {}).length,
-                callback: () => {
-                    addNodesToGroup(group, this.selected_nodes)
-                    this.graph.change();
-                }
-            });
 
             options.push({
                 content: "Fit Group To Nodes",
