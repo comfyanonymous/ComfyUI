@@ -52,16 +52,13 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 	};
 	const links = getLinks(config);
 
-	console.log(
-		"Building group node",
-		nodeName,
-		config.nodes.map((n) => n.type)
-	);
+	const seenInputs = {};
+	const seenOutputs = {};
 
 	let inputCount = 0;
 	for (let nodeId = 0; nodeId < config.nodes.length; nodeId++) {
 		const node = config.nodes[nodeId];
-		console.log("Processing inner node", nodeId, node.type);
+		// console.info("Processing inner node", nodeId, node.type);
 		let def = defs[node.type];
 
 		const linksTo = links.linksTo[nodeId];
@@ -73,6 +70,7 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 				if (linksTo && linksFrom) {
 					// Being used internally
 					// TODO: does anything actually need doing here?
+					debugger;
 					continue;
 				}
 
@@ -105,8 +103,7 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 				};
 			} else {
 				// Front end only node
-				// TODO: check these should all be ignored
-				debugger;
+				console.warn("Skipping virtual node " + node.type + " when building group node " + nodeName);
 				continue;
 			}
 		}
@@ -118,11 +115,27 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 		let linkInputId = 0;
 		for (let inputId = 0; inputId < inputNames.length; inputId++) {
 			const inputName = inputNames[inputId];
-			console.log("\t", "> Processing input", inputId, inputName);
+			// console.info("\t", "> Processing input", inputId, inputName);
 			const widgetType = getWidgetType(inputs[inputName], inputName);
-			let name = nodeId + ":" + inputName;
+			let prefix = node.title ?? node.type;
+			let name = `${prefix} ${inputName}`;
+
+			if (name in seenInputs) {
+				prefix = `${node.title ?? node.type} ${++seenInputs[name]}`;
+				name = `${prefix} ${inputName}`;
+			} else {
+				seenInputs[name] = 1;
+			}
+
+			const nodeInput = node.inputs?.findIndex((input) => input.name === inputName);
+
+			// For now internal widget inputs are not supported
+			if (nodeInput > -1 && node.inputs[nodeInput]?.widget) {
+				node.inputs.splice(nodeInput, 1);
+			}
+
 			if (widgetType) {
-				console.log("\t\t", "Widget", widgetType);
+				// console.info("\t\t", "Widget", widgetType);
 
 				// Store mapping to get a group widget name from an inner id + name
 				if (!slots.widgets[nodeId]) slots.widgets[nodeId] = {};
@@ -130,11 +143,11 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 			} else {
 				if (linksTo?.[linkInputId]) {
 					linkInputId++;
-					console.info("\t\t", "Link skipped as has internal connection");
+					// console.info("\t\t", "Link skipped as has internal connection");
 					continue;
 				}
 
-				console.info("\t\t", "Link", linkInputId + " -> outer input " + inputCount);
+				// console.info("\t\t", "Link", linkInputId + " -> outer input " + inputCount);
 
 				// Store a mapping to let us get the group node input for a specific slot on an inner node
 				if (!slots.inputs[nodeId]) slots.inputs[nodeId] = {};
@@ -144,17 +157,17 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 			let inputDef = inputs[inputName];
 			if (inputName === "seed" || inputName === "noise_seed") {
 				inputDef = [...inputDef];
-				inputDef[1] = { control_after_generate: true, ...inputDef[1] };
+				inputDef[1] = { control_after_generate: `${prefix} control_after_generate`, ...inputDef[1] };
 			}
 			newDef.input.required[name] = inputDef;
 		}
 
 		// Add outputs
 		for (let outputId = 0; outputId < def.output.length; outputId++) {
-			console.log("\t", "< Processing output", outputId, def.output_name?.[outputId] ?? def.output[outputId]);
+			// console.info("\t", "< Processing output", outputId, def.output_name?.[outputId] ?? def.output[outputId]);
 
 			if (linksFrom?.[outputId]) {
-				console.info("\t\t", "Skipping as has internal connection");
+				// console.info("\t\t", "Skipping as has internal connection");
 				continue;
 			}
 
@@ -165,7 +178,17 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 
 			newDef.output.push(def.output[outputId]);
 			newDef.output_is_list.push(def.output_is_list[outputId]);
-			newDef.output_name.push(nodeId + ":" + (def.output_name?.[outputId] ?? def.output[outputId]));
+
+			const label = def.output_name?.[outputId] ?? def.output[outputId];
+			let name = `${node.title ?? node.type} ${label}`;
+
+			if (name in seenOutputs) {
+				name = `${node.title ?? node.type} ${++seenOutputs[name]} ${label}`;
+			} else {
+				seenOutputs[name] = 1;
+			}
+
+			newDef.output_name.push(name);
 		}
 	}
 
@@ -277,6 +300,7 @@ class ConvertToGroupAction {
 		this.linkInputs(newNode, config, slots);
 
 		newNode.pos = [left, top];
+		return newNode;
 	}
 
 	addOption(options, index) {
@@ -295,7 +319,7 @@ class ConvertToGroupAction {
 				const { config, def } = await this.register(name);
 				groupNodes[name] = config;
 
-				this.convert(name, config, def);
+				return this.convert(name, config, def);
 			},
 		});
 	}
@@ -306,13 +330,13 @@ let globalDefs;
 const ext = {
 	name: id,
 	setup() {
-		const orig = LGraphCanvas.prototype.getCanvasMenuOptions;
+		const getCanvasMenuOptions = LGraphCanvas.prototype.getCanvasMenuOptions;
 		LGraphCanvas.prototype.getCanvasMenuOptions = function () {
-			const options = orig.apply(this, arguments);
+			const options = getCanvasMenuOptions.apply(this, arguments);
 			new ConvertToGroupAction().addOption(options, options.length);
 			return options;
 		};
-		
+
 		api.addEventListener("executing", ({ detail }) => {
 			if (detail) {
 				const node = app.graph.getNodeById(detail);
@@ -334,13 +358,37 @@ const ext = {
 				const split = detail.node.split(":");
 				if (split.length === 2) {
 					const outerNode = app.graph.getNodeById(+split[0]);
-					if(outerNode?.constructor.nodeData?.[IS_GROUP_NODE]) {
-						api.dispatchEvent(new CustomEvent("executed", { detail: { ...detail, node: split[0], merge: !outerNode.resetExecution } }));
+					if (outerNode?.constructor.nodeData?.[IS_GROUP_NODE]) {
+						api.dispatchEvent(
+							new CustomEvent("executed", { detail: { ...detail, node: split[0], merge: !outerNode.resetExecution } })
+						);
 						outerNode.resetExecution = false;
 					}
 				}
 			}
 		});
+
+		// Attach handlers after everything is registered to ensure all nodes are found
+		for (const k in LiteGraph.registered_node_types) {
+			const nodeType = LiteGraph.registered_node_types[k];
+
+			if (nodeType.nodeData?.[IS_GROUP_NODE]) {
+				continue;
+			}
+
+			const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+			nodeType.prototype.getExtraMenuOptions = function (_, options) {
+				const r = getExtraMenuOptions?.apply?.(this, arguments);
+
+				let i = options.findIndex((o) => o.content === "Outputs");
+				if (i === -1) i = options.length;
+				else i++;
+
+				new ConvertToGroupAction().addOption(options, i);
+
+				return r;
+			};
+		}
 	},
 	async beforeConfigureGraph(graphData) {
 		const groupNodes = graphData?.extra?.groupNodes;
@@ -361,10 +409,10 @@ const ext = {
 			const slots = def[GROUP_SLOTS];
 
 			const onExecutionStart = node.onExecutionStart;
-			node.onExecutionStart = function() {
+			node.onExecutionStart = function () {
 				node.resetExecution = true;
 				return onExecutionStart?.apply(this, arguments);
-			}
+			};
 
 			const onNodeCreated = node.onNodeCreated;
 			node.onNodeCreated = function () {
@@ -418,8 +466,10 @@ const ext = {
 						let top;
 						let left;
 						const selectedIds = Object.keys(app.canvas.selected_nodes);
+						const newNodes = [];
 						for (const id of selectedIds) {
 							const newNode = app.graph.getNodeById(id);
+							newNodes.push(newNode);
 							if (left == null || newNode.pos[0] < left) {
 								left = newNode.pos[0];
 							}
@@ -465,6 +515,7 @@ const ext = {
 						}
 
 						app.graph.remove(this);
+						return newNodes;
 					},
 				});
 
@@ -488,7 +539,7 @@ const ext = {
 			};
 
 			node.getInnerNodes = function () {
-				console.log("Expanding group node", this.comfyClass, this.id);
+				// console.info("Expanding group node", this.comfyClass, this.id);
 				const links = getLinks(config);
 
 				const innerNodes = config.nodes.map((n, i) => {
@@ -499,7 +550,7 @@ const ext = {
 						const groupWidgetName = slots.widgets[i][innerWidget.name];
 						const groupWidget = node.widgets.find((w) => w.name === groupWidgetName);
 						if (groupWidget) {
-							console.log("Set widget value", groupWidgetName + " -> " + innerWidget.name, groupWidget.value);
+							// console.info("Set widget value", groupWidgetName + " -> " + innerWidget.name, groupWidget.value);
 							innerWidget.value = groupWidget.value;
 						}
 					}
@@ -507,30 +558,32 @@ const ext = {
 					innerNode.id = node.id + ":" + i;
 					innerNode.getInputNode = function (slot) {
 						if (!innerNode.comfyClass) slot = 0;
-						console.log("Get input node", innerNode.comfyClass, slot, innerNode.inputs[slot]?.name);
-						const outerSlot = slots.inputs[i]?.[slot];
+						// console.info("Get input node", innerNode.comfyClass, slot, innerNode.inputs?.[slot]?.name);
+						const outerSlot = slots.inputs?.[i]?.[slot];
 						if (outerSlot != null) {
 							// Our inner node has a mapping to the group node inputs
 							// return the input node from there
-							console.log("\t", "Getting from group node input", outerSlot);
+							// console.info("\t", "Getting from group node input", outerSlot);
 							const inputNode = node.getInputNode(outerSlot);
-							console.log("\t", "Result", inputNode?.id, inputNode?.comfyClass);
+							// console.info("\t", "Result", inputNode?.id, inputNode?.comfyClass);
 							return inputNode;
 						}
 
 						// Internal link
-						const innerLink = links.linksTo[i][slot];
-						console.log("\t", "Internal link", innerLink);
+						const innerLink = links.linksTo[i]?.[slot];
+						if (!innerLink) return null;
+
+						// console.info("\t", "Internal link", innerLink);
 						const inputNode = innerNodes[innerLink[0]];
-						console.log("\t", "Result", inputNode?.id, inputNode?.comfyClass);
+						// console.info("\t", "Result", inputNode?.id, inputNode?.comfyClass);
 						return inputNode;
 					};
 					innerNode.getInputLink = function (slot) {
-						console.log("Get input link", innerNode.comfyClass, slot, innerNode.inputs[slot]?.name);
+						// console.info("Get input link", innerNode.comfyClass, slot, innerNode.inputs?.[slot]?.name);
 						const outerSlot = slots.inputs[i]?.[slot];
 						if (outerSlot != null) {
 							// The inner node is connected via the group node inputs
-							console.log("\t", "Getting from group node input", outerSlot);
+							// console.info("\t", "Getting from group node input", outerSlot);
 							const linkId = node.inputs[outerSlot].link;
 							let link = app.graph.links[linkId];
 
@@ -540,11 +593,12 @@ const ext = {
 								target_slot: slot,
 								...link,
 							};
-							console.log("\t", "Result", link);
+							// console.info("\t", "Result", link);
 							return link;
 						}
 
-						let link = links.linksTo[i][slot];
+						let link = links.linksTo[i]?.[slot];
+						if (!link) return null;
 						// Use the inner link, but update the origin node to be inner node id
 						link = {
 							origin_id: node.id + ":" + link[0],
@@ -552,7 +606,7 @@ const ext = {
 							target_id: node.id + ":" + i,
 							target_slot: slot,
 						};
-						console.log("\t", "Internal link", link);
+						// console.info("\t", "Internal link", link);
 
 						return link;
 					};
@@ -563,17 +617,6 @@ const ext = {
 				this.innerNodes = innerNodes;
 
 				return innerNodes;
-			};
-		} else {
-			const getExtraMenuOptions = node.getExtraMenuOptions ?? node.prototype.getExtraMenuOptions;
-			node.getExtraMenuOptions = function (_, options) {
-				let i = options.findIndex((o) => o.content === "Outputs");
-				if (i === -1) i = options.length;
-				else i++;
-
-				new ConvertToGroupAction().addOption(options, i);
-
-				return getExtraMenuOptions.apply(this, arguments);
 			};
 		}
 	},

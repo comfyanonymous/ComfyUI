@@ -36,12 +36,12 @@ export function getWidgetType(inputData, inputName) {
 	}
 }
 
-export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
-    const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
-        values: ["fixed", "increment", "decrement", "randomize"],
-        serialize: false, // Don't include this in prompt.
-    });
-    valueControl.afterQueued = () => {
+export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values, widgetName) {
+	const valueControl = node.addWidget("combo", widgetName ?? "control_after_generate", defaultValue, function (v) {}, {
+		values: ["fixed", "increment", "decrement", "randomize"],
+		serialize: false, // Don't include this in prompt.
+	});
+	valueControl.afterQueued = () => {
 		var v = valueControl.value;
 
 		if (targetWidget.type == "combo" && v !== "fixed") {
@@ -67,7 +67,8 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 				targetWidget.value = value;
 				targetWidget.callback(value);
 			}
-		} else { //number
+		} else {
+			//number
 			let min = targetWidget.options.min;
 			let max = targetWidget.options.max;
 			// limit to something that javascript can handle
@@ -100,17 +101,18 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 	return valueControl;
 }
 
-function seedWidget(node, inputName, inputData, app) {
+function seedWidget(node, inputName, inputData, app, widgetName) {
 	const seed = createIntWidget(node, inputName, inputData, app, true);
-	const seedControl = addValueControlWidget(node, seed.widget, "randomize");
+	const seedControl = addValueControlWidget(node, seed.widget, "randomize", undefined, widgetName);
 
 	seed.widget.linkedWidgets = [seedControl];
 	return seed;
 }
 
 function createIntWidget(node, inputName, inputData, app, isSeedInput) {
-	if (!isSeedInput && inputData[1]?.control_after_generate) {
-		return seedWidget(node, inputName, inputData, app);
+	const control = inputData[1]?.control_after_generate;
+	if (!isSeedInput && control) {
+		return seedWidget(node, inputName, inputData, app, typeof control === "string" ? control : undefined);
 	}
 
 	let widgetType = isSlider(inputData[1]["display"], app);
