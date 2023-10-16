@@ -68,9 +68,7 @@ describe("widget inputs", () => {
 	].forEach((c) => {
 		test(`widget conversion + primitive works on ${c.name}`, async () => {
 			const { ez, graph } = await start({
-				mockNodeDefs: {
-					["TestNode"]: makeNodeDef("TestNode", { [c.name]: [c.type, c.opt ?? {}] }),
-				},
+				mockNodeDefs: makeNodeDef("TestNode", { [c.name]: [c.type, c.opt ?? {}] }),
 			});
 
 			// Create test node and convert to input
@@ -206,9 +204,7 @@ describe("widget inputs", () => {
 
 	test("defaultInput widgets can be converted back to inputs", async () => {
 		const { graph, ez } = await start({
-			mockNodeDefs: {
-				["TestNode"]: makeNodeDef("TestNode", { example: ["INT", { defaultInput: true }] }),
-			},
+			mockNodeDefs: makeNodeDef("TestNode", { example: ["INT", { defaultInput: true }] }),
 		});
 
 		// Create test node and ensure it starts as an input
@@ -247,9 +243,7 @@ describe("widget inputs", () => {
 
 	test("forceInput widgets can not be converted back to inputs", async () => {
 		const { graph, ez } = await start({
-			mockNodeDefs: {
-				["TestNode"]: makeNodeDef("TestNode", { example: ["INT", { forceInput: true }] }),
-			},
+			mockNodeDefs: makeNodeDef("TestNode", { example: ["INT", { forceInput: true }] }),
 		});
 
 		// Create test node and ensure it starts as an input
@@ -271,7 +265,55 @@ describe("widget inputs", () => {
 		}
 	});
 
-	test("primitive combo cannot connect to non matching list", () => {
-		throw new Error("not implemented");
+	test("primitive can connect to matching combos on converted widgets", async () => {
+		const { ez } = await start({
+			mockNodeDefs: {
+				...makeNodeDef("TestNode1", { example: [["A", "B", "C"], { forceInput: true }] }),
+				...makeNodeDef("TestNode2", { example: [["A", "B", "C"], { forceInput: true }] }),
+			},
+		});
+
+		const n1 = ez.TestNode1();
+		const n2 = ez.TestNode2();
+		const p = ez.PrimitiveNode();
+		p.outputs[0].connectTo(n1.inputs[0]);
+		p.outputs[0].connectTo(n2.inputs[0]);
+		expect(p.outputs[0].connections).toHaveLength(2);
+		const valueWidget = p.widgets.value;
+		expect(valueWidget.widget.type).toBe("combo");
+		expect(valueWidget.widget.options.values).toEqual(["A", "B", "C"]);
+	});
+
+	test("primitive can not connect to non matching combos on converted widgets", async () => {
+		const { ez } = await start({
+			mockNodeDefs: {
+				...makeNodeDef("TestNode1", { example: [["A", "B", "C"], { forceInput: true }] }),
+				...makeNodeDef("TestNode2", { example: [["A", "B"], { forceInput: true }] }),
+			},
+		});
+
+		const n1 = ez.TestNode1();
+		const n2 = ez.TestNode2();
+		const p = ez.PrimitiveNode();
+		p.outputs[0].connectTo(n1.inputs[0]);
+		expect(() => p.outputs[0].connectTo(n2.inputs[0])).toThrow();
+		expect(p.outputs[0].connections).toHaveLength(1);
+	});
+
+	test("combo output can not connect to non matching combos list input", async () => {
+		const { ez } = await start({
+			mockNodeDefs: {
+				...makeNodeDef("TestNode1", {}, [["A", "B"]]),
+				...makeNodeDef("TestNode2", { example: [["A", "B"], { forceInput: true}] }),
+				...makeNodeDef("TestNode3", { example: [["A", "B", "C"], { forceInput: true}] }),
+			},
+		});
+
+		const n1 = ez.TestNode1();
+		const n2 = ez.TestNode2();
+		const n3 = ez.TestNode3();
+
+		n1.outputs[0].connectTo(n2.inputs[0]);
+		expect(() => n1.outputs[0].connectTo(n3.inputs[0])).toThrow();
 	});
 });
