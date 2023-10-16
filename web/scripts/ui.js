@@ -809,7 +809,8 @@ export class ComfyUI {
 			if (
 				this.lastQueueSize != 0 &&
 				status.exec_info.queue_remaining == 0 &&
-				document.getElementById("autoQueueCheckbox").checked
+				document.getElementById("autoQueueCheckbox").checked &&
+				! app.lastExecutionError
 			) {
 				app.queuePrompt(0, this.batchCount);
 			}
