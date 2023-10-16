@@ -1,0 +1,17 @@
+name: Tests CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Test using Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: '12'
+        working-directory: ./tests-ui
+        run: | 
+          npm install
+          npm test
