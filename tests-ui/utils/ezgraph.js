@@ -107,6 +107,8 @@ export class EzOutput extends EzSlot {
 	 * @param { EzInput } input
 	 */
 	connectTo(input) {
+		if (!input) throw new Error("Invalid input");
+
 		/**
 		 * @type { LG["LLink"] | null }
 		 */
