@@ -11,5 +11,7 @@ jobs:
       with:
         node-version: 18
     - name: Run Tests
-      run: npm test
+      run: | 
+        npm install
+        npm test
       working-directory: ./tests-ui
