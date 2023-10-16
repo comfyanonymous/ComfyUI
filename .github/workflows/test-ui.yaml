@@ -6,13 +6,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Test using Node.js
-        uses: actions/setup-node@v1
-        with:
-          node-version: '18'
-      - name: Run tests
-        working-directory: ./tests-ui
-        run: | 
-          npm install
-          npm test
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 18
+    - name: Run Tests
+      run: npm test
+      working-directory: ./tests-ui
