@@ -22,6 +22,18 @@ function addNodesToGroup(group, nodes=[]) {
             nx2 = node.pos[0] + node.size[0]
             ny2 = node.pos[1] + node.size[1]
 
+            if (node.type != "Reroute") {
+                ny1 -= LiteGraph.NODE_TITLE_HEIGHT;
+            }
+
+            if (node.flags?.collapsed) {
+                ny2 = ny1 + LiteGraph.NODE_TITLE_HEIGHT;
+
+                if (node?._collapsed_width) {
+                    nx2 = nx1 + Math.round(node._collapsed_width);
+                }
+            }
+
             if (x1 == -1 || nx1 < x1) {
                 x1 = nx1;
             }
@@ -42,7 +54,7 @@ function addNodesToGroup(group, nodes=[]) {
 
     var padding = 10;
 
-    y1 = y1 - Math.round(group.font_size * 2.7);
+    y1 = y1 - Math.round(group.font_size * 1.4);
 
     group.pos = [x1 - padding, y1 - padding];
     group.size = [x2 - x1 + padding * 2, y2 - y1 + padding * 2];
