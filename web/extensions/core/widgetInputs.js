@@ -100,6 +100,27 @@ function getWidgetType(config) {
 	return { type };
 }
 
+
+function isValidCombo(combo, obj) {
+	// New input isnt a combo
+	if (!(obj instanceof Array)) {
+		console.log(`connection rejected: tried to connect combo to ${obj}`);
+		return false;
+	}
+	// New imput combo has a different size
+	if (combo.length !== obj.length) {
+		console.log(`connection rejected: combo lists dont match`);
+		return false;
+	}
+	// New input combo has different elements
+	if (combo.find((v, i) => obj[i] !== v)) {
+		console.log(`connection rejected: combo lists dont match`);
+		return false;
+	}
+
+	return true;
+}
+
 app.registerExtension({
 	name: "Comfy.WidgetInputs",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -256,6 +277,28 @@ app.registerExtension({
 
 			return r;
 		};
+
+		// Prevent connecting COMBO lists to converted inputs that dont match types
+		const onConnectInput = nodeType.prototype.onConnectInput;
+		nodeType.prototype.onConnectInput = function (targetSlot, type, output, originNode, originSlot) {
+			const v = onConnectInput?.(this, arguments);
+			// Not a combo, ignore
+			if (type !== "COMBO") return v;
+			// Primitive output, allow that to handle
+			if (originNode.outputs[originSlot].widget) return v;
+
+			// Ensure target is also a combo
+			const targetCombo = this.inputs[targetSlot].widget?.[GET_CONFIG]?.()?.[0];
+			if (!targetCombo || !(targetCombo instanceof Array)) return v;
+
+			// Check they match
+			const originConfig = originNode.constructor?.nodeData?.output?.[originSlot];
+			if (!originConfig || !isValidCombo(targetCombo, originConfig)) {
+				return false;
+			}
+
+			return v;
+		};
 	},
 	registerCustomNodes() {
 		class PrimitiveNode {
@@ -315,7 +358,7 @@ app.registerExtension({
 
 			onAfterGraphConfigured() {
 				if (this.outputs[0].links?.length && !this.widgets?.length) {
-					if(!this.#onFirstConnection()) return;
+					if (!this.#onFirstConnection()) return;
 
 					// Populate widget values from config data
 					if (this.widgets) {
@@ -387,7 +430,7 @@ app.registerExtension({
 				}
 
 				const config = widget[GET_CONFIG]?.();
-				if(!config) return;
+				if (!config) return;
 
 				const { type } = getWidgetType(config);
 				// Update our output to restrict to the widget type
@@ -500,21 +543,7 @@ app.registerExtension({
 				const config2 = input.widget[GET_CONFIG]();
 
 				if (config1[0] instanceof Array) {
-					// New input isnt a combo
-					if (!(config2[0] instanceof Array)) {
-						console.log(`connection rejected: tried to connect combo to ${config2[0]}`);
-						return false;
-					}
-					// New imput combo has a different size
-					if (config1[0].length !== config2[0].length) {
-						console.log(`connection rejected: combo lists dont match`);
-						return false;
-					}
-					// New input combo has different elements
-					if (config1[0].find((v, i) => config2[0][i] !== v)) {
-						console.log(`connection rejected: combo lists dont match`);
-						return false;
-					}
+					if (!isValidCombo(config1[0], config2[0])) return false;
 				} else if (config1[0] !== config2[0]) {
 					// Types dont match
 					console.log(`connection rejected: types dont match`, config1[0], config2[0]);
