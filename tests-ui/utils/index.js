@@ -26,13 +26,16 @@ export async function checkBeforeAndAfterReload(graph, cb) {
 /**
  * @param { string } name 
  * @param { Record<string, string | [string | string[], any]> } input 
- * @returns { import("../../web/types/comfy").ComfyObjectInfo } 
+ * @param { (string | string[])[] | Record<string, string | string[]> } output
+ * @returns { Record<string, import("../../web/types/comfy").ComfyObjectInfo> } 
  */
-export function makeNodeDef(name, input) {
+export function makeNodeDef(name, input, output = {}) {
 	const nodeDef = {
 		name,
 		category: "test",
+		output: [],
 		output_name: [],
+		output_is_list: [],
 		input: {
 			required: {}
 		},
@@ -40,7 +43,19 @@ export function makeNodeDef(name, input) {
 	for(const k in input) {
 		nodeDef.input.required[k] = typeof input[k] === "string" ? [input[k], {}] : [...input[k]];
 	}
-	return nodeDef;
+	if(output instanceof Array) {
+		output = output.reduce((p, c) => {
+			p[c] = c;
+			return p;
+		}, {})
+	}
+	for(const k in output) {
+		nodeDef.output.push(output[k]);
+		nodeDef.output_name.push(k);
+		nodeDef.output_is_list.push(false);
+	}
+
+	return { [name]: nodeDef };
 }
 
 /**
