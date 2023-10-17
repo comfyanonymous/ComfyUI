@@ -200,6 +200,10 @@ app.registerExtension({
 				for (const input of this.inputs) {
 					if (input.widget && !input.widget[GET_CONFIG]) {
 						input.widget[GET_CONFIG] = () => getConfig.call(this, input.widget.name);
+						const w = this.widgets.find((w) => w.name === input.widget.name);
+						if (w) {
+							hideWidget(this, w);
+						}
 					}
 				}
 			}

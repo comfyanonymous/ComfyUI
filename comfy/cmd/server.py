@@ -6,6 +6,7 @@ import struct
 import sys
 import shutil
 from urllib.parse import quote
+from pkg_resources import resource_filename
 
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
@@ -105,7 +106,6 @@ class PromptServer():
         self.sockets = dict()
         web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../web")
         if not os.path.exists(web_root_path):
-            from pkg_resources import resource_filename
             web_root_path = resource_filename('comfy', 'web/')
         self.web_root = web_root_path
         routes = web.RouteTableDef()

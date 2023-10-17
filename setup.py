@@ -4,6 +4,7 @@ import os.path
 import platform
 import subprocess
 import sys
+from typing import List
 
 from pip._internal.index.collector import LinkCollector
 from pip._internal.index.package_finder import PackageFinder
@@ -106,7 +107,7 @@ def _is_linux_arm64():
     return os_name == 'Linux' and architecture == 'aarch64'
 
 
-def dependencies() -> [str]:
+def dependencies() -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
     # todo: also add all plugin dependencies
     _alternative_indices = [amd_torch_index, nvidia_torch_index, cpu_torch_index_nightlies]
@@ -137,7 +138,7 @@ def dependencies() -> [str]:
     except:
         try:
             # pip 22
-            finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls)),
+            finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls)),  # type: ignore
                                           SelectionPreferences(allow_yanked=False, prefer_binary=False,
                                                                allow_all_prereleases=True)
                                           , use_deprecated_html5lib=False)

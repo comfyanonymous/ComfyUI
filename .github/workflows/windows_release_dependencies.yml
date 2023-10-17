@@ -41,13 +41,13 @@ jobs:
         - shell: bash
           run: |
             echo "@echo off
-            ..\python_embeded\python.exe .\update.py ..\ComfyUI\
-            echo
+            ..\python_embeded\python.exe .\update.py ..\ComfyUI\\
+            echo -
             echo This will try to update pytorch and all python dependencies, if you get an error wait for pytorch/xformers to fix their stuff
             echo You should not be running this anyways unless you really have to
-            echo
+            echo -
             echo If you just want to update normally, close this and run update_comfyui.bat instead.
-            echo
+            echo -
             pause
             ..\python_embeded\python.exe -s -m pip install --upgrade torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
             pause" > update_comfyui_and_python_dependencies.bat

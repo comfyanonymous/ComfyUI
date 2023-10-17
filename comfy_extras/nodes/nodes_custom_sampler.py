@@ -3,6 +3,7 @@ import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
 import latent_preview
 import torch
+import comfy.utils
 
 
 class BasicScheduler:
@@ -15,7 +16,7 @@ class BasicScheduler:
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -35,7 +36,7 @@ class KarrasScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -53,7 +54,7 @@ class ExponentialScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -72,7 +73,7 @@ class PolyexponentialScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -91,7 +92,7 @@ class VPScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -108,7 +109,7 @@ class SplitSigmas:
                      }
                 }
     RETURN_TYPES = ("SIGMAS","SIGMAS")
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sigmas"
 
@@ -125,7 +126,7 @@ class KSamplerSelect:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sampler"
 
@@ -144,7 +145,7 @@ class SamplerDPMPP_2M_SDE:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sampler"
 
@@ -168,7 +169,7 @@ class SamplerDPMPP_SDE:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     FUNCTION = "get_sampler"
 
@@ -201,7 +202,7 @@ class SamplerCustom:
 
     FUNCTION = "sample"
 
-    CATEGORY = "_for_testing/custom_sampling"
+    CATEGORY = "sampling/custom_sampling"
 
     def sample(self, model, add_noise, noise_seed, cfg, positive, negative, sampler, sigmas, latent_image):
         latent = latent_image
@@ -219,7 +220,7 @@ class SamplerCustom:
         x0_output = {}
         callback = latent_preview.prepare_callback(model, sigmas.shape[-1] - 1, x0_output)
 
-        disable_pbar = False
+        disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
         samples = comfy.sample.sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise_seed)
 
         out = latent.copy()

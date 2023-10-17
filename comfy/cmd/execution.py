@@ -4,6 +4,8 @@ import asyncio
 import copy
 import datetime
 import heapq
+import json
+import logging
 import threading
 import time
 import traceback
@@ -16,7 +18,7 @@ import torch
 
 from ..nodes.package import import_all_nodes_in_workspace
 nodes = import_all_nodes_in_workspace()
-from .. import model_management
+from .. import model_management  # type: ignore
 
 """
 A queued item
@@ -209,7 +211,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
                 server.send_sync("executed", {"node": unique_id, "output": output_ui, "prompt_id": prompt_id},
                              server.client_id)
     except model_management.InterruptProcessingException as iex:
-        print("Processing interrupted")
+        logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs
         error_details = {
@@ -230,8 +232,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         for node_id, node_outputs in outputs.items():
             output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
-        print("!!! Exception during processing !!!")
-        print(traceback.format_exc())
+        logging.error("!!! Exception during processing !!!")
+        logging.error(traceback.format_exc())
 
         error_details = {
             "node_id": unique_id,
@@ -443,7 +445,7 @@ class PromptExecutor:
 
 
 
-def validate_inputs(prompt, item, validated) -> Tuple[bool, str, typing.Any]:
+def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], typing.Any]:
     # todo: this should check if LoadImage / LoadImageMask paths exist
     # todo: or, nodes should provide a way to validate their values
     unique_id = item
@@ -511,8 +513,8 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, str, typing.Any]:
                 errors.append(error)
                 continue
             try:
-                r = validate_inputs(prompt, o_id, validated)
-                if r[0] is False:
+                r2 = validate_inputs(prompt, o_id, validated)
+                if r2[0] is False:
                     # `r` will be set in `validated[o_id]` already
                     valid = False
                     continue
@@ -593,11 +595,11 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, str, typing.Any]:
                 input_data_all = get_input_data(inputs, obj_class, unique_id)
                 # ret = obj_class.VALIDATE_INPUTS(**input_data_all)
                 ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
-                for i, r in enumerate(ret):
-                    if r is not True:
+                for i, r3 in enumerate(ret):
+                    if r3 is not True:
                         details = f"{x}"
-                        if r is not False:
-                            details += f" - {str(r)}"
+                        if r3 is not False:
+                            details += f" - {str(r3)}"
 
                         error = {
                             "type": "custom_validation_failed",
@@ -698,11 +700,11 @@ def validate_prompt(prompt: dict) -> typing.Tuple[bool, dict | typing.List[dict]
         if valid is True:
             good_outputs.add(o)
         else:
-            print(f"Failed to validate prompt for output {o}:")
+            logging.error(f"Failed to validate prompt for output {o}:")
             if len(reasons) > 0:
-                print("* (prompt):")
+                logging.error("* (prompt):")
                 for reason in reasons:
-                    print(f"  - {reason['message']}: {reason['details']}")
+                    logging.error(f"  - {reason['message']}: {reason['details']}")
             errors += [(o, reasons)]
             for node_id, result in validated.items():
                 valid = result[0]
@@ -718,16 +720,16 @@ def validate_prompt(prompt: dict) -> typing.Tuple[bool, dict | typing.List[dict]
                             "dependent_outputs": [],
                             "class_type": class_type
                         }
-                        print(f"* {class_type} {node_id}:")
+                        logging.error(f"* {class_type} {node_id}:")
                         for reason in reasons:
-                            print(f"  - {reason['message']}: {reason['details']}")
+                            logging.error(f"  - {reason['message']}: {reason['details']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
-            print("Output will be ignored")
+            logging.error("Output will be ignored")
 
     if len(good_outputs) == 0:
         errors_list = []
-        for o, errors in errors:
-            for error in errors:
+        for o, _errors in errors:
+            for error in _errors:
                 errors_list.append(f"{error['message']}: {error['details']}")
         errors_list = "\n".join(errors_list)
 
