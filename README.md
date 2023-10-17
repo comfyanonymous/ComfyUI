@@ -109,6 +109,8 @@ To run it on services like paperspace, kaggle or colab you can use my [Jupyter N
 
 You must have Python installed. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here.](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
 
+On macOS, install exactly Python 3.11 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.11`. Do not use 3.9 or older, and do not use 3.12 or newer. Its compatibility with Stable Diffusion in both directions is broken. 
+
 1. Create a virtual environment:
       ```shell
       python -m virtualenv venv
@@ -185,6 +187,16 @@ You must have Python installed. On Windows, download the latest Python from thei
     ```
     
     You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
+
+### Troubleshooting
+
+> I see a message like `RuntimeError: '"upsample_bilinear2d_channels_last" not implemented for 'Half''`
+
+You must use Python 3.10 or 3.11 on macOS devices, and update to at least Ventura.
+
+> I see a message like `Error while deserializing header: HeaderTooLarge`
+
+Download your model file again.
 
 ### Others:
 
