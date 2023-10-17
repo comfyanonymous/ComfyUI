@@ -584,7 +584,8 @@ class VAELoader:
     #TODO: scale factor?
     def load_vae(self, vae_name):
         vae_path = folder_paths.get_full_path("vae", vae_name)
-        vae = comfy.sd.VAE(ckpt_path=vae_path)
+        sd = comfy.utils.load_torch_file(vae_path)
+        vae = comfy.sd.VAE(sd=sd)
         return (vae,)
 
 class ControlNetLoader:
