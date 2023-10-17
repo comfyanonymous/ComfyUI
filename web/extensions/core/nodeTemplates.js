@@ -182,7 +182,7 @@ class ManageTemplates extends ComfyDialog {
 										const url = URL.createObjectURL(blob);
 										const a = $el("a", {
 											href: url,
-											download: t.name + ".json",
+											download: (nameInput.value || t.name) + ".json",
 											style: {display: "none"},
 											parent: document.body,
 										});
