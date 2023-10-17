@@ -108,7 +108,7 @@ To run it on services like paperspace, kaggle or colab you can use my [Jupyter N
 
 ## Manual Install (Windows, Linux, macOS)
 
-You must have Python installed. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here.](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
+You must have Python 3.11 or 3.10 installed. 3.12 is not yet supported. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here.](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
 
 On macOS, install exactly Python 3.11 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.11`. Do not use 3.9 or older, and do not use 3.12 or newer. Its compatibility with Stable Diffusion in both directions is broken. 
 
@@ -127,8 +127,6 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
    ```shell
    source ./venv/bin/activate
    ```
-
-Note: pytorch does not support python 3.12 yet so make sure your python version is 3.11 or earlier.
 
 3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
     ```shell
