@@ -68,8 +68,6 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 			if (node.type === "Reroute") {
 				if (linksTo && linksFrom) {
 					// Being used internally
-					// TODO: does anything actually need doing here?
-					debugger;
 					continue;
 				}
 
