@@ -578,7 +578,8 @@ const ext = {
 					innerNode.configure(n);
 
 					for (const innerWidget of innerNode.widgets ?? []) {
-						const groupWidgetName = slots.widgets[i][innerWidget.name];
+						const groupWidgetName = slots.widgets[i]?.[innerWidget.name];
+						if(!groupWidgetName) continue;
 						const groupWidget = node.widgets.find((w) => w.name === groupWidgetName);
 						if (groupWidget) {
 							innerWidget.value = groupWidget.value;
