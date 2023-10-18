@@ -1,7 +1,6 @@
-import json
 import os
 
-from . import sd
+from . import sd, utils
 
 def first_file(path, filenames):
     for f in filenames:
@@ -31,6 +30,7 @@ def load_diffusers(model_path, output_vae=True, output_clip=True, embedding_dire
 
     vae = None
     if output_vae:
-        vae = sd.VAE(ckpt_path=vae_path)
+        _sd = utils.load_torch_file(vae_path)
+        vae = sd.VAE(sd=_sd)
 
     return (unet, clip, vae)
