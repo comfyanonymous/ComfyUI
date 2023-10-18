@@ -31,6 +31,7 @@ def load_diffusers(model_path, output_vae=True, output_clip=True, embedding_dire
 
     vae = None
     if output_vae:
-        vae = comfy.sd.VAE(ckpt_path=vae_path)
+        sd = comfy.utils.load_torch_file(vae_path)
+        vae = comfy.sd.VAE(sd=sd)
 
     return (unet, clip, vae)
