@@ -240,8 +240,8 @@ class MaskComposite:
         right, bottom = (min(left + source.shape[-1], destination.shape[-1]), min(top + source.shape[-2], destination.shape[-2]))
         visible_width, visible_height = (right - left, bottom - top,)
 
-        source_portion = source[:visible_height, :visible_width]
-        destination_portion = destination[top:bottom, left:right]
+        source_portion = source[:, :visible_height, :visible_width]
+        destination_portion = destination[:, top:bottom, left:right]
 
         if operation == "multiply":
             output[:, top:bottom, left:right] = destination_portion * source_portion
@@ -282,10 +282,10 @@ class FeatherMask:
     def feather(self, mask, left, top, right, bottom):
         output = mask.reshape((-1, mask.shape[-2], mask.shape[-1])).clone()
 
-        left = min(left, output.shape[1])
-        right = min(right, output.shape[1])
-        top = min(top, output.shape[0])
-        bottom = min(bottom, output.shape[0])
+        left = min(left, output.shape[-1])
+        right = min(right, output.shape[-1])
+        top = min(top, output.shape[-2])
+        bottom = min(bottom, output.shape[-2])
 
         for x in range(left):
             feather_rate = (x + 1.0) / left
