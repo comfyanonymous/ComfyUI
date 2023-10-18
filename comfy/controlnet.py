@@ -292,8 +292,8 @@ def load_controlnet(ckpt_path, model=None):
 
     controlnet_config = None
     if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
-        use_fp16 = comfy.model_management.should_use_fp16()
-        controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data, use_fp16)
+        unet_dtype = comfy.model_management.unet_dtype()
+        controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data, unet_dtype)
         diffusers_keys = comfy.utils.unet_to_diffusers(controlnet_config)
         diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
         diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
@@ -353,8 +353,8 @@ def load_controlnet(ckpt_path, model=None):
         return net
 
     if controlnet_config is None:
-        use_fp16 = comfy.model_management.should_use_fp16()
-        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16, True).unet_config
+        unet_dtype = comfy.model_management.unet_dtype()
+        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, unet_dtype, True).unet_config
     controlnet_config.pop("out_channels")
     controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
@@ -383,8 +383,7 @@ def load_controlnet(ckpt_path, model=None):
         missing, unexpected = control_model.load_state_dict(controlnet_data, strict=False)
     print(missing, unexpected)
 
-    if use_fp16:
-        control_model = control_model.half()
+    control_model = control_model.to(unet_dtype)
 
     global_average_pooling = False
     filename = os.path.splitext(ckpt_path)[0]

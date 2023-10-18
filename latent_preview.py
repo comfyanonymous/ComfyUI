@@ -56,7 +56,12 @@ def get_previewer(device, latent_format):
         # TODO previewer methods
         taesd_decoder_path = None
         if latent_format.taesd_decoder_name is not None:
-            taesd_decoder_path = folder_paths.get_full_path("vae_approx", latent_format.taesd_decoder_name)
+            taesd_decoder_path = next(
+                (fn for fn in folder_paths.get_filename_list("vae_approx")
+                    if fn.startswith(latent_format.taesd_decoder_name)),
+                ""
+            )
+            taesd_decoder_path = folder_paths.get_full_path("vae_approx", taesd_decoder_path)
 
         if method == LatentPreviewMethod.Auto:
             method = LatentPreviewMethod.Latent2RGB
