@@ -35,7 +35,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Works fully offline: will never download anything.
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
-Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
+Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/) and [ComfyWorkflows.com](https://comfyworkflows.com).
 
 ## Shortcuts
 
