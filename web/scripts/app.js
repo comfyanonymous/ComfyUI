@@ -928,6 +928,16 @@ export class ComfyApp {
 					block_default = true;
 				}
 
+				// Alt + C collapse/uncollapse
+				if (e.key === 'c' && e.altKey) {
+					if (this.selected_nodes) {
+						for (var i in this.selected_nodes) {
+							this.selected_nodes[i].collapse()
+						}
+					}
+					block_default = true;
+				}
+
 				// Ctrl+C Copy
 				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
 					// Trigger onCopy
@@ -1592,7 +1602,7 @@ export class ComfyApp {
 								all_inputs = all_inputs.concat(Object.keys(parent.inputs))
 								for (let parent_input in all_inputs) {
 									parent_input = all_inputs[parent_input];
-									if (parent.inputs[parent_input].type === node.inputs[i].type) {
+									if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
 										link = parent.getInputLink(parent_input);
 										if (link) {
 											parent = parent.getInputNode(parent_input);
