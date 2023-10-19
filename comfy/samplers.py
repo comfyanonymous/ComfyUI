@@ -537,10 +537,11 @@ def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
 
     return conds
 
-def encode_cond(model_function, key, conds, **kwargs):
+def encode_cond(model_function, key, conds, device, **kwargs):
     for t in range(len(conds)):
         x = conds[t]
         params = x[1].copy()
+        params["device"] = device
         for k in kwargs:
             if k not in params:
                 params[k] = kwargs[k]
@@ -677,8 +678,8 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
         negative = encode_adm(model, negative, noise.shape[0], noise.shape[3], noise.shape[2], device, "negative")
 
     if hasattr(model, 'cond_concat'):
-        positive = encode_cond(model.cond_concat, "concat", positive, noise=noise, latent_image=latent_image, denoise_mask=denoise_mask)
-        negative = encode_cond(model.cond_concat, "concat", negative, noise=noise, latent_image=latent_image, denoise_mask=denoise_mask)
+        positive = encode_cond(model.cond_concat, "concat", positive, device, noise=noise, latent_image=latent_image, denoise_mask=denoise_mask)
+        negative = encode_cond(model.cond_concat, "concat", negative, device, noise=noise, latent_image=latent_image, denoise_mask=denoise_mask)
 
     extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": model_options, "seed":seed}
 
