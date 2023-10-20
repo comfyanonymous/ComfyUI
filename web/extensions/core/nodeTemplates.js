@@ -113,6 +113,8 @@ class ManageTemplates extends ComfyDialog {
 			}
 		}
 
+		this.importInput.value = null;
+
 		this.close();
 	}
 
