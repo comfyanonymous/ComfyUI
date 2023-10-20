@@ -13,5 +13,6 @@ jobs:
     - name: Run Tests
       run: | 
         npm install
+        npm run test:generate
         npm test
       working-directory: ./tests-ui
