@@ -50,10 +50,14 @@ async function setup() {
 				console.log("Starting ComfyUI server...");
 
 				let python = resolve("../../python_embeded/python.exe");
-				if (!existsSync(python)) {
+				let args;
+				if (existsSync(python)) {
+					args = ["-s", "ComfyUI/main.py"];
+				} else {
 					python = "python";
+					args = ["main.py"];
 				}
-				child = spawn(python, ["-s", "ComfyUI/main.py", "--cpu"], { cwd: "../.." });
+				child = spawn(python, [...args, "--cpu"], { cwd: "../.." });
 				child.on("error", (err) => {
 					console.log(`Server error (${err})`);
 					i = 30;
