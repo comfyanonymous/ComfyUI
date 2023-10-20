@@ -51,13 +51,16 @@ async function setup() {
 
 				let python = resolve("../../python_embeded/python.exe");
 				let args;
+				let cwd;
 				if (existsSync(python)) {
 					args = ["-s", "ComfyUI/main.py"];
+					cwd = "../..";
 				} else {
 					python = "python";
 					args = ["main.py"];
+					cwd = "..";
 				}
-				child = spawn(python, [...args, "--cpu"], { cwd: "../.." });
+				child = spawn(python, [...args, "--cpu"], { cwd });
 				child.on("error", (err) => {
 					console.log(`Server error (${err})`);
 					i = 30;
