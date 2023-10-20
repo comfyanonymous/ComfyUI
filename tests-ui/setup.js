@@ -35,11 +35,11 @@ async function setup() {
 									if (err) {
 										rej(err);
 									} else {
+										console.log("Done!")
 										res();
 									}
 								}
 							);
-							res();
 						});
 					})
 					.on("error", rej);
