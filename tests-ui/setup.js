@@ -23,8 +23,10 @@ async function setup() {
 
 							data = JSON.stringify(objectInfo, undefined, "\t");
 
+							const outPath = resolve("./data/object_info.json")
+							console.log(`Writing ${Object.keys(objectInfo).length} nodes to ${outPath}`);
 							writeFile(
-								"data/object_info.json",
+								outPath,
 								data,
 								{
 									encoding: "utf8",
@@ -60,6 +62,7 @@ async function setup() {
 					args = ["main.py"];
 					cwd = "..";
 				}
+				console.log(python, ...args);
 				child = spawn(python, [...args, "--cpu"], { cwd });
 				child.on("error", (err) => {
 					console.log(`Server error (${err})`);
