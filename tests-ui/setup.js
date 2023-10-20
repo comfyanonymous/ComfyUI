@@ -54,6 +54,16 @@ async function setup() {
 					python = "python";
 				}
 				child = spawn(python, ["-s", "ComfyUI/main.py", "--cpu"], { cwd: "../.." });
+				child.on("error", (err) => {
+					console.log(`Server error (${err})`);
+					i = 30;
+				});
+				child.on("exit", (code) => {
+					if (!success) {
+						console.log(`Server exited (${code})`);
+						i = 30;
+					}
+				});
 			}
 			await new Promise((r) => {
 				setTimeout(r, 1000);
@@ -64,7 +74,7 @@ async function setup() {
 	child?.kill();
 
 	if (!success) {
-		throw new Error("Waiting for server timed out...");
+		throw new Error("Waiting for server failed...");
 	}
 }
 
