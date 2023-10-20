@@ -14,6 +14,7 @@ class DDIMSampler(object):
         self.ddpm_num_timesteps = model.num_timesteps
         self.schedule = schedule
         self.device = device
+        self.parameterization = kwargs.get("parameterization", "eps")
 
     def register_buffer(self, name, attr):
         if type(attr) == torch.Tensor:
@@ -32,7 +33,6 @@ class DDIMSampler(object):
         assert alphas_cumprod.shape[0] == self.ddpm_num_timesteps, 'alphas have to be defined for each timestep'
         to_torch = lambda x: x.clone().detach().to(torch.float32).to(self.device)
 
-        self.register_buffer('betas', to_torch(self.model.betas))
         self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
         self.register_buffer('alphas_cumprod_prev', to_torch(self.model.alphas_cumprod_prev))
 
@@ -59,7 +59,7 @@ class DDIMSampler(object):
     @torch.no_grad()
     def sample_custom(self,
                       ddim_timesteps,
-                      conditioning,
+                      conditioning=None,
                       callback=None,
                       img_callback=None,
                       quantize_x0=False,
@@ -194,7 +194,7 @@ class DDIMSampler(object):
                       temperature=1., noise_dropout=0., score_corrector=None, corrector_kwargs=None,
                       unconditional_guidance_scale=1., unconditional_conditioning=None, dynamic_threshold=None,
                       ucg_schedule=None, denoise_function=None, extra_args=None, to_zero=True, end_step=None, disable_pbar=False):
-        device = self.model.betas.device
+        device = self.model.alphas_cumprod.device
         b = shape[0]
         if x_T is None:
             img = torch.randn(shape, device=device)
@@ -261,7 +261,7 @@ class DDIMSampler(object):
         b, *_, device = *x.shape, x.device
 
         if denoise_function is not None:
-            model_output = denoise_function(self.model.apply_model, x, t, **extra_args)
+            model_output = denoise_function(x, t, **extra_args)
         elif unconditional_conditioning is None or unconditional_guidance_scale == 1.:
             model_output = self.model.apply_model(x, t, c)
         else:
@@ -289,13 +289,13 @@ class DDIMSampler(object):
             model_uncond, model_t = self.model.apply_model(x_in, t_in, c_in).chunk(2)
             model_output = model_uncond + unconditional_guidance_scale * (model_t - model_uncond)
 
-        if self.model.parameterization == "v":
+        if self.parameterization == "v":
             e_t = extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * model_output + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * x
         else:
             e_t = model_output
 
         if score_corrector is not None:
-            assert self.model.parameterization == "eps", 'not implemented'
+            assert self.parameterization == "eps", 'not implemented'
             e_t = score_corrector.modify_score(self.model, e_t, x, t, c, **corrector_kwargs)
 
         alphas = self.model.alphas_cumprod if use_original_steps else self.ddim_alphas
@@ -309,7 +309,7 @@ class DDIMSampler(object):
         sqrt_one_minus_at = torch.full((b, 1, 1, 1), sqrt_one_minus_alphas[index],device=device)
 
         # current prediction for x_0
-        if self.model.parameterization != "v":
+        if self.parameterization != "v":
             pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
         else:
             pred_x0 = extract_into_tensor(self.sqrt_alphas_cumprod, t, x.shape) * x - extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x.shape) * model_output

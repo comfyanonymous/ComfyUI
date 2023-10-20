@@ -17,7 +17,7 @@
   "num_attention_heads": 16,
   "num_hidden_layers": 24,
   "pad_token_id": 1,
-  "projection_dim": 512,
+  "projection_dim": 1024,
   "torch_dtype": "float32",
   "vocab_size": 49408
 }

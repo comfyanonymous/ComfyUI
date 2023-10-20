@@ -1,4 +1,4 @@
-import { app } from "/scripts/app.js";
+import { app } from "../../scripts/app.js";
 
 // Allows you to edit the attention weight by holding ctrl (or cmd) and using the up/down arrow keys
 

@@ -2,11 +2,11 @@ import os
 import sys
 import copy
 import json
+import logging
 import threading
 import heapq
 import traceback
 import gc
-import time
 
 import torch
 import nodes
@@ -22,7 +22,8 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                return None
+                input_data_all[x] = (None,)
+                continue
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
         else:
@@ -43,11 +44,14 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     # check if node wants the lists
-    intput_is_list = False
+    input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
-        intput_is_list = obj.INPUT_IS_LIST
+        input_is_list = obj.INPUT_IS_LIST
 
-    max_len_input = max([len(x) for x in input_data_all.values()])
+    if len(input_data_all) == 0:
+        max_len_input = 0
+    else:
+        max_len_input = max([len(x) for x in input_data_all.values()])
      
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
@@ -57,11 +61,15 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         return d_new
     
     results = []
-    if intput_is_list:
+    if input_is_list:
         if allow_interrupt:
             nodes.before_node_execution()
         results.append(getattr(obj, func)(**input_data_all))
-    else: 
+    elif max_len_input == 0:
+        if allow_interrupt:
+            nodes.before_node_execution()
+        results.append(getattr(obj, func)())
+    else:
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
@@ -147,7 +155,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             outputs_ui[unique_id] = output_ui
             server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
     except comfy.model_management.InterruptProcessingException as iex:
-        print("Processing interrupted")
+        logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs
         error_details = {
@@ -168,8 +176,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         for node_id, node_outputs in outputs.items():
             output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
-        print("!!! Exception during processing !!!")
-        print(traceback.format_exc())
+        logging.error("!!! Exception during processing !!!")
+        logging.error(traceback.format_exc())
 
         error_details = {
             "node_id": unique_id,
@@ -346,6 +354,7 @@ class PromptExecutor:
                     d = self.outputs_ui.pop(x)
                     del d
 
+            comfy.model_management.cleanup_models()
             if self.server.client_id is not None:
                 self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
             executed = set()
@@ -627,11 +636,11 @@ def validate_prompt(prompt):
         if valid is True:
             good_outputs.add(o)
         else:
-            print(f"Failed to validate prompt for output {o}:")
+            logging.error(f"Failed to validate prompt for output {o}:")
             if len(reasons) > 0:
-                print("* (prompt):")
+                logging.error("* (prompt):")
                 for reason in reasons:
-                    print(f"  - {reason['message']}: {reason['details']}")
+                    logging.error(f"  - {reason['message']}: {reason['details']}")
             errors += [(o, reasons)]
             for node_id, result in validated.items():
                 valid = result[0]
@@ -647,11 +656,11 @@ def validate_prompt(prompt):
                             "dependent_outputs": [],
                             "class_type": class_type
                         }
-                        print(f"* {class_type} {node_id}:")
+                        logging.error(f"* {class_type} {node_id}:")
                         for reason in reasons:
-                            print(f"  - {reason['message']}: {reason['details']}")
+                            logging.error(f"  - {reason['message']}: {reason['details']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
-            print("Output will be ignored")
+            logging.error("Output will be ignored")
 
     if len(good_outputs) == 0:
         errors_list = []

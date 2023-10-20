@@ -6,8 +6,8 @@ import numpy as np
 from einops import rearrange
 from typing import Optional, Any
 
-from ..attention import MemoryEfficientCrossAttention
 from comfy import model_management
+import comfy.ops
 
 if model_management.xformers_enabled_vae():
     import xformers
@@ -48,14 +48,25 @@ class Upsample(nn.Module):
         super().__init__()
         self.with_conv = with_conv
         if self.with_conv:
-            self.conv = torch.nn.Conv2d(in_channels,
+            self.conv = comfy.ops.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=3,
                                         stride=1,
                                         padding=1)
 
     def forward(self, x):
-        x = torch.nn.functional.interpolate(x, scale_factor=2.0, mode="nearest")
+        try:
+            x = torch.nn.functional.interpolate(x, scale_factor=2.0, mode="nearest")
+        except: #operation not implemented for bf16
+            b, c, h, w = x.shape
+            out = torch.empty((b, c, h*2, w*2), dtype=x.dtype, layout=x.layout, device=x.device)
+            split = 8
+            l = out.shape[1] // split
+            for i in range(0, out.shape[1], l):
+                out[:,i:i+l] = torch.nn.functional.interpolate(x[:,i:i+l].to(torch.float32), scale_factor=2.0, mode="nearest").to(x.dtype)
+            del x
+            x = out
+
         if self.with_conv:
             x = self.conv(x)
         return x
@@ -67,17 +78,16 @@ class Downsample(nn.Module):
         self.with_conv = with_conv
         if self.with_conv:
             # no asymmetric padding in torch conv, must do it ourselves
-            self.conv = torch.nn.Conv2d(in_channels,
+            self.conv = comfy.ops.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=3,
                                         stride=2,
                                         padding=0)
 
-    def forward(self, x, already_padded=False):
+    def forward(self, x):
         if self.with_conv:
-            if not already_padded:
-                pad = (0,1,0,1)
-                x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
+            pad = (0,1,0,1)
+            x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
             x = self.conv(x)
         else:
             x = torch.nn.functional.avg_pool2d(x, kernel_size=2, stride=2)
@@ -95,30 +105,30 @@ class ResnetBlock(nn.Module):
 
         self.swish = torch.nn.SiLU(inplace=True)
         self.norm1 = Normalize(in_channels)
-        self.conv1 = torch.nn.Conv2d(in_channels,
+        self.conv1 = comfy.ops.Conv2d(in_channels,
                                      out_channels,
                                      kernel_size=3,
                                      stride=1,
                                      padding=1)
         if temb_channels > 0:
-            self.temb_proj = torch.nn.Linear(temb_channels,
+            self.temb_proj = comfy.ops.Linear(temb_channels,
                                              out_channels)
         self.norm2 = Normalize(out_channels)
         self.dropout = torch.nn.Dropout(dropout, inplace=True)
-        self.conv2 = torch.nn.Conv2d(out_channels,
+        self.conv2 = comfy.ops.Conv2d(out_channels,
                                      out_channels,
                                      kernel_size=3,
                                      stride=1,
                                      padding=1)
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
-                self.conv_shortcut = torch.nn.Conv2d(in_channels,
+                self.conv_shortcut = comfy.ops.Conv2d(in_channels,
                                                      out_channels,
                                                      kernel_size=3,
                                                      stride=1,
                                                      padding=1)
             else:
-                self.nin_shortcut = torch.nn.Conv2d(in_channels,
+                self.nin_shortcut = comfy.ops.Conv2d(in_channels,
                                                     out_channels,
                                                     kernel_size=1,
                                                     stride=1,
@@ -175,6 +185,7 @@ def slice_attention(q, k, v):
                 del s2
             break
         except model_management.OOM_EXCEPTION as e:
+            model_management.soft_empty_cache(True)
             steps *= 2
             if steps > 128:
                 raise e
@@ -182,32 +193,88 @@ def slice_attention(q, k, v):
 
     return r1
 
+def normal_attention(q, k, v):
+    # compute attention
+    b,c,h,w = q.shape
+
+    q = q.reshape(b,c,h*w)
+    q = q.permute(0,2,1)   # b,hw,c
+    k = k.reshape(b,c,h*w) # b,c,hw
+    v = v.reshape(b,c,h*w)
+
+    r1 = slice_attention(q, k, v)
+    h_ = r1.reshape(b,c,h,w)
+    del r1
+    return h_
+
+def xformers_attention(q, k, v):
+    # compute attention
+    B, C, H, W = q.shape
+    q, k, v = map(
+        lambda t: t.view(B, C, -1).transpose(1, 2).contiguous(),
+        (q, k, v),
+    )
+
+    try:
+        out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None)
+        out = out.transpose(1, 2).reshape(B, C, H, W)
+    except NotImplementedError as e:
+        out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
+    return out
+
+def pytorch_attention(q, k, v):
+    # compute attention
+    B, C, H, W = q.shape
+    q, k, v = map(
+        lambda t: t.view(B, 1, C, -1).transpose(2, 3).contiguous(),
+        (q, k, v),
+    )
+
+    try:
+        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
+        out = out.transpose(2, 3).reshape(B, C, H, W)
+    except model_management.OOM_EXCEPTION as e:
+        print("scaled_dot_product_attention OOMed: switched to slice attention")
+        out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
+    return out
+
+
 class AttnBlock(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(in_channels,
+        self.q = comfy.ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.k = torch.nn.Conv2d(in_channels,
+        self.k = comfy.ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.v = torch.nn.Conv2d(in_channels,
+        self.v = comfy.ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.proj_out = torch.nn.Conv2d(in_channels,
+        self.proj_out = comfy.ops.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=1,
                                         stride=1,
                                         padding=0)
+
+        if model_management.xformers_enabled_vae():
+            print("Using xformers attention in VAE")
+            self.optimized_attention = xformers_attention
+        elif model_management.pytorch_attention_enabled():
+            print("Using pytorch attention in VAE")
+            self.optimized_attention = pytorch_attention
+        else:
+            print("Using split attention in VAE")
+            self.optimized_attention = normal_attention
 
     def forward(self, x):
         h_ = x
@@ -216,169 +283,15 @@ class AttnBlock(nn.Module):
         k = self.k(h_)
         v = self.v(h_)
 
-        # compute attention
-        b,c,h,w = q.shape
+        h_ = self.optimized_attention(q, k, v)
 
-        q = q.reshape(b,c,h*w)
-        q = q.permute(0,2,1)   # b,hw,c
-        k = k.reshape(b,c,h*w) # b,c,hw
-        v = v.reshape(b,c,h*w)
-
-        r1 = slice_attention(q, k, v)
-        h_ = r1.reshape(b,c,h,w)
-        del r1
         h_ = self.proj_out(h_)
 
         return x+h_
 
-class MemoryEfficientAttnBlock(nn.Module):
-    """
-        Uses xformers efficient implementation,
-        see https://github.com/MatthieuTPHR/diffusers/blob/d80b531ff8060ec1ea982b65a1b8df70f73aa67c/src/diffusers/models/attention.py#L223
-        Note: this is a single-head self-attention operation
-    """
-    #
-    def __init__(self, in_channels):
-        super().__init__()
-        self.in_channels = in_channels
-
-        self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.k = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.v = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.proj_out = torch.nn.Conv2d(in_channels,
-                                        in_channels,
-                                        kernel_size=1,
-                                        stride=1,
-                                        padding=0)
-        self.attention_op: Optional[Any] = None
-
-    def forward(self, x):
-        h_ = x
-        h_ = self.norm(h_)
-        q = self.q(h_)
-        k = self.k(h_)
-        v = self.v(h_)
-
-        # compute attention
-        B, C, H, W = q.shape
-        q, k, v = map(lambda x: rearrange(x, 'b c h w -> b (h w) c'), (q, k, v))
-
-        q, k, v = map(
-            lambda t: t.unsqueeze(3)
-            .reshape(B, t.shape[1], 1, C)
-            .permute(0, 2, 1, 3)
-            .reshape(B * 1, t.shape[1], C)
-            .contiguous(),
-            (q, k, v),
-        )
-        out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None, op=self.attention_op)
-
-        out = (
-            out.unsqueeze(0)
-            .reshape(B, 1, out.shape[1], C)
-            .permute(0, 2, 1, 3)
-            .reshape(B, out.shape[1], C)
-        )
-        out = rearrange(out, 'b (h w) c -> b c h w', b=B, h=H, w=W, c=C)
-        out = self.proj_out(out)
-        return x+out
-
-class MemoryEfficientAttnBlockPytorch(nn.Module):
-    def __init__(self, in_channels):
-        super().__init__()
-        self.in_channels = in_channels
-
-        self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.k = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.v = torch.nn.Conv2d(in_channels,
-                                 in_channels,
-                                 kernel_size=1,
-                                 stride=1,
-                                 padding=0)
-        self.proj_out = torch.nn.Conv2d(in_channels,
-                                        in_channels,
-                                        kernel_size=1,
-                                        stride=1,
-                                        padding=0)
-        self.attention_op: Optional[Any] = None
-
-    def forward(self, x):
-        h_ = x
-        h_ = self.norm(h_)
-        q = self.q(h_)
-        k = self.k(h_)
-        v = self.v(h_)
-
-        # compute attention
-        B, C, H, W = q.shape
-        q, k, v = map(
-            lambda t: t.view(B, 1, C, -1).transpose(2, 3).contiguous(),
-            (q, k, v),
-        )
-
-        try:
-            out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
-            out = out.transpose(2, 3).reshape(B, C, H, W)
-        except model_management.OOM_EXCEPTION as e:
-            print("scaled_dot_product_attention OOMed: switched to slice attention")
-            out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
-
-        out = self.proj_out(out)
-        return x+out
-
-class MemoryEfficientCrossAttentionWrapper(MemoryEfficientCrossAttention):
-    def forward(self, x, context=None, mask=None):
-        b, c, h, w = x.shape
-        x = rearrange(x, 'b c h w -> b (h w) c')
-        out = super().forward(x, context=context, mask=mask)
-        out = rearrange(out, 'b (h w) c -> b c h w', h=h, w=w, c=c)
-        return x + out
-
 
 def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
-    assert attn_type in ["vanilla", "vanilla-xformers", "memory-efficient-cross-attn", "linear", "none"], f'attn_type {attn_type} unknown'
-    if model_management.xformers_enabled_vae() and attn_type == "vanilla":
-        attn_type = "vanilla-xformers"
-    if model_management.pytorch_attention_enabled() and attn_type == "vanilla":
-        attn_type = "vanilla-pytorch"
-    print(f"making attention of type '{attn_type}' with {in_channels} in_channels")
-    if attn_type == "vanilla":
-        assert attn_kwargs is None
-        return AttnBlock(in_channels)
-    elif attn_type == "vanilla-xformers":
-        print(f"building MemoryEfficientAttnBlock with {in_channels} in_channels...")
-        return MemoryEfficientAttnBlock(in_channels)
-    elif attn_type == "vanilla-pytorch":
-        return MemoryEfficientAttnBlockPytorch(in_channels)
-    elif type == "memory-efficient-cross-attn":
-        attn_kwargs["query_dim"] = in_channels
-        return MemoryEfficientCrossAttentionWrapper(**attn_kwargs)
-    elif attn_type == "none":
-        return nn.Identity(in_channels)
-    else:
-        raise NotImplementedError()
+    return AttnBlock(in_channels)
 
 
 class Model(nn.Module):
@@ -399,14 +312,14 @@ class Model(nn.Module):
             # timestep embedding
             self.temb = nn.Module()
             self.temb.dense = nn.ModuleList([
-                torch.nn.Linear(self.ch,
+                comfy.ops.Linear(self.ch,
                                 self.temb_ch),
-                torch.nn.Linear(self.temb_ch,
+                comfy.ops.Linear(self.temb_ch,
                                 self.temb_ch),
             ])
 
         # downsampling
-        self.conv_in = torch.nn.Conv2d(in_channels,
+        self.conv_in = comfy.ops.Conv2d(in_channels,
                                        self.ch,
                                        kernel_size=3,
                                        stride=1,
@@ -475,7 +388,7 @@ class Model(nn.Module):
 
         # end
         self.norm_out = Normalize(block_in)
-        self.conv_out = torch.nn.Conv2d(block_in,
+        self.conv_out = comfy.ops.Conv2d(block_in,
                                         out_ch,
                                         kernel_size=3,
                                         stride=1,
@@ -548,7 +461,7 @@ class Encoder(nn.Module):
         self.in_channels = in_channels
 
         # downsampling
-        self.conv_in = torch.nn.Conv2d(in_channels,
+        self.conv_in = comfy.ops.Conv2d(in_channels,
                                        self.ch,
                                        kernel_size=3,
                                        stride=1,
@@ -593,7 +506,7 @@ class Encoder(nn.Module):
 
         # end
         self.norm_out = Normalize(block_in)
-        self.conv_out = torch.nn.Conv2d(block_in,
+        self.conv_out = comfy.ops.Conv2d(block_in,
                                         2*z_channels if double_z else z_channels,
                                         kernel_size=3,
                                         stride=1,
@@ -602,9 +515,6 @@ class Encoder(nn.Module):
     def forward(self, x):
         # timestep embedding
         temb = None
-        pad = (0,1,0,1)
-        x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
-        already_padded = True
         # downsampling
         h = self.conv_in(x)
         for i_level in range(self.num_resolutions):
@@ -613,8 +523,7 @@ class Encoder(nn.Module):
                 if len(self.down[i_level].attn) > 0:
                     h = self.down[i_level].attn[i_block](h)
             if i_level != self.num_resolutions-1:
-                h = self.down[i_level].downsample(h, already_padded)
-                already_padded = False
+                h = self.down[i_level].downsample(h)
 
         # middle
         h = self.mid.block_1(h, temb)
@@ -632,7 +541,10 @@ class Decoder(nn.Module):
     def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks,
                  attn_resolutions, dropout=0.0, resamp_with_conv=True, in_channels,
                  resolution, z_channels, give_pre_end=False, tanh_out=False, use_linear_attn=False,
-                 attn_type="vanilla", **ignorekwargs):
+                 conv_out_op=comfy.ops.Conv2d,
+                 resnet_op=ResnetBlock,
+                 attn_op=AttnBlock,
+                **ignorekwargs):
         super().__init__()
         if use_linear_attn: attn_type = "linear"
         self.ch = ch
@@ -653,7 +565,7 @@ class Decoder(nn.Module):
             self.z_shape, np.prod(self.z_shape)))
 
         # z to block_in
-        self.conv_in = torch.nn.Conv2d(z_channels,
+        self.conv_in = comfy.ops.Conv2d(z_channels,
                                        block_in,
                                        kernel_size=3,
                                        stride=1,
@@ -661,12 +573,12 @@ class Decoder(nn.Module):
 
         # middle
         self.mid = nn.Module()
-        self.mid.block_1 = ResnetBlock(in_channels=block_in,
+        self.mid.block_1 = resnet_op(in_channels=block_in,
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
                                        dropout=dropout)
-        self.mid.attn_1 = make_attn(block_in, attn_type=attn_type)
-        self.mid.block_2 = ResnetBlock(in_channels=block_in,
+        self.mid.attn_1 = attn_op(block_in)
+        self.mid.block_2 = resnet_op(in_channels=block_in,
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
                                        dropout=dropout)
@@ -678,13 +590,13 @@ class Decoder(nn.Module):
             attn = nn.ModuleList()
             block_out = ch*ch_mult[i_level]
             for i_block in range(self.num_res_blocks+1):
-                block.append(ResnetBlock(in_channels=block_in,
+                block.append(resnet_op(in_channels=block_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
                                          dropout=dropout))
                 block_in = block_out
                 if curr_res in attn_resolutions:
-                    attn.append(make_attn(block_in, attn_type=attn_type))
+                    attn.append(attn_op(block_in))
             up = nn.Module()
             up.block = block
             up.attn = attn
@@ -695,13 +607,13 @@ class Decoder(nn.Module):
 
         # end
         self.norm_out = Normalize(block_in)
-        self.conv_out = torch.nn.Conv2d(block_in,
+        self.conv_out = conv_out_op(block_in,
                                         out_ch,
                                         kernel_size=3,
                                         stride=1,
                                         padding=1)
 
-    def forward(self, z):
+    def forward(self, z, **kwargs):
         #assert z.shape[1:] == self.z_shape[1:]
         self.last_z_shape = z.shape
 
@@ -712,16 +624,16 @@ class Decoder(nn.Module):
         h = self.conv_in(z)
 
         # middle
-        h = self.mid.block_1(h, temb)
-        h = self.mid.attn_1(h)
-        h = self.mid.block_2(h, temb)
+        h = self.mid.block_1(h, temb, **kwargs)
+        h = self.mid.attn_1(h, **kwargs)
+        h = self.mid.block_2(h, temb, **kwargs)
 
         # upsampling
         for i_level in reversed(range(self.num_resolutions)):
             for i_block in range(self.num_res_blocks+1):
-                h = self.up[i_level].block[i_block](h, temb)
+                h = self.up[i_level].block[i_block](h, temb, **kwargs)
                 if len(self.up[i_level].attn) > 0:
-                    h = self.up[i_level].attn[i_block](h)
+                    h = self.up[i_level].attn[i_block](h, **kwargs)
             if i_level != 0:
                 h = self.up[i_level].upsample(h)
 
@@ -731,7 +643,7 @@ class Decoder(nn.Module):
 
         h = self.norm_out(h)
         h = nonlinearity(h)
-        h = self.conv_out(h)
+        h = self.conv_out(h, **kwargs)
         if self.tanh_out:
             h = torch.tanh(h)
         return h
