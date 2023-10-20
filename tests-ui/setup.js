@@ -1,6 +1,6 @@
 const { spawn } = require("child_process");
 const { resolve } = require("path");
-const { writeFile, existsSync } = require("fs");
+const { existsSync, mkdirSync, writeFileSync } = require("fs");
 const http = require("http");
 
 async function setup() {
@@ -23,23 +23,17 @@ async function setup() {
 
 							data = JSON.stringify(objectInfo, undefined, "\t");
 
-							const outPath = resolve("./data/object_info.json")
+							const outDir = resolve("./data");
+							if (!existsSync(outDir)) {
+								mkdirSync(outDir);
+							}
+
+							const outPath = resolve(outDir, "object_info.json");
 							console.log(`Writing ${Object.keys(objectInfo).length} nodes to ${outPath}`);
-							writeFile(
-								outPath,
-								data,
-								{
-									encoding: "utf8",
-								},
-								(err) => {
-									if (err) {
-										rej(err);
-									} else {
-										console.log("Done!")
-										res();
-									}
-								}
-							);
+							writeFileSync(outPath, data, {
+								encoding: "utf8",
+							});
+							res();
 						});
 					})
 					.on("error", rej);
@@ -47,6 +41,7 @@ async function setup() {
 			success = true;
 			break;
 		} catch (error) {
+			console.log(i + "/30", error);
 			if (i === 0) {
 				// Start the server on first iteration if it fails to connect
 				console.log("Starting ComfyUI server...");
@@ -62,8 +57,9 @@ async function setup() {
 					args = ["main.py"];
 					cwd = "..";
 				}
+				args.push("--cpu");
 				console.log(python, ...args);
-				child = spawn(python, [...args, "--cpu"], { cwd });
+				child = spawn(python, args, { cwd });
 				child.on("error", (err) => {
 					console.log(`Server error (${err})`);
 					i = 30;
