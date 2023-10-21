@@ -120,6 +120,10 @@ class PromptServer():
                 self.sockets.pop(sid, None)
             return ws
 
+        @routes.get("/reboot")
+        def restart(self):
+            return os.execv(sys.executable, ['python'] + sys.argv)
+
         @routes.get("/")
         async def get_root(request):
             return web.FileResponse(os.path.join(self.web_root, "index.html"))
