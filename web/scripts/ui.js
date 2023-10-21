@@ -788,6 +788,13 @@ export class ComfyUI {
 					}
 				}
 			}),
+			$el("button", {
+				id: "comfy-reboot-server-button", textContent: "Reboot Server", onclick: () => {
+					if (!confirmClear.value || confirm("Are you sure you'd like to reboot the server?")) {
+						api.fetchApi("/reboot")
+					}
+				}
+			})
 		]);
 
 		const devMode = this.settings.addSetting({
