@@ -4,7 +4,8 @@
   "description": "UI tests",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "test:generate": "node setup.js"
   },
   "repository": {
     "type": "git",

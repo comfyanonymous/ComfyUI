@@ -492,7 +492,7 @@ export class ComfyApp {
 				}
 
 				if (this.imgs && this.imgs.length) {
-					const canvas = graph.list_of_graphcanvas[0];
+					const canvas = app.graph.list_of_graphcanvas[0];
 					const mouse = canvas.graph_mouse;
 					if (!canvas.pointer_is_down && this.pointerDown) {
 						if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
@@ -1430,6 +1430,43 @@ export class ComfyApp {
 		}
 	}
 
+	loadTemplateData(templateData) {
+		if (!templateData?.templates) {
+			return;
+		}
+
+		const old = localStorage.getItem("litegrapheditor_clipboard");
+
+		var maxY, nodeBottom, node;
+
+		for (const template of templateData.templates) {
+			if (!template?.data) {
+				continue;
+			}
+
+			localStorage.setItem("litegrapheditor_clipboard", template.data);
+			app.canvas.pasteFromClipboard();
+
+			// Move mouse position down to paste the next template below
+
+			maxY = false;
+
+			for (const i in app.canvas.selected_nodes) {
+				node = app.canvas.selected_nodes[i];
+
+				nodeBottom = node.pos[1] + node.size[1];
+
+				if (maxY === false || nodeBottom > maxY) {
+					maxY = nodeBottom;
+				}
+			}
+
+			app.canvas.graph_mouse[1] = maxY + 50;
+		}
+
+		localStorage.setItem("litegrapheditor_clipboard", old);
+	}
+
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
@@ -1775,7 +1812,12 @@ export class ComfyApp {
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = async () => {
-				await this.loadGraphData(JSON.parse(reader.result));
+				var jsonContent = JSON.parse(reader.result);
+				if (jsonContent?.templates) {
+					this.loadTemplateData(jsonContent);
+				} else {
+					await this.loadGraphData(jsonContent);
+				}
 			};
 			reader.readAsText(file);
 		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {

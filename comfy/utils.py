@@ -47,12 +47,17 @@ def state_dict_key_replace(state_dict, keys_to_replace):
             state_dict[keys_to_replace[x]] = state_dict.pop(x)
     return state_dict
 
-def state_dict_prefix_replace(state_dict, replace_prefix):
+def state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=False):
+    if filter_keys:
+        out = {}
+    else:
+        out = state_dict
     for rp in replace_prefix:
         replace = list(map(lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp):])), filter(lambda a: a.startswith(rp), state_dict.keys())))
         for x in replace:
-            state_dict[x[1]] = state_dict.pop(x[0])
-    return state_dict
+            w = state_dict.pop(x[0])
+            out[x[1]] = w
+    return out
 
 
 def transformers_convert(sd, prefix_from, prefix_to, number):
