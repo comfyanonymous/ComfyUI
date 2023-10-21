@@ -19,7 +19,7 @@ jobs:
         pip install -r requirements.txt
     - name: Run Tests
       run: | 
-        npm install
+        npm ci
         npm run test:generate
         npm test
       working-directory: ./tests-ui
