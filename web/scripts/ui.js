@@ -826,7 +826,7 @@ export class ComfyUI {
 			name: "Change Reboot Server Button Location",
 			type: "combo",
 			options: ['Menu Bar Top Icon', 'Small Button', 'Main Menu'],
-			defaultValue: 'Main Menu',
+			defaultValue: 'Menu Bar Top Icon',
 			onChange: (value) => {
 				if( value == 'Menu Bar Top Icon') {
 					document.querySelector('#comfy-reboot-server-icon').style.display = ""
