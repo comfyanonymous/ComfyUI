@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { ComfyDialog, $el } from "../../scripts/ui.js";
+import { GROUP_DATA, IS_GROUP_NODE, registerGroupNodes } from "./groupNode.js";
 
 // Adds the ability to save and add multiple nodes as a template
 // To save:
@@ -27,7 +28,7 @@ class ManageTemplates extends ComfyDialog {
 			type: "file",
 			accept: ".json",
 			multiple: true,
-			style: {display: "none"},
+			style: { display: "none" },
 			parent: document.body,
 			onchange: () => this.importAll(),
 		});
@@ -124,13 +125,13 @@ class ManageTemplates extends ComfyDialog {
 			return;
 		}
 
-		const json = JSON.stringify({templates: this.templates}, null, 2); // convert the data to a JSON string
-		const blob = new Blob([json], {type: "application/json"});
+		const json = JSON.stringify({ templates: this.templates }, null, 2); // convert the data to a JSON string
+		const blob = new Blob([json], { type: "application/json" });
 		const url = URL.createObjectURL(blob);
 		const a = $el("a", {
 			href: url,
 			download: "node_templates.json",
-			style: {display: "none"},
+			style: { display: "none" },
 			parent: document.body,
 		});
 		a.click();
@@ -168,48 +169,44 @@ class ManageTemplates extends ComfyDialog {
 								}),
 							]
 						),
-						$el(
-							"div",
-							{},
-							[
-								$el("button", {
-									textContent: "Export",
-									style: {
-										fontSize: "12px",
-										fontWeight: "normal",
-									},
-									onclick: (e) => {
-										const json = JSON.stringify({templates: [t]}, null, 2); // convert the data to a JSON string
-										const blob = new Blob([json], {type: "application/json"});
-										const url = URL.createObjectURL(blob);
-										const a = $el("a", {
-											href: url,
-											download: (nameInput.value || t.name) + ".json",
-											style: {display: "none"},
-											parent: document.body,
-										});
-										a.click();
-										setTimeout(function () {
-											a.remove();
-											window.URL.revokeObjectURL(url);
-										}, 0);
-									},
-								}),
-								$el("button", {
-									textContent: "Delete",
-									style: {
-										fontSize: "12px",
-										color: "red",
-										fontWeight: "normal",
-									},
-									onclick: (e) => {
-										nameInput.value = "";
-										e.target.parentElement.style.display = "none";
-										e.target.parentElement.previousElementSibling.style.display = "none";
-									},
-								}),
-							]
-						),
+						$el("div", {}, [
+							$el("button", {
+								textContent: "Export",
+								style: {
+									fontSize: "12px",
+									fontWeight: "normal",
+								},
+								onclick: (e) => {
+									const json = JSON.stringify({ templates: [t] }, null, 2); // convert the data to a JSON string
+									const blob = new Blob([json], { type: "application/json" });
+									const url = URL.createObjectURL(blob);
+									const a = $el("a", {
+										href: url,
+										download: (nameInput.value || t.name) + ".json",
+										style: { display: "none" },
+										parent: document.body,
+									});
+									a.click();
+									setTimeout(function () {
+										a.remove();
+										window.URL.revokeObjectURL(url);
+									}, 0);
+								},
+							}),
+							$el("button", {
+								textContent: "Delete",
+								style: {
+									fontSize: "12px",
+									color: "red",
+									fontWeight: "normal",
+								},
+								onclick: (e) => {
+									nameInput.value = "";
+									e.target.parentElement.style.display = "none";
+									e.target.parentElement.previousElementSibling.style.display = "none";
+								},
+							}),
+						]),
 					];
 				})
 			)
@@ -222,11 +219,11 @@ app.registerExtension({
 	setup() {
 		const manage = new ManageTemplates();
 
-		const clipboardAction = (cb) => {
+		const clipboardAction = async (cb) => {
 			// We use the clipboard functions but dont want to overwrite the current user clipboard
 			// Restore it after we've run our callback
 			const old = localStorage.getItem("litegrapheditor_clipboard");
-			cb();
+			await cb();
 			localStorage.setItem("litegrapheditor_clipboard", old);
 		};
 
@@ -240,13 +237,29 @@ app.registerExtension({
 				disabled: !Object.keys(app.canvas.selected_nodes || {}).length,
 				callback: () => {
 					const name = prompt("Enter name");
-					if (!name || !name.trim()) return;
+					if (!name?.trim()) return;
 
 					clipboardAction(() => {
 						app.canvas.copyToClipboard();
+						let data = localStorage.getItem("litegrapheditor_clipboard");
+						data = JSON.parse(data);
+						const nodeIds = Object.keys(app.canvas.selected_nodes);
+						for (let i = 0; i < nodeIds.length; i++) {
+							const node = app.graph.getNodeById(nodeIds[i]);
+							const nodeData = node?.constructor.nodeData;
+							if (nodeData?.[IS_GROUP_NODE]) {
+								const groupData = nodeData[GROUP_DATA];
+								if (!data.groupNodes) {
+									data.groupNodes = {};
+								}
+								data.groupNodes[nodeData.name] = groupData;
+								data.nodes[i].type = "workflow/" + nodeData.name;
+							}
+						}
+
 						manage.templates.push({
 							name,
-							data: localStorage.getItem("litegrapheditor_clipboard"),
+							data: JSON.stringify(data),
 						});
 						manage.store();
 					});
@@ -254,15 +267,19 @@ app.registerExtension({
 			});
 
 			// Map each template to a menu item
-			const subItems = manage.templates.map((t) => ({
-				content: t.name,
-				callback: () => {
-					clipboardAction(() => {
-						localStorage.setItem("litegrapheditor_clipboard", t.data);
-						app.canvas.pasteFromClipboard();
-					});
-				},
-			}));
+			const subItems = manage.templates.map((t) => {
+				return {
+					content: t.name,
+					callback: () => {
+						clipboardAction(async () => {
+							const data = JSON.parse(t.data);
+							await registerGroupNodes(data.groupNodes, "workflow", t.name);
+							localStorage.setItem("litegrapheditor_clipboard", t.data);
+							app.canvas.pasteFromClipboard();
+						});
+					},
+				};
+			});
 
 			subItems.push(null, {
 				content: "Manage",

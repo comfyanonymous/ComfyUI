@@ -2,9 +2,21 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { getWidgetType } from "../../scripts/widgets.js";
 
-const IS_GROUP_NODE = Symbol();
-const GROUP_DATA = Symbol();
+export const IS_GROUP_NODE = Symbol();
+export const GROUP_DATA = Symbol();
 const GROUP_SLOTS = Symbol();
+
+export async function registerGroupNodes(groupNodes, source, prefix) {
+	if (!groupNodes) return;
+
+	for (const g in groupNodes) {
+		const def = buildNodeDef(groupNodes[g], g, globalDefs, source);
+		if (prefix) {
+			def.display_name = prefix + "/" + def.display_name;
+		}
+		await app.registerNodeDef(source + "/" + g, def);
+	}
+}
 
 function getLinks(config) {
 	const linksFrom = {};
@@ -30,7 +42,7 @@ function getLinks(config) {
 	return { linksTo, linksFrom };
 }
 
-function buildNodeDef(config, nodeName, defs, workflow) {
+function buildNodeDef(config, nodeName, defs, source = "workflow") {
 	const slots = {
 		inputs: {},
 		widgets: {},
@@ -43,7 +55,7 @@ function buildNodeDef(config, nodeName, defs, workflow) {
 		output_is_list: [],
 		name: nodeName,
 		display_name: nodeName,
-		category: "group nodes" + (workflow ? "/workflow" : ""),
+		category: "group nodes" + ("/" + source),
 		input: { required: {} },
 
 		[IS_GROUP_NODE]: true,
@@ -221,7 +233,7 @@ class ConvertToGroupAction {
 			link.push(type);
 		}
 
-		const def = buildNodeDef(config, name, globalDefs, true);
+		const def = buildNodeDef(config, name, globalDefs);
 		await app.registerNodeDef("workflow/" + name, def);
 		return { config, def };
 	}
@@ -380,13 +392,7 @@ const ext = {
 		}
 	},
 	async beforeConfigureGraph(graphData) {
-		const groupNodes = graphData?.extra?.groupNodes;
-		if (!groupNodes) return;
-
-		for (const name in groupNodes) {
-			const def = buildNodeDef(groupNodes[name], name, globalDefs, true);
-			await app.registerNodeDef("workflow/" + name, def);
-		}
+		registerGroupNodes(graphData?.extra?.groupNodes, "workflow");
 	},
 	addCustomNodeDefs(defs) {
 		globalDefs = defs;
@@ -579,7 +585,7 @@ const ext = {
 
 					for (const innerWidget of innerNode.widgets ?? []) {
 						const groupWidgetName = slots.widgets[i]?.[innerWidget.name];
-						if(!groupWidgetName) continue;
+						if (!groupWidgetName) continue;
 						const groupWidget = node.widgets.find((w) => w.name === groupWidgetName);
 						if (groupWidget) {
 							innerWidget.value = groupWidget.value;
