@@ -4,8 +4,10 @@ The most powerful and modular stable diffusion GUI and backend.
 
 In This Branch
 -----------
-Added the ability to reboot the server with the click of a button
-![comfyui_screenshot.png](rebootcomfyui.png)
+- Added the ability to reboot the server with the click of a button
+- Added an option in the settings menu to select the reboot server button location currently 3 locations are available. Menu Bar Top Icon, Small Button, Main Menu
+- Added an option to toggle whether or not you have to confirm that you'd like to reboot the server
+
 
 
 Original
