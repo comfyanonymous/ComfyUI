@@ -317,6 +317,8 @@ class ConvertToGroupAction {
 				Object.values(app.canvas.selected_nodes).find((n) => n.constructor.nodeData?.[IS_GROUP_NODE]),
 			callback: async () => {
 				const name = this.getName();
+				if(!name) return;
+				
 				let extra = app.graph.extra;
 				if (!extra) app.graph.extra = extra = {};
 				let groupNodes = extra.groupNodes;
