@@ -142,6 +142,15 @@ body {
 	cursor: pointer;
 }
 
+.comfy-menu > button:hover,
+.comfy-menu-btns button:hover,
+.comfy-menu .comfy-list button:hover,
+.comfy-modal button:hover,
+.comfy-reboot-server-button-icon:hover {
+	filter: brightness(1.2);
+	cursor: pointer;
+}
+
 .comfy-menu span.drag-handle {
 	width: 10px;
 	height: 20px;
@@ -215,6 +224,15 @@ button.comfy-settings-btn {
 	padding: 0;
 	position: absolute;
 	right: 0;
+	border: none;
+}
+
+button.comfy-reboot-server-button-icon {
+	background-color: rgba(0, 0, 0, 0);
+	font-size: 12px;
+	padding: 0;
+	position: absolute;
+	right: 15px;
 	border: none;
 }
 
