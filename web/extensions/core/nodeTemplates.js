@@ -169,44 +169,48 @@ class ManageTemplates extends ComfyDialog {
 								}),
 							]
 						),
-						$el("div", {}, [
-							$el("button", {
-								textContent: "Export",
-								style: {
-									fontSize: "12px",
-									fontWeight: "normal",
-								},
-								onclick: (e) => {
-									const json = JSON.stringify({ templates: [t] }, null, 2); // convert the data to a JSON string
-									const blob = new Blob([json], { type: "application/json" });
-									const url = URL.createObjectURL(blob);
-									const a = $el("a", {
-										href: url,
-										download: (nameInput.value || t.name) + ".json",
-										style: { display: "none" },
-										parent: document.body,
-									});
-									a.click();
-									setTimeout(function () {
-										a.remove();
-										window.URL.revokeObjectURL(url);
-									}, 0);
-								},
-							}),
-							$el("button", {
-								textContent: "Delete",
-								style: {
-									fontSize: "12px",
-									color: "red",
-									fontWeight: "normal",
-								},
-								onclick: (e) => {
-									nameInput.value = "";
-									e.target.parentElement.style.display = "none";
-									e.target.parentElement.previousElementSibling.style.display = "none";
-								},
-							}),
-						]),
+						$el(
+							"div",
+							{},
+							[
+								$el("button", {
+									textContent: "Export",
+									style: {
+										fontSize: "12px",
+										fontWeight: "normal",
+									},
+									onclick: (e) => {
+										const json = JSON.stringify({templates: [t]}, null, 2); // convert the data to a JSON string
+										const blob = new Blob([json], {type: "application/json"});
+										const url = URL.createObjectURL(blob);
+										const a = $el("a", {
+											href: url,
+											download: (nameInput.value || t.name) + ".json",
+											style: {display: "none"},
+											parent: document.body,
+										});
+										a.click();
+										setTimeout(function () {
+											a.remove();
+											window.URL.revokeObjectURL(url);
+										}, 0);
+									},
+								}),
+								$el("button", {
+									textContent: "Delete",
+									style: {
+										fontSize: "12px",
+										color: "red",
+										fontWeight: "normal",
+									},
+									onclick: (e) => {
+										nameInput.value = "";
+										e.target.parentElement.style.display = "none";
+										e.target.parentElement.previousElementSibling.style.display = "none";
+									},
+								}),
+							]
+						),
 					];
 				})
 			)
