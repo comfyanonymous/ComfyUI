@@ -9,12 +9,19 @@ const GROUP_SLOTS = Symbol();
 export async function registerGroupNodes(groupNodes, source, prefix) {
 	if (!groupNodes) return;
 
+	let extra = app.graph.extra;
+	if (!extra) app.graph.extra = extra = {};
+	let nodes = extra.groupNodes;
+	if (!nodes) extra.groupNodes = nodes = {};
+
 	for (const g in groupNodes) {
 		const def = buildNodeDef(groupNodes[g], g, globalDefs, source);
 		if (prefix) {
 			def.display_name = prefix + "/" + def.display_name;
 		}
 		await app.registerNodeDef(source + "/" + g, def);
+
+		nodes[g] = groupNodes[g];
 	}
 }
 
