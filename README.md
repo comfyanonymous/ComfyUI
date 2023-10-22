@@ -1,7 +1,15 @@
 ComfyUI
 =======
 The most powerful and modular stable diffusion GUI and backend.
+
+In This Branch
 -----------
+Added the ability to reboot the server with the click of a button
+![comfyui_screenshot.png](rebootcomfyui.png)
+
+
+Original
+---
 ![ComfyUI Screenshot](comfyui_screenshot.png)
 
 This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
