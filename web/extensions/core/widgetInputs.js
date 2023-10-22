@@ -463,7 +463,11 @@ app.registerExtension({
 				}
 
 				if (widget.type === "number" || widget.type === "combo") {
-					addValueControlWidget(this, widget, "fixed");
+					let control_value = this.widgets_values?.[1];
+					if (!control_value) {
+						control_value = "fixed";
+					}
+					addValueControlWidget(this, widget, control_value);
 				}
 
 				// When our value changes, update other widgets to reflect our changes
