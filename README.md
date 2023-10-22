@@ -8,6 +8,7 @@ In This Branch
 - Added an option in the settings menu to select the reboot server button location currently 3 locations are available. Menu Bar Top Icon, Small Button, Main Menu
 - Added an option to toggle whether or not you have to confirm that you'd like to reboot the server
 
+![Reboot Button Screenshot](rebootcomfyui.png)
 
 
 Original
