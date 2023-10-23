@@ -95,7 +95,9 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 			 * ranges and set them to min or max.*/
 			if (targetWidget.value < min) targetWidget.value = min;
 
-			if (targetWidget.value > max) targetWidget.value = max;
+			if (targetWidget.value > max)
+				targetWidget.value = max;
+			targetWidget.callback(targetWidget.value);
 		}
 	};
 	return valueControl;
