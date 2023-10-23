@@ -31,6 +31,7 @@ folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
 folder_names_and_paths["subflows"] = ([os.path.join(base_path, "subflows")], supported_subflow_extensions)
+folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
@@ -52,6 +53,10 @@ def set_output_directory(output_dir):
 def set_temp_directory(temp_dir):
     global temp_directory
     temp_directory = temp_dir
+
+def set_input_directory(input_dir):
+    global input_directory
+    input_directory = input_dir
 
 def get_output_directory():
     global output_directory
@@ -155,7 +160,7 @@ def recursive_search(directory, excluded_dir_names=None):
     return result, dirs
 
 def filter_files_extensions(files, extensions):
-    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
+    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions or len(extensions) == 0, files)))
 
 
 

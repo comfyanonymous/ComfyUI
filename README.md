@@ -46,6 +46,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + S                  | Save workflow                                                                                                      |
 | Ctrl + O                  | Load workflow                                                                                                      |
 | Ctrl + A                  | Select all nodes                                                                                                   |
+| Alt + C                   | Collapse/uncollapse selected nodes                                                                                 |
 | Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
 | Ctrl + B                  | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace          | Delete selected nodes                                                                                              |
@@ -69,7 +70,7 @@ Ctrl can also be replaced with Cmd instead for macOS users
 
 There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
 
-### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_cu118_or_cpu.7z)
+### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_cu121_or_cpu.7z)
 
 Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
 
@@ -88,6 +89,8 @@ Git clone this repo.
 Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
+
+Note: pytorch does not support python 3.12 yet so make sure your python version is 3.11 or earlier.
 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
