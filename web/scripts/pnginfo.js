@@ -128,7 +128,6 @@ export function getWebpMetadata(file) {
 				const length = dataView.getUint32(offset + 4, true);
 				// Get the chunk type
 				const type = String.fromCharCode(...pngData.slice(offset, offset + 4));
-				console.log(length, type);
 				if (type === "EXIF") {
 					// Get the keyword
 					let data = parseExifData(pngData.slice(offset + 8, offset + 8 + length));
@@ -142,7 +141,6 @@ export function getWebpMetadata(file) {
 				offset += 8 + length;
 			}
 
-			console.log(txt_chunks);
 			r(txt_chunks);
 		};
 
