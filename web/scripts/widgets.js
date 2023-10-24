@@ -570,7 +570,6 @@ export const ComfyWidgets = {
 		document.body.append(fileInput);
 
 		// Create the button widget for selecting the files
-		console.log("adding widge")
 		uploadWidget = node.addWidget("button", "choose file with subflow", "subflow", () => {
 			fileInput.click();
 		});

@@ -12953,31 +12953,45 @@ LGraphNode.prototype.executeAction = function(action)
     };
 
     LGraphCanvas.onMenuNodeExport = function(value, options, e, menu, node) {
+        console.log(node);
         if (!node) {
             throw "no node passed";
         }
 
-        const getOption = ({ name, type, isExported }, pinType) => {
-            const color = LGraphCanvas.link_type_colors[type];
-            const innerHtml = `<span style='display: block; padding-left: 4px; color: ${color};'>${name}${isExported ? " (exported)" : ""} </span>`;
+        function getConfig(widgetName) {
+            const { nodeData } = this.constructor;
+            return nodeData?.input?.required[widgetName] ?? nodeData?.input?.optional?.[widgetName];
+        }
+
+        const getOption = (opt, pinType) => {
+            const color = LGraphCanvas.link_type_colors[opt.type];
+            const innerHtml = `<span style='display: block; padding-left: 4px; color: ${color};'>${opt.name}${opt.isExported ? " (exported)" : ""} </span>`;
             return {
-                name,
-                type: pinType,
-                content: innerHtml
+                pinType,
+                content: innerHtml,
+                ...opt
             };
         };
 
-        let inputs = node.inputs ?? [];
+        let inputs = (node.inputs ?? []).filter((input) => !input.widget);
+        let widgets = (node.widgets ?? []).filter(({type}) => type != "button");
         let outputs = node.outputs ?? [];
+        const isExported = (exports, v) => {
+            return exports.find(exp => exp.name == v.name) !== undefined;
+        };
         if (node.properties?.exports?.inputs) {
-            inputs = inputs.map( input => ( {...input, isExported: node.properties.exports.inputs.includes(input.name) }) );
+            inputs = inputs.map( input => ( {...input, isExported: isExported(node.properties.exports.inputs, input) }) );
+        }
+        if (node.properties?.exports?.widgets) {
+            widgets = widgets.map( widget => ( {...widget, isExported: isExported(node.properties.exports.widgets, widget) }) );
         }
         if (node.properties?.exports?.outputs) {
-            outputs = outputs.map( output => ( {...output, isExported: node.properties.exports.outputs.includes(output.name) }) );
+            outputs = outputs.map( output => ( {...output, isExported: isExported(node.properties.exports.outputs, output) }) );
         }
 
         const exportableVars = [
             ...inputs.map((input) => getOption(input, "input")),
+            ...widgets.map((widget) => getOption(widget, "widget")),
             null,
             ...outputs.map((output) => getOption(output, "output")),
         ];
@@ -12995,23 +13009,42 @@ LGraphNode.prototype.executeAction = function(action)
             node.graph.beforeChange(/*?*/); //node
 
             const exportVar = () => {
-                if (!node.properties.exports) {
-                    node.properties.exports = { inputs: [], outputs: [] };
+                if(!node.properties.exports) {
+                    node.properties.exports = {};
                 }
-
+                if (!node.properties.exports?.inputs) {
+                    node.properties.exports.inputs = [];
+                }
+                if (!node.properties.exports?.widgets) {
+                    node.properties.exports.widgets = [];
+                }
+                if (!node.properties.exports?.outputs) {
+                    node.properties.exports.outputs = [];
+                }
+    
                 const toggle = (arr, val) => {
-                    if (arr.includes(val)) {
-                        const i = arr.indexOf(val);
+                    const i = arr.findIndex(ele => ele.name === val.name);
+                    if ( i >= 0 ) {
                         arr.splice(i, 1);
                     } else {
-                        arr.push(val);
+                        const extras = {};
+                        // copy widget params
+                        console.log(val);
+                        if (val.options) {
+                            extras.config = getConfig.call(node, val.name) ?? [val.type, val.options || {}];
+                            extras.value = val.value;
+                            console.log(extras.config);
+                        }
+                        arr.push({ name: val.name, ...extras });
                     }
                 };
 
-                if (v.type == "input") {
-                    toggle(node.properties.exports.inputs, v.name);
-                } else if (v.type == "output") {
-                    toggle(node.properties.exports.outputs, v.name);
+                if (v.pinType == "input") {
+                    toggle(node.properties.exports.inputs, v);
+                } else if(v.pinType == "widget") {
+                    toggle(node.properties.exports.widgets, v);
+                } else if (v.pinType == "output") {
+                    toggle(node.properties.exports.outputs, v);
                 }
             };
             exportVar();

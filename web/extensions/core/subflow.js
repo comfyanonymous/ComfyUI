@@ -1,8 +1,4 @@
 import { app } from "../../scripts/app.js";
-import { api } from "../../scripts/api.js";
-import { ComfyWidgets } from "/scripts/widgets.js";
-const CONFIG = Symbol();
-// const GET_CONFIG = Symbol();
 import { GET_CONFIG } from "./widgetInputs.js";
 
 function getConfig(widgetName) {
@@ -116,23 +112,6 @@ function getConfig(widgetName) {
 app.registerExtension({
   name: "Comfy.Subflow",
   beforeRegisterNodeDef(nodeType, nodeData, app) {
-
-    // console.log("in init")
-		// LiteGraph.registerNodeType(
-		// 	"InMemorySubflow",
-		// 	Object.assign(InMemorySubflow, {
-		// 		title: "InMemorySubflow",
-		// 	})
-		// );
-
-    // LiteGraph.registerNodeType(
-		// 	"FileSubflow",
-		// 	Object.assign(FileSubflow, {
-		// 		title: "FileSubflow",
-		// 	})
-    // );
-
-    // FileSubflow.category = "utils";
     const refreshPins = (node, subflow) => {
       if(!subflow)
         return;
@@ -157,28 +136,37 @@ app.registerExtension({
         const exports = subflowNode.properties?.exports;
         if (exports) {
           let pinNum = 0;
-          for (const inputRef of exports.inputs) {
-            console.log(subflowNode.inputs);
-            const input = subflowNode.inputs.find(q => q.name === inputRef);
+          for (const exportedInput of exports.inputs) {
+            const input = subflowNode.inputs.find(q => q.name === exportedInput.name);
             if (!input) continue;
             const { name, type, link, slot_index, ...extras } = input;
-            console.log("Input");
-            console.log(input);
-            console.log(extras);
-            if (extras.widget) {
-              const w = extras.widget;
-              const config = getConfig.call(this, input.name) ?? [input.type, w.options || {}];
-              extras.widget[GET_CONFIG] = () => config;
-              console.log(extras);
-              console.log(input.type);
-            }
+            // console.log("Input");
+            // console.log(input);
+            // console.log(extras);
+            // if (extras.widget) {
+            //   // const w = extras.widget;
+            //   // const config = getConfig.call(this, input.name) ?? [input.type, w.options || {}];
+            //   // console.log(config);
+            //   // extras.widget[GET_CONFIG] = () => config;
+            //   // console.log(extras);
+            //   // console.log(input.type);
+            //   // console.log(subflowNode);
+            //   // const convertedWidget = subflowNode.widgets.find((w) => w.name == inputRef);
+            //   // node.widgets.push(convertedWidget);
+            //   // const widgetIndex = subflowNode.inputs.findIndex(q => q.name === inputRef);
+            //   // const widget = node.addWidget("number", inputRef, 1, ()=>{}, {min: 0, max:1, step:.1, round:.01, precision:2});
+            //   // node.widgets.push({type: "number", name: inputRef, value: 1, callback: ()=>{}, options: {min: 0, max:1, step:.1, round:.01, precision:2}});
+            //   console.log("adding widget", exportedInput.name);
+            //   // convertToInput(node, widget, config);
+            // }
+
             node.addInput(input.name, input.type, extras );
             inputSlots.push([subflowNode.id, pinNum]);
             pinNum++;
           }
           pinNum = 0;
-          for (const outputRef of exports.outputs) {
-            const output = subflowNode.outputs.find(q => q.name === outputRef);
+          for (const exportedOutput of exports.outputs) {
+            const output = subflowNode.outputs.find(q => q.name === exportedOutput.name);
             if (!output) continue;
             node.addOutput(output.name, output.type);
             outputSlots.push([subflowNode.id, pinNum]);
@@ -190,11 +178,65 @@ app.registerExtension({
       node.size[0] = 180;
     };
 
-    const refreshNode = async (node, subflow) => {
+    const refreshWidgets = (node, subflow, recoverValues) => {
+      if (!subflow)
+        return;
+
+      if (node.widgets) {
+        // Allow widgets to cleanup
+        let subflowWidget;
+        for (const w of node.widgets) {
+          if (w.type == "button") {
+            subflowWidget = w;
+          } else if (w.onRemove) {
+            w.onRemove();
+          }
+        }
+        node.widgets = [subflowWidget];
+      }
+
+      const subflowNodes = subflow.nodes;
+      let widgetIndex = 1;
+      for (const subflowNode of subflowNodes) {
+        const exports = subflowNode.properties?.exports;
+        if (exports) {
+
+          for (const exportedWidget of exports.widgets) {
+            let type = exportedWidget.config[0];
+            let options = type;
+            if (type instanceof Array) {
+              options = { values: type };
+              type = "combo";
+            } else {
+              options = exportedWidget.config[1];
+            }
+            if (type === "INT" || type === "FLOAT") {
+              type = "number";
+            }
+            const getWidgetCallback = (widgetIndex) => {
+              return (v) => {
+                console.log(node);
+                node.widgets_values[widgetIndex] = v;
+              }
+            };
+            let value = exportedWidget.value;
+            if (recoverValues) {
+              value = node.widgets_values[widgetIndex] ?? value;
+            }
+            node.addWidget(type, exportedWidget.name, value, getWidgetCallback(widgetIndex), options);
+            widgetIndex++;
+          }
+
+        }
+      }
+    };
+
+    const refreshNode = (node, subflow) => {
       if (!subflow) return;
   
       node.subflow = subflow;
       refreshPins(node, subflow);
+      refreshWidgets(node, subflow, false);
   
       node.size[0] = Math.max(100, LiteGraph.NODE_TEXT_SIZE * node.title.length * 0.45 + 160);
     };
@@ -204,7 +246,8 @@ app.registerExtension({
     // }
 
     if (nodeData.name == "FileSubflow") {
-      nodeType.prototype.refreshNode = function(subflow) {  refreshNode(this, subflow); };
+      nodeType.prototype.onConfigure = function() { refreshWidgets(this, this.subflow, true); };
+      nodeType.prototype.refreshNode = function(subflow) { refreshNode(this, subflow); };
       nodeType.prototype.getExportedOutput = function(slot) { return this.subflow.extras.outputSlots[slot]; }
       nodeType.prototype.getExportedInput =  function(slot) { return this.subflow.extras.inputSlots[slot]; }
 
