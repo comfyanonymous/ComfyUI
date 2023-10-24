@@ -3,7 +3,7 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -1788,6 +1788,15 @@ export class ComfyApp {
 					this.loadGraphData(JSON.parse(pngInfo.workflow));
 				} else if (pngInfo.parameters) {
 					importA1111(this.graph, pngInfo.parameters);
+				}
+			}
+		} else if (file.type === "image/webp") {
+			const pngInfo = await getWebpMetadata(file);
+			if (pngInfo) {
+				if (pngInfo.workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.workflow));
+				} else if (pngInfo.Workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
