@@ -156,7 +156,7 @@ class ControlNet(ControlBase):
 
 
         context = cond['c_crossattn']
-        y = cond.get('c_adm', None)
+        y = cond.get('y', None)
         if y is not None:
             y = y.to(self.control_model.dtype)
         control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=t, context=context.to(self.control_model.dtype), y=y)
