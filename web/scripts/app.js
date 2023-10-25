@@ -1590,7 +1590,7 @@ export class ComfyApp {
 	 */
 	async graphToPrompt(graph=this.graph) {
 		let subflowNodeIdOffset = graph.last_node_id;
-		const subflowIdMapping = {};
+		const subflowIdOffsets = {};
 		const workflow = graph.serialize();
 		const output = {};
 
@@ -1628,7 +1628,7 @@ export class ComfyApp {
 						for_subflow: String(node.id) // keep reference of parent node
 					};
 				}
-				subflowIdMapping[node.id] = subflowNodeIdOffset;
+				subflowIdOffsets[node.id] = subflowNodeIdOffset;
 
 				subflowNodeIdOffset += Object.keys(node.subflow).length;
 			}
@@ -1641,7 +1641,16 @@ export class ComfyApp {
 				for (const i in widgets) {
 					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+						if (node.subflow) {
+							if (widget.type !== "button") {
+								// use the callback to obtain node reference
+								const forNode = widget.callback(null);
+								const widgetNode = subflowIdOffsets[node.id] + forNode;
+								output[ widgetNode ].inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+							}
+						} else {
+							inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+						}
 					}
 				}
 			}
@@ -1650,7 +1659,7 @@ export class ComfyApp {
 				if (inputNode.subflow) {
 					// input should be mapped to inner node
 					const [ localOriginId, originSlot ] = inputNode.getExportedOutput(inputSlot);
-					const originId = subflowIdMapping[inputNode.id] + localOriginId;
+					const originId = subflowIdOffsets[inputNode.id] + localOriginId;
 					return [String(originId), parseInt(originSlot)];
 				}
 
@@ -1699,7 +1708,7 @@ export class ComfyApp {
 						if (node.subflow) {
 							// inner node's input should be used
 							const [ localTargetId, targetSlot ] = node.getExportedInput(link.target_slot);
-							const targetId = subflowIdMapping[node.id] + localTargetId;
+							const targetId = subflowIdOffsets[node.id] + localTargetId;
 							output[ String(targetId) ].inputs[ node.inputs[targetSlot].name ] = getInputRef(parent, link.origin_slot);
 						}
 

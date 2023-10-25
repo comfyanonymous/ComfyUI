@@ -12969,7 +12969,10 @@ LGraphNode.prototype.executeAction = function(action)
             return {
                 pinType,
                 content: innerHtml,
-                ...opt
+                type: opt.type,
+                value: opt.value,
+                name: opt.name,
+                options: opt.options
             };
         };
 
@@ -12980,13 +12983,13 @@ LGraphNode.prototype.executeAction = function(action)
             return exports.find(exp => exp.name == v.name) !== undefined;
         };
         if (node.properties?.exports?.inputs) {
-            inputs = inputs.map( input => ( {...input, isExported: isExported(node.properties.exports.inputs, input) }) );
+            inputs = inputs.map( input => ( {...input, isExported: isExported(node.properties.exports.inputs, input)} ));
         }
         if (node.properties?.exports?.widgets) {
-            widgets = widgets.map( widget => ( {...widget, isExported: isExported(node.properties.exports.widgets, widget) }) );
+            widgets = widgets.map( widget => ( {...widget, isExported: isExported(node.properties.exports.widgets, widget)} ));
         }
         if (node.properties?.exports?.outputs) {
-            outputs = outputs.map( output => ( {...output, isExported: isExported(node.properties.exports.outputs, output) }) );
+            outputs = outputs.map( output => ( {...output, isExported: isExported(node.properties.exports.outputs, output)} ));
         }
 
         const exportableVars = [
@@ -13029,11 +13032,9 @@ LGraphNode.prototype.executeAction = function(action)
                     } else {
                         const extras = {};
                         // copy widget params
-                        console.log(val);
                         if (val.options) {
-                            extras.config = getConfig.call(node, val.name) ?? [val.type, val.options || {}];
+                            extras.config = [val.type, val.options || {}];
                             extras.value = val.value;
-                            console.log(extras.config);
                         }
                         arr.push({ name: val.name, ...extras });
                     }
@@ -14072,6 +14073,7 @@ LGraphNode.prototype.executeAction = function(action)
                     !options.ignore_item_callbacks &&
                     value.disabled !== true
                 ) {
+                    console.log("value", value);
                     //item callback
                     var r = value.callback.call(
                         this,
