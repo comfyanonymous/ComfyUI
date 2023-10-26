@@ -1,5 +1,5 @@
-from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, CLIPImageProcessor, modeling_utils
-from .utils import load_torch_file, transformers_convert
+from transformers import CLIPVisionModelWithProjection, CLIPVisionConfig, modeling_utils
+from .utils import load_torch_file, transformers_convert, common_upscale
 import os
 import torch
 import contextlib
@@ -7,6 +7,18 @@ import contextlib
 import comfy.ops
 import comfy.model_patcher
 import comfy.model_management
+import comfy.utils
+
+def clip_preprocess(image, size=224):
+    mean = torch.tensor([ 0.48145466,0.4578275,0.40821073], device=image.device, dtype=image.dtype)
+    std = torch.tensor([0.26862954,0.26130258,0.27577711], device=image.device, dtype=image.dtype)
+    scale = (size / min(image.shape[1], image.shape[2]))
+    image = torch.nn.functional.interpolate(image.movedim(-1, 1), size=(round(scale * image.shape[1]), round(scale * image.shape[2])), mode="bicubic", antialias=True)
+    h = (image.shape[2] - size)//2
+    w = (image.shape[3] - size)//2
+    image = image[:,:,h:h+size,w:w+size]
+    image = torch.clip((255. * image), 0, 255).round() / 255.0
+    return (image - mean.view([3,1,1])) / std.view([3,1,1])
 
 class ClipVisionModel():
     def __init__(self, json_config):
@@ -23,25 +35,12 @@ class ClipVisionModel():
         self.model.to(self.dtype)
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
-        self.processor = CLIPImageProcessor(crop_size=224,
-                                            do_center_crop=True,
-                                            do_convert_rgb=True,
-                                            do_normalize=True,
-                                            do_resize=True,
-                                            image_mean=[ 0.48145466,0.4578275,0.40821073],
-                                            image_std=[0.26862954,0.26130258,0.27577711],
-                                            resample=3, #bicubic
-                                            size=224)
-
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=False)
 
     def encode_image(self, image):
-        img = torch.clip((255. * image), 0, 255).round().int()
-        img = list(map(lambda a: a, img))
-        inputs = self.processor(images=img, return_tensors="pt")
         comfy.model_management.load_model_gpu(self.patcher)
-        pixel_values = inputs['pixel_values'].to(self.load_device)
+        pixel_values = clip_preprocess(image.to(self.load_device))
 
         if self.dtype != torch.float32:
             precision_scope = torch.autocast
