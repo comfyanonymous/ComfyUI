@@ -1586,6 +1586,16 @@ export class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	async graphToPrompt() {
+		for (const node of this.graph.computeExecutionOrder(false)) {
+			if (node.isVirtualNode) {
+				// Don't serialize frontend only nodes but let them make changes
+				if (node.applyToGraph) {
+					node.applyToGraph();
+				}
+				continue;
+			}
+		}
+
 		const workflow = this.graph.serialize();
 		const output = {};
 		// Process nodes in order of execution
@@ -1593,10 +1603,6 @@ export class ComfyApp {
 			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
-				// Don't serialize frontend only nodes but let them make changes
-				if (node.applyToGraph) {
-					node.applyToGraph(workflow);
-				}
 				continue;
 			}
 
