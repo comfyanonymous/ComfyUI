@@ -222,9 +222,14 @@ def attention_split(q, k, v, heads, mask=None):
 
     mem_free_total = model_management.get_free_memory(q.device)
 
+    if _ATTN_PRECISION =="fp32":
+        element_size = 4
+    else:
+        element_size = q.element_size()
+
     gb = 1024 ** 3
-    tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * q.element_size()
-    modifier = 3 if q.element_size() == 2 else 2.5
+    tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * element_size
+    modifier = 3 if element_size == 2 else 2.5
     mem_required = tensor_size * modifier
     steps = 1
 
