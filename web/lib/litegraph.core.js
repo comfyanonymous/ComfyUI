@@ -14073,7 +14073,6 @@ LGraphNode.prototype.executeAction = function(action)
                     !options.ignore_item_callbacks &&
                     value.disabled !== true
                 ) {
-                    console.log("value", value);
                     //item callback
                     var r = value.callback.call(
                         this,

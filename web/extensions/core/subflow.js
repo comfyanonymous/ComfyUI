@@ -32,16 +32,17 @@ app.registerExtension({
             if (!input) continue;
             const { name, type, link, slot_index, ...extras } = input;
 
-            node.addInput(input.name, input.type, extras );
-            inputSlots.push([subflowNode.id, pinNum]);
+            node.addInput(input.name, input.type, extras);
+            inputSlots.push([subflowNode, pinNum]);
             pinNum++;
           }
+
           pinNum = 0;
           for (const exportedOutput of exports.outputs) {
             const output = subflowNode.outputs.find(q => q.name === exportedOutput.name);
             if (!output) continue;
             node.addOutput(output.name, output.type);
-            outputSlots.push([subflowNode.id, pinNum]);
+            outputSlots.push([subflowNode, pinNum]);
             pinNum++;
           }
         }
@@ -54,20 +55,61 @@ app.registerExtension({
       if (!subflow)
         return;
 
-      if (node.widgets) {
-        // Allow widgets to cleanup
-        let subflowWidget;
-        for (const w of node.widgets) {
-          if (w.type == "button") {
-            subflowWidget = w;
-          } else if (w.onRemove) {
-            w.onRemove();
+      // Allow widgets to cleanup
+      for (let i = 1; i < node.widgets.length; ++i) {
+        if (node.widgets[i].onRemove) {
+          node.widgets[i].onRemove();
+        }
+      }
+      node.widgets = [node.widgets[0]];
+
+      // Map widgets
+      subflow.extras.widgetNodes = [];
+      const resolveWidgetPath = (thisNode, path, widgetIndex) => {
+        const subflowNodes = thisNode.subflow.nodes;
+
+        let q = 0; // get what would be the q-th exported widget
+        console.log(path);
+        for (const subflowNode of subflowNodes) {
+          const exportedWidgets = subflowNode.properties?.exports?.widgets;
+          console.log("has nodes", q, widgetIndex);
+          if (exportedWidgets) {
+            console.log("in exports");
+            const childPath = `${path}${subflowNode.id}/`;
+            for (const i in exportedWidgets) {
+              console.log("exported Widgets",q, widgetIndex);
+              if (widgetIndex == q) {
+                console.log(subflowNode);
+                if (subflowNode.subflow) {
+                  console.log("widget is inside subflow!")
+                  return resolveWidgetPath(subflowNode, childPath, i);
+                }
+                return `${childPath}${subflowNode.id}/`;
+              }
+              q++;
+            }
           }
         }
-        node.widgets = [subflowWidget];
+        console.warn("couldn't export a widget");
+      };
+      const subflowNodes = subflow.nodes;
+
+      for (const subflowNode of subflowNodes) {
+        const exportedWidgets = subflowNode.properties?.exports?.widgets;
+        if (exportedWidgets) {
+          const childPath = `/${subflowNode.id}/`;
+          for (const i in exportedWidgets) {
+            console.log("exporting", exportedWidgets[i].name);
+            if (subflowNode.subflow) {
+              subflow.extras.widgetNodes.push(resolveWidgetPath(subflowNode, childPath, i));
+            } else {
+              subflow.extras.widgetNodes.push(childPath);
+            }
+          }
+        }
       }
 
-      const subflowNodes = subflow.nodes;
+      console.log(subflow.extras.widgetNodes);
       let widgetIndex = 1;
       for (const subflowNode of subflowNodes) {
         const exports = subflowNode.properties?.exports;
@@ -90,7 +132,6 @@ app.registerExtension({
                 if (v !== null && node.widgets_values) {
                   node.widgets_values[widgetIndex] = v;
                 }
-                return subflowNode.id;
               }
             };
             let value = exportedWidget.value;
@@ -103,21 +144,27 @@ app.registerExtension({
 
         }
       }
+      console.log(subflow.extras.widgetNodes);
+
     };
 
-    const refreshNode = (node, subflow) => {
+    const refreshNode = (node, subflow, filename) => {
       if (!subflow) return;
   
       node.subflow = subflow;
+      node.title = `File Subflow (Loaded: ${filename})`;
       refreshPins(node, subflow);
       refreshWidgets(node, subflow, false);
+      
+
+      console.log("HAS", node.subflow.extras.inputSlots);
   
-      node.size[0] = Math.max(100, LiteGraph.NODE_TEXT_SIZE * node.title.length * 0.45 + 160);
+      node.size[0] = Math.max(100, LiteGraph.NODE_TEXT_SIZE * node.title.length * 0.45 + 100);
     };
 
     if (nodeData.name == "FileSubflow") {
       nodeType.prototype.onConfigure = function() { refreshWidgets(this, this.subflow, true); };
-      nodeType.prototype.refreshNode = function(subflow) { refreshNode(this, subflow); };
+      nodeType.prototype.refreshNode = function(subflow, filename) { refreshNode(this, subflow, filename); };
       nodeType.prototype.getExportedOutput = function(slot) { return this.subflow.extras.outputSlots[slot]; }
       nodeType.prototype.getExportedInput =  function(slot) { return this.subflow.extras.inputSlots[slot]; }
 

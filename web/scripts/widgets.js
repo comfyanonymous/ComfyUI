@@ -547,10 +547,10 @@ export const ComfyWidgets = {
 
 		const uploadFile = async (file) => {
 			const reader = new FileReader();
+			const filename = file.name;
 			reader.onload = (e) => {
 				const subflow = JSON.parse(e.target.result);
-				console.log(node);
-				node.refreshNode(subflow);	
+				node.refreshNode(subflow, filename);	
 			};
 			reader.readAsText(file);
 		};

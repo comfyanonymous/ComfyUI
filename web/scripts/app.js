@@ -1588,12 +1588,12 @@ export class ComfyApp {
 	 * Converts the current graph workflow for sending to the API
 	 * @returns The workflow and node links
 	 */
-	async graphToPrompt(graph=this.graph) {
-		let subflowNodeIdOffset = graph.last_node_id;
-		const subflowIdOffsets = {};
+	async graphToPrompt(graph=this.graph, nodeIdOffset=0, path="/", globalMappings={}) {
+		console.log("MY PATH IS ", path)
 		const workflow = graph.serialize();
 		const output = {};
 
+		let childNodeIdOffset = nodeIdOffset + graph.last_node_id;
 		// Process nodes in order of execution
 		for (const node of graph.computeExecutionOrder(false)) {
 			const n = workflow.nodes.find((n) => n.id === node.id);
@@ -1613,24 +1613,32 @@ export class ComfyApp {
 
 			if (node.subflow) {
 				const subgraph = new LGraph();
+				console.log("configuring subflow");
 				subgraph.configure(node.subflow);
-				const subgraphPrompt = (await this.graphToPrompt(subgraph)).output;
+				console.log("subgraph last node id is ", subgraph.last_node_id);
+				const subgraphPrompt = (await this.graphToPrompt(subgraph, childNodeIdOffset, path+String(node.id)+"/", globalMappings));
+				const subgraphPromptOutput = subgraphPrompt.output;
+				const subgraphGlobalMappings = subgraphPrompt.globalMappings;
 
 				// replace ids to not conflict with existing ids
-				for ( const [key, value] of Object.entries(subgraphPrompt) ) {
-					for ( const [inputKey, inputValue] of Object.entries(value.inputs) ) {
-						if (Array.isArray(inputValue)) {
-							value.inputs[inputKey][0] = String(Number(value.inputs[inputKey][0]) + subflowNodeIdOffset);
-						}
-					}
-					output[String(Number(key) + subflowNodeIdOffset)] = {
+				for ( const [key, value] of Object.entries(subgraphPromptOutput) ) {
+					// for ( const [inputKey, inputValue] of Object.entries(value.inputs) ) {
+					// 	if (Array.isArray(inputValue)) {
+					// 		value.inputs[inputKey][0] = String(Number(value.inputs[inputKey][0]) + subflowNodeIdOffset);
+					// 	}
+					// }
+					output[key] = {
 						...value,
-						for_subflow: String(node.id) // keep reference of parent node
+						for_subflow: String(node.id) // keep reference of root level subflow node
 					};
+					// subflowNodes[node.id][key] = value;
 				}
-				subflowIdOffsets[node.id] = subflowNodeIdOffset;
+				
 
-				subflowNodeIdOffset += Object.keys(node.subflow).length;
+				// subflowIdOffsets[node.id] = subflowNodeIdOffset;
+
+				childNodeIdOffset += subgraph.last_node_id;
+				Object.assign(globalMappings, subgraphGlobalMappings);
 			}
 
 			const inputs = {};
@@ -1644,9 +1652,13 @@ export class ComfyApp {
 						if (node.subflow) {
 							if (widget.type !== "button") {
 								// use the callback to obtain node reference
-								const forNode = widget.callback(null);
-								const widgetNode = subflowIdOffsets[node.id] + forNode;
-								output[ widgetNode ].inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+								console.log(node.subflow.extras.widgetNodes);
+								const globalMappingKey = node.subflow.extras.widgetNodes[i];
+								const globalId = globalMappings[globalMappingKey];
+								if (!output[globalId]) {
+									console.log("couldn't find reference with global mapping key", globalMappingKey);
+								}
+								output[ globalId ].inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
 							}
 						} else {
 							inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
@@ -1655,15 +1667,37 @@ export class ComfyApp {
 				}
 			}
 
-			const getInputRef = (inputNode, inputSlot) => {
+			const getOutputRef = (inputNode, inputSlot, inputPath) => {
 				if (inputNode.subflow) {
 					// input should be mapped to inner node
-					const [ localOriginId, originSlot ] = inputNode.getExportedOutput(inputSlot);
-					const originId = subflowIdOffsets[inputNode.id] + localOriginId;
-					return [String(originId), parseInt(originSlot)];
+					// const [ , originSlot ] = inputNode.getExportedOutput(inputSlot);
+					const [ underlyingNode, underlyingSlot ] = inputNode.subflow.extras.inputSlots[inputSlot];
+					console.log("GOT UNDERLYING NODE", underlyingNode, "from input of", inputSlot, "calling", inputNode);
+					return getOutputRef(underlyingNode, underlyingSlot, `${inputPath}${String(inputNode.id)}/` );
+
+					// const originId = nodeIdOffset + localOriginId;
+					// return [String(originId), parseInt(originSlot)];
 				}
 
-				return [String(inputNode.id), parseInt(inputSlot)];
+				const globalId = globalMappings[`${inputPath}${inputNode.id}/`];
+				console.log("outputRef", inputNode, `${inputPath}${inputNode.id}/`, globalId);
+				return [globalId, parseInt(inputSlot)];
+			};
+
+			const getInputRef = (inputNode, inputSlot, inputPath) => {
+				if (inputNode.subflow) {
+					// input should be mapped to inner node
+					// const [ , originSlot ] = inputNode.getExportedOutput(inputSlot);
+					const [ underlyingNode, underlyingSlot ] = inputNode.subflow.extras.outputSlots[inputSlot];
+					return getInputRef(underlyingNode, underlyingSlot, `${inputPath}${String(inputNode.id)}/`);
+
+					// const originId = nodeIdOffset + localOriginId;
+					// return [String(originId), parseInt(originSlot)];
+				}
+				const globalId = globalMappings[`${inputPath}${inputNode.id}/`];
+				console.log(globalMappings);
+				console.log("inputRef", inputNode,`${inputPath}${inputNode.id}/`, globalId);
+				return [globalId, parseInt(inputSlot)];
 			};
 
 			// Store all node links
@@ -1707,18 +1741,23 @@ export class ComfyApp {
 					if (link) {
 						if (node.subflow) {
 							// inner node's input should be used
-							const [ localTargetId, targetSlot ] = node.getExportedInput(link.target_slot);
-							const targetId = subflowIdOffsets[node.id] + localTargetId;
-							output[ String(targetId) ].inputs[ node.inputs[targetSlot].name ] = getInputRef(parent, link.origin_slot);
+							// const [ targetNode, targetSlot ] = node.getExportedInput(link.target_slot);
+							const [targetId, targetSlot] = getOutputRef(node, link.target_slot, path);
+							console.log("received targetId", targetId, link);
+							output[ targetId ].inputs[ node.inputs[targetSlot].name ] = getInputRef(parent, link.origin_slot, path);
 						}
 
-						inputs[node.inputs[i].name] = getInputRef(parent, link.origin_slot);
+						console.log("handling", node.type, node.id, node.inputs[i].name );
+						inputs[node.inputs[i].name] = getInputRef(parent, link.origin_slot, path);
 					}
 				}
 			}
 
 			if (!node.subflow) {
-				output[String(node.id)] = {
+				const globalId = String(node.id + nodeIdOffset);
+				console.log("setting globalMapping", path+String(node.id)+"/", globalId);
+				globalMappings[path+String(node.id)+"/"] = globalId;
+				output[globalId] = {
 					inputs,
 					class_type: node.comfyClass,
 				};
@@ -1737,7 +1776,8 @@ export class ComfyApp {
 			}
 		}
 
-		return { workflow, output };
+		console.log(output);
+		return { workflow, output, globalMappings };
 	}
 
 	#formatPromptError(error) {
