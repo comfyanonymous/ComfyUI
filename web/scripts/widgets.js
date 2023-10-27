@@ -573,7 +573,6 @@ export const ComfyWidgets = {
 		uploadWidget = node.addWidget("button", "choose file with subflow", "subflow", () => {
 			fileInput.click();
 		});
-		console.log(node.widgets);
 		uploadWidget.serialize = false;
 
 		// Add handler to check if an image is being dragged over our node
@@ -588,7 +587,6 @@ export const ComfyWidgets = {
 
 		// On drop upload files
 		node.onDragDrop = function (e) {
-			console.log("onDragDrop called");
 			let handled = false;
 			for (const file of e.dataTransfer.files) {
 				if (file.type === "image/png" || file.type === "application/json") {

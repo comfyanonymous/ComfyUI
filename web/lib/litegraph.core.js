@@ -12953,7 +12953,6 @@ LGraphNode.prototype.executeAction = function(action)
     };
 
     LGraphCanvas.onMenuNodeExport = function(value, options, e, menu, node) {
-        console.log(node);
         if (!node) {
             throw "no node passed";
         }
@@ -13053,63 +13052,6 @@ LGraphNode.prototype.executeAction = function(action)
             node.graph.afterChange(/*?*/); //node
             node.setDirtyCanvas(true);
         }
-
-        return false;
-    };
-
-    // LGraphCanvas.onDecoupleSubflow = function(value, options, e, menu, node) {
-    //     const { subflow } = node;
-    //     if (!subflow) return;
-
-    //     const subgraph = new LGraph( subflow );
-
-    //     for (const node of subgraph._nodes) {
-    //         console.log(node);
-    //         graph.add(node);
-    //     }
-    // };
-
-    LGraphCanvas.onCollapseToSubflow = function(value, options, e, menu, node) {
-        const calculatePosition = (nodes) => {
-            const sum = [0, 0];
-            const N = nodes.length;
-            for (const node of nodes) {
-                sum[0] += node.pos[0];
-                sum[1] += node.pos[1];
-            }
-            return [Math.round(sum[0])/N, Math.round(sum[1]/N)];
-        };
-
-        var graphcanvas = LGraphCanvas.active_canvas;
-		if (graphcanvas.selected_nodes && Object.keys(graphcanvas.selected_nodes).length > 1){
-            const nodes = Object.values(graphcanvas.selected_nodes);
-            
-
-            // New subflow is the current graph - non included nodes
-            const subgraph = new LGraph(graph.serialize());
-            const subgraphNodes = subgraph._nodes.map(n => n.id);
-            const nodesToKeep = nodes.map(n => n.id);
-
-            for (const n of subgraphNodes) {
-                if(!nodesToKeep.includes(n)) {
-                    subgraph.remove(subgraph.getNodeById(n));
-                }
-            }
-            const subflow = subgraph.serialize();
-            const subflowNode = LiteGraph.createNode("InMemorySubflow");
-            subflowNode.updateSubflowPrompt(subflow);
-            subflowNode.pos = calculatePosition(subflow.nodes);
-            subflowNode.size[0] = 180;
-            subflowNode.refreshNode(subflow);
-            graph.add(subflowNode);
-
-            // remove selected nodes
-            for (const node of nodes) {
-                graph.remove(node);
-            }
-        }
-
-        console.log(graph._nodes);
 
         return false;
     };
@@ -13373,18 +13315,7 @@ LGraphNode.prototype.executeAction = function(action)
                 has_submenu: true,
                 callback: LGraphCanvas.onNodeAlign,
             });
-            options.push({
-                content: "Collapse to Subflow",
-                callback: LGraphCanvas.onCollapseToSubflow
-            });
         }
-
-        // if (Object.keys(this.selected_nodes).length == 1 && node.subflow) {
-        //     options.push({
-        //         content: "Decouple Subflow",
-        //         callback: LGraphCanvas.onDecoupleSubflow,
-        //     });
-        // }
 
 		options.push(null, {
 			content: "Remove",

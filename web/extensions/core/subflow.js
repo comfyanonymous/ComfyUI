@@ -120,8 +120,6 @@ app.registerExtension({
     if (nodeData.name == "FileSubflow") {
       nodeType.prototype.onConfigure = function() { refreshWidgets(this, this.subflow, true); };
       nodeType.prototype.refreshNode = function(subflow, filename) { refreshNode(this, subflow, filename); };
-      nodeType.prototype.getExportedOutput = function(slot) { return this.subflow.extras.outputSlots[slot]; }
-      nodeType.prototype.getExportedInput =  function(slot) { return this.subflow.extras.inputSlots[slot]; }
 
       nodeData.input.required = { subflow: ["SUBFLOWUPLOAD"] };
     }
