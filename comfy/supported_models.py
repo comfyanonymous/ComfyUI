@@ -193,7 +193,7 @@ class SSD1B(SDXL):
         unet_config = {
                 "model_channels": 320,
                 "use_linear_in_transformer": True,
-                "transformer_depth": [0, 2, 4],  # SDXL is [0, 2, 10] here
+                "transformer_depth": [0, 2, 4],  
                 "upsampling_depth": [0,[2,1,1],[4,4,10]],
                 "resnet_only_mid_block": True,
                 "context_dim": 2048,

@@ -492,36 +492,51 @@ class UNetModel(nn.Module):
         if legacy:
             #num_heads = 1
             dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
-        self.middle_block = TimestepEmbedSequential(
-            ResBlock(
-                ch,
-                time_embed_dim,
-                dropout,
-                dims=dims,
-                use_checkpoint=use_checkpoint,
-                use_scale_shift_norm=use_scale_shift_norm,
-                dtype=self.dtype,
-                device=device,
-                operations=operations
-            ),
-            if (resnet_only_mid_block is False):
-                SpatialTransformer(  # always uses a self-attn
-                                ch, num_heads, dim_head, depth=transformer_depth_middle, context_dim=context_dim,
-                                disable_self_attn=disable_middle_self_attn, use_linear=use_linear_in_transformer,
-                                use_checkpoint=use_checkpoint, dtype=self.dtype, device=device, operations=operations
-                            ),
-                ResBlock(
-                    ch,
-                    time_embed_dim,
-                    dropout,
-                    dims=dims,
-                    use_checkpoint=use_checkpoint,
-                    use_scale_shift_norm=use_scale_shift_norm,
-                    dtype=self.dtype,
-                    device=device,
-                    operations=operations
-                ),
-        )
+        if resnet_only_mid_block is False:
+            self.middle_block = TimestepEmbedSequential(
+                    ResBlock(
+                        ch,
+                        time_embed_dim,
+                        dropout,
+                        dims=dims,
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        dtype=self.dtype,
+                        device=device,
+                        operations=operations
+                    ),
+                    SpatialTransformer(  # always uses a self-attn
+                                    ch, num_heads, dim_head, depth=transformer_depth_middle, context_dim=context_dim,
+                                    disable_self_attn=disable_middle_self_attn, use_linear=use_linear_in_transformer,
+                                    use_checkpoint=use_checkpoint, dtype=self.dtype, device=device, operations=operations
+                                ),
+                    ResBlock(
+                        ch,
+                        time_embed_dim,
+                        dropout,
+                        dims=dims,
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        dtype=self.dtype,
+                        device=device,
+                        operations=operations
+                    ),
+                )
+        else:
+            self.middle_block = TimestepEmbedSequential(
+                    ResBlock(
+                        ch,
+                        time_embed_dim,
+                        dropout,
+                        dims=dims,
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                        dtype=self.dtype,
+                        device=device,
+                        operations=operations
+                    ),
+            )
+
         self._feature_size += ch
         transformer_depth = upsampling_depth if upsampling_depth is not None else transformer_depth
         self.output_blocks = nn.ModuleList([])
