@@ -1592,11 +1592,9 @@ export class ComfyApp {
 		const workflow = graph.serialize();
 		const output = {};
 
-		// let childNodeIdOffset = nodeIdOffset + graph.last_node_id;
 		let childNodeCount = 0;
 		// Process nodes in order of execution
 		for (const node of graph.computeExecutionOrder(false)) {
-			console.log("handling", node.id, `${path}${node.id}/`, node.type);
 			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
@@ -1654,9 +1652,6 @@ export class ComfyApp {
 						if (node.subflow) {
 							if (i != 0) { // skip the load widget
 								const globalId = getWidgetRef(node, widget.name, path);
-								if (!output[globalId]) {
-									console.log("couldn't find reference with global mapping key", globalMappingKey);
-								}
 								output[ globalId ].inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
 							}
 						} else {
@@ -1737,11 +1732,7 @@ export class ComfyApp {
 
 			if (!node.subflow) {
 				const globalId = String(nodeIdOffset + node.id);
-				console.log("setting globalMapping", path+String(node.id)+"/", globalId);
 				globalMappings[path+String(node.id)+"/"] = globalId;
-				if (output[globalId]) {
-					console.log("PROBLEM: overwriting", globalId, output[globalId]);
-				}
 				output[globalId] = {
 					inputs,
 					class_type: node.comfyClass,
@@ -1759,7 +1750,6 @@ export class ComfyApp {
 			}
 		}
 
-		console.log(output);
 		const nodeCount = childNodeCount + graph.last_node_id;
 		return { workflow, output, globalMappings, nodeCount };
 	}
