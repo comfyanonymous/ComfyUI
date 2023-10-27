@@ -64,58 +64,45 @@ app.registerExtension({
       node.widgets = [node.widgets[0]];
 
       // Map widgets
-      subflow.extras.widgetNodes = [];
-      const resolveWidgetPath = (thisNode, path, widgetIndex) => {
-        const subflowNodes = thisNode.subflow.nodes;
+      subflow.extras.widgetSlots = {};
+      // const resolveWidgetPath = (thisNode, path, widgetIndex) => {
+      //   const subflowNodes = thisNode.subflow.nodes;
 
-        let q = 0; // get what would be the q-th exported widget
-        console.log(path);
-        for (const subflowNode of subflowNodes) {
-          const exportedWidgets = subflowNode.properties?.exports?.widgets;
-          console.log("has nodes", q, widgetIndex);
-          if (exportedWidgets) {
-            console.log("in exports");
-            const childPath = `${path}${subflowNode.id}/`;
-            for (const i in exportedWidgets) {
-              console.log("exported Widgets",q, widgetIndex);
-              if (widgetIndex == q) {
-                console.log(subflowNode);
-                if (subflowNode.subflow) {
-                  console.log("widget is inside subflow!")
-                  return resolveWidgetPath(subflowNode, childPath, i);
-                }
-                return `${childPath}${subflowNode.id}/`;
-              }
-              q++;
-            }
-          }
-        }
-        console.warn("couldn't export a widget");
-      };
+      //   let q = 0; // get what would be the q-th exported widget
+      //   console.log(path);
+      //   for (const subflowNode of subflowNodes) {
+      //     const exportedWidgets = subflowNode.properties?.exports?.widgets;
+      //     console.log("has nodes", q, widgetIndex);
+      //     if (exportedWidgets) {
+      //       console.log("in exports");
+      //       const childPath = `${path}${subflowNode.id}/`;
+      //       for (const i in exportedWidgets) {
+      //         console.log("exported Widgets",q, widgetIndex);
+      //         if (widgetIndex == q) {
+      //           console.log(subflowNode);
+      //           if (subflowNode.subflow) {
+      //             console.log("widget is inside subflow!")
+      //             return resolveWidgetPath(subflowNode, childPath, i);
+      //           }
+      //           return `${childPath}${subflowNode.id}/`;
+      //         }
+      //         q++;
+      //       }
+      //     }
+      //   }
+      //   console.warn("couldn't export a widget");
+      // };
       const subflowNodes = subflow.nodes;
 
-      for (const subflowNode of subflowNodes) {
-        const exportedWidgets = subflowNode.properties?.exports?.widgets;
-        if (exportedWidgets) {
-          const childPath = `/${subflowNode.id}/`;
-          for (const i in exportedWidgets) {
-            console.log("exporting", exportedWidgets[i].name);
-            if (subflowNode.subflow) {
-              subflow.extras.widgetNodes.push(resolveWidgetPath(subflowNode, childPath, i));
-            } else {
-              subflow.extras.widgetNodes.push(childPath);
-            }
-          }
-        }
-      }
-
-      console.log(subflow.extras.widgetNodes);
+      console.log(subflow.extras.widgetSlots);
       let widgetIndex = 1;
       for (const subflowNode of subflowNodes) {
         const exports = subflowNode.properties?.exports;
         if (exports) {
 
           for (const exportedWidget of exports.widgets) {
+            subflow.extras.widgetSlots[exportedWidget.name] = subflowNode;
+
             let type = exportedWidget.config[0];
             let options = type;
             if (type instanceof Array) {
@@ -144,7 +131,7 @@ app.registerExtension({
 
         }
       }
-      console.log(subflow.extras.widgetNodes);
+      console.log(subflow.extras.widgetSlots);
 
     };
 

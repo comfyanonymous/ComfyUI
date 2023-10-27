@@ -1589,13 +1589,14 @@ export class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	async graphToPrompt(graph=this.graph, nodeIdOffset=0, path="/", globalMappings={}) {
-		console.log("MY PATH IS ", path)
 		const workflow = graph.serialize();
 		const output = {};
 
-		let childNodeIdOffset = nodeIdOffset + graph.last_node_id;
+		// let childNodeIdOffset = nodeIdOffset + graph.last_node_id;
+		let childNodeCount = 0;
 		// Process nodes in order of execution
 		for (const node of graph.computeExecutionOrder(false)) {
+			console.log("handling", node.id, `${path}${node.id}/`, node.type);
 			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
@@ -1613,36 +1614,37 @@ export class ComfyApp {
 
 			if (node.subflow) {
 				const subgraph = new LGraph();
-				console.log("configuring subflow");
 				subgraph.configure(node.subflow);
-				console.log("subgraph last node id is ", subgraph.last_node_id);
-				const subgraphPrompt = (await this.graphToPrompt(subgraph, childNodeIdOffset, path+String(node.id)+"/", globalMappings));
+				const subgraphNodeIdOffset = nodeIdOffset + childNodeCount + graph.last_node_id;
+				const subgraphPrompt = (await this.graphToPrompt(subgraph, subgraphNodeIdOffset, path+String(node.id)+"/", globalMappings));
 				const subgraphPromptOutput = subgraphPrompt.output;
 				const subgraphGlobalMappings = subgraphPrompt.globalMappings;
+				const subgraphNodeCount = subgraphPrompt.nodeCount;
+				childNodeCount += subgraphNodeCount;
 
-				// replace ids to not conflict with existing ids
 				for ( const [key, value] of Object.entries(subgraphPromptOutput) ) {
-					// for ( const [inputKey, inputValue] of Object.entries(value.inputs) ) {
-					// 	if (Array.isArray(inputValue)) {
-					// 		value.inputs[inputKey][0] = String(Number(value.inputs[inputKey][0]) + subflowNodeIdOffset);
-					// 	}
-					// }
 					output[key] = {
 						...value,
 						for_subflow: String(node.id) // keep reference of root level subflow node
 					};
-					// subflowNodes[node.id][key] = value;
 				}
 				
-
-				// subflowIdOffsets[node.id] = subflowNodeIdOffset;
-
-				childNodeIdOffset += subgraph.last_node_id;
+				// childNodeIdOffset += subgraph.last_node_id;
 				Object.assign(globalMappings, subgraphGlobalMappings);
 			}
 
 			const inputs = {};
 			const widgets = node.widgets;
+
+			const getWidgetRef = (inputNode, widgetName, inputPath) => {
+				if (inputNode.subflow) {
+					const underlyingNode = inputNode.subflow.extras.widgetSlots[widgetName];
+					return getWidgetRef(underlyingNode, widgetName, `${inputPath}${String(inputNode.id)}/` );
+				}
+
+				const globalId = globalMappings[`${inputPath}${inputNode.id}/`];
+				return globalId;
+			};
 
 			// Store all widget values
 			if (widgets) {
@@ -1650,11 +1652,8 @@ export class ComfyApp {
 					const widget = widgets[i];
 					if (!widget.options || widget.options.serialize !== false) {
 						if (node.subflow) {
-							if (widget.type !== "button") {
-								// use the callback to obtain node reference
-								console.log(node.subflow.extras.widgetNodes);
-								const globalMappingKey = node.subflow.extras.widgetNodes[i];
-								const globalId = globalMappings[globalMappingKey];
+							if (i != 0) { // skip the load widget
+								const globalId = getWidgetRef(node, widget.name, path);
 								if (!output[globalId]) {
 									console.log("couldn't find reference with global mapping key", globalMappingKey);
 								}
@@ -1669,34 +1668,21 @@ export class ComfyApp {
 
 			const getOutputRef = (inputNode, inputSlot, inputPath) => {
 				if (inputNode.subflow) {
-					// input should be mapped to inner node
-					// const [ , originSlot ] = inputNode.getExportedOutput(inputSlot);
 					const [ underlyingNode, underlyingSlot ] = inputNode.subflow.extras.inputSlots[inputSlot];
-					console.log("GOT UNDERLYING NODE", underlyingNode, "from input of", inputSlot, "calling", inputNode);
 					return getOutputRef(underlyingNode, underlyingSlot, `${inputPath}${String(inputNode.id)}/` );
-
-					// const originId = nodeIdOffset + localOriginId;
-					// return [String(originId), parseInt(originSlot)];
 				}
 
 				const globalId = globalMappings[`${inputPath}${inputNode.id}/`];
-				console.log("outputRef", inputNode, `${inputPath}${inputNode.id}/`, globalId);
 				return [globalId, parseInt(inputSlot)];
 			};
 
 			const getInputRef = (inputNode, inputSlot, inputPath) => {
 				if (inputNode.subflow) {
-					// input should be mapped to inner node
-					// const [ , originSlot ] = inputNode.getExportedOutput(inputSlot);
 					const [ underlyingNode, underlyingSlot ] = inputNode.subflow.extras.outputSlots[inputSlot];
 					return getInputRef(underlyingNode, underlyingSlot, `${inputPath}${String(inputNode.id)}/`);
-
-					// const originId = nodeIdOffset + localOriginId;
-					// return [String(originId), parseInt(originSlot)];
 				}
+
 				const globalId = globalMappings[`${inputPath}${inputNode.id}/`];
-				console.log(globalMappings);
-				console.log("inputRef", inputNode,`${inputPath}${inputNode.id}/`, globalId);
 				return [globalId, parseInt(inputSlot)];
 			};
 
@@ -1740,23 +1726,22 @@ export class ComfyApp {
 
 					if (link) {
 						if (node.subflow) {
-							// inner node's input should be used
-							// const [ targetNode, targetSlot ] = node.getExportedInput(link.target_slot);
 							const [targetId, targetSlot] = getOutputRef(node, link.target_slot, path);
-							console.log("received targetId", targetId, link);
 							output[ targetId ].inputs[ node.inputs[targetSlot].name ] = getInputRef(parent, link.origin_slot, path);
 						}
 
-						console.log("handling", node.type, node.id, node.inputs[i].name );
 						inputs[node.inputs[i].name] = getInputRef(parent, link.origin_slot, path);
 					}
 				}
 			}
 
 			if (!node.subflow) {
-				const globalId = String(node.id + nodeIdOffset);
+				const globalId = String(nodeIdOffset + node.id);
 				console.log("setting globalMapping", path+String(node.id)+"/", globalId);
 				globalMappings[path+String(node.id)+"/"] = globalId;
+				if (output[globalId]) {
+					console.log("PROBLEM: overwriting", globalId, output[globalId]);
+				}
 				output[globalId] = {
 					inputs,
 					class_type: node.comfyClass,
@@ -1768,16 +1753,15 @@ export class ComfyApp {
 
 		for (const o in output) {
 			for (const i in output[o].inputs) {
-				if (Array.isArray(output[o].inputs[i])
-					&& output[o].inputs[i].length === 2
-					&& !output[output[o].inputs[i][0]]) {
+				if (Array.isArray(output[o].inputs[i]) && output[o].inputs[i].length === 2 && !output[output[o].inputs[i][0]]) {
 					delete output[o].inputs[i];
 				}
 			}
 		}
 
 		console.log(output);
-		return { workflow, output, globalMappings };
+		const nodeCount = childNodeCount + graph.last_node_id;
+		return { workflow, output, globalMappings, nodeCount };
 	}
 
 	#formatPromptError(error) {
