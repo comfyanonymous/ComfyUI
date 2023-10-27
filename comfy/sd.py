@@ -360,7 +360,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     from . import latent_formats
     model_config.latent_format = latent_formats.SD15(scale_factor=scale_factor)
-    model_config.unet_config = unet_config
+    model_config.unet_config = model_detection.convert_config(unet_config)
 
     if config['model']["target"].endswith("ImageEmbeddingConditionedLatentDiffusion"):
         model = model_base.SD21UNCLIP(model_config, noise_aug_config["params"], model_type=model_type)
