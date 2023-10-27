@@ -278,7 +278,13 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
 
     valid_file = None
     for embed_dir in embedding_directory:
-        embed_path = os.path.join(embed_dir, embedding_name)
+        embed_path = os.path.abspath(os.path.join(embed_dir, embedding_name))
+        embed_dir = os.path.abspath(embed_dir)
+        try:
+            if os.path.commonpath((embed_dir, embed_path)) != embed_dir:
+                continue
+        except:
+            continue
         if not os.path.isfile(embed_path):
             extensions = ['.safetensors', '.pt', '.bin']
             for x in extensions:
