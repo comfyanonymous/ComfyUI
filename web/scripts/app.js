@@ -1623,11 +1623,10 @@ export class ComfyApp {
 				for ( const [key, value] of Object.entries(subgraphPromptOutput) ) {
 					output[key] = {
 						...value,
-						for_subflow: String(node.id) // keep reference of root level subflow node
+						for_subflow: String(node.id) // keep reference of root node for progress and execution events
 					};
 				}
-				
-				// childNodeIdOffset += subgraph.last_node_id;
+
 				Object.assign(globalMappings, subgraphGlobalMappings);
 			}
 
@@ -1744,7 +1743,9 @@ export class ComfyApp {
 
 		for (const o in output) {
 			for (const i in output[o].inputs) {
-				if (Array.isArray(output[o].inputs[i]) && output[o].inputs[i].length === 2 && !output[output[o].inputs[i][0]]) {
+				if (Array.isArray(output[o].inputs[i])
+					&& output[o].inputs[i].length === 2
+					&& !output[output[o].inputs[i][0]]) {
 					delete output[o].inputs[i];
 				}
 			}

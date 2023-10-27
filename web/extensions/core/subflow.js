@@ -65,36 +65,8 @@ app.registerExtension({
 
       // Map widgets
       subflow.extras.widgetSlots = {};
-      // const resolveWidgetPath = (thisNode, path, widgetIndex) => {
-      //   const subflowNodes = thisNode.subflow.nodes;
-
-      //   let q = 0; // get what would be the q-th exported widget
-      //   console.log(path);
-      //   for (const subflowNode of subflowNodes) {
-      //     const exportedWidgets = subflowNode.properties?.exports?.widgets;
-      //     console.log("has nodes", q, widgetIndex);
-      //     if (exportedWidgets) {
-      //       console.log("in exports");
-      //       const childPath = `${path}${subflowNode.id}/`;
-      //       for (const i in exportedWidgets) {
-      //         console.log("exported Widgets",q, widgetIndex);
-      //         if (widgetIndex == q) {
-      //           console.log(subflowNode);
-      //           if (subflowNode.subflow) {
-      //             console.log("widget is inside subflow!")
-      //             return resolveWidgetPath(subflowNode, childPath, i);
-      //           }
-      //           return `${childPath}${subflowNode.id}/`;
-      //         }
-      //         q++;
-      //       }
-      //     }
-      //   }
-      //   console.warn("couldn't export a widget");
-      // };
       const subflowNodes = subflow.nodes;
 
-      console.log(subflow.extras.widgetSlots);
       let widgetIndex = 1;
       for (const subflowNode of subflowNodes) {
         const exports = subflowNode.properties?.exports;
@@ -131,8 +103,6 @@ app.registerExtension({
 
         }
       }
-      console.log(subflow.extras.widgetSlots);
-
     };
 
     const refreshNode = (node, subflow, filename) => {
@@ -143,8 +113,6 @@ app.registerExtension({
       refreshPins(node, subflow);
       refreshWidgets(node, subflow, false);
       
-
-      console.log("HAS", node.subflow.extras.inputSlots);
   
       node.size[0] = Math.max(100, LiteGraph.NODE_TEXT_SIZE * node.title.length * 0.45 + 100);
     };
