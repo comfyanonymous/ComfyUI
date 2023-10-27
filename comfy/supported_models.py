@@ -189,5 +189,16 @@ class SDXL(supported_models_base.BASE):
     def clip_target(self):
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLClipModel)
 
+class SSD1B(SDXL):
+        unet_config = {
+                "model_channels": 320,
+                "use_linear_in_transformer": True,
+                "transformer_depth": [0, 2, 4],  # SDXL is [0, 2, 10] here
+                "upsampling_depth": [0,[2,1,1],[4,4,10]],
+                "resnet_only_mid_block": True,
+                "context_dim": 2048,
+                "adm_in_channels": 2816
+                    }
 
-models = [SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL]
+
+models = [SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL,SSD1B]
