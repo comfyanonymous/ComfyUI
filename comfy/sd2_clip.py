@@ -21,5 +21,5 @@ class SD2Tokenizer(sd1_clip.SD1Tokenizer):
         super().__init__(embedding_directory=embedding_directory, clip_name="h", tokenizer=SD2ClipHTokenizer)
 
 class SD2ClipModel(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None):
-        super().__init__(device=device, dtype=dtype, clip_name="h", clip_model=SD2ClipHModel)
+    def __init__(self, device="cpu", dtype=None, **kwargs):
+        super().__init__(device=device, dtype=dtype, clip_name="h", clip_model=SD2ClipHModel, **kwargs)

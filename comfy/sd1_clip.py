@@ -472,11 +472,11 @@ class SD1Tokenizer:
 
 
 class SD1ClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel):
+    def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, **kwargs):
         super().__init__()
         self.clip_name = clip_name
         self.clip = "clip_{}".format(self.clip_name)
-        setattr(self, self.clip, clip_model(device=device, dtype=dtype))
+        setattr(self, self.clip, clip_model(device=device, dtype=dtype, **kwargs))
 
     def clip_layer(self, layer_idx):
         getattr(self, self.clip).clip_layer(layer_idx)
