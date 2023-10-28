@@ -1,4 +1,5 @@
 import { api } from "./api.js"
+import { getPngMetadata } from "./pnginfo.js";
 
 function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 	let defaultVal = inputData[1]["default"];
@@ -497,64 +498,24 @@ export const ComfyWidgets = {
 		return { widget: uploadWidget };
 	},
 	SUBFLOWUPLOAD(node, inputName, inputData, app) {
-		// const subflowWidget = node.widgets.find((w) => w.name === "subflow");
 		let uploadWidget;
 
-		// var default_value = subflowWidget.value;
-		// Object.defineProperty(subflowWidget, "value", {
-		// 	set : function(value) {
-		// 		this._real_value = value;
-		// 	},
-
-		// 	get : function() {
-		// 		let value = "";
-		// 		if (this._real_value) {
-		// 			value = this._real_value;
-		// 		} else {
-		// 			return default_value;
-		// 		}
-
-		// 		if (value.filename) {
-		// 			let real_value = value;
-		// 			value = "";
-		// 			if (real_value.subfolder) {
-		// 				value = real_value.subfolder + "/";
-		// 			}
-
-		// 			value += real_value.filename;
-
-		// 			if(real_value.type && real_value.type !== "input")
-		// 				value += ` [${real_value.type}]`;
-		// 		}
-		// 		return value;
-		// 	}
-		// });
-
-		// Add our own callback to the combo widget to render an image when it changes
-		// const cb = node.callback;
-		// imageWidget.callback = function () {
-		// 	if (cb) {
-		// 		return cb.apply(this, arguments);
-		// 	}
-		// };
-
-		// On load if we have a value then render the image
-		// The value isnt set immediately so we need to wait a moment
-		// No change callbacks seem to be fired on initial setting of the value
-		// requestAnimationFrame(() => {
-
-		// });
-
 		const uploadFile = async (file) => {
-			const reader = new FileReader();
-			const filename = file.name;
-			reader.onload = (e) => {
-				const subflow = JSON.parse(e.target.result);
-				node.refreshNode(subflow, filename);	
-			};
-			reader.readAsText(file);
+			if (file.type === "image/png") {
+				const pngInfo = await getPngMetadata(file);
+				if (pngInfo?.workflow) {
+					const subflow = JSON.parse(pngInfo.workflow);
+					node.refreshNode(subflow, file.name);
+				}
+			} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
+				const reader = new FileReader();
+				reader.onload = () => {
+					const subflow = JSON.parse(reader.result);
+					node.refreshNode(subflow, file.name);
+				};
+				reader.readAsText(file);
+			}
 		};
-
 
 		const fileInput = document.createElement("input");
 		Object.assign(fileInput, {
