@@ -2,12 +2,12 @@ import torch
 import contextlib
 import math
 
-from comfy import model_management
+from mock_comfy import model_management
 from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 import yaml
 
-import comfy.utils
+import mock_comfy.utils
 
 from . import clip_vision
 from . import gligen
@@ -19,10 +19,10 @@ from . import sd1_clip
 from . import sd2_clip
 from . import sdxl_clip
 
-import comfy.model_patcher
-import comfy.lora
-import comfy.t2i_adapter.adapter
-import comfy.supported_models_base
+import mock_comfy.model_patcher
+import mock_comfy.lora
+import mock_comfy.t2i_adapter.adapter
+import mock_comfy.supported_models_base
 
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
@@ -50,14 +50,14 @@ def load_clip_weights(model, sd):
         if ids.dtype == torch.float32:
             sd['cond_stage_model.transformer.text_model.embeddings.position_ids'] = ids.round()
 
-    sd = comfy.utils.transformers_convert(sd, "cond_stage_model.model.", "cond_stage_model.transformer.text_model.", 24)
+    sd = mock_comfy.utils.transformers_convert(sd, "cond_stage_model.model.", "cond_stage_model.transformer.text_model.", 24)
     return load_model_weights(model, sd)
 
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
-    key_map = comfy.lora.model_lora_keys_unet(model.model)
-    key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
-    loaded = comfy.lora.load_lora(lora, key_map)
+    key_map = mock_comfy.lora.model_lora_keys_unet(model.model)
+    key_map = mock_comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
+    loaded = mock_comfy.lora.load_lora(lora, key_map)
     new_modelpatcher = model.clone()
     k = new_modelpatcher.add_patches(loaded, strength_model)
     new_clip = clip.clone()
@@ -90,7 +90,7 @@ class CLIP:
         self.cond_stage_model = clip(**(params))
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
-        self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        self.patcher = mock_comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.layer_idx = None
 
     def clone(self):
@@ -167,29 +167,29 @@ class VAE:
         self.first_stage_model.to(self.vae_dtype)
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
-        steps = samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
-        steps += samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x // 2, tile_y * 2, overlap)
-        steps += samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
-        pbar = comfy.utils.ProgressBar(steps)
+        steps = samples.shape[0] * mock_comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
+        steps += samples.shape[0] * mock_comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += samples.shape[0] * mock_comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = mock_comfy.utils.ProgressBar(steps)
 
         decode_fn = lambda a: (self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)) + 1.0).float()
         output = torch.clamp((
-            (comfy.utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8, pbar = pbar) +
-            comfy.utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8, pbar = pbar) +
-             comfy.utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8, pbar = pbar))
+            (mock_comfy.utils.tiled_scale(samples, decode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = 8, pbar = pbar) +
+            mock_comfy.utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = 8, pbar = pbar) +
+             mock_comfy.utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = 8, pbar = pbar))
             / 3.0) / 2.0, min=0.0, max=1.0)
         return output
 
     def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
-        steps = pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
-        steps += pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
-        steps += pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
-        pbar = comfy.utils.ProgressBar(steps)
+        steps = pixel_samples.shape[0] * mock_comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
+        steps += pixel_samples.shape[0] * mock_comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
+        steps += pixel_samples.shape[0] * mock_comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x * 2, tile_y // 2, overlap)
+        pbar = mock_comfy.utils.ProgressBar(steps)
 
         encode_fn = lambda a: self.first_stage_model.encode((2. * a - 1.).to(self.vae_dtype).to(self.device)).float()
-        samples = comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
-        samples += comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
-        samples += comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples = mock_comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += mock_comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
+        samples += mock_comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4, pbar=pbar)
         samples /= 3.0
         return samples
 
@@ -204,7 +204,12 @@ class VAE:
 
             pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * 8), round(samples_in.shape[3] * 8)), device="cpu")
             for x in range(0, samples_in.shape[0], batch_number):
+                # self.vae_dtype = torch.float16
                 samples = samples_in[x:x+batch_number].to(self.vae_dtype).to(self.device)
+                print("-------------self.vae_dtype----------------")
+                print(self.vae_dtype)
+                # print(self.first_stage_model)
+                # self.first_stage_model.decoder.to("cuda")
                 pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(samples).cpu().float() + 1.0) / 2.0, min=0.0, max=1.0)
         except model_management.OOM_EXCEPTION as e:
             print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
@@ -260,10 +265,10 @@ class StyleModel:
 
 
 def load_style_model(ckpt_path):
-    model_data = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    model_data = mock_comfy.utils.load_torch_file(ckpt_path, safe_load=True)
     keys = model_data.keys()
     if "style_embedding" in keys:
-        model = comfy.t2i_adapter.adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
+        model = mock_comfy.t2i_adapter.adapter.StyleAdapter(width=1024, context_dim=768, num_head=8, n_layes=3, num_token=8)
     else:
         raise Exception("invalid style model {}".format(ckpt_path))
     model.load_state_dict(model_data)
@@ -273,14 +278,14 @@ def load_style_model(ckpt_path):
 def load_clip(ckpt_paths, embedding_directory=None):
     clip_data = []
     for p in ckpt_paths:
-        clip_data.append(comfy.utils.load_torch_file(p, safe_load=True))
+        clip_data.append(mock_comfy.utils.load_torch_file(p, safe_load=True))
 
     class EmptyClass:
         pass
 
     for i in range(len(clip_data)):
         if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
-            clip_data[i] = comfy.utils.transformers_convert(clip_data[i], "", "text_model.", 32)
+            clip_data[i] = mock_comfy.utils.transformers_convert(clip_data[i], "", "text_model.", 32)
 
     clip_target = EmptyClass()
     clip_target.params = {}
@@ -309,11 +314,11 @@ def load_clip(ckpt_paths, embedding_directory=None):
     return clip
 
 def load_gligen(ckpt_path):
-    data = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    data = mock_comfy.utils.load_torch_file(ckpt_path, safe_load=True)
     model = gligen.load_gligen(data)
     if model_management.should_use_fp16():
         model = model.half()
-    return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
+    return mock_comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
 
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
     #TODO: this function is a mess and should be removed eventually
@@ -351,12 +356,12 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         pass
 
     if state_dict is None:
-        state_dict = comfy.utils.load_torch_file(ckpt_path)
+        state_dict = mock_comfy.utils.load_torch_file(ckpt_path)
 
     class EmptyClass:
         pass
 
-    model_config = comfy.supported_models_base.BASE({})
+    model_config = mock_comfy.supported_models_base.BASE({})
 
     from . import latent_formats
     model_config.latent_format = latent_formats.SD15(scale_factor=scale_factor)
@@ -378,7 +383,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
     model.load_model_weights(state_dict, "model.diffusion_model.")
 
     if output_vae:
-        vae_sd = comfy.utils.state_dict_prefix_replace(state_dict, {"first_stage_model.": ""}, filter_keys=True)
+        vae_sd = mock_comfy.utils.state_dict_prefix_replace(state_dict, {"first_stage_model.": ""}, filter_keys=True)
         vae = VAE(sd=vae_sd, config=vae_config)
 
     if output_clip:
@@ -395,10 +400,10 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         w.cond_stage_model = clip.cond_stage_model
         load_clip_weights(w, state_dict)
 
-    return (comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
+    return (mock_comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
 
 def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
-    sd = comfy.utils.load_torch_file(ckpt_path)
+    sd = mock_comfy.utils.load_torch_file(ckpt_path)
     sd_keys = sd.keys()
     clip = None
     clipvision = None
@@ -407,7 +412,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     model_patcher = None
     clip_target = None
 
-    parameters = comfy.utils.calculate_parameters(sd, "model.diffusion_model.")
+    parameters = mock_comfy.utils.calculate_parameters(sd, "model.diffusion_model.")
     unet_dtype = model_management.unet_dtype(model_params=parameters)
 
     class WeightsLoader(torch.nn.Module):
@@ -428,7 +433,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         model.load_model_weights(sd, "model.diffusion_model.")
 
     if output_vae:
-        vae_sd = comfy.utils.state_dict_prefix_replace(sd, {"first_stage_model.": ""}, filter_keys=True)
+        vae_sd = mock_comfy.utils.state_dict_prefix_replace(sd, {"first_stage_model.": ""}, filter_keys=True)
         vae = VAE(sd=vae_sd)
 
     if output_clip:
@@ -445,7 +450,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         print("left over keys:", left_over)
 
     if output_model:
-        model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
+        model_patcher = mock_comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
         if inital_load_device != torch.device("cpu"):
             print("loaded straight to GPU")
             model_management.load_model_gpu(model_patcher)
@@ -454,8 +459,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
 
 def load_unet(unet_path): #load unet in diffusers format
-    sd = comfy.utils.load_torch_file(unet_path)
-    parameters = comfy.utils.calculate_parameters(sd)
+    sd = mock_comfy.utils.load_torch_file(unet_path)
+    parameters = mock_comfy.utils.calculate_parameters(sd)
     unet_dtype = model_management.unet_dtype(model_params=parameters)
     if "input_blocks.0.0.weight" in sd: #ldm
         model_config = model_detection.model_config_from_unet(sd, "", unet_dtype)
@@ -469,7 +474,7 @@ def load_unet(unet_path): #load unet in diffusers format
             print("ERROR UNSUPPORTED UNET", unet_path)
             return None
 
-        diffusers_keys = comfy.utils.unet_to_diffusers(model_config.unet_config)
+        diffusers_keys = mock_comfy.utils.unet_to_diffusers(model_config.unet_config)
 
         new_sd = {}
         for k in diffusers_keys:
@@ -481,9 +486,9 @@ def load_unet(unet_path): #load unet in diffusers format
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
-    return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
+    return mock_comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
     model_management.load_models_gpu([model, clip.load_model()])
     sd = model.model.state_dict_for_saving(clip.get_sd(), vae.get_sd())
-    comfy.utils.save_torch_file(sd, output_path, metadata=metadata)
+    mock_comfy.utils.save_torch_file(sd, output_path, metadata=metadata)
