@@ -22,6 +22,15 @@ class ManageTemplates extends ComfyDialog {
 		super();
 		this.element.classList.add("comfy-manage-templates");
 		this.templates = this.load();
+
+		this.importInput = $el("input", {
+			type: "file",
+			accept: ".json",
+			multiple: true,
+			style: {display: "none"},
+			parent: document.body,
+			onchange: () => this.importAll(),
+		});
 	}
 
 	createButtons() {
@@ -32,6 +41,22 @@ class ManageTemplates extends ComfyDialog {
 				type: "button",
 				textContent: "Save",
 				onclick: () => this.save(),
+			})
+		);
+		btns.unshift(
+			$el("button", {
+				type: "button",
+				textContent: "Export",
+				onclick: () => this.exportAll(),
+			})
+		);
+		btns.unshift(
+			$el("button", {
+				type: "button",
+				textContent: "Import",
+				onclick: () => {
+					this.importInput.click();
+				},
 			})
 		);
 		return btns;
@@ -69,6 +94,52 @@ class ManageTemplates extends ComfyDialog {
 		localStorage.setItem(id, JSON.stringify(this.templates));
 	}
 
+	async importAll() {
+		for (const file of this.importInput.files) {
+			if (file.type === "application/json" || file.name.endsWith(".json")) {
+				const reader = new FileReader();
+				reader.onload = async () => {
+					var importFile = JSON.parse(reader.result);
+					if (importFile && importFile?.templates) {
+						for (const template of importFile.templates) {
+							if (template?.name && template?.data) {
+								this.templates.push(template);
+							}
+						}
+						this.store();
+					}
+				};
+				await reader.readAsText(file);
+			}
+		}
+
+		this.importInput.value = null;
+
+		this.close();
+	}
+
+	exportAll() {
+		if (this.templates.length == 0) {
+			alert("No templates to export.");
+			return;
+		}
+
+		const json = JSON.stringify({templates: this.templates}, null, 2); // convert the data to a JSON string
+		const blob = new Blob([json], {type: "application/json"});
+		const url = URL.createObjectURL(blob);
+		const a = $el("a", {
+			href: url,
+			download: "node_templates.json",
+			style: {display: "none"},
+			parent: document.body,
+		});
+		a.click();
+		setTimeout(function () {
+			a.remove();
+			window.URL.revokeObjectURL(url);
+		}, 0);
+	}
+
 	show() {
 		// Show list of template names + delete button
 		super.show(
@@ -97,19 +168,48 @@ class ManageTemplates extends ComfyDialog {
 								}),
 							]
 						),
-						$el("button", {
-							textContent: "Delete",
-							style: {
-								fontSize: "12px",
-								color: "red",
-								fontWeight: "normal",
-							},
-							onclick: (e) => {
-								nameInput.value = "";
-								e.target.style.display = "none";
-								e.target.previousElementSibling.style.display = "none";
-							},
-						}),
+						$el(
+							"div",
+							{},
+							[
+								$el("button", {
+									textContent: "Export",
+									style: {
+										fontSize: "12px",
+										fontWeight: "normal",
+									},
+									onclick: (e) => {
+										const json = JSON.stringify({templates: [t]}, null, 2); // convert the data to a JSON string
+										const blob = new Blob([json], {type: "application/json"});
+										const url = URL.createObjectURL(blob);
+										const a = $el("a", {
+											href: url,
+											download: (nameInput.value || t.name) + ".json",
+											style: {display: "none"},
+											parent: document.body,
+										});
+										a.click();
+										setTimeout(function () {
+											a.remove();
+											window.URL.revokeObjectURL(url);
+										}, 0);
+									},
+								}),
+								$el("button", {
+									textContent: "Delete",
+									style: {
+										fontSize: "12px",
+										color: "red",
+										fontWeight: "normal",
+									},
+									onclick: (e) => {
+										nameInput.value = "";
+										e.target.parentElement.style.display = "none";
+										e.target.parentElement.previousElementSibling.style.display = "none";
+									},
+								}),
+							]
+						),
 					];
 				})
 			)
@@ -164,19 +264,17 @@ app.registerExtension({
 				},
 			}));
 
-			if (subItems.length) {
-				subItems.push(null, {
-					content: "Manage",
-					callback: () => manage.show(),
-				});
+			subItems.push(null, {
+				content: "Manage",
+				callback: () => manage.show(),
+			});
 
-				options.push({
-					content: "Node Templates",
-					submenu: {
-						options: subItems,
-					},
-				});
-			}
+			options.push({
+				content: "Node Templates",
+				submenu: {
+					options: subItems,
+				},
+			});
 
 			return options;
 		};

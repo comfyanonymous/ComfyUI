@@ -4,6 +4,7 @@ from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugme
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
 import comfy.model_management
+import comfy.conds
 import numpy as np
 from enum import Enum
 from . import utils
@@ -26,6 +27,7 @@ class BaseModel(torch.nn.Module):
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
             self.adm_channels = 0
+        self.inpaint_model = False
         print("model_type", model_type.name)
         print("adm", self.adm_channels)
 
@@ -48,7 +50,7 @@ class BaseModel(torch.nn.Module):
         self.register_buffer('alphas_cumprod', torch.tensor(alphas_cumprod, dtype=torch.float32))
         self.register_buffer('alphas_cumprod_prev', torch.tensor(alphas_cumprod_prev, dtype=torch.float32))
 
-    def apply_model(self, x, t, c_concat=None, c_crossattn=None, c_adm=None, control=None, transformer_options={}):
+    def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         if c_concat is not None:
             xc = torch.cat([x] + [c_concat], dim=1)
         else:
@@ -58,9 +60,10 @@ class BaseModel(torch.nn.Module):
         xc = xc.to(dtype)
         t = t.to(dtype)
         context = context.to(dtype)
-        if c_adm is not None:
-            c_adm = c_adm.to(dtype)
-        return self.diffusion_model(xc, t, context=context, y=c_adm, control=control, transformer_options=transformer_options).float()
+        extra_conds = {}
+        for o in kwargs:
+            extra_conds[o] = kwargs[o].to(dtype)
+        return self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
 
     def get_dtype(self):
         return self.diffusion_model.dtype
@@ -70,6 +73,43 @@ class BaseModel(torch.nn.Module):
 
     def encode_adm(self, **kwargs):
         return None
+
+    def extra_conds(self, **kwargs):
+        out = {}
+        if self.inpaint_model:
+            concat_keys = ("mask", "masked_image")
+            cond_concat = []
+            denoise_mask = kwargs.get("denoise_mask", None)
+            latent_image = kwargs.get("latent_image", None)
+            noise = kwargs.get("noise", None)
+            device = kwargs["device"]
+
+            def blank_inpaint_image_like(latent_image):
+                blank_image = torch.ones_like(latent_image)
+                # these are the values for "zero" in pixel space translated to latent space
+                blank_image[:,0] *= 0.8223
+                blank_image[:,1] *= -0.6876
+                blank_image[:,2] *= 0.6364
+                blank_image[:,3] *= 0.1380
+                return blank_image
+
+            for ck in concat_keys:
+                if denoise_mask is not None:
+                    if ck == "mask":
+                        cond_concat.append(denoise_mask[:,:1].to(device))
+                    elif ck == "masked_image":
+                        cond_concat.append(latent_image.to(device)) #NOTE: the latent_image should be masked by the mask in pixel space
+                else:
+                    if ck == "mask":
+                        cond_concat.append(torch.ones_like(noise)[:,:1])
+                    elif ck == "masked_image":
+                        cond_concat.append(blank_inpaint_image_like(noise))
+            data = torch.cat(cond_concat, dim=1)
+            out['c_concat'] = comfy.conds.CONDNoiseShape(data)
+        adm = self.encode_adm(**kwargs)
+        if adm is not None:
+            out['y'] = comfy.conds.CONDRegular(adm)
+        return out
 
     def load_model_weights(self, sd, unet_prefix=""):
         to_load = {}
@@ -112,7 +152,7 @@ class BaseModel(torch.nn.Module):
         return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
 
     def set_inpaint(self):
-        self.concat_keys = ("mask", "masked_image")
+        self.inpaint_model = True
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0):
     adm_inputs = []

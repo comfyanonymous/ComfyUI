@@ -38,7 +38,14 @@ class SD15(supported_models_base.BASE):
             if ids.dtype == torch.float32:
                 state_dict['cond_stage_model.transformer.text_model.embeddings.position_ids'] = ids.round()
 
+        replace_prefix = {}
+        replace_prefix["cond_stage_model."] = "cond_stage_model.clip_l."
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
         return state_dict
+
+    def process_clip_state_dict_for_saving(self, state_dict):
+        replace_prefix = {"clip_l.": "cond_stage_model."}
+        return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
     def clip_target(self):
         return supported_models_base.ClipTarget(sd1_clip.SD1Tokenizer, sd1_clip.SD1ClipModel)
@@ -62,12 +69,12 @@ class SD20(supported_models_base.BASE):
         return model_base.ModelType.EPS
 
     def process_clip_state_dict(self, state_dict):
-        state_dict = utils.transformers_convert(state_dict, "cond_stage_model.model.", "cond_stage_model.transformer.text_model.", 24)
+        state_dict = utils.transformers_convert(state_dict, "cond_stage_model.model.", "cond_stage_model.clip_h.transformer.text_model.", 24)
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
         replace_prefix = {}
-        replace_prefix[""] = "cond_stage_model.model."
+        replace_prefix["clip_h"] = "cond_stage_model.model"
         state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
         state_dict = diffusers_convert.convert_text_enc_state_dict_v20(state_dict)
         return state_dict
@@ -104,7 +111,7 @@ class SDXLRefiner(supported_models_base.BASE):
         "use_linear_in_transformer": True,
         "context_dim": 1280,
         "adm_in_channels": 2560,
-        "transformer_depth": [0, 4, 4, 0],
+        "transformer_depth": [0, 0, 4, 4, 4, 4, 0, 0],
     }
 
     latent_format = latent_formats.SDXL
@@ -139,7 +146,7 @@ class SDXL(supported_models_base.BASE):
     unet_config = {
         "model_channels": 320,
         "use_linear_in_transformer": True,
-        "transformer_depth": [0, 2, 10],
+        "transformer_depth": [0, 0, 2, 2, 10, 10],
         "context_dim": 2048,
         "adm_in_channels": 2816
     }
@@ -165,6 +172,7 @@ class SDXL(supported_models_base.BASE):
         replace_prefix["conditioner.embedders.0.transformer.text_model"] = "cond_stage_model.clip_l.transformer.text_model"
         state_dict = utils.transformers_convert(state_dict, "conditioner.embedders.1.model.", "cond_stage_model.clip_g.transformer.text_model.", 32)
         keys_to_replace["conditioner.embedders.1.model.text_projection"] = "cond_stage_model.clip_g.text_projection"
+        keys_to_replace["conditioner.embedders.1.model.text_projection.weight"] = "cond_stage_model.clip_g.text_projection"
         keys_to_replace["conditioner.embedders.1.model.logit_scale"] = "cond_stage_model.clip_g.logit_scale"
 
         state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
@@ -189,5 +197,14 @@ class SDXL(supported_models_base.BASE):
     def clip_target(self):
         return supported_models_base.ClipTarget(sdxl_clip.SDXLTokenizer, sdxl_clip.SDXLClipModel)
 
+class SSD1B(SDXL):
+    unet_config = {
+        "model_channels": 320,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [0, 0, 2, 2, 4, 4],
+        "context_dim": 2048,
+        "adm_in_channels": 2816
+    }
 
-models = [SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL]
+
+models = [SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B]
