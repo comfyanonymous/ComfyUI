@@ -22,7 +22,7 @@ class TAESDPreviewerImpl(LatentPreviewer):
         self.taesd = taesd
 
     def decode_latent_to_preview(self, x0):
-        x_sample = self.taesd.decoder(x0)[0].detach()
+        x_sample = self.taesd.decoder(x0[:1])[0].detach()
         # x_sample = self.taesd.unscale_latents(x_sample).div(4).add(0.5)  # returns value in [-2, 2]
         x_sample = x_sample.sub(0.5).mul(2)
 
