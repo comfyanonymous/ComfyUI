@@ -141,9 +141,9 @@ def model_lora_keys_clip(model, key_map={}):
 
     text_model_lora_key = "lora_te_text_model_encoder_layers_{}_{}"
     clip_l_present = False
-    for b in range(32):
+    for b in range(32): #TODO: clean up
         for c in LORA_CLIP_MAP:
-            k = "transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
+            k = "clip_h.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
                 lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
                 key_map[lora_key] = k
@@ -154,6 +154,8 @@ def model_lora_keys_clip(model, key_map={}):
 
             k = "clip_l.transformer.text_model.encoder.layers.{}.{}.weight".format(b, c)
             if k in sdk:
+                lora_key = text_model_lora_key.format(b, LORA_CLIP_MAP[c])
+                key_map[lora_key] = k
                 lora_key = "lora_te1_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #SDXL base
                 key_map[lora_key] = k
                 clip_l_present = True
