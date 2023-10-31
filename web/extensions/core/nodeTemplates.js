@@ -16,6 +16,7 @@ import { ComfyDialog, $el } from "../../scripts/ui.js";
 // Node templates -> Manage
 
 const id = "Comfy.NodeTemplates";
+let dragged;
 
 class ManageTemplates extends ComfyDialog {
 	constructor() {
@@ -35,12 +36,12 @@ class ManageTemplates extends ComfyDialog {
 
 	createButtons() {
 		const btns = super.createButtons();
-		btns[0].textContent = "Cancel";
+		btns[0].textContent = "Close";
 		btns.unshift(
 			$el("button", {
 				type: "button",
 				textContent: "Save",
-				onclick: () => this.save(),
+				onclick: () => { this.save(); this.close(); },
 			})
 		);
 		btns.unshift(
@@ -87,7 +88,6 @@ class ManageTemplates extends ComfyDialog {
 
 		this.templates = updated;
 		this.store();
-		this.close();
 	}
 
 	store() {
@@ -145,71 +145,138 @@ class ManageTemplates extends ComfyDialog {
 		super.show(
 			$el(
 				"div",
-				{
-					style: {
-						display: "grid",
-						gridTemplateColumns: "1fr auto",
-						gap: "5px",
-					},
-				},
+				{},
 				this.templates.flatMap((t) => {
 					let nameInput;
 					return [
 						$el(
-							"label",
+							"div",
 							{
-								textContent: "Name: ",
+								draggable: "True",
+								style: {
+									display: "grid",
+									gridTemplateColumns: "1fr auto",
+									borderTop: "2px solid transparent",
+									gap: "5px",
+								},
+								ondrag: (e) => {
+									e.preventDefault();
+								},
+								ondragstart: (e) => {
+									dragged = e.target;
+									e.target.style.opacity = "0.4";
+									e.dataTransfer.effectAllowed = 'move';
+									e.dataTransfer.setData('text/html', this.innerHTML);
+								},
+								ondragend: (e) => {
+									e.target.style.opacity = "1";
+									e.target.style.borderTop = "1px solid transparent";
+									e.target.style.borderBottom = "1px solid transparent";
+								},
+								ondrop: (e) => {
+									e.preventDefault();
+									e.currentTarget.style.opacity = "1";
+									e.currentTarget.style.borderTop = "1px solid transparent";
+									e.currentTarget.style.borderBottom = "1px solid transparent";
+									if ( e.currentTarget == dragged )
+										return;
+
+									let rect = e.currentTarget.getBoundingClientRect();
+									if (e.clientY > rect.top + rect.height / 2) {
+										e.currentTarget.parentNode.insertBefore(dragged, e.currentTarget.nextSibling);
+									} else {
+										e.currentTarget.parentNode.insertBefore(dragged, e.currentTarget);
+									}
+
+									this.save()
+								},
+								ondragleave: (e) => {
+									e.preventDefault();
+									e.currentTarget.style.borderTop = "1px solid transparent";
+									e.currentTarget.style.borderBottom = "1px solid transparent";
+								},
+								ondragover: (e) => {
+									e.preventDefault();
+									if ( e.currentTarget == dragged )
+										return;
+
+									let rect = e.currentTarget.getBoundingClientRect();
+									if (e.clientY > rect.top + rect.height / 2) {
+										e.currentTarget.style.borderTop = "1px solid transparent";
+										e.currentTarget.style.borderBottom = "1px solid yellow";
+									} else {
+										e.currentTarget.style.borderTop = "1px solid yellow";
+										e.currentTarget.style.borderBottom = "1px solid transparent";
+									}
+
+
+								}
 							},
 							[
-								$el("input", {
-									value: t.name,
-									dataset: { name: t.name },
-									$: (el) => (nameInput = el),
-								}),
+								$el(
+									"label",
+									{
+										textContent: "Name: ",
+										style: {
+											cursor: "grab",
+										}
+									},
+									[
+										$el("input", {
+											value: t.name,
+											dataset: { name: t.name },
+											$: (el) => (nameInput = el),
+										}),
+									]
+								),
+								$el(
+									"div",
+									{},
+									[
+										$el("button", {
+											textContent: "Export",
+											style: {
+												fontSize: "12px",
+												fontWeight: "normal",
+											},
+											onclick: (e) => {
+												const json = JSON.stringify({templates: [t]}, null, 2); // convert the data to a JSON string
+												const blob = new Blob([json], {type: "application/json"});
+												const url = URL.createObjectURL(blob);
+												const a = $el("a", {
+													href: url,
+													download: (nameInput.value || t.name) + ".json",
+													style: {display: "none"},
+													parent: document.body,
+												});
+												a.click();
+												setTimeout(function () {
+													a.remove();
+													window.URL.revokeObjectURL(url);
+												}, 0);
+											},
+										}),
+										$el("button", {
+											textContent: "Delete",
+											style: {
+												fontSize: "12px",
+												color: "red",
+												fontWeight: "normal",
+											},
+											onclick: (e) => {
+												const item = e.target.parentNode.parentNode;
+												item.parentNode.removeChild(item);
+												var that = this;
+												// just to be sure that the element is actually deleted
+												setTimeout(function () {
+													that.save();
+												}, 0);
+											},
+										}),
+									]
+								),
 							]
-						),
-						$el(
-							"div",
-							{},
-							[
-								$el("button", {
-									textContent: "Export",
-									style: {
-										fontSize: "12px",
-										fontWeight: "normal",
-									},
-									onclick: (e) => {
-										const json = JSON.stringify({templates: [t]}, null, 2); // convert the data to a JSON string
-										const blob = new Blob([json], {type: "application/json"});
-										const url = URL.createObjectURL(blob);
-										const a = $el("a", {
-											href: url,
-											download: (nameInput.value || t.name) + ".json",
-											style: {display: "none"},
-											parent: document.body,
-										});
-										a.click();
-										setTimeout(function () {
-											a.remove();
-											window.URL.revokeObjectURL(url);
-										}, 0);
-									},
-								}),
-								$el("button", {
-									textContent: "Delete",
-									style: {
-										fontSize: "12px",
-										color: "red",
-										fontWeight: "normal",
-									},
-									onclick: (e) => {
-										nameInput.value = "";
-										e.target.parentElement.style.display = "none";
-										e.target.parentElement.previousElementSibling.style.display = "none";
-									},
-								}),
-							]
-						),
+						)
 					];
 				})
 			)
