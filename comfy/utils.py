@@ -10,8 +10,8 @@ from PIL import Image
 
 def get_extension_calling():
     for frame in inspect.stack():
-        if "/custom_nodes/" in frame.filename:
-            stack_module = inspect.getmodule(frame[0]) 
+        if "/custom_nodes/" in frame.filename or "\\custom_nodes\\" in frame.filename:
+            stack_module = inspect.getmodule(frame[0])
             if stack_module:
                 return re.sub(r".*\.?custom_nodes\.([^\.]+).*", r"\1", stack_module.__name__.replace("\\", ".").replace("/", ".")).split(".")[0]
 
