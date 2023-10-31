@@ -58,12 +58,17 @@ def state_dict_key_replace(state_dict, keys_to_replace):
             state_dict[keys_to_replace[x]] = state_dict.pop(x)
     return state_dict
 
-def state_dict_prefix_replace(state_dict, replace_prefix):
+def state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=False):
+    if filter_keys:
+        out = {}
+    else:
+        out = state_dict
     for rp in replace_prefix:
         replace = list(map(lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp):])), filter(lambda a: a.startswith(rp), state_dict.keys())))
         for x in replace:
-            state_dict[x[1]] = state_dict.pop(x[0])
-    return state_dict
+            w = state_dict.pop(x[0])
+            out[x[1]] = w
+    return out
 
 
 def transformers_convert(sd, prefix_from, prefix_to, number):
@@ -176,25 +181,12 @@ UNET_MAP_BASIC = {
 
 def unet_to_diffusers(unet_config):
     num_res_blocks = unet_config["num_res_blocks"]
-    attention_resolutions = unet_config["attention_resolutions"]
     channel_mult = unet_config["channel_mult"]
-    transformer_depth = unet_config["transformer_depth"]
+    transformer_depth = unet_config["transformer_depth"][:]
+    transformer_depth_output = unet_config["transformer_depth_output"][:]
     num_blocks = len(channel_mult)
-    if isinstance(num_res_blocks, int):
-        num_res_blocks = [num_res_blocks] * num_blocks
-    if isinstance(transformer_depth, int):
-        transformer_depth = [transformer_depth] * num_blocks
 
-    transformers_per_layer = []
-    res = 1
-    for i in range(num_blocks):
-        transformers = 0
-        if res in attention_resolutions:
-            transformers = transformer_depth[i]
-        transformers_per_layer.append(transformers)
-        res *= 2
-
-    transformers_mid = unet_config.get("transformer_depth_middle", transformer_depth[-1])
+    transformers_mid = unet_config.get("transformer_depth_middle", None)
 
     diffusers_unet_map = {}
     for x in range(num_blocks):
@@ -202,10 +194,11 @@ def unet_to_diffusers(unet_config):
         for i in range(num_res_blocks[x]):
             for b in UNET_MAP_RESNET:
                 diffusers_unet_map["down_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "input_blocks.{}.0.{}".format(n, b)
-            if transformers_per_layer[x] > 0:
+            num_transformers = transformer_depth.pop(0)
+            if num_transformers > 0:
                 for b in UNET_MAP_ATTENTIONS:
                     diffusers_unet_map["down_blocks.{}.attentions.{}.{}".format(x, i, b)] = "input_blocks.{}.1.{}".format(n, b)
-                for t in range(transformers_per_layer[x]):
+                for t in range(num_transformers):
                     for b in TRANSFORMER_BLOCKS:
                         diffusers_unet_map["down_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "input_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
             n += 1
@@ -224,7 +217,6 @@ def unet_to_diffusers(unet_config):
             diffusers_unet_map["mid_block.resnets.{}.{}".format(i, UNET_MAP_RESNET[b])] = "middle_block.{}.{}".format(n, b)
 
     num_res_blocks = list(reversed(num_res_blocks))
-    transformers_per_layer = list(reversed(transformers_per_layer))
     for x in range(num_blocks):
         n = (num_res_blocks[x] + 1) * x
         l = num_res_blocks[x] + 1
@@ -233,11 +225,12 @@ def unet_to_diffusers(unet_config):
             for b in UNET_MAP_RESNET:
                 diffusers_unet_map["up_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "output_blocks.{}.0.{}".format(n, b)
             c += 1
-            if transformers_per_layer[x] > 0:
+            num_transformers = transformer_depth_output.pop()
+            if num_transformers > 0:
                 c += 1
                 for b in UNET_MAP_ATTENTIONS:
                     diffusers_unet_map["up_blocks.{}.attentions.{}.{}".format(x, i, b)] = "output_blocks.{}.1.{}".format(n, b)
-                for t in range(transformers_per_layer[x]):
+                for t in range(num_transformers):
                     for b in TRANSFORMER_BLOCKS:
                         diffusers_unet_map["up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
             if i == l - 1:

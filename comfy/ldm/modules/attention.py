@@ -95,9 +95,19 @@ def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
 
 def attention_basic(q, k, v, heads, mask=None):
+    b, _, dim_head = q.shape
+    dim_head //= heads
+    scale = dim_head ** -0.5
+
     h = heads
-    scale = (q.shape[-1] // heads) ** -0.5
-    q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+    q, k, v = map(
+        lambda t: t.unsqueeze(3)
+        .reshape(b, -1, heads, dim_head)
+        .permute(0, 2, 1, 3)
+        .reshape(b * heads, -1, dim_head)
+        .contiguous(),
+        (q, k, v),
+    )
 
     # force cast to fp32 to avoid overflowing
     if _ATTN_PRECISION =="fp32":
@@ -119,16 +129,24 @@ def attention_basic(q, k, v, heads, mask=None):
     sim = sim.softmax(dim=-1)
 
     out = einsum('b i j, b j d -> b i d', sim.to(v.dtype), v)
-    out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
+    out = (
+        out.unsqueeze(0)
+        .reshape(b, heads, -1, dim_head)
+        .permute(0, 2, 1, 3)
+        .reshape(b, -1, heads * dim_head)
+    )
     return out
 
 
 def attention_sub_quad(query, key, value, heads, mask=None):
-    scale = (query.shape[-1] // heads) ** -0.5
-    query = query.unflatten(-1, (heads, -1)).transpose(1,2).flatten(end_dim=1)
-    key_t = key.transpose(1,2).unflatten(1, (heads, -1)).flatten(end_dim=1)
-    del key
-    value = value.unflatten(-1, (heads, -1)).transpose(1,2).flatten(end_dim=1)
+    b, _, dim_head = query.shape
+    dim_head //= heads
+
+    scale = dim_head ** -0.5
+    query = query.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 1, 3).reshape(b * heads, -1, dim_head)
+    value = value.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 1, 3).reshape(b * heads, -1, dim_head)
+
+    key = key.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 3, 1).reshape(b * heads, dim_head, -1)
 
     dtype = query.dtype
     upcast_attention = _ATTN_PRECISION =="fp32" and query.dtype != torch.float32
@@ -137,41 +155,28 @@ def attention_sub_quad(query, key, value, heads, mask=None):
     else:
         bytes_per_token = torch.finfo(query.dtype).bits//8
     batch_x_heads, q_tokens, _ = query.shape
-    _, _, k_tokens = key_t.shape
+    _, _, k_tokens = key.shape
     qk_matmul_size_bytes = batch_x_heads * bytes_per_token * q_tokens * k_tokens
 
     mem_free_total, mem_free_torch = model_management.get_free_memory(query.device, True)
 
-    chunk_threshold_bytes = mem_free_torch * 0.5 #Using only this seems to work better on AMD
-
     kv_chunk_size_min = None
+    kv_chunk_size = None
+    query_chunk_size = None
 
-    #not sure at all about the math here
-    #TODO: tweak this
-    if mem_free_total > 8192 * 1024 * 1024 * 1.3:
-        query_chunk_size_x = 1024 * 4
-    elif mem_free_total > 4096 * 1024 * 1024 * 1.3:
-        query_chunk_size_x = 1024 * 2
-    else:
-        query_chunk_size_x = 1024
-    kv_chunk_size_min_x = None
-    kv_chunk_size_x = (int((chunk_threshold_bytes // (batch_x_heads * bytes_per_token * query_chunk_size_x)) * 2.0) // 1024) * 1024
-    if kv_chunk_size_x < 1024:
-        kv_chunk_size_x = None
+    for x in [4096, 2048, 1024, 512, 256]:
+        count = mem_free_total / (batch_x_heads * bytes_per_token * x * 4.0)
+        if count >= k_tokens:
+            kv_chunk_size = k_tokens
+            query_chunk_size = x
+            break
 
-    if chunk_threshold_bytes is not None and qk_matmul_size_bytes <= chunk_threshold_bytes:
-        # the big matmul fits into our memory limit; do everything in 1 chunk,
-        # i.e. send it down the unchunked fast-path
-        query_chunk_size = q_tokens
-        kv_chunk_size = k_tokens
-    else:
-        query_chunk_size = query_chunk_size_x
-        kv_chunk_size = kv_chunk_size_x
-        kv_chunk_size_min = kv_chunk_size_min_x
+    if query_chunk_size is None:
+        query_chunk_size = 512
 
     hidden_states = efficient_dot_product_attention(
         query,
-        key_t,
+        key,
         value,
         query_chunk_size=query_chunk_size,
         kv_chunk_size=kv_chunk_size,
@@ -186,17 +191,32 @@ def attention_sub_quad(query, key, value, heads, mask=None):
     return hidden_states
 
 def attention_split(q, k, v, heads, mask=None):
-    scale = (q.shape[-1] // heads) ** -0.5
+    b, _, dim_head = q.shape
+    dim_head //= heads
+    scale = dim_head ** -0.5
+
     h = heads
-    q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> (b h) n d', h=h), (q, k, v))
+    q, k, v = map(
+        lambda t: t.unsqueeze(3)
+        .reshape(b, -1, heads, dim_head)
+        .permute(0, 2, 1, 3)
+        .reshape(b * heads, -1, dim_head)
+        .contiguous(),
+        (q, k, v),
+    )
 
     r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2], device=q.device, dtype=q.dtype)
 
     mem_free_total = model_management.get_free_memory(q.device)
 
+    if _ATTN_PRECISION =="fp32":
+        element_size = 4
+    else:
+        element_size = q.element_size()
+
     gb = 1024 ** 3
-    tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * q.element_size()
-    modifier = 3 if q.element_size() == 2 else 2.5
+    tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * element_size
+    modifier = 3
     mem_required = tensor_size * modifier
     steps = 1
 
@@ -224,10 +244,10 @@ def attention_split(q, k, v, heads, mask=None):
                         s1 = einsum('b i d, b j d -> b i j', q[:, i:end].float(), k.float()) * scale
                 else:
                     s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k) * scale
-                first_op_done = True
 
                 s2 = s1.softmax(dim=-1).to(v.dtype)
                 del s1
+                first_op_done = True
 
                 r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
                 del s2
@@ -248,17 +268,23 @@ def attention_split(q, k, v, heads, mask=None):
 
     del q, k, v
 
-    r2 = rearrange(r1, '(b h) n d -> b n (h d)', h=h)
-    del r1
-    return r2
+    r1 = (
+        r1.unsqueeze(0)
+        .reshape(b, heads, -1, dim_head)
+        .permute(0, 2, 1, 3)
+        .reshape(b, -1, heads * dim_head)
+    )
+    return r1
 
 def attention_xformers(q, k, v, heads, mask=None):
-    b, _, _ = q.shape
+    b, _, dim_head = q.shape
+    dim_head //= heads
+
     q, k, v = map(
         lambda t: t.unsqueeze(3)
-        .reshape(b, t.shape[1], heads, -1)
+        .reshape(b, -1, heads, dim_head)
         .permute(0, 2, 1, 3)
-        .reshape(b * heads, t.shape[1], -1)
+        .reshape(b * heads, -1, dim_head)
         .contiguous(),
         (q, k, v),
     )
@@ -270,9 +296,9 @@ def attention_xformers(q, k, v, heads, mask=None):
         raise NotImplementedError
     out = (
         out.unsqueeze(0)
-        .reshape(b, heads, out.shape[1], -1)
+        .reshape(b, heads, -1, dim_head)
         .permute(0, 2, 1, 3)
-        .reshape(b, out.shape[1], -1)
+        .reshape(b, -1, heads * dim_head)
     )
     return out
 
@@ -285,15 +311,14 @@ def attention_pytorch(q, k, v, heads, mask=None):
     )
 
     out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
-
-    if exists(mask):
-        raise NotImplementedError
     out = (
         out.transpose(1, 2).reshape(b, -1, heads * dim_head)
     )
     return out
 
+
 optimized_attention = attention_basic
+optimized_attention_masked = attention_basic
 
 if model_management.xformers_enabled():
     print("Using xformers cross attention")
@@ -308,6 +333,9 @@ else:
     else:
         print("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
+
+if model_management.pytorch_attention_enabled():
+    optimized_attention_masked = attention_pytorch
 
 class CrossAttention(nn.Module):
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None, device=None, operations=comfy.ops):
@@ -334,7 +362,10 @@ class CrossAttention(nn.Module):
         else:
             v = self.to_v(context)
 
-        out = optimized_attention(q, k, v, self.heads, mask)
+        if mask is None:
+            out = optimized_attention(q, k, v, self.heads)
+        else:
+            out = optimized_attention_masked(q, k, v, self.heads, mask)
         return self.to_out(out)
 
 

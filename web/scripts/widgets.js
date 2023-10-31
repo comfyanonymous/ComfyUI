@@ -84,6 +84,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 
 			if (targetWidget.value > max)
 				targetWidget.value = max;
+			targetWidget.callback(targetWidget.value);
 		}
 	}
 	return valueControl;

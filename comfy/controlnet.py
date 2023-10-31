@@ -156,7 +156,7 @@ class ControlNet(ControlBase):
 
 
         context = cond['c_crossattn']
-        y = cond.get('c_adm', None)
+        y = cond.get('y', None)
         if y is not None:
             y = y.to(self.control_model.dtype)
         control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=t, context=context.to(self.control_model.dtype), y=y)
@@ -416,7 +416,7 @@ class T2IAdapter(ControlBase):
                 if control_prev is not None:
                     return control_prev
                 else:
-                    return {}
+                    return None
 
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
