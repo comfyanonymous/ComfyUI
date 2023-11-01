@@ -9,7 +9,7 @@ import math
 import time
 import random
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ExifTags
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
@@ -934,7 +934,7 @@ class LatentFromBatch:
         else:
             s["batch_index"] = samples["batch_index"][batch_index:batch_index + length]
         return (s,)
-    
+
 class RepeatLatentBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -949,7 +949,7 @@ class RepeatLatentBatch:
     def repeat(self, samples, amount):
         s = samples.copy()
         s_in = samples["samples"]
-        
+
         s["samples"] = s_in.repeat((amount, 1,1,1))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
@@ -1278,9 +1278,10 @@ class SaveImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": 
+        return {"required":
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"})},
+                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                     "file_type": (["PNG", "JPEG", "WEBP"], )},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
@@ -1291,24 +1292,45 @@ class SaveImage:
 
     CATEGORY = "image"
 
-    def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_images(self, images, filename_prefix="ComfyUI", file_type="PNG", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
+        extension = {
+            "PNG": "png",
+            "JPEG": "jpg",
+            "WEBP": "webp",
+        }.get(file_type, "png")
         for image in images:
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            metadata = None
-            if not args.disable_metadata:
-                metadata = PngInfo()
-                if prompt is not None:
-                    metadata.add_text("prompt", json.dumps(prompt))
-                if extra_pnginfo is not None:
-                    for x in extra_pnginfo:
-                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            kwargs = dict()
+            if extension == "png":
+                kwargs["compress_level"] = 4
+                if not args.disable_metadata:
+                    metadata = PngInfo()
+                    if prompt is not None:
+                        metadata.add_text("prompt", json.dumps(prompt))
+                    if extra_pnginfo is not None:
+                        for x in extra_pnginfo:
+                            metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                    kwargs["pnginfo"] = metadata
+            else:
+                kwargs["quality"] = 90
+                if not args.disable_metadata:
+                    metadata = {}
+                    if prompt is not None:
+                        metadata["prompt"] = json.dumps(prompt)
+                    if extra_pnginfo is not None:
+                        for x in extra_pnginfo:
+                            metadata[x] = json.dumps(extra_pnginfo[x])
+                    exif = img.getexif()
+                    exif[ExifTags.Base.UserComment] = json.dumps(metadata)
+                    kwargs["exif"] = exif.tobytes()
 
-            file = f"{filename}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
+
+            file = f"{filename}_{counter:05}_.{extension}"
+            img.save(os.path.join(full_output_folder, file), **kwargs)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,

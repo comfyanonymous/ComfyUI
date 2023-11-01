@@ -599,7 +599,7 @@ export class ComfyUI {
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
-			accept: ".json,image/png,.latent,.safetensors",
+			accept: ".json,image/png,image/webp,image/jpeg,.latent,.safetensors",
 			style: {display: "none"},
 			parent: document.body,
 			onchange: () => {
@@ -662,7 +662,7 @@ export class ComfyUI {
 							this.batchCount = i.srcElement.value;
 							document.getElementById("batchCountInputNumber").value = i.srcElement.value;
 						},
-					}),		
+					}),
 				]),
 
 				$el("div",[
@@ -676,7 +676,7 @@ export class ComfyUI {
 						type: "checkbox",
 						checked: false,
 						title: "Automatically queue prompt when the queue size hits 0",
-						
+
 					}),
 				])
 			]),

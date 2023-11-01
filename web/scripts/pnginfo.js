@@ -129,12 +129,74 @@ export function getWebpMetadata(file) {
 					let data = parseExifData(webp.slice(offset + 8, offset + 8 + chunk_length));
 					for (var key in data) {
 						var value = data[key];
-						let index = value.indexOf(':');
-						txt_chunks[value.slice(0, index)] = value.slice(index + 1);
+						if (value.startsWith("{")) {
+							try {
+								Object.assign(txt_chunks, JSON.parse(value));
+							} catch (e) {
+								// Ignore JSON parsing errors
+							}
+						} else {
+							let index = value.indexOf(':');
+							txt_chunks[value.slice(0, index)] = value.slice(index + 1);
+						}
 					}
 				}
 
 				offset += 8 + chunk_length;
+			}
+
+			r(txt_chunks);
+		};
+
+		reader.readAsArrayBuffer(file);
+	});
+}
+
+export function getJpegMetadata(file) {
+	return new Promise((r) => {
+		const reader = new FileReader();
+		reader.onload = (event) => {
+			const jpeg = new Uint8Array(event.target.result);
+			const dataView = new DataView(jpeg.buffer);
+
+			// Check that the JPEG SOI segment is present
+			if (dataView.getUint16(0) !== 0xFFD8) {
+				console.error("Not a valid JPEG file");
+				r();
+				return;
+			}
+
+			// Read segments after the SOI segment
+			let offset = 2;
+			let txt_chunks = {};
+			// Loop through the segments in the JPEG file
+			while (offset < jpeg.length) {
+				const segment_type = dataView.getUint16(offset);
+				if (segment_type == 0xFFD9 || (segment_type & 0xFF00) != 0xFF00) {
+					// EOI segment or invalid segment type
+					break;
+				}
+
+				const segment_length = dataView.getUint16(offset + 2);
+				if (segment_length < 2) {
+					// Invalid segment length
+					break;
+				}
+
+				if (segment_type == 0xFFE1) {
+					let data = parseExifData(jpeg.slice(offset + 10, offset + 8 + segment_length));
+					// Look for UserComment EXIF tag
+					if (data.hasOwnProperty(0x9286)) {
+						let userComment = data[0x9286];
+						try {
+							Object.assign(txt_chunks, JSON.parse(userComment));
+						} catch (e) {
+							// Ignore JSON parsing errors
+						}
+					}
+					break;
+				}
+				offset += 2 + segment_length;
 			}
 
 			r(txt_chunks);

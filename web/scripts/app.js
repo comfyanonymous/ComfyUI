@@ -3,7 +3,7 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { getPngMetadata, getWebpMetadata, getJpegMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -1213,9 +1213,9 @@ export class ComfyApp {
 			for (const node of app.graph._nodes) {
 				node.onGraphConfigured?.();
 			}
-			
+
 			const r = onConfigure?.apply(this, arguments);
-			
+
 			// Fire after onConfigure, used by primitves to generate widget using input nodes config
 			for (const node of app.graph._nodes) {
 				node.onAfterGraphConfigured?.();
@@ -1231,7 +1231,7 @@ export class ComfyApp {
 	async #loadExtensions() {
 	    const extensions = await api.getExtensions();
 	    this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
-	
+
 	    const extensionPromises = extensions.map(async ext => {
 	        try {
 	            await import(api.apiURL(ext));
@@ -1239,7 +1239,7 @@ export class ComfyApp {
 	            console.error("Error loading extension", ext, error);
 	        }
 	    });
-	
+
 	    await Promise.all(extensionPromises);
 	}
 
@@ -1803,6 +1803,15 @@ export class ComfyApp {
 					this.loadGraphData(JSON.parse(pngInfo.workflow));
 				} else if (pngInfo.Workflow) {
 					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
+				}
+			}
+		} else if (file.type === "image/jpeg") {
+			const pngInfo = await getJpegMetadata(file);
+			if (pngInfo) {
+				if (pngInfo.workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.workflow));
+				} else if (pngInfo.Workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.Workflow));
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
