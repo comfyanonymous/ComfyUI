@@ -14,6 +14,9 @@ import { ComfyDialog, $el } from "../../scripts/ui.js";
 // To delete/rename:
 // Right click the canvas
 // Node templates -> Manage
+//
+// To rearrange:
+// Open the manage dialog and Drag and drop elements using the "Name:" label as handle
 
 const id = "Comfy.NodeTemplates";
 
@@ -72,24 +75,6 @@ class ManageTemplates extends ComfyDialog {
 		}
 	}
 
-	save() {
-		// Find all visible inputs and save them as our new list
-		const inputs = this.element.querySelectorAll("input");
-		const updated = [];
-
-		for (let i = 0; i < inputs.length; i++) {
-			const input = inputs[i];
-			if (input.parentElement.style.display !== "none") {
-				const t = this.templates[i];
-				t.name = input.value.trim() || input.getAttribute("data-name");
-				updated.push(t);
-			}
-		}
-
-		this.templates = updated;
-		this.store();
-	}
-
 	store() {
 		localStorage.setItem(id, JSON.stringify(this.templates));
 	}
@@ -146,12 +131,14 @@ class ManageTemplates extends ComfyDialog {
 			$el(
 				"div",
 				{},
-				this.templates.flatMap((t) => {
+				this.templates.flatMap((t,i) => {
 					let nameInput;
 					return [
 						$el(
 							"div",
 							{
+								dataset: { id: i },
+								className: "tempateManagerRow",
 								style: {
 									display: "grid",
 									gridTemplateColumns: "1fr auto",
@@ -169,8 +156,18 @@ class ManageTemplates extends ComfyDialog {
 								ondragend: (e) => {
 									e.target.style.opacity = "1";
 									e.currentTarget.style.border = "1px dashed transparent";
-									e.target.draggable = undefined;
-									this.save();
+									e.currentTarget.removeAttribute("draggable");
+
+									// rearrange the elements in the localStorage
+									this.element.querySelectorAll('.tempateManagerRow').forEach((el,i) => {
+										var prev_i = el.dataset.id;
+
+										if ( el == this.draggedEl && prev_i != i ) {
+											[this.templates[i], this.templates[prev_i]] = [this.templates[prev_i], this.templates[i]];
+										}
+										el.dataset.id = i;
+									});
+									this.store();
 								},
 								ondragover: (e) => {
 									e.preventDefault();
@@ -209,8 +206,10 @@ class ManageTemplates extends ComfyDialog {
 											},
 											onchange: (e) => {
 												clearTimeout(this.saveVisualCue);
-												this.save();
 												var el = e.target;
+												var row = el.parentNode.parentNode;
+												this.templates[row.dataset.id].name = el.value.trim() || 'untitled';
+												this.store();
 												el.style.backgroundColor = 'rgb(40, 95, 40)';
 												el.style.transitionDuration = '0s';
 												this.saveVisualCue = setTimeout(function () {
@@ -265,10 +264,14 @@ class ManageTemplates extends ComfyDialog {
 											onclick: (e) => {
 												const item = e.target.parentNode.parentNode;
 												item.parentNode.removeChild(item);
+												this.templates.splice(item.dataset.id*1, 1);
+												this.store();
+												// update the rows index, setTimeout ensures that the list is updated
 												var that = this;
-												// just to be sure that the element is actually deleted
-												setTimeout(function () {
-													that.save();
+												setTimeout(function (){
+													that.element.querySelectorAll('.tempateManagerRow').forEach((el,i) => {
+														el.dataset.id = i;
+													});
 												}, 0);
 											},
 										}),
