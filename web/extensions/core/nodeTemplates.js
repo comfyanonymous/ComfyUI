@@ -16,13 +16,16 @@ import { ComfyDialog, $el } from "../../scripts/ui.js";
 // Node templates -> Manage
 
 const id = "Comfy.NodeTemplates";
-let dragged;
 
 class ManageTemplates extends ComfyDialog {
 	constructor() {
 		super();
 		this.element.classList.add("comfy-manage-templates");
 		this.templates = this.load();
+		this.draggedEl = null;
+		this.saveVisualCue = null;
+		this.emptyImg = new Image();
+		this.emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
 
 		this.importInput = $el("input", {
 			type: "file",
@@ -37,13 +40,10 @@ class ManageTemplates extends ComfyDialog {
 	createButtons() {
 		const btns = super.createButtons();
 		btns[0].textContent = "Close";
-		btns.unshift(
-			$el("button", {
-				type: "button",
-				textContent: "Save",
-				onclick: () => { this.save(); this.close(); },
-			})
-		);
+		btns[0].onclick = (e) => {
+			clearTimeout(this.saveVisualCue);
+			this.close();
+		};
 		btns.unshift(
 			$el("button", {
 				type: "button",
@@ -152,64 +152,37 @@ class ManageTemplates extends ComfyDialog {
 						$el(
 							"div",
 							{
-								draggable: "True",
 								style: {
 									display: "grid",
 									gridTemplateColumns: "1fr auto",
-									borderTop: "2px solid transparent",
+									border: "1px dashed transparent",
 									gap: "5px",
-								},
-								ondrag: (e) => {
-									e.preventDefault();
+									backgroundColor: "var(--comfy-menu-bg)"
 								},
 								ondragstart: (e) => {
-									dragged = e.target;
-									e.target.style.opacity = "0.4";
+									this.draggedEl = e.currentTarget;
+									e.currentTarget.style.opacity = "0.6";
+									e.currentTarget.style.border = "1px dashed yellow";
 									e.dataTransfer.effectAllowed = 'move';
-									e.dataTransfer.setData('text/html', this.innerHTML);
+									e.dataTransfer.setDragImage(this.emptyImg, 0, 0);
 								},
 								ondragend: (e) => {
 									e.target.style.opacity = "1";
-									e.target.style.borderTop = "1px solid transparent";
-									e.target.style.borderBottom = "1px solid transparent";
-								},
-								ondrop: (e) => {
-									e.preventDefault();
-									e.currentTarget.style.opacity = "1";
-									e.currentTarget.style.borderTop = "1px solid transparent";
-									e.currentTarget.style.borderBottom = "1px solid transparent";
-									if ( e.currentTarget == dragged )
-										return;
-
-									let rect = e.currentTarget.getBoundingClientRect();
-									if (e.clientY > rect.top + rect.height / 2) {
-										e.currentTarget.parentNode.insertBefore(dragged, e.currentTarget.nextSibling);
-									} else {
-										e.currentTarget.parentNode.insertBefore(dragged, e.currentTarget);
-									}
-
-									this.save()
-								},
-								ondragleave: (e) => {
-									e.preventDefault();
-									e.currentTarget.style.borderTop = "1px solid transparent";
-									e.currentTarget.style.borderBottom = "1px solid transparent";
+									e.currentTarget.style.border = "1px dashed transparent";
+									e.target.draggable = undefined;
+									this.save();
 								},
 								ondragover: (e) => {
 									e.preventDefault();
-									if ( e.currentTarget == dragged )
+									if ( e.currentTarget == this.draggedEl )
 										return;
 
 									let rect = e.currentTarget.getBoundingClientRect();
 									if (e.clientY > rect.top + rect.height / 2) {
-										e.currentTarget.style.borderTop = "1px solid transparent";
-										e.currentTarget.style.borderBottom = "1px solid yellow";
+										e.currentTarget.parentNode.insertBefore(this.draggedEl, e.currentTarget.nextSibling);
 									} else {
-										e.currentTarget.style.borderTop = "1px solid yellow";
-										e.currentTarget.style.borderBottom = "1px solid transparent";
+										e.currentTarget.parentNode.insertBefore(this.draggedEl, e.currentTarget);
 									}
-
-
 								}
 							},
 							[
@@ -219,14 +192,40 @@ class ManageTemplates extends ComfyDialog {
 										textContent: "Name: ",
 										style: {
 											cursor: "grab",
+										},
+										onmousedown: (e) => {
+											// enable dragging only from the label
+											if (e.target.localName == 'label')
+												e.currentTarget.parentNode.draggable = 'true';
 										}
 									},
 									[
 										$el("input", {
 											value: t.name,
 											dataset: { name: t.name },
+											style: {
+												transitionProperty: 'background-color',
+												transitionDuration: '0s',
+											},
+											onchange: (e) => {
+												clearTimeout(this.saveVisualCue);
+												this.save();
+												var el = e.target;
+												el.style.backgroundColor = 'rgb(40, 95, 40)';
+												el.style.transitionDuration = '0s';
+												this.saveVisualCue = setTimeout(function () {
+													el.style.transitionDuration = '.7s';
+													el.style.backgroundColor = 'var(--comfy-input-bg)';
+												}, 15);
+											},
+											onkeypress: (e) => {
+												var el = e.target;
+												clearTimeout(this.saveVisualCue);
+												el.style.transitionDuration = '0s';
+												el.style.backgroundColor = 'var(--comfy-input-bg)';
+											},
 											$: (el) => (nameInput = el),
-										}),
+										})
 									]
 								),
 								$el(
