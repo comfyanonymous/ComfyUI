@@ -32,9 +32,12 @@ class V_PREDICTION(EPS):
 
 
 class ModelSamplingDiscrete(torch.nn.Module):
-    def __init__(self, model_config):
+    def __init__(self, model_config=None):
         super().__init__()
-        self._register_schedule(given_betas=None, beta_schedule=model_config.beta_schedule, timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
+        beta_schedule = "linear"
+        if model_config is not None:
+            beta_schedule = model_config.beta_schedule
+        self._register_schedule(given_betas=None, beta_schedule=beta_schedule, timesteps=1000, linear_start=0.00085, linear_end=0.012, cosine_s=8e-3)
         self.sigma_data = 1.0
 
     def _register_schedule(self, given_betas=None, beta_schedule="linear", timesteps=1000,
