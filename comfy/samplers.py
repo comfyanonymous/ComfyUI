@@ -415,15 +415,16 @@ def create_cond_with_same_area_if_none(conds, c):
     conds += [out]
 
 def calculate_start_end_timesteps(model, conds):
+    s = model.model_sampling
     for t in range(len(conds)):
         x = conds[t]
 
         timestep_start = None
         timestep_end = None
         if 'start_percent' in x:
-            timestep_start = model.sigma_to_t(model.t_to_sigma(torch.tensor(x['start_percent'] * 999.0)))
+            timestep_start = s.percent_to_sigma(x['start_percent'])
         if 'end_percent' in x:
-            timestep_end = model.sigma_to_t(model.t_to_sigma(torch.tensor(x['end_percent'] * 999.0)))
+            timestep_end = s.percent_to_sigma(x['end_percent'])
 
         if (timestep_start is not None) or (timestep_end is not None):
             n = x.copy()
@@ -434,14 +435,15 @@ def calculate_start_end_timesteps(model, conds):
             conds[t] = n
 
 def pre_run_control(model, conds):
+    s = model.model_sampling
     for t in range(len(conds)):
         x = conds[t]
 
         timestep_start = None
         timestep_end = None
-        percent_to_timestep_function = lambda a: model.sigma_to_t(model.t_to_sigma(torch.tensor(a) * 999.0))
+        percent_to_timestep_function = lambda a: s.percent_to_sigma(a)
         if 'control' in x:
-            x['control'].pre_run(model.inner_model.inner_model, percent_to_timestep_function)
+            x['control'].pre_run(model, percent_to_timestep_function)
 
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []
@@ -571,8 +573,8 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
 
     model_wrap = wrap_model(model)
 
-    calculate_start_end_timesteps(model_wrap, negative)
-    calculate_start_end_timesteps(model_wrap, positive)
+    calculate_start_end_timesteps(model, negative)
+    calculate_start_end_timesteps(model, positive)
 
     #make sure each cond area has an opposite one with the same area
     for c in positive:
@@ -580,7 +582,7 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     for c in negative:
         create_cond_with_same_area_if_none(positive, c)
 
-    pre_run_control(model_wrap, negative + positive)
+    pre_run_control(model, negative + positive)
 
     apply_empty_x_to_equal_area(list(filter(lambda c: c.get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
     apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
