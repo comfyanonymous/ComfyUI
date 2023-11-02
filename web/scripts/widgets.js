@@ -278,7 +278,7 @@ export const ComfyWidgets = {
 		let disable_rounding = app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")
 		if (precision == 0) precision = undefined;
 		const { val, config } = getNumberDefaults(inputData, 0.5, precision, !disable_rounding);
-		return { widget: node.addWidget(widgetType, inputName, val, 
+		return { widget: node.addWidget(widgetType, inputName, val,
 			function (v) {
 				if (config.round) {
 					this.value = Math.round(v/config.round)*config.round;
@@ -356,7 +356,7 @@ export const ComfyWidgets = {
 				subfolder = name.substring(0, folder_separator);
 				name = name.substring(folder_separator + 1);
 			}
-			img.src = api.apiURL(`/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}`);
+			img.src = api.apiURL(`/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}&rand=${Math.random()}`);
 			node.setSizeForImage?.();
 		}
 
