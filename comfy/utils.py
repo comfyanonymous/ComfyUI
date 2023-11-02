@@ -5,6 +5,9 @@ import comfy.checkpoint_pickle
 import safetensors.torch
 import numpy as np
 from PIL import Image
+import time
+import GPUtil
+from comfy.cli_args import args
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -426,6 +429,21 @@ class ProgressBar:
         self.current = value
         if self.hook is not None:
             self.hook(self.current, self.total, preview)
+        wait_gpu_cooldown()
 
     def update(self, value):
         self.update_absolute(self.current + value)
+
+def wait_gpu_cooldown():
+    if args.max_gpu_temperature > 0:
+        while True:
+            tooHot = False
+            for gpu in GPUtil.getGPUs():
+                if gpu.temperature > args.max_gpu_temperature:
+                    tooHot = True
+                    print(" Waiting... GPU is too hot!", gpu.temperature, "C")
+
+            if tooHot:
+                time.sleep(2)
+            else:
+                break

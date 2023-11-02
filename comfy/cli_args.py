@@ -92,6 +92,7 @@ vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for e
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 
+parser.add_argument("--max-gpu-temperature", type=int, default=0, help="Set GPU overheating protection. Most tasks will wait until the GPU temperature drops below the value set. 0 to disable.")
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
