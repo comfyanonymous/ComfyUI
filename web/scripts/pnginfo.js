@@ -120,24 +120,20 @@ export function getWebpMetadata(file) {
 
 			// Start searching for chunks after the WEBP signature
 			let offset = 12;
-			let txt_chunks = {};
 			// Loop through the chunks in the WEBP file
 			while (offset < webp.length) {
 				const chunk_length = dataView.getUint32(offset + 4, true);
 				const chunk_type = String.fromCharCode(...webp.slice(offset, offset + 4));
 				if (chunk_type === "EXIF") {
 					let data = parseExifData(webp.slice(offset + 8, offset + 8 + chunk_length));
-					for (var key in data) {
-						var value = data[key];
-						if (value.startsWith("{")) {
-							try {
-								Object.assign(txt_chunks, JSON.parse(value));
-							} catch (e) {
-								// Ignore JSON parsing errors
-							}
-						} else {
-							let index = value.indexOf(':');
-							txt_chunks[value.slice(0, index)] = value.slice(index + 1);
+					// Look for UserComment EXIF tag
+					if (data.hasOwnProperty(0x9286)) {
+						let userComment = data[0x9286];
+						try {
+							r(JSON.parse(userComment));
+							return;
+						} catch (e) {
+							// Ignore JSON parsing errors
 						}
 					}
 				}
@@ -145,7 +141,7 @@ export function getWebpMetadata(file) {
 				offset += 8 + chunk_length;
 			}
 
-			r(txt_chunks);
+			r();
 		};
 
 		reader.readAsArrayBuffer(file);
@@ -168,7 +164,6 @@ export function getJpegMetadata(file) {
 
 			// Read segments after the SOI segment
 			let offset = 2;
-			let txt_chunks = {};
 			// Loop through the segments in the JPEG file
 			while (offset < jpeg.length) {
 				const segment_type = dataView.getUint16(offset);
@@ -188,18 +183,14 @@ export function getJpegMetadata(file) {
 					// Look for UserComment EXIF tag
 					if (data.hasOwnProperty(0x9286)) {
 						let userComment = data[0x9286];
-						try {
-							Object.assign(txt_chunks, JSON.parse(userComment));
-						} catch (e) {
-							// Ignore JSON parsing errors
-						}
+						r(JSON.parse(userComment));
+						return;
 					}
-					break;
 				}
 				offset += 2 + segment_length;
 			}
 
-			r(txt_chunks);
+			r();
 		};
 
 		reader.readAsArrayBuffer(file);

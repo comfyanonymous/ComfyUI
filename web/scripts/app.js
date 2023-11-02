@@ -1800,18 +1800,18 @@ export class ComfyApp {
 			const pngInfo = await getWebpMetadata(file);
 			if (pngInfo) {
 				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
+					this.loadGraphData(pngInfo.workflow);
 				} else if (pngInfo.Workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
+					this.loadGraphData(pngInfo.Workflow); // Support loading workflows from that webp custom node.
 				}
 			}
 		} else if (file.type === "image/jpeg") {
 			const pngInfo = await getJpegMetadata(file);
 			if (pngInfo) {
 				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
+					this.loadGraphData(pngInfo.workflow);
 				} else if (pngInfo.Workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.Workflow));
+					this.loadGraphData(pngInfo.Workflow);
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {

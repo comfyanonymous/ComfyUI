@@ -1320,10 +1320,9 @@ class SaveImage:
                 if not args.disable_metadata:
                     metadata = {}
                     if prompt is not None:
-                        metadata["prompt"] = json.dumps(prompt)
+                        metadata["prompt"] = prompt
                     if extra_pnginfo is not None:
-                        for x in extra_pnginfo:
-                            metadata[x] = json.dumps(extra_pnginfo[x])
+                        metadata.update(extra_pnginfo)
                     exif = img.getexif()
                     exif[ExifTags.Base.UserComment] = json.dumps(metadata)
                     kwargs["exif"] = exif.tobytes()
