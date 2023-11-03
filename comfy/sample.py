@@ -1,6 +1,7 @@
 import torch
 import comfy.model_management
 import comfy.samplers
+import comfy.conds
 import comfy.utils
 import math
 import numpy as np
@@ -33,21 +34,23 @@ def prepare_mask(noise_mask, shape, device):
     noise_mask = noise_mask.to(device)
     return noise_mask
 
-def broadcast_cond(cond, batch, device):
-    """broadcasts conditioning to the batch size"""
-    copy = []
-    for p in cond:
-        t = comfy.utils.repeat_to_batch_size(p[0], batch)
-        t = t.to(device)
-        copy += [[t] + p[1:]]
-    return copy
-
 def get_models_from_cond(cond, model_type):
     models = []
     for c in cond:
-        if model_type in c[1]:
-            models += [c[1][model_type]]
+        if model_type in c:
+            models += [c[model_type]]
     return models
+
+def convert_cond(cond):
+    out = []
+    for c in cond:
+        temp = c[1].copy()
+        model_conds = temp.get("model_conds", {})
+        if c[0] is not None:
+            model_conds["c_crossattn"] = comfy.conds.CONDCrossAttn(c[0])
+        temp["model_conds"] = model_conds
+        out.append(temp)
+    return out
 
 def get_additional_models(positive, negative, dtype):
     """loads additional models in positive and negative conditioning"""
@@ -72,6 +75,8 @@ def cleanup_additional_models(models):
 
 def prepare_sampling(model, noise_shape, positive, negative, noise_mask):
     device = model.load_device
+    positive = convert_cond(positive)
+    negative = convert_cond(negative)
 
     if noise_mask is not None:
         noise_mask = prepare_mask(noise_mask, noise_shape, device)
@@ -81,9 +86,7 @@ def prepare_sampling(model, noise_shape, positive, negative, noise_mask):
     comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise_shape[0] * noise_shape[2] * noise_shape[3]) + inference_memory)
     real_model = model.model
 
-    positive_copy = broadcast_cond(positive, noise_shape[0], device)
-    negative_copy = broadcast_cond(negative, noise_shape[0], device)
-    return real_model, positive_copy, negative_copy, noise_mask, models
+    return real_model, positive, negative, noise_mask, models
 
 
 def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):

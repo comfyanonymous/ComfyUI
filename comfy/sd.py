@@ -55,13 +55,26 @@ def load_clip_weights(model, sd):
 
 
 def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
-    key_map = comfy.lora.model_lora_keys_unet(model.model)
-    key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
+    key_map = {}
+    if model is not None:
+        key_map = comfy.lora.model_lora_keys_unet(model.model, key_map)
+    if clip is not None:
+        key_map = comfy.lora.model_lora_keys_clip(clip.cond_stage_model, key_map)
+
     loaded = comfy.lora.load_lora(lora, key_map)
-    new_modelpatcher = model.clone()
-    k = new_modelpatcher.add_patches(loaded, strength_model)
-    new_clip = clip.clone()
-    k1 = new_clip.add_patches(loaded, strength_clip)
+    if model is not None:
+        new_modelpatcher = model.clone()
+        k = new_modelpatcher.add_patches(loaded, strength_model)
+    else:
+        k = ()
+        new_modelpatcher = None
+
+    if clip is not None:
+        new_clip = clip.clone()
+        k1 = new_clip.add_patches(loaded, strength_clip)
+    else:
+        k1 = ()
+        new_clip = None
     k = set(k)
     k1 = set(k1)
     for x in loaded:
@@ -360,7 +373,7 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     from . import latent_formats
     model_config.latent_format = latent_formats.SD15(scale_factor=scale_factor)
-    model_config.unet_config = unet_config
+    model_config.unet_config = model_detection.convert_config(unet_config)
 
     if config['model']["target"].endswith("ImageEmbeddingConditionedLatentDiffusion"):
         model = model_base.SD21UNCLIP(model_config, noise_aug_config["params"], model_type=model_type)
@@ -388,11 +401,13 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
         if clip_config["target"].endswith("FrozenOpenCLIPEmbedder"):
             clip_target.clip = sd2_clip.SD2ClipModel
             clip_target.tokenizer = sd2_clip.SD2Tokenizer
+            clip = CLIP(clip_target, embedding_directory=embedding_directory)
+            w.cond_stage_model = clip.cond_stage_model.clip_h
         elif clip_config["target"].endswith("FrozenCLIPEmbedder"):
             clip_target.clip = sd1_clip.SD1ClipModel
             clip_target.tokenizer = sd1_clip.SD1Tokenizer
-        clip = CLIP(clip_target, embedding_directory=embedding_directory)
-        w.cond_stage_model = clip.cond_stage_model
+            clip = CLIP(clip_target, embedding_directory=embedding_directory)
+            w.cond_stage_model = clip.cond_stage_model.clip_l
         load_clip_weights(w, state_dict)
 
     return (comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
