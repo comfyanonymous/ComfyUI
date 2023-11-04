@@ -308,7 +308,7 @@ app.registerExtension({
 				this.isVirtualNode = true;
 			}
 
-			applyToGraph() {
+			applyToGraph(extraLinks = []) {
 				if (!this.outputs[0].links?.length) return;
 
 				function get_links(node) {
@@ -325,10 +325,9 @@ app.registerExtension({
 					return links;
 				}
 
-				let links = get_links(this);
+				let links = [...get_links(this).map((l) => app.graph.links[l]), ...extraLinks];
 				// For each output link copy our value over the original widget value
-				for (const l of links) {
-					const linkInfo = app.graph.links[l];
+				for (const linkInfo of links) {
 					const node = this.graph.getNodeById(linkInfo.target_id);
 					const input = node.inputs[linkInfo.target_slot];
 					const widgetName = input.widget.name;
@@ -405,7 +404,12 @@ app.registerExtension({
 				}
 
 				if (this.outputs[slot].links?.length) {
-					return this.#isValidConnection(input);
+					const valid = this.#isValidConnection(input);
+					if (valid) {
+						// On connect of additional outputs, copy our value to their widget
+						this.applyToGraph([{ target_id: target_node.id, target_slot }]);
+					}
+					return valid;
 				}
 			}
 
