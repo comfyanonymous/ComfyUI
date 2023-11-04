@@ -132,6 +132,19 @@ describe("group node", () => {
 			group.outputs["EmptyLatentImage LATENT"].connections.map((t) => [t.targetNode.id, t.targetInput.index])
 		).toEqual([[nodes.sampler.id, 3]]);
 	});
+
+	test("maintains all output links on conversion", async () => {
+		const { ez, graph, app } = await start();
+		const nodes = createDefaultWorkflow(ez, graph);
+		const save2 = ez.SaveImage(...nodes.decode.outputs);
+		const save3 = ez.SaveImage(...nodes.decode.outputs);
+		const group = await convertToGroup(app, graph, "test", [nodes.sampler, nodes.decode]);
+		expect(group.outputs[0].connections.length).toBe(3);
+		expect(group.outputs[0].connections[0].targetNode.id).toBe(nodes.save.id);
+		expect(group.outputs[0].connections[1].targetNode.id).toBe(save2.id);
+		expect(group.outputs[0].connections[2].targetNode.id).toBe(save3.id);
+	});
+
 	test("can be be converted back to nodes", async () => {
 		const { ez, graph, app } = await start();
 		const nodes = createDefaultWorkflow(ez, graph);

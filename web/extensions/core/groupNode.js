@@ -259,7 +259,9 @@ class ConvertToGroupAction {
 		if (!node.outputs) return;
 		for (const output of node.outputs) {
 			if (!output.links) continue;
-			for (const l of output.links) {
+			// Clone the links as they'll be changed if we reconnect
+			const links = [...output.links];
+			for (const l of links) {
 				const link = app.graph.links[l];
 				if (!link) continue;
 
