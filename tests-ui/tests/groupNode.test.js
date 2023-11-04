@@ -580,4 +580,30 @@ describe("group node", () => {
 		expect(call).toContain("NotVAEDecode");
 		expect(call).toContain("workflow/testerror");
 	});
+	test("maintains widget inputs on conversion back to nodes", async () => {
+		const { ez, graph, app } = await start();
+		let pos = ez.CLIPTextEncode({ text: "positive" });
+		pos.node.title = "Positive";
+		let neg = ez.CLIPTextEncode({ text: "negative" });
+		neg.node.title = "Negative";
+		pos.widgets.text.convertToInput();
+		neg.widgets.text.convertToInput();
+
+		let primitive = ez.PrimitiveNode();
+		primitive.outputs[0].connectTo(pos.inputs.text);
+		primitive.outputs[0].connectTo(neg.inputs.text);
+
+		const group = await convertToGroup(app, graph, "test", [pos, neg, primitive]);
+		expect(group.widgets["Positive text"].value).toBe("positive");
+		expect(group.widgets["Negative text"].value).toBe("positive");
+
+		const newNodes = group.menu["Convert to nodes"].call();
+		pos = graph.find(newNodes.find((n) => n.title === "Positive"));
+		neg = graph.find(newNodes.find((n) => n.title === "Negative"));
+		primitive = graph.find(newNodes.find((n) => n.type === "PrimitiveNode"));
+
+		expect(pos.inputs).toHaveLength(2);
+		expect(neg.inputs).toHaveLength(2);
+		expect(primitive.outputs[0].connections).toHaveLength(2);
+	});
 });

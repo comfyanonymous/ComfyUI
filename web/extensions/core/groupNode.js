@@ -154,13 +154,6 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 				seenInputs[name] = 1;
 			}
 
-			const nodeInput = node.inputs?.findIndex((input) => input.name === inputName);
-
-			// For now internal widget inputs are not supported
-			if (nodeInput > -1 && node.inputs[nodeInput]?.widget) {
-				node.inputs.splice(nodeInput, 1);
-			}
-
 			if (widgetType) {
 				// Store mapping to get a group widget name from an inner id + name
 				if (!slots.widgets[nodeId]) slots.widgets[nodeId] = {};
