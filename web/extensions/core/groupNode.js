@@ -6,7 +6,7 @@ export const IS_GROUP_NODE = Symbol();
 export const GROUP_DATA = Symbol();
 const GROUP_SLOTS = Symbol();
 
-export async function registerGroupNodes(groupNodes, source, prefix) {
+export async function registerGroupNodes(groupNodes, source, prefix, missingNodeTypes) {
 	if (!groupNodes) return;
 
 	let extra = app.graph.extra;
@@ -15,7 +15,20 @@ export async function registerGroupNodes(groupNodes, source, prefix) {
 	if (!nodes) extra.groupNodes = nodes = {};
 
 	for (const g in groupNodes) {
-		const def = buildNodeDef(groupNodes[g], g, globalDefs, source);
+		const groupData = groupNodes[g];
+
+		let hasMissing = false;
+		for (const n of groupData.nodes) {
+			// Find missing node types
+			if (!(n.type in LiteGraph.registered_node_types)) {
+				missingNodeTypes.push(n.type);
+				hasMissing = true;
+			}
+		}
+
+		if (hasMissing) continue;
+
+		const def = buildNodeDef(groupData, g, globalDefs, source);
 		if (prefix) {
 			def.display_name = prefix + "/" + def.display_name;
 		}
@@ -319,8 +332,8 @@ class ConvertToGroupAction {
 				Object.values(app.canvas.selected_nodes).find((n) => n.constructor.nodeData?.[IS_GROUP_NODE]),
 			callback: async () => {
 				const name = this.getName();
-				if(!name) return;
-				
+				if (!name) return;
+
 				let extra = app.graph.extra;
 				if (!extra) app.graph.extra = extra = {};
 				let groupNodes = extra.groupNodes;
@@ -402,8 +415,8 @@ const ext = {
 			};
 		}
 	},
-	async beforeConfigureGraph(graphData) {
-		registerGroupNodes(graphData?.extra?.groupNodes, "workflow");
+	async beforeConfigureGraph(graphData, missingNodeTypes) {
+		registerGroupNodes(graphData?.extra?.groupNodes, "workflow", undefined, missingNodeTypes);
 	},
 	addCustomNodeDefs(defs) {
 		globalDefs = defs;

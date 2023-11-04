@@ -1486,8 +1486,8 @@ export class ComfyApp {
 			reset_invalid_values = true;
 		}
 
-		await this.#invokeExtensionsAsync("beforeConfigureGraph", graphData);
 		const missingNodeTypes = [];
+		await this.#invokeExtensionsAsync("beforeConfigureGraph", graphData, missingNodeTypes);
 		for (let n of graphData.nodes) {
 			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";

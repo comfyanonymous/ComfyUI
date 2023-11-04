@@ -541,4 +541,43 @@ describe("group node", () => {
 			})
 		);
 	});
+	test("shows missing node error on missing internal node when loading graph data", async () => {
+		const { graph } = await start();
+
+		const dialogShow = jest.spyOn(graph.app.ui.dialog, "show");
+		await graph.app.loadGraphData({
+			last_node_id: 3,
+			last_link_id: 1,
+			nodes: [
+				{
+					id: 3,
+					type: "workflow/testerror",
+				},
+			],
+			links: [],
+			groups: [],
+			config: {},
+			extra: {
+				groupNodes: {
+					testerror: {
+						nodes: [
+							{
+								type: "NotKSampler",
+							},
+							{
+								type: "NotVAEDecode",
+							},
+						],
+					},
+				},
+			},
+		});
+
+		expect(dialogShow).toBeCalledTimes(1);
+		const call = dialogShow.mock.calls[0][0];
+		expect(call).toContain("the following node types were not found");
+		expect(call).toContain("NotKSampler");
+		expect(call).toContain("NotVAEDecode");
+		expect(call).toContain("workflow/testerror");
+	});
 });
