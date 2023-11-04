@@ -138,11 +138,20 @@ describe("group node", () => {
 		const nodes = createDefaultWorkflow(ez, graph);
 		const save2 = ez.SaveImage(...nodes.decode.outputs);
 		const save3 = ez.SaveImage(...nodes.decode.outputs);
+		// Ensure an output with multiple links maintains them on convert to group
 		const group = await convertToGroup(app, graph, "test", [nodes.sampler, nodes.decode]);
 		expect(group.outputs[0].connections.length).toBe(3);
 		expect(group.outputs[0].connections[0].targetNode.id).toBe(nodes.save.id);
 		expect(group.outputs[0].connections[1].targetNode.id).toBe(save2.id);
 		expect(group.outputs[0].connections[2].targetNode.id).toBe(save3.id);
+
+		// and they're still linked when converting back to nodes
+		const newNodes = group.menu["Convert to nodes"].call();
+		const decode = graph.find(newNodes.find((n) => n.type === "VAEDecode"));
+		expect(decode.outputs[0].connections.length).toBe(3);
+		expect(decode.outputs[0].connections[0].targetNode.id).toBe(nodes.save.id);
+		expect(decode.outputs[0].connections[1].targetNode.id).toBe(save2.id);
+		expect(decode.outputs[0].connections[2].targetNode.id).toBe(save3.id);
 	});
 
 	test("can be be converted back to nodes", async () => {

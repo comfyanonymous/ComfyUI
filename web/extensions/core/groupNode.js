@@ -554,7 +554,8 @@ const ext = {
 						for (let outputId = 0; outputId < node.outputs?.length; outputId++) {
 							const output = node.outputs[outputId];
 							if (!output.links) continue;
-							for (const l of output.links) {
+							const links = [...output.links];
+							for (const l of links) {
 								const slot = slots.outputs[outputId];
 								const link = app.graph.links[l];
 								const targetNode = app.graph.getNodeById(link.target_id);
