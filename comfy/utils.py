@@ -14,7 +14,15 @@ def get_extension_calling():
         if os.sep + "custom_nodes" + os.sep in frame.filename:
             stack_module = inspect.getmodule(frame[0])
             if stack_module:
-                return re.sub(r".*\.?custom_nodes\.([^\.]+).*", r"\1", stack_module.__name__.replace("\\", ".").replace("/", ".")).split(".")[0]
+                stack = []
+
+                parts = re.sub(r".*\.?custom_nodes\.([^\.]+).*", r"\1", stack_module.__name__.replace(os.sep, ".")).split(".")
+
+                while len(parts) > 0:
+                    stack.append(".".join(parts))
+                    parts.pop()
+
+                return stack
 
     return None
 

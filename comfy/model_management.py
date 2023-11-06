@@ -77,9 +77,11 @@ def get_torch_device():
     global cpu_state
     global extensions_devices
 
-    extension = comfy.utils.get_extension_calling()
-    if extension is not None and extension in extensions_devices:
-        return torch.device(extensions_devices[extension])
+    extension_stack = comfy.utils.get_extension_calling()
+    if extension_stack is not None:
+        for extension in extension_stack:
+            if extension in extensions_devices:
+                return torch.device(extensions_devices[extension])
 
     if directml_enabled:
         global directml_device
