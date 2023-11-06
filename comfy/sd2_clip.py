@@ -9,8 +9,7 @@ class SD2ClipHModel(sd1_clip.SDClipModel):
             layer_idx=23
 
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd2_clip_config.json")
-        super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, textmodel_path=textmodel_path, dtype=dtype)
-        self.empty_tokens = [[49406] + [49407] + [0] * 75]
+        super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, textmodel_path=textmodel_path, dtype=dtype, special_tokens={"start": 49406, "end": 49407, "pad": 0})
 
 class SD2ClipHTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, tokenizer_path=None, embedding_directory=None):
