@@ -35,7 +35,7 @@ class ClipTokenWeightEncoder:
             return z_empty.cpu(), first_pooled.cpu()
         return torch.cat(output, dim=-2).cpu(), first_pooled.cpu()
 
-class SD1ClipModel(torch.nn.Module, ClipTokenWeightEncoder):
+class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     """Uses the CLIP transformer encoder for text (from huggingface)"""
     LAYERS = [
         "last",
@@ -278,7 +278,13 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
 
     valid_file = None
     for embed_dir in embedding_directory:
-        embed_path = os.path.join(embed_dir, embedding_name)
+        embed_path = os.path.abspath(os.path.join(embed_dir, embedding_name))
+        embed_dir = os.path.abspath(embed_dir)
+        try:
+            if os.path.commonpath((embed_dir, embed_path)) != embed_dir:
+                continue
+        except:
+            continue
         if not os.path.isfile(embed_path):
             extensions = ['.safetensors', '.pt', '.bin']
             for x in extensions:
@@ -336,18 +342,25 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
             embed_out = next(iter(values))
     return embed_out
 
-class SD1Tokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l'):
+class SDTokenizer:
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
-        self.tokenizer = CLIPTokenizer.from_pretrained(tokenizer_path)
+        self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
         self.max_length = max_length
-        self.max_tokens_per_section = self.max_length - 2
 
         empty = self.tokenizer('')["input_ids"]
-        self.start_token = empty[0]
-        self.end_token = empty[1]
+        if has_start_token:
+            self.tokens_start = 1
+            self.start_token = empty[0]
+            self.end_token = empty[1]
+        else:
+            self.tokens_start = 0
+            self.start_token = None
+            self.end_token = empty[0]
         self.pad_with_end = pad_with_end
+        self.pad_to_max_length = pad_to_max_length
+
         vocab = self.tokenizer.get_vocab()
         self.inv_vocab = {v: k for k, v in vocab.items()}
         self.embedding_directory = embedding_directory
@@ -408,11 +421,13 @@ class SD1Tokenizer:
                     else:
                         continue
                 #parse word
-                tokens.append([(t, weight) for t in self.tokenizer(word)["input_ids"][1:-1]])
+                tokens.append([(t, weight) for t in self.tokenizer(word)["input_ids"][self.tokens_start:-1]])
 
         #reshape token array to CLIP input size
         batched_tokens = []
-        batch = [(self.start_token, 1.0, 0)]
+        batch = []
+        if self.start_token is not None:
+            batch.append((self.start_token, 1.0, 0))
         batched_tokens.append(batch)
         for i, t_group in enumerate(tokens):
             #determine if we're going to try and keep the tokens in a single batch
@@ -429,16 +444,21 @@ class SD1Tokenizer:
                     #add end token and pad
                     else:
                         batch.append((self.end_token, 1.0, 0))
-                        batch.extend([(pad_token, 1.0, 0)] * (remaining_length))
+                        if self.pad_to_max_length:
+                            batch.extend([(pad_token, 1.0, 0)] * (remaining_length))
                     #start new batch
-                    batch = [(self.start_token, 1.0, 0)]
+                    batch = []
+                    if self.start_token is not None:
+                        batch.append((self.start_token, 1.0, 0))
                     batched_tokens.append(batch)
                 else:
                     batch.extend([(t,w,i+1) for t,w in t_group])
                     t_group = []
 
         #fill last batch
-        batch.extend([(self.end_token, 1.0, 0)] + [(pad_token, 1.0, 0)] * (self.max_length - len(batch) - 1))
+        batch.append((self.end_token, 1.0, 0))
+        if self.pad_to_max_length:
+            batch.extend([(pad_token, 1.0, 0)] * (self.max_length - len(batch)))
 
         if not return_word_ids:
             batched_tokens = [[(t, w) for t, w,_ in x] for x in batched_tokens]
@@ -448,3 +468,40 @@ class SD1Tokenizer:
 
     def untokenize(self, token_weight_pair):
         return list(map(lambda a: (a, self.inv_vocab[a[0]]), token_weight_pair))
+
+
+class SD1Tokenizer:
+    def __init__(self, embedding_directory=None, clip_name="l", tokenizer=SDTokenizer):
+        self.clip_name = clip_name
+        self.clip = "clip_{}".format(self.clip_name)
+        setattr(self, self.clip, tokenizer(embedding_directory=embedding_directory))
+
+    def tokenize_with_weights(self, text:str, return_word_ids=False):
+        out = {}
+        out[self.clip_name] = getattr(self, self.clip).tokenize_with_weights(text, return_word_ids)
+        return out
+
+    def untokenize(self, token_weight_pair):
+        return getattr(self, self.clip).untokenize(token_weight_pair)
+
+
+class SD1ClipModel(torch.nn.Module):
+    def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, **kwargs):
+        super().__init__()
+        self.clip_name = clip_name
+        self.clip = "clip_{}".format(self.clip_name)
+        setattr(self, self.clip, clip_model(device=device, dtype=dtype, **kwargs))
+
+    def clip_layer(self, layer_idx):
+        getattr(self, self.clip).clip_layer(layer_idx)
+
+    def reset_clip_layer(self):
+        getattr(self, self.clip).reset_clip_layer()
+
+    def encode_token_weights(self, token_weight_pairs):
+        token_weight_pairs = token_weight_pairs[self.clip_name]
+        out, pooled = getattr(self, self.clip).encode_token_weights(token_weight_pairs)
+        return out, pooled
+
+    def load_sd(self, sd):
+        return getattr(self, self.clip).load_sd(sd)

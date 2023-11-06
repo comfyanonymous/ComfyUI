@@ -3,7 +3,23 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+
+
+function sanitizeNodeName(string) {
+	let entityMap = {
+	'&': '',
+	'<': '',
+	'>': '',
+	'"': '',
+	"'": '',
+	'`': '',
+	'=': ''
+	};
+	return String(string).replace(/[&<>"'`=\/]/g, function fromEntityMap (s) {
+		return entityMap[s];
+	});
+}
 
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -450,8 +466,49 @@ export class ComfyApp {
 					}
 				}
 
+				function calculateGrid(w, h, n) {
+					let columns, rows, cellsize;
+
+					if (w > h) {
+						cellsize = h;
+						columns = Math.ceil(w / cellsize);
+						rows = Math.ceil(n / columns);
+					} else {
+						cellsize = w;
+						rows = Math.ceil(h / cellsize);
+						columns = Math.ceil(n / rows);
+					}
+
+					while (columns * rows < n) {
+						cellsize++;
+						if (w >= h) {
+							columns = Math.ceil(w / cellsize);
+							rows = Math.ceil(n / columns);
+						} else {
+							rows = Math.ceil(h / cellsize);
+							columns = Math.ceil(n / rows);
+						}
+					}
+
+					const cell_size = Math.min(w/columns, h/rows);
+					return {cell_size, columns, rows};
+				}
+
+				function is_all_same_aspect_ratio(imgs) {
+					// assume: imgs.length >= 2
+					let ratio = imgs[0].naturalWidth/imgs[0].naturalHeight;
+
+					for(let i=1; i<imgs.length; i++) {
+						let this_ratio = imgs[i].naturalWidth/imgs[i].naturalHeight;
+						if(ratio != this_ratio)
+							return false;
+					}
+
+					return true;
+				}
+
 				if (this.imgs && this.imgs.length) {
-					const canvas = graph.list_of_graphcanvas[0];
+					const canvas = app.graph.list_of_graphcanvas[0];
 					const mouse = canvas.graph_mouse;
 					if (!canvas.pointer_is_down && this.pointerDown) {
 						if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
@@ -460,44 +517,60 @@ export class ComfyApp {
 						this.pointerDown = null;
 					}
 
-					let w = this.imgs[0].naturalWidth;
-					let h = this.imgs[0].naturalHeight;
 					let imageIndex = this.imageIndex;
 					const numImages = this.imgs.length;
 					if (numImages === 1 && !imageIndex) {
 						this.imageIndex = imageIndex = 0;
 					}
 
-					const shiftY = getImageTop(this);
+					const top = getImageTop(this);
+					var shiftY = top;
 
 					let dw = this.size[0];
 					let dh = this.size[1];
 					dh -= shiftY;
 
 					if (imageIndex == null) {
-						let best = 0;
-						let cellWidth;
-						let cellHeight;
-						let cols = 0;
-						let shiftX = 0;
-						for (let c = 1; c <= numImages; c++) {
-							const rows = Math.ceil(numImages / c);
-							const cW = dw / c;
-							const cH = dh / rows;
-							const scaleX = cW / w;
-							const scaleY = cH / h;
+						var cellWidth, cellHeight, shiftX, cell_padding, cols;
 
-							const scale = Math.min(scaleX, scaleY, 1);
-							const imageW = w * scale;
-							const imageH = h * scale;
-							const area = imageW * imageH * numImages;
+						const compact_mode = is_all_same_aspect_ratio(this.imgs);
+						if(!compact_mode) {
+							// use rectangle cell style and border line
+							cell_padding = 2;
+							const { cell_size, columns, rows } = calculateGrid(dw, dh, numImages);
+							cols = columns;
 
-							if (area > best) {
-								best = area;
-								cellWidth = imageW;
-								cellHeight = imageH;
-								cols = c;
-								shiftX = c * ((cW - imageW) / 2);
+							cellWidth = cell_size;
+							cellHeight = cell_size;
+							shiftX = (dw-cell_size*cols)/2;
+							shiftY = (dh-cell_size*rows)/2 + top;
+						}
+						else {
+							cell_padding = 0;
+							let best = 0;
+							let w = this.imgs[0].naturalWidth;
+							let h = this.imgs[0].naturalHeight;
+
+							// compact style
+							for (let c = 1; c <= numImages; c++) {
+								const rows = Math.ceil(numImages / c);
+								const cW = dw / c;
+								const cH = dh / rows;
+								const scaleX = cW / w;
+								const scaleY = cH / h;
+
+								const scale = Math.min(scaleX, scaleY, 1);
+								const imageW = w * scale;
+								const imageH = h * scale;
+								const area = imageW * imageH * numImages;
+
+								if (area > best) {
+									best = area;
+									cellWidth = imageW;
+									cellHeight = imageH;
+									cols = c;
+									shiftX = c * ((cW - imageW) / 2);
+								}
 							}
 						}
 
@@ -542,7 +615,14 @@ export class ComfyApp {
 							let imgWidth = ratio * img.width;
 							let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth)/2;
 
-							ctx.drawImage(img, imgX, imgY, imgWidth, imgHeight);
+							ctx.drawImage(img, imgX+cell_padding, imgY+cell_padding, imgWidth-cell_padding*2, imgHeight-cell_padding*2);
+							if(!compact_mode) {
+								// rectangle cell and border line style
+								ctx.strokeStyle = "#8F8F8F";
+								ctx.lineWidth = 1;
+								ctx.strokeRect(x+cell_padding, y+cell_padding, cellWidth-cell_padding*2, cellHeight-cell_padding*2);
+							}
+
 							ctx.filter = "none";
 						}
 
@@ -552,6 +632,9 @@ export class ComfyApp {
 						}
 					} else {
 						// Draw individual
+						let w = this.imgs[imageIndex].naturalWidth;
+						let h = this.imgs[imageIndex].naturalHeight;
+
 						const scaleX = dw / w;
 						const scaleY = dh / h;
 						const scale = Math.min(scaleX, scaleY, 1);
@@ -594,14 +677,14 @@ export class ComfyApp {
 						};
 
 						if (numImages > 1) {
-							if (drawButton(x + w - 35, y + h - 35, 30, `${this.imageIndex + 1}/${numImages}`)) {
+							if (drawButton(dw - 40, dh + top - 40, 30, `${this.imageIndex + 1}/${numImages}`)) {
 								let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
 								if (!this.pointerDown || !this.pointerDown.index === i) {
 									this.pointerDown = { index: i, pos: [...mouse] };
 								}
 							}
 
-							if (drawButton(x + w - 35, y + 5, 30, `x`)) {
+							if (drawButton(dw - 40, top + 10, 30, `x`)) {
 								if (!this.pointerDown || !this.pointerDown.index === null) {
 									this.pointerDown = { index: null, pos: [...mouse] };
 								}
@@ -861,6 +944,16 @@ export class ComfyApp {
 					block_default = true;
 				}
 
+				// Alt + C collapse/uncollapse
+				if (e.key === 'c' && e.altKey) {
+					if (this.selected_nodes) {
+						for (var i in this.selected_nodes) {
+							this.selected_nodes[i].collapse()
+						}
+					}
+					block_default = true;
+				}
+
 				// Ctrl+C Copy
 				if ((e.key === 'c') && (e.metaKey || e.ctrlKey)) {
 					// Trigger onCopy
@@ -1114,6 +1207,40 @@ export class ComfyApp {
 		});
 	}
 
+	#addConfigureHandler() {
+		const app = this;
+		const configure = LGraph.prototype.configure;
+		// Flag that the graph is configuring to prevent nodes from running checks while its still loading
+		LGraph.prototype.configure = function () {
+			app.configuringGraph = true;
+			try {
+				return configure.apply(this, arguments);
+			} finally {
+				app.configuringGraph = false;
+			}
+		};
+	}
+
+	#addAfterConfigureHandler() {
+		const app = this;
+		const onConfigure = app.graph.onConfigure;
+		app.graph.onConfigure = function () {
+			// Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
+			for (const node of app.graph._nodes) {
+				node.onGraphConfigured?.();
+			}
+			
+			const r = onConfigure?.apply(this, arguments);
+			
+			// Fire after onConfigure, used by primitves to generate widget using input nodes config
+			for (const node of app.graph._nodes) {
+				node.onAfterGraphConfigured?.();
+			}
+
+			return r;
+		};
+	}
+
 	/**
 	 * Loads all extensions from the API into the window in parallel
 	 */
@@ -1147,8 +1274,12 @@ export class ComfyApp {
 
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
+		this.#addConfigureHandler();
 
 		this.graph = new LGraph();
+
+		this.#addAfterConfigureHandler();
+
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
 		this.ctx = canvasEl.getContext("2d");
 
@@ -1268,7 +1399,8 @@ export class ComfyApp {
 					}
 
 					for (const o in nodeData["output"]) {
-						const output = nodeData["output"][o];
+						let output = nodeData["output"][o];
+						if(output instanceof Array) output = "COMBO";
 						const outputName = nodeData["output_name"][o] || output;
 						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
 						this.addOutput(outputName, output, { shape: outputShape });
@@ -1285,6 +1417,7 @@ export class ComfyApp {
 				{
 					title: nodeData.display_name || nodeData.name,
 					comfyClass: nodeData.name,
+					nodeData
 				}
 			);
 			node.prototype.comfyClass = nodeData.name;
@@ -1297,6 +1430,43 @@ export class ComfyApp {
 			LiteGraph.registerNodeType(nodeId, node);
 			node.category = nodeData.category;
 		}
+	}
+
+	loadTemplateData(templateData) {
+		if (!templateData?.templates) {
+			return;
+		}
+
+		const old = localStorage.getItem("litegrapheditor_clipboard");
+
+		var maxY, nodeBottom, node;
+
+		for (const template of templateData.templates) {
+			if (!template?.data) {
+				continue;
+			}
+
+			localStorage.setItem("litegrapheditor_clipboard", template.data);
+			app.canvas.pasteFromClipboard();
+
+			// Move mouse position down to paste the next template below
+
+			maxY = false;
+
+			for (const i in app.canvas.selected_nodes) {
+				node = app.canvas.selected_nodes[i];
+
+				nodeBottom = node.pos[1] + node.size[1];
+
+				if (maxY === false || nodeBottom > maxY) {
+					maxY = nodeBottom;
+				}
+			}
+
+			app.canvas.graph_mouse[1] = maxY + 50;
+		}
+
+		localStorage.setItem("litegrapheditor_clipboard", old);
 	}
 
 	/**
@@ -1326,6 +1496,7 @@ export class ComfyApp {
 
 			// Find missing node types
 			if (!(n.type in LiteGraph.registered_node_types)) {
+				n.type = sanitizeNodeName(n.type);
 				missingNodeTypes.push(n.type);
 			}
 		}
@@ -1432,6 +1603,16 @@ export class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	async graphToPrompt() {
+		for (const node of this.graph.computeExecutionOrder(false)) {
+			if (node.isVirtualNode) {
+				// Don't serialize frontend only nodes but let them make changes
+				if (node.applyToGraph) {
+					node.applyToGraph();
+				}
+				continue;
+			}
+		}
+
 		const workflow = this.graph.serialize();
 		const output = {};
 		// Process nodes in order of execution
@@ -1439,10 +1620,6 @@ export class ComfyApp {
 			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
-				// Don't serialize frontend only nodes but let them make changes
-				if (node.applyToGraph) {
-					node.applyToGraph(workflow);
-				}
 				continue;
 			}
 
@@ -1485,7 +1662,7 @@ export class ComfyApp {
 								all_inputs = all_inputs.concat(Object.keys(parent.inputs))
 								for (let parent_input in all_inputs) {
 									parent_input = all_inputs[parent_input];
-									if (parent.inputs[parent_input].type === node.inputs[i].type) {
+									if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
 										link = parent.getInputLink(parent_input);
 										if (link) {
 											parent = parent.getInputNode(parent_input);
@@ -1652,10 +1829,24 @@ export class ComfyApp {
 					importA1111(this.graph, pngInfo.parameters);
 				}
 			}
+		} else if (file.type === "image/webp") {
+			const pngInfo = await getWebpMetadata(file);
+			if (pngInfo) {
+				if (pngInfo.workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.workflow));
+				} else if (pngInfo.Workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
+				}
+			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = () => {
-				this.loadGraphData(JSON.parse(reader.result));
+				var jsonContent = JSON.parse(reader.result);
+				if (jsonContent?.templates) {
+					this.loadTemplateData(jsonContent);
+				} else {
+					this.loadGraphData(jsonContent);
+				}
 			};
 			reader.readAsText(file);
 		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
@@ -1686,13 +1877,21 @@ export class ComfyApp {
 	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
+		for(const nodeId in LiteGraph.registered_node_types) {
+			const node = LiteGraph.registered_node_types[nodeId];
+			const nodeDef = defs[nodeId];
+			if(!nodeDef) continue;
+
+			node.nodeData = nodeDef;
+		}
+
 		for(let nodeNum in this.graph._nodes) {
 			const node = this.graph._nodes[nodeNum];
-
 			const def = defs[node.type];
 
-			// HOTFIX: The current patch is designed to prevent the rest of the code from breaking due to primitive nodes,
-			//         and additional work is needed to consider the primitive logic in the refresh logic.
+			// Allow primitive nodes to handle refresh
+			node.refreshComboInNode?.(defs);
+
 			if(!def)
 				continue;
 

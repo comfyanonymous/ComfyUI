@@ -107,6 +107,10 @@ class ModelPatcher:
                 for k in patch_list:
                     if hasattr(patch_list[k], "to"):
                         patch_list[k] = patch_list[k].to(device)
+        if "model_function_wrapper" in self.model_options:
+            wrap_func = self.model_options["model_function_wrapper"]
+            if hasattr(wrap_func, "to"):
+                self.model_options["model_function_wrapper"] = wrap_func.to(device)
 
     def model_dtype(self):
         if hasattr(self.model, "get_dtype"):
