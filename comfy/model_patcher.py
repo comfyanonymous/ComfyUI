@@ -11,6 +11,8 @@ class ModelPatcher:
         self.model = model
         self.patches = {}
         self.backup = {}
+        self.object_patches = {}
+        self.object_patches_backup = {}
         self.model_options = {"transformer_options":{}}
         self.model_size()
         self.load_device = load_device
@@ -91,6 +93,9 @@ class ModelPatcher:
     def set_model_output_block_patch(self, patch):
         self.set_model_patch(patch, "output_block_patch")
 
+    def add_object_patch(self, name, obj):
+        self.object_patches[name] = obj
+
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]
         if "patches" in to:
@@ -150,6 +155,12 @@ class ModelPatcher:
         return sd
 
     def patch_model(self, device_to=None):
+        for k in self.object_patches:
+            old = getattr(self.model, k)
+            if k not in self.object_patches_backup:
+                self.object_patches_backup[k] = old
+            setattr(self.model, k, self.object_patches[k])
+
         model_sd = self.model_state_dict()
         for key in self.patches:
             if key not in model_sd:
@@ -290,3 +301,9 @@ class ModelPatcher:
         if device_to is not None:
             self.model.to(device_to)
             self.current_device = device_to
+
+        keys = list(self.object_patches_backup.keys())
+        for k in keys:
+            setattr(self.model, k, self.object_patches_backup[k])
+
+        self.object_patches_backup = {}
