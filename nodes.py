@@ -1798,6 +1798,7 @@ def init_custom_nodes():
         "nodes_freelunch.py",
         "nodes_custom_sampler.py",
         "nodes_hypertile.py",
+        "nodes_model_advanced.py",
     ]
 
     for node_file in extras_files:
