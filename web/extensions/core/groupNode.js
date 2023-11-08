@@ -5,6 +5,7 @@ import { getWidgetType } from "../../scripts/widgets.js";
 export const IS_GROUP_NODE = Symbol();
 export const GROUP_DATA = Symbol();
 const GROUP_SLOTS = Symbol();
+const GROUP_IDS = Symbol();
 
 export async function registerGroupNodes(groupNodes, source, prefix, missingNodeTypes) {
 	if (!groupNodes) return;
@@ -297,6 +298,7 @@ class ConvertToGroupAction {
 		let left;
 		let index = 0;
 		const slots = def[GROUP_SLOTS];
+		newNode[GROUP_IDS] = {};
 		for (const id in app.canvas.selected_nodes) {
 			const node = app.graph.getNodeById(id);
 			if (left == null || node.pos[0] < left) {
@@ -308,6 +310,8 @@ class ConvertToGroupAction {
 
 			this.linkOutputs(newNode, node, slots, index++);
 
+			// Store the original ID so the node is reused in this session
+			newNode[GROUP_IDS][node._relative_id] = id;
 			app.graph.remove(node);
 		}
 
@@ -353,39 +357,6 @@ const ext = {
 			return options;
 		};
 
-		api.addEventListener("executing", ({ detail }) => {
-			if (detail) {
-				const node = app.graph.getNodeById(detail);
-				if (!node) {
-					const split = detail.split(":");
-					if (split.length === 2) {
-						const outerNode = app.graph.getNodeById(+split[0]);
-						if (outerNode?.constructor.nodeData?.[IS_GROUP_NODE]) {
-							outerNode.runningInternalNodeId = +split[1];
-							api.dispatchEvent(new CustomEvent("executing", { detail: split[0] }));
-						}
-					}
-				}
-			}
-		});
-
-		api.addEventListener("executed", ({ detail }) => {
-			const node = app.graph.getNodeById(detail.node);
-			if (!node) {
-				const split = detail.node.split(":");
-				if (split.length === 2) {
-					const outerNode = app.graph.getNodeById(+split[0]);
-					if (outerNode?.constructor.nodeData?.[IS_GROUP_NODE]) {
-						outerNode.runningInternalNodeId = null;
-						api.dispatchEvent(
-							new CustomEvent("executed", { detail: { ...detail, node: split[0], merge: !outerNode.resetExecution } })
-						);
-						outerNode.resetExecution = false;
-					}
-				}
-			}
-		});
-
 		// Attach handlers after everything is registered to ensure all nodes are found
 		for (const k in LiteGraph.registered_node_types) {
 			const nodeType = LiteGraph.registered_node_types[k];
@@ -409,7 +380,7 @@ const ext = {
 		}
 	},
 	async beforeConfigureGraph(graphData, missingNodeTypes) {
-		registerGroupNodes(graphData?.extra?.groupNodes, "workflow", undefined, missingNodeTypes);
+		await registerGroupNodes(graphData?.extra?.groupNodes, "workflow", undefined, missingNodeTypes);
 	},
 	addCustomNodeDefs(defs) {
 		globalDefs = defs;
@@ -469,6 +440,7 @@ const ext = {
 				return r;
 			};
 
+			let executing, executed;
 			const onNodeCreated = node.onNodeCreated;
 			node.onNodeCreated = function () {
 				for (let innerNodeId = 0; innerNodeId < config.nodes.length; innerNodeId++) {
@@ -499,20 +471,80 @@ const ext = {
 					}
 				}
 
+				function handleEvent(type, getId, getEvent) {
+					const handler = ({ detail }) => {
+						const id = getId(detail);
+						if (!id) return;
+						const node = app.graph.getNodeById(id);
+						if (node) return;
+
+						const split = id.split(":");
+						let groupNode;
+						let runningId;
+						if (split.length === 2) {
+							const outerNode = app.graph.getNodeById(+split[0]);
+							if (outerNode?.constructor.nodeData?.[IS_GROUP_NODE]) {
+								groupNode = outerNode;
+								runningId = split[1];
+							}
+						} else if (this[GROUP_IDS]) {
+							// Check if this is an internal node using its original ID
+							const isInternal = Object.values(this[GROUP_IDS]).indexOf(id) > -1;
+							if (isInternal) {
+								groupNode = this;
+								runningId = id;
+							}
+						}
+						if (groupNode) {
+							groupNode.runningInternalNodeId = +runningId;
+							api.dispatchEvent(new CustomEvent(type, { detail: getEvent(detail, groupNode.id + "", groupNode) }));
+						}
+					};
+					api.addEventListener(type, handler);
+					return handler;
+				}
+
+				executed = handleEvent.call(
+					this,
+					"executing",
+					(d) => d,
+					(d, id, node) => id
+				);
+
+				executed = handleEvent.call(
+					this,
+					"executed",
+					(d) => d?.node,
+					(d, id, node) => ({ ...d, node: id, merge: !node.resetExecution })
+				);
+
 				return onNodeCreated?.apply(this, arguments);
+			};
+
+			const onRemoved = node.onRemoved;
+			node.onRemoved = function () {
+				onRemoved?.apply(this, arguments);
+				api.removeEventListener("executing", executing);
+				api.removeEventListener("executed", executed);
 			};
 
 			const getExtraMenuOptions = node.getExtraMenuOptions ?? node.prototype.getExtraMenuOptions;
 			node.getExtraMenuOptions = function (_, options) {
-				let i = options.findIndex((o) => o.content === "Outputs");
-				if (i === -1) i = options.length;
-				else i++;
+				let optionIndex = options.findIndex((o) => o.content === "Outputs");
+				if (optionIndex === -1) optionIndex = options.length;
+				else optionIndex++;
 
-				options.splice(i, 0, null, {
+				options.splice(optionIndex, 0, null, {
 					content: "Convert to nodes",
 					callback: () => {
 						const backup = localStorage.getItem("litegrapheditor_clipboard");
-						localStorage.setItem("litegrapheditor_clipboard", JSON.stringify(config));
+						let c = config;
+						if (node[GROUP_IDS]) {
+							for (let i = 0; i < c.nodes.length; i++) {
+								c.nodes[i].id = +node[GROUP_IDS][i + ""];
+							}
+						}
+						localStorage.setItem("litegrapheditor_clipboard", JSON.stringify(c));
 						app.canvas.pasteFromClipboard();
 						localStorage.setItem("litegrapheditor_clipboard", backup);
 
@@ -520,9 +552,11 @@ const ext = {
 						const [x, y] = this.pos;
 						let top;
 						let left;
+						const slots = def[GROUP_SLOTS];
 						const selectedIds = Object.keys(app.canvas.selected_nodes);
 						const newNodes = [];
-						for (const id of selectedIds) {
+						for (let i = 0; i < selectedIds.length; i++) {
+							const id = selectedIds[i];
 							const newNode = app.graph.getNodeById(id);
 							newNodes.push(newNode);
 							if (left == null || newNode.pos[0] < left) {
@@ -530,6 +564,26 @@ const ext = {
 							}
 							if (top == null || newNode.pos[1] < top) {
 								top = newNode.pos[1];
+							}
+
+							// Copy values
+							for (const innerWidget of newNode.widgets ?? []) {
+								const groupWidgetName = slots.widgets[i]?.[innerWidget.name];
+								if (!groupWidgetName) continue;
+								const groupWidget = node.widgets.find((w) => w.name === groupWidgetName);
+								if (groupWidget) {
+									innerWidget.value = groupWidget.value;
+
+									// Copy linked widget values (control_after_generate)
+									if (groupWidget.linkedWidgets && innerWidget.linkedWidgets) {
+										for (let linkIndex = 0; linkIndex < groupWidget.linkedWidgets.length; linkIndex++) {
+											const w = innerWidget.linkedWidgets[linkIndex];
+											if (w) {
+												w.value = groupWidget.linkedWidgets[linkIndex].value;
+											}
+										}
+									}
+								}
 							}
 						}
 
@@ -540,7 +594,6 @@ const ext = {
 						}
 
 						// Reconnect inputs
-						const slots = def[GROUP_SLOTS];
 						for (const nodeIndex in slots.inputs) {
 							const id = selectedIds[nodeIndex];
 							const newNode = app.graph.getNodeById(id);
@@ -594,12 +647,22 @@ const ext = {
 				return link;
 			};
 
+			function getInnerNodeId(i) {
+				// Use the node id from the instance if available
+				return node[GROUP_IDS]?.[i + ""] ?? `${node.id}:${i}`;
+			}
+
 			node.getInnerNodes = function () {
 				const links = getLinks(config);
 
 				const innerNodes = config.nodes.map((n, i) => {
-					const innerNode = LiteGraph.createNode(n.type);
-					innerNode.configure(n);
+					const config = { ...n };
+					// Remove any converted widget inputs
+					if (config.inputs) {
+						config.inputs = config.inputs.filter((c) => !c.widget);
+					}
+					const innerNode = LiteGraph.createNode(config.type);
+					innerNode.configure(config);
 
 					for (const innerWidget of innerNode.widgets ?? []) {
 						const groupWidgetName = slots.widgets[i]?.[innerWidget.name];
@@ -610,7 +673,7 @@ const ext = {
 						}
 					}
 
-					innerNode.id = node.id + ":" + i;
+					innerNode.id = getInnerNodeId(i);
 					innerNode.getInputNode = function (slot) {
 						if (!innerNode.comfyClass) slot = 0;
 						const outerSlot = slots.inputs?.[i]?.[slot];
@@ -648,9 +711,9 @@ const ext = {
 						if (!link) return null;
 						// Use the inner link, but update the origin node to be inner node id
 						link = {
-							origin_id: node.id + ":" + link[0],
+							origin_id: getInnerNodeId(link[0]),
 							origin_slot: link[1],
-							target_id: node.id + ":" + i,
+							target_id: getInnerNodeId(i),
 							target_slot: slot,
 						};
 

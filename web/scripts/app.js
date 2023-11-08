@@ -1271,6 +1271,7 @@ export class ComfyApp {
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
+		this.#addApiUpdateHandlers();
 
 		this.graph = new LGraph();
 
@@ -1324,7 +1325,6 @@ export class ComfyApp {
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
-		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addCopyHandler();
 		this.#addPasteHandler();

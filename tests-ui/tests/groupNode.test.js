@@ -48,10 +48,16 @@ describe("group node", () => {
 	}
 
 	/**
-	 * @param { Record<string, string> } idMap
+	 * @param { Record<string, string> | number[] } idMap
 	 * @param { Record<string, Record<string, unknown>> } valueMap
 	 */
 	function getOutput(idMap = {}, valueMap = {}) {
+		if (idMap instanceof Array) {
+			idMap = idMap.reduce((p, n) => {
+				p[n] = n + "";
+				return p;
+			}, {});
+		}
 		const expected = {
 			1: { inputs: { ckpt_name: "model1.safetensors", ...valueMap?.[1] }, class_type: "CheckpointLoaderSimple" },
 			2: { inputs: { text: "positive", clip: ["1", 1], ...valueMap?.[2] }, class_type: "CLIPTextEncode" },
@@ -153,26 +159,41 @@ describe("group node", () => {
 		expect(decode.outputs[0].connections[1].targetNode.id).toBe(save2.id);
 		expect(decode.outputs[0].connections[2].targetNode.id).toBe(save3.id);
 	});
-
 	test("can be be converted back to nodes", async () => {
 		const { ez, graph, app } = await start();
 		const nodes = createDefaultWorkflow(ez, graph);
-		const group = await convertToGroup(app, graph, "test", [nodes.pos, nodes.neg, nodes.empty]);
+		const toConvert = [nodes.pos, nodes.neg, nodes.empty, nodes.sampler];
+		const group = await convertToGroup(app, graph, "test", toConvert);
+
+		// Edit some values to ensure they are set back onto the converted nodes
+		expect(group.widgets["CLIPTextEncode text"].value).toBe("positive");
+		group.widgets["CLIPTextEncode text"].value = "pos";
+		expect(group.widgets["CLIPTextEncode 2 text"].value).toBe("negative");
+		group.widgets["CLIPTextEncode 2 text"].value = "neg";
+		expect(group.widgets["EmptyLatentImage width"].value).toBe(512);
+		group.widgets["EmptyLatentImage width"].value = 1024;
+		expect(group.widgets["KSampler sampler_name"].value).toBe("euler");
+		group.widgets["KSampler sampler_name"].value = "ddim";
+		expect(group.widgets["KSampler control_after_generate"].value).toBe("randomize");
+		group.widgets["KSampler control_after_generate"].value = "fixed";
 
 		/** @type { Array<any> } */
-		const newNodes = group.menu["Convert to nodes"].call();
+		group.menu["Convert to nodes"].call();
 
-		const pos = graph.find(
-			newNodes.find(
-				(n) => n.type === "CLIPTextEncode" && n.widgets.find((w) => w.name === "text")?.value === "positive"
-			)
-		);
-		const neg = graph.find(
-			newNodes.find(
-				(n) => n.type === "CLIPTextEncode" && n.widgets.find((w) => w.name === "text")?.value === "negative"
-			)
-		);
-		const empty = graph.find(newNodes.find((n) => n.type === "EmptyLatentImage"));
+		// ensure widget values are set
+		const pos = graph.find(nodes.pos.id);
+		expect(pos.node.type).toBe("CLIPTextEncode");
+		expect(pos.widgets["text"].value).toBe("pos");
+		const neg = graph.find(nodes.neg.id);
+		expect(neg.node.type).toBe("CLIPTextEncode");
+		expect(neg.widgets["text"].value).toBe("neg");
+		const empty = graph.find(nodes.empty.id);
+		expect(empty.node.type).toBe("EmptyLatentImage");
+		expect(empty.widgets["width"].value).toBe(1024);
+		const sampler = graph.find(nodes.sampler.id);
+		expect(sampler.node.type).toBe("KSampler");
+		expect(sampler.widgets["sampler_name"].value).toBe("ddim");
+		expect(sampler.widgets["control_after_generate"].value).toBe("fixed");
 
 		// validate links
 		expect(nodes.ckpt.outputs.CLIP.connections.map((t) => [t.targetNode.id, t.targetInput.index])).toEqual([
@@ -207,13 +228,7 @@ describe("group node", () => {
 		expect(group.inputs).toHaveLength(1);
 		expect(group.inputs[0].input.type).toEqual("CLIP");
 
-		expect((await graph.toPrompt()).output).toEqual(
-			getOutput({
-				[nodes.pos.id]: `${group.id}:0`,
-				[nodes.neg.id]: `${group.id}:1`,
-				[nodes.empty.id]: `${group.id}:2`,
-			})
-		);
+		expect((await graph.toPrompt()).output).toEqual(getOutput([nodes.pos.id, nodes.neg.id, nodes.empty.id]));
 	});
 	test("it can embed reroutes as outputs", async () => {
 		const { ez, graph, app } = await start();
@@ -227,12 +242,7 @@ describe("group node", () => {
 		const group = await convertToGroup(app, graph, "test", [nodes.decode, nodes.save, reroute]);
 		expect(group.outputs).toHaveLength(1);
 		expect(group.outputs[0].output.type).toEqual("IMAGE");
-		expect((await graph.toPrompt()).output).toEqual(
-			getOutput({
-				[nodes.decode.id]: `${group.id}:0`,
-				[nodes.save.id]: `${group.id}:1`,
-			})
-		);
+		expect((await graph.toPrompt()).output).toEqual(getOutput([nodes.decode.id, nodes.save.id]));
 	});
 	test("it can embed reroutes as pipes", async () => {
 		const { ez, graph, app } = await start();
@@ -297,32 +307,22 @@ describe("group node", () => {
 		expect(group.widgets["KSampler denoise"].value).toEqual(0.9);
 
 		expect((await graph.toPrompt()).output).toEqual(
-			getOutput(
-				{
-					[nodes.ckpt.id]: `${group.id}:0`,
-					[nodes.pos.id]: `${group.id}:1`,
-					[nodes.neg.id]: `${group.id}:2`,
-					[nodes.empty.id]: `${group.id}:3`,
-					[nodes.sampler.id]: `${group.id}:4`,
+			getOutput([nodes.ckpt.id, nodes.pos.id, nodes.neg.id, nodes.empty.id, nodes.sampler.id], {
+				[nodes.ckpt.id]: { ckpt_name: "model2.ckpt" },
+				[nodes.pos.id]: { text: "hello" },
+				[nodes.neg.id]: { text: "world" },
+				[nodes.empty.id]: { width: 256, height: 1024 },
+				[nodes.sampler.id]: {
+					seed: 1,
+					steps: 8,
+					cfg: 4.5,
+					sampler_name: "uni_pc",
+					scheduler: "karras",
+					denoise: 0.9,
 				},
-				{
-					[nodes.ckpt.id]: { ckpt_name: "model2.ckpt" },
-					[nodes.pos.id]: { text: "hello" },
-					[nodes.neg.id]: { text: "world" },
-					[nodes.empty.id]: { width: 256, height: 1024 },
-					[nodes.sampler.id]: {
-						seed: 1,
-						steps: 8,
-						cfg: 4.5,
-						sampler_name: "uni_pc",
-						scheduler: "karras",
-						denoise: 0.9,
-					},
-				}
-			)
+			})
 		);
 	});
-
 	test("group inputs can be reroutes", async () => {
 		const { ez, graph, app } = await start();
 		const nodes = createDefaultWorkflow(ez, graph);
@@ -334,12 +334,7 @@ describe("group node", () => {
 		reroute.outputs[0].connectTo(group.inputs[0]);
 		reroute.outputs[0].connectTo(group.inputs[1]);
 
-		expect((await graph.toPrompt()).output).toEqual(
-			getOutput({
-				[nodes.pos.id]: `${group.id}:0`,
-				[nodes.neg.id]: `${group.id}:1`,
-			})
-		);
+		expect((await graph.toPrompt()).output).toEqual(getOutput([nodes.pos.id, nodes.neg.id]));
 	});
 	test("group outputs can be reroutes", async () => {
 		const { ez, graph, app } = await start();
@@ -354,12 +349,7 @@ describe("group node", () => {
 		reroute1.outputs[0].connectTo(nodes.sampler.inputs.positive);
 		reroute2.outputs[0].connectTo(nodes.sampler.inputs.negative);
 
-		expect((await graph.toPrompt()).output).toEqual(
-			getOutput({
-				[nodes.pos.id]: `${group.id}:0`,
-				[nodes.neg.id]: `${group.id}:1`,
-			})
-		);
+		expect((await graph.toPrompt()).output).toEqual(getOutput([nodes.pos.id, nodes.neg.id]));
 	});
 	test("groups can connect to each other", async () => {
 		const { ez, graph, app } = await start();
@@ -371,12 +361,7 @@ describe("group node", () => {
 		group1.outputs[1].connectTo(group2.inputs["KSampler negative"]);
 
 		expect((await graph.toPrompt()).output).toEqual(
-			getOutput({
-				[nodes.pos.id]: `${group1.id}:0`,
-				[nodes.neg.id]: `${group1.id}:1`,
-				[nodes.empty.id]: `${group2.id}:0`,
-				[nodes.sampler.id]: `${group2.id}:1`,
-			})
+			getOutput([nodes.pos.id, nodes.neg.id, nodes.empty.id, nodes.sampler.id])
 		);
 	});
 	test("displays generated image on group node", async () => {
@@ -434,15 +419,9 @@ describe("group node", () => {
 		primitive.widgets[0].value = "hello";
 
 		expect((await graph.toPrompt()).output).toEqual(
-			getOutput(
-				{
-					[nodes.pos.id]: `${group.id}:0`,
-					[nodes.neg.id]: `${group.id}:1`,
-				},
-				{
-					[nodes.pos.id]: { text: "hello" },
-				}
-			)
+			getOutput([nodes.pos.id, nodes.neg.id], {
+				[nodes.pos.id]: { text: "hello" },
+			})
 		);
 	});
 	test("can be copied", async () => {
@@ -480,21 +459,11 @@ describe("group node", () => {
 		group2.widgets["KSampler seed"].value = 100;
 
 		expect((await graph.toPrompt()).output).toEqual({
-			...getOutput(
-				{
-					[nodes.pos.id]: `${group1.id}:0`,
-					[nodes.neg.id]: `${group1.id}:1`,
-					[nodes.empty.id]: `${group1.id}:2`,
-					[nodes.sampler.id]: `${group1.id}:3`,
-					[nodes.decode.id]: `${group1.id}:4`,
-					[nodes.save.id]: `${group1.id}:5`,
-				},
-				{
-					[nodes.pos.id]: { text: "hello" },
-					[nodes.empty.id]: { width: 256 },
-					[nodes.sampler.id]: { seed: 1 },
-				}
-			),
+			...getOutput([nodes.pos.id, nodes.neg.id, nodes.empty.id, nodes.sampler.id, nodes.decode.id, nodes.save.id], {
+				[nodes.pos.id]: { text: "hello" },
+				[nodes.empty.id]: { width: 256 },
+				[nodes.sampler.id]: { seed: 1 },
+			}),
 			...getOutput(
 				{
 					[nodes.pos.id]: `${group2.id}:0`,
@@ -527,7 +496,7 @@ describe("group node", () => {
 		// Ensure the node isnt registered
 		expect(() => ez["workflow/test"]).toThrow();
 
-		// Relaod the workflow
+		// Reload the workflow
 		await app.loadGraphData(JSON.parse(workflow));
 
 		// Ensure the node is found
@@ -594,6 +563,7 @@ describe("group node", () => {
 		primitive.outputs[0].connectTo(neg.inputs.text);
 
 		const group = await convertToGroup(app, graph, "test", [pos, neg, primitive]);
+		// These will both be the same due to the primitive
 		expect(group.widgets["Positive text"].value).toBe("positive");
 		expect(group.widgets["Negative text"].value).toBe("positive");
 
@@ -605,5 +575,10 @@ describe("group node", () => {
 		expect(pos.inputs).toHaveLength(2);
 		expect(neg.inputs).toHaveLength(2);
 		expect(primitive.outputs[0].connections).toHaveLength(2);
+
+		expect((await graph.toPrompt()).output).toEqual({
+			1: { inputs: { text: "positive" }, class_type: "CLIPTextEncode" },
+			2: { inputs: { text: "positive" }, class_type: "CLIPTextEncode" },
+		});
 	});
 });

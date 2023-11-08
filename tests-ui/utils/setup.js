@@ -33,6 +33,7 @@ export function mockApi({ mockExtensions, mockNodeDefs } = {}) {
 	const events = new EventTarget();
 	const mockApi = {
 		addEventListener: events.addEventListener.bind(events),
+		removeEventListener: events.removeEventListener.bind(events),
 		dispatchEvent: events.dispatchEvent.bind(events),
 		getSystemStats: jest.fn(),
 		getExtensions: jest.fn(() => mockExtensions),
