@@ -251,6 +251,12 @@ class Timestep(nn.Module):
     def forward(self, t):
         return timestep_embedding(t, self.dim)
 
+def apply_control(h, control, name):
+    if control is not None and name in control and len(control[name]) > 0:
+        ctrl = control[name].pop()
+        if ctrl is not None:
+            h += ctrl
+    return h
 
 class UNetModel(nn.Module):
     """
@@ -617,25 +623,17 @@ class UNetModel(nn.Module):
         for id, module in enumerate(self.input_blocks):
             transformer_options["block"] = ("input", id)
             h = forward_timestep_embed(module, h, emb, context, transformer_options)
-            if control is not None and 'input' in control and len(control['input']) > 0:
-                ctrl = control['input'].pop()
-                if ctrl is not None:
-                    h += ctrl
+            h = apply_control(h, control, 'input')
             hs.append(h)
+
         transformer_options["block"] = ("middle", 0)
         h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options)
-        if control is not None and 'middle' in control and len(control['middle']) > 0:
-            ctrl = control['middle'].pop()
-            if ctrl is not None:
-                h += ctrl
+        h = apply_control(h, control, 'middle')
 
         for id, module in enumerate(self.output_blocks):
             transformer_options["block"] = ("output", id)
             hsp = hs.pop()
-            if control is not None and 'output' in control and len(control['output']) > 0:
-                ctrl = control['output'].pop()
-                if ctrl is not None:
-                    hsp += ctrl
+            hsp = apply_control(hsp, control, 'output')
 
             if "output_block_patch" in transformer_patches:
                 patch = transformer_patches["output_block_patch"]
