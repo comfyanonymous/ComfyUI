@@ -543,7 +543,7 @@ describe("group node", () => {
 		});
 
 		expect(dialogShow).toBeCalledTimes(1);
-		const call = dialogShow.mock.calls[0][0];
+		const call = dialogShow.mock.calls[0][0].innerHTML;
 		expect(call).toContain("the following node types were not found");
 		expect(call).toContain("NotKSampler");
 		expect(call).toContain("NotVAEDecode");

@@ -1511,8 +1511,8 @@ export class ComfyApp {
 
 			// Find missing node types
 			if (!(n.type in LiteGraph.registered_node_types)) {
-				n.type = sanitizeNodeName(n.type);
 				missingNodeTypes.push(n.type);
+				n.type = sanitizeNodeName(n.type);
 			}
 		}
 
@@ -1603,9 +1603,14 @@ export class ComfyApp {
 
 		if (missingNodeTypes.length) {
 			this.ui.dialog.show(
-				`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
-					(t) => `<li>${t}</li>`
-				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
+				$el("div", [
+					$el("span", { textContent: "When loading the graph, the following node types were not found: " }),
+					$el(
+						"ul",
+						Array.from(new Set(missingNodeTypes)).map((t) => $el("li", { textContent: t }))
+					),
+					$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." }),
+				])
 			);
 			this.logging.addEntry("Comfy.App", "warn", {
 				MissingNodes: missingNodeTypes,
