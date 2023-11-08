@@ -40,6 +40,7 @@ class ModelPatcher:
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
 
+        n.object_patches = self.object_patches.copy()
         n.model_options = copy.deepcopy(self.model_options)
         n.model_keys = self.model_keys
         return n
