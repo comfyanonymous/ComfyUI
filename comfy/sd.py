@@ -496,6 +496,9 @@ def load_unet(unet_path): #load unet in diffusers format
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
+    left_over = sd.keys()
+    if len(left_over) > 0:
+        print("left over keys in unet:", left_over)
     return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
