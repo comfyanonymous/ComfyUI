@@ -1828,21 +1828,21 @@ export class ComfyApp {
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
-			reader.onload = async () => {
+			reader.onload = () => {
 				const jsonContent = JSON.parse(reader.result);
 				if(this.isApiJson(jsonContent)) {
 					this.loadApiJson(jsonContent);
 				} else if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
 				} else {
-					await this.loadGraphData(jsonContent);
+					this.loadGraphData(jsonContent);
 				}
 			};
 			reader.readAsText(file);
 		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
 			const info = await getLatentMetadata(file);
 			if (info.workflow) {
-				await this.loadGraphData(JSON.parse(info.workflow));
+				this.loadGraphData(JSON.parse(info.workflow));
 			}
 		}
 	}
