@@ -489,10 +489,10 @@ const ext = {
 							}
 						} else if (this[GROUP_IDS]) {
 							// Check if this is an internal node using its original ID
-							const isInternal = Object.values(this[GROUP_IDS]).indexOf(id) > -1;
-							if (isInternal) {
+							const internalId = Object.values(this[GROUP_IDS]).indexOf(id);
+							if (internalId > -1) {
 								groupNode = this;
-								runningId = id;
+								runningId = internalId;
 							}
 						}
 						if (groupNode) {
