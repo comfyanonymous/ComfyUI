@@ -1483,6 +1483,22 @@ export class ComfyApp {
 		localStorage.setItem("litegrapheditor_clipboard", old);
 	}
 
+	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+		this.ui.dialog.show(
+			$el("div", [
+				$el("span", { textContent: "When loading the graph, the following node types were not found: " }),
+				$el(
+					"ul",
+					Array.from(new Set(missingNodeTypes)).map((t) => $el("li", { textContent: t }))
+				),
+				...(hasAddedNodes ? [$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." })] : []),
+			])
+		);
+		this.logging.addEntry("Comfy.App", "warn", {
+			MissingNodes: missingNodeTypes,
+		});
+	}
+
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
@@ -1602,19 +1618,7 @@ export class ComfyApp {
 		}
 
 		if (missingNodeTypes.length) {
-			this.ui.dialog.show(
-				$el("div", [
-					$el("span", { textContent: "When loading the graph, the following node types were not found: " }),
-					$el(
-						"ul",
-						Array.from(new Set(missingNodeTypes)).map((t) => $el("li", { textContent: t }))
-					),
-					$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." }),
-				])
-			);
-			this.logging.addEntry("Comfy.App", "warn", {
-				MissingNodes: missingNodeTypes,
-			});
+			this.showMissingNodesError(missingNodeTypes);
 		}
 	}
 
@@ -1851,9 +1855,11 @@ export class ComfyApp {
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = async () => {
-				var jsonContent = JSON.parse(reader.result);
+				const jsonContent = JSON.parse(reader.result);
 				if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
+				} else if(this.isApiJson(jsonContent)) {
+					this.loadApiJson(jsonContent);
 				} else {
 					await this.loadGraphData(jsonContent);
 				}
@@ -1865,6 +1871,51 @@ export class ComfyApp {
 				await this.loadGraphData(JSON.parse(info.workflow));
 			}
 		}
+	}
+
+	isApiJson(data) {
+		return Object.values(data).every((v) => v.class_type);
+	}
+
+	loadApiJson(apiData) {
+		const missingNodeTypes = Object.values(apiData).filter((n) => !LiteGraph.registered_node_types[n.class_type]);
+		if (missingNodeTypes.length) {
+			this.showMissingNodesError(missingNodeTypes.map(t => t.class_type), false);
+			return;
+		}
+
+		const ids = Object.keys(apiData);
+		app.graph.clear();
+		for (const id of ids) {
+			const data = apiData[id];
+			const node = LiteGraph.createNode(data.class_type);
+			node.id = id;
+			graph.add(node);
+		}
+
+		for (const id of ids) {
+			const data = apiData[id];
+			const node = app.graph.getNodeById(id);
+			for (const input in data.inputs ?? {}) {
+				const value = data.inputs[input];
+				if (value instanceof Array) {
+					const [fromId, fromSlot] = value;
+					const fromNode = app.graph.getNodeById(fromId);
+					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+					if (toSlot !== -1) {
+						fromNode.connect(fromSlot, node, toSlot);
+					}
+				} else {
+					const widget = node.widgets?.find((w) => w.name === input);
+					if (widget) {
+						widget.value = value;
+						widget.callback?.(value);
+					}
+				}
+			}
+		}
+
+		app.graph.arrange();
 	}
 
 	/**
