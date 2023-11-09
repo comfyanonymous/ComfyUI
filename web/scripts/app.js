@@ -1830,10 +1830,10 @@ export class ComfyApp {
 			const reader = new FileReader();
 			reader.onload = () => {
 				const jsonContent = JSON.parse(reader.result);
-				if(this.isApiJson(jsonContent)) {
-					this.loadApiJson(jsonContent);
-				} else if (jsonContent?.templates) {
+				if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
+				} else if(this.isApiJson(jsonContent)) {
+					this.loadApiJson(jsonContent);
 				} else {
 					this.loadGraphData(jsonContent);
 				}
