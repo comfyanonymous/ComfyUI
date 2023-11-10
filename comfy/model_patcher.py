@@ -134,6 +134,7 @@ class ModelPatcher:
         return list(p)
 
     def get_key_patches(self, filter_prefix=None):
+        comfy.model_management.unload_model_clones(self)
         model_sd = self.model_state_dict()
         p = {}
         for k in model_sd:
