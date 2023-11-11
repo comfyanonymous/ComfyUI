@@ -6,7 +6,7 @@ import comfy.utils
 import comfy.model_management
 
 class ModelPatcher:
-    def __init__(self, model, load_device, offload_device, size=0, current_device=None):
+    def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
         self.size = size
         self.model = model
         self.patches = {}
@@ -21,6 +21,8 @@ class ModelPatcher:
             self.current_device = self.offload_device
         else:
             self.current_device = current_device
+
+        self.weight_inplace_update = weight_inplace_update
 
     def model_size(self):
         if self.size > 0:
@@ -171,15 +173,20 @@ class ModelPatcher:
 
             weight = model_sd[key]
 
+            inplace_update = self.weight_inplace_update
+
             if key not in self.backup:
-                self.backup[key] = weight.to(self.offload_device)
+                self.backup[key] = weight.to(device=device_to, copy=inplace_update)
 
             if device_to is not None:
                 temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
             else:
                 temp_weight = weight.to(torch.float32, copy=True)
             out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
-            comfy.utils.set_attr(self.model, key, out_weight)
+            if inplace_update:
+                comfy.utils.copy_to_param(self.model, key, out_weight)
+            else:
+                comfy.utils.set_attr(self.model, key, out_weight)
             del temp_weight
 
         if device_to is not None:
@@ -295,8 +302,12 @@ class ModelPatcher:
     def unpatch_model(self, device_to=None):
         keys = list(self.backup.keys())
 
-        for k in keys:
-            comfy.utils.set_attr(self.model, k, self.backup[k])
+        if self.weight_inplace_update:
+            for k in keys:
+                comfy.utils.copy_to_param(self.model, k, self.backup[k])
+        else:
+            for k in keys:
+                comfy.utils.set_attr(self.model, k, self.backup[k])
 
         self.backup = {}
 
