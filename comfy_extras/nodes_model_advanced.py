@@ -140,6 +140,7 @@ class RescaleCFG:
             uncond = args["uncond"]
             cond_scale = args["cond_scale"]
             sigma = args["sigma"]
+            sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
             x_orig = args["input"]
 
             #rescale cfg has to be done on v-pred model output
