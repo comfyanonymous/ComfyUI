@@ -176,7 +176,7 @@ class ModelPatcher:
             inplace_update = self.weight_inplace_update
 
             if key not in self.backup:
-                self.backup[key] = weight.to(device=device_to, copy=inplace_update)
+                self.backup[key] = weight.to(device=self.offload_device, copy=inplace_update)
 
             if device_to is not None:
                 temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
