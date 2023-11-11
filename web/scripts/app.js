@@ -1873,9 +1873,13 @@ export class ComfyApp {
 			for (const input in data.inputs ?? {}) {
 				const value = data.inputs[input];
 				if (value instanceof Array) {
-					const [fromId, fromSlot] = value;
+					let [fromId, fromSlot] = value;
 					const fromNode = app.graph.getNodeById(fromId);
 					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+
+					if(typeof fromSlot === "string")
+					    fromSlot = fromNode.outputs?.findIndex((outpt) => outpt.name === fromSlot);
+
 					if (toSlot !== -1) {
 						fromNode.connect(fromSlot, node, toSlot);
 					}
