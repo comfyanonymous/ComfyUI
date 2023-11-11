@@ -83,6 +83,10 @@ export class ComfyApp {
 			return "";
 	}
 
+	getRandParam() {
+		return "&rand=" + Math.random();
+	}
+
 	static isImageNode(node) {
 		return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
 	}
@@ -427,7 +431,7 @@ export class ComfyApp {
 						this.images = output.images;
 						imagesChanged = true;
 						imgURLs = imgURLs.concat(output.images.map(params => {
-							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam());
+							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam() + app.getRandParam());
 						}))
 					}
 				}
