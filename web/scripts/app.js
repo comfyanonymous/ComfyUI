@@ -5,6 +5,22 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 
+
+function sanitizeNodeName(string) {
+	let entityMap = {
+	'&': '',
+	'<': '',
+	'>': '',
+	'"': '',
+	"'": '',
+	'`': '',
+	'=': ''
+	};
+	return String(string).replace(/[&<>"'`=]/g, function fromEntityMap (s) {
+		return entityMap[s];
+	});
+}
+
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
@@ -1453,6 +1469,17 @@ export class ComfyApp {
 		localStorage.setItem("litegrapheditor_clipboard", old);
 	}
 
+	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+		this.ui.dialog.show(
+			`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
+				(t) => `<li>${t}</li>`
+			).join("")}</ul>${hasAddedNodes ? "Nodes that have failed to load will show as red on the graph." : ""}`
+		);
+		this.logging.addEntry("Comfy.App", "warn", {
+			MissingNodes: missingNodeTypes,
+		});
+	}
+
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
@@ -1480,6 +1507,7 @@ export class ComfyApp {
 
 			// Find missing node types
 			if (!(n.type in LiteGraph.registered_node_types)) {
+				n.type = sanitizeNodeName(n.type);
 				missingNodeTypes.push(n.type);
 			}
 		}
@@ -1570,14 +1598,7 @@ export class ComfyApp {
 		}
 
 		if (missingNodeTypes.length) {
-			this.ui.dialog.show(
-				`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
-					(t) => `<li>${t}</li>`
-				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
-			);
-			this.logging.addEntry("Comfy.App", "warn", {
-				MissingNodes: missingNodeTypes,
-			});
+			this.showMissingNodesError(missingNodeTypes);
 		}
 	}
 
@@ -1808,9 +1829,11 @@ export class ComfyApp {
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = () => {
-				var jsonContent = JSON.parse(reader.result);
+				const jsonContent = JSON.parse(reader.result);
 				if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
+				} else if(this.isApiJson(jsonContent)) {
+					this.loadApiJson(jsonContent);
 				} else {
 					this.loadGraphData(jsonContent);
 				}
@@ -1822,6 +1845,51 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(info.workflow));
 			}
 		}
+	}
+
+	isApiJson(data) {
+		return Object.values(data).every((v) => v.class_type);
+	}
+
+	loadApiJson(apiData) {
+		const missingNodeTypes = Object.values(apiData).filter((n) => !LiteGraph.registered_node_types[n.class_type]);
+		if (missingNodeTypes.length) {
+			this.showMissingNodesError(missingNodeTypes.map(t => t.class_type), false);
+			return;
+		}
+
+		const ids = Object.keys(apiData);
+		app.graph.clear();
+		for (const id of ids) {
+			const data = apiData[id];
+			const node = LiteGraph.createNode(data.class_type);
+			node.id = id;
+			graph.add(node);
+		}
+
+		for (const id of ids) {
+			const data = apiData[id];
+			const node = app.graph.getNodeById(id);
+			for (const input in data.inputs ?? {}) {
+				const value = data.inputs[input];
+				if (value instanceof Array) {
+					const [fromId, fromSlot] = value;
+					const fromNode = app.graph.getNodeById(fromId);
+					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+					if (toSlot !== -1) {
+						fromNode.connect(fromSlot, node, toSlot);
+					}
+				} else {
+					const widget = node.widgets?.find((w) => w.name === input);
+					if (widget) {
+						widget.value = value;
+						widget.callback?.(value);
+					}
+				}
+			}
+		}
+
+		app.graph.arrange();
 	}
 
 	/**
