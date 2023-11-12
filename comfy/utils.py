@@ -261,6 +261,14 @@ def set_attr(obj, attr, value):
     setattr(obj, attrs[-1], torch.nn.Parameter(value))
     del prev
 
+def copy_to_param(obj, attr, value):
+    # inplace update tensor instead of replacing it
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    prev = getattr(obj, attrs[-1])
+    prev.data.copy_(value)
+
 def get_attr(obj, attr):
     attrs = attr.split(".")
     for name in attrs:
