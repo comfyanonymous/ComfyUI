@@ -134,7 +134,7 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
             return out
 
-        def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, max_total_area, model_options):
+        def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options):
             out_cond = torch.zeros_like(x_in)
             out_count = torch.ones_like(x_in) * 1e-37
 
@@ -170,9 +170,11 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
                 to_batch_temp.reverse()
                 to_batch = to_batch_temp[:1]
 
+                free_memory = model_management.get_free_memory(x_in.device)
                 for i in range(1, len(to_batch_temp) + 1):
                     batch_amount = to_batch_temp[:len(to_batch_temp)//i]
-                    if (len(batch_amount) * first_shape[0] * first_shape[2] * first_shape[3] < max_total_area):
+                    input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
+                    if model.memory_required(input_shape) < free_memory:
                         to_batch = batch_amount
                         break
 
@@ -242,11 +244,10 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
             return out_cond, out_uncond
 
 
-        max_total_area = model_management.maximum_batch_area()
         if math.isclose(cond_scale, 1.0):
             uncond = None
 
-        cond, uncond = calc_cond_uncond_batch(model, cond, uncond, x, timestep, max_total_area, model_options)
+        cond, uncond = calc_cond_uncond_batch(model, cond, uncond, x, timestep, model_options)
         if "sampler_cfg_function" in model_options:
             args = {"cond": x - cond, "uncond": x - uncond, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep}
             return x - model_options["sampler_cfg_function"](args)

@@ -52,6 +52,9 @@ class ModelPatcher:
             return True
         return False
 
+    def memory_required(self, input_shape):
+        return self.model.memory_required(input_shape=input_shape)
+
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
