@@ -161,7 +161,7 @@ class BaseModel(torch.nn.Module):
         area = input_shape[0] * input_shape[2] * input_shape[3]
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
             #TODO: this needs to be tweaked
-            return (area / 20) * (1024 * 1024)
+            return (area / (comfy.model_management.dtype_size(self.get_dtype()) * 10)) * (1024 * 1024)
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
             return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
