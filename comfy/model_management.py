@@ -134,6 +134,10 @@ else:
         import xformers.ops
         XFORMERS_IS_AVAILABLE = True
         try:
+            XFORMERS_IS_AVAILABLE = xformers._has_cpp_library
+        except:
+            pass
+        try:
             XFORMERS_VERSION = xformers.version.__version__
             print("xformers version:", XFORMERS_VERSION)
             if XFORMERS_VERSION.startswith("0.0.18"):
