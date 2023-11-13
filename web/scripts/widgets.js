@@ -305,14 +305,23 @@ export const ComfyWidgets = {
 		};
 	},
 	BOOLEAN(node, inputName, inputData) {
-		let defaultVal = inputData[1]["default"];
+		let defaultVal = false;
+		let options = {};
+		if (inputData[1]) {
+			if (inputData[1].default)
+				defaultVal = inputData[1].default;
+			if (inputData[1].label_on)
+				options["on"] = inputData[1].label_on;
+			if (inputData[1].label_off)
+				options["off"] = inputData[1].label_off;
+		}
 		return {
 			widget: node.addWidget(
 				"toggle",
 				inputName,
 				defaultVal,
 				() => {},
-				{"on": inputData[1].label_on, "off": inputData[1].label_off}
+				options,
 				)
 		};
 	},
