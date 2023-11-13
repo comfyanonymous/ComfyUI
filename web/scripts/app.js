@@ -6,6 +6,8 @@ import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 
+const IS_WEBP = Symbol();
+export const WEBP_PREVIEW_WIDGET = "$$comfy_webp_preview"
 
 function sanitizeNodeName(string) {
 	let entityMap = {
@@ -76,7 +78,11 @@ export class ComfyApp {
 		this.shiftDown = false;
 	}
 
-	getPreviewFormatParam() {
+	getPreviewFormatParam(name) {
+		console.log(name);
+		// Dont compress webp as it may be animated
+		if(name?.endsWith(".webp")) return "";
+
 		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
 		if(preview_format)
 			return `&preview=${preview_format}`;
@@ -428,7 +434,7 @@ export class ComfyApp {
 						this.images = output.images;
 						imagesChanged = true;
 						imgURLs = imgURLs.concat(output.images.map(params => {
-							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam());
+							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam(params.filename));
 						}))
 					}
 				}
@@ -509,6 +515,49 @@ export class ComfyApp {
 				}
 
 				if (this.imgs && this.imgs.length) {
+					const webp = this.imgs.find(img => {
+						if (img[IS_WEBP] == null) {
+							const filename = new URLSearchParams(
+								new URL(img.src).search
+							).get("filename");
+							img[IS_WEBP] = filename?.endsWith(".webp");
+						}
+						return img[IS_WEBP];
+					});
+
+					const widgetIdx = this.widgets?.findIndex((w) => w.name === WEBP_PREVIEW_WIDGET);
+				
+					if(webp) {
+						// We have webp images so these may be animated
+						// Instead of using the canvas we'll use a IMG
+						if(widgetIdx > -1) {
+							// Replace content
+						} else {
+							// TODO: add class
+							// TODO: handle multiple images, images changing
+							this.imgs[0].style.objectFit = "contain";
+							this.imgs[0].style.pointerEvents = "none";
+							this.imgs[0].onclick = () => {
+								app.canvas.selectNode(this);
+								app.canvas.bringToFront(this);
+							}
+							const widget = this.addDOMWidget(WEBP_PREVIEW_WIDGET, "img", this.imgs[0], {
+								getMaxHeight: () => {
+									const r = (this.size[0] - 20) / this.imgs[0].naturalWidth ;
+									const h = this.imgs[0].naturalHeight * r;
+									console.log(h);
+									return h;
+								}
+							});
+							widget.serializeValue = () => undefined;
+						}
+						return;
+					}
+
+					if (widgetIdx > -1) {
+						this.widgets.splice(widgetIdx, 1);
+					}
+
 					const canvas = app.graph.list_of_graphcanvas[0];
 					const mouse = canvas.graph_mouse;
 					if (!canvas.pointer_is_down && this.pointerDown) {

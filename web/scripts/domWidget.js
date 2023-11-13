@@ -1,4 +1,4 @@
-import { app } from "./app.js";
+import { app, WEBP_PREVIEW_WIDGET } from "./app.js";
 
 const SIZE = Symbol();
 
@@ -59,11 +59,11 @@ function computeSize(size) {
 		} else if (w.element) {
 			// Extract DOM widget size info
 			const styles = getComputedStyle(w.element);
-			let minHeight = parseInt(styles.getPropertyValue("--comfy-widget-min-height"));
-			let maxHeight = parseInt(styles.getPropertyValue("--comfy-widget-max-height"));
+			let minHeight = w.options.getMinHeight?.() ?? parseInt(styles.getPropertyValue("--comfy-widget-min-height"));
+			let maxHeight = w.options.getMaxHeight?.() ?? parseInt(styles.getPropertyValue("--comfy-widget-max-height"));
 
-			let prefHeight = styles.getPropertyValue("--comfy-widget-height");
-			if (prefHeight.endsWith("%")) {
+			let prefHeight = w.options.getHeight?.() ?? styles.getPropertyValue("--comfy-widget-height");
+			if (prefHeight.endsWith?.("%")) {
 				prefHeight = size[1] * (parseFloat(prefHeight.substring(0, prefHeight.length - 1)) / 100);
 			} else {
 				prefHeight = parseInt(prefHeight);
@@ -74,8 +74,12 @@ function computeSize(size) {
 			if (isNaN(minHeight)) {
 				minHeight = 50;
 			}
-			if (!isNaN(maxHeight) && !isNaN(prefHeight)) {
-				prefHeight = Math.min(prefHeight, maxHeight);
+			if (!isNaN(maxHeight)) {
+				if (!isNaN(prefHeight)) {
+					prefHeight = Math.min(prefHeight, maxHeight);
+				} else {
+					prefHeight = maxHeight;
+				}
 			}
 			dom.push({
 				minHeight,
@@ -110,7 +114,7 @@ function computeSize(size) {
 		}
 	}
 
-	if (this.imgs) {
+	if (this.imgs && !this.widgets.find((w) => w.name === WEBP_PREVIEW_WIDGET)) {
 		// Allocate space for image
 		freeSpace -= 220;
 	}
@@ -197,7 +201,7 @@ export function addDomClippingSetting() {
 }
 
 LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
-	if (!options) options = {};
+	options = { selectOn: ["focus", "click"], ...options };
 
 	if (!element.parentElement) {
 		document.body.append(element);
@@ -272,14 +276,15 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 		},
 	};
 
-	element.addEventListener("focus", () => {
-		app.canvas.selectNode(this);
-		app.canvas.bringToFront(this);
-	});
+	for (const evt of options.selectOn) {
+		element.addEventListener(evt, () => {
+			app.canvas.selectNode(this);
+			app.canvas.bringToFront(this);
+		});
+	}
 
 	this.addCustomWidget(widget);
 	elementWidgets.add(this);
-	options.onChange = widget.callback;
 
 	const onRemoved = this.onRemoved;
 	this.onRemoved = function () {
@@ -292,8 +297,10 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 		this[SIZE] = true;
 		const onResize = this.onResize;
 		this.onResize = function (size) {
+			options.beforeResize?.call(widget, this);
 			computeSize.call(this, size);
 			onResize?.apply(this, arguments);
+			options.afterResize?.call(widget, this);
 		};
 	}
 
