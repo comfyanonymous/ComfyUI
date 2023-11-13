@@ -39,6 +39,18 @@ export async function registerGroupNodes(groupNodes, source, prefix, missingNode
 	}
 }
 
+function getOutputs(config) {
+	const map = {};
+	for (const ext of config.external) {
+		if (!map[ext[0]]) {
+			map[ext[0]] = { [ext[1]]: true };
+		} else {
+			map[ext[0]][ext[1]] = true;
+		}
+	}
+	return map;
+}
+
 function getLinks(config) {
 	const linksFrom = {};
 	const linksTo = {};
@@ -84,6 +96,7 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 		[GROUP_SLOTS]: slots,
 	};
 	const links = getLinks(config);
+	const externalOutputs = getOutputs(config);
 
 	const seenInputs = {};
 	const seenOutputs = {};
@@ -180,7 +193,7 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 
 		// Add outputs
 		for (let outputId = 0; outputId < def.output.length; outputId++) {
-			if (linksFrom?.[outputId]) {
+			if (linksFrom?.[outputId] && !externalOutputs[nodeId]?.[outputId]) {
 				continue;
 			}
 
@@ -245,6 +258,33 @@ class ConvertToGroupAction {
 			const origin = app.graph.getNodeById(link[4]);
 			const type = origin.outputs[link[1]].type;
 			link.push(type);
+		}
+
+		// Check for external links to add extra outputs
+		const selectedIds = Object.keys(app.canvas.selected_nodes);
+		for (let i = 0; i < selectedIds.length; i++) {
+			const id = selectedIds[i];
+			const node = app.graph.getNodeById(id);
+			if (!node.outputs?.length) continue;
+			for (let slot = 0; slot < node.outputs.length; slot++) {
+				let hasExternal = false;
+				const output = node.outputs[slot];
+				if (!output.links?.length) continue;
+				for (const l of output.links) {
+					const link = app.graph.links[l];
+					if (!link) continue;
+
+					if (!app.canvas.selected_nodes[link.target_id]) {
+						hasExternal = true;
+						break;
+					}
+				}
+				if (hasExternal) {
+					if (!config.external) config.external = [];
+					config.external.push([i, slot]);
+					break;
+				}
+			}
 		}
 
 		const def = buildNodeDef(config, name, globalDefs);
