@@ -118,6 +118,24 @@ class SplitSigmas:
         sigmas2 = sigmas[step:]
         return (sigmas1, sigmas2)
 
+class FlipSigmas:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                     }
+                }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, sigmas):
+        sigmas = sigmas.flip(0)
+        if sigmas[0] == 0:
+            sigmas[0] = 0.0001
+        return (sigmas,)
+
 class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
@@ -243,4 +261,5 @@ NODE_CLASS_MAPPINGS = {
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "BasicScheduler": BasicScheduler,
     "SplitSigmas": SplitSigmas,
+    "FlipSigmas": FlipSigmas,
 }
