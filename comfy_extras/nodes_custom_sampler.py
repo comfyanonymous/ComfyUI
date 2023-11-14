@@ -149,7 +149,7 @@ class KSamplerSelect:
     FUNCTION = "get_sampler"
 
     def get_sampler(self, sampler_name):
-        sampler = comfy.samplers.sampler_class(sampler_name)()
+        sampler = comfy.samplers.sampler_object(sampler_name)
         return (sampler, )
 
 class SamplerDPMPP_2M_SDE:
@@ -172,7 +172,7 @@ class SamplerDPMPP_2M_SDE:
             sampler_name = "dpmpp_2m_sde"
         else:
             sampler_name = "dpmpp_2m_sde_gpu"
-        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "solver_type": solver_type})()
+        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "solver_type": solver_type})
         return (sampler, )
 
 
@@ -196,7 +196,7 @@ class SamplerDPMPP_SDE:
             sampler_name = "dpmpp_sde"
         else:
             sampler_name = "dpmpp_sde_gpu"
-        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})()
+        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})
         return (sampler, )
 
 class SamplerCustom:
