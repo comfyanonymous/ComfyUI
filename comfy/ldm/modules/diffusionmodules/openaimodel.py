@@ -624,6 +624,11 @@ class UNetModel(nn.Module):
             transformer_options["block"] = ("input", id)
             h = forward_timestep_embed(module, h, emb, context, transformer_options)
             h = apply_control(h, control, 'input')
+            if "input_block_patch" in transformer_patches:
+                patch = transformer_patches["input_block_patch"]
+                for p in patch:
+                    h = p(h, transformer_options)
+
             hs.append(h)
 
         transformer_options["block"] = ("middle", 0)
