@@ -52,6 +52,9 @@ class ModelPatcher:
             return True
         return False
 
+    def memory_required(self, input_shape):
+        return self.model.memory_required(input_shape=input_shape)
+
     def set_model_sampler_cfg_function(self, sampler_cfg_function):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
@@ -92,6 +95,9 @@ class ModelPatcher:
 
     def set_model_attn2_output_patch(self, patch):
         self.set_model_patch(patch, "attn2_output_patch")
+
+    def set_model_input_block_patch(self, patch):
+        self.set_model_patch(patch, "input_block_patch")
 
     def set_model_output_block_patch(self, patch):
         self.set_model_patch(patch, "output_block_patch")
@@ -176,7 +182,7 @@ class ModelPatcher:
             inplace_update = self.weight_inplace_update
 
             if key not in self.backup:
-                self.backup[key] = weight.to(device=device_to, copy=inplace_update)
+                self.backup[key] = weight.to(device=self.offload_device, copy=inplace_update)
 
             if device_to is not None:
                 temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
