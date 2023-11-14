@@ -16,7 +16,7 @@ class BasicScheduler:
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
 
@@ -36,7 +36,7 @@ class KarrasScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
 
@@ -54,7 +54,7 @@ class ExponentialScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
 
@@ -73,7 +73,7 @@ class PolyexponentialScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
 
@@ -92,7 +92,7 @@ class VPScheduler:
                     }
                }
     RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
 
@@ -109,7 +109,7 @@ class SplitSigmas:
                      }
                 }
     RETURN_TYPES = ("SIGMAS","SIGMAS")
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/sigmas"
 
     FUNCTION = "get_sigmas"
 
@@ -144,7 +144,7 @@ class KSamplerSelect:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/samplers"
 
     FUNCTION = "get_sampler"
 
@@ -163,7 +163,7 @@ class SamplerDPMPP_2M_SDE:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/samplers"
 
     FUNCTION = "get_sampler"
 
@@ -187,7 +187,7 @@ class SamplerDPMPP_SDE:
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling"
+    CATEGORY = "sampling/custom_sampling/samplers"
 
     FUNCTION = "get_sampler"
 
@@ -252,6 +252,7 @@ class SamplerCustom:
 
 NODE_CLASS_MAPPINGS = {
     "SamplerCustom": SamplerCustom,
+    "BasicScheduler": BasicScheduler,
     "KarrasScheduler": KarrasScheduler,
     "ExponentialScheduler": ExponentialScheduler,
     "PolyexponentialScheduler": PolyexponentialScheduler,
@@ -259,7 +260,6 @@ NODE_CLASS_MAPPINGS = {
     "KSamplerSelect": KSamplerSelect,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
-    "BasicScheduler": BasicScheduler,
     "SplitSigmas": SplitSigmas,
     "FlipSigmas": FlipSigmas,
 }
