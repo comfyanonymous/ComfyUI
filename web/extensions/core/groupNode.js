@@ -41,11 +41,13 @@ export async function registerGroupNodes(groupNodes, source, prefix, missingNode
 
 function getOutputs(config) {
 	const map = {};
-	for (const ext of config.external) {
-		if (!map[ext[0]]) {
-			map[ext[0]] = { [ext[1]]: true };
-		} else {
-			map[ext[0]][ext[1]] = true;
+	if (config.external) {
+		for (const ext of config.external) {
+			if (!map[ext[0]]) {
+				map[ext[0]] = { [ext[1]]: true };
+			} else {
+				map[ext[0]][ext[1]] = true;
+			}
 		}
 	}
 	return map;
@@ -247,9 +249,20 @@ class ConvertToGroupAction {
 	}
 
 	async register(name) {
+		// We want to generate the copied nodes in execution order so the internal node widgets show in a sensible order
+		const nodes = app.graph.computeExecutionOrder(false);
+		const selectedIds = Object.keys(app.canvas.selected_nodes);
+		const ordered = selectedIds
+			.map((id) => {
+				const node = app.graph.getNodeById(id);
+				return { index: nodes.indexOf(node), node };
+			})
+			.sort((a, b) => a.index - b.index || a.node.id - b.node.id)
+			.map(({ node }) => node);
+
 		// Use the built in copyToClipboard function to generate the node data we need
 		const backup = localStorage.getItem("litegrapheditor_clipboard");
-		app.canvas.copyToClipboard();
+		app.canvas.copyToClipboard(ordered);
 		const config = JSON.parse(localStorage.getItem("litegrapheditor_clipboard"));
 		localStorage.setItem("litegrapheditor_clipboard", backup);
 
@@ -261,7 +274,6 @@ class ConvertToGroupAction {
 		}
 
 		// Check for external links to add extra outputs
-		const selectedIds = Object.keys(app.canvas.selected_nodes);
 		for (let i = 0; i < selectedIds.length; i++) {
 			const id = selectedIds[i];
 			const node = app.graph.getNodeById(id);
@@ -289,7 +301,7 @@ class ConvertToGroupAction {
 
 		const def = buildNodeDef(config, name, globalDefs);
 		await app.registerNodeDef("workflow/" + name, def);
-		return { config, def };
+		return { config, def, nodes: ordered };
 	}
 
 	findOutput(slots, link, index) {
@@ -330,7 +342,7 @@ class ConvertToGroupAction {
 		}
 	}
 
-	convert(name, config, def) {
+	convert(name, config, def, nodes) {
 		const newNode = LiteGraph.createNode("workflow/" + name);
 		app.graph.add(newNode);
 
@@ -339,8 +351,7 @@ class ConvertToGroupAction {
 		let index = 0;
 		const slots = def[GROUP_SLOTS];
 		newNode[GROUP_IDS] = {};
-		for (const id in app.canvas.selected_nodes) {
-			const node = app.graph.getNodeById(id);
+		for (const node of nodes) {
 			if (left == null || node.pos[0] < left) {
 				left = node.pos[0];
 			}
@@ -351,7 +362,7 @@ class ConvertToGroupAction {
 			this.linkOutputs(newNode, node, slots, index++);
 
 			// Store the original ID so the node is reused in this session
-			newNode[GROUP_IDS][node._relative_id] = id;
+			newNode[GROUP_IDS][node._relative_id] = node.id;
 			app.graph.remove(node);
 		}
 
@@ -376,10 +387,10 @@ class ConvertToGroupAction {
 				let groupNodes = extra.groupNodes;
 				if (!groupNodes) extra.groupNodes = groupNodes = {};
 
-				const { config, def } = await this.register(name);
+				const { config, def, nodes } = await this.register(name);
 				groupNodes[name] = config;
 
-				return this.convert(name, config, def);
+				return this.convert(name, config, def, nodes);
 			},
 		});
 	}
@@ -593,7 +604,9 @@ const ext = {
 						let top;
 						let left;
 						const slots = def[GROUP_SLOTS];
-						const selectedIds = Object.keys(app.canvas.selected_nodes);
+						const selectedIds = node[GROUP_IDS]
+							? Object.values(node[GROUP_IDS])
+							: Object.keys(app.canvas.selected_nodes);
 						const newNodes = [];
 						for (let i = 0; i < selectedIds.length; i++) {
 							const id = selectedIds[i];

@@ -114,9 +114,9 @@ describe("group node", () => {
 
 		expect(group.inputs.map((i) => i.input.name)).toEqual(["CLIPTextEncode clip", "CLIPTextEncode 2 clip"]);
 		expect(group.outputs.map((i) => i.output.name)).toEqual([
+			"EmptyLatentImage LATENT",
 			"CLIPTextEncode CONDITIONING",
 			"CLIPTextEncode 2 CONDITIONING",
-			"EmptyLatentImage LATENT",
 		]);
 
 		// ckpt clip to both clip inputs on the group
@@ -228,7 +228,7 @@ describe("group node", () => {
 		expect(group.inputs).toHaveLength(1);
 		expect(group.inputs[0].input.type).toEqual("CLIP");
 
-		expect((await graph.toPrompt()).output).toEqual(getOutput([nodes.pos.id, nodes.neg.id, nodes.empty.id]));
+		expect((await graph.toPrompt()).output).toEqual(getOutput());
 	});
 	test("it can embed reroutes as outputs", async () => {
 		const { ez, graph, app } = await start();
@@ -458,24 +458,25 @@ describe("group node", () => {
 		group2.widgets["EmptyLatentImage width"].value = 1024;
 		group2.widgets["KSampler seed"].value = 100;
 
+		let i = 0;
 		expect((await graph.toPrompt()).output).toEqual({
-			...getOutput([nodes.pos.id, nodes.neg.id, nodes.empty.id, nodes.sampler.id, nodes.decode.id, nodes.save.id], {
-				[nodes.pos.id]: { text: "hello" },
+			...getOutput([nodes.empty.id, nodes.pos.id, nodes.neg.id, nodes.sampler.id, nodes.decode.id, nodes.save.id], {
 				[nodes.empty.id]: { width: 256 },
+				[nodes.pos.id]: { text: "hello" },
 				[nodes.sampler.id]: { seed: 1 },
 			}),
 			...getOutput(
 				{
-					[nodes.pos.id]: `${group2.id}:0`,
-					[nodes.neg.id]: `${group2.id}:1`,
-					[nodes.empty.id]: `${group2.id}:2`,
-					[nodes.sampler.id]: `${group2.id}:3`,
-					[nodes.decode.id]: `${group2.id}:4`,
-					[nodes.save.id]: `${group2.id}:5`,
+					[nodes.empty.id]: `${group2.id}:${i++}`,
+					[nodes.pos.id]: `${group2.id}:${i++}`,
+					[nodes.neg.id]: `${group2.id}:${i++}`,
+					[nodes.sampler.id]: `${group2.id}:${i++}`,
+					[nodes.decode.id]: `${group2.id}:${i++}`,
+					[nodes.save.id]: `${group2.id}:${i++}`,
 				},
 				{
-					[nodes.pos.id]: { text: "world" },
 					[nodes.empty.id]: { width: 1024 },
+					[nodes.pos.id]: { text: "world" },
 					[nodes.sampler.id]: { seed: 100 },
 				}
 			),
@@ -580,5 +581,50 @@ describe("group node", () => {
 			1: { inputs: { text: "positive" }, class_type: "CLIPTextEncode" },
 			2: { inputs: { text: "positive" }, class_type: "CLIPTextEncode" },
 		});
+	});
+	test("adds widgets in node execution order", async () => {
+		const { ez, graph, app } = await start();
+		const scale = ez.LatentUpscale();
+		const save = ez.SaveImage();
+		const empty = ez.EmptyLatentImage();
+		const decode = ez.VAEDecode();
+
+		scale.outputs.LATENT.connectTo(decode.inputs.samples);
+		decode.outputs.IMAGE.connectTo(save.inputs.images);
+		empty.outputs.LATENT.connectTo(scale.inputs.samples);
+
+		const group = await convertToGroup(app, graph, "test", [scale, save, empty, decode]);
+		const widgets = group.widgets.map((w) => w.widget.name);
+		expect(widgets).toStrictEqual([
+			"EmptyLatentImage width",
+			"EmptyLatentImage height",
+			"EmptyLatentImage batch_size",
+			"LatentUpscale upscale_method",
+			"LatentUpscale width",
+			"LatentUpscale height",
+			"LatentUpscale crop",
+			"SaveImage filename_prefix",
+		]);
+	});
+	test("adds output for external links when converting to group", async () => {
+		const { ez, graph, app } = await start();
+		const img = ez.EmptyLatentImage();
+		let decode = ez.VAEDecode(...img.outputs);
+		const preview1 = ez.PreviewImage(...decode.outputs);
+		const preview2 = ez.PreviewImage(...decode.outputs);
+
+		const group = await convertToGroup(app, graph, "test", [img, decode, preview1]);
+
+		// Ensure we have an output connected to the 2nd preview node
+		expect(group.outputs.length).toBe(1);
+		expect(group.outputs[0].connections.length).toBe(1);
+		expect(group.outputs[0].connections[0].targetNode.id).toBe(preview2.id);
+
+		// Convert back and ensure bothe previews are still connected
+		group.menu["Convert to nodes"].call();
+		decode = graph.find(decode);
+		expect(decode.outputs[0].connections.length).toBe(2);
+		expect(decode.outputs[0].connections[0].targetNode.id).toBe(preview1.id);
+		expect(decode.outputs[0].connections[1].targetNode.id).toBe(preview2.id);
 	});
 });
