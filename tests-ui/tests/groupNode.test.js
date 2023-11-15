@@ -627,4 +627,14 @@ describe("group node", () => {
 		expect(decode.outputs[0].connections[0].targetNode.id).toBe(preview1.id);
 		expect(decode.outputs[0].connections[1].targetNode.id).toBe(preview2.id);
 	});
+	test("works with IMAGEUPLOAD widget", async () => {
+		const { ez, graph, app } = await start();
+		const img = ez.LoadImage();
+		const preview1 = ez.PreviewImage(img.outputs[0]);
+
+		const group = await convertToGroup(app, graph, "test", [img, preview1]);
+		const widget = group.widgets["LoadImage upload"];
+		expect(widget).toBeTruthy();
+		expect(widget.widget.type).toBe("button");
+	});
 });
