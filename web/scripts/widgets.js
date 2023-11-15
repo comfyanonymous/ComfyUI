@@ -376,7 +376,7 @@ export const ComfyWidgets = {
 		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
 	},
 	IMAGEUPLOAD(node, inputName, inputData, app) {
-		const imageWidget = node.widgets.find((w) => w.name === "image");
+		const imageWidget = node.widgets.find((w) => w.name === (inputData[1]?.widget ?? "image"));
 		let uploadWidget;
 
 		function showImage(name) {

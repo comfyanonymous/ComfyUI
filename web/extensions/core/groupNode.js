@@ -189,6 +189,9 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 			if (inputName === "seed" || inputName === "noise_seed") {
 				inputDef = [...inputDef];
 				inputDef[1] = { control_after_generate: `${prefix} control_after_generate`, ...inputDef[1] };
+			} else if (inputDef[0] === "IMAGEUPLOAD") {
+				inputDef = [...inputDef];
+				inputDef[1] = { widget: `${prefix} ${inputDef[1]?.widget ?? "image"}`, ...inputDef[1] };
 			}
 			newDef.input.required[name] = inputDef;
 		}
