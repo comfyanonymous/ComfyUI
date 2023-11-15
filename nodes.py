@@ -389,7 +389,7 @@ class SaveLatent:
             metadata = {"prompt": prompt_info}
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
-                    metadata[x] = json.dumps(extra_pnginfo[x])
+                    metadata[x] = extra_pnginfo[x] if isinstance(extra_pnginfo[x], str) else json.dumps(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
 
@@ -1305,7 +1305,7 @@ class SaveImage:
                     metadata.add_text("prompt", json.dumps(prompt))
                 if extra_pnginfo is not None:
                     for x in extra_pnginfo:
-                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                        metadata.add_text(x, extra_pnginfo[x] if isinstance(extra_pnginfo[x], str) else json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
