@@ -633,6 +633,10 @@ class UNetModel(nn.Module):
                     h = p(h, transformer_options)
 
             hs.append(h)
+            if "input_block_patch_after_skip" in transformer_patches:
+                patch = transformer_patches["input_block_patch_after_skip"]
+                for p in patch:
+                    h = p(h, transformer_options)
 
         transformer_options["block"] = ("middle", 0)
         h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options)
