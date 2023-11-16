@@ -14,6 +14,8 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
+import requests
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
 
@@ -1345,8 +1347,11 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
     def load_image(self, image):
-        image_path = folder_paths.get_annotated_filepath(image)
-        i = Image.open(image_path)
+        if image.startswith("http"):
+            i = Image.open(requests.get(image, stream=True).raw)
+        else:
+            image_path = folder_paths.get_annotated_filepath(image)
+            i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -1368,7 +1373,7 @@ class LoadImage:
 
     @classmethod
     def VALIDATE_INPUTS(s, image):
-        if not folder_paths.exists_annotated_filepath(image):
+        if not folder_paths.exists_annotated_filepath(image) and not image.startswith("http"):
             return "Invalid image file: {}".format(image)
 
         return True
@@ -1389,8 +1394,11 @@ class LoadImageMask:
     RETURN_TYPES = ("MASK",)
     FUNCTION = "load_image"
     def load_image(self, image, channel):
-        image_path = folder_paths.get_annotated_filepath(image)
-        i = Image.open(image_path)
+        if image.startswith("http"):
+            i = Image.open(requests.get(image, stream=True).raw)
+        else:
+            image_path = folder_paths.get_annotated_filepath(image)
+            i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
         if i.getbands() != ("R", "G", "B", "A"):
             i = i.convert("RGBA")
@@ -1415,7 +1423,7 @@ class LoadImageMask:
 
     @classmethod
     def VALIDATE_INPUTS(s, image, channel):
-        if not folder_paths.exists_annotated_filepath(image):
+        if not folder_paths.exists_annotated_filepath(image) and not image.startswith("http"):
             return "Invalid image file: {}".format(image)
 
         if channel not in s._color_channels:

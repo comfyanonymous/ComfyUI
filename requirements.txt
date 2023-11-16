@@ -10,3 +10,4 @@ Pillow
 scipy
 tqdm
 psutil
+requests
