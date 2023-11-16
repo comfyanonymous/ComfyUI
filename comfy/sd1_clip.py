@@ -173,9 +173,9 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         if getattr(self.transformer, self.inner_name).final_layer_norm.weight.dtype != torch.float32:
             precision_scope = torch.autocast
         else:
-            precision_scope = lambda a, b: contextlib.nullcontext(a)
+            precision_scope = lambda a, dtype: contextlib.nullcontext(a)
 
-        with precision_scope(model_management.get_autocast_device(device), torch.float32):
+        with precision_scope(model_management.get_autocast_device(device), dtype=torch.float32):
             attention_mask = None
             if self.enable_attention_masks:
                 attention_mask = torch.zeros_like(tokens)

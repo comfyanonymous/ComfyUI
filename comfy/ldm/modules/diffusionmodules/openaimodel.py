@@ -255,7 +255,10 @@ def apply_control(h, control, name):
     if control is not None and name in control and len(control[name]) > 0:
         ctrl = control[name].pop()
         if ctrl is not None:
-            h += ctrl
+            try:
+                h += ctrl
+            except:
+                print("warning control could not be applied", h.shape, ctrl.shape)
     return h
 
 class UNetModel(nn.Module):

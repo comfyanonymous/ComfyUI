@@ -220,6 +220,8 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
                         transformer_options["patches"] = patches
 
                 transformer_options["cond_or_uncond"] = cond_or_uncond[:]
+                transformer_options["sigmas"] = timestep
+
                 c['transformer_options'] = transformer_options
 
                 if 'model_function_wrapper' in model_options:
@@ -518,7 +520,7 @@ class UNIPCBH2(Sampler):
     def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
         return uni_pc.sample_unipc(model_wrap, noise, latent_image, sigmas, max_denoise=self.max_denoise(model_wrap, sigmas), extra_args=extra_args, noise_mask=denoise_mask, callback=callback, variant='bh2', disable=disable_pbar)
 
-KSAMPLER_NAMES = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
+KSAMPLER_NAMES = ["euler", "euler_ancestral", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
                   "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm"]
 
