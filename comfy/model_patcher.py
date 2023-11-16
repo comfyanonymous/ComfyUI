@@ -37,7 +37,7 @@ class ModelPatcher:
         return size
 
     def clone(self):
-        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self.current_device)
+        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self.current_device, weight_inplace_update=self.weight_inplace_update)
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
@@ -98,6 +98,9 @@ class ModelPatcher:
 
     def set_model_input_block_patch(self, patch):
         self.set_model_patch(patch, "input_block_patch")
+
+    def set_model_input_block_patch_after_skip(self, patch):
+        self.set_model_patch(patch, "input_block_patch_after_skip")
 
     def set_model_output_block_patch(self, patch):
         self.set_model_patch(patch, "output_block_patch")
