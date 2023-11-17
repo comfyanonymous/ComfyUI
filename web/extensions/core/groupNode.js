@@ -277,9 +277,8 @@ class ConvertToGroupAction {
 		}
 
 		// Check for external links to add extra outputs
-		for (let i = 0; i < selectedIds.length; i++) {
-			const id = selectedIds[i];
-			const node = app.graph.getNodeById(id);
+		for (let i = 0; i < ordered.length; i++) {
+			const node = ordered[i];
 			if (!node.outputs?.length) continue;
 			for (let slot = 0; slot < node.outputs.length; slot++) {
 				let hasExternal = false;

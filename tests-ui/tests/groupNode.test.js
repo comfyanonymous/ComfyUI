@@ -48,7 +48,7 @@ describe("group node", () => {
 	}
 
 	/**
-	 * @param { Record<string, string> | number[] } idMap
+	 * @param { Record<string, string | number> | number[] } idMap
 	 * @param { Record<string, Record<string, unknown>> } valueMap
 	 */
 	function getOutput(idMap = {}, valueMap = {}) {
@@ -83,24 +83,27 @@ describe("group node", () => {
 			7: { inputs: { filename_prefix: "ComfyUI", images: ["6", 0], ...valueMap?.[7] }, class_type: "SaveImage" },
 		};
 
+		// Map old IDs to new at the top level
+		const mapped = {};
 		for (const oldId in idMap) {
-			const old = expected[oldId];
+			mapped[idMap[oldId]] = expected[oldId];
 			delete expected[oldId];
-			expected[idMap[oldId]] = old;
+		}
+		Object.assign(mapped, expected);
 
-			for (const k in expected) {
-				for (const input in expected[k].inputs) {
-					const v = expected[k].inputs[input];
-					if (v instanceof Array) {
-						if (v[0] in idMap) {
-							v[0] = idMap[v[0]];
-						}
+		// Map old IDs to new inside links
+		for (const k in mapped) {
+			for (const input in mapped[k].inputs) {
+				const v = mapped[k].inputs[input];
+				if (v instanceof Array) {
+					if (v[0] in idMap) {
+						v[0] = idMap[v[0]] + "";
 					}
 				}
 			}
 		}
 
-		return expected;
+		return mapped;
 	}
 
 	test("can be created from selected nodes", async () => {
@@ -626,6 +629,56 @@ describe("group node", () => {
 		expect(decode.outputs[0].connections.length).toBe(2);
 		expect(decode.outputs[0].connections[0].targetNode.id).toBe(preview1.id);
 		expect(decode.outputs[0].connections[1].targetNode.id).toBe(preview2.id);
+	});
+	test("adds output for external links when converting to group when nodes are not in execution order", async () => {
+		const { ez, graph, app } = await start();
+		const sampler = ez.KSampler();
+		const ckpt = ez.CheckpointLoaderSimple();
+		const empty = ez.EmptyLatentImage();
+		const pos = ez.CLIPTextEncode(ckpt.outputs.CLIP, { text: "positive" });
+		const neg = ez.CLIPTextEncode(ckpt.outputs.CLIP, { text: "negative" });
+		const decode1 = ez.VAEDecode(sampler.outputs.LATENT, ckpt.outputs.VAE);
+		const save = ez.SaveImage(decode1.outputs.IMAGE);
+		ckpt.outputs.MODEL.connectTo(sampler.inputs.model);
+		pos.outputs.CONDITIONING.connectTo(sampler.inputs.positive);
+		neg.outputs.CONDITIONING.connectTo(sampler.inputs.negative);
+		empty.outputs.LATENT.connectTo(sampler.inputs.latent_image);
+
+		const encode = ez.VAEEncode(decode1.outputs.IMAGE);
+		const vae = ez.VAELoader();
+		const decode2 = ez.VAEDecode(encode.outputs.LATENT, vae.outputs.VAE);
+		const preview = ez.PreviewImage(decode2.outputs.IMAGE);
+		vae.outputs.VAE.connectTo(encode.inputs.vae);
+
+		const group = await convertToGroup(app, graph, "test", [vae, decode1, encode, sampler]);
+
+		expect(group.outputs.length).toBe(3);
+		expect(group.outputs[0].output.name).toBe("VAELoader VAE");
+		expect(group.outputs[0].output.type).toBe("VAE");
+		expect(group.outputs[1].output.name).toBe("VAEDecode IMAGE");
+		expect(group.outputs[1].output.type).toBe("IMAGE");
+		expect(group.outputs[2].output.name).toBe("VAEEncode LATENT");
+		expect(group.outputs[2].output.type).toBe("LATENT");
+
+		expect(group.outputs[0].connections.length).toBe(1);
+		expect(group.outputs[0].connections[0].targetNode.id).toBe(decode2.id);
+		expect(group.outputs[0].connections[0].targetInput.index).toBe(1);
+
+		expect(group.outputs[1].connections.length).toBe(1);
+		expect(group.outputs[1].connections[0].targetNode.id).toBe(save.id);
+		expect(group.outputs[1].connections[0].targetInput.index).toBe(0);
+
+		expect(group.outputs[2].connections.length).toBe(1);
+		expect(group.outputs[2].connections[0].targetNode.id).toBe(decode2.id);
+		expect(group.outputs[2].connections[0].targetInput.index).toBe(0);
+
+		expect((await graph.toPrompt()).output).toEqual({
+			...getOutput({ 1: ckpt.id, 2: pos.id, 3: neg.id, 4: empty.id, 5: sampler.id, 6: decode1.id, 7: save.id }),
+			[vae.id]: { inputs: { vae_name: "vae1.safetensors" }, class_type: vae.node.type },
+			[encode.id]: { inputs: { pixels: ["6", 0], vae: [vae.id + "", 0] }, class_type: encode.node.type },
+			[decode2.id]: { inputs: { samples: [encode.id + "", 0], vae: [vae.id + "", 0] }, class_type: decode2.node.type },
+			[preview.id]: { inputs: { images: [decode2.id + "", 0] }, class_type: preview.node.type },
+		});
 	});
 	test("works with IMAGEUPLOAD widget", async () => {
 		const { ez, graph, app } = await start();
