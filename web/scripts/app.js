@@ -1540,14 +1540,16 @@ export class ComfyApp {
 
 		let reset_invalid_values = false;
 		if (!graphData) {
-			if (typeof structuredClone === "undefined")
-			{
-				graphData = JSON.parse(JSON.stringify(defaultGraph));
-			}else
-			{
-				graphData = structuredClone(defaultGraph);
-			}
+			graphData = defaultGraph;
 			reset_invalid_values = true;
+		}
+
+		if (typeof structuredClone === "undefined")
+		{
+			graphData = JSON.parse(JSON.stringify(graphData));
+		}else
+		{
+			graphData = structuredClone(graphData);
 		}
 
 		const missingNodeTypes = [];
@@ -1914,7 +1916,7 @@ export class ComfyApp {
 		for (const id of ids) {
 			const data = apiData[id];
 			const node = LiteGraph.createNode(data.class_type);
-			node.id = id;
+			node.id = isNaN(+id) ? id : +id;
 			graph.add(node);
 		}
 
