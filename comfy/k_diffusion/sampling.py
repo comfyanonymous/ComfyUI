@@ -808,3 +808,26 @@ def sample_heunpp2(model, x, sigmas, extra_args=None, callback=None, disable=Non
             d_prime = w1 * d + w2 * d_2 + w3 * d_3
             x = x + d_prime * dt
     return x
+
+@torch.no_grad()
+def sample_lcm_alt(model, x, sigmas, extra_args=None, callback=None, disable=None, noise_sampler=None):
+    extra_args = {} if extra_args is None else extra_args
+    noise_sampler = default_noise_sampler(x) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+
+        # This limit should probably be made user adjustable and/or dynamic. This specific limit was chosen
+        # To allow 4 step generation without artifacts. Higher step counts can use lower values.
+        if sigmas[i+1] > 1.67:
+            noise = (x - denoised) / sigmas[i]
+        elif sigmas[i + 1] > 0:
+            noise = noise_sampler(sigmas[i], sigmas[i + 1])
+        else:
+            noise = None
+        x = denoised
+        if sigmas[i + 1] > 0 and torch.is_tensor(noise):
+            x += sigmas[i + 1] * noise
+    return x
