@@ -1708,7 +1708,7 @@ export class ComfyApp {
 						}
 
 						if (link) {
-							if (parent.updateLink) {
+							if (parent?.updateLink) {
 								link = parent.updateLink(link);
 							}
 							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
