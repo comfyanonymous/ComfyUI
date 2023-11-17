@@ -20,6 +20,7 @@ async function setup() {
 							// Modify the response data to add some checkpoints
 							const objectInfo = JSON.parse(data);
 							objectInfo.CheckpointLoaderSimple.input.required.ckpt_name[0] = ["model1.safetensors", "model2.ckpt"];
+							objectInfo.VAELoader.input.required.vae_name[0] = ["vae1.safetensors", "vae2.ckpt"];
 
 							data = JSON.stringify(objectInfo, undefined, "\t");
 
