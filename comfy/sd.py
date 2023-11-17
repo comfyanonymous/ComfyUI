@@ -95,10 +95,7 @@ class CLIP:
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
         params['device'] = offload_device
-        if model_management.should_use_fp16(load_device, prioritize_performance=False):
-            params['dtype'] = torch.float16
-        else:
-            params['dtype'] = torch.float32
+        params['dtype'] = model_management.text_encoder_dtype(load_device)
 
         self.cond_stage_model = clip(**(params))
 

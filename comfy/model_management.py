@@ -482,6 +482,21 @@ def text_encoder_device():
     else:
         return torch.device("cpu")
 
+def text_encoder_dtype(device=None):
+    if args.fp8_e4m3fn_text_enc:
+        return torch.float8_e4m3fn
+    elif args.fp8_e5m2_text_enc:
+        return torch.float8_e5m2
+    elif args.fp16_text_enc:
+        return torch.float16
+    elif args.fp32_text_enc:
+        return torch.float32
+
+    if should_use_fp16(device, prioritize_performance=False):
+        return torch.float16
+    else:
+        return torch.float32
+
 def vae_device():
     return get_torch_device()
 
