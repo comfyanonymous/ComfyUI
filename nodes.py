@@ -1800,6 +1800,7 @@ def init_custom_nodes():
         "nodes_hypertile.py",
         "nodes_model_advanced.py",
         "nodes_model_downscale.py",
+        "nodes_images.py",
     ]
 
     for node_file in extras_files:
