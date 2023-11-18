@@ -234,6 +234,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 
 			const hidden = app.canvas.ds.scale < 0.5 || widget.computedHeight <= 0 || widget.type === "converted-widget";
 			element.hidden = hidden;
+			element.style.display = hidden ? "none" : null;
 			if (hidden) {
 				widget.options.onHide?.(widget);
 				return;
@@ -264,7 +265,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 				element.style.willChange = "clip-path";
 			}
 
-			this.options.onDraw?.(w);
+			this.options.onDraw?.(widget);
 		},
 		element,
 		options,

@@ -5,6 +5,7 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
+import { createWebpImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
 const IS_WEBP = Symbol();
 export const WEBP_PREVIEW_WIDGET = "$$comfy_webp_preview"
@@ -79,7 +80,6 @@ export class ComfyApp {
 	}
 
 	getPreviewFormatParam(name) {
-		console.log(name);
 		// Dont compress webp as it may be animated
 		if(name?.endsWith(".webp")) return "";
 
@@ -413,6 +413,8 @@ export class ComfyApp {
 		}
 
 		node.prototype.setSizeForImage = function () {
+			if(this.imgs && !hasWebPImage(this.imgs)) return;
+
 			if (this.inputHeight) {
 				this.setSize(this.size);
 				return;
@@ -422,6 +424,18 @@ export class ComfyApp {
 				this.setSize([this.size[0], minHeight]);
 			}
 		};
+
+		function hasWebPImage(imgs) {
+			return !!imgs.find(img => {
+				if (img[IS_WEBP] == null) {
+					const filename = new URLSearchParams(
+						new URL(img.src).search
+					).get("filename");
+					img[IS_WEBP] = filename?.endsWith(".webp");
+				}
+				return img[IS_WEBP];
+			});
+		}
 
 		node.prototype.onDrawBackground = function (ctx) {
 			if (!this.flags.collapsed) {
@@ -514,16 +528,8 @@ export class ComfyApp {
 					return true;
 				}
 
-				if (this.imgs && this.imgs.length) {
-					const webp = this.imgs.find(img => {
-						if (img[IS_WEBP] == null) {
-							const filename = new URLSearchParams(
-								new URL(img.src).search
-							).get("filename");
-							img[IS_WEBP] = filename?.endsWith(".webp");
-						}
-						return img[IS_WEBP];
-					});
+				if (this.imgs?.length) {
+					const webp = hasWebPImage(this.imgs);
 
 					const widgetIdx = this.widgets?.findIndex((w) => w.name === WEBP_PREVIEW_WIDGET);
 				
@@ -532,24 +538,17 @@ export class ComfyApp {
 						// Instead of using the canvas we'll use a IMG
 						if(widgetIdx > -1) {
 							// Replace content
+							const widget = this.widgets[widgetIdx];
+							widget.options.host.updateImages(this.imgs);
 						} else {
-							// TODO: add class
-							// TODO: handle multiple images, images changing
-							this.imgs[0].style.objectFit = "contain";
-							this.imgs[0].style.pointerEvents = "none";
-							this.imgs[0].onclick = () => {
-								app.canvas.selectNode(this);
-								app.canvas.bringToFront(this);
-							}
-							const widget = this.addDOMWidget(WEBP_PREVIEW_WIDGET, "img", this.imgs[0], {
-								getMaxHeight: () => {
-									const r = (this.size[0] - 20) / this.imgs[0].naturalWidth ;
-									const h = this.imgs[0].naturalHeight * r;
-									console.log(h);
-									return h;
-								}
+							const host = createWebpImageHost(this);
+							const widget = this.addDOMWidget(WEBP_PREVIEW_WIDGET, "img", host.el, {
+								host,
+								getHeight: host.getHeight,
+								onDraw: host.onDraw
 							});
 							widget.serializeValue = () => undefined;
+							widget.options.host.updateImages(this.imgs);
 						}
 						return;
 					}
@@ -597,31 +596,7 @@ export class ComfyApp {
 						}
 						else {
 							cell_padding = 0;
-							let best = 0;
-							let w = this.imgs[0].naturalWidth;
-							let h = this.imgs[0].naturalHeight;
-
-							// compact style
-							for (let c = 1; c <= numImages; c++) {
-								const rows = Math.ceil(numImages / c);
-								const cW = dw / c;
-								const cH = dh / rows;
-								const scaleX = cW / w;
-								const scaleY = cH / h;
-
-								const scale = Math.min(scaleX, scaleY, 1);
-								const imageW = w * scale;
-								const imageH = h * scale;
-								const area = imageW * imageH * numImages;
-
-								if (area > best) {
-									best = area;
-									cellWidth = imageW;
-									cellHeight = imageH;
-									cols = c;
-									shiftX = c * ((cW - imageW) / 2);
-								}
-							}
+							({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh));
 						}
 
 						let anyHovered = false;
