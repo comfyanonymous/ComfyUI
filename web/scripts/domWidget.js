@@ -201,7 +201,7 @@ export function addDomClippingSetting() {
 }
 
 LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
-	options = { selectOn: ["focus", "click"], ...options };
+	options = { hideOnZoom: true, selectOn: ["focus", "click"], ...options };
 
 	if (!element.parentElement) {
 		document.body.append(element);
@@ -232,7 +232,10 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 				computeSize.call(node, node.size);
 			}
 
-			const hidden = app.canvas.ds.scale < 0.5 || widget.computedHeight <= 0 || widget.type === "converted-widget";
+			const hidden =
+				(!!options.hideOnZoom && app.canvas.ds.scale < 0.5) ||
+				widget.computedHeight <= 0 ||
+				widget.type === "converted-widget";
 			element.hidden = hidden;
 			element.style.display = hidden ? "none" : null;
 			if (hidden) {

@@ -546,7 +546,8 @@ export class ComfyApp {
 							const widget = this.addDOMWidget(WEBP_PREVIEW_WIDGET, "img", host.el, {
 								host,
 								getHeight: host.getHeight,
-								onDraw: host.onDraw
+								onDraw: host.onDraw,
+								hideOnZoom: false
 							});
 							widget.serializeValue = () => undefined;
 							widget.options.host.updateImages(this.imgs);
