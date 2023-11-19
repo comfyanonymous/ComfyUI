@@ -412,8 +412,8 @@ export class ComfyApp {
 			return shiftY;
 		}
 
-		node.prototype.setSizeForImage = function () {
-			if(this.imgs && hasWebPImage(this.imgs)) return;
+		node.prototype.setSizeForImage = function (force) {
+			if(!force && this.imgs && hasWebPImage(this.imgs)) return;
 
 			if (this.inputHeight) {
 				this.setSize(this.size);
@@ -542,6 +542,7 @@ export class ComfyApp {
 							widget.options.host.updateImages(this.imgs);
 						} else {
 							const host = createWebpImageHost(this);
+							this.setSizeForImage(true);
 							const widget = this.addDOMWidget(WEBP_PREVIEW_WIDGET, "img", host.el, {
 								host,
 								getHeight: host.getHeight,

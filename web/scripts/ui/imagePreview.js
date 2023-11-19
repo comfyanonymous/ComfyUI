@@ -34,7 +34,6 @@ export function calculateImageGrid(imgs, dw, dh) {
 }
 
 export function createWebpImageHost(node) {
-	node.inputHeight = 1;
 	const el = $el("div.comfy-webp-preview");
 	let currentImgs;
 	let first = true;
