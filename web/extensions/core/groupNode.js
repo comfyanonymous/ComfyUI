@@ -103,6 +103,8 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 	const seenInputs = {};
 	const seenOutputs = {};
 
+	const primitiveInputs = {};
+
 	let inputCount = 0;
 	for (let nodeId = 0; nodeId < config.nodes.length; nodeId++) {
 		const node = config.nodes[nodeId];
@@ -146,6 +148,22 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 					output_name: [],
 					output_is_list: [],
 				};
+			} else if (node.type === "PrimitiveNode") {
+				// Skip as its not linked
+				if (!linksFrom) continue;
+
+				def = {
+					input: {
+						required: {
+							["value"]: [linksFrom["0"][5], {}],
+						},
+					},
+					output: [linksFrom["0"][5]],
+					output_name: [],
+					output_is_list: [],
+				};
+
+				primitiveInputs[nodeId] = def.input.required.value;
 			} else {
 				// Front end only node
 				console.warn("Skipping virtual node " + node.type + " when building group node " + nodeName);
@@ -159,7 +177,7 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 		const inputNames = Object.keys(inputs);
 		let linkInputId = 0;
 		for (const inputName of inputNames) {
-			const widgetType = getWidgetType(inputs[inputName], inputName);
+			let widgetType = getWidgetType(inputs[inputName], inputName);
 			let prefix = node.title ?? node.type;
 			let name = `${prefix} ${inputName}`;
 
@@ -171,10 +189,27 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 			}
 
 			if (widgetType) {
-				// Store mapping to get a group widget name from an inner id + name
 				if (!slots.widgets[nodeId]) slots.widgets[nodeId] = {};
-				slots.widgets[nodeId][inputName] = name;
-			} else {
+				if (node.inputs?.find((inp) => inp.name === inputName)?.widget) {
+					// Converted widget
+					widgetType = null;
+					const primitiveLink = linksTo?.[linkInputId];
+
+					const [sourceNodeId] = primitiveLink;
+
+					const sourceNode = config.nodes[sourceNodeId];
+					if (sourceNode.type === "PrimitiveNode") {
+						const primitiveConfig = primitiveInputs[sourceNodeId];
+						// TODO: Merge
+						primitiveConfig[1] = inputs[inputName][1];
+						slots.widgets[nodeId][inputName] = slots.widgets[sourceNodeId].value;
+					}
+				} else {
+					// Store mapping to get a group widget name from an inner id + name
+					slots.widgets[nodeId][inputName] = name;
+				}
+			}
+			if (!widgetType) {
 				if (linksTo?.[linkInputId]) {
 					linkInputId++;
 					continue;
