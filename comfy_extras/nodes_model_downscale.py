@@ -16,8 +16,8 @@ class PatchModelAddDownscale:
     CATEGORY = "_for_testing"
 
     def patch(self, model, block_number, downscale_factor, start_percent, end_percent, downscale_after_skip):
-        sigma_start = model.model.model_sampling.percent_to_sigma(start_percent).item()
-        sigma_end = model.model.model_sampling.percent_to_sigma(end_percent).item()
+        sigma_start = model.model.model_sampling.percent_to_sigma(start_percent)
+        sigma_end = model.model.model_sampling.percent_to_sigma(end_percent)
 
         def input_block_patch(h, transformer_options):
             if transformer_options["block"][1] == block_number:
