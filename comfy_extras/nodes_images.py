@@ -23,7 +23,22 @@ class ImageCrop:
         img = image[:,y:to_y, x:to_x, :]
         return (img,)
 
+class RepeatImageBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",),
+                              "amount": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "repeat"
+
+    CATEGORY = "image/batch"
+
+    def repeat(self, image, amount):
+        s = image.repeat((amount, 1,1,1))
+        return (s,)
 
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
+    "RepeatImageBatch": RepeatImageBatch,
 }
