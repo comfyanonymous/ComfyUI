@@ -413,7 +413,7 @@ export class ComfyApp {
 		}
 
 		node.prototype.setSizeForImage = function () {
-			if(this.imgs && !hasWebPImage(this.imgs)) return;
+			if(this.imgs && hasWebPImage(this.imgs)) return;
 
 			if (this.inputHeight) {
 				this.setSize(this.size);
