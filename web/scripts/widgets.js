@@ -48,7 +48,7 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 		widgets.push(comboFilter);
 	}
 
-    valueControl.afterQueued = () => {
+	valueControl.afterQueued = () => {
 		var v = valueControl.value;
 
 		if (isCombo && v !== "fixed") {
