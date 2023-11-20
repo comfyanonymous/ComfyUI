@@ -23,17 +23,49 @@ function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
-    const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
+	const widgets = [];
+	const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
         values: ["fixed", "increment", "decrement", "randomize"],
         serialize: false, // Don't include this in prompt.
     });
-    valueControl.afterQueued = () => {
+	widgets.push(valueControl);
 
+	const isCombo = targetWidget.type === "combo";
+	let comboFilter;
+	if (isCombo) {
+		comboFilter = node.addWidget("string", "control_filter_list", "", function (v) {}, {
+			serialize: false, // Don't include this in prompt.
+		});
+		widgets.push(comboFilter);
+	}
+
+    valueControl.afterQueued = () => {
 		var v = valueControl.value;
 
-		if (targetWidget.type == "combo" && v !== "fixed") {
-			let current_index = targetWidget.options.values.indexOf(targetWidget.value);
-			let current_length = targetWidget.options.values.length;
+		if (isCombo && v !== "fixed") {
+			let values = targetWidget.options.values;
+			const filter = comboFilter?.value;
+			if (filter) {
+				let check;
+				if (filter.startsWith("/") && filter.endsWith("/")) {
+					try {
+						const regex = new RegExp(filter);
+						check = (item) => regex.test(item);
+					} catch (error) {
+						console.error("Error constructing RegExp filter for node " + node.id, filter, error);
+					}
+				}
+				if (!check) {
+					const lower = filter.toLocaleLowerCase();
+					check = (item) => item.toLocaleLowerCase().includes(lower);
+				}
+				values = values.filter(item => check(item));
+				if (!values.length && targetWidget.options.values.length) {
+					console.warn("Filter for node " + node.id + " has filtered out all items", filter);
+				}
+			}
+			let current_index = values.indexOf(targetWidget.value);
+			let current_length = values.length;
 
 			switch (v) {
 				case "increment":
@@ -50,7 +82,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 			current_index = Math.max(0, current_index);
 			current_index = Math.min(current_length - 1, current_index);
 			if (current_index >= 0) {
-				let value = targetWidget.options.values[current_index];
+				let value = values[current_index];
 				targetWidget.value = value;
 				targetWidget.callback(value);
 			}
@@ -87,14 +119,15 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 			targetWidget.callback(targetWidget.value);
 		}
 	}
-	return valueControl;
+	
+	return widgets;
 };
 
 function seedWidget(node, inputName, inputData, app) {
 	const seed = ComfyWidgets.INT(node, inputName, inputData, app);
-	const seedControl = addValueControlWidget(node, seed.widget, "randomize");
+	const control = addValueControlWidget(node, seed.widget, "randomize");
 
-	seed.widget.linkedWidgets = [seedControl];
+	seed.widget.linkedWidgets = control;
 	return seed;
 }
 

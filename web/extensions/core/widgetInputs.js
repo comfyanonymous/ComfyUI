@@ -468,6 +468,10 @@ app.registerExtension({
 						control_value = "fixed";
 					}
 					addValueControlWidget(this, widget, control_value);
+					let filter = this.widgets_values?.[2];
+					if(filter && this.widgets.length === 3) {
+						this.widgets[2].value = filter;
+					}
 				}
 
 				// When our value changes, update other widgets to reflect our changes
