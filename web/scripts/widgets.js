@@ -23,6 +23,15 @@ function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 }
 
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values) {
+	const widgets = addValueControlWidgets(node, targetWidget, defaultValue, values, {
+		addFilterList: false,
+	});
+	return widgets[0];
+}
+
+export function addValueControlWidgets(node, targetWidget, defaultValue = "randomize", values, options) {
+	if (!options) options = {};
+	
 	const widgets = [];
 	const valueControl = node.addWidget("combo", "control_after_generate", defaultValue, function (v) { }, {
         values: ["fixed", "increment", "decrement", "randomize"],
@@ -32,7 +41,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 
 	const isCombo = targetWidget.type === "combo";
 	let comboFilter;
-	if (isCombo) {
+	if (isCombo && options.addFilterList !== false) {
 		comboFilter = node.addWidget("string", "control_filter_list", "", function (v) {}, {
 			serialize: false, // Don't include this in prompt.
 		});
