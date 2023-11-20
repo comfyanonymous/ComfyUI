@@ -431,7 +431,10 @@ class PromptServer():
 
         @routes.get("/history")
         async def get_history(request):
-            return web.json_response(self.prompt_queue.get_history())
+            max_items = request.rel_url.query.get("max_items", None)
+            if max_items is not None:
+                max_items = int(max_items)
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
         async def get_history(request):
