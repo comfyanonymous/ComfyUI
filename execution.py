@@ -681,6 +681,7 @@ def validate_prompt(prompt):
 
     return (True, None, list(good_outputs), node_errors)
 
+MAXIMUM_HISTORY_SIZE = 10000
 
 class PromptQueue:
     def __init__(self, server):
@@ -713,6 +714,8 @@ class PromptQueue:
     def task_done(self, item_id, outputs):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
+            if len(self.history) > MAXIMUM_HISTORY_SIZE:
+                self.history.pop(next(iter(self.history)))
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
