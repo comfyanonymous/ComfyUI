@@ -134,9 +134,9 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 
 function seedWidget(node, inputName, inputData, app) {
 	const seed = ComfyWidgets.INT(node, inputName, inputData, app);
-	const control = addValueControlWidget(node, seed.widget, "randomize");
+	const seedControl = addValueControlWidget(node, seed.widget, "randomize");
 
-	seed.widget.linkedWidgets = control;
+	seed.widget.linkedWidgets = [seedControl];
 	return seed;
 }
 
