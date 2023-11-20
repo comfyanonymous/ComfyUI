@@ -420,7 +420,6 @@ dialog::backdrop {
 
 .comfy-img-preview img {
 	object-fit: contain;
-	width: 100%;
 	width: var(--comfy-img-preview-width);
 	height: var(--comfy-img-preview-height);
 }
