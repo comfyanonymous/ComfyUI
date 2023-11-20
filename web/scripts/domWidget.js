@@ -221,7 +221,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 		type,
 		name,
 		get value() {
-			return options.getValue?.() || undefined;
+			return options.getValue?.() ?? undefined;
 		},
 		set value(v) {
 			options.setValue?.(v);
