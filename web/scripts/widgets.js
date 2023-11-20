@@ -49,7 +49,7 @@ export function addValueControlWidget(node, targetWidget, defaultValue = "random
 				let check;
 				if (filter.startsWith("/") && filter.endsWith("/")) {
 					try {
-						const regex = new RegExp(filter);
+						const regex = new RegExp(filter.substring(1, filter.length - 1));
 						check = (item) => regex.test(item);
 					} catch (error) {
 						console.error("Error constructing RegExp filter for node " + node.id, filter, error);
