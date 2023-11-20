@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { getWidgetType } from "../../scripts/widgets.js";
+import { mergeIfValid } from "./widgetInputs.js";
 
 export const IS_GROUP_NODE = Symbol();
 export const GROUP_DATA = Symbol();
@@ -192,17 +193,19 @@ function buildNodeDef(config, nodeName, defs, source = "workflow") {
 				if (!slots.widgets[nodeId]) slots.widgets[nodeId] = {};
 				if (node.inputs?.find((inp) => inp.name === inputName)?.widget) {
 					// Converted widget
-					widgetType = null;
 					const primitiveLink = linksTo?.[linkInputId];
+					if (primitiveLink) {
+						widgetType = null;
+						const [sourceNodeId] = primitiveLink;
 
-					const [sourceNodeId] = primitiveLink;
-
-					const sourceNode = config.nodes[sourceNodeId];
-					if (sourceNode.type === "PrimitiveNode") {
-						const primitiveConfig = primitiveInputs[sourceNodeId];
-						// TODO: Merge
-						primitiveConfig[1] = inputs[inputName][1];
-						slots.widgets[nodeId][inputName] = slots.widgets[sourceNodeId].value;
+						const sourceNode = config.nodes[sourceNodeId];
+						if (sourceNode.type === "PrimitiveNode") {
+							const primitiveConfig = primitiveInputs[sourceNodeId];
+							const output = { widget: primitiveInputs[sourceNodeId] };
+							const config = mergeIfValid(output, inputs[inputName], false, null, primitiveConfig);
+							primitiveConfig[1] = config.customConfig ?? inputs[inputName][1];
+							slots.widgets[nodeId][inputName] = slots.widgets[sourceNodeId].value;
+						}
 					}
 				} else {
 					// Store mapping to get a group widget name from an inner id + name
