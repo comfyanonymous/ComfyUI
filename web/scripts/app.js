@@ -5,10 +5,9 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
-import { createWebpImageHost, calculateImageGrid } from "./ui/imagePreview.js"
+import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
-const IS_WEBP = Symbol();
-export const WEBP_PREVIEW_WIDGET = "$$comfy_webp_preview"
+export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
 function sanitizeNodeName(string) {
 	let entityMap = {
@@ -79,10 +78,7 @@ export class ComfyApp {
 		this.shiftDown = false;
 	}
 
-	getPreviewFormatParam(name) {
-		// Dont compress webp as it may be animated
-		if(name?.endsWith(".webp")) return "";
-
+	getPreviewFormatParam() {
 		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
 		if(preview_format)
 			return `&preview=${preview_format}`;
@@ -413,7 +409,7 @@ export class ComfyApp {
 		}
 
 		node.prototype.setSizeForImage = function (force) {
-			if(!force && this.imgs && hasWebPImage(this.imgs)) return;
+			if(!force && this.animatedImages) return;
 
 			if (this.inputHeight) {
 				this.setSize(this.size);
@@ -425,31 +421,26 @@ export class ComfyApp {
 			}
 		};
 
-		function hasWebPImage(imgs) {
-			return !!imgs.find(img => {
-				if (img[IS_WEBP] == null) {
-					const filename = new URLSearchParams(
-						new URL(img.src).search
-					).get("filename");
-					img[IS_WEBP] = filename?.endsWith(".webp");
-				}
-				return img[IS_WEBP];
-			});
-		}
-
 		node.prototype.onDrawBackground = function (ctx) {
 			if (!this.flags.collapsed) {
 				let imgURLs = []
 				let imagesChanged = false
 
 				const output = app.nodeOutputs[this.id + ""];
-				if (output && output.images) {
+				if (output?.images) {
+					this.animatedImages = output?.animated?.find(Boolean);
 					if (this.images !== output.images) {
 						this.images = output.images;
 						imagesChanged = true;
-						imgURLs = imgURLs.concat(output.images.map(params => {
-							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam(params.filename));
-						}))
+						imgURLs = imgURLs.concat(
+							output.images.map((params) => {
+								return api.apiURL(
+									"/view?" +
+										new URLSearchParams(params).toString() +
+										(this.animatedImages ? "" : app.getPreviewFormatParam())
+								);
+							})
+						);
 					}
 				}
 
@@ -529,21 +520,18 @@ export class ComfyApp {
 				}
 
 				if (this.imgs?.length) {
-					const webp = hasWebPImage(this.imgs);
-
-					const widgetIdx = this.widgets?.findIndex((w) => w.name === WEBP_PREVIEW_WIDGET);
+					const widgetIdx = this.widgets?.findIndex((w) => w.name === ANIM_PREVIEW_WIDGET);
 				
-					if(webp) {
-						// We have webp images so these may be animated
+					if(this.animatedImages) {
 						// Instead of using the canvas we'll use a IMG
 						if(widgetIdx > -1) {
 							// Replace content
 							const widget = this.widgets[widgetIdx];
 							widget.options.host.updateImages(this.imgs);
 						} else {
-							const host = createWebpImageHost(this);
+							const host = createImageHost(this);
 							this.setSizeForImage(true);
-							const widget = this.addDOMWidget(WEBP_PREVIEW_WIDGET, "img", host.el, {
+							const widget = this.addDOMWidget(ANIM_PREVIEW_WIDGET, "img", host.el, {
 								host,
 								getHeight: host.getHeight,
 								onDraw: host.onDraw,

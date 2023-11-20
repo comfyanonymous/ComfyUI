@@ -1,4 +1,4 @@
-import { app, WEBP_PREVIEW_WIDGET } from "./app.js";
+import { app, ANIM_PREVIEW_WIDGET } from "./app.js";
 
 const SIZE = Symbol();
 
@@ -114,7 +114,7 @@ function computeSize(size) {
 		}
 	}
 
-	if (this.imgs && !this.widgets.find((w) => w.name === WEBP_PREVIEW_WIDGET)) {
+	if (this.imgs && !this.widgets.find((w) => w.name === ANIM_PREVIEW_WIDGET)) {
 		// Allocate space for image
 		freeSpace -= 220;
 	}

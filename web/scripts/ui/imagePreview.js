@@ -33,8 +33,8 @@ export function calculateImageGrid(imgs, dw, dh) {
 	return { cellWidth, cellHeight, cols, rows, shiftX };
 }
 
-export function createWebpImageHost(node) {
-	const el = $el("div.comfy-webp-preview");
+export function createImageHost(node) {
+	const el = $el("div.comfy-img-preview");
 	let currentImgs;
 	let first = true;
 
@@ -60,8 +60,8 @@ export function createWebpImageHost(node) {
 			w += "px";
 			h += "px";
 
-			el.style.setProperty("--comfy-webp-preview-width", w);
-			el.style.setProperty("--comfy-webp-preview-height", h);
+			el.style.setProperty("--comfy-img-preview-width", w);
+			el.style.setProperty("--comfy-img-preview-height", h);
 		}
 	}
 	return {

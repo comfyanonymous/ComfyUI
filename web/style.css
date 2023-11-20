@@ -409,7 +409,7 @@ dialog::backdrop {
 	width: calc(100% - 10px);
 }
 
-.comfy-webp-preview {
+.comfy-img-preview {
 	pointer-events: none;
 	overflow: hidden;
 	display: flex;
@@ -418,11 +418,11 @@ dialog::backdrop {
 	justify-content: center;
 }
 
-.comfy-webp-preview img {
+.comfy-img-preview img {
 	object-fit: contain;
 	width: 100%;
-	width: var(--comfy-webp-preview-width);
-	height: var(--comfy-webp-preview-height);
+	width: var(--comfy-img-preview-width);
+	height: var(--comfy-img-preview-height);
 }
 
 /* Search box */
