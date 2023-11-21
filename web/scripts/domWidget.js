@@ -17,13 +17,14 @@ function getClipPath(node, element, elRect) {
 		const MARGIN = 7;
 		const scale = app.canvas.ds.scale;
 
+		const bounding = selectedNode.getBounding();
 		const intersection = intersect(
 			{ x: elRect.x / scale, y: elRect.y / scale, width: elRect.width / scale, height: elRect.height / scale },
 			{
 				x: selectedNode.pos[0] + app.canvas.ds.offset[0] - MARGIN,
 				y: selectedNode.pos[1] + app.canvas.ds.offset[1] - LiteGraph.NODE_TITLE_HEIGHT - MARGIN,
-				width: selectedNode.size[0] + MARGIN + MARGIN,
-				height: selectedNode.size[1] + LiteGraph.NODE_TITLE_HEIGHT + MARGIN + MARGIN,
+				width: bounding[2] + MARGIN + MARGIN,
+				height: bounding[3] + MARGIN + MARGIN,
 			}
 		);
 
