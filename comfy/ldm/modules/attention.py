@@ -217,16 +217,21 @@ def attention_split(q, k, v, heads, mask=None):
     gb = 1024 ** 3
     tensor_size = q.shape[0] * q.shape[1] * k.shape[1] * element_size
     modifier = 3
+    if args.memory_estimation_multiplier >= 0:
+        modifier = args.memory_estimation_multiplier
     mem_required = tensor_size * modifier
     steps = 1
 
+    max_steps = q.shape[1] - 1
+    while (q.shape[1] % max_steps) != 0:
+        max_steps -= 1
 
     if mem_required > mem_free_total:
         steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
         # print(f"Expected tensor size:{tensor_size/gb:0.1f}GB, cuda free:{mem_free_cuda/gb:0.1f}GB "
         #      f"torch free:{mem_free_torch/gb:0.1f} total:{mem_free_total/gb:0.1f} steps:{steps}")
 
-    if steps > 64:
+    if steps > max_steps:
         max_res = math.floor(math.sqrt(math.sqrt(mem_free_total / 2.5)) / 8) * 64
         raise RuntimeError(f'Not enough memory, use lower resolution (max approx. {max_res}x{max_res}). '
                             f'Need: {mem_required/64/gb:0.1f}GB free, Have:{mem_free_total/gb:0.1f}GB free')
@@ -259,8 +264,10 @@ def attention_split(q, k, v, heads, mask=None):
                     cleared_cache = True
                     print("out of memory error, emptying cache and trying again")
                     continue
-                steps *= 2
-                if steps > 64:
+                steps += 1
+                while (q.shape[1] % steps) != 0 and steps < max_steps:
+                    steps += 1
+                if steps > max_steps:
                     raise e
                 print("out of memory error, increasing steps and trying again", steps)
             else:

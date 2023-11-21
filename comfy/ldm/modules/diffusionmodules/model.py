@@ -7,6 +7,7 @@ from einops import rearrange
 from typing import Optional, Any
 
 from comfy import model_management
+from comfy.cli_args import args
 import comfy.ops
 
 if model_management.xformers_enabled_vae():
@@ -165,8 +166,14 @@ def slice_attention(q, k, v):
     gb = 1024 ** 3
     tensor_size = q.shape[0] * q.shape[1] * k.shape[2] * q.element_size()
     modifier = 3 if q.element_size() == 2 else 2.5
+    if args.memory_estimation_multiplier >= 0:
+        modifier = args.memory_estimation_multiplier
     mem_required = tensor_size * modifier
     steps = 1
+
+    max_steps = q.shape[1] - 1
+    while (q.shape[1] % max_steps) != 0:
+        max_steps -= 1
 
     if mem_required > mem_free_total:
         steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
@@ -186,8 +193,10 @@ def slice_attention(q, k, v):
             break
         except model_management.OOM_EXCEPTION as e:
             model_management.soft_empty_cache(True)
-            steps *= 2
-            if steps > 128:
+            steps += 1
+            while (q.shape[1] % steps) != 0 and steps < max_steps:
+                steps += 1
+            if steps > max_steps:
                 raise e
             print("out of memory error, increasing steps and trying again", steps)
 
