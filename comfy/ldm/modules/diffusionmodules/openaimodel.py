@@ -28,25 +28,6 @@ class TimestepBlock(nn.Module):
         Apply the module to `x` given `emb` timestep embeddings.
         """
 
-
-class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
-    """
-    A sequential module that passes timestep embeddings to the children that
-    support it as an extra input.
-    """
-
-    def forward(self, x, emb, context=None, transformer_options={}, output_shape=None):
-        for layer in self:
-            if isinstance(layer, TimestepBlock):
-                x = layer(x, emb)
-            elif isinstance(layer, SpatialTransformer):
-                x = layer(x, context, transformer_options)
-            elif isinstance(layer, Upsample):
-                x = layer(x, output_shape=output_shape)
-            else:
-                x = layer(x)
-        return x
-
 #This is needed because accelerate makes a copy of transformer_options which breaks "current_index"
 def forward_timestep_embed(ts, x, emb, context=None, transformer_options={}, output_shape=None):
     for layer in ts:
@@ -54,12 +35,22 @@ def forward_timestep_embed(ts, x, emb, context=None, transformer_options={}, out
             x = layer(x, emb)
         elif isinstance(layer, SpatialTransformer):
             x = layer(x, context, transformer_options)
-            transformer_options["current_index"] += 1
+            if "current_index" in transformer_options:
+                transformer_options["current_index"] += 1
         elif isinstance(layer, Upsample):
             x = layer(x, output_shape=output_shape)
         else:
             x = layer(x)
     return x
+
+class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
+    """
+    A sequential module that passes timestep embeddings to the children that
+    support it as an extra input.
+    """
+
+    def forward(self, *args, **kwargs):
+        return forward_timestep_embed(self, *args, **kwargs)
 
 class Upsample(nn.Module):
     """
