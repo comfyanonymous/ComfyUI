@@ -448,6 +448,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
     if output_vae:
         vae_sd = comfy.utils.state_dict_prefix_replace(sd, {"first_stage_model.": ""}, filter_keys=True)
+        vae_sd = model_config.process_vae_state_dict(vae_sd)
         vae = VAE(sd=vae_sd)
 
     if output_clip:
