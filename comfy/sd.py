@@ -224,6 +224,8 @@ class VAE:
                 samples = samples_in[x:x+batch_number].to(self.vae_dtype).to(self.device)
                 pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(samples).cpu().float() + 1.0) / 2.0, min=0.0, max=1.0)
         except model_management.OOM_EXCEPTION as e:
+            pixel_samples = None
+
             tile_size = 64
             while tile_size >= 8:
                 overlap = tile_size // 4
@@ -263,6 +265,8 @@ class VAE:
                 samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).cpu().float()
 
         except model_management.OOM_EXCEPTION as e:
+            samples = None
+
             tile_size = 512
             while tile_size >= 64:
                 overlap = tile_size // 8
