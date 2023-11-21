@@ -121,6 +121,7 @@ class BaseModel(torch.nn.Module):
             if k.startswith(unet_prefix):
                 to_load[k[len(unet_prefix):]] = sd.pop(k)
 
+        to_load = self.model_config.process_unet_state_dict(to_load)
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         if len(m) > 0:
             print("unet missing:", m)
