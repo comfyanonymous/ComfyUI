@@ -233,6 +233,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 			}
 
 			const hidden =
+				node.flags?.collapsed ||
 				(!!options.hideOnZoom && app.canvas.ds.scale < 0.5) ||
 				widget.computedHeight <= 0 ||
 				widget.type === "converted-widget";
@@ -289,6 +290,15 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 
 	this.addCustomWidget(widget);
 	elementWidgets.add(this);
+
+	const collapse = this.collapse;
+	this.collapse = function() {
+		collapse.apply(this, arguments);
+		if(this.flags?.collapsed) {
+			element.hidden = true;
+			element.style.display = "none";
+		}
+	}
 
 	const onRemoved = this.onRemoved;
 	this.onRemoved = function () {
