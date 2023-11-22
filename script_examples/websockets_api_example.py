@@ -41,6 +41,7 @@ def get_images(ws, prompt):
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
+    print(history)
     for o in history['outputs']:
         for node_id in history['outputs']:
             node_output = history['outputs'][node_id]
