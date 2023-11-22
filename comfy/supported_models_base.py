@@ -19,7 +19,7 @@ class BASE:
     clip_prefix = []
     clip_vision_prefix = None
     noise_aug_config = None
-    beta_schedule = "linear"
+    sampling_settings = {}
     latent_format = latent_formats.LatentFormat
 
     @classmethod
