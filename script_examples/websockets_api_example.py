@@ -14,7 +14,9 @@ def queue_prompt(prompt):
     p = {"prompt": prompt, "client_id": client_id}
     data = json.dumps(p).encode('utf-8')
     req =  urllib.request.Request("http://{}/prompt".format(server_address), data=data)
-    return json.loads(urllib.request.urlopen(req).read())
+    response = urllib.request.urlopen(req)
+    json_response = json.loads(response.read())
+    return json_response
 
 def get_image(filename, subfolder, folder_type):
     data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
@@ -41,7 +43,6 @@ def get_images(ws, prompt):
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
-    print(history)
     for o in history['outputs']:
         for node_id in history['outputs']:
             node_output = history['outputs'][node_id]
