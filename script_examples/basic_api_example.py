@@ -107,14 +107,15 @@ def queue_prompt(prompt):
     request.urlopen(req)
 
 
-prompt = json.loads(prompt_text)
-#set the text prompt for our positive CLIPTextEncode
-prompt["6"]["inputs"]["text"] = "masterpiece best quality man"
+if __name__ == "__main__":
+    prompt = json.loads(prompt_text)
+    #set the text prompt for our positive CLIPTextEncode
+    prompt["6"]["inputs"]["text"] = "masterpiece best quality man"
 
-#set the seed for our KSampler node
-prompt["3"]["inputs"]["seed"] = 5
+    #set the seed for our KSampler node
+    prompt["3"]["inputs"]["seed"] = 5
+    res = queue_prompt(prompt)
 
-
-queue_prompt(prompt)
+    print(res)
 
 
