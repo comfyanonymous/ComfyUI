@@ -544,6 +544,7 @@ export class ComfyApp {
 					}
 
 					if (widgetIdx > -1) {
+						this.widgets[widgetIdx].onRemove?.();
 						this.widgets.splice(widgetIdx, 1);
 					}
 
