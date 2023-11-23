@@ -50,7 +50,6 @@ export function getPngMetadata(file) {
 function parseExifData(exifData) {
 	// Check for the correct TIFF header (0x4949 for little-endian or 0x4D4D for big-endian)
 	const isLittleEndian = new Uint16Array(exifData.slice(0, 2))[0] === 0x4949;
-	console.log(exifData);
 
 	// Function to read 16-bit and 32-bit integers from binary data
 	function readInt(offset, isLittleEndian, length) {
@@ -126,6 +125,9 @@ export function getWebpMetadata(file) {
 				const chunk_length = dataView.getUint32(offset + 4, true);
 				const chunk_type = String.fromCharCode(...webp.slice(offset, offset + 4));
 				if (chunk_type === "EXIF") {
+					if (String.fromCharCode(...webp.slice(offset + 8, offset + 8 + 6)) == "Exif\0\0") {
+						offset += 6;
+					}
 					let data = parseExifData(webp.slice(offset + 8, offset + 8 + chunk_length));
 					for (var key in data) {
 						var value = data[key];
