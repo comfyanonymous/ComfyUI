@@ -75,7 +75,7 @@ class SaveAnimatedWEBP:
     CATEGORY = "_for_testing"
 
     def save_images(self, images, fps, filename_prefix, lossless, quality, method, num_frames=0, prompt=None, extra_pnginfo=None):
-        method = self.methods.get(method, "aoeu")
+        method = self.methods.get(method)
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
@@ -85,9 +85,8 @@ class SaveAnimatedWEBP:
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             pil_images.append(img)
 
-        metadata = None
+        metadata = pil_images[0].getexif()
         if not args.disable_metadata:
-            metadata = pil_images[0].getexif()
             if prompt is not None:
                 metadata[0x0110] = "prompt:{}".format(json.dumps(prompt))
             if extra_pnginfo is not None:
