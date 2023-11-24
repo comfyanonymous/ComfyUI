@@ -24,7 +24,8 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
         last_transformer_depth = count_blocks(state_dict_keys, transformer_prefix + '{}')
         context_dim = state_dict['{}0.attn2.to_k.weight'.format(transformer_prefix)].shape[1]
         use_linear_in_transformer = len(state_dict['{}1.proj_in.weight'.format(prefix)].shape) == 2
-        return last_transformer_depth, context_dim, use_linear_in_transformer
+        time_stack = '{}1.time_stack.0.attn1.to_q.weight'.format(prefix) in state_dict or '{}1.time_mix_blocks.0.attn1.to_q.weight'.format(prefix) in state_dict
+        return last_transformer_depth, context_dim, use_linear_in_transformer, time_stack
     return None
 
 def detect_unet_config(state_dict, key_prefix, dtype):
@@ -57,6 +58,7 @@ def detect_unet_config(state_dict, key_prefix, dtype):
     context_dim = None
     use_linear_in_transformer = False
 
+    video_model = False
 
     current_res = 1
     count = 0
@@ -99,6 +101,7 @@ def detect_unet_config(state_dict, key_prefix, dtype):
                     if context_dim is None:
                         context_dim = out[1]
                         use_linear_in_transformer = out[2]
+                        video_model = out[3]
                 else:
                     transformer_depth.append(0)
 
@@ -127,6 +130,19 @@ def detect_unet_config(state_dict, key_prefix, dtype):
     unet_config["transformer_depth_middle"] = transformer_depth_middle
     unet_config['use_linear_in_transformer'] = use_linear_in_transformer
     unet_config["context_dim"] = context_dim
+
+    if video_model:
+        unet_config["extra_ff_mix_layer"] = True
+        unet_config["use_spatial_context"] = True
+        unet_config["merge_strategy"] = "learned_with_images"
+        unet_config["merge_factor"] = 0.0
+        unet_config["video_kernel_size"] = [3, 1, 1]
+        unet_config["use_temporal_resblock"] = True
+        unet_config["use_temporal_attention"] = True
+    else:
+        unet_config["use_temporal_resblock"] = False
+        unet_config["use_temporal_attention"] = False
+
     return unet_config
 
 def model_config_from_unet_config(unet_config):

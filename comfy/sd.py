@@ -159,7 +159,15 @@ class VAE:
         self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype)
 
         if config is None:
-            if "taesd_decoder.1.weight" in sd:
+            if "decoder.mid.block_1.mix_factor" in sd:
+                encoder_config = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
+                decoder_config = encoder_config.copy()
+                decoder_config["video_kernel_size"] = [3, 1, 1]
+                decoder_config["alpha"] = 0.0
+                self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                            encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': encoder_config},
+                                                            decoder_config={'target': "comfy.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
+            elif "taesd_decoder.1.weight" in sd:
                 self.first_stage_model = comfy.taesd.taesd.TAESD()
             else:
                 #default SD1.x/SD2.x VAE parameters
