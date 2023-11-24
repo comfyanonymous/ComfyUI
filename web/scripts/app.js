@@ -1523,6 +1523,7 @@ export class ComfyApp {
 			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
 			if (n.type == "ConditioningAverage ") n.type = "ConditioningAverage"; //typo fix
+			if (n.type == "SDV_img2vid_Conditioning") n.type = "SVD_img2vid_Conditioning"; //typo fix
 
 			// Find missing node types
 			if (!(n.type in LiteGraph.registered_node_types)) {
