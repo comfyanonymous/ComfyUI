@@ -196,6 +196,10 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     return (True, None, None)
 
 def recursive_will_execute(prompt, outputs, current_item):
+
+    if type(prompt) is not dict:
+        prompt = json.loads(prompt)
+
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     will_execute = []
@@ -213,6 +217,10 @@ def recursive_will_execute(prompt, outputs, current_item):
     return will_execute + [unique_id]
 
 def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item):
+
+    if type(prompt) is not dict:
+        prompt = json.loads(prompt)
+
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -316,6 +324,10 @@ class PromptExecutor:
             del d
 
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
+
+        if type(prompt) is not dict:
+            prompt = json.loads(prompt)
+
         nodes.interrupt_processing(False)
 
         if "client_id" in extra_data:
@@ -594,6 +606,10 @@ def full_type_name(klass):
 
 def validate_prompt(prompt):
     outputs = set()
+
+    if type(prompt) is not dict:
+        prompt = json.loads(prompt)
+
     for x in prompt:
         class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
         if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE == True:
