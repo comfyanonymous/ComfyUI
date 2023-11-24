@@ -152,10 +152,10 @@ class SaveAnimatedPNG:
         if not args.disable_metadata:
             metadata = PngInfo()
             if prompt is not None:
-                metadata.add_text("prompt", json.dumps(prompt))
+                metadata.add(b"tEXt", "prompt".encode("latin-1", "strict") + b"\0" + json.dumps(prompt).encode("latin-1", "strict"), after_idat=True)
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
-                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                    metadata.add(b"tEXt", x.encode("latin-1", "strict") + b"\0" + json.dumps(extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True)
 
         file = f"{filename}_{counter:05}_.png"
         pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])
