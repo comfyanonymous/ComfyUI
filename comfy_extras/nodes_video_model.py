@@ -21,7 +21,7 @@ class ImageOnlyCheckpointLoader:
         return (out[0], out[3], out[2])
 
 
-class SDV_img2vid_Conditioning:
+class SVD_img2vid_Conditioning:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
@@ -80,7 +80,7 @@ class VideoLinearCFGGuidance:
 
 NODE_CLASS_MAPPINGS = {
     "ImageOnlyCheckpointLoader": ImageOnlyCheckpointLoader,
-    "SDV_img2vid_Conditioning": SDV_img2vid_Conditioning,
+    "SVD_img2vid_Conditioning": SVD_img2vid_Conditioning,
     "VideoLinearCFGGuidance": VideoLinearCFGGuidance,
 }
 
