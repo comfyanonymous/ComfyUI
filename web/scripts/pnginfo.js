@@ -24,7 +24,7 @@ export function getPngMetadata(file) {
 				const length = dataView.getUint32(offset);
 				// Get the chunk type
 				const type = String.fromCharCode(...pngData.slice(offset + 4, offset + 8));
-				if (type === "tEXt") {
+				if (type === "tEXt" || type == "comf") {
 					// Get the keyword
 					let keyword_end = offset + 8;
 					while (pngData[keyword_end] !== 0) {
