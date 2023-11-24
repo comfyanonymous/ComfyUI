@@ -1850,6 +1850,7 @@ def init_custom_nodes():
         "nodes_model_advanced.py",
         "nodes_model_downscale.py",
         "nodes_images.py",
+        "nodes_video_model.py",
     ]
 
     for node_file in extras_files:
