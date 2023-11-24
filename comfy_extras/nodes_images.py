@@ -125,7 +125,7 @@ class SaveAnimatedPNG:
         return {"required":
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                     "fps": ("FLOAT", {"default": 12.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
+                     "fps": ("FLOAT", {"default": 6.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
                      "compress_level": ("INT", {"default": 4, "min": 0, "max": 9})
                      },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
