@@ -256,7 +256,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async getHistory() {
 		try {
-			const res = await this.fetchApi("/history");
+			const res = await this.fetchApi("/history?max_items=200");
 			return { History: Object.values(await res.json()) };
 		} catch (error) {
 			console.error(error);

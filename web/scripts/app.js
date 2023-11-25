@@ -4,7 +4,10 @@ import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { addDomClippingSetting } from "./domWidget.js";
+import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
+export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
 function sanitizeNodeName(string) {
 	let entityMap = {
@@ -405,7 +408,9 @@ export class ComfyApp {
 			return shiftY;
 		}
 
-		node.prototype.setSizeForImage = function () {
+		node.prototype.setSizeForImage = function (force) {
+			if(!force && this.animatedImages) return;
+
 			if (this.inputHeight) {
 				this.setSize(this.size);
 				return;
@@ -422,13 +427,20 @@ export class ComfyApp {
 				let imagesChanged = false
 
 				const output = app.nodeOutputs[this.id + ""];
-				if (output && output.images) {
+				if (output?.images) {
+					this.animatedImages = output?.animated?.find(Boolean);
 					if (this.images !== output.images) {
 						this.images = output.images;
 						imagesChanged = true;
-						imgURLs = imgURLs.concat(output.images.map(params => {
-							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam());
-						}))
+						imgURLs = imgURLs.concat(
+							output.images.map((params) => {
+								return api.apiURL(
+									"/view?" +
+										new URLSearchParams(params).toString() +
+										(this.animatedImages ? "" : app.getPreviewFormatParam())
+								);
+							})
+						);
 					}
 				}
 
@@ -507,7 +519,35 @@ export class ComfyApp {
 					return true;
 				}
 
-				if (this.imgs && this.imgs.length) {
+				if (this.imgs?.length) {
+					const widgetIdx = this.widgets?.findIndex((w) => w.name === ANIM_PREVIEW_WIDGET);
+				
+					if(this.animatedImages) {
+						// Instead of using the canvas we'll use a IMG
+						if(widgetIdx > -1) {
+							// Replace content
+							const widget = this.widgets[widgetIdx];
+							widget.options.host.updateImages(this.imgs);
+						} else {
+							const host = createImageHost(this);
+							this.setSizeForImage(true);
+							const widget = this.addDOMWidget(ANIM_PREVIEW_WIDGET, "img", host.el, {
+								host,
+								getHeight: host.getHeight,
+								onDraw: host.onDraw,
+								hideOnZoom: false
+							});
+							widget.serializeValue = () => undefined;
+							widget.options.host.updateImages(this.imgs);
+						}
+						return;
+					}
+
+					if (widgetIdx > -1) {
+						this.widgets[widgetIdx].onRemove?.();
+						this.widgets.splice(widgetIdx, 1);
+					}
+
 					const canvas = app.graph.list_of_graphcanvas[0];
 					const mouse = canvas.graph_mouse;
 					if (!canvas.pointer_is_down && this.pointerDown) {
@@ -547,31 +587,7 @@ export class ComfyApp {
 						}
 						else {
 							cell_padding = 0;
-							let best = 0;
-							let w = this.imgs[0].naturalWidth;
-							let h = this.imgs[0].naturalHeight;
-
-							// compact style
-							for (let c = 1; c <= numImages; c++) {
-								const rows = Math.ceil(numImages / c);
-								const cW = dw / c;
-								const cH = dh / rows;
-								const scaleX = cW / w;
-								const scaleY = cH / h;
-
-								const scale = Math.min(scaleX, scaleY, 1);
-								const imageW = w * scale;
-								const imageH = h * scale;
-								const area = imageW * imageH * numImages;
-
-								if (area > best) {
-									best = area;
-									cellWidth = imageW;
-									cellHeight = imageH;
-									cols = c;
-									shiftX = c * ((cW - imageW) / 2);
-								}
-							}
+							({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh));
 						}
 
 						let anyHovered = false;
@@ -1284,6 +1300,7 @@ export class ComfyApp {
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
+		addDomClippingSetting();
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
@@ -1526,6 +1543,7 @@ export class ComfyApp {
 			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
 			if (n.type == "ConditioningAverage ") n.type = "ConditioningAverage"; //typo fix
+			if (n.type == "SDV_img2vid_Conditioning") n.type = "SVD_img2vid_Conditioning"; //typo fix
 
 			// Find missing node types
 			if (!(n.type in LiteGraph.registered_node_types)) {
