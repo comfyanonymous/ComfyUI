@@ -13,6 +13,7 @@ import nodes
 
 import comfy.model_management
 
+
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
@@ -27,7 +28,8 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
             obj = outputs[input_unique_id][output_index]
             input_data_all[x] = obj
         else:
-            if ("required" in valid_inputs and x in valid_inputs["required"]) or ("optional" in valid_inputs and x in valid_inputs["optional"]):
+            if ("required" in valid_inputs and x in valid_inputs["required"]) or (
+                    "optional" in valid_inputs and x in valid_inputs["optional"]):
                 input_data_all[x] = [input_data]
 
     if "hidden" in valid_inputs:
@@ -42,6 +44,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [unique_id]
     return input_data_all
 
+
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     # check if node wants the lists
     input_is_list = False
@@ -52,14 +55,14 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         max_len_input = 0
     else:
         max_len_input = max([len(x) for x in input_data_all.values()])
-     
+
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         d_new = dict()
-        for k,v in d.items():
+        for k, v in d.items():
             d_new[k] = v[i if len(v) > i else -1]
         return d_new
-    
+
     results = []
     if input_is_list:
         if allow_interrupt:
@@ -76,8 +79,8 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
     return results
 
+
 def get_output_data(obj, input_data_all):
-    
     results = []
     uis = []
     return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
@@ -90,7 +93,7 @@ def get_output_data(obj, input_data_all):
                 results.append(r['result'])
         else:
             results.append(r)
-    
+
     output = []
     if len(results) > 0:
         # check which outputs need concatenating
@@ -105,10 +108,11 @@ def get_output_data(obj, input_data_all):
             else:
                 output.append([o[i] for o in results])
 
-    ui = dict()    
+    ui = dict()
     if len(uis) > 0:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui
+
 
 def format_value(x):
     if x is None:
@@ -118,13 +122,15 @@ def format_value(x):
     else:
         return str(x)
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
+
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui,
+                      object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     if unique_id in outputs:
-        return (True, None, None)
+        return True, None, None
 
     for x in inputs:
         input_data = inputs[x]
@@ -133,7 +139,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, object_storage)
+                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id,
+                                           outputs_ui, object_storage)
                 if result[0] is not True:
                     # Another node failed further upstream
                     return result
@@ -143,7 +150,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
         if server.client_id is not None:
             server.last_node_id = unique_id
-            server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id }, server.client_id)
+            server.send_sync("executing", {"node": unique_id, "prompt_id": prompt_id}, server.client_id)
 
         obj = object_storage.get((unique_id, class_type), None)
         if obj is None:
@@ -155,7 +162,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         if len(output_ui) > 0:
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:
-                server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
+                server.send_sync("executed", {"node": unique_id, "output": output_ui, "prompt_id": prompt_id},
+                                 server.client_id)
     except comfy.model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
 
@@ -164,7 +172,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             "node_id": unique_id,
         }
 
-        return (False, error_details, iex)
+        return False, error_details, iex
     except Exception as ex:
         typ, _, tb = sys.exc_info()
         exception_type = full_type_name(typ)
@@ -189,11 +197,12 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             "current_inputs": input_data_formatted,
             "current_outputs": output_data_formatted
         }
-        return (False, error_details, ex)
+        return False, error_details, ex
 
     executed.add(unique_id)
 
-    return (True, None, None)
+    return True, None, None
+
 
 def recursive_will_execute(prompt, outputs, current_item):
     unique_id = current_item
@@ -212,6 +221,7 @@ def recursive_will_execute(prompt, outputs, current_item):
 
     return will_execute + [unique_id]
 
+
 def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
@@ -228,7 +238,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
             input_data_all = get_input_data(inputs, class_def, unique_id, outputs)
             if input_data_all is not None:
                 try:
-                    #is_changed = class_def.IS_CHANGED(**input_data_all)
+                    # is_changed = class_def.IS_CHANGED(**input_data_all)
                     is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
                     prompt[unique_id]['is_changed'] = is_changed
                 except:
@@ -264,6 +274,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         d = outputs.pop(unique_id)
         del d
     return to_delete
+
 
 class PromptExecutor:
     def __init__(self, server):
@@ -324,10 +335,10 @@ class PromptExecutor:
             self.server.client_id = None
 
         if self.server.client_id is not None:
-            self.server.send_sync("execution_start", { "prompt_id": prompt_id}, self.server.client_id)
+            self.server.send_sync("execution_start", {"prompt_id": prompt_id}, self.server.client_id)
 
         with torch.inference_mode():
-            #delete cached outputs if nodes don't exist for them
+            # delete cached outputs if nodes don't exist for them
             to_delete = []
             for o in self.outputs:
                 if o not in prompt:
@@ -358,7 +369,8 @@ class PromptExecutor:
 
             comfy.model_management.cleanup_models()
             if self.server.client_id is not None:
-                self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
+                self.server.send_sync("execution_cached", {"nodes": list(current_outputs), "prompt_id": prompt_id},
+                                      self.server.client_id)
             executed = set()
             output_node_id = None
             to_execute = []
@@ -367,14 +379,16 @@ class PromptExecutor:
                 to_execute += [(0, node_id)]
 
             while len(to_execute) > 0:
-                #always execute the output that depends on the least amount of unexecuted nodes first
-                to_execute = sorted(list(map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
+                # always execute the output that depends on the least amount of unexecuted nodes first
+                to_execute = sorted(
+                    list(map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
                 output_node_id = to_execute.pop(0)[-1]
 
                 # This call shouldn't raise anything if there's an error deep in
                 # the actual SD code, instead it will report the node where the
                 # error was raised
-                success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.object_storage)
+                success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data,
+                                                       executed, prompt_id, self.outputs_ui, self.object_storage)
                 if success is not True:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
@@ -382,7 +396,6 @@ class PromptExecutor:
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
             self.server.last_node_id = None
-
 
 
 def validate_inputs(prompt, item, validated):
@@ -531,7 +544,7 @@ def validate_inputs(prompt, item, validated):
 
             if hasattr(obj_class, "VALIDATE_INPUTS"):
                 input_data_all = get_input_data(inputs, obj_class, unique_id)
-                #ret = obj_class.VALIDATE_INPUTS(**input_data_all)
+                # ret = obj_class.VALIDATE_INPUTS(**input_data_all)
                 ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
                 for i, r in enumerate(ret):
                     if r is not True:
@@ -586,11 +599,13 @@ def validate_inputs(prompt, item, validated):
     validated[unique_id] = ret
     return ret
 
+
 def full_type_name(klass):
     module = klass.__module__
     if module == 'builtins':
         return klass.__qualname__
     return module + '.' + klass.__qualname__
+
 
 def validate_prompt(prompt):
     outputs = set()
@@ -606,7 +621,7 @@ def validate_prompt(prompt):
             "details": "",
             "extra_info": {}
         }
-        return (False, error, [], [])
+        return False, error, [], []
 
     good_outputs = set()
     errors = []
@@ -677,11 +692,13 @@ def validate_prompt(prompt):
             "extra_info": {}
         }
 
-        return (False, error, list(good_outputs), node_errors)
+        return False, error, list(good_outputs), node_errors
 
-    return (True, None, list(good_outputs), node_errors)
+    return True, None, list(good_outputs), node_errors
+
 
 MAXIMUM_HISTORY_SIZE = 10000
+
 
 class PromptQueue:
     def __init__(self, server):
@@ -709,14 +726,14 @@ class PromptQueue:
             self.currently_running[i] = copy.deepcopy(item)
             self.task_counter += 1
             self.server.queue_updated()
-            return (item, i)
+            return item, i
 
     def task_done(self, item_id, outputs):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
                 self.history.pop(next(iter(self.history)))
-            self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
+            self.history[prompt[1]] = {"prompt": prompt, "outputs": {}}
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
             self.server.queue_updated()
@@ -726,7 +743,7 @@ class PromptQueue:
             out = []
             for x in self.currently_running.values():
                 out += [x]
-            return (out, copy.deepcopy(self.queue))
+            return out, copy.deepcopy(self.queue)
 
     def get_tasks_remaining(self):
         with self.mutex:
