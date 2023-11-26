@@ -430,30 +430,19 @@ class BasicTransformerBlock(nn.Module):
         extra_options = {}
         block = None
         block_index = 0
-        if "current_index" in transformer_options:
-            extra_options["transformer_index"] = transformer_options["current_index"]
-        if "block_index" in transformer_options:
-            block_index = transformer_options["block_index"]
-            extra_options["block_index"] = block_index
-        if "original_shape" in transformer_options:
-            extra_options["original_shape"] = transformer_options["original_shape"]
-        if "block" in transformer_options:
-            block = transformer_options["block"]
-            extra_options["block"] = block
-        if "cond_or_uncond" in transformer_options:
-            extra_options["cond_or_uncond"] = transformer_options["cond_or_uncond"]
-        if "patches" in transformer_options:
-            transformer_patches = transformer_options["patches"]
-        else:
-            transformer_patches = {}
+        transformer_patches = {}
+        transformer_patches_replace = {}
+
+        for k in transformer_options:
+            if k == "patches":
+                transformer_patches = transformer_options[k]
+            elif k == "patches_replace":
+                transformer_patches_replace = transformer_options[k]
+            else:
+                extra_options[k] = transformer_options[k]
 
         extra_options["n_heads"] = self.n_heads
         extra_options["dim_head"] = self.d_head
-
-        if "patches_replace" in transformer_options:
-            transformer_patches_replace = transformer_options["patches_replace"]
-        else:
-            transformer_patches_replace = {}
 
         if self.ff_in:
             x_skip = x
