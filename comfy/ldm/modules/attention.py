@@ -428,8 +428,8 @@ class BasicTransformerBlock(nn.Module):
 
     def _forward(self, x, context=None, transformer_options={}):
         extra_options = {}
-        block = None
-        block_index = 0
+        block = transformer_options.get("block", None)
+        block_index = transformer_options.get("block_index", 0)
         transformer_patches = {}
         transformer_patches_replace = {}
 
