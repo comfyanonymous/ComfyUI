@@ -37,29 +37,59 @@ export function getWidgetType(inputData, inputName) {
 	}
 }
 
-export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values, widgetName) {
-	const widgets = addValueControlWidgets(node, targetWidget, defaultValue, values, {
+export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values, widgetName, inputData) {
+	let name = inputData[1]?.control_after_generate;
+	if(typeof name !== "string") {
+		name = widgetName;
+	}
+	const widgets = addValueControlWidgets(node, targetWidget, defaultValue, {
 		addFilterList: false,
-	});
+		controlAfterGenerateName: name
+	}, inputData);
 	return widgets[0];
 }
 
-export function addValueControlWidgets(node, targetWidget, defaultValue = "randomize", values, options) {
+export function addValueControlWidgets(node, targetWidget, defaultValue = "randomize", options, inputData) {
+	if (!defaultValue) defaultValue = "randomize";
 	if (!options) options = {};
-	
+
+	const getName = (defaultName, optionName) => {
+		let name = defaultName;
+		if (options[optionName]) {
+			name = options[optionName];
+		} else if (typeof inputData?.[1]?.[defaultName] === "string") {
+			name = inputData?.[1]?.[defaultName];
+		} else if (inputData?.[1]?.control_prefix) {
+			name = inputData?.[1]?.control_prefix + " " + name
+		}
+		return name;
+	}
+
 	const widgets = [];
-	const valueControl = node.addWidget("combo", widgetName ?? "control_after_generate", defaultValue, function (v) { }, {
-        values: ["fixed", "increment", "decrement", "randomize"],
-        serialize: false, // Don't include this in prompt.
-    });
+	const valueControl = node.addWidget(
+		"combo",
+		getName("control_after_generate", "controlAfterGenerateName"),
+		defaultValue,
+		function () {},
+		{
+			values: ["fixed", "increment", "decrement", "randomize"],
+			serialize: false, // Don't include this in prompt.
+		}
+	);
 	widgets.push(valueControl);
 
 	const isCombo = targetWidget.type === "combo";
 	let comboFilter;
 	if (isCombo && options.addFilterList !== false) {
-		comboFilter = node.addWidget("string", "control_filter_list", "", function (v) {}, {
-			serialize: false, // Don't include this in prompt.
-		});
+		comboFilter = node.addWidget(
+			"string",
+			getName("control_filter_list", "controlFilterListName"),
+			"",
+			function () {},
+			{
+				serialize: false, // Don't include this in prompt.
+			}
+		);
 		widgets.push(comboFilter);
 	}
 
@@ -148,7 +178,7 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 
 function seedWidget(node, inputName, inputData, app, widgetName) {
 	const seed = createIntWidget(node, inputName, inputData, app, true);
-	const seedControl = addValueControlWidget(node, seed.widget, "randomize", undefined, widgetName);
+	const seedControl = addValueControlWidget(node, seed.widget, "randomize", undefined, widgetName, inputData);
 
 	seed.widget.linkedWidgets = [seedControl];
 	return seed;
@@ -181,7 +211,7 @@ function addMultilineWidget(node, name, opts, app) {
 	const inputEl = document.createElement("textarea");
 	inputEl.className = "comfy-multiline-input";
 	inputEl.value = opts.defaultVal;
-	inputEl.placeholder = opts.placeholder || "";
+	inputEl.placeholder = opts.placeholder || name;
 
 	const widget = node.addDOMWidget(name, "customtext", inputEl, {
 		getValue() {
@@ -272,7 +302,11 @@ export const ComfyWidgets = {
 		if (inputData[1] && inputData[1].default) {
 			defaultValue = inputData[1].default;
 		}
-		return { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
+		const res = { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
+		if (inputData[1]?.control_after_generate) {
+			addValueControlWidgets(node, res.widget, undefined, undefined, inputData);
+		}
+		return res;
 	},
 	IMAGEUPLOAD(node, inputName, inputData, app) {
 		const imageWidget = node.widgets.find((w) => w.name === (inputData[1]?.widget ?? "image"));

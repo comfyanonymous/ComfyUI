@@ -115,12 +115,8 @@ describe("group node", () => {
 		expect(group.inputs).toHaveLength(2);
 		expect(group.outputs).toHaveLength(3);
 
-		expect(group.inputs.map((i) => i.input.name)).toEqual(["CLIPTextEncode clip", "CLIPTextEncode 2 clip"]);
-		expect(group.outputs.map((i) => i.output.name)).toEqual([
-			"EmptyLatentImage LATENT",
-			"CLIPTextEncode CONDITIONING",
-			"CLIPTextEncode 2 CONDITIONING",
-		]);
+		expect(group.inputs.map((i) => i.input.name)).toEqual(["clip", "CLIPTextEncode clip"]);
+		expect(group.outputs.map((i) => i.output.name)).toEqual(["LATENT", "CONDITIONING", "CLIPTextEncode CONDITIONING"]);
 
 		// ckpt clip to both clip inputs on the group
 		expect(nodes.ckpt.outputs.CLIP.connections.map((t) => [t.targetNode.id, t.targetInput.index])).toEqual([
@@ -129,17 +125,17 @@ describe("group node", () => {
 		]);
 
 		// group conditioning to sampler
-		expect(
-			group.outputs["CLIPTextEncode CONDITIONING"].connections.map((t) => [t.targetNode.id, t.targetInput.index])
-		).toEqual([[nodes.sampler.id, 1]]);
+		expect(group.outputs["CONDITIONING"].connections.map((t) => [t.targetNode.id, t.targetInput.index])).toEqual([
+			[nodes.sampler.id, 1],
+		]);
 		// group conditioning 2 to sampler
 		expect(
-			group.outputs["CLIPTextEncode 2 CONDITIONING"].connections.map((t) => [t.targetNode.id, t.targetInput.index])
+			group.outputs["CLIPTextEncode CONDITIONING"].connections.map((t) => [t.targetNode.id, t.targetInput.index])
 		).toEqual([[nodes.sampler.id, 2]]);
 		// group latent to sampler
-		expect(
-			group.outputs["EmptyLatentImage LATENT"].connections.map((t) => [t.targetNode.id, t.targetInput.index])
-		).toEqual([[nodes.sampler.id, 3]]);
+		expect(group.outputs["LATENT"].connections.map((t) => [t.targetNode.id, t.targetInput.index])).toEqual([
+			[nodes.sampler.id, 3],
+		]);
 	});
 
 	test("maintains all output links on conversion", async () => {
@@ -169,16 +165,16 @@ describe("group node", () => {
 		const group = await convertToGroup(app, graph, "test", toConvert);
 
 		// Edit some values to ensure they are set back onto the converted nodes
-		expect(group.widgets["CLIPTextEncode text"].value).toBe("positive");
-		group.widgets["CLIPTextEncode text"].value = "pos";
-		expect(group.widgets["CLIPTextEncode 2 text"].value).toBe("negative");
-		group.widgets["CLIPTextEncode 2 text"].value = "neg";
-		expect(group.widgets["EmptyLatentImage width"].value).toBe(512);
-		group.widgets["EmptyLatentImage width"].value = 1024;
-		expect(group.widgets["KSampler sampler_name"].value).toBe("euler");
-		group.widgets["KSampler sampler_name"].value = "ddim";
-		expect(group.widgets["KSampler control_after_generate"].value).toBe("randomize");
-		group.widgets["KSampler control_after_generate"].value = "fixed";
+		expect(group.widgets["text"].value).toBe("positive");
+		group.widgets["text"].value = "pos";
+		expect(group.widgets["CLIPTextEncode text"].value).toBe("negative");
+		group.widgets["CLIPTextEncode text"].value = "neg";
+		expect(group.widgets["width"].value).toBe(512);
+		group.widgets["width"].value = 1024;
+		expect(group.widgets["sampler_name"].value).toBe("euler");
+		group.widgets["sampler_name"].value = "ddim";
+		expect(group.widgets["control_after_generate"].value).toBe("randomize");
+		group.widgets["control_after_generate"].value = "fixed";
 
 		/** @type { Array<any> } */
 		group.menu["Convert to nodes"].call();
@@ -296,18 +292,18 @@ describe("group node", () => {
 			nodes.sampler,
 		]);
 
-		expect(group.widgets["CheckpointLoaderSimple ckpt_name"].value).toEqual("model2.ckpt");
-		expect(group.widgets["CLIPTextEncode text"].value).toEqual("hello");
-		expect(group.widgets["CLIPTextEncode 2 text"].value).toEqual("world");
-		expect(group.widgets["EmptyLatentImage width"].value).toEqual(256);
-		expect(group.widgets["EmptyLatentImage height"].value).toEqual(1024);
-		expect(group.widgets["KSampler seed"].value).toEqual(1);
-		expect(group.widgets["KSampler control_after_generate"].value).toEqual("increment");
-		expect(group.widgets["KSampler steps"].value).toEqual(8);
-		expect(group.widgets["KSampler cfg"].value).toEqual(4.5);
-		expect(group.widgets["KSampler sampler_name"].value).toEqual("uni_pc");
-		expect(group.widgets["KSampler scheduler"].value).toEqual("karras");
-		expect(group.widgets["KSampler denoise"].value).toEqual(0.9);
+		expect(group.widgets["ckpt_name"].value).toEqual("model2.ckpt");
+		expect(group.widgets["text"].value).toEqual("hello");
+		expect(group.widgets["CLIPTextEncode text"].value).toEqual("world");
+		expect(group.widgets["width"].value).toEqual(256);
+		expect(group.widgets["height"].value).toEqual(1024);
+		expect(group.widgets["seed"].value).toEqual(1);
+		expect(group.widgets["control_after_generate"].value).toEqual("increment");
+		expect(group.widgets["steps"].value).toEqual(8);
+		expect(group.widgets["cfg"].value).toEqual(4.5);
+		expect(group.widgets["sampler_name"].value).toEqual("uni_pc");
+		expect(group.widgets["scheduler"].value).toEqual("karras");
+		expect(group.widgets["denoise"].value).toEqual(0.9);
 
 		expect((await graph.toPrompt()).output).toEqual(
 			getOutput([nodes.ckpt.id, nodes.pos.id, nodes.neg.id, nodes.empty.id, nodes.sampler.id], {
@@ -360,8 +356,8 @@ describe("group node", () => {
 		const group1 = await convertToGroup(app, graph, "test", [nodes.pos, nodes.neg]);
 		const group2 = await convertToGroup(app, graph, "test2", [nodes.empty, nodes.sampler]);
 
-		group1.outputs[0].connectTo(group2.inputs["KSampler positive"]);
-		group1.outputs[1].connectTo(group2.inputs["KSampler negative"]);
+		group1.outputs[0].connectTo(group2.inputs["positive"]);
+		group1.outputs[1].connectTo(group2.inputs["negative"]);
 
 		expect((await graph.toPrompt()).output).toEqual(
 			getOutput([nodes.pos.id, nodes.neg.id, nodes.empty.id, nodes.sampler.id])
@@ -370,7 +366,7 @@ describe("group node", () => {
 	test("displays generated image on group node", async () => {
 		const { ez, graph, app } = await start();
 		const nodes = createDefaultWorkflow(ez, graph);
-		const group = await convertToGroup(app, graph, "test", [
+		let group = await convertToGroup(app, graph, "test", [
 			nodes.pos,
 			nodes.neg,
 			nodes.empty,
@@ -380,15 +376,16 @@ describe("group node", () => {
 		]);
 
 		const { api } = require("../../web/scripts/api");
+
 		api.dispatchEvent(new CustomEvent("execution_start", {}));
-		api.dispatchEvent(new CustomEvent("executing", { detail: `${group.id}:3` }));
+		api.dispatchEvent(new CustomEvent("executing", { detail: `${nodes.save.id}` }));
 		// Event should be forwarded to group node id
 		expect(+app.runningNodeId).toEqual(group.id);
 		expect(group.node["imgs"]).toBeFalsy();
 		api.dispatchEvent(
 			new CustomEvent("executed", {
 				detail: {
-					node: `${group.id}:3`,
+					node: `${nodes.save.id}`,
 					output: {
 						images: [
 							{
@@ -410,6 +407,46 @@ describe("group node", () => {
 				type: "output",
 			},
 		]);
+
+		// Reload
+		const workflow = JSON.stringify((await graph.toPrompt()).workflow);
+		await app.loadGraphData(JSON.parse(workflow));
+		group = graph.find(group);
+
+		// Trigger inner nodes to get created
+		group.node["getInnerNodes"]();
+
+		// Check it works for internal node ids
+		api.dispatchEvent(new CustomEvent("execution_start", {}));
+		api.dispatchEvent(new CustomEvent("executing", { detail: `${group.id}:5` }));
+		// Event should be forwarded to group node id
+		expect(+app.runningNodeId).toEqual(group.id);
+		expect(group.node["imgs"]).toBeFalsy();
+		api.dispatchEvent(
+			new CustomEvent("executed", {
+				detail: {
+					node: `${group.id}:5`,
+					output: {
+						images: [
+							{
+								filename: "test2.png",
+								type: "output",
+							},
+						],
+					},
+				},
+			})
+		);
+
+		// Trigger paint
+		group.node.onDrawBackground?.(app.canvas.ctx, app.canvas.canvas);
+
+		expect(group.node["images"]).toEqual([
+			{
+				filename: "test2.png",
+				type: "output",
+			},
+		]);
 	});
 	test("allows widgets to be converted to inputs", async () => {
 		const { ez, graph, app } = await start();
@@ -418,7 +455,7 @@ describe("group node", () => {
 		group.widgets[0].convertToInput();
 
 		const primitive = ez.PrimitiveNode();
-		primitive.outputs[0].connectTo(group.inputs["CLIPTextEncode text"]);
+		primitive.outputs[0].connectTo(group.inputs["text"]);
 		primitive.widgets[0].value = "hello";
 
 		expect((await graph.toPrompt()).output).toEqual(
@@ -440,9 +477,9 @@ describe("group node", () => {
 			nodes.save,
 		]);
 
-		group1.widgets["CLIPTextEncode text"].value = "hello";
-		group1.widgets["EmptyLatentImage width"].value = 256;
-		group1.widgets["KSampler seed"].value = 1;
+		group1.widgets["text"].value = "hello";
+		group1.widgets["width"].value = 256;
+		group1.widgets["seed"].value = 1;
 
 		// Clone the node
 		group1.menu.Clone.call();
@@ -452,14 +489,14 @@ describe("group node", () => {
 		expect(group2.id).not.toEqual(group1.id);
 
 		// Reconnect ckpt
-		nodes.ckpt.outputs.MODEL.connectTo(group2.inputs["KSampler model"]);
+		nodes.ckpt.outputs.MODEL.connectTo(group2.inputs["model"]);
+		nodes.ckpt.outputs.CLIP.connectTo(group2.inputs["clip"]);
 		nodes.ckpt.outputs.CLIP.connectTo(group2.inputs["CLIPTextEncode clip"]);
-		nodes.ckpt.outputs.CLIP.connectTo(group2.inputs["CLIPTextEncode 2 clip"]);
-		nodes.ckpt.outputs.VAE.connectTo(group2.inputs["VAEDecode vae"]);
+		nodes.ckpt.outputs.VAE.connectTo(group2.inputs["vae"]);
 
-		group2.widgets["CLIPTextEncode text"].value = "world";
-		group2.widgets["EmptyLatentImage width"].value = 1024;
-		group2.widgets["KSampler seed"].value = 100;
+		group2.widgets["text"].value = "world";
+		group2.widgets["width"].value = 1024;
+		group2.widgets["seed"].value = 100;
 
 		let i = 0;
 		expect((await graph.toPrompt()).output).toEqual({
@@ -567,9 +604,9 @@ describe("group node", () => {
 		primitive.outputs[0].connectTo(neg.inputs.text);
 
 		const group = await convertToGroup(app, graph, "test", [pos, neg, primitive]);
-		// These will both be the same due to the primitive
-		expect(group.widgets["Positive text"].value).toBe("positive");
-		expect(group.widgets["Negative text"].value).toBe("positive");
+		// This will use a primitive widget named 'value'
+		expect(group.widgets.length).toBe(1);
+		expect(group.widgets["value"].value).toBe("positive");
 
 		const newNodes = group.menu["Convert to nodes"].call();
 		pos = graph.find(newNodes.find((n) => n.title === "Positive"));
@@ -599,14 +636,14 @@ describe("group node", () => {
 		const group = await convertToGroup(app, graph, "test", [scale, save, empty, decode]);
 		const widgets = group.widgets.map((w) => w.widget.name);
 		expect(widgets).toStrictEqual([
-			"EmptyLatentImage width",
-			"EmptyLatentImage height",
-			"EmptyLatentImage batch_size",
-			"LatentUpscale upscale_method",
+			"width",
+			"height",
+			"batch_size",
+			"upscale_method",
 			"LatentUpscale width",
 			"LatentUpscale height",
-			"LatentUpscale crop",
-			"SaveImage filename_prefix",
+			"crop",
+			"filename_prefix",
 		]);
 	});
 	test("adds output for external links when converting to group", async () => {
@@ -653,11 +690,11 @@ describe("group node", () => {
 		const group = await convertToGroup(app, graph, "test", [vae, decode1, encode, sampler]);
 
 		expect(group.outputs.length).toBe(3);
-		expect(group.outputs[0].output.name).toBe("VAELoader VAE");
+		expect(group.outputs[0].output.name).toBe("VAE");
 		expect(group.outputs[0].output.type).toBe("VAE");
-		expect(group.outputs[1].output.name).toBe("VAEDecode IMAGE");
+		expect(group.outputs[1].output.name).toBe("IMAGE");
 		expect(group.outputs[1].output.type).toBe("IMAGE");
-		expect(group.outputs[2].output.name).toBe("VAEEncode LATENT");
+		expect(group.outputs[2].output.name).toBe("LATENT");
 		expect(group.outputs[2].output.type).toBe("LATENT");
 
 		expect(group.outputs[0].connections.length).toBe(1);
@@ -686,7 +723,7 @@ describe("group node", () => {
 		const preview1 = ez.PreviewImage(img.outputs[0]);
 
 		const group = await convertToGroup(app, graph, "test", [img, preview1]);
-		const widget = group.widgets["LoadImage upload"];
+		const widget = group.widgets["upload"];
 		expect(widget).toBeTruthy();
 		expect(widget.widget.type).toBe("button");
 	});

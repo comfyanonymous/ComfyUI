@@ -152,13 +152,13 @@ export function mergeIfValid(output, config2, forceUpdate, recreateWidget, confi
 	for (const k of keys.values()) {
 		if (k !== "default" && k !== "forceInput" && k !== "defaultInput") {
 			let v1 = config1[1][k];
-			let v2 = config2[1][k];
+			let v2 = config2[1]?.[k];
 
 			if (v1 === v2 || (!v1 && !v2)) continue;
 
 			if (isNumber) {
 				if (k === "min") {
-					const theirMax = config2[1]["max"];
+					const theirMax = config2[1]?.["max"];
 					if (theirMax != null && v1 > theirMax) {
 						console.log("connection rejected: min > max", v1, theirMax);
 						return false;
@@ -166,7 +166,7 @@ export function mergeIfValid(output, config2, forceUpdate, recreateWidget, confi
 					getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.max(v1, v2);
 					continue;
 				} else if (k === "max") {
-					const theirMin = config2[1]["min"];
+					const theirMin = config2[1]?.["min"];
 					if (theirMin != null && v1 < theirMin) {
 						console.log("connection rejected: max < min", v1, theirMin);
 						return false;
@@ -211,7 +211,7 @@ export function mergeIfValid(output, config2, forceUpdate, recreateWidget, confi
 			output.widget[CONFIG] = [config1[0], customConfig];
 		}
 
-		const widget = recreateWidget?.();
+		const widget = recreateWidget?.call(this);
 		// When deleting a node this can be null
 		if (widget) {
 			const min = widget.options.min;
@@ -570,12 +570,12 @@ app.registerExtension({
 					}
 				}
 
-				if ((widget.type === "number" && !inputData?.[1]?.control_after_generate) || widget.type === "combo") {
+				if (!inputData?.[1]?.control_after_generate && (widget.type === "number" || widget.type === "combo")) {
 					let control_value = this.widgets_values?.[1];
 					if (!control_value) {
 						control_value = "fixed";
 					}
-					addValueControlWidgets(this, widget, control_value);
+					addValueControlWidgets(this, widget, control_value, undefined, inputData);
 					let filter = this.widgets_values?.[2];
 					if(filter && this.widgets.length === 3) {
 						this.widgets[2].value = filter;
@@ -657,7 +657,7 @@ app.registerExtension({
 				// Only allow connections where the configs match
 				const output = this.outputs[0];
 				const config2 = input.widget[GET_CONFIG]();
-				return !!mergeIfValid(output, config2, forceUpdate, this.#recreateWidget);
+				return !!mergeIfValid.call(this, output, config2, forceUpdate, this.#recreateWidget);
 			}
 
 			#removeWidgets() {

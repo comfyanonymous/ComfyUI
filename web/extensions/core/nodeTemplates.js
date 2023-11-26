@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { ComfyDialog, $el } from "../../scripts/ui.js";
-import { GROUP_DATA, IS_GROUP_NODE, registerGroupNodes } from "./groupNode.js";
+import { GroupNodeConfig, GroupNodeHandler } from "./groupNode.js";
 
 // Adds the ability to save and add multiple nodes as a template
 // To save:
@@ -320,13 +320,15 @@ app.registerExtension({
 						for (let i = 0; i < nodeIds.length; i++) {
 							const node = app.graph.getNodeById(nodeIds[i]);
 							const nodeData = node?.constructor.nodeData;
-							if (nodeData?.[IS_GROUP_NODE]) {
-								const groupData = nodeData[GROUP_DATA];
+							
+							let groupData = GroupNodeHandler.getGroupData(node);
+							if (groupData) {
+								groupData = groupData.nodeData;
 								if (!data.groupNodes) {
 									data.groupNodes = {};
 								}
 								data.groupNodes[nodeData.name] = groupData;
-								data.nodes[i].type = "workflow/" + nodeData.name;
+								data.nodes[i].type = nodeData.name;
 							}
 						}
 
@@ -346,7 +348,7 @@ app.registerExtension({
 					callback: () => {
 						clipboardAction(async () => {
 							const data = JSON.parse(t.data);
-							await registerGroupNodes(data.groupNodes, "workflow", t.name);
+							await GroupNodeConfig.registerFromWorkflow(data.groupNodes, {});
 							localStorage.setItem("litegrapheditor_clipboard", t.data);
 							app.canvas.pasteFromClipboard();
 						});
