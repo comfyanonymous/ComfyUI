@@ -10,9 +10,9 @@ function checkState() {
 	const currentState = app.graph.serialize();
 	if (!graphEqual(activeState, currentState)) {
 		undo.push(activeState);
-        if(undo.length > MAX_HISTORY) {
-            undo.shift();
-        }
+		if (undo.length > MAX_HISTORY) {
+			undo.shift();
+		}
 		activeState = clone(currentState);
 		redo.length = 0;
 	}
