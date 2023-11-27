@@ -166,8 +166,8 @@ class BaseModel(torch.nn.Module):
     def memory_required(self, input_shape):
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
             #TODO: this needs to be tweaked
-            area = max(input_shape[0], 3) * input_shape[2] * input_shape[3]
-            return (area * comfy.model_management.dtype_size(self.get_dtype()) / 60) * (1024 * 1024)
+            area = input_shape[0] * input_shape[2] * input_shape[3]
+            return (area * comfy.model_management.dtype_size(self.get_dtype()) / 50) * (1024 * 1024)
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
             area = input_shape[0] * input_shape[2] * input_shape[3]
