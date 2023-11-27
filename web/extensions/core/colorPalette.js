@@ -62,6 +62,124 @@ const colorPalettes = {
 			}
 		},
 	},
+	"imgbg": {
+		"id": "imgbg",
+		"name": "ImgBG",
+		"colors": {
+			"node_slot": {
+				"CLIP": "#FFD500", // bright yellow
+				"CLIP_VISION": "#A8DADC", // light blue-gray
+				"CLIP_VISION_OUTPUT": "#ad7452", // rusty brown-orange
+				"CONDITIONING": "#FFA931", // vibrant orange-yellow
+				"CONTROL_NET": "#6EE7B7", // soft mint green
+				"IMAGE": "#64B5F6", // bright sky blue
+				"LATENT": "#FF9CF9", // light pink-purple
+				"MASK": "#81C784", // muted green
+				"MODEL": "#B39DDB", // light lavender-purple
+				"STYLE_MODEL": "#C2FFAE", // light green-yellow
+				"VAE": "#FF6E6E", // bright red
+				"TAESD": "#DCC274", // cheesecake
+			},
+			"litegraph_base": {
+				"BACKGROUND_IMAGE": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAQBJREFUeNrs1rEKwjAUhlETUkj3vP9rdmr1Ysammk2w5wdxuLgcMHyptfawuZX4pJSWZTnfnu/lnIe/jNNxHHGNn//HNbbv+4dr6V+11uF527arU7+u63qfa/bnmh8sWLBgwYJlqRf8MEptXPBXJXa37BSl3ixYsGDBMliwFLyCV/DeLIMFCxYsWLBMwSt4Be/NggXLYMGCBUvBK3iNruC9WbBgwYJlsGApeAWv4L1ZBgsWLFiwYJmCV/AK3psFC5bBggULloJX8BpdwXuzYMGCBctgwVLwCl7Be7MMFixYsGDBsu8FH1FaSmExVfAxBa/gvVmwYMGCZbBg/W4vAQYA5tRF9QYlv/QAAAAASUVORK5CYII=",
+				"CLEAR_BACKGROUND_COLOR": "transparent",
+				"NODE_TITLE_COLOR": "#999",
+				"NODE_SELECTED_TITLE_COLOR": "#FFF",
+				"NODE_TEXT_SIZE": 14,
+				"NODE_TEXT_COLOR": "#AAA",
+				"NODE_SUBTEXT_SIZE": 12,
+				"NODE_DEFAULT_COLOR": "#333",
+				"NODE_DEFAULT_BGCOLOR": "#353535",
+				"NODE_DEFAULT_BOXCOLOR": "#666",
+				"NODE_DEFAULT_SHAPE": "box",
+				"NODE_BOX_OUTLINE_COLOR": "#FFF",
+				"DEFAULT_SHADOW_COLOR": "rgba(0,0,0,0.5)",
+				"DEFAULT_GROUP_FONT": 24,
+
+				"WIDGET_BGCOLOR": "#222",
+				"WIDGET_OUTLINE_COLOR": "#666",
+				"WIDGET_TEXT_COLOR": "#DDD",
+				"WIDGET_SECONDARY_TEXT_COLOR": "#999",
+
+				"LINK_COLOR": "#9A9",
+				"EVENT_LINK_COLOR": "#A86",
+				"CONNECTING_LINK_COLOR": "#AFA",
+			},
+			"comfy_base": {
+				"bg-img": "url('bg.png')",
+				"fg-color": "#fff",
+				"bg-color": "#202020",
+				"comfy-menu-bg": "#353535",
+				"comfy-input-bg": "#222",
+				"input-text": "#ddd",
+				"descrip-text": "#999",
+				"drag-text": "#ccc",
+				"error-text": "#ff4444",
+				"border-color": "#4e4e4e",
+				"tr-even-bg-color": "#222",
+				"tr-odd-bg-color": "#353535",
+			}
+		},
+	},
+	"translucent": {
+		"id": "translucent",
+		"name": "Translucent",
+		"colors": {
+			"node_slot": {
+				"CLIP": "#FFD500", // bright yellow
+				"CLIP_VISION": "#A8DADC", // light blue-gray
+				"CLIP_VISION_OUTPUT": "#ad7452", // rusty brown-orange
+				"CONDITIONING": "#FFA931", // vibrant orange-yellow
+				"CONTROL_NET": "#6EE7B7", // soft mint green
+				"IMAGE": "#64B5F6", // bright sky blue
+				"LATENT": "#FF9CF9", // light pink-purple
+				"MASK": "#81C784", // muted green
+				"MODEL": "#B39DDB", // light lavender-purple
+				"STYLE_MODEL": "#C2FFAE", // light green-yellow
+				"VAE": "#FF6E6E", // bright red
+				"TAESD": "#DCC274", // cheesecake
+			},
+			"litegraph_base": {
+				"BACKGROUND_IMAGE": "",
+				"CLEAR_BACKGROUND_COLOR": "transparent",
+				"NODE_TITLE_COLOR": "#ffffff",
+				"NODE_SELECTED_TITLE_COLOR": "#ffffff",
+				"NODE_TEXT_SIZE": 14,
+				"NODE_TEXT_COLOR": "#ffffff",
+				"NODE_SUBTEXT_SIZE": 12,
+				"NODE_DEFAULT_COLOR": "transparent",
+				"NODE_DEFAULT_BGCOLOR": "#00000080",
+				"NODE_DEFAULT_BOXCOLOR": "#ffffff40",
+				"NODE_DEFAULT_SHAPE": "box",
+				"NODE_BOX_OUTLINE_COLOR": "#ff00ff",
+				"DEFAULT_SHADOW_COLOR": "#ffffff40",
+				"DEFAULT_GROUP_FONT": 24,
+
+				"WIDGET_BGCOLOR": "#00000060",
+				"WIDGET_OUTLINE_COLOR": "#ffffff80",
+				"WIDGET_TEXT_COLOR": "#aaffff",
+				"WIDGET_SECONDARY_TEXT_COLOR": "#ffffff",
+
+				"LINK_COLOR": "#aaaaaadd",
+				"EVENT_LINK_COLOR": "#886680",
+				"CONNECTING_LINK_COLOR": "#aaffaa80",
+			},
+			"comfy_base": {
+				"bg-img": "url('bg.png')",
+				"fg-color": "#ffffff",
+				"bg-color": "#444444",
+				"comfy-menu-bg": "#222222cc",
+				"comfy-input-bg": "#00000060",
+				"input-text": "#ffffff",
+				"descrip-text": "#ffff00",
+				"drag-text": "#ffffffcc",
+				"error-text": "#ff4444",
+				"border-color": "#00000040",
+				"tr-even-bg-color": "#000000cc",
+				"tr-odd-bg-color": "#000000cc",
+			}
+		},
+	},
 	"light": {
 		"id": "light",
 		"name": "Light",
