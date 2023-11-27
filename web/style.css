@@ -10,6 +10,7 @@
 	--border-color: #4e4e4e;
 	--tr-even-bg-color: #222;
 	--tr-odd-bg-color: #353535;
+	--bg-img: #202020;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,8 +25,8 @@ body {
 	height: 100vh;
 	margin: 0;
 	overflow: hidden;
-	background: url("background/0.png") no-repeat center /cover;
-	/* backdrop-filter: blur(5px); */
+	background: var(--bg-img) no-repeat center /cover;
+	backdrop-filter: brightness(0.8);
 	color: var(--fg-color);
 }
 
