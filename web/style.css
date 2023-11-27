@@ -24,7 +24,8 @@ body {
 	height: 100vh;
 	margin: 0;
 	overflow: hidden;
-	background-color: var(--bg-color);
+	background: url("background/0.png") no-repeat center /cover;
+	/* backdrop-filter: blur(5px); */
 	color: var(--fg-color);
 }
 
