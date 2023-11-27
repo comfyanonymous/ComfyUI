@@ -481,20 +481,18 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     return (model_patcher, clip, vae, clipvision)
 
 
-def load_unet(unet_path): #load unet in diffusers format
-    sd = comfy.utils.load_torch_file(unet_path)
+def load_unet_state_dict(sd): #load unet in diffusers format
     parameters = comfy.utils.calculate_parameters(sd)
     unet_dtype = model_management.unet_dtype(model_params=parameters)
     if "input_blocks.0.0.weight" in sd: #ldm
         model_config = model_detection.model_config_from_unet(sd, "", unet_dtype)
         if model_config is None:
-            raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+            return None
         new_sd = sd
 
     else: #diffusers
         model_config = model_detection.model_config_from_diffusers_unet(sd, unet_dtype)
         if model_config is None:
-            print("ERROR UNSUPPORTED UNET", unet_path)
             return None
 
         diffusers_keys = comfy.utils.unet_to_diffusers(model_config.unet_config)
@@ -513,6 +511,14 @@ def load_unet(unet_path): #load unet in diffusers format
     if len(left_over) > 0:
         print("left over keys in unet:", left_over)
     return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
+
+def load_unet(unet_path):
+    sd = comfy.utils.load_torch_file(unet_path)
+    model = load_unet_state_dict(sd)
+    if model is None:
+        print("ERROR UNSUPPORTED UNET", unet_path)
+        raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+    return model
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
     model_management.load_models_gpu([model, clip.load_model()])
