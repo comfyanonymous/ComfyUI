@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { getWidgetType, addValueControlWidgets } from "../../scripts/widgets.js";
+import { getWidgetType } from "../../scripts/widgets.js";
 import { mergeIfValid } from "./widgetInputs.js";
 
 const GROUP = Symbol();
@@ -107,7 +107,7 @@ class GroupNodeBuilder {
 					for (const l of output.links) {
 						const link = app.graph.links[l];
 						if (!link) continue;
-						if(type === "*") type = link.type;
+						if (type === "*") type = link.type;
 
 						if (!app.canvas.selected_nodes[link.target_id]) {
 							hasExternal = true;
@@ -244,7 +244,7 @@ export class GroupNodeConfig {
 			const def = (this.primitiveDefs[node.index] = {
 				input: {
 					required: {
-						value: [type, { }],
+						value: [type, {}],
 					},
 				},
 				output: [type],
@@ -274,10 +274,10 @@ export class GroupNodeConfig {
 						break;
 					}
 				}
-				if(rerouteType === "*") {
+				if (rerouteType === "*") {
 					// Check for an external link
 					const t = this.externalFrom[node.index]?.[0];
-					if(t) {
+					if (t) {
 						rerouteType = t;
 					}
 				}
@@ -646,24 +646,25 @@ export class GroupNodeHandler {
 						newNode.widgets[0].callback?.(newNode.widgets[0].value);
 					} else {
 						const map = this.groupData.oldToNewWidgetMap[innerNode.index];
-						const widgets = Object.keys(map);
+						if (map) {
+							const widgets = Object.keys(map);
 
-						for (let i = 0; i < widgets.length; i++) {
-							const oldName = widgets[i];
-							const newName = map[oldName];
-							if (!newName) continue;
+							for (const oldName of widgets) {
+								const newName = map[oldName];
+								if (!newName) continue;
 
-							const widgetIndex = this.node.widgets.findIndex((w) => w.name === newName);
-							if (widgetIndex === -1) continue;
+								const widgetIndex = this.node.widgets.findIndex((w) => w.name === newName);
+								if (widgetIndex === -1) continue;
 
-							// Populate the main and any linked widget
-							const outerWidget = this.node.widgets[widgetIndex];
-							const newWidget = newNode.widgets.find((w) => w.name === oldName);
-							if (!newWidget) continue;
+								// Populate the main and any linked widget
+								const outerWidget = this.node.widgets[widgetIndex];
+								const newWidget = newNode.widgets.find((w) => w.name === oldName);
+								if (!newWidget) continue;
 
-							newWidget.value = outerWidget.value;
-							for (let w = 0; w < outerWidget.linkedWidgets?.length; w++) {
-								newWidget.linkedWidgets[w].value = outerWidget.linkedWidgets[w].value;
+								newWidget.value = outerWidget.value;
+								for (let w = 0; w < outerWidget.linkedWidgets?.length; w++) {
+									newWidget.linkedWidgets[w].value = outerWidget.linkedWidgets[w].value;
+								}
 							}
 						}
 					}
@@ -826,7 +827,7 @@ export class GroupNodeHandler {
 	updateInnerWidgets() {
 		for (const newWidgetName in this.groupData.newToOldWidgetMap) {
 			const newWidget = this.node.widgets.find((w) => w.name === newWidgetName);
-			if(!newWidget) continue;
+			if (!newWidget) continue;
 
 			const newValue = newWidget.value;
 			const old = this.groupData.newToOldWidgetMap[newWidgetName];

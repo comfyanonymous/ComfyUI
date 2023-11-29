@@ -267,6 +267,26 @@ describe("group node", () => {
 		group.outputs[1].connectTo(nodes.pos.inputs.clip);
 		group.outputs[1].connectTo(nodes.neg.inputs.clip);
 	});
+	test("can handle reroutes used internally", async () => {
+		const { ez, graph, app } = await start();
+		const nodes = createDefaultWorkflow(ez, graph);
+
+		let reroutes = [];
+		let prevNode = nodes.ckpt;
+		for(let i = 0; i < 5; i++) {
+			const reroute = ez.Reroute();
+			prevNode.outputs[0].connectTo(reroute.inputs[0]);
+			prevNode = reroute;
+			reroutes.push(reroute);
+		}
+		prevNode.outputs[0].connectTo(nodes.sampler.inputs.model);
+
+		const group = await convertToGroup(app, graph, "test", [...reroutes, ...Object.values(nodes)]);
+		expect((await graph.toPrompt()).output).toEqual(getOutput());
+		
+		group.menu["Convert to nodes"].call();
+		expect((await graph.toPrompt()).output).toEqual(getOutput());
+	});
 	test("creates with widget values from inner nodes", async () => {
 		const { ez, graph, app } = await start();
 		const nodes = createDefaultWorkflow(ez, graph);
