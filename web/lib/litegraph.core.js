@@ -2533,7 +2533,7 @@
 				var w = this.widgets[i];
 				if(!w)
 					continue;
-				if(w.options && w.options.property && this.properties[ w.options.property ])
+				if(w.options && w.options.property && (this.properties[ w.options.property ] != undefined))
 					w.value = JSON.parse( JSON.stringify( this.properties[ w.options.property ] ) );
 			}
 			if (info.widgets_values) {
@@ -5717,10 +5717,10 @@ LGraphNode.prototype.executeAction = function(action)
      * @method enableWebGL
      **/
     LGraphCanvas.prototype.enableWebGL = function() {
-        if (typeof GL === undefined) {
+        if (typeof GL === "undefined") {
             throw "litegl.js must be included to use a WebGL canvas";
         }
-        if (typeof enableWebGLCanvas === undefined) {
+        if (typeof enableWebGLCanvas === "undefined") {
             throw "webglCanvas.js must be included to use this feature";
         }
 
@@ -7113,15 +7113,16 @@ LGraphNode.prototype.executeAction = function(action)
         }
     };
 
-    LGraphCanvas.prototype.copyToClipboard = function() {
+    LGraphCanvas.prototype.copyToClipboard = function(nodes) {
         var clipboard_info = {
             nodes: [],
             links: []
         };
         var index = 0;
         var selected_nodes_array = [];
-        for (var i in this.selected_nodes) {
-            var node = this.selected_nodes[i];
+        if (!nodes) nodes = this.selected_nodes;
+        for (var i in nodes) {
+            var node = nodes[i];
             if (node.clonable === false)
                 continue;
             node._relative_id = index;
@@ -11705,7 +11706,7 @@ LGraphNode.prototype.executeAction = function(action)
                             default:
                                 iS = 0; // try with first if no name set
                         }
-                        if (typeof options.node_from.outputs[iS] !== undefined){
+                        if (typeof options.node_from.outputs[iS] !== "undefined"){
                             if (iS!==false && iS>-1){
                                 options.node_from.connectByType( iS, node, options.node_from.outputs[iS].type );
                             }
@@ -11733,7 +11734,7 @@ LGraphNode.prototype.executeAction = function(action)
                             default:
                                 iS = 0; // try with first if no name set
                         }
-                        if (typeof options.node_to.inputs[iS] !== undefined){
+                        if (typeof options.node_to.inputs[iS] !== "undefined"){
                             if (iS!==false && iS>-1){
                                 // try connection
                                 options.node_to.connectByTypeOutput(iS,node,options.node_to.inputs[iS].type);

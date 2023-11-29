@@ -3,7 +3,26 @@ import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { addDomClippingSetting } from "./domWidget.js";
+import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
+
+export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
+
+function sanitizeNodeName(string) {
+	let entityMap = {
+	'&': '',
+	'<': '',
+	'>': '',
+	'"': '',
+	"'": '',
+	'`': '',
+	'=': ''
+	};
+	return String(string).replace(/[&<>"'`=]/g, function fromEntityMap (s) {
+		return entityMap[s];
+	});
+}
 
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
@@ -389,7 +408,9 @@ export class ComfyApp {
 			return shiftY;
 		}
 
-		node.prototype.setSizeForImage = function () {
+		node.prototype.setSizeForImage = function (force) {
+			if(!force && this.animatedImages) return;
+
 			if (this.inputHeight) {
 				this.setSize(this.size);
 				return;
@@ -406,13 +427,20 @@ export class ComfyApp {
 				let imagesChanged = false
 
 				const output = app.nodeOutputs[this.id + ""];
-				if (output && output.images) {
+				if (output?.images) {
+					this.animatedImages = output?.animated?.find(Boolean);
 					if (this.images !== output.images) {
 						this.images = output.images;
 						imagesChanged = true;
-						imgURLs = imgURLs.concat(output.images.map(params => {
-							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam());
-						}))
+						imgURLs = imgURLs.concat(
+							output.images.map((params) => {
+								return api.apiURL(
+									"/view?" +
+										new URLSearchParams(params).toString() +
+										(this.animatedImages ? "" : app.getPreviewFormatParam())
+								);
+							})
+						);
 					}
 				}
 
@@ -491,7 +519,35 @@ export class ComfyApp {
 					return true;
 				}
 
-				if (this.imgs && this.imgs.length) {
+				if (this.imgs?.length) {
+					const widgetIdx = this.widgets?.findIndex((w) => w.name === ANIM_PREVIEW_WIDGET);
+				
+					if(this.animatedImages) {
+						// Instead of using the canvas we'll use a IMG
+						if(widgetIdx > -1) {
+							// Replace content
+							const widget = this.widgets[widgetIdx];
+							widget.options.host.updateImages(this.imgs);
+						} else {
+							const host = createImageHost(this);
+							this.setSizeForImage(true);
+							const widget = this.addDOMWidget(ANIM_PREVIEW_WIDGET, "img", host.el, {
+								host,
+								getHeight: host.getHeight,
+								onDraw: host.onDraw,
+								hideOnZoom: false
+							});
+							widget.serializeValue = () => undefined;
+							widget.options.host.updateImages(this.imgs);
+						}
+						return;
+					}
+
+					if (widgetIdx > -1) {
+						this.widgets[widgetIdx].onRemove?.();
+						this.widgets.splice(widgetIdx, 1);
+					}
+
 					const canvas = app.graph.list_of_graphcanvas[0];
 					const mouse = canvas.graph_mouse;
 					if (!canvas.pointer_is_down && this.pointerDown) {
@@ -531,31 +587,7 @@ export class ComfyApp {
 						}
 						else {
 							cell_padding = 0;
-							let best = 0;
-							let w = this.imgs[0].naturalWidth;
-							let h = this.imgs[0].naturalHeight;
-
-							// compact style
-							for (let c = 1; c <= numImages; c++) {
-								const rows = Math.ceil(numImages / c);
-								const cW = dw / c;
-								const cH = dh / rows;
-								const scaleX = cW / w;
-								const scaleY = cH / h;
-
-								const scale = Math.min(scaleX, scaleY, 1);
-								const imageW = w * scale;
-								const imageH = h * scale;
-								const area = imageW * imageH * numImages;
-
-								if (area > best) {
-									best = area;
-									cellWidth = imageW;
-									cellHeight = imageH;
-									cols = c;
-									shiftX = c * ((cW - imageW) / 2);
-								}
-							}
+							({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh));
 						}
 
 						let anyHovered = false;
@@ -1256,6 +1288,7 @@ export class ComfyApp {
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
+		addDomClippingSetting();
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
@@ -1453,6 +1486,17 @@ export class ComfyApp {
 		localStorage.setItem("litegrapheditor_clipboard", old);
 	}
 
+	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+		this.ui.dialog.show(
+			`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
+				(t) => `<li>${t}</li>`
+			).join("")}</ul>${hasAddedNodes ? "Nodes that have failed to load will show as red on the graph." : ""}`
+		);
+		this.logging.addEntry("Comfy.App", "warn", {
+			MissingNodes: missingNodeTypes,
+		});
+	}
+
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
@@ -1462,14 +1506,16 @@ export class ComfyApp {
 
 		let reset_invalid_values = false;
 		if (!graphData) {
-			if (typeof structuredClone === "undefined")
-			{
-				graphData = JSON.parse(JSON.stringify(defaultGraph));
-			}else
-			{
-				graphData = structuredClone(defaultGraph);
-			}
+			graphData = defaultGraph;
 			reset_invalid_values = true;
+		}
+
+		if (typeof structuredClone === "undefined")
+		{
+			graphData = JSON.parse(JSON.stringify(graphData));
+		}else
+		{
+			graphData = structuredClone(graphData);
 		}
 
 		const missingNodeTypes = [];
@@ -1477,9 +1523,11 @@ export class ComfyApp {
 			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
 			if (n.type == "ConditioningAverage ") n.type = "ConditioningAverage"; //typo fix
+			if (n.type == "SDV_img2vid_Conditioning") n.type = "SVD_img2vid_Conditioning"; //typo fix
 
 			// Find missing node types
 			if (!(n.type in LiteGraph.registered_node_types)) {
+				n.type = sanitizeNodeName(n.type);
 				missingNodeTypes.push(n.type);
 			}
 		}
@@ -1570,14 +1618,7 @@ export class ComfyApp {
 		}
 
 		if (missingNodeTypes.length) {
-			this.ui.dialog.show(
-				`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
-					(t) => `<li>${t}</li>`
-				).join("")}</ul>Nodes that have failed to load will show as red on the graph.`
-			);
-			this.logging.addEntry("Comfy.App", "warn", {
-				MissingNodes: missingNodeTypes,
-			});
+			this.showMissingNodesError(missingNodeTypes);
 		}
 	}
 
@@ -1589,7 +1630,17 @@ export class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	async graphToPrompt(graph=this.graph, nodeIdOffset=0, path="/", globalMappings={}) {
-		const workflow = graph.serialize();
+		for (const node of this.graph.computeExecutionOrder(false)) {
+			if (node.isVirtualNode) {
+				// Don't serialize frontend only nodes but let them make changes
+				if (node.applyToGraph) {
+					node.applyToGraph();
+				}
+				continue;
+			}
+		}
+
+		const workflow = this.graph.serialize();
 		const output = {};
 
 		let childNodeCount = 0;
@@ -1598,10 +1649,6 @@ export class ComfyApp {
 			const n = workflow.nodes.find((n) => n.id === node.id);
 
 			if (node.isVirtualNode) {
-				// Don't serialize frontend only nodes but let them make changes
-				if (node.applyToGraph) {
-					node.applyToGraph(workflow);
-				}
 				continue;
 			}
 
@@ -1862,12 +1909,23 @@ export class ComfyApp {
 					importA1111(this.graph, pngInfo.parameters);
 				}
 			}
+		} else if (file.type === "image/webp") {
+			const pngInfo = await getWebpMetadata(file);
+			if (pngInfo) {
+				if (pngInfo.workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.workflow));
+				} else if (pngInfo.Workflow) {
+					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
+				}
+			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = () => {
-				var jsonContent = JSON.parse(reader.result);
+				const jsonContent = JSON.parse(reader.result);
 				if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
+				} else if(this.isApiJson(jsonContent)) {
+					this.loadApiJson(jsonContent);
 				} else {
 					this.loadGraphData(jsonContent);
 				}
@@ -1879,6 +1937,51 @@ export class ComfyApp {
 				this.loadGraphData(JSON.parse(info.workflow));
 			}
 		}
+	}
+
+	isApiJson(data) {
+		return Object.values(data).every((v) => v.class_type);
+	}
+
+	loadApiJson(apiData) {
+		const missingNodeTypes = Object.values(apiData).filter((n) => !LiteGraph.registered_node_types[n.class_type]);
+		if (missingNodeTypes.length) {
+			this.showMissingNodesError(missingNodeTypes.map(t => t.class_type), false);
+			return;
+		}
+
+		const ids = Object.keys(apiData);
+		app.graph.clear();
+		for (const id of ids) {
+			const data = apiData[id];
+			const node = LiteGraph.createNode(data.class_type);
+			node.id = isNaN(+id) ? id : +id;
+			graph.add(node);
+		}
+
+		for (const id of ids) {
+			const data = apiData[id];
+			const node = app.graph.getNodeById(id);
+			for (const input in data.inputs ?? {}) {
+				const value = data.inputs[input];
+				if (value instanceof Array) {
+					const [fromId, fromSlot] = value;
+					const fromNode = app.graph.getNodeById(fromId);
+					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+					if (toSlot !== -1) {
+						fromNode.connect(fromSlot, node, toSlot);
+					}
+				} else {
+					const widget = node.widgets?.find((w) => w.name === input);
+					if (widget) {
+						widget.value = value;
+						widget.callback?.(value);
+					}
+				}
+			}
+		}
+
+		app.graph.arrange();
 	}
 
 	/**

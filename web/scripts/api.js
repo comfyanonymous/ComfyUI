@@ -254,9 +254,9 @@ class ComfyApi extends EventTarget {
 	 * Gets the prompt execution history
 	 * @returns Prompt history including node outputs
 	 */
-	async getHistory() {
+	async getHistory(max_items=200) {
 		try {
-			const res = await this.fetchApi("/history");
+			const res = await this.fetchApi(`/history?max_items=${max_items}`);
 			return { History: Object.values(await res.json()) };
 		} catch (error) {
 			console.error(error);

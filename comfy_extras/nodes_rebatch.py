@@ -4,7 +4,7 @@ class LatentRebatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "latents": ("LATENT",),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
                               }}
     RETURN_TYPES = ("LATENT",)
     INPUT_IS_LIST = True

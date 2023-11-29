@@ -33,7 +33,7 @@ class ControlBase:
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
-        self.timestep_percent_range = (1.0, 0.0)
+        self.timestep_percent_range = (0.0, 1.0)
         self.timestep_range = None
 
         if device is None:
@@ -42,7 +42,7 @@ class ControlBase:
         self.previous_controlnet = None
         self.global_average_pooling = False
 
-    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(1.0, 0.0)):
+    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(0.0, 1.0)):
         self.cond_hint_original = cond_hint
         self.strength = strength
         self.timestep_percent_range = timestep_percent_range
@@ -132,6 +132,7 @@ class ControlNet(ControlBase):
         self.control_model = control_model
         self.control_model_wrapped = comfy.model_patcher.ModelPatcher(self.control_model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
         self.global_average_pooling = global_average_pooling
+        self.model_sampling_current = None
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
@@ -156,10 +157,13 @@ class ControlNet(ControlBase):
 
 
         context = cond['c_crossattn']
-        y = cond.get('c_adm', None)
+        y = cond.get('y', None)
         if y is not None:
             y = y.to(self.control_model.dtype)
-        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=t, context=context.to(self.control_model.dtype), y=y)
+        timestep = self.model_sampling_current.timestep(t)
+        x_noisy = self.model_sampling_current.calculate_input(t, x_noisy)
+
+        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=timestep.float(), context=context.to(self.control_model.dtype), y=y)
         return self.control_merge(None, control, control_prev, output_dtype)
 
     def copy(self):
@@ -171,6 +175,14 @@ class ControlNet(ControlBase):
         out = super().get_models()
         out.append(self.control_model_wrapped)
         return out
+
+    def pre_run(self, model, percent_to_timestep_function):
+        super().pre_run(model, percent_to_timestep_function)
+        self.model_sampling_current = model.model_sampling
+
+    def cleanup(self):
+        self.model_sampling_current = None
+        super().cleanup()
 
 class ControlLoraOps:
     class Linear(torch.nn.Module):

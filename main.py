@@ -88,6 +88,7 @@ def cuda_malloc_warning():
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
+    last_gc_collect = 0
     while True:
         item, item_id = q.get()
         execution_start_time = time.perf_counter()
@@ -97,9 +98,14 @@ def prompt_worker(q, server):
         if server.client_id is not None:
             server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
 
-        print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
-        gc.collect()
-        comfy.model_management.soft_empty_cache()
+        current_time = time.perf_counter()
+        execution_time = current_time - execution_start_time
+        print("Prompt executed in {:.2f} seconds".format(execution_time))
+        if (current_time - last_gc_collect) > 10.0:
+            gc.collect()
+            comfy.model_management.soft_empty_cache()
+            last_gc_collect = current_time
+            print("gc collect")
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
