@@ -295,7 +295,6 @@ export class GroupNodeConfig {
 			};
 		}
 
-		// TODO: handle reroute nodes
 		console.warn("Skipping virtual node " + node.type + " when building group node " + this.name);
 	}
 
@@ -343,7 +342,6 @@ export class GroupNodeConfig {
 					// We need to store this in the correct position so link ids line up
 					converted.set(convertedIndex, inputName);
 					widgetMap[inputName] = null;
-					this.newToOldWidgetMap[inputName] = { node, inputName };
 				} else {
 					// Normal widget
 					const { name, config } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName]);
@@ -369,7 +367,7 @@ export class GroupNodeConfig {
 			const primitiveConfig = primitiveDef.input.required.value;
 			const output = { widget: primitiveConfig };
 			const config = mergeIfValid(output, targetWidget, false, null, primitiveConfig);
-			primitiveConfig[1] = config?.customConfig ?? inputs[inputName][1] ?? {};
+			primitiveConfig[1] = config?.customConfig ?? inputs[inputName][1] ? { ...inputs[inputName][1] } : {};
 
 			let name = this.oldToNewWidgetMap[sourceNodeId]["value"];
 			name = name.substr(0, name.length - 6);

@@ -747,4 +747,38 @@ describe("group node", () => {
 		expect(widget).toBeTruthy();
 		expect(widget.widget.type).toBe("button");
 	});
+	test.only("internal primitive populates widgets for all linked inputs", async () => {
+		const { ez, graph, app } = await start();
+		const img = ez.LoadImage();
+		const scale1 = ez.ImageScale(img.outputs[0]);
+		const scale2 = ez.ImageScale(img.outputs[0]);
+		ez.PreviewImage(scale1.outputs[0]);
+		ez.PreviewImage(scale2.outputs[0]);
+
+		scale1.widgets.width.convertToInput();
+		scale2.widgets.height.convertToInput();
+
+		const primitive = ez.PrimitiveNode();
+		primitive.outputs[0].connectTo(scale1.inputs.width);
+		primitive.outputs[0].connectTo(scale2.inputs.height);
+
+		const group = await convertToGroup(app, graph, "test", [img, primitive, scale1, scale2]);
+		group.widgets.value.value = 100;
+		expect((await graph.toPrompt()).output).toEqual({
+			1: {
+				inputs: { image: img.widgets.image.value },
+				class_type: "LoadImage",
+			},
+			2: {
+				inputs: { upscale_method: "nearest-exact", width: 100, height: 512, crop: "disabled", image: ["1", 0] },
+				class_type: "ImageScale",
+			},
+			3: {
+				inputs: { upscale_method: "nearest-exact", width: 512, height: 100, crop: "disabled", image: ["1", 0] },
+				class_type: "ImageScale",
+			},
+			4: { inputs: { images: ["2", 0] }, class_type: "PreviewImage" },
+			5: { inputs: { images: ["3", 0] }, class_type: "PreviewImage" },
+		});
+	});
 });
