@@ -1622,9 +1622,6 @@ export class ComfyApp {
 		}
 	}
 
-	
-
-
 	/**
 	 * Converts the current graph workflow for sending to the API
 	 * @returns The workflow and node links

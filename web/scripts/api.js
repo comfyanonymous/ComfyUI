@@ -264,19 +264,6 @@ class ComfyApi extends EventTarget {
 		}
 	}
 
-	/**
-	 * Gets the subflow json data
-	 * @returns Prompt history including node outputs
-	 */
-		async getSubflow(subflowName) {
-			try {
-				const res = await this.fetchApi(`/subflows/${subflowName}`);
-				return await res.json();
-			} catch (error) {
-				console.error(error);
-				return { };
-			}
-		}
 
 	/**
 	 * Gets system & device stats

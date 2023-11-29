@@ -1,5 +1,4 @@
 import os
-import os.path as osp
 import sys
 import asyncio
 import traceback
@@ -155,8 +154,6 @@ class PromptServer():
                 type_dir = folder_paths.get_temp_directory()
             elif dir_type == "output":
                 type_dir = folder_paths.get_output_directory()
-            elif dir_type == "subflows":
-                type_dir = folder_paths.get_subflows_directory()
 
             return type_dir, dir_type
 
@@ -522,21 +519,6 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-        
-        @routes.get("/subflows/{subflow_name}")
-        async def get_subflow(request):
-            subflow_name = request.match_info.get("subflow_name", None)
-            if subflow_name != None:
-                subflow_path = folder_paths.get_full_path("subflows", subflow_name)
-                ext = osp.splitext(subflow_path)[1]
-                with open(subflow_path) as f:
-                    if ext == ".json":
-                        subflow_data = json.load(f)
-                        return web.json_response({"subflow": subflow_data}, status=200)
-                    elif ext == ".png":
-                        return web.json_response({"error": "todo", "node_errors": []}, status=400)
-            return web.json_response({"error": "no subflow_name provided", "node_errors": []}, status=400)
-
 
     def add_routes(self):
         self.app.add_routes(self.routes)

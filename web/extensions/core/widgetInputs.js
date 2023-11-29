@@ -4,7 +4,7 @@ import { app } from "../../scripts/app.js";
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
 const CONFIG = Symbol();
-export const GET_CONFIG = Symbol();
+const GET_CONFIG = Symbol();
 
 function getConfig(widgetName) {
 	const { nodeData } = this.constructor;

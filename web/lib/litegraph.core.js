@@ -13315,7 +13315,7 @@ LGraphNode.prototype.executeAction = function(action)
                 content: "Align Selected To",
                 has_submenu: true,
                 callback: LGraphCanvas.onNodeAlign,
-            });
+            })
         }
 
 		options.push(null, {

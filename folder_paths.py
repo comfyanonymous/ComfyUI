@@ -67,6 +67,7 @@ def get_input_directory():
     global input_directory
     return input_directory
 
+
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name):
     if type_name == "output":
