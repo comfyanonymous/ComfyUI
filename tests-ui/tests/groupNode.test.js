@@ -747,7 +747,7 @@ describe("group node", () => {
 		expect(widget).toBeTruthy();
 		expect(widget.widget.type).toBe("button");
 	});
-	test.only("internal primitive populates widgets for all linked inputs", async () => {
+	test("internal primitive populates widgets for all linked inputs", async () => {
 		const { ez, graph, app } = await start();
 		const img = ez.LoadImage();
 		const scale1 = ez.ImageScale(img.outputs[0]);
@@ -780,5 +780,39 @@ describe("group node", () => {
 			4: { inputs: { images: ["2", 0] }, class_type: "PreviewImage" },
 			5: { inputs: { images: ["3", 0] }, class_type: "PreviewImage" },
 		});
+	});
+	test("primitive control widgets values are copied on convert", async () => {
+		const { ez, graph, app } = await start();
+		const sampler = ez.KSampler();
+		sampler.widgets.seed.convertToInput();
+		sampler.widgets.sampler_name.convertToInput();
+
+		let p1 = ez.PrimitiveNode();
+		let p2 = ez.PrimitiveNode();
+		p1.outputs[0].connectTo(sampler.inputs.seed);
+		p2.outputs[0].connectTo(sampler.inputs.sampler_name);
+
+		p1.widgets.control_after_generate.value = "increment";
+		p2.widgets.control_after_generate.value = "decrement";
+		p2.widgets.control_filter_list.value = "/.*/";
+
+		p2.node.title = "p2";
+
+		const group = await convertToGroup(app, graph, "test", [sampler, p1, p2]);
+		expect(group.widgets.control_after_generate.value).toBe("increment");
+		expect(group.widgets["p2 control_after_generate"].value).toBe("decrement");
+		expect(group.widgets["p2 control_filter_list"].value).toBe("/.*/");
+
+		group.widgets.control_after_generate.value = "fixed";
+		group.widgets["p2 control_after_generate"].value = "randomize";
+		group.widgets["p2 control_filter_list"].value = "/.+/";
+
+		group.menu["Convert to nodes"].call();
+		p1 = graph.find(p1);
+		p2 = graph.find(p2);
+
+		expect(p1.widgets.control_after_generate.value).toBe("fixed");
+		expect(p2.widgets.control_after_generate.value).toBe("randomize");
+		expect(p2.widgets.control_filter_list.value).toBe("/.+/");
 	});
 });

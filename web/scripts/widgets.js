@@ -304,7 +304,7 @@ export const ComfyWidgets = {
 		}
 		const res = { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
 		if (inputData[1]?.control_after_generate) {
-			addValueControlWidgets(node, res.widget, undefined, undefined, inputData);
+			res.widget.linkedWidgets = addValueControlWidgets(node, res.widget, undefined, undefined, inputData);
 		}
 		return res;
 	},

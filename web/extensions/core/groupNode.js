@@ -639,22 +639,23 @@ export class GroupNodeHandler {
 						top = newNode.pos[1];
 					}
 
-					if (innerNode.type === "PrimitiveNode" && innerNode.primitiveValue != null) {
-						newNode.widgets[0].value = innerNode.primitiveValue;
-						newNode.widgets[0].callback?.(newNode.widgets[0].value);
-					} else {
-						const map = this.groupData.oldToNewWidgetMap[innerNode.index];
-						if (map) {
-							const widgets = Object.keys(map);
+					const map = this.groupData.oldToNewWidgetMap[innerNode.index];
+					if (map) {
+						const widgets = Object.keys(map);
 
-							for (const oldName of widgets) {
-								const newName = map[oldName];
-								if (!newName) continue;
+						for (const oldName of widgets) {
+							const newName = map[oldName];
+							if (!newName) continue;
 
-								const widgetIndex = this.node.widgets.findIndex((w) => w.name === newName);
-								if (widgetIndex === -1) continue;
+							const widgetIndex = this.node.widgets.findIndex((w) => w.name === newName);
+							if (widgetIndex === -1) continue;
 
-								// Populate the main and any linked widget
+							// Populate the main and any linked widgets
+							if (innerNode.type === "PrimitiveNode") {
+								for (let i = 0; i < newNode.widgets.length; i++) {
+									newNode.widgets[i].value = this.node.widgets[widgetIndex + i].value;
+								}
+							} else {
 								const outerWidget = this.node.widgets[widgetIndex];
 								const newWidget = newNode.widgets.find((w) => w.name === oldName);
 								if (!newWidget) continue;
@@ -857,9 +858,18 @@ export class GroupNodeHandler {
 		const primitiveId = this.groupData.widgetToPrimitive[nodeId]?.[oldName];
 		if (primitiveId == null) return;
 		const targetWidgetName = this.groupData.oldToNewWidgetMap[primitiveId]["value"];
-		const targetWidget = this.node.widgets.find((w) => w.name === targetWidgetName);
-		if (targetWidget) {
-			targetWidget.value = node.widgets_values[i + linkedShift];
+		const targetWidgetIndex = this.node.widgets.findIndex((w) => w.name === targetWidgetName);
+		if (targetWidgetIndex > -1) {
+			const primitiveNode = this.innerNodes[primitiveId];
+			let len = primitiveNode.widgets.length;
+			if (len - 1 !== this.node.widgets[targetWidgetIndex].linkedWidgets?.length) {
+				// Fallback handling for if some reason the primitive has a different number of widgets
+				// we dont want to overwrite random widgets, better to leave blank
+				len = 1;
+			}
+			for (let i = 0; i < len; i++) {
+				this.node.widgets[targetWidgetIndex + i].value = primitiveNode.widgets[i].value;
+			}
 		}
 	}
 
