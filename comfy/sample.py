@@ -83,7 +83,7 @@ def prepare_sampling(model, noise_shape, positive, negative, noise_mask):
 
     real_model = None
     models, inference_memory = get_additional_models(positive, negative, model.model_dtype())
-    comfy.model_management.load_models_gpu([model] + models, model.memory_required(noise_shape) + inference_memory)
+    comfy.model_management.load_models_gpu([model] + models, model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory)
     real_model = model.model
 
     return real_model, positive, negative, noise_mask, models
