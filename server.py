@@ -519,7 +519,7 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-
+        
     def add_routes(self):
         self.app.add_routes(self.routes)
 

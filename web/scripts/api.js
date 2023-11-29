@@ -264,7 +264,6 @@ class ComfyApi extends EventTarget {
 		}
 	}
 
-
 	/**
 	 * Gets system & device stats
 	 * @returns System stats such as python version, OS, per device info
