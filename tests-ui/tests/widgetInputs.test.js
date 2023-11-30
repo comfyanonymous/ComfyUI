@@ -202,8 +202,8 @@ describe("widget inputs", () => {
 		});
 
 		expect(dialogShow).toBeCalledTimes(1);
-		expect(dialogShow.mock.calls[0][0]).toContain("the following node types were not found");
-		expect(dialogShow.mock.calls[0][0]).toContain("TestNode");
+		expect(dialogShow.mock.calls[0][0].innerHTML).toContain("the following node types were not found");
+		expect(dialogShow.mock.calls[0][0].innerHTML).toContain("TestNode");
 	});
 
 	test("defaultInput widgets can be converted back to inputs", async () => {
