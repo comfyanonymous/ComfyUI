@@ -462,8 +462,8 @@ class ComfyList {
 						return $el("div", {textContent: item.prompt[0] + ": "}, [
 							$el("button", {
 								textContent: "Load",
-								onclick: () => {
-									app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+								onclick: async () => {
+									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
 									if (item.outputs) {
 										app.nodeOutputs = item.outputs;
 									}
@@ -784,9 +784,9 @@ export class ComfyUI {
 				}
 			}),
 			$el("button", {
-				id: "comfy-load-default-button", textContent: "Load Default", onclick: () => {
+				id: "comfy-load-default-button", textContent: "Load Default", onclick: async () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
-						app.loadGraphData()
+						await app.loadGraphData()
 					}
 				}
 			}),
