@@ -700,10 +700,12 @@ class PromptQueue:
             self.server.queue_updated()
             self.not_empty.notify()
 
-    def get(self):
+    def get(self, timeout=None):
         with self.not_empty:
             while len(self.queue) == 0:
-                self.not_empty.wait()
+                self.not_empty.wait(timeout=timeout)
+                if timeout is not None and len(self.queue) == 0:
+                    return None
             item = heapq.heappop(self.queue)
             i = self.task_counter
             self.currently_running[i] = copy.deepcopy(item)
