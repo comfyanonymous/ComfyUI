@@ -766,7 +766,7 @@ describe("group node", () => {
 		group.widgets.value.value = 100;
 		expect((await graph.toPrompt()).output).toEqual({
 			1: {
-				inputs: { image: img.widgets.image.value },
+				inputs: { image: img.widgets.image.value, upload: "image" },
 				class_type: "LoadImage",
 			},
 			2: {
