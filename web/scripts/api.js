@@ -7,6 +7,10 @@ class ComfyApi extends EventTarget {
 		this.api_base = location.pathname.split('/').slice(0, -1).join('/');
 	}
 
+	set apiBase(apiBase) {
+		this.api_base = apiBase;
+	}
+
 	apiURL(route) {
 		return this.api_base + route;
 	}
@@ -314,7 +318,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async interrupt() {
 		await this.#postItem("interrupt", null);
-	}
+	}	
 }
 
 export const api = new ComfyApi();

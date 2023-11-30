@@ -78,6 +78,14 @@ export class ComfyApp {
 		this.shiftDown = false;
 	}
 
+	/**
+	 * Provide a setter for the base url of the api
+	 * @param {string} apiBase 
+	 */
+	set apiBase(apiBase) {
+		api.apiBase = apiBase;
+	}
+
 	getPreviewFormatParam() {
 		let preview_format = this.ui.settings.getSettingValue("Comfy.PreviewFormat");
 		if(preview_format)
