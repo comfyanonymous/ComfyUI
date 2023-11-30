@@ -19,7 +19,7 @@ class BASE:
     clip_prefix = []
     clip_vision_prefix = None
     noise_aug_config = None
-    beta_schedule = "linear"
+    sampling_settings = {}
     latent_format = latent_formats.LatentFormat
 
     @classmethod
@@ -54,6 +54,9 @@ class BASE:
         return state_dict
 
     def process_unet_state_dict(self, state_dict):
+        return state_dict
+
+    def process_vae_state_dict(self, state_dict):
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):

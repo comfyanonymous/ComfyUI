@@ -81,6 +81,25 @@ class PolyexponentialScheduler:
         sigmas = k_diffusion_sampling.get_sigmas_polyexponential(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, rho=rho)
         return (sigmas, )
 
+class SDTurboScheduler:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                     "steps": ("INT", {"default": 1, "min": 1, "max": 10}),
+                      }
+               }
+    RETURN_TYPES = ("SIGMAS",)
+    CATEGORY = "sampling/custom_sampling/schedulers"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, model, steps):
+        timesteps = torch.flip(torch.arange(1, 11) * 100 - 1, (0,))[:steps]
+        sigmas = model.model.model_sampling.sigma(timesteps)
+        sigmas = torch.cat([sigmas, sigmas.new_zeros([1])])
+        return (sigmas, )
+
 class VPScheduler:
     @classmethod
     def INPUT_TYPES(s):
@@ -257,6 +276,7 @@ NODE_CLASS_MAPPINGS = {
     "ExponentialScheduler": ExponentialScheduler,
     "PolyexponentialScheduler": PolyexponentialScheduler,
     "VPScheduler": VPScheduler,
+    "SDTurboScheduler": SDTurboScheduler,
     "KSamplerSelect": KSamplerSelect,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,

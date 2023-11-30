@@ -572,6 +572,19 @@ class LoraLoader:
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
+class LoraLoaderModelOnly(LoraLoader):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "load_lora_model_only"
+
+    def load_lora_model_only(self, model, lora_name, strength_model):
+        return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
+
 class VAELoader:
     @staticmethod
     def vae_list():
@@ -1324,6 +1337,7 @@ class SaveImage:
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
+        self.compress_level = 4
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1357,7 +1371,7 @@ class SaveImage:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
@@ -1372,6 +1386,7 @@ class PreviewImage(SaveImage):
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
+        self.compress_level = 1
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1703,6 +1718,7 @@ NODE_CLASS_MAPPINGS = {
 
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
+    "LoraLoaderModelOnly": LoraLoaderModelOnly,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1808,7 +1824,7 @@ def load_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
 
@@ -1850,6 +1866,7 @@ def init_custom_nodes():
         "nodes_model_advanced.py",
         "nodes_model_downscale.py",
         "nodes_images.py",
+        "nodes_video_model.py",
     ]
 
     for node_file in extras_files:
