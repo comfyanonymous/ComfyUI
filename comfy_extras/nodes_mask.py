@@ -114,7 +114,7 @@ class ImageToMask:
         return {
                 "required": {
                     "image": ("IMAGE",),
-                    "channel": (["red", "green", "blue"],),
+                    "channel": (["red", "green", "blue", "alpha"],),
                 }
         }
 
@@ -124,7 +124,7 @@ class ImageToMask:
     FUNCTION = "image_to_mask"
 
     def image_to_mask(self, image, channel):
-        channels = ["red", "green", "blue"]
+        channels = ["red", "green", "blue", "alpha"]
         mask = image[:, :, :, channels.index(channel)]
         return (mask,)
 
@@ -240,8 +240,8 @@ class MaskComposite:
         right, bottom = (min(left + source.shape[-1], destination.shape[-1]), min(top + source.shape[-2], destination.shape[-2]))
         visible_width, visible_height = (right - left, bottom - top,)
 
-        source_portion = source[:visible_height, :visible_width]
-        destination_portion = destination[top:bottom, left:right]
+        source_portion = source[:, :visible_height, :visible_width]
+        destination_portion = destination[:, top:bottom, left:right]
 
         if operation == "multiply":
             output[:, top:bottom, left:right] = destination_portion * source_portion
@@ -282,10 +282,10 @@ class FeatherMask:
     def feather(self, mask, left, top, right, bottom):
         output = mask.reshape((-1, mask.shape[-2], mask.shape[-1])).clone()
 
-        left = min(left, output.shape[1])
-        right = min(right, output.shape[1])
-        top = min(top, output.shape[0])
-        bottom = min(bottom, output.shape[0])
+        left = min(left, output.shape[-1])
+        right = min(right, output.shape[-1])
+        top = min(top, output.shape[-2])
+        bottom = min(bottom, output.shape[-2])
 
         for x in range(left):
             feather_rate = (x + 1.0) / left
@@ -331,15 +331,14 @@ class GrowMask:
         out = []
         for m in mask:
             output = m.numpy()
-            while expand < 0:
-                output = scipy.ndimage.grey_erosion(output, footprint=kernel)
-                expand += 1
-            while expand > 0:
-                output = scipy.ndimage.grey_dilation(output, footprint=kernel)
-                expand -= 1
+            for _ in range(abs(expand)):
+                if expand < 0:
+                    output = scipy.ndimage.grey_erosion(output, footprint=kernel)
+                else:
+                    output = scipy.ndimage.grey_dilation(output, footprint=kernel)
             output = torch.from_numpy(output)
             out.append(output)
-        return (torch.cat(out, dim=0),)
+        return (torch.stack(out, dim=0),)
 
 
 

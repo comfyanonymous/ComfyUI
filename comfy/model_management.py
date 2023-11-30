@@ -134,6 +134,10 @@ else:
         import xformers.ops
         XFORMERS_IS_AVAILABLE = True
         try:
+            XFORMERS_IS_AVAILABLE = xformers._has_cpp_library
+        except:
+            pass
+        try:
             XFORMERS_VERSION = xformers.version.__version__
             print("xformers version:", XFORMERS_VERSION)
             if XFORMERS_VERSION.startswith("0.0.18"):
@@ -154,14 +158,18 @@ def is_nvidia():
             return True
     return False
 
-ENABLE_PYTORCH_ATTENTION = args.use_pytorch_cross_attention
+ENABLE_PYTORCH_ATTENTION = False
+if args.use_pytorch_cross_attention:
+    ENABLE_PYTORCH_ATTENTION = True
+    XFORMERS_IS_AVAILABLE = False
+
 VAE_DTYPE = torch.float32
 
 try:
     if is_nvidia():
         torch_version = torch.version.__version__
         if int(torch_version[0]) >= 2:
-            if ENABLE_PYTORCH_ATTENTION == False and XFORMERS_IS_AVAILABLE == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
+            if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
             if torch.cuda.is_bf16_supported():
                 VAE_DTYPE = torch.bfloat16
@@ -186,7 +194,6 @@ if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
     torch.backends.cuda.enable_flash_sdp(True)
     torch.backends.cuda.enable_mem_efficient_sdp(True)
-    XFORMERS_IS_AVAILABLE = False
 
 if args.lowvram:
     set_vram_to = VRAMState.LOW_VRAM
@@ -336,7 +343,11 @@ def free_memory(memory_required, device, keep_loaded=[]):
 
     if unloaded_model:
         soft_empty_cache()
-
+    else:
+        if vram_state != VRAMState.HIGH_VRAM:
+            mem_free_total, mem_free_torch = get_free_memory(device, torch_free_too=True)
+            if mem_free_torch > mem_free_total * 0.25:
+                soft_empty_cache()
 
 def load_models_gpu(models, memory_required=0):
     global vram_state
@@ -354,6 +365,8 @@ def load_models_gpu(models, memory_required=0):
             current_loaded_models.insert(0, current_loaded_models.pop(index))
             models_already_loaded.append(loaded_model)
         else:
+            if hasattr(x, "model"):
+                print(f"Requested to load {x.model.__class__.__name__}")
             models_to_load.append(loaded_model)
 
     if len(models_to_load) == 0:
@@ -363,7 +376,7 @@ def load_models_gpu(models, memory_required=0):
                 free_memory(extra_mem, d, models_already_loaded)
         return
 
-    print("loading new")
+    print(f"Loading {len(models_to_load)} new model{'s' if len(models_to_load) > 1 else ''}")
 
     total_memory_required = {}
     for loaded_model in models_to_load:
@@ -405,7 +418,6 @@ def load_model_gpu(model):
 def cleanup_models():
     to_delete = []
     for i in range(len(current_loaded_models)):
-        print(sys.getrefcount(current_loaded_models[i].model))
         if sys.getrefcount(current_loaded_models[i].model) <= 2:
             to_delete = [i] + to_delete
 
@@ -444,6 +456,13 @@ def unet_inital_load_device(parameters, dtype):
     else:
         return cpu_dev
 
+def unet_dtype(device=None, model_params=0):
+    if args.bf16_unet:
+        return torch.bfloat16
+    if should_use_fp16(device=device, model_params=model_params):
+        return torch.float16
+    return torch.float32
+
 def text_encoder_offload_device():
     if args.gpu_only:
         return get_torch_device()
@@ -462,6 +481,21 @@ def text_encoder_device():
             return torch.device("cpu")
     else:
         return torch.device("cpu")
+
+def text_encoder_dtype(device=None):
+    if args.fp8_e4m3fn_text_enc:
+        return torch.float8_e4m3fn
+    elif args.fp8_e5m2_text_enc:
+        return torch.float8_e5m2
+    elif args.fp16_text_enc:
+        return torch.float16
+    elif args.fp32_text_enc:
+        return torch.float32
+
+    if should_use_fp16(device, prioritize_performance=False):
+        return torch.float16
+    else:
+        return torch.float32
 
 def vae_device():
     return get_torch_device()
@@ -564,27 +598,6 @@ def get_free_memory(dev=None, torch_free_too=False):
     else:
         return mem_free_total
 
-def batch_area_memory(area):
-    if xformers_enabled() or pytorch_attention_flash_attention():
-        #TODO: these formulas are copied from maximum_batch_area below
-        return (area / 20) * (1024 * 1024)
-    else:
-        return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
-
-def maximum_batch_area():
-    global vram_state
-    if vram_state == VRAMState.NO_VRAM:
-        return 0
-
-    memory_free = get_free_memory() / (1024 * 1024)
-    if xformers_enabled() or pytorch_attention_flash_attention():
-        #TODO: this needs to be tweaked
-        area = 20 * memory_free
-    else:
-        #TODO: this formula is because AMD sucks and has memory management issues which might be fixed in the future
-        area = ((memory_free - 1024) * 0.9) / (0.6)
-    return int(max(area, 0))
-
 def cpu_mode():
     global cpu_state
     return cpu_state == CPUState.CPU
@@ -656,7 +669,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True):
         return False
 
     #FP16 is just broken on these cards
-    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600", "MX550", "MX450", "CMP 30HX"]
+    nvidia_16_series = ["1660", "1650", "1630", "T500", "T550", "T600", "MX550", "MX450", "CMP 30HX", "T2000", "T1000", "T1200"]
     for x in nvidia_16_series:
         if x in props.name:
             return False

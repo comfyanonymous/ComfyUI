@@ -33,7 +33,7 @@ class ControlBase:
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
-        self.timestep_percent_range = (1.0, 0.0)
+        self.timestep_percent_range = (0.0, 1.0)
         self.timestep_range = None
 
         if device is None:
@@ -42,7 +42,7 @@ class ControlBase:
         self.previous_controlnet = None
         self.global_average_pooling = False
 
-    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(1.0, 0.0)):
+    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(0.0, 1.0)):
         self.cond_hint_original = cond_hint
         self.strength = strength
         self.timestep_percent_range = timestep_percent_range
@@ -132,6 +132,7 @@ class ControlNet(ControlBase):
         self.control_model = control_model
         self.control_model_wrapped = comfy.model_patcher.ModelPatcher(self.control_model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
         self.global_average_pooling = global_average_pooling
+        self.model_sampling_current = None
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
@@ -156,10 +157,13 @@ class ControlNet(ControlBase):
 
 
         context = cond['c_crossattn']
-        y = cond.get('c_adm', None)
+        y = cond.get('y', None)
         if y is not None:
             y = y.to(self.control_model.dtype)
-        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=t, context=context.to(self.control_model.dtype), y=y)
+        timestep = self.model_sampling_current.timestep(t)
+        x_noisy = self.model_sampling_current.calculate_input(t, x_noisy)
+
+        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=timestep.float(), context=context.to(self.control_model.dtype), y=y)
         return self.control_merge(None, control, control_prev, output_dtype)
 
     def copy(self):
@@ -171,6 +175,14 @@ class ControlNet(ControlBase):
         out = super().get_models()
         out.append(self.control_model_wrapped)
         return out
+
+    def pre_run(self, model, percent_to_timestep_function):
+        super().pre_run(model, percent_to_timestep_function)
+        self.model_sampling_current = model.model_sampling
+
+    def cleanup(self):
+        self.model_sampling_current = None
+        super().cleanup()
 
 class ControlLoraOps:
     class Linear(torch.nn.Module):
@@ -292,8 +304,8 @@ def load_controlnet(ckpt_path, model=None):
 
     controlnet_config = None
     if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
-        use_fp16 = comfy.model_management.should_use_fp16()
-        controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data, use_fp16)
+        unet_dtype = comfy.model_management.unet_dtype()
+        controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data, unet_dtype)
         diffusers_keys = comfy.utils.unet_to_diffusers(controlnet_config)
         diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
         diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
@@ -353,8 +365,8 @@ def load_controlnet(ckpt_path, model=None):
         return net
 
     if controlnet_config is None:
-        use_fp16 = comfy.model_management.should_use_fp16()
-        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16, True).unet_config
+        unet_dtype = comfy.model_management.unet_dtype()
+        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, unet_dtype, True).unet_config
     controlnet_config.pop("out_channels")
     controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
@@ -383,8 +395,7 @@ def load_controlnet(ckpt_path, model=None):
         missing, unexpected = control_model.load_state_dict(controlnet_data, strict=False)
     print(missing, unexpected)
 
-    if use_fp16:
-        control_model = control_model.half()
+    control_model = control_model.to(unet_dtype)
 
     global_average_pooling = False
     filename = os.path.splitext(ckpt_path)[0]
@@ -417,7 +428,7 @@ class T2IAdapter(ControlBase):
                 if control_prev is not None:
                     return control_prev
                 else:
-                    return {}
+                    return None
 
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
