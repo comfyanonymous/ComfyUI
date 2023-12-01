@@ -23,20 +23,6 @@ function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 	return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
 
-export function getWidgetType(inputData, inputName) {
-	const type = inputData[0];
-
-	if (Array.isArray(type)) {
-		return "COMBO";
-	} else if (`${type}:${inputName}` in ComfyWidgets) {
-		return `${type}:${inputName}`;
-	} else if (type in ComfyWidgets) {
-		return type;
-	} else {
-		return null;
-	}
-}
-
 export function addValueControlWidget(node, targetWidget, defaultValue = "randomize", values, widgetName, inputData) {
 	let name = inputData[1]?.control_after_generate;
 	if(typeof name !== "string") {

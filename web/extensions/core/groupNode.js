@@ -1,6 +1,5 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { getWidgetType } from "../../scripts/widgets.js";
 import { mergeIfValid } from "./widgetInputs.js";
 
 const GROUP = Symbol();
@@ -332,7 +331,7 @@ export class GroupNodeConfig {
 		const converted = new Map();
 		const widgetMap = (this.oldToNewWidgetMap[node.index] = {});
 		for (const inputName of inputNames) {
-			let widgetType = getWidgetType(inputs[inputName], inputName);
+			let widgetType = app.getWidgetType(inputs[inputName], inputName);
 			if (widgetType) {
 				const convertedIndex = node.inputs?.findIndex(
 					(inp) => inp.name === inputName && inp.widget?.name === inputName
