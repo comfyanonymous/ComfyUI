@@ -121,7 +121,8 @@ def prompt_worker(q, server):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
-            print("Prompt executed in {:.2f} seconds".format(execution_time))
+            if execution_time >= 0.01:
+                print(f"Prompt executed in {execution_time:.2f} seconds")
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
