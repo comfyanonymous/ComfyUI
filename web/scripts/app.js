@@ -1,5 +1,5 @@
 import { ComfyLogging } from "./logging.js";
-import { ComfyWidgets, getWidgetType } from "./widgets.js";
+import { ComfyWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
@@ -1377,6 +1377,20 @@ export class ComfyApp {
 		await this.#invokeExtensionsAsync("registerCustomNodes");
 	}
 
+	getWidgetType(inputData, inputName) {
+		const type = inputData[0];
+
+		if (Array.isArray(type)) {
+			return "COMBO";
+		} else if (`${type}:${inputName}` in this.widgets) {
+			return `${type}:${inputName}`;
+		} else if (type in this.widgets) {
+			return type;
+		} else {
+			return null;
+		}
+	}
+
 	async registerNodeDef(nodeId, nodeData) {
 		const self = this;
 		const node = Object.assign(
@@ -1391,7 +1405,7 @@ export class ComfyApp {
 					const type = inputData[0];
 
 					let widgetCreated = true;
-					const widgetType = getWidgetType(inputData, inputName);
+					const widgetType = self.getWidgetType(inputData, inputName);
 					if(widgetType) {
 						if(widgetType === "COMBO") {
 							Object.assign(config, self.widgets.COMBO(this, inputName, inputData, app) || {});
