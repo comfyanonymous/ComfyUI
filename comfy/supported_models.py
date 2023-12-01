@@ -71,6 +71,10 @@ class SD20(supported_models_base.BASE):
         return model_base.ModelType.EPS
 
     def process_clip_state_dict(self, state_dict):
+        replace_prefix = {}
+        replace_prefix["conditioner.embedders.0.model."] = "cond_stage_model.model." #SD2 in sgm format
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
+
         state_dict = utils.transformers_convert(state_dict, "cond_stage_model.model.", "cond_stage_model.clip_h.transformer.text_model.", 24)
         return state_dict
 
