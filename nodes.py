@@ -1311,7 +1311,8 @@ class SaveImage:
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
-                "type": self.type
+                "type": self.type,
+                "time": int(time.time())
             })
             counter += 1
 
