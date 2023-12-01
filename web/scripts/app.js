@@ -1654,6 +1654,7 @@ export class ComfyApp {
 		if (missingNodeTypes.length) {
 			this.showMissingNodesError(missingNodeTypes);
 		}
+		await this.#invokeExtensionsAsync("afterConfigureGraph", missingNodeTypes);
 	}
 
 	/**
