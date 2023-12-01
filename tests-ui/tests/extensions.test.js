@@ -120,7 +120,7 @@ describe("extensions", () => {
 		// Reload the graph to ensure correct hooks are fired
 		await graph.reload();
 
-		// These hooks should be fired again
+		// These hooks should not be fired again
 		expect(mockExtension.init).toHaveBeenCalledTimes(1);
 		expect(mockExtension.addCustomNodeDefs).toHaveBeenCalledTimes(1);
 		expect(mockExtension.getCustomWidgets).toHaveBeenCalledTimes(1);
