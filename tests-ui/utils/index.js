@@ -4,11 +4,11 @@ const lg = require("./litegraph");
 
 /**
  *
- * @param { Parameters<mockApi>[0] & { resetEnv?: boolean } } config
+ * @param { Parameters<mockApi>[0] & { resetEnv?: boolean, preSetup?(app): Promise<void> } } config
  * @returns
  */
-export async function start(config = undefined) {
-	if(config?.resetEnv) {
+export async function start(config = {}) {
+	if(config.resetEnv) {
 		jest.resetModules();
 		jest.resetAllMocks();
         lg.setup(global);
@@ -16,6 +16,7 @@ export async function start(config = undefined) {
 
 	mockApi(config);
 	const { app } = require("../../web/scripts/app");
+	config.preSetup?.(app);
 	await app.setup();
 	return { ...Ez.graph(app, global["LiteGraph"], global["LGraphCanvas"]), app };
 }
