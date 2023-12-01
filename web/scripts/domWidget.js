@@ -44,7 +44,7 @@ function getClipPath(node, element, elRect) {
 }
 
 function computeSize(size) {
-	if (this.widgets?.[0].last_y == null) return;
+	if (this.widgets?.[0]?.last_y == null) return;
 
 	let y = this.widgets[0].last_y;
 	let freeSpace = size[1] - y;
@@ -195,7 +195,6 @@ export function addDomClippingSetting() {
 		type: "boolean",
 		defaultValue: enableDomClipping,
 		onChange(value) {
-			console.log("enableDomClipping", enableDomClipping);
 			enableDomClipping = !!value;
 		},
 	});

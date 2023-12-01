@@ -121,6 +121,110 @@ function isValidCombo(combo, obj) {
 	return true;
 }
 
+export function mergeIfValid(output, config2, forceUpdate, recreateWidget, config1) {
+	if (!config1) {
+		config1 = output.widget[CONFIG] ?? output.widget[GET_CONFIG]();
+	}
+
+	if (config1[0] instanceof Array) {
+		if (!isValidCombo(config1[0], config2[0])) return false;
+	} else if (config1[0] !== config2[0]) {
+		// Types dont match
+		console.log(`connection rejected: types dont match`, config1[0], config2[0]);
+		return false;
+	}
+
+	const keys = new Set([...Object.keys(config1[1] ?? {}), ...Object.keys(config2[1] ?? {})]);
+
+	let customConfig;
+	const getCustomConfig = () => {
+		if (!customConfig) {
+			if (typeof structuredClone === "undefined") {
+				customConfig = JSON.parse(JSON.stringify(config1[1] ?? {}));
+			} else {
+				customConfig = structuredClone(config1[1] ?? {});
+			}
+		}
+		return customConfig;
+	};
+
+	const isNumber = config1[0] === "INT" || config1[0] === "FLOAT";
+	for (const k of keys.values()) {
+		if (k !== "default" && k !== "forceInput" && k !== "defaultInput") {
+			let v1 = config1[1][k];
+			let v2 = config2[1]?.[k];
+
+			if (v1 === v2 || (!v1 && !v2)) continue;
+
+			if (isNumber) {
+				if (k === "min") {
+					const theirMax = config2[1]?.["max"];
+					if (theirMax != null && v1 > theirMax) {
+						console.log("connection rejected: min > max", v1, theirMax);
+						return false;
+					}
+					getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.max(v1, v2);
+					continue;
+				} else if (k === "max") {
+					const theirMin = config2[1]?.["min"];
+					if (theirMin != null && v1 < theirMin) {
+						console.log("connection rejected: max < min", v1, theirMin);
+						return false;
+					}
+					getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.min(v1, v2);
+					continue;
+				} else if (k === "step") {
+					let step;
+					if (v1 == null) {
+						// No current step
+						step = v2;
+					} else if (v2 == null) {
+						// No new step
+						step = v1;
+					} else {
+						if (v1 < v2) {
+							// Ensure v1 is larger for the mod
+							const a = v2;
+							v2 = v1;
+							v1 = a;
+						}
+						if (v1 % v2) {
+							console.log("connection rejected: steps not divisible", "current:", v1, "new:", v2);
+							return false;
+						}
+
+						step = v1;
+					}
+
+					getCustomConfig()[k] = step;
+					continue;
+				}
+			}
+
+			console.log(`connection rejected: config ${k} values dont match`, v1, v2);
+			return false;
+		}
+	}
+
+	if (customConfig || forceUpdate) {
+		if (customConfig) {
+			output.widget[CONFIG] = [config1[0], customConfig];
+		}
+
+		const widget = recreateWidget?.call(this);
+		// When deleting a node this can be null
+		if (widget) {
+			const min = widget.options.min;
+			const max = widget.options.max;
+			if (min != null && widget.value < min) widget.value = min;
+			if (max != null && widget.value > max) widget.value = max;
+			widget.callback(widget.value);
+		}
+	}
+
+	return { customConfig };
+}
+
 app.registerExtension({
 	name: "Comfy.WidgetInputs",
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
@@ -308,7 +412,7 @@ app.registerExtension({
 				this.isVirtualNode = true;
 			}
 
-			applyToGraph() {
+			applyToGraph(extraLinks = []) {
 				if (!this.outputs[0].links?.length) return;
 
 				function get_links(node) {
@@ -325,10 +429,9 @@ app.registerExtension({
 					return links;
 				}
 
-				let links = get_links(this);
+				let links = [...get_links(this).map((l) => app.graph.links[l]), ...extraLinks];
 				// For each output link copy our value over the original widget value
-				for (const l of links) {
-					const linkInfo = app.graph.links[l];
+				for (const linkInfo of links) {
 					const node = this.graph.getNodeById(linkInfo.target_id);
 					const input = node.inputs[linkInfo.target_slot];
 					const widgetName = input.widget.name;
@@ -405,7 +508,12 @@ app.registerExtension({
 				}
 
 				if (this.outputs[slot].links?.length) {
-					return this.#isValidConnection(input);
+					const valid = this.#isValidConnection(input);
+					if (valid) {
+						// On connect of additional outputs, copy our value to their widget
+						this.applyToGraph([{ target_id: target_node.id, target_slot }]);
+					}
+					return valid;
 				}
 			}
 
@@ -462,12 +570,12 @@ app.registerExtension({
 					}
 				}
 
-				if (widget.type === "number" || widget.type === "combo") {
+				if (!inputData?.[1]?.control_after_generate && (widget.type === "number" || widget.type === "combo")) {
 					let control_value = this.widgets_values?.[1];
 					if (!control_value) {
 						control_value = "fixed";
 					}
-					addValueControlWidgets(this, widget, control_value);
+					addValueControlWidgets(this, widget, control_value, undefined, inputData);
 					let filter = this.widgets_values?.[2];
 					if(filter && this.widgets.length === 3) {
 						this.widgets[2].value = filter;
@@ -507,6 +615,7 @@ app.registerExtension({
 				this.#removeWidgets();
 				this.#onFirstConnection(true);
 				for (let i = 0; i < this.widgets?.length; i++) this.widgets[i].value = values[i];
+				return this.widgets[0];
 			}
 
 			#mergeWidgetConfig() {
@@ -547,108 +656,8 @@ app.registerExtension({
 			#isValidConnection(input, forceUpdate) {
 				// Only allow connections where the configs match
 				const output = this.outputs[0];
-				const config1 = output.widget[CONFIG] ?? output.widget[GET_CONFIG]();
 				const config2 = input.widget[GET_CONFIG]();
-
-				if (config1[0] instanceof Array) {
-					if (!isValidCombo(config1[0], config2[0])) return false;
-				} else if (config1[0] !== config2[0]) {
-					// Types dont match
-					console.log(`connection rejected: types dont match`, config1[0], config2[0]);
-					return false;
-				}
-
-				const keys = new Set([...Object.keys(config1[1] ?? {}), ...Object.keys(config2[1] ?? {})]);
-
-				let customConfig;
-				const getCustomConfig = () => {
-					if (!customConfig) {
-						if (typeof structuredClone === "undefined") {
-							customConfig = JSON.parse(JSON.stringify(config1[1] ?? {}));
-						} else {
-							customConfig = structuredClone(config1[1] ?? {});
-						}
-					}
-					return customConfig;
-				};
-
-				const isNumber = config1[0] === "INT" || config1[0] === "FLOAT";
-				for (const k of keys.values()) {
-					if (k !== "default" && k !== "forceInput" && k !== "defaultInput") {
-						let v1 = config1[1][k];
-						let v2 = config2[1][k];
-
-						if (v1 === v2 || (!v1 && !v2)) continue;
-
-						if (isNumber) {
-							if (k === "min") {
-								const theirMax = config2[1]["max"];
-								if (theirMax != null && v1 > theirMax) {
-									console.log("connection rejected: min > max", v1, theirMax);
-									return false;
-								}
-								getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.max(v1, v2);
-								continue;
-							} else if (k === "max") {
-								const theirMin = config2[1]["min"];
-								if (theirMin != null && v1 < theirMin) {
-									console.log("connection rejected: max < min", v1, theirMin);
-									return false;
-								}
-								getCustomConfig()[k] = v1 == null ? v2 : v2 == null ? v1 : Math.min(v1, v2);
-								continue;
-							} else if (k === "step") {
-								let step;
-								if (v1 == null) {
-									// No current step
-									step = v2;
-								} else if (v2 == null) {
-									// No new step
-									step = v1;
-								} else {
-									if (v1 < v2) {
-										// Ensure v1 is larger for the mod
-										const a = v2;
-										v2 = v1;
-										v1 = a;
-									}
-									if (v1 % v2) {
-										console.log("connection rejected: steps not divisible", "current:", v1, "new:", v2);
-										return false;
-									}
-
-									step = v1;
-								}
-
-								getCustomConfig()[k] = step;
-								continue;
-							}
-						}
-
-						console.log(`connection rejected: config ${k} values dont match`, v1, v2);
-						return false;
-					}
-				}
-
-				if (customConfig || forceUpdate) {
-					if (customConfig) {
-						output.widget[CONFIG] = [config1[0], customConfig];
-					}
-
-					this.#recreateWidget();
-
-					const widget = this.widgets[0];
-					// When deleting a node this can be null
-					if (widget) {
-						const min = widget.options.min;
-						const max = widget.options.max;
-						if (min != null && widget.value < min) widget.value = min;
-						if (max != null && widget.value > max) widget.value = max;
-						widget.callback(widget.value);
-					}
-				}
-
-				return true;
+				return !!mergeIfValid.call(this, output, config2, forceUpdate, this.#recreateWidget);
 			}
 
 			#removeWidgets() {
