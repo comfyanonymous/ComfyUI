@@ -61,7 +61,15 @@ export class UserSelectionScreen {
 							body: JSON.stringify({ username }),
 						});
 						if (resp.status >= 300) {
-							throw new Error("Error creating user: " + resp.status + " " + resp.statusText);
+							let message = "Error creating user: " + resp.status + " " + resp.statusText;
+							try {
+								const res = await resp.json();								
+								if(res.error) {
+									message = res.error;
+								}
+							} catch (error) {
+							}
+							throw new Error(message);
 						}
 
 						r({ username, userId: await resp.json(), created: true });

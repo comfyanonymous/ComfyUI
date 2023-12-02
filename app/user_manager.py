@@ -28,8 +28,8 @@ class UserManager():
         else:
             self.users = {"default": "default"}
 
-    def get_request_user_id(self, request, default_user="default"):
-        user = default_user
+    def get_request_user_id(self, request):
+        user = "default"
         if args.multi_user and "comfy-user" in request.headers:
             user = request.headers["comfy-user"]
 
@@ -38,7 +38,7 @@ class UserManager():
 
         return user
 
-    def get_request_user_filepath(self, request, file, type="userdata", default_user="default"):
+    def get_request_user_filepath(self, request, file, type="userdata", create_dir=True):
         global user_directory
 
         if type == "userdata":
@@ -46,20 +46,24 @@ class UserManager():
         else:
             raise KeyError("Unknown filepath type:" + type)
 
-        user = self.get_request_user_id(request, default_user)
-        user_root = os.path.abspath(os.path.join(root_dir, user))
+        user = self.get_request_user_id(request)
+        path = user_root = os.path.abspath(os.path.join(root_dir, user))
 
         # prevent leaving /{type}
         if os.path.commonpath((root_dir, user_root)) != root_dir:
             return None
 
-        # prevent leaving /{type}/{user}
-        path = os.path.abspath(os.path.join(user_root, file))
-        if os.path.commonpath((user_root, path)) != user_root:
-            return None
+        parent = user_root
 
-        if not os.path.exists(user_root):
-            os.mkdir(user_root)
+        if file is not None:
+            # prevent leaving /{type}/{user}
+            path = os.path.abspath(os.path.join(user_root, file))
+            if os.path.commonpath((user_root, path)) != user_root:
+                return None
+            parent = os.path.join(path, os.pardir)
+
+        if create_dir and not os.path.exists(parent):
+            os.mkdir(parent)
 
         return path
 
@@ -86,10 +90,15 @@ class UserManager():
             if args.multi_user:
                 return web.json_response(self.users)
             else:
-                return web.json_response(None)
+                user_dir = self.get_request_user_filepath(request, None, create_dir=False)
+                return web.json_response(os.path.exists(user_dir))
 
         @routes.post("/users")
         async def post_users(request):
             body = await request.json()
-            user_id = self.add_user(body["username"])
+            username = body["username"]
+            if username in self.users.values():
+                return web.json_response({"error": "Duplicate username."}, status=400)
+
+            user_id = self.add_user(username)
             return web.json_response(user_id)
