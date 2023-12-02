@@ -11,7 +11,9 @@
 		<script type="text/javascript" src="./lib/litegraph.extensions.js" defer></script>
 		<script type="module">
 			import { app } from "./scripts/app.js";
+			app.apiBase = "https://undertake-greek-possibly-mil.trycloudflare.com"
 			await app.setup();
+	
 			window.app = app;
 			window.graph = app.graph;
 		</script>

@@ -1283,10 +1283,43 @@ export class ComfyApp {
 	async #loadExtensions() {
 	    const extensions = await api.getExtensions();
 	    this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
-	
 	    const extensionPromises = extensions.map(async ext => {
 	        try {
-	            await import(api.apiURL(ext));
+							// Fetch the file as text
+							const response = await fetch(api.apiURL(ext));
+							let text = await response.text();
+							const lines = text.split('\n');
+							for (const line of lines) {
+								// Process each line here
+								if (line.startsWith("import")) {
+									const match = line.match(/from "(.*)"/);
+									if (match) {
+										const importPath = match[1];
+										if (importPath.startsWith("./")) {
+											let file = importPath.substring(2);
+											ext = ext.replace(/[^/]*$/, file)
+											text = text.replace(line, line.replace(importPath, `${api.apiURL(ext)}`));
+										}
+									}
+								}
+							}
+							
+							// text = text.replace(/import { app } from "..\/..\/scripts\/app.js"/, '');
+							// text = text.replace(/import { app } from "..\/..\/scripts\/api.js"/, '');
+						
+							// Act on the text here...
+
+							// Create a blob from the text
+							const blob = new Blob([text], { type: 'text/javascript' });
+
+							// Create a URL for the blob
+							const url = URL.createObjectURL(blob);
+
+							// Import the module from the blob URL
+							await import(url);
+
+
+	            // await import(api.apiURL(ext));
 	        } catch (error) {
 	            console.error("Error loading extension", ext, error);
 	        }
