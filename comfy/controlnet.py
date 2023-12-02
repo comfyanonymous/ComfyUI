@@ -33,7 +33,7 @@ class ControlBase:
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
-        self.timestep_percent_range = (1.0, 0.0)
+        self.timestep_percent_range = (0.0, 1.0)
         self.timestep_range = None
 
         if device is None:
@@ -42,7 +42,7 @@ class ControlBase:
         self.previous_controlnet = None
         self.global_average_pooling = False
 
-    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(1.0, 0.0)):
+    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(0.0, 1.0)):
         self.cond_hint_original = cond_hint
         self.strength = strength
         self.timestep_percent_range = timestep_percent_range

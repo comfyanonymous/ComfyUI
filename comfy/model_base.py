@@ -10,17 +10,22 @@ from . import utils
 class ModelType(Enum):
     EPS = 1
     V_PREDICTION = 2
+    V_PREDICTION_EDM = 3
 
 
-from comfy.model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete
+from comfy.model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM
+
 
 def model_sampling(model_config, model_type):
+    s = ModelSamplingDiscrete
+
     if model_type == ModelType.EPS:
         c = EPS
     elif model_type == ModelType.V_PREDICTION:
         c = V_PREDICTION
-
-    s = ModelSamplingDiscrete
+    elif model_type == ModelType.V_PREDICTION_EDM:
+        c = V_PREDICTION
+        s = ModelSamplingContinuousEDM
 
     class ModelSampling(s, c):
         pass
@@ -121,6 +126,7 @@ class BaseModel(torch.nn.Module):
             if k.startswith(unet_prefix):
                 to_load[k[len(unet_prefix):]] = sd.pop(k)
 
+        to_load = self.model_config.process_unet_state_dict(to_load)
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         if len(m) > 0:
             print("unet missing:", m)
@@ -156,6 +162,17 @@ class BaseModel(torch.nn.Module):
 
     def set_inpaint(self):
         self.inpaint_model = True
+
+    def memory_required(self, input_shape):
+        if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
+            #TODO: this needs to be tweaked
+            area = input_shape[0] * input_shape[2] * input_shape[3]
+            return (area * comfy.model_management.dtype_size(self.get_dtype()) / 50) * (1024 * 1024)
+        else:
+            #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
+            area = input_shape[0] * input_shape[2] * input_shape[3]
+            return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
+
 
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0):
     adm_inputs = []
@@ -251,3 +268,48 @@ class SDXL(BaseModel):
         out.append(self.embedder(torch.Tensor([target_width])))
         flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
+
+class SVD_img2vid(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.V_PREDICTION_EDM, device=None):
+        super().__init__(model_config, model_type, device=device)
+        self.embedder = Timestep(256)
+
+    def encode_adm(self, **kwargs):
+        fps_id = kwargs.get("fps", 6) - 1
+        motion_bucket_id = kwargs.get("motion_bucket_id", 127)
+        augmentation = kwargs.get("augmentation_level", 0)
+
+        out = []
+        out.append(self.embedder(torch.Tensor([fps_id])))
+        out.append(self.embedder(torch.Tensor([motion_bucket_id])))
+        out.append(self.embedder(torch.Tensor([augmentation])))
+
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0)
+        return flat
+
+    def extra_conds(self, **kwargs):
+        out = {}
+        adm = self.encode_adm(**kwargs)
+        if adm is not None:
+            out['y'] = comfy.conds.CONDRegular(adm)
+
+        latent_image = kwargs.get("concat_latent_image", None)
+        noise = kwargs.get("noise", None)
+        device = kwargs["device"]
+
+        if latent_image is None:
+            latent_image = torch.zeros_like(noise)
+
+        if latent_image.shape[1:] != noise.shape[1:]:
+            latent_image = utils.common_upscale(latent_image, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+        latent_image = utils.repeat_to_batch_size(latent_image, noise.shape[0])
+
+        out['c_concat'] = comfy.conds.CONDNoiseShape(latent_image)
+
+        if "time_conditioning" in kwargs:
+            out["time_context"] = comfy.conds.CONDCrossAttn(kwargs["time_conditioning"])
+
+        out['image_only_indicator'] = comfy.conds.CONDConstant(torch.zeros((1,), device=device))
+        out['num_video_frames'] = comfy.conds.CONDConstant(noise.shape[0])
+        return out

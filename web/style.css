@@ -409,6 +409,21 @@ dialog::backdrop {
 	width: calc(100% - 10px);
 }
 
+.comfy-img-preview {
+	pointer-events: none;
+	overflow: hidden;
+	display: flex;
+	flex-wrap: wrap;
+ 	align-content: flex-start;
+	justify-content: center;
+}
+
+.comfy-img-preview img {
+	object-fit: contain;
+	width: var(--comfy-img-preview-width);
+	height: var(--comfy-img-preview-height);
+}
+
 /* Search box */
 
 .litegraph.litesearchbox {

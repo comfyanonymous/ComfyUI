@@ -14,10 +14,10 @@ const lg = require("../utils/litegraph");
  * @param { InstanceType<Ez["EzGraph"]> } graph
  * @param { InstanceType<Ez["EzInput"]> } input
  * @param { string } widgetType
- * @param { boolean } hasControlWidget
+ * @param { number } controlWidgetCount
  * @returns
  */
-async function connectPrimitiveAndReload(ez, graph, input, widgetType, hasControlWidget) {
+async function connectPrimitiveAndReload(ez, graph, input, widgetType, controlWidgetCount = 0) {
 	// Connect to primitive and ensure its still connected after
 	let primitive = ez.PrimitiveNode();
 	primitive.outputs[0].connectTo(input);
@@ -33,13 +33,17 @@ async function connectPrimitiveAndReload(ez, graph, input, widgetType, hasContro
 		expect(valueWidget.widget.type).toBe(widgetType);
 
 		// Check if control_after_generate should be added
-		if (hasControlWidget) {
+		if (controlWidgetCount) {
 			const controlWidget = primitive.widgets.control_after_generate;
 			expect(controlWidget.widget.type).toBe("combo");
+			if(widgetType === "combo") {
+				const filterWidget = primitive.widgets.control_filter_list;
+				expect(filterWidget.widget.type).toBe("string");
+			}
 		}
 
 		// Ensure we dont have other widgets
-		expect(primitive.node.widgets).toHaveLength(1 + +!!hasControlWidget);
+		expect(primitive.node.widgets).toHaveLength(1 + controlWidgetCount);
 	});
 
 	return primitive;
@@ -55,8 +59,8 @@ describe("widget inputs", () => {
 	});
 
 	[
-		{ name: "int", type: "INT", widget: "number", control: true },
-		{ name: "float", type: "FLOAT", widget: "number", control: true },
+		{ name: "int", type: "INT", widget: "number", control: 1 },
+		{ name: "float", type: "FLOAT", widget: "number", control: 1 },
 		{ name: "text", type: "STRING" },
 		{
 			name: "customtext",
@@ -64,7 +68,7 @@ describe("widget inputs", () => {
 			opt: { multiline: true },
 		},
 		{ name: "toggle", type: "BOOLEAN" },
-		{ name: "combo", type: ["a", "b", "c"], control: true },
+		{ name: "combo", type: ["a", "b", "c"], control: 2 },
 	].forEach((c) => {
 		test(`widget conversion + primitive works on ${c.name}`, async () => {
 			const { ez, graph } = await start({
@@ -106,7 +110,7 @@ describe("widget inputs", () => {
 		n.widgets.ckpt_name.convertToInput();
 		expect(n.inputs.length).toEqual(inputCount + 1);
 
-		const primitive = await connectPrimitiveAndReload(ez, graph, n.inputs.ckpt_name, "combo", true);
+		const primitive = await connectPrimitiveAndReload(ez, graph, n.inputs.ckpt_name, "combo", 2);
 
 		// Disconnect & reconnect
 		primitive.outputs[0].connections[0].disconnect();
@@ -198,8 +202,8 @@ describe("widget inputs", () => {
 		});
 
 		expect(dialogShow).toBeCalledTimes(1);
-		expect(dialogShow.mock.calls[0][0]).toContain("the following node types were not found");
-		expect(dialogShow.mock.calls[0][0]).toContain("TestNode");
+		expect(dialogShow.mock.calls[0][0].innerHTML).toContain("the following node types were not found");
+		expect(dialogShow.mock.calls[0][0].innerHTML).toContain("TestNode");
 	});
 
 	test("defaultInput widgets can be converted back to inputs", async () => {
@@ -226,7 +230,7 @@ describe("widget inputs", () => {
 		// Reload and ensure it still only has 1 converted widget
 		if (!assertNotNullOrUndefined(input)) return;
 
-		await connectPrimitiveAndReload(ez, graph, input, "number", true);
+		await connectPrimitiveAndReload(ez, graph, input, "number", 1);
 		n = graph.find(n);
 		expect(n.widgets).toHaveLength(1);
 		w = n.widgets.example;
@@ -258,7 +262,7 @@ describe("widget inputs", () => {
 
 		// Reload and ensure it still only has 1 converted widget
 		if (assertNotNullOrUndefined(input)) {
-			await connectPrimitiveAndReload(ez, graph, input, "number", true);
+			await connectPrimitiveAndReload(ez, graph, input, "number", 1);
 			n = graph.find(n);
 			expect(n.widgets).toHaveLength(1);
 			expect(n.widgets.example.isConvertedToInput).toBeTruthy();
@@ -315,5 +319,77 @@ describe("widget inputs", () => {
 
 		n1.outputs[0].connectTo(n2.inputs[0]);
 		expect(() => n1.outputs[0].connectTo(n3.inputs[0])).toThrow();
+	});
+
+	test("combo primitive can filter list when control_after_generate called", async () => {
+		const { ez } = await start({
+			mockNodeDefs: {
+				...makeNodeDef("TestNode1", { example: [["A", "B", "C", "D", "AA", "BB", "CC", "DD", "AAA", "BBB"], {}] }),
+			},
+		});
+
+		const n1 = ez.TestNode1();
+		n1.widgets.example.convertToInput();
+		const p = ez.PrimitiveNode()
+		p.outputs[0].connectTo(n1.inputs[0]);
+
+		const value = p.widgets.value;
+		const control = p.widgets.control_after_generate.widget;
+		const filter = p.widgets.control_filter_list;
+
+		expect(p.widgets.length).toBe(3);
+		control.value = "increment";
+		expect(value.value).toBe("A");
+
+		// Manually trigger after queue when set to increment
+		control["afterQueued"]();
+		expect(value.value).toBe("B");
+
+		// Filter to items containing D
+		filter.value = "D";
+		control["afterQueued"]();
+		expect(value.value).toBe("D");
+		control["afterQueued"]();
+		expect(value.value).toBe("DD");
+
+		// Check decrement
+		value.value = "BBB";
+		control.value = "decrement";
+		filter.value = "B";
+		control["afterQueued"]();
+		expect(value.value).toBe("BB");
+		control["afterQueued"]();
+		expect(value.value).toBe("B");
+
+		// Check regex works
+		value.value = "BBB";
+		filter.value = "/[AB]|^C$/";
+		control["afterQueued"]();
+		expect(value.value).toBe("AAA");
+		control["afterQueued"]();
+		expect(value.value).toBe("BB");
+		control["afterQueued"]();
+		expect(value.value).toBe("AA");
+		control["afterQueued"]();
+		expect(value.value).toBe("C");
+		control["afterQueued"]();
+		expect(value.value).toBe("B");
+		control["afterQueued"]();
+		expect(value.value).toBe("A");
+
+		// Check random
+		control.value = "randomize";
+		filter.value = "/D/";
+		for(let i = 0; i < 100; i++) {
+			control["afterQueued"]();
+			expect(value.value === "D" || value.value === "DD").toBeTruthy();
+		}
+
+		// Ensure it doesnt apply when fixed
+		control.value = "fixed";
+		value.value = "B";
+		filter.value = "C";
+		control["afterQueued"]();
+		expect(value.value).toBe("B");
 	});
 });

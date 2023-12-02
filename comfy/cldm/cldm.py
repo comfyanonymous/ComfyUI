@@ -54,6 +54,7 @@ class ControlNet(nn.Module):
         transformer_depth_output=None,
         device=None,
         operations=comfy.ops,
+        **kwargs,
     ):
         super().__init__()
         assert use_spatial_transformer == True, "use_spatial_transformer has to be true"

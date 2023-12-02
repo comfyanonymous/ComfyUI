@@ -248,8 +248,8 @@ class ConditioningSetTimestepRange:
         c = []
         for t in conditioning:
             d = t[1].copy()
-            d['start_percent'] = 1.0 - start
-            d['end_percent'] = 1.0 - end
+            d['start_percent'] = start
+            d['end_percent'] = end
             n = [t[0], d]
             c.append(n)
         return (c, )
@@ -572,10 +572,69 @@ class LoraLoader:
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
-class VAELoader:
+class LoraLoaderModelOnly(LoraLoader):
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), )}}
+        return {"required": { "model": ("MODEL",),
+                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "load_lora_model_only"
+
+    def load_lora_model_only(self, model, lora_name, strength_model):
+        return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
+
+class VAELoader:
+    @staticmethod
+    def vae_list():
+        vaes = folder_paths.get_filename_list("vae")
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+        sdxl_taesd_enc = False
+        sdxl_taesd_dec = False
+        sd1_taesd_enc = False
+        sd1_taesd_dec = False
+
+        for v in approx_vaes:
+            if v.startswith("taesd_decoder."):
+                sd1_taesd_dec = True
+            elif v.startswith("taesd_encoder."):
+                sd1_taesd_enc = True
+            elif v.startswith("taesdxl_decoder."):
+                sdxl_taesd_dec = True
+            elif v.startswith("taesdxl_encoder."):
+                sdxl_taesd_enc = True
+        if sd1_taesd_dec and sd1_taesd_enc:
+            vaes.append("taesd")
+        if sdxl_taesd_dec and sdxl_taesd_enc:
+            vaes.append("taesdxl")
+        return vaes
+
+    @staticmethod
+    def load_taesd(name):
+        sd = {}
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+
+        encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
+        decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
+
+        enc = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", encoder))
+        for k in enc:
+            sd["taesd_encoder.{}".format(k)] = enc[k]
+
+        dec = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", decoder))
+        for k in dec:
+            sd["taesd_decoder.{}".format(k)] = dec[k]
+
+        if name == "taesd":
+            sd["vae_scale"] = torch.tensor(0.18215)
+        elif name == "taesdxl":
+            sd["vae_scale"] = torch.tensor(0.13025)
+        return sd
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "vae_name": (s.vae_list(), )}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -583,8 +642,11 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        vae_path = folder_paths.get_full_path("vae", vae_name)
-        sd = comfy.utils.load_torch_file(vae_path)
+        if vae_name in ["taesd", "taesdxl"]:
+            sd = self.load_taesd(vae_name)
+        else:
+            vae_path = folder_paths.get_full_path("vae", vae_name)
+            sd = comfy.utils.load_torch_file(vae_path)
         vae = comfy.sd.VAE(sd=sd)
         return (vae,)
 
@@ -685,7 +747,7 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (1.0 - start_percent, 1.0 - end_percent))
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent))
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
@@ -1275,6 +1337,7 @@ class SaveImage:
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
+        self.compress_level = 4
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1308,7 +1371,7 @@ class SaveImage:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
@@ -1323,6 +1386,7 @@ class PreviewImage(SaveImage):
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
+        self.compress_level = 1
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1654,6 +1718,7 @@ NODE_CLASS_MAPPINGS = {
 
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
+    "LoraLoaderModelOnly": LoraLoaderModelOnly,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1759,7 +1824,7 @@ def load_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
 
@@ -1799,6 +1864,9 @@ def init_custom_nodes():
         "nodes_custom_sampler.py",
         "nodes_hypertile.py",
         "nodes_model_advanced.py",
+        "nodes_model_downscale.py",
+        "nodes_images.py",
+        "nodes_video_model.py",
     ]
 
     for node_file in extras_files:
