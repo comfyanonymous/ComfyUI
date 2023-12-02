@@ -411,7 +411,7 @@ export class ComfyApp {
 		node.prototype.setSizeForImage = function (force) {
 			if(!force && this.animatedImages) return;
 
-			if (this.inputHeight) {
+			if (this.inputHeight || this.freeWidgetSpace > 210) {
 				this.setSize(this.size);
 				return;
 			}
