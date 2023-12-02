@@ -1287,10 +1287,87 @@ export class ComfyApp {
 	    await Promise.all(extensionPromises);
 	}
 
+	async #migrateSettings() {
+		this.isNewUserSession = true;
+		// Store all current settings
+		const settings = Object.keys(this.ui.settings).reduce((p, n) => {
+			const v = localStorage[`Comfy.Settings.${n}`];
+			if (v) {
+				try {
+					p[n] = JSON.parse(v);
+				} catch (error) {}
+			}
+			return p;
+		}, {});
+
+		await api.storeSettings(settings);
+	}
+
+	async #setUser() {
+		const users = await (await api.fetchApi("users")).json();
+		if(typeof users === "boolean") {
+			// Single user mode returns true/false for if the default user is created
+			if(!users) {
+				// Default user not created yet
+				await this.#migrateSettings();
+			}
+			return;
+		}
+
+		this.multiUserServer = true;
+		let user = localStorage["Comfy.userId"];
+		if (!user || !users[user]) {
+			// This will rarely be hit so move the loading to on demand
+			const { UserSelectionDialog } = await import("./ui/userSelection.js");
+			const { userId, username, created } = await new UserSelectionDialog().show(users, user);
+			user = userId;
+			localStorage["Comfy.userName"] = username;
+			localStorage["Comfy.userId"] = user;
+
+			if (created) {
+				api.user = user;
+				await this.#migrateSettings();
+			}
+		}
+
+		api.user = user;
+
+		this.ui.settings.addSetting({
+			id: "Comfy.SwitchUser",
+			name: "Switch User",
+			type: (name) => {
+				let currentUser = localStorage["Comfy.userName"];
+				if (currentUser) {
+					currentUser = ` (${currentUser})`;
+				}
+				return $el("tr", [
+					$el("td", [
+						$el("label", {
+							textContent: name,
+						}),
+					]),
+					$el("td", [
+						$el("button", {
+							textContent: name + (currentUser ?? ""),
+							onclick: () => {
+								delete localStorage["Comfy.userId"];
+								delete localStorage["Comfy.userName"];
+								window.location.reload();
+							},
+						}),
+					]),
+				]);
+			},
+		});
+	}
+
 	/**
 	 * Set up the app on the page
 	 */
 	async setup() {
+		await this.#setUser();
+		await this.ui.settings.load();
+		this.ui.menuContainer.style.display = "";
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM

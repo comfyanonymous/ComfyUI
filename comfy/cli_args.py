@@ -106,6 +106,9 @@ parser.add_argument("--windows-standalone-build", action="store_true", help="Win
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 
+user_group = parser.add_mutually_exclusive_group()
+user_group.add_argument("--multi-user", action="store_true", help="Enables per-user settings.")
+
 if comfy.options.args_parsing:
     args = parser.parse_args()
 else:

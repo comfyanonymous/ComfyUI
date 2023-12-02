@@ -12,6 +12,13 @@ class ComfyApi extends EventTarget {
 	}
 
 	fetchApi(route, options) {
+		if (!options) {
+			options = {};
+		}
+		if (!options.headers) {
+			options.headers = {};
+		}
+		options.headers["Comfy-User"] = this.user;
 		return fetch(this.apiURL(route), options);
 	}
 
@@ -314,6 +321,44 @@ class ComfyApi extends EventTarget {
 	 */
 	async interrupt() {
 		await this.#postItem("interrupt", null);
+	}
+
+	/**
+	 * Gets a list of all setting values for the current user
+	 * @returns { Promise<string, unknown> }
+	 */
+	async getSettings() {
+		return (await this.fetchApi("/settings")).json();
+	}
+
+	/**
+	 * Gets a setting for the current user
+	 * @returns { Promise<unknown> }
+	 */
+	async getSetting(id) {
+		return (await this.fetchApi(`/settings/${encodeURIComponent(id)}`)).json();
+	}
+
+	/**
+	 * Stores a dictionary of settings for the current user
+	 * @returns { Promise<void> }
+	 */
+	async storeSettings(settings) {
+		return this.fetchApi(`/settings`, {
+			method: "POST",
+			body: JSON.stringify(settings)
+		});
+	}
+
+	/**
+	 * Stores a setting for the current user
+	 * @returns { Promise<void> }
+	 */
+	async storeSetting(id, value) {
+		return this.fetchApi(`/settings/${encodeURIComponent(id)}`, {
+			method: "POST",
+			body: JSON.stringify(value)
+		});
 	}
 }
 
