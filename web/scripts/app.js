@@ -86,6 +86,10 @@ export class ComfyApp {
 			return "";
 	}
 
+	getRandParam() {
+		return "&rand=" + Math.random();
+	}
+
 	static isImageNode(node) {
 		return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
 	}
@@ -411,7 +415,7 @@ export class ComfyApp {
 		node.prototype.setSizeForImage = function (force) {
 			if(!force && this.animatedImages) return;
 
-			if (this.inputHeight) {
+			if (this.inputHeight || this.freeWidgetSpace > 210) {
 				this.setSize(this.size);
 				return;
 			}
@@ -437,7 +441,7 @@ export class ComfyApp {
 								return api.apiURL(
 									"/view?" +
 										new URLSearchParams(params).toString() +
-										(this.animatedImages ? "" : app.getPreviewFormatParam())
+										(this.animatedImages ? "" : app.getPreviewFormatParam()) + app.getRandParam()
 								);
 							})
 						);
@@ -1654,6 +1658,7 @@ export class ComfyApp {
 		if (missingNodeTypes.length) {
 			this.showMissingNodesError(missingNodeTypes);
 		}
+		await this.#invokeExtensionsAsync("afterConfigureGraph", missingNodeTypes);
 	}
 
 	/**
