@@ -1318,8 +1318,12 @@ export class ComfyApp {
 		let user = localStorage["Comfy.userId"];
 		if (!user || !users[user]) {
 			// This will rarely be hit so move the loading to on demand
-			const { UserSelectionDialog } = await import("./ui/userSelection.js");
-			const { userId, username, created } = await new UserSelectionDialog().show(users, user);
+			const { UserSelectionScreen } = await import("./ui/userSelection.js");
+		
+			this.ui.menuContainer.style.display = "none";
+			const { userId, username, created } = await new UserSelectionScreen().show(users, user);
+			this.ui.menuContainer.style.display = "";
+
 			user = userId;
 			localStorage["Comfy.userName"] = username;
 			localStorage["Comfy.userId"] = user;
@@ -1367,7 +1371,6 @@ export class ComfyApp {
 	async setup() {
 		await this.#setUser();
 		await this.ui.settings.load();
-		this.ui.menuContainer.style.display = "";
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM

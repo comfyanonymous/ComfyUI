@@ -3,7 +3,7 @@ import { $el } from "../ui.js";
 import { addStylesheet } from "../utils.js";
 import { createSpinner } from "./spinner.js";
 
-export class UserSelectionDialog {
+export class UserSelectionScreen {
 	async show(users, user) {
 		// This will rarely be hit so move the loading to on demand
 		await addStylesheet(import.meta.url);
