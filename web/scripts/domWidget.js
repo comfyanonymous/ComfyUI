@@ -120,6 +120,8 @@ function computeSize(size) {
 		freeSpace -= 220;
 	}
 
+	this.freeWidgetSpace = freeSpace;
+
 	if (freeSpace < 0) {
 		// Not enough space for all widgets so we need to grow
 		size[1] -= freeSpace;
