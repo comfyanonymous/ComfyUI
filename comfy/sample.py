@@ -24,10 +24,13 @@ def prepare_noise(latent_image, seeds, noise_inds=None):
     for i in range(num_latents):  
         if i < len(seeds):  # Use the provided seeds if available
             seed = seeds[i]
-        else:
-            seed = torch.randint(0, 2**32, (1,)).item()  # Generate a random seed for additional latents
+                else:
+            seed = seeds[-1] + i  # Increment the last seed for additional latents
+
+        #else:   maybe add this add a toggle or dropdown?
+        #    seed = torch.randint(0, 2**32, (1,)).item()  # Generate a random seed for additional latents
         generator.manual_seed(seed)
-        print("seed:", seed)
+        print("seed:", seed) #get rid of this after testing
         noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, device="cpu", generator=generator)
         noises.append(noise)
 
