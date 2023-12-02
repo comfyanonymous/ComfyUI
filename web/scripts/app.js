@@ -4,7 +4,10 @@ import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { addDomClippingSetting } from "./domWidget.js";
+import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
+export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
 function sanitizeNodeName(string) {
 	let entityMap = {
@@ -409,7 +412,9 @@ export class ComfyApp {
 			return shiftY;
 		}
 
-		node.prototype.setSizeForImage = function () {
+		node.prototype.setSizeForImage = function (force) {
+			if(!force && this.animatedImages) return;
+
 			if (this.inputHeight) {
 				this.setSize(this.size);
 				return;
@@ -426,13 +431,20 @@ export class ComfyApp {
 				let imagesChanged = false
 
 				const output = app.nodeOutputs[this.id + ""];
-				if (output && output.images) {
+				if (output?.images) {
+					this.animatedImages = output?.animated?.find(Boolean);
 					if (this.images !== output.images) {
 						this.images = output.images;
 						imagesChanged = true;
-						imgURLs = imgURLs.concat(output.images.map(params => {
-							return api.apiURL("/view?" + new URLSearchParams(params).toString() + app.getPreviewFormatParam() + app.getRandParam());
-						}))
+						imgURLs = imgURLs.concat(
+							output.images.map((params) => {
+								return api.apiURL(
+									"/view?" +
+										new URLSearchParams(params).toString() +
+										(this.animatedImages ? "" : app.getPreviewFormatParam()) + app.getRandParam()
+								);
+							})
+						);
 					}
 				}
 
@@ -511,7 +523,35 @@ export class ComfyApp {
 					return true;
 				}
 
-				if (this.imgs && this.imgs.length) {
+				if (this.imgs?.length) {
+					const widgetIdx = this.widgets?.findIndex((w) => w.name === ANIM_PREVIEW_WIDGET);
+				
+					if(this.animatedImages) {
+						// Instead of using the canvas we'll use a IMG
+						if(widgetIdx > -1) {
+							// Replace content
+							const widget = this.widgets[widgetIdx];
+							widget.options.host.updateImages(this.imgs);
+						} else {
+							const host = createImageHost(this);
+							this.setSizeForImage(true);
+							const widget = this.addDOMWidget(ANIM_PREVIEW_WIDGET, "img", host.el, {
+								host,
+								getHeight: host.getHeight,
+								onDraw: host.onDraw,
+								hideOnZoom: false
+							});
+							widget.serializeValue = () => undefined;
+							widget.options.host.updateImages(this.imgs);
+						}
+						return;
+					}
+
+					if (widgetIdx > -1) {
+						this.widgets[widgetIdx].onRemove?.();
+						this.widgets.splice(widgetIdx, 1);
+					}
+
 					const canvas = app.graph.list_of_graphcanvas[0];
 					const mouse = canvas.graph_mouse;
 					if (!canvas.pointer_is_down && this.pointerDown) {
@@ -551,31 +591,7 @@ export class ComfyApp {
 						}
 						else {
 							cell_padding = 0;
-							let best = 0;
-							let w = this.imgs[0].naturalWidth;
-							let h = this.imgs[0].naturalHeight;
-
-							// compact style
-							for (let c = 1; c <= numImages; c++) {
-								const rows = Math.ceil(numImages / c);
-								const cW = dw / c;
-								const cH = dh / rows;
-								const scaleX = cW / w;
-								const scaleY = cH / h;
-
-								const scale = Math.min(scaleX, scaleY, 1);
-								const imageW = w * scale;
-								const imageH = h * scale;
-								const area = imageW * imageH * numImages;
-
-								if (area > best) {
-									best = area;
-									cellWidth = imageW;
-									cellHeight = imageH;
-									cols = c;
-									shiftX = c * ((cW - imageW) / 2);
-								}
-							}
+							({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh));
 						}
 
 						let anyHovered = false;
@@ -767,7 +783,7 @@ export class ComfyApp {
 	 * Adds a handler on paste that extracts and loads images or workflows from pasted JSON data
 	 */
 	#addPasteHandler() {
-		document.addEventListener("paste", (e) => {
+		document.addEventListener("paste", async (e) => {
 			// ctrl+shift+v is used to paste nodes with connections
 			// this is handled by litegraph
 			if(this.shiftDown) return;
@@ -815,7 +831,7 @@ export class ComfyApp {
 			}
 
 			if (workflow && workflow.version && workflow.nodes && workflow.extra) {
-				this.loadGraphData(workflow);
+				await this.loadGraphData(workflow);
 			}
 			else {
 				if (e.target.type === "text" || e.target.type === "textarea") {
@@ -1165,7 +1181,19 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
-			this.nodeOutputs[detail.node] = detail.output;
+			const output = this.nodeOutputs[detail.node];
+			if (detail.merge && output) {
+				for (const k in detail.output ?? {}) {
+					const v = output[k];
+					if (v instanceof Array) {
+						output[k] = v.concat(detail.output[k]);
+					} else {
+						output[k] = detail.output[k];
+					}
+				}
+			} else {
+				this.nodeOutputs[detail.node] = detail.output;
+			}
 			const node = this.graph.getNodeById(detail.node);
 			if (node) {
 				if (node.onExecuted)
@@ -1276,9 +1304,11 @@ export class ComfyApp {
 		canvasEl.tabIndex = "1";
 		document.body.prepend(canvasEl);
 
+		addDomClippingSetting();
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
+		this.#addApiUpdateHandlers();
 
 		this.graph = new LGraph();
 
@@ -1315,7 +1345,7 @@ export class ComfyApp {
 			const json = localStorage.getItem("workflow");
 			if (json) {
 				const workflow = JSON.parse(json);
-				this.loadGraphData(workflow);
+				await this.loadGraphData(workflow);
 				restored = true;
 			}
 		} catch (err) {
@@ -1324,7 +1354,7 @@ export class ComfyApp {
 
 		// We failed to restore a workflow so load the default
 		if (!restored) {
-			this.loadGraphData();
+			await this.loadGraphData();
 		}
 
 		// Save current workflow automatically
@@ -1332,7 +1362,6 @@ export class ComfyApp {
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
-		this.#addApiUpdateHandlers();
 		this.#addDropHandler();
 		this.#addCopyHandler();
 		this.#addPasteHandler();
@@ -1352,11 +1381,95 @@ export class ComfyApp {
 		await this.#invokeExtensionsAsync("registerCustomNodes");
 	}
 
+	getWidgetType(inputData, inputName) {
+		const type = inputData[0];
+
+		if (Array.isArray(type)) {
+			return "COMBO";
+		} else if (`${type}:${inputName}` in this.widgets) {
+			return `${type}:${inputName}`;
+		} else if (type in this.widgets) {
+			return type;
+		} else {
+			return null;
+		}
+	}
+
+	async registerNodeDef(nodeId, nodeData) {
+		const self = this;
+		const node = Object.assign(
+			function ComfyNode() {
+				var inputs = nodeData["input"]["required"];
+				if (nodeData["input"]["optional"] != undefined) {
+					inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"]);
+				}
+				const config = { minWidth: 1, minHeight: 1 };
+				for (const inputName in inputs) {
+					const inputData = inputs[inputName];
+					const type = inputData[0];
+
+					let widgetCreated = true;
+					const widgetType = self.getWidgetType(inputData, inputName);
+					if(widgetType) {
+						if(widgetType === "COMBO") {
+							Object.assign(config, self.widgets.COMBO(this, inputName, inputData, app) || {});
+						} else {
+							Object.assign(config, self.widgets[widgetType](this, inputName, inputData, app) || {});
+						}
+					} else {
+						// Node connection inputs
+						this.addInput(inputName, type);
+						widgetCreated = false;
+					}
+
+					if(widgetCreated && inputData[1]?.forceInput && config?.widget) {
+						if (!config.widget.options) config.widget.options = {};
+						config.widget.options.forceInput = inputData[1].forceInput;
+					}
+					if(widgetCreated && inputData[1]?.defaultInput && config?.widget) {
+						if (!config.widget.options) config.widget.options = {};
+						config.widget.options.defaultInput = inputData[1].defaultInput;
+					}
+				}
+
+				for (const o in nodeData["output"]) {
+					let output = nodeData["output"][o];
+					if(output instanceof Array) output = "COMBO";
+					const outputName = nodeData["output_name"][o] || output;
+					const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+					this.addOutput(outputName, output, { shape: outputShape });
+				}
+
+				const s = this.computeSize();
+				s[0] = Math.max(config.minWidth, s[0] * 1.5);
+				s[1] = Math.max(config.minHeight, s[1]);
+				this.size = s;
+				this.serialize_widgets = true;
+
+				app.#invokeExtensionsAsync("nodeCreated", this);
+			},
+			{
+				title: nodeData.display_name || nodeData.name,
+				comfyClass: nodeData.name,
+				nodeData
+			}
+		);
+		node.prototype.comfyClass = nodeData.name;
+
+		this.#addNodeContextMenuHandler(node);
+		this.#addDrawBackgroundHandler(node, app);
+		this.#addNodeKeyHandler(node);
+
+		await this.#invokeExtensionsAsync("beforeRegisterNodeDef", node, nodeData);
+		LiteGraph.registerNodeType(nodeId, node);
+		node.category = nodeData.category;
+	}
+
     async registerNodesFromDefs(defs) {
 		await this.#invokeExtensionsAsync("addCustomNodeDefs", defs);
 
 		// Generate list of known widgets
-		const widgets = Object.assign(
+		this.widgets = Object.assign(
 			{},
 			ComfyWidgets,
 			...(await this.#invokeExtensionsAsync("getCustomWidgets")).filter(Boolean)
@@ -1364,75 +1477,7 @@ export class ComfyApp {
 
 		// Register a node for each definition
 		for (const nodeId in defs) {
-			const nodeData = defs[nodeId];
-			const node = Object.assign(
-				function ComfyNode() {
-					var inputs = nodeData["input"]["required"];
-					if (nodeData["input"]["optional"] != undefined){
-					    inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"])
-					}
-					const config = { minWidth: 1, minHeight: 1 };
-					for (const inputName in inputs) {
-						const inputData = inputs[inputName];
-						const type = inputData[0];
-
-						let widgetCreated = true;
-						if (Array.isArray(type)) {
-							// Enums
-							Object.assign(config, widgets.COMBO(this, inputName, inputData, app) || {});
-						} else if (`${type}:${inputName}` in widgets) {
-							// Support custom widgets by Type:Name
-							Object.assign(config, widgets[`${type}:${inputName}`](this, inputName, inputData, app) || {});
-						} else if (type in widgets) {
-							// Standard type widgets
-							Object.assign(config, widgets[type](this, inputName, inputData, app) || {});
-						} else {
-							// Node connection inputs
-							this.addInput(inputName, type);
-							widgetCreated = false;
-						}
-
-						if(widgetCreated && inputData[1]?.forceInput && config?.widget) {
-							if (!config.widget.options) config.widget.options = {};
-							config.widget.options.forceInput = inputData[1].forceInput;
-						}
-						if(widgetCreated && inputData[1]?.defaultInput && config?.widget) {
-							if (!config.widget.options) config.widget.options = {};
-							config.widget.options.defaultInput = inputData[1].defaultInput;
-						}
-					}
-
-					for (const o in nodeData["output"]) {
-						let output = nodeData["output"][o];
-						if(output instanceof Array) output = "COMBO";
-						const outputName = nodeData["output_name"][o] || output;
-						const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
-						this.addOutput(outputName, output, { shape: outputShape });
-					}
-
-					const s = this.computeSize();
-					s[0] = Math.max(config.minWidth, s[0] * 1.5);
-					s[1] = Math.max(config.minHeight, s[1]);
-					this.size = s;
-					this.serialize_widgets = true;
-
-					app.#invokeExtensionsAsync("nodeCreated", this);
-				},
-				{
-					title: nodeData.display_name || nodeData.name,
-					comfyClass: nodeData.name,
-					nodeData
-				}
-			);
-			node.prototype.comfyClass = nodeData.name;
-
-			this.#addNodeContextMenuHandler(node);
-			this.#addDrawBackgroundHandler(node, app);
-			this.#addNodeKeyHandler(node);
-
-			await this.#invokeExtensionsAsync("beforeRegisterNodeDef", node, nodeData);
-			LiteGraph.registerNodeType(nodeId, node);
-			node.category = nodeData.category;
+			this.registerNodeDef(nodeId, defs[nodeId]);
 		}
 	}
 
@@ -1475,9 +1520,14 @@ export class ComfyApp {
 
 	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
 		this.ui.dialog.show(
-			`When loading the graph, the following node types were not found: <ul>${Array.from(new Set(missingNodeTypes)).map(
-				(t) => `<li>${t}</li>`
-			).join("")}</ul>${hasAddedNodes ? "Nodes that have failed to load will show as red on the graph." : ""}`
+			$el("div", [
+				$el("span", { textContent: "When loading the graph, the following node types were not found: " }),
+				$el(
+					"ul",
+					Array.from(new Set(missingNodeTypes)).map((t) => $el("li", { textContent: t }))
+				),
+				...(hasAddedNodes ? [$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." })] : []),
+			])
 		);
 		this.logging.addEntry("Comfy.App", "warn", {
 			MissingNodes: missingNodeTypes,
@@ -1488,31 +1538,35 @@ export class ComfyApp {
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 */
-	loadGraphData(graphData) {
+	async loadGraphData(graphData) {
 		this.clean();
 
 		let reset_invalid_values = false;
 		if (!graphData) {
-			if (typeof structuredClone === "undefined")
-			{
-				graphData = JSON.parse(JSON.stringify(defaultGraph));
-			}else
-			{
-				graphData = structuredClone(defaultGraph);
-			}
+			graphData = defaultGraph;
 			reset_invalid_values = true;
 		}
 
+		if (typeof structuredClone === "undefined")
+		{
+			graphData = JSON.parse(JSON.stringify(graphData));
+		}else
+		{
+			graphData = structuredClone(graphData);
+		}
+
 		const missingNodeTypes = [];
+		await this.#invokeExtensionsAsync("beforeConfigureGraph", graphData, missingNodeTypes);
 		for (let n of graphData.nodes) {
 			// Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
 			if (n.type == "T2IAdapterLoader") n.type = "ControlNetLoader";
 			if (n.type == "ConditioningAverage ") n.type = "ConditioningAverage"; //typo fix
+			if (n.type == "SDV_img2vid_Conditioning") n.type = "SVD_img2vid_Conditioning"; //typo fix
 
 			// Find missing node types
 			if (!(n.type in LiteGraph.registered_node_types)) {
-				n.type = sanitizeNodeName(n.type);
 				missingNodeTypes.push(n.type);
+				n.type = sanitizeNodeName(n.type);
 			}
 		}
 
@@ -1604,6 +1658,7 @@ export class ComfyApp {
 		if (missingNodeTypes.length) {
 			this.showMissingNodesError(missingNodeTypes);
 		}
+		await this.#invokeExtensionsAsync("afterConfigureGraph", missingNodeTypes);
 	}
 
 	/**
@@ -1611,92 +1666,98 @@ export class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	async graphToPrompt() {
-		for (const node of this.graph.computeExecutionOrder(false)) {
-			if (node.isVirtualNode) {
-				// Don't serialize frontend only nodes but let them make changes
-				if (node.applyToGraph) {
-					node.applyToGraph();
+		for (const outerNode of this.graph.computeExecutionOrder(false)) {
+			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
+			for (const node of innerNodes) {
+				if (node.isVirtualNode) {
+					// Don't serialize frontend only nodes but let them make changes
+					if (node.applyToGraph) {
+						node.applyToGraph();
+					}
 				}
-				continue;
 			}
 		}
 
 		const workflow = this.graph.serialize();
 		const output = {};
 		// Process nodes in order of execution
-		for (const node of this.graph.computeExecutionOrder(false)) {
-			const n = workflow.nodes.find((n) => n.id === node.id);
+		for (const outerNode of this.graph.computeExecutionOrder(false)) {
+			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
+			for (const node of innerNodes) {
+				if (node.isVirtualNode) {
+					continue;
+				}
 
-			if (node.isVirtualNode) {
-				continue;
-			}
+				if (node.mode === 2 || node.mode === 4) {
+					// Don't serialize muted nodes
+					continue;
+				}
 
-			if (node.mode === 2 || node.mode === 4) {
-				// Don't serialize muted nodes
-				continue;
-			}
+				const inputs = {};
+				const widgets = node.widgets;
 
-			const inputs = {};
-			const widgets = node.widgets;
-
-			// Store all widget values
-			if (widgets) {
-				for (const i in widgets) {
-					const widget = widgets[i];
-					if (!widget.options || widget.options.serialize !== false) {
-						inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(n, i) : widget.value;
+				// Store all widget values
+				if (widgets) {
+					for (const i in widgets) {
+						const widget = widgets[i];
+						if (!widget.options || widget.options.serialize !== false) {
+							inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(node, i) : widget.value;
+						}
 					}
 				}
-			}
 
-			// Store all node links
-			for (let i in node.inputs) {
-				let parent = node.getInputNode(i);
-				if (parent) {
-					let link = node.getInputLink(i);
-					while (parent.mode === 4 || parent.isVirtualNode) {
-						let found = false;
-						if (parent.isVirtualNode) {
-							link = parent.getInputLink(link.origin_slot);
-							if (link) {
-								parent = parent.getInputNode(link.target_slot);
-								if (parent) {
-									found = true;
-								}
-							}
-						} else if (link && parent.mode === 4) {
-							let all_inputs = [link.origin_slot];
-							if (parent.inputs) {
-								all_inputs = all_inputs.concat(Object.keys(parent.inputs))
-								for (let parent_input in all_inputs) {
-									parent_input = all_inputs[parent_input];
-									if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
-										link = parent.getInputLink(parent_input);
-										if (link) {
-											parent = parent.getInputNode(parent_input);
-										}
+				// Store all node links
+				for (let i in node.inputs) {
+					let parent = node.getInputNode(i);
+					if (parent) {
+						let link = node.getInputLink(i);
+						while (parent.mode === 4 || parent.isVirtualNode) {
+							let found = false;
+							if (parent.isVirtualNode) {
+								link = parent.getInputLink(link.origin_slot);
+								if (link) {
+									parent = parent.getInputNode(link.target_slot);
+									if (parent) {
 										found = true;
-										break;
+									}
+								}
+							} else if (link && parent.mode === 4) {
+								let all_inputs = [link.origin_slot];
+								if (parent.inputs) {
+									all_inputs = all_inputs.concat(Object.keys(parent.inputs))
+									for (let parent_input in all_inputs) {
+										parent_input = all_inputs[parent_input];
+										if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
+											link = parent.getInputLink(parent_input);
+											if (link) {
+												parent = parent.getInputNode(parent_input);
+											}
+											found = true;
+											break;
+										}
 									}
 								}
 							}
+
+							if (!found) {
+								break;
+							}
 						}
 
-						if (!found) {
-							break;
+						if (link) {
+							if (parent?.updateLink) {
+								link = parent.updateLink(link);
+							}
+							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
 						}
-					}
-
-					if (link) {
-						inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
 					}
 				}
-			}
 
-			output[String(node.id)] = {
-				inputs,
-				class_type: node.comfyClass,
-			};
+				output[String(node.id)] = {
+					inputs,
+					class_type: node.comfyClass,
+				};
+			}
 		}
 
 		// Remove inputs connected to removed nodes
@@ -1816,7 +1877,7 @@ export class ComfyApp {
 			const pngInfo = await getPngMetadata(file);
 			if (pngInfo) {
 				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
+					await this.loadGraphData(JSON.parse(pngInfo.workflow));
 				} else if (pngInfo.parameters) {
 					importA1111(this.graph, pngInfo.parameters);
 				}
@@ -1832,21 +1893,21 @@ export class ComfyApp {
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
-			reader.onload = () => {
+			reader.onload = async () => {
 				const jsonContent = JSON.parse(reader.result);
 				if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
 				} else if(this.isApiJson(jsonContent)) {
 					this.loadApiJson(jsonContent);
 				} else {
-					this.loadGraphData(jsonContent);
+					await this.loadGraphData(jsonContent);
 				}
 			};
 			reader.readAsText(file);
 		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
 			const info = await getLatentMetadata(file);
 			if (info.workflow) {
-				this.loadGraphData(JSON.parse(info.workflow));
+				await this.loadGraphData(JSON.parse(info.workflow));
 			}
 		}
 	}
@@ -1867,7 +1928,7 @@ export class ComfyApp {
 		for (const id of ids) {
 			const data = apiData[id];
 			const node = LiteGraph.createNode(data.class_type);
-			node.id = id;
+			node.id = isNaN(+id) ? id : +id;
 			graph.add(node);
 		}
 

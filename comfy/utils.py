@@ -258,7 +258,7 @@ def set_attr(obj, attr, value):
     for name in attrs[:-1]:
         obj = getattr(obj, name)
     prev = getattr(obj, attrs[-1])
-    setattr(obj, attrs[-1], torch.nn.Parameter(value))
+    setattr(obj, attrs[-1], torch.nn.Parameter(value, requires_grad=False))
     del prev
 
 def copy_to_param(obj, attr, value):
@@ -307,23 +307,25 @@ def bislerp(samples, width, height):
         res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
         return res
     
-    def generate_bilinear_data(length_old, length_new):
-        coords_1 = torch.arange(length_old).reshape((1,1,1,-1)).to(torch.float32)
+    def generate_bilinear_data(length_old, length_new, device):
+        coords_1 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1))
         coords_1 = torch.nn.functional.interpolate(coords_1, size=(1, length_new), mode="bilinear")
         ratios = coords_1 - coords_1.floor()
         coords_1 = coords_1.to(torch.int64)
         
-        coords_2 = torch.arange(length_old).reshape((1,1,1,-1)).to(torch.float32) + 1
+        coords_2 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1)) + 1
         coords_2[:,:,:,-1] -= 1
         coords_2 = torch.nn.functional.interpolate(coords_2, size=(1, length_new), mode="bilinear")
         coords_2 = coords_2.to(torch.int64)
         return ratios, coords_1, coords_2
-    
+
+    orig_dtype = samples.dtype
+    samples = samples.float()
     n,c,h,w = samples.shape
     h_new, w_new = (height, width)
     
     #linear w
-    ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new)
+    ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new, samples.device)
     coords_1 = coords_1.expand((n, c, h, -1))
     coords_2 = coords_2.expand((n, c, h, -1))
     ratios = ratios.expand((n, 1, h, -1))
@@ -336,7 +338,7 @@ def bislerp(samples, width, height):
     result = result.reshape(n, h, w_new, c).movedim(-1, 1)
 
     #linear h
-    ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new)
+    ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new, samples.device)
     coords_1 = coords_1.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
     coords_2 = coords_2.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
     ratios = ratios.reshape((1,1,-1,1)).expand((n, 1, -1, w_new))
@@ -347,7 +349,7 @@ def bislerp(samples, width, height):
 
     result = slerp(pass_1, pass_2, ratios)
     result = result.reshape(n, h_new, w_new, c).movedim(-1, 1)
-    return result
+    return result.to(orig_dtype)
 
 def lanczos(samples, width, height):
     images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]

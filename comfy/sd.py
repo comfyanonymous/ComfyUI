@@ -23,6 +23,7 @@ import comfy.model_patcher
 import comfy.lora
 import comfy.t2i_adapter.adapter
 import comfy.supported_models_base
+import comfy.taesd.taesd
 
 def load_model_weights(model, sd):
     m, u = model.load_state_dict(sd, strict=False)
@@ -95,10 +96,7 @@ class CLIP:
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
         params['device'] = offload_device
-        if model_management.should_use_fp16(load_device, prioritize_performance=False):
-            params['dtype'] = torch.float16
-        else:
-            params['dtype'] = torch.float32
+        params['dtype'] = model_management.text_encoder_dtype(load_device)
 
         self.cond_stage_model = clip(**(params))
 
@@ -157,10 +155,24 @@ class VAE:
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
             sd = diffusers_convert.convert_vae_state_dict(sd)
 
+        self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) #These are for AutoencoderKL and need tweaking (should be lower)
+        self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype)
+
         if config is None:
-            #default SD1.x/SD2.x VAE parameters
-            ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
-            self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=4)
+            if "decoder.mid.block_1.mix_factor" in sd:
+                encoder_config = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
+                decoder_config = encoder_config.copy()
+                decoder_config["video_kernel_size"] = [3, 1, 1]
+                decoder_config["alpha"] = 0.0
+                self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                            encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': encoder_config},
+                                                            decoder_config={'target': "comfy.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
+            elif "taesd_decoder.1.weight" in sd:
+                self.first_stage_model = comfy.taesd.taesd.TAESD()
+            else:
+                #default SD1.x/SD2.x VAE parameters
+                ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
+                self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=4)
         else:
             self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
@@ -175,9 +187,11 @@ class VAE:
         if device is None:
             device = model_management.vae_device()
         self.device = device
-        self.offload_device = model_management.vae_offload_device()
+        offload_device = model_management.vae_offload_device()
         self.vae_dtype = model_management.vae_dtype()
         self.first_stage_model.to(self.vae_dtype)
+
+        self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
         steps = samples.shape[0] * comfy.utils.get_tiled_scale_steps(samples.shape[3], samples.shape[2], tile_x, tile_y, overlap)
@@ -207,10 +221,9 @@ class VAE:
         return samples
 
     def decode(self, samples_in):
-        self.first_stage_model = self.first_stage_model.to(self.device)
         try:
-            memory_used = (2562 * samples_in.shape[2] * samples_in.shape[3] * 64) * 1.7
-            model_management.free_memory(memory_used, self.device)
+            memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
+            model_management.load_models_gpu([self.patcher], memory_required=memory_used)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
@@ -223,22 +236,19 @@ class VAE:
             print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             pixel_samples = self.decode_tiled_(samples_in)
 
-        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         pixel_samples = pixel_samples.cpu().movedim(1,-1)
         return pixel_samples
 
     def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
-        self.first_stage_model = self.first_stage_model.to(self.device)
+        model_management.load_model_gpu(self.patcher)
         output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
-        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         return output.movedim(1,-1)
 
     def encode(self, pixel_samples):
-        self.first_stage_model = self.first_stage_model.to(self.device)
         pixel_samples = pixel_samples.movedim(-1,1)
         try:
-            memory_used = (2078 * pixel_samples.shape[2] * pixel_samples.shape[3]) * 1.7 #NOTE: this constant along with the one in the decode above are estimated from the mem usage for the VAE and could change.
-            model_management.free_memory(memory_used, self.device)
+            memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
+            model_management.load_models_gpu([self.patcher], memory_required=memory_used)
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
@@ -251,14 +261,12 @@ class VAE:
             print("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
             samples = self.encode_tiled_(pixel_samples)
 
-        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         return samples
 
     def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
-        self.first_stage_model = self.first_stage_model.to(self.device)
+        model_management.load_model_gpu(self.patcher)
         pixel_samples = pixel_samples.movedim(-1,1)
         samples = self.encode_tiled_(pixel_samples, tile_x=tile_x, tile_y=tile_y, overlap=overlap)
-        self.first_stage_model = self.first_stage_model.to(self.offload_device)
         return samples
 
     def get_sd(self):
@@ -444,6 +452,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
     if output_vae:
         vae_sd = comfy.utils.state_dict_prefix_replace(sd, {"first_stage_model.": ""}, filter_keys=True)
+        vae_sd = model_config.process_vae_state_dict(vae_sd)
         vae = VAE(sd=vae_sd)
 
     if output_clip:
@@ -468,20 +477,18 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     return (model_patcher, clip, vae, clipvision)
 
 
-def load_unet(unet_path): #load unet in diffusers format
-    sd = comfy.utils.load_torch_file(unet_path)
+def load_unet_state_dict(sd): #load unet in diffusers format
     parameters = comfy.utils.calculate_parameters(sd)
     unet_dtype = model_management.unet_dtype(model_params=parameters)
     if "input_blocks.0.0.weight" in sd: #ldm
         model_config = model_detection.model_config_from_unet(sd, "", unet_dtype)
         if model_config is None:
-            raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+            return None
         new_sd = sd
 
     else: #diffusers
         model_config = model_detection.model_config_from_diffusers_unet(sd, unet_dtype)
         if model_config is None:
-            print("ERROR UNSUPPORTED UNET", unet_path)
             return None
 
         diffusers_keys = comfy.utils.unet_to_diffusers(model_config.unet_config)
@@ -500,6 +507,14 @@ def load_unet(unet_path): #load unet in diffusers format
     if len(left_over) > 0:
         print("left over keys in unet:", left_over)
     return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device)
+
+def load_unet(unet_path):
+    sd = comfy.utils.load_torch_file(unet_path)
+    model = load_unet_state_dict(sd)
+    if model is None:
+        print("ERROR UNSUPPORTED UNET", unet_path)
+        raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+    return model
 
 def save_checkpoint(output_path, model, clip, vae, metadata=None):
     model_management.load_models_gpu([model, clip.load_model()])
