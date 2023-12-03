@@ -324,11 +324,26 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
-	 * Gets all setting values for the current user
-	 * @returns { Promise<string, unknown> } A dictionary of id -> value
+	 * Gets a list of users or true if single user mode and default user is created, or false if single user mode and default user is not created.
+	 * @returns { Promise<string, unknown> | boolean } If multi-user, a dictionary of id -> value, else whether the default user is created
 	 */
 	async getUsers() {
 		return (await this.fetchApi("/users")).json();
+	}
+
+	/**
+	 * Creates a new user
+	 * @param { string } username 
+	 * @returns The fetch response
+	 */
+	createUser(username) {
+		return this.fetchApi("/users", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ username }),
+		});
 	}
 
 	/**

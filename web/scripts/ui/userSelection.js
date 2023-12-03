@@ -9,7 +9,7 @@ export class UserSelectionScreen {
 		await addStylesheet(import.meta.url);
 		const userSelection = document.getElementById("comfy-user-selection");
 		userSelection.style.display = "";
-		return new Promise(async (r) => {
+		return new Promise((resolve) => {
 			const input = userSelection.getElementsByTagName("input")[0];
 			const select = userSelection.getElementsByTagName("select")[0];
 			const inputSection = input.closest("section");
@@ -40,7 +40,6 @@ export class UserSelectionScreen {
 				e.preventDefault();
 				if (inputActive == null) {
 					error.textContent = "Please enter a username or select an existing user.";
-					return;
 				} else if (inputActive) {
 					const username = input.value.trim();
 					if (!username) {
@@ -53,13 +52,7 @@ export class UserSelectionScreen {
 					const spinner = createSpinner();
 					button.prepend(spinner);
 					try {
-						const resp = await api.fetchApi("/users", {
-							method: "POST",
-							headers: {
-								"Content-Type": "application/json",
-							},
-							body: JSON.stringify({ username }),
-						});
+						const resp = await api.createUser(username);
 						if (resp.status >= 300) {
 							let message = "Error creating user: " + resp.status + " " + resp.statusText;
 							try {
@@ -72,7 +65,7 @@ export class UserSelectionScreen {
 							throw new Error(message);
 						}
 
-						r({ username, userId: await resp.json(), created: true });
+						resolve({ username, userId: await resp.json(), created: true });
 					} catch (err) {
 						spinner.remove();
 						error.textContent = err.message ?? err.statusText ?? err ?? "An unknown error occurred.";
@@ -83,7 +76,7 @@ export class UserSelectionScreen {
 					error.textContent = "Please select an existing user.";
 					return;
 				} else {
-					r({ username: users[select.value], userId: select.value, created: false });
+					resolve({ username: users[select.value], userId: select.value, created: false });
 				}
 			});
 
@@ -106,7 +99,7 @@ export class UserSelectionScreen {
 				select.style.color = "var(--descrip-text)";
 
 				if (select.value) {
-					// Focus the input, do this separately as sometimes browsers like to fill in the value
+					// Focus the select, do this separately as sometimes browsers like to fill in the value
 					select.focus();
 				}
 			} else {
