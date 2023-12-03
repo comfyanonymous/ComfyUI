@@ -102,3 +102,34 @@ class UserManager():
 
             user_id = self.add_user(username)
             return web.json_response(user_id)
+
+        @routes.get("/userdata/{file}")
+        async def getuserdata(request):
+            file = request.match_info.get("file", None)
+            if not file:
+                return web.Response(status=400)
+                
+            path = self.get_request_user_filepath(request, file)
+            if not path:
+                return web.Response(status=403)
+            
+            if not os.path.exists(path):
+                return web.Response(status=404)
+            
+            return web.FileResponse(path)
+
+        @routes.post("/userdata/{file}")
+        async def post_userdata(request):
+            file = request.match_info.get("file", None)
+            if not file:
+                return web.Response(status=400)
+                
+            path = self.get_request_user_filepath(request, file)
+            if not path:
+                return web.Response(status=403)
+
+            body = await request.read()
+            with open(path, "wb") as f:
+                f.write(body)
+                
+            return web.Response(status=200)

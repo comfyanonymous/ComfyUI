@@ -324,8 +324,8 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
-	 * Gets a list of all setting values for the current user
-	 * @returns { Promise<string, unknown> }
+	 * Gets all setting values for the current user
+	 * @returns { Promise<string, unknown> } A dictionary of id -> value
 	 */
 	async getSettings() {
 		return (await this.fetchApi("/settings")).json();
@@ -333,7 +333,8 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Gets a setting for the current user
-	 * @returns { Promise<unknown> }
+	 * @param { string } id The id of the setting to fetch
+	 * @returns { Promise<unknown> } The setting value
 	 */
 	async getSetting(id) {
 		return (await this.fetchApi(`/settings/${encodeURIComponent(id)}`)).json();
@@ -341,6 +342,7 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Stores a dictionary of settings for the current user
+	 * @param { Record<string, unknown> } settings Dictionary of setting id -> value to save
 	 * @returns { Promise<void> }
 	 */
 	async storeSettings(settings) {
@@ -352,6 +354,8 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Stores a setting for the current user
+	 * @param { string } id The id of the setting to update
+	 * @param { unknown } value The value of the setting
 	 * @returns { Promise<void> }
 	 */
 	async storeSetting(id, value) {
@@ -359,6 +363,34 @@ class ComfyApi extends EventTarget {
 			method: "POST",
 			body: JSON.stringify(value)
 		});
+	}
+
+	/**
+	 * Gets a user data file for the current user
+	 * @param { string } file The name of the userdata file to load
+	 * @param { RequestInit } [options]
+	 * @returns { Promise<unknown> } The fetch response object
+	 */
+	async getUserData(file, options) {
+		return this.fetchApi(`/userdata/${encodeURIComponent(file)}`, options);
+	}
+
+	/**
+	 * Stores a user data file for the current user
+	 * @param { string } file The name of the userdata file to save
+	 * @param { unknown } data The data to save to the file
+	 * @param { RequestInit & { stringify?: boolean, throwOnError?: boolean } } [options]
+	 * @returns { Promise<void> }
+	 */
+	async storeUserData(file, data, options = { stringify: true, throwOnError: true }) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}`, {
+			method: "POST",
+			body: options?.stringify ? JSON.stringify(data) : data,
+			...options,
+		});	
+		if (resp.status !== 200) {
+			throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
+		}
 	}
 }
 
