@@ -24,7 +24,7 @@ def prepare_noise(latent_image, seeds, noise_inds=None):
     for i in range(num_latents):  
         if i < len(seeds):  # Use the provided seeds if available
             seed = seeds[i]
-                else:
+        else:
             seed = seeds[-1] + i  # Increment the last seed for additional latents
 
         #else:   maybe add this add a toggle or dropdown?
