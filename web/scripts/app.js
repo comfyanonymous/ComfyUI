@@ -1519,14 +1519,36 @@ export class ComfyApp {
 	}
 
 	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+		let seenTypes = new Set();
+
 		this.ui.dialog.show(
-			$el("div", [
+			$el("div.comfy-missing-nodes", [
 				$el("span", { textContent: "When loading the graph, the following node types were not found: " }),
 				$el(
 					"ul",
-					Array.from(new Set(missingNodeTypes)).map((t) => $el("li", { textContent: t }))
+					Array.from(new Set(missingNodeTypes)).map((t) => {
+						let children = [];
+						if (typeof t === "object") {
+							if(seenTypes.has(t.type)) return null;
+							seenTypes.add(t.type);
+							children.push($el("span", { textContent: t.type }));
+							if (t.hint) {
+								children.push($el("span", { textContent: t.hint }));
+							}
+							if (t.action) {
+								children.push($el("button", { onclick: t.action.callback, textContent: t.action.text }));
+							}
+						} else {
+							if(seenTypes.has(t)) return null;
+							seenTypes.add(t);
+							children.push($el("span", { textContent: t }));
+						}
+						return $el("li", children);
+					}).filter(Boolean)
 				),
-				...(hasAddedNodes ? [$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." })] : []),
+				...(hasAddedNodes
+					? [$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." })]
+					: []),
 			])
 		);
 		this.logging.addEntry("Comfy.App", "warn", {
