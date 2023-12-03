@@ -18,6 +18,9 @@ class UserManager():
         self.settings = AppSettings(self)
         if not os.path.exists(user_directory):
             os.mkdir(user_directory)
+            if not args.multi_user:
+                print("****** User settings have been changed to be stored on the server instead of browser storage. ******")
+                print("****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******")
 
         if args.multi_user:
             if os.path.isfile(users_file):
