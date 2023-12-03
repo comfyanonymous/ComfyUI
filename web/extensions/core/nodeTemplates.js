@@ -164,7 +164,7 @@ class ManageTemplates extends ComfyDialog {
 										var prev_i = el.dataset.id;
 
 										if ( el == this.draggedEl && prev_i != i ) {
-											[this.templates[i], this.templates[prev_i]] = [this.templates[prev_i], this.templates[i]];
+											this.templates.splice(i, 0, this.templates.splice(prev_i, 1)[0]);
 										}
 										el.dataset.id = i;
 									});
