@@ -303,7 +303,7 @@ class SVD_img2vid(BaseModel):
         if latent_image.shape[1:] != noise.shape[1:]:
             latent_image = utils.common_upscale(latent_image, noise.shape[-1], noise.shape[-2], "bilinear", "center")
 
-        latent_image = utils.repeat_to_batch_size(latent_image, noise.shape[0])
+        latent_image = utils.resize_to_batch_size(latent_image, noise.shape[0])
 
         out['c_concat'] = comfy.conds.CONDNoiseShape(latent_image)
 
