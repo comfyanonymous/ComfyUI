@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 import copy
@@ -696,9 +697,17 @@ class PromptQueue:
 
     def put(self, item):
         with self.mutex:
-            heapq.heappush(self.queue, item)
+            heapq.heappush(self.queue, (item, None))
             self.server.queue_updated()
             self.not_empty.notify()
+
+    def put_async(self, item):
+        with self.mutex:
+            future = asyncio.Future()
+            heapq.heappush(self.queue, (item, future))
+            self.server.queue_updated()
+            self.not_empty.notify()
+            return future
 
     def get(self, timeout=None):
         with self.not_empty:
@@ -708,12 +717,12 @@ class PromptQueue:
                     return None
             item = heapq.heappop(self.queue)
             i = self.task_counter
-            self.currently_running[i] = copy.deepcopy(item)
+            self.currently_running[i] = copy.deepcopy(item[0])
             self.task_counter += 1
             self.server.queue_updated()
             return (item, i)
 
-    def task_done(self, item_id, outputs):
+    def task_done(self, item_id, outputs, future = None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
@@ -722,6 +731,8 @@ class PromptQueue:
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
             self.server.queue_updated()
+            if future is not None:
+                future.set_result(outputs)
 
     def get_current_queue(self):
         with self.mutex:

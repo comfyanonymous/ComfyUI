@@ -488,6 +488,48 @@ class PromptServer():
             else:
                 return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
 
+        @routes.post("/prompt_async")
+        async def post_prompt_async(request):
+            print("yeeehaw")
+            resp_code = 200
+            out_string = ""
+            json_data = await request.json()
+            json_data = self.trigger_on_prompt(json_data)
+
+            if "number" in json_data:
+                number = float(json_data['number'])
+            else:
+                number = self.number
+                if "front" in json_data:
+                    if json_data['front']:
+                        number = -number
+
+                self.number += 1
+
+            if "prompt" in json_data:
+                prompt = json_data["prompt"]
+                valid = execution.validate_prompt(prompt)
+                extra_data = {}
+                if "extra_data" in json_data:
+                    extra_data = json_data["extra_data"]
+
+                if "client_id" in json_data:
+                    extra_data["client_id"] = json_data["client_id"]
+                if valid[0]:
+                    prompt_id = str(uuid.uuid4())
+                    outputs_to_execute = valid[2]
+                    future = self.prompt_queue.put_async((number, prompt_id, prompt, extra_data, outputs_to_execute))
+                    await future
+
+                    response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3], "results": future.result()}
+                    return web.json_response(response)
+                else:
+                    print("invalid prompt:", valid[1])
+                    return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
+            else:
+                return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
+
+
         @routes.post("/queue")
         async def post_queue(request):
             json_data =  await request.json()

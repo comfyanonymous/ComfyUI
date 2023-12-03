@@ -99,12 +99,12 @@ def prompt_worker(q, server):
 
         queue_item = q.get(timeout=timeout)
         if queue_item is not None:
-            item, item_id = queue_item
+            (item, future), item_id = queue_item
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
-            q.task_done(item_id, e.outputs_ui)
+            q.task_done(item_id, e.outputs_ui, future)
             if server.client_id is not None:
                 server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
 
