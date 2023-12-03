@@ -18,9 +18,16 @@ function* walkSync(dir) {
  */
 
 /**
- * @param { { mockExtensions?: string[], mockNodeDefs?: Record<string, ComfyObjectInfo> } } config
+ * @param { 
+ * { 
+ * 	mockExtensions?: string[], 
+ * 	mockNodeDefs?: Record<string, ComfyObjectInfo>,
+ * 	users?: boolean | Record<string, string>
+* 	settings?: Record<string, string>
+* 	userData?: Record<string, any>
+ * } } config
  */
-export function mockApi({ mockExtensions, mockNodeDefs } = {}) {
+export function mockApi({ mockExtensions, mockNodeDefs, users, settings, userData } = {}) {
 	if (!mockExtensions) {
 		mockExtensions = Array.from(walkSync(path.resolve("../web/extensions/core")))
 			.filter((x) => x.endsWith(".js"))
@@ -29,7 +36,16 @@ export function mockApi({ mockExtensions, mockNodeDefs } = {}) {
 	if (!mockNodeDefs) {
 		mockNodeDefs = JSON.parse(fs.readFileSync(path.resolve("./data/object_info.json")));
 	}
-
+	if(!users) {
+		users = true;
+	}
+	if(!settings) {
+		settings = {};
+	}
+	if(!userData) {
+		userData = {};
+	}
+	
 	const events = new EventTarget();
 	const mockApi = {
 		addEventListener: events.addEventListener.bind(events),
@@ -40,6 +56,15 @@ export function mockApi({ mockExtensions, mockNodeDefs } = {}) {
 		getNodeDefs: jest.fn(() => mockNodeDefs),
 		init: jest.fn(),
 		apiURL: jest.fn((x) => "../../web/" + x),
+		getUsers: jest.fn(() => users),
+		getSettings: jest.fn(() => settings ?? {}),
+		getUserData: jest.fn(f => {
+			if(f in userData) {
+				return { status: 200, json: () => userData[f] };
+			} else {
+				return { status: 404 }
+			}
+		})
 	};
 	jest.mock("../../web/scripts/api", () => ({
 		get api() {

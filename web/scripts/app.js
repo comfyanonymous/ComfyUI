@@ -1304,7 +1304,7 @@ export class ComfyApp {
 	}
 
 	async #setUser() {
-		const users = await (await api.fetchApi("users")).json();
+		const users = await api.getUsers();
 		if(typeof users === "boolean") {
 			// Single user mode returns true/false for if the default user is created
 			if(!users) {

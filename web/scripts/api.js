@@ -327,6 +327,14 @@ class ComfyApi extends EventTarget {
 	 * Gets all setting values for the current user
 	 * @returns { Promise<string, unknown> } A dictionary of id -> value
 	 */
+	async getUsers() {
+		return (await this.fetchApi("/users")).json();
+	}
+
+	/**
+	 * Gets all setting values for the current user
+	 * @returns { Promise<string, unknown> } A dictionary of id -> value
+	 */
 	async getSettings() {
 		return (await this.fetchApi("/settings")).json();
 	}
