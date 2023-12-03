@@ -59,7 +59,7 @@ class DDIMSampler(object):
     @torch.no_grad()
     def sample_custom(self,
                       ddim_timesteps,
-                      conditioning,
+                      conditioning=None,
                       callback=None,
                       img_callback=None,
                       quantize_x0=False,

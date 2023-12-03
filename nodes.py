@@ -891,7 +891,7 @@ class EmptyLatentImage:
     def INPUT_TYPES(s):
         return {"required": { "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
@@ -967,8 +967,8 @@ class LatentUpscale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
+                              "width": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "height": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
@@ -976,8 +976,22 @@ class LatentUpscale:
     CATEGORY = "latent"
 
     def upscale(self, samples, upscale_method, width, height, crop):
-        s = samples.copy()
-        s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
+        if width == 0 and height == 0:
+            s = samples
+        else:
+            s = samples.copy()
+
+            if width == 0:
+                height = max(64, height)
+                width = max(64, round(samples["samples"].shape[3] * height / samples["samples"].shape[2]))
+            elif height == 0:
+                width = max(64, width)
+                height = max(64, round(samples["samples"].shape[2] * width / samples["samples"].shape[3]))
+            else:
+                width = max(64, width)
+                height = max(64, height)
+
+            s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
 class LatentUpscaleBy:
@@ -1175,11 +1189,8 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
         return (s,)
 
-
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
-
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
@@ -1190,22 +1201,11 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
-    preview_format = "JPEG"
-    if preview_format not in ["JPEG", "PNG"]:
-        preview_format = "JPEG"
-
-    previewer = latent_preview.get_previewer(device, model.model.latent_format)
-
-    pbar = comfy.utils.ProgressBar(steps)
-    def callback(step, x0, x, total_steps):
-        preview_bytes = None
-        if previewer:
-            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
-        pbar.update_absolute(step + 1, total_steps, preview_bytes)
-
+    callback = latent_preview.prepare_callback(model, steps)
+    disable_pbar = False
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, seed=seed)
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     out = latent.copy()
     out["samples"] = samples
     return (out, )
@@ -1355,7 +1355,7 @@ class LoadImage:
             mask = 1. - torch.from_numpy(mask)
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (image, mask)
+        return (image, mask.unsqueeze(0))
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -1402,7 +1402,7 @@ class LoadImageMask:
                 mask = 1. - mask
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (mask,)
+        return (mask.unsqueeze(0),)
 
     @classmethod
     def IS_CHANGED(s, image, channel):
@@ -1429,8 +1429,8 @@ class ImageScale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
+                              "width": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                              "height": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
@@ -1438,9 +1438,18 @@ class ImageScale:
     CATEGORY = "image/upscaling"
 
     def upscale(self, image, upscale_method, width, height, crop):
-        samples = image.movedim(-1,1)
-        s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
-        s = s.movedim(1,-1)
+        if width == 0 and height == 0:
+            s = image
+        else:
+            samples = image.movedim(-1,1)
+
+            if width == 0:
+                width = max(1, round(samples.shape[3] * height / samples.shape[2]))
+            elif height == 0:
+                height = max(1, round(samples.shape[2] * width / samples.shape[3]))
+
+            s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
+            s = s.movedim(1,-1)
         return (s,)
 
 class ImageScaleBy:
@@ -1503,7 +1512,7 @@ class EmptyImage:
     def INPUT_TYPES(s):
         return {"required": { "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
                               "color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
                               }}
     RETURN_TYPES = ("IMAGE",)
@@ -1604,7 +1613,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageBatch": ImageBatch,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "EmptyImage": EmptyImage,
-    "ConditioningAverage ": ConditioningAverage ,
+    "ConditioningAverage": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
@@ -1772,13 +1781,24 @@ def load_custom_nodes():
         print()
 
 def init_custom_nodes():
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_model_merging.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_tomesd.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_clip_sdxl.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_canny.py"))
+    extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
+    extras_files = [
+        "nodes_latent.py",
+        "nodes_hypernetwork.py",
+        "nodes_upscale_model.py",
+        "nodes_post_processing.py",
+        "nodes_mask.py",
+        "nodes_compositing.py",
+        "nodes_rebatch.py",
+        "nodes_model_merging.py",
+        "nodes_tomesd.py",
+        "nodes_clip_sdxl.py",
+        "nodes_canny.py",
+        "nodes_freelunch.py",
+        "nodes_custom_sampler.py"
+    ]
+
+    for node_file in extras_files:
+        load_custom_node(os.path.join(extras_dir, node_file))
+
     load_custom_nodes()

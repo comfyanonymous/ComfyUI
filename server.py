@@ -413,7 +413,11 @@ class PromptServer():
         async def get_object_info(request):
             out = {}
             for x in nodes.NODE_CLASS_MAPPINGS:
-                out[x] = node_info(x)
+                try:
+                    out[x] = node_info(x)
+                except Exception as e:
+                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
+                    traceback.print_exc()
             return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")

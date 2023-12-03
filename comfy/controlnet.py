@@ -354,7 +354,7 @@ def load_controlnet(ckpt_path, model=None):
 
     if controlnet_config is None:
         use_fp16 = comfy.model_management.should_use_fp16()
-        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16).unet_config
+        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, use_fp16, True).unet_config
     controlnet_config.pop("out_channels")
     controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
