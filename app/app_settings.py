@@ -20,7 +20,7 @@ class AppSettings():
         file = self.user_manager.get_request_user_filepath(
             request, "comfy.settings.json")
         with open(file, "w") as f:
-            f.write(json.dumps(settings))
+            f.write(json.dumps(settings, indent=4))
 
     def add_routes(self, routes):
         @routes.get("/settings")
