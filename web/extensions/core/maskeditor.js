@@ -42,7 +42,7 @@ async function uploadMask(filepath, formData) {
 	});
 
 	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] = new Image();
-	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = api.apiURL("/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam());
+	ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src = api.apiURL("/view?" + new URLSearchParams(filepath).toString() + app.getPreviewFormatParam() + app.getRandParam());
 
 	if(ComfyApp.clipspace.images)
 		ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] = filepath;
