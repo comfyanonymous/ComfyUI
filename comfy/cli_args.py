@@ -55,7 +55,10 @@ fp_group = parser.add_mutually_exclusive_group()
 fp_group.add_argument("--force-fp32", action="store_true", help="Force fp32 (If this makes your GPU work better please report it).")
 fp_group.add_argument("--force-fp16", action="store_true", help="Force fp16.")
 
-parser.add_argument("--bf16-unet", action="store_true", help="Run the UNET in bf16. This should only be used for testing stuff.")
+fpunet_group = parser.add_mutually_exclusive_group()
+fpunet_group.add_argument("--bf16-unet", action="store_true", help="Run the UNET in bf16. This should only be used for testing stuff.")
+fpunet_group.add_argument("--fp8_e4m3fn-unet", action="store_true", help="Store unet weights in fp8_e4m3fn.")
+fpunet_group.add_argument("--fp8_e5m2-unet", action="store_true", help="Store unet weights in fp8_e5m2.")
 
 fpvae_group = parser.add_mutually_exclusive_group()
 fpvae_group.add_argument("--fp16-vae", action="store_true", help="Run the VAE in fp16, might cause black images.")

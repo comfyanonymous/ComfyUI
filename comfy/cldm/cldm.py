@@ -283,7 +283,7 @@ class ControlNet(nn.Module):
         return TimestepEmbedSequential(zero_module(operations.conv_nd(self.dims, channels, channels, 1, padding=0)))
 
     def forward(self, x, hint, timesteps, context, y=None, **kwargs):
-        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(self.dtype)
+        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(x.dtype)
         emb = self.time_embed(t_emb)
 
         guided_hint = self.input_hint_block(hint, emb, context)
@@ -295,7 +295,7 @@ class ControlNet(nn.Module):
             assert y.shape[0] == x.shape[0]
             emb = emb + self.label_emb(y)
 
-        h = x.type(self.dtype)
+        h = x
         for module, zero_conv in zip(self.input_blocks, self.zero_convs):
             if guided_hint is not None:
                 h = module(h, emb, context)
