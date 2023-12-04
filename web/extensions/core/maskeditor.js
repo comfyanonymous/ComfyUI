@@ -196,7 +196,7 @@ class MaskEditorDialog extends ComfyDialog {
 		this.element.appendChild(bottom_panel);
 		document.body.appendChild(brush);
 
-		var brush_size_slider = this.createLeftSlider(self, "Thickness", (event) => {
+		this.brush_size_slider = this.createLeftSlider(self, "Thickness", (event) => {
 			self.brush_size = event.target.value;
 			self.updateBrushPreview(self, null, null);
 		});
@@ -224,7 +224,7 @@ class MaskEditorDialog extends ComfyDialog {
 		bottom_panel.appendChild(clearButton);
 		bottom_panel.appendChild(this.saveButton);
 		bottom_panel.appendChild(cancelButton);
-		bottom_panel.appendChild(brush_size_slider);
+		bottom_panel.appendChild(this.brush_size_slider);
 
 		imgCanvas.style.position = "absolute";
 		maskCanvas.style.position = "absolute";
@@ -279,6 +279,9 @@ class MaskEditorDialog extends ComfyDialog {
 			const config = { attributes: true };
 			observer.observe(this.element, config);
 		}
+
+		// The keydown event needs to be reconfigured when closing the dialog as it gets removed.
+		document.addEventListener('keydown', MaskEditorDialog.handleKeyDown);
 
 		if(ComfyApp.clipspace_return_node) {
 			this.saveButton.innerText = "Save to node";
@@ -437,7 +440,6 @@ class MaskEditorDialog extends ComfyDialog {
 			maskCanvas.addEventListener('pointerleave', (event) => { this.brush.style.display = "none"; });
 
 			document.addEventListener('pointerup', MaskEditorDialog.handlePointerUp);
-			document.addEventListener('keydown', MaskEditorDialog.handleKeyDown);
 
 			this.handler_registered = true;
 		}
@@ -453,8 +455,10 @@ class MaskEditorDialog extends ComfyDialog {
 		const self = MaskEditorDialog.instance;
 		if (event.key === ']') {
 			self.brush_size = Math.min(self.brush_size+2, 100);
+			self.brush_slider_input.value = self.brush_size;
 		} else if (event.key === '[') {
 			self.brush_size = Math.max(self.brush_size-2, 1);
+			self.brush_slider_input.value = self.brush_size;
 		} else if(event.key === 'Enter') {
 			self.save();
 		}
