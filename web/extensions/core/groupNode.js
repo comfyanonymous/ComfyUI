@@ -475,6 +475,16 @@ export class GroupNodeConfig {
 	}
 
 	static async registerFromWorkflow(groupNodes, missingNodeTypes) {
+		const clean = app.clean;
+		app.clean = function () {
+			for (const g in groupNodes) {
+				try {
+					LiteGraph.unregisterNodeType("workflow/" + g);
+				} catch (error) {}
+			}
+			app.clean = clean;
+		};
+
 		for (const g in groupNodes) {
 			const groupData = groupNodes[g];
 
@@ -482,7 +492,24 @@ export class GroupNodeConfig {
 			for (const n of groupData.nodes) {
 				// Find missing node types
 				if (!(n.type in LiteGraph.registered_node_types)) {
-					missingNodeTypes.push(n.type);
+					missingNodeTypes.push({
+						type: n.type,
+						hint: ` (In group node 'workflow/${g}')`,
+					});
+
+					missingNodeTypes.push({
+						type: "workflow/" + g,
+						action: {
+							text: "Remove from workflow",
+							callback: (e) => {
+								delete groupNodes[g];
+								e.target.textContent = "Removed";
+								e.target.style.pointerEvents = "none";
+								e.target.style.opacity = 0.7;
+							},
+						},
+					});
+
 					hasMissing = true;
 				}
 			}

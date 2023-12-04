@@ -424,6 +424,11 @@ dialog::backdrop {
 	height: var(--comfy-img-preview-height);
 }
 
+.comfy-missing-nodes li button {
+	font-size: 12px;
+	margin-left: 5px;
+}
+
 /* Search box */
 
 .litegraph.litesearchbox {
