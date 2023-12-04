@@ -13,6 +13,14 @@ class Conv3d(torch.nn.Conv3d):
     def reset_parameters(self):
         return None
 
+class GroupNorm(torch.nn.GroupNorm):
+    def reset_parameters(self):
+        return None
+
+class LayerNorm(torch.nn.LayerNorm):
+    def reset_parameters(self):
+        return None
+
 def conv_nd(dims, *args, **kwargs):
     if dims == 2:
         return Conv2d(*args, **kwargs)

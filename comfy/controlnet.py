@@ -5,6 +5,7 @@ import comfy.utils
 import comfy.model_management
 import comfy.model_detection
 import comfy.model_patcher
+import comfy.ops
 
 import comfy.cldm.cldm
 import comfy.t2i_adapter.adapter
@@ -247,6 +248,15 @@ class ControlLoraOps:
             return self.Conv2d(*args, **kwargs)
         else:
             raise ValueError(f"unsupported dimensions: {dims}")
+
+    class Conv3d(comfy.ops.Conv3d):
+        pass
+
+    class GroupNorm(comfy.ops.GroupNorm):
+        pass
+
+    class LayerNorm(comfy.ops.LayerNorm):
+        pass
 
 
 class ControlLora(ControlNet):
