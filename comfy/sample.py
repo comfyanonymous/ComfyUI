@@ -6,10 +6,9 @@ import comfy.utils
 import math
 import numpy as np
 
-def prepare_noise(latent_image, seeds, noise_inds=None):
+def prepare_noise(latent_image, seeds, batch_behavior = "randomize"):
     """
-    Creates random noise given a latent image and a seed or a list of seeds.
-    Optional arg noise_inds can be used to select specific noise indices.
+    Creates noise based on the batch behavior, a latent image and a seed or a list of seeds.
     """
     num_latents = latent_image.size(0)
 
@@ -21,16 +20,20 @@ def prepare_noise(latent_image, seeds, noise_inds=None):
 
     noises = []
 
-    for i in range(num_latents):  
-        if i < len(seeds):  # Use the provided seeds if available
+    for i in range(num_latents):
+        if i < len(seeds):  # Use the provided seeds if available then follow behavior
             seed = seeds[i]
-        else:
-            seed = seeds[-1] + i  # Increment the last seed for additional latents
+        elif batch_behavior == "randomize" :
+            seed = torch.randint(0, 2 ** 32, (1,)).item()
+        elif batch_behavior == "fixed":
+            seed = seeds[-1]
+        elif batch_behavior == "increment":
+            seed = seeds[-1] + i
+        else :
+            seed = seeds[-1] - i
 
-        #else:   maybe add this add a toggle or dropdown?
-        #    seed = torch.randint(0, 2**32, (1,)).item()  # Generate a random seed for additional latents
         generator.manual_seed(seed)
-        print("seed:", seed) #get rid of this after testing
+        print("seed:", seed)
         noise = torch.randn([1] + list(latent_image.size())[1:], dtype=latent_image.dtype, layout=latent_image.layout, device="cpu", generator=generator)
         noises.append(noise)
 
