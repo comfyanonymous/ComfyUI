@@ -1,13 +1,13 @@
 import torch
 import math
 import os
-import comfy.utils
-import comfy.model_management
-import comfy.model_detection
-import comfy.model_patcher
+from . import utils
+from . import model_management
+from . import model_detection
+from . import model_patcher
 
-import comfy.cldm.cldm
-import comfy.t2i_adapter.adapter
+from .cldm import cldm
+from .t2i_adapter import adapter
 
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
@@ -33,16 +33,16 @@ class ControlBase:
         self.cond_hint_original = None
         self.cond_hint = None
         self.strength = 1.0
-        self.timestep_percent_range = (1.0, 0.0)
+        self.timestep_percent_range = (0.0, 1.0)
         self.timestep_range = None
 
         if device is None:
-            device = comfy.model_management.get_torch_device()
+            device = model_management.get_torch_device()
         self.device = device
         self.previous_controlnet = None
         self.global_average_pooling = False
 
-    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(1.0, 0.0)):
+    def set_cond_hint(self, cond_hint, strength=1.0, timestep_percent_range=(0.0, 1.0)):
         self.cond_hint_original = cond_hint
         self.strength = strength
         self.timestep_percent_range = timestep_percent_range
@@ -130,8 +130,9 @@ class ControlNet(ControlBase):
     def __init__(self, control_model, global_average_pooling=False, device=None):
         super().__init__(device)
         self.control_model = control_model
-        self.control_model_wrapped = comfy.model_patcher.ModelPatcher(self.control_model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
+        self.control_model_wrapped = model_patcher.ModelPatcher(self.control_model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
         self.global_average_pooling = global_average_pooling
+        self.model_sampling_current = None
 
     def get_control(self, x_noisy, t, cond, batched_number):
         control_prev = None
@@ -150,16 +151,19 @@ class ControlNet(ControlBase):
             if self.cond_hint is not None:
                 del self.cond_hint
             self.cond_hint = None
-            self.cond_hint = comfy.utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").to(self.control_model.dtype).to(self.device)
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * 8, x_noisy.shape[2] * 8, 'nearest-exact', "center").to(self.control_model.dtype).to(self.device)
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
 
         context = cond['c_crossattn']
-        y = cond.get('c_adm', None)
+        y = cond.get('y', None)
         if y is not None:
             y = y.to(self.control_model.dtype)
-        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=t, context=context.to(self.control_model.dtype), y=y)
+        timestep = self.model_sampling_current.timestep(t)
+        x_noisy = self.model_sampling_current.calculate_input(t, x_noisy)
+
+        control = self.control_model(x=x_noisy.to(self.control_model.dtype), hint=self.cond_hint, timesteps=timestep.float(), context=context.to(self.control_model.dtype), y=y)
         return self.control_merge(None, control, control_prev, output_dtype)
 
     def copy(self):
@@ -171,6 +175,14 @@ class ControlNet(ControlBase):
         out = super().get_models()
         out.append(self.control_model_wrapped)
         return out
+
+    def pre_run(self, model, percent_to_timestep_function):
+        super().pre_run(model, percent_to_timestep_function)
+        self.model_sampling_current = model.model_sampling
+
+    def cleanup(self):
+        self.model_sampling_current = None
+        super().cleanup()
 
 class ControlLoraOps:
     class Linear(torch.nn.Module):
@@ -249,24 +261,24 @@ class ControlLora(ControlNet):
         controlnet_config.pop("out_channels")
         controlnet_config["hint_channels"] = self.control_weights["input_hint_block.0.weight"].shape[1]
         controlnet_config["operations"] = ControlLoraOps()
-        self.control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
+        self.control_model = cldm.ControlNet(**controlnet_config)
         dtype = model.get_dtype()
         self.control_model.to(dtype)
-        self.control_model.to(comfy.model_management.get_torch_device())
+        self.control_model.to(model_management.get_torch_device())
         diffusion_model = model.diffusion_model
         sd = diffusion_model.state_dict()
         cm = self.control_model.state_dict()
 
         for k in sd:
-            weight = comfy.model_management.resolve_lowvram_weight(sd[k], diffusion_model, k)
+            weight = model_management.resolve_lowvram_weight(sd[k], diffusion_model, k)
             try:
-                comfy.utils.set_attr(self.control_model, k, weight)
+                utils.set_attr(self.control_model, k, weight)
             except:
                 pass
 
         for k in self.control_weights:
             if k not in {"lora_controlnet"}:
-                comfy.utils.set_attr(self.control_model, k, self.control_weights[k].to(dtype).to(comfy.model_management.get_torch_device()))
+                utils.set_attr(self.control_model, k, self.control_weights[k].to(dtype).to(model_management.get_torch_device()))
 
     def copy(self):
         c = ControlLora(self.control_weights, global_average_pooling=self.global_average_pooling)
@@ -283,18 +295,18 @@ class ControlLora(ControlNet):
         return out
 
     def inference_memory_requirements(self, dtype):
-        return comfy.utils.calculate_parameters(self.control_weights) * comfy.model_management.dtype_size(dtype) + ControlBase.inference_memory_requirements(self, dtype)
+        return utils.calculate_parameters(self.control_weights) * model_management.dtype_size(dtype) + ControlBase.inference_memory_requirements(self, dtype)
 
 def load_controlnet(ckpt_path, model=None):
-    controlnet_data = comfy.utils.load_torch_file(ckpt_path, safe_load=True)
+    controlnet_data = utils.load_torch_file(ckpt_path, safe_load=True)
     if "lora_controlnet" in controlnet_data:
         return ControlLora(controlnet_data)
 
     controlnet_config = None
     if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
-        unet_dtype = comfy.model_management.unet_dtype()
-        controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data, unet_dtype)
-        diffusers_keys = comfy.utils.unet_to_diffusers(controlnet_config)
+        unet_dtype = model_management.unet_dtype()
+        controlnet_config = model_detection.unet_config_from_diffusers_unet(controlnet_data, unet_dtype)
+        diffusers_keys = utils.unet_to_diffusers(controlnet_config)
         diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
         diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
 
@@ -353,16 +365,16 @@ def load_controlnet(ckpt_path, model=None):
         return net
 
     if controlnet_config is None:
-        unet_dtype = comfy.model_management.unet_dtype()
-        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, unet_dtype, True).unet_config
+        unet_dtype = model_management.unet_dtype()
+        controlnet_config = model_detection.model_config_from_unet(controlnet_data, prefix, unet_dtype, True).unet_config
     controlnet_config.pop("out_channels")
     controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
-    control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
+    control_model = cldm.ControlNet(**controlnet_config)
 
     if pth:
         if 'difference' in controlnet_data:
             if model is not None:
-                comfy.model_management.load_models_gpu([model])
+                model_management.load_models_gpu([model])
                 model_sd = model.model_state_dict()
                 for x in controlnet_data:
                     c_m = "control_model."
@@ -416,7 +428,7 @@ class T2IAdapter(ControlBase):
                 if control_prev is not None:
                     return control_prev
                 else:
-                    return {}
+                    return None
 
         if self.cond_hint is None or x_noisy.shape[2] * 8 != self.cond_hint.shape[2] or x_noisy.shape[3] * 8 != self.cond_hint.shape[3]:
             if self.cond_hint is not None:
@@ -424,7 +436,7 @@ class T2IAdapter(ControlBase):
             self.control_input = None
             self.cond_hint = None
             width, height = self.scale_image_to(x_noisy.shape[3] * 8, x_noisy.shape[2] * 8)
-            self.cond_hint = comfy.utils.common_upscale(self.cond_hint_original, width, height, 'nearest-exact', "center").float().to(self.device)
+            self.cond_hint = utils.common_upscale(self.cond_hint_original, width, height, 'nearest-exact', "center").float().to(self.device)
             if self.channels_in == 1 and self.cond_hint.shape[1] > 1:
                 self.cond_hint = torch.mean(self.cond_hint, 1, keepdim=True)
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
@@ -457,12 +469,12 @@ def load_t2i_adapter(t2i_data):
                 prefix_replace["adapter.body.{}.resnets.{}.".format(i, j)] = "body.{}.".format(i * 2 + j)
             prefix_replace["adapter.body.{}.".format(i)] = "body.{}.".format(i * 2)
         prefix_replace["adapter."] = ""
-        t2i_data = comfy.utils.state_dict_prefix_replace(t2i_data, prefix_replace)
+        t2i_data = utils.state_dict_prefix_replace(t2i_data, prefix_replace)
     keys = t2i_data.keys()
 
     if "body.0.in_conv.weight" in keys:
         cin = t2i_data['body.0.in_conv.weight'].shape[1]
-        model_ad = comfy.t2i_adapter.adapter.Adapter_light(cin=cin, channels=[320, 640, 1280, 1280], nums_rb=4)
+        model_ad = adapter.Adapter_light(cin=cin, channels=[320, 640, 1280, 1280], nums_rb=4)
     elif 'conv_in.weight' in keys:
         cin = t2i_data['conv_in.weight'].shape[1]
         channel = t2i_data['conv_in.weight'].shape[0]
@@ -474,7 +486,7 @@ def load_t2i_adapter(t2i_data):
         xl = False
         if cin == 256 or cin == 768:
             xl = True
-        model_ad = comfy.t2i_adapter.adapter.Adapter(cin=cin, channels=[channel, channel*2, channel*4, channel*4][:4], nums_rb=2, ksize=ksize, sk=True, use_conv=use_conv, xl=xl)
+        model_ad = adapter.Adapter(cin=cin, channels=[channel, channel*2, channel*4, channel*4][:4], nums_rb=2, ksize=ksize, sk=True, use_conv=use_conv, xl=xl)
     else:
         return None
     missing, unexpected = model_ad.load_state_dict(t2i_data)

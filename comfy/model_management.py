@@ -1,7 +1,7 @@
 import psutil
 from enum import Enum
 from .cli_args import args
-import comfy.utils
+from . import utils
 import torch
 import sys
 
@@ -133,6 +133,10 @@ else:
         import xformers
         import xformers.ops
         XFORMERS_IS_AVAILABLE = True
+        try:
+            XFORMERS_IS_AVAILABLE = xformers._has_cpp_library
+        except:
+            pass
         try:
             XFORMERS_VERSION = xformers.version.__version__
             print("xformers version:", XFORMERS_VERSION)
@@ -339,7 +343,11 @@ def free_memory(memory_required, device, keep_loaded=[]):
 
     if unloaded_model:
         soft_empty_cache()
-
+    else:
+        if vram_state != VRAMState.HIGH_VRAM:
+            mem_free_total, mem_free_torch = get_free_memory(device, torch_free_too=True)
+            if mem_free_torch > mem_free_total * 0.25:
+                soft_empty_cache()
 
 def load_models_gpu(models, memory_required=0):
     global vram_state
@@ -474,6 +482,21 @@ def text_encoder_device():
     else:
         return torch.device("cpu")
 
+def text_encoder_dtype(device=None):
+    if args.fp8_e4m3fn_text_enc:
+        return torch.float8_e4m3fn
+    elif args.fp8_e5m2_text_enc:
+        return torch.float8_e5m2
+    elif args.fp16_text_enc:
+        return torch.float16
+    elif args.fp32_text_enc:
+        return torch.float32
+
+    if should_use_fp16(device, prioritize_performance=False):
+        return torch.float16
+    else:
+        return torch.float32
+
 def vae_device():
     return get_torch_device()
 
@@ -575,27 +598,6 @@ def get_free_memory(dev=None, torch_free_too=False):
     else:
         return mem_free_total
 
-def batch_area_memory(area):
-    if xformers_enabled() or pytorch_attention_flash_attention():
-        #TODO: these formulas are copied from maximum_batch_area below
-        return (area / 20) * (1024 * 1024)
-    else:
-        return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
-
-def maximum_batch_area():
-    global vram_state
-    if vram_state == VRAMState.NO_VRAM:
-        return 0
-
-    memory_free = get_free_memory() / (1024 * 1024)
-    if xformers_enabled() or pytorch_attention_flash_attention():
-        #TODO: this needs to be tweaked
-        area = 20 * memory_free
-    else:
-        #TODO: this formula is because AMD sucks and has memory management issues which might be fixed in the future
-        area = ((memory_free - 1024) * 0.9) / (0.6)
-    return int(max(area, 0))
-
 def cpu_mode():
     global cpu_state
     return cpu_state == CPUState.CPU
@@ -688,7 +690,7 @@ def soft_empty_cache(force=False):
 def resolve_lowvram_weight(weight, model, key):
     if weight.device == torch.device("meta"): #lowvram NOTE: this depends on the inner working of the accelerate library so it might break.
         key_split = key.split('.')              # I have no idea why they don't just leave the weight there instead of using the meta device.
-        op = comfy.utils.get_attr(model, '.'.join(key_split[:-1]))
+        op = utils.get_attr(model, '.'.join(key_split[:-1]))
         weight = op._hf_hook.weights_map[key_split[-1]]
     return weight
 

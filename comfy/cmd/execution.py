@@ -744,6 +744,7 @@ def validate_prompt(prompt: dict) -> typing.Tuple[bool, dict | typing.List[dict]
 
     return (True, None, list(good_outputs), node_errors)
 
+MAXIMUM_HISTORY_SIZE = 10000
 
 class PromptQueue:
     queue: typing.List[QueueItem]
@@ -770,10 +771,12 @@ class PromptQueue:
             self.server.queue_updated()
             self.not_empty.notify()
 
-    def get(self) -> typing.Tuple[QueueTuple, int]:
+    def get(self, timeout=None) -> typing.Tuple[QueueTuple, int]:
         with self.not_empty:
             while len(self.queue) == 0:
-                self.not_empty.wait()
+                self.not_empty.wait(timeout=timeout)
+                if timeout is not None and len(self.queue) == 0:
+                    return None
             item_with_future: QueueItem = heapq.heappop(self.queue)
             task_id = self.next_task_id
             self.currently_running[task_id] = item_with_future
@@ -785,6 +788,8 @@ class PromptQueue:
         with self.mutex:
             queue_item = self.currently_running.pop(item_id)
             prompt = queue_item.queue_tuple
+            if len(self.history) > MAXIMUM_HISTORY_SIZE:
+                self.history.pop(next(iter(self.history)))
             self.history[prompt[1]] = {"prompt": prompt, "outputs": {}, "timestamp": time.time()}
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
@@ -830,10 +835,20 @@ class PromptQueue:
                     return True
         return False
 
-    def get_history(self, prompt_id=None):
+    def get_history(self, prompt_id=None, max_items=None, offset=-1):
         with self.mutex:
             if prompt_id is None:
-                return copy.deepcopy(self.history)
+                out = {}
+                i = 0
+                if offset < 0 and max_items is not None:
+                    offset = len(self.history) - max_items
+                for k in self.history:
+                    if i >= offset:
+                        out[k] = self.history[k]
+                        if max_items is not None and len(out) >= max_items:
+                            break
+                    i += 1
+                return out
             elif prompt_id in self.history:
                 return {prompt_id: copy.deepcopy(self.history[prompt_id])}
             else:

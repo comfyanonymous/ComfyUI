@@ -80,18 +80,37 @@ from .. import model_management
 
 def prompt_worker(q: execution.PromptQueue, _server: server_module.PromptServer):
     e = execution.PromptExecutor(_server)
-    while True:
-        item, item_id = q.get()
-        execution_start_time = time.perf_counter()
-        prompt_id = item[1]
-        e.execute(item[2], prompt_id, item[3], item[4])
-        q.task_done(item_id, e.outputs_ui)
-        if _server.client_id is not None:
-            _server.send_sync("executing", {"node": None, "prompt_id": prompt_id}, _server.client_id)
+    last_gc_collect = 0
+    need_gc = False
+    gc_collect_interval = 10.0
 
-        print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
-        gc.collect()
-        model_management.soft_empty_cache()
+    while True:
+        timeout = None
+        if need_gc:
+            timeout = max(gc_collect_interval - (current_time - last_gc_collect), 0.0)
+
+        queue_item = q.get(timeout=timeout)
+        if queue_item is not None:
+            item, item_id = queue_item
+            execution_start_time = time.perf_counter()
+            prompt_id = item[1]
+            e.execute(item[2], prompt_id, item[3], item[4])
+            need_gc = True
+            q.task_done(item_id, e.outputs_ui)
+            if _server.client_id is not None:
+                _server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, _server.client_id)
+
+            current_time = time.perf_counter()
+            execution_time = current_time - execution_start_time
+            print("Prompt executed in {:.2f} seconds".format(execution_time))
+
+        if need_gc:
+            current_time = time.perf_counter()
+            if (current_time - last_gc_collect) > gc_collect_interval:
+                gc.collect()
+                model_management.soft_empty_cache()
+                last_gc_collect = current_time
+                need_gc = False
 
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
