@@ -151,7 +151,7 @@ const colorPalettes = {
 				"NODE_DEFAULT_BGCOLOR": "#00000080",
 				"NODE_DEFAULT_BOXCOLOR": "#ffffff40",
 				"NODE_DEFAULT_SHAPE": "box",
-				"NODE_BOX_OUTLINE_COLOR": "#ff00ff",
+				"NODE_BOX_OUTLINE_COLOR": "#ffff00ff",
 				"DEFAULT_SHADOW_COLOR": "#ffffff40",
 				"DEFAULT_GROUP_FONT": 24,
 
