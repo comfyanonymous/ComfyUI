@@ -117,7 +117,7 @@ export class EzOutput extends EzSlot {
 			const inp = input.input;
 			const inName = inp.name || inp.label || inp.type;
 			throw new Error(
-				`Connecting from ${input.node.node.type}[${inName}#${input.index}] -> ${this.node.node.type}[${
+				`Connecting from ${input.node.node.type}#${input.node.id}[${inName}#${input.index}] -> ${this.node.node.type}#${this.node.id}[${
 					this.output.name ?? this.output.type
 				}#${this.index}] failed.`
 			);
@@ -179,6 +179,7 @@ export class EzWidget {
 
 	set value(v) {
 		this.widget.value = v;
+		this.widget.callback?.call?.(this.widget, v)
 	}
 
 	get isConvertedToInput() {
@@ -319,7 +320,7 @@ export class EzGraph {
 	}
 
 	stringify() {
-		return JSON.stringify(this.app.graph.serialize(), undefined, "\t");
+		return JSON.stringify(this.app.graph.serialize(), undefined);
 	}
 
 	/**
