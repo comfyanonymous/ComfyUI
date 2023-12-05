@@ -101,7 +101,7 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     samples = samples.cpu()
 
     cleanup_additional_models(models)
-    cleanup_additional_models(set(get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control")))
+    cleanup_additional_models(set(get_models_from_cond(positive_copy, "control") + get_models_from_cond(negative_copy, "control")))
     return samples
 
 def sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=None, callback=None, disable_pbar=False, seed=None):
@@ -113,6 +113,6 @@ def sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent
     samples = comfy.samplers.sample(real_model, noise, positive_copy, negative_copy, cfg, model.load_device, sampler, sigmas, model_options=model.model_options, latent_image=latent_image, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     samples = samples.cpu()
     cleanup_additional_models(models)
-    cleanup_additional_models(set(get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control")))
+    cleanup_additional_models(set(get_models_from_cond(positive_copy, "control") + get_models_from_cond(negative_copy, "control")))
     return samples
 
