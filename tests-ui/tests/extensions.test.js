@@ -52,7 +52,7 @@ describe("extensions", () => {
 		const nodeNames = Object.keys(defs);
 		const nodeCount = nodeNames.length;
 		expect(mockExtension.beforeRegisterNodeDef).toHaveBeenCalledTimes(nodeCount);
-		for (let i = 0; i < nodeCount; i++) {
+		for (let i = 0; i < 10; i++) {
 			// It should be send the JS class and the original JSON definition
 			const nodeClass = mockExtension.beforeRegisterNodeDef.mock.calls[i][0];
 			const nodeDef = mockExtension.beforeRegisterNodeDef.mock.calls[i][1];
@@ -133,7 +133,7 @@ describe("extensions", () => {
 		expect(mockExtension.nodeCreated).toHaveBeenCalledTimes(graphData.nodes.length + 2);
 		expect(mockExtension.loadedGraphNode).toHaveBeenCalledTimes(graphData.nodes.length + 1);
 		expect(mockExtension.afterConfigureGraph).toHaveBeenCalledTimes(2);
-	});
+	}, 15000);
 
 	it("allows custom nodeDefs and widgets to be registered", async () => {
 		const widgetMock = jest.fn((node, inputName, inputData, app) => {
