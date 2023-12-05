@@ -83,16 +83,6 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-
-def zero_module(module):
-    """
-    Zero out the parameters of a module and return it.
-    """
-    for p in module.parameters():
-        p.detach().zero_()
-    return module
-
-
 def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
 
@@ -414,10 +404,10 @@ class BasicTransformerBlock(nn.Module):
 
             self.attn2 = CrossAttention(query_dim=inner_dim, context_dim=context_dim_attn2,
                                 heads=n_heads, dim_head=d_head, dropout=dropout, dtype=dtype, device=device, operations=operations)  # is self-attn if context is none
-            self.norm2 = nn.LayerNorm(inner_dim, dtype=dtype, device=device)
+            self.norm2 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
 
-        self.norm1 = nn.LayerNorm(inner_dim, dtype=dtype, device=device)
-        self.norm3 = nn.LayerNorm(inner_dim, dtype=dtype, device=device)
+        self.norm1 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
+        self.norm3 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
         self.checkpoint = checkpoint
         self.n_heads = n_heads
         self.d_head = d_head
@@ -559,7 +549,7 @@ class SpatialTransformer(nn.Module):
             context_dim = [context_dim] * depth
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = Normalize(in_channels, dtype=dtype, device=device)
+        self.norm = operations.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
         if not use_linear:
             self.proj_in = operations.Conv2d(in_channels,
                                      inner_dim,
