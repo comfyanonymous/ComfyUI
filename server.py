@@ -82,7 +82,8 @@ class PromptServer():
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
-        self.app = web.Application(client_max_size=104857600, middlewares=middlewares)
+        max_upload_size = round(args.max_upload_size * 1024 * 1024)
+        self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
@@ -430,7 +431,10 @@ class PromptServer():
 
         @routes.get("/history")
         async def get_history(request):
-            return web.json_response(self.prompt_queue.get_history())
+            max_items = request.rel_url.query.get("max_items", None)
+            if max_items is not None:
+                max_items = int(max_items)
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
         async def get_history(request):
@@ -572,7 +576,7 @@ class PromptServer():
         bytesIO = BytesIO()
         header = struct.pack(">I", type_num)
         bytesIO.write(header)
-        image.save(bytesIO, format=image_type, quality=95, compress_level=4)
+        image.save(bytesIO, format=image_type, quality=95, compress_level=1)
         preview_bytes = bytesIO.getvalue()
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
