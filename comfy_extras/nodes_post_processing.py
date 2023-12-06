@@ -23,7 +23,7 @@ class Blend:
                     "max": 1.0,
                     "step": 0.01
                 }),
-                "blend_mode": (["normal", "multiply", "screen", "overlay", "soft_light"],),
+                "blend_mode": (["normal", "multiply", "screen", "overlay", "soft_light", "difference"],),
             },
         }
 
@@ -54,6 +54,8 @@ class Blend:
             return torch.where(img1 <= 0.5, 2 * img1 * img2, 1 - 2 * (1 - img1) * (1 - img2))
         elif mode == "soft_light":
             return torch.where(img2 <= 0.5, img1 - (1 - 2 * img2) * img1 * (1 - img1), img1 + (2 * img2 - 1) * (self.g(img1) - img1))
+        elif mode == "difference":
+            return img1 - img2
         else:
             raise ValueError(f"Unsupported blend mode: {mode}")
 
@@ -126,7 +128,7 @@ class Quantize:
                     "max": 256,
                     "step": 1
                 }),
-                "dither": (["none", "floyd-steinberg"],),
+                "dither": (["none", "floyd-steinberg", "bayer-2", "bayer-4", "bayer-8", "bayer-16"],),
             },
         }
 
@@ -135,19 +137,47 @@ class Quantize:
 
     CATEGORY = "image/postprocessing"
 
-    def quantize(self, image: torch.Tensor, colors: int = 256, dither: str = "FLOYDSTEINBERG"):
+    def bayer(im, pal_im, order):
+        def normalized_bayer_matrix(n):
+            if n == 0:
+                return np.zeros((1,1), "float32")
+            else:
+                q = 4 ** n
+                m = q * normalized_bayer_matrix(n - 1)
+                return np.bmat(((m-1.5, m+0.5), (m+1.5, m-0.5))) / q
+
+        num_colors = len(pal_im.getpalette()) // 3
+        spread = 2 * 256 / num_colors
+        bayer_n = int(math.log2(order))
+        bayer_matrix = torch.from_numpy(spread * normalized_bayer_matrix(bayer_n) + 0.5)
+
+        result = torch.from_numpy(np.array(im).astype(np.float32))
+        tw = math.ceil(result.shape[0] / bayer_matrix.shape[0])
+        th = math.ceil(result.shape[1] / bayer_matrix.shape[1])
+        tiled_matrix = bayer_matrix.tile(tw, th).unsqueeze(-1)
+        result.add_(tiled_matrix[:result.shape[0],:result.shape[1]]).clamp_(0, 255)
+        result = result.to(dtype=torch.uint8)
+
+        im = Image.fromarray(result.cpu().numpy())
+        im = im.quantize(palette=pal_im, dither=Image.Dither.NONE)
+        return im
+
+    def quantize(self, image: torch.Tensor, colors: int, dither: str):
         batch_size, height, width, _ = image.shape
         result = torch.zeros_like(image)
 
-        dither_option = Image.Dither.FLOYDSTEINBERG if dither == "floyd-steinberg" else Image.Dither.NONE
-
         for b in range(batch_size):
-            tensor_image = image[b]
-            img = (tensor_image * 255).to(torch.uint8).numpy()
-            pil_image = Image.fromarray(img, mode='RGB')
+            im = Image.fromarray((image[b] * 255).to(torch.uint8).numpy(), mode='RGB')
 
-            palette = pil_image.quantize(colors=colors) # Required as described in https://github.com/python-pillow/Pillow/issues/5836
-            quantized_image = pil_image.quantize(colors=colors, palette=palette, dither=dither_option)
+            pal_im = im.quantize(colors=colors) # Required as described in https://github.com/python-pillow/Pillow/issues/5836
+
+            if dither == "none":
+                quantized_image = im.quantize(palette=pal_im, dither=Image.Dither.NONE)
+            elif dither == "floyd-steinberg":
+                quantized_image = im.quantize(palette=pal_im, dither=Image.Dither.FLOYDSTEINBERG)
+            elif dither.startswith("bayer"):
+                order = int(dither.split('-')[-1])
+                quantized_image = Quantize.bayer(im, pal_im, order)
 
             quantized_array = torch.tensor(np.array(quantized_image.convert("RGB"))).float() / 255
             result[b] = quantized_array
