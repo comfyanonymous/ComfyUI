@@ -1,6 +1,7 @@
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
 import torch
+import torch.nn.functional as F
 import enum
 from comfy import model_management
 import math
@@ -60,10 +61,10 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
                     for t in range(rr):
                         mult[:,:,:,area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
 
-            conditionning = {}
+            conditioning = {}
             model_conds = conds["model_conds"]
             for c in model_conds:
-                conditionning[c] = model_conds[c].process_cond(batch_size=x_in.shape[0], device=x_in.device, area=area)
+                conditioning[c] = model_conds[c].process_cond(batch_size=x_in.shape[0], device=x_in.device, area=area)
 
             control = None
             if 'control' in conds:
@@ -82,7 +83,7 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
                 patches['middle_patch'] = [gligen_patch]
 
-            return (input_x, mult, conditionning, area, control, patches)
+            return (input_x, mult, conditioning, area, control, patches)
 
         def cond_equal_size(c1, c2):
             if c1 is c2:
@@ -253,8 +254,66 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
         if "sampler_cfg_function" in model_options:
             args = {"cond": x - cond, "uncond": x - uncond, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep}
             return x - model_options["sampler_cfg_function"](args)
+        elif "sag" in model_options:
+            sag_scale = model_options["sag_scale"]
+            sag_sigma = model_options["sag_sigma"]
+            sag_threshold = model_options.get("sag_threshold", 1.0)
+
+            # or is it x - uncond?
+            # or do I have to use the sigma ?
+            x0_est = uncond
+            # this method is added by the sag patcher
+            uncond_attn = model.get_attn_scores()
+            degraded = create_blur_map(x0_est, uncond_attn, (x - uncond), sag_sigma, sag_threshold)
+
+            # todo, optimize this: doing it this way creates an extra call that we don't even use
+            (_, sag) = calc_cond_uncond_batch(model, cond, uncond, degraded, timestep, model_options)
+
+            return uncond + (cond - uncond) * cond_scale + (uncond - sag) * sag_scale
         else:
             return uncond + (cond - uncond) * cond_scale
+
+def create_blur_map(x0, attn, noise, sigma=3.0, threshold=1.0):
+    # reshape and GAP the attention map
+    _, hw1, hw2 = attn.shape
+    b, lc, lh, lw = x0.shape
+    middle_layer_latent_size = [math.ceil(lh/8), math.ceil(lw/8)]
+    attn = attn.reshape(b, -1, hw1, hw2)
+    # Global Average Pool
+    mask = attn.mean(1, keepdim=False).sum(1, keepdim=True) > threshold
+    # Reshape
+    mask = (
+        mask.reshape(b, **middle_layer_latent_size)
+        .unsqueeze(1)
+        .repeat(1, lc, 1, 1)
+        .type(attn.dtype)
+    )
+    mask = F.interpolate(mask, (lh, lw))
+
+    blurred = gaussian_blur_2d(x0, kernel_size=9, sigma=sigma)
+    blurred = blurred * mask + x0 * (1 - mask)
+    blurred = blurred + noise
+
+    return blurred
+
+def gaussian_blur_2d(img, kernel_size, sigma):
+    ksize_half = (kernel_size - 1) * 0.5
+
+    x = torch.linspace(-ksize_half, ksize_half, steps=kernel_size)
+
+    pdf = torch.exp(-0.5 * (x / sigma).pow(2))
+
+    x_kernel = pdf / pdf.sum()
+    x_kernel = x_kernel.to(device=img.device, dtype=img.dtype)
+
+    kernel2d = torch.mm(x_kernel[:, None], x_kernel[None, :])
+    kernel2d = kernel2d.expand(img.shape[-3], 1, kernel2d.shape[0], kernel2d.shape[1])
+
+    padding = [kernel_size // 2, kernel_size // 2, kernel_size // 2, kernel_size // 2]
+
+    img = F.pad(img, padding, mode="reflect")
+    img = F.conv2d(img, kernel2d, groups=img.shape[-3])
+    return img
 
 class CFGNoisePredictor(torch.nn.Module):
     def __init__(self, model):
