@@ -384,7 +384,7 @@ class BasicTransformerBlock(nn.Module):
         self.is_res = inner_dim == dim
 
         if self.ff_in:
-            self.norm_in = nn.LayerNorm(dim, dtype=dtype, device=device)
+            self.norm_in = operations.LayerNorm(dim, dtype=dtype, device=device)
             self.ff_in = FeedForward(dim, dim_out=inner_dim, dropout=dropout, glu=gated_ff, dtype=dtype, device=device, operations=operations)
 
         self.disable_self_attn = disable_self_attn

@@ -1,5 +1,6 @@
 import { ComfyWidgets, addValueControlWidgets } from "../../scripts/widgets.js";
 import { app } from "../../scripts/app.js";
+import { applyTextReplacements } from "../../scripts/utils.js";
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
@@ -405,11 +406,16 @@ app.registerExtension({
 		};
 	},
 	registerCustomNodes() {
+		const replacePropertyName = "Run widget replace on values";
 		class PrimitiveNode {
 			constructor() {
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
+
+				if (!this.properties || !(replacePropertyName in this.properties)) {
+					this.addProperty(replacePropertyName, false, "boolean");
+				}
 			}
 
 			applyToGraph(extraLinks = []) {
@@ -430,6 +436,11 @@ app.registerExtension({
 				}
 
 				let links = [...get_links(this).map((l) => app.graph.links[l]), ...extraLinks];
+				let v = this.widgets?.[0].value;
+				if(v && this.properties[replacePropertyName]) {
+					v = applyTextReplacements(app, v);
+				}
+
 				// For each output link copy our value over the original widget value
 				for (const linkInfo of links) {
 					const node = this.graph.getNodeById(linkInfo.target_id);
@@ -438,7 +449,7 @@ app.registerExtension({
 					if (widgetName) {
 						const widget = node.widgets.find((w) => w.name === widgetName);
 						if (widget) {
-							widget.value = this.widgets[0].value;
+							widget.value = v;
 							if (widget.callback) {
 								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
 							}
