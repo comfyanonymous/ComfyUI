@@ -64,12 +64,12 @@ class SagNode:
     def patch(self, model, scale, blur_sigma):
         m = model.clone()
         # set extra options on the model
-        m.extra_options["sag"] = True
-        m.extra_options["sag_scale"] = scale
-        m.extra_options["sag_sigma"] = blur_sigma
+        m.model.extra_options["sag"] = True
+        m.model.extra_options["sag_scale"] = scale
+        m.model.extra_options["sag_sigma"] = blur_sigma
         
         attn_scores = None
-        m.get_attn_scores = lambda: attn_scores
+        m.model.get_attn_scores = lambda: attn_scores
 
         def attn_and_record(q, k, v, extra_options):
             nonlocal attn_scores
