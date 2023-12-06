@@ -247,13 +247,15 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
             return out_cond, out_uncond
 
 
-        if math.isclose(cond_scale, 1.0):
+        # if we're doing SAG, we still need to do uncond guidance, even though the cond and uncond will cancel out.
+        if math.isclose(cond_scale, 1.0) and "sag" not in model_options:
             uncond = None
 
-        cond, uncond = calc_cond_uncond_batch(model, cond, uncond, x, timestep, model_options)
+        cond_pred, uncond_pred = calc_cond_uncond_batch(model, cond, uncond, x, timestep, model_options)
         if "sampler_cfg_function" in model_options:
-            args = {"cond": x - cond, "uncond": x - uncond, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep}
+            args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep}
             return x - model_options["sampler_cfg_function"](args)
+        # if cfg = 1.0, we can't do sag
         elif "sag" in model_options:
             sag_scale = model_options["sag_scale"]
             sag_sigma = model_options["sag_sigma"]
@@ -261,33 +263,41 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
             # or is it x - uncond?
             # or do I have to use the sigma ?
-            x0_est = uncond
+            x0_est = uncond_pred
             # this method is added by the sag patcher
             uncond_attn = model.get_attn_scores()
-            degraded = create_blur_map(x0_est, uncond_attn, (x - uncond), sag_sigma, sag_threshold)
-
+            degraded = create_blur_map(x0_est, uncond_attn, x - uncond_pred, sag_sigma, sag_threshold)
             # todo, optimize this: doing it this way creates an extra call that we don't even use
             (_, sag) = calc_cond_uncond_batch(model, cond, uncond, degraded, timestep, model_options)
 
-            return uncond + (cond - uncond) * cond_scale + (uncond - sag) * sag_scale
+            return uncond_pred + (cond_pred - uncond_pred) * cond_scale + (uncond_pred - sag) * sag_scale
         else:
-            return uncond + (cond - uncond) * cond_scale
+            return uncond_pred + (cond_pred - uncond_pred) * cond_scale
 
 def create_blur_map(x0, attn, noise, sigma=3.0, threshold=1.0):
     # reshape and GAP the attention map
     _, hw1, hw2 = attn.shape
     b, lc, lh, lw = x0.shape
-    middle_layer_latent_size = [math.ceil(lh/8), math.ceil(lw/8)]
+    # I think this depends on the model:
+    #   sdxl has 20 heads and the middle of the unet is 4 times smaller
+    #   sd 1.5 has 8 heads and the middle of the unet is 8 times smaller
     attn = attn.reshape(b, -1, hw1, hw2)
     # Global Average Pool
-    mask = attn.mean(1, keepdim=False).sum(1, keepdim=True) > threshold
+    mask = attn.mean(1, keepdim=False).sum(1, keepdim=False) > threshold
+    # we want to reshape the mask, which now has shape (b, w*h), to shape (b, 1, h, w).
+    # if we know the model beforehand, we can just divide lh and wh by the correct factor to size of the latent in the middle of the UNet
+    # but if we want to be model-agnostic, we can do it this way: just figure out the scale factor by the number of "pixels".
+    total_size_latent = lh * lw
+    scale_factor = int(math.sqrt(total_size_latent / mask.shape[1]))
+    middle_layer_latent_size = [math.ceil(lh/scale_factor), math.ceil(lw/scale_factor)]
     # Reshape
     mask = (
-        mask.reshape(b, **middle_layer_latent_size)
+        mask.reshape(b, *middle_layer_latent_size)
         .unsqueeze(1)
         .repeat(1, lc, 1, 1)
         .type(attn.dtype)
     )
+    # Upsample
     mask = F.interpolate(mask, (lh, lw))
 
     blurred = gaussian_blur_2d(x0, kernel_size=9, sigma=sigma)

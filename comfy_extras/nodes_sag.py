@@ -6,7 +6,7 @@ from comfy.ldm.modules.attention import optimized_attention, _ATTN_PRECISION
 
 # from comfy/ldm/modules/attention.py
 # but modified to return attention scores as well as output
-def attention_basic(q, k, v, heads, mask=None):
+def attention_basic_with_sim(q, k, v, heads, mask=None):
     b, _, dim_head = q.shape
     dim_head //= heads
     scale = dim_head ** -0.5
@@ -53,8 +53,8 @@ class SagNode:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                             "scale": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 30.0}),
-                             "blur_sigma": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0}),
+                             "scale": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 30.0, "step": 0.1}),
+                             "blur_sigma": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1}),
                               }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
@@ -64,25 +64,31 @@ class SagNode:
     def patch(self, model, scale, blur_sigma):
         m = model.clone()
         # set extra options on the model
-        m.model.extra_options["sag"] = True
-        m.model.extra_options["sag_scale"] = scale
-        m.model.extra_options["sag_sigma"] = blur_sigma
+        m.model_options["sag"] = True
+        m.model_options["sag_scale"] = scale
+        m.model_options["sag_sigma"] = blur_sigma
         
         attn_scores = None
         m.model.get_attn_scores = lambda: attn_scores
 
+        # TODO: make this work properly with chunked batches
+        #       currently, we can only save the attn from one UNet call
         def attn_and_record(q, k, v, extra_options):
             nonlocal attn_scores
             # if uncond, save the attention scores
+            heads = extra_options["n_heads"]
             cond_or_uncond = extra_options["cond_or_uncond"]
+            b = q.shape[0] // len(cond_or_uncond)
             if 1 in cond_or_uncond:
                 uncond_index = cond_or_uncond.index(1)
                 # do the entire attention operation, but save the attention scores to attn_scores
-                (out, sim) = attention_basic(q, k, v, heads=extra_options["n_heads"])
-                attn_scores = sim[uncond_index]
+                (out, sim) = attention_basic_with_sim(q, k, v, heads=heads)
+                # when using a higher batch size, I BELIEVE the result batch dimension is [uc1, ... ucn, c1, ... cn]
+                n_slices = heads * b
+                attn_scores = sim[n_slices * uncond_index:n_slices * (uncond_index+1)]
                 return out
             else:
-                return optimized_attention(q, k, v, heads = extra_options["n_heads"])
+                return optimized_attention(q, k, v, heads=heads)
 
         # from diffusers:
         # unet.mid_block.attentions[0].transformer_blocks[0].attn1.patch
