@@ -263,32 +263,27 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
             # this method is added by the sag patcher
             uncond_attn = model.get_attn_scores()
-            degraded = create_blur_map(uncond_pred, uncond_attn, sag_sigma, sag_threshold)
+            mid_shape = model.get_mid_block_shape()
+            degraded = create_blur_map(uncond_pred, uncond_attn, mid_shape, sag_sigma, sag_threshold)
             degraded_noised = degraded + x - uncond_pred
-            # TODO optimize this: doing it this way creates an extra call that we don't even use
-            (_, sag) = calc_cond_uncond_batch(model, cond, uncond, degraded_noised, timestep, model_options)
+            assert uncond is not None, "SAG requires uncond guidance"
+            (sag, _) = calc_cond_uncond_batch(model, uncond, None, degraded_noised, timestep, model_options)
             # Unless I've misunderstood the paper, this is supposed to be   (uncond_pred - sag) * sag_scale.
             # but this is what the automatic1111 implementation does, and it works better??
             return uncond_pred + (cond_pred - uncond_pred) * cond_scale +   (degraded    - sag) * sag_scale
         else:
             return uncond_pred + (cond_pred - uncond_pred) * cond_scale
 
-def create_blur_map(x0, attn, sigma=3.0, threshold=1.0):
+def create_blur_map(x0, attn, mid_shape, sigma=3.0, threshold=1.0):
     # reshape and GAP the attention map
     _, hw1, hw2 = attn.shape
     b, lc, lh, lw = x0.shape
     attn = attn.reshape(b, -1, hw1, hw2)
     # Global Average Pool
     mask = attn.mean(1, keepdim=False).sum(1, keepdim=False) > threshold
-    # we want to reshape the mask, which now has shape (b, w*h), to shape (b, 1, h, w).
-    # if we know the model beforehand, we can just divide lh and wh by the correct factor to size of the latent in the middle of the UNet
-    # but if we want to be model-agnostic, we can do it this way: just figure out the scale factor by the number of "pixels".
-    total_size_latent = lh * lw
-    scale_factor = int(math.sqrt(total_size_latent / mask.shape[1]))
-    middle_layer_latent_size = [math.ceil(lh/scale_factor), math.ceil(lw/scale_factor)]
     # Reshape
     mask = (
-        mask.reshape(b, *middle_layer_latent_size)
+        mask.reshape(b, *mid_shape)
         .unsqueeze(1)
         .repeat(1, lc, 1, 1)
         .type(attn.dtype)

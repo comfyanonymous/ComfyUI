@@ -69,7 +69,9 @@ class SagNode:
         m.model_options["sag_sigma"] = blur_sigma
         
         attn_scores = None
+        mid_block_shape = None
         m.model.get_attn_scores = lambda: attn_scores
+        m.model.get_mid_block_shape = lambda: mid_block_shape
 
         # TODO: make this work properly with chunked batches
         #       currently, we can only save the attn from one UNet call
@@ -92,8 +94,21 @@ class SagNode:
 
         # from diffusers:
         # unet.mid_block.attentions[0].transformer_blocks[0].attn1.patch
-        # we might have to patch at different locations depending on sd1.5/2.1 vs sdXL
-        m.set_model_patch_replace(attn_and_record, "attn1", "middle", 0)
+        def set_model_patch_replace(patch, name, key):
+            to = m.model_options["transformer_options"]
+            if "patches_replace" not in to:
+                to["patches_replace"] = {}
+            if name not in to["patches_replace"]:
+                to["patches_replace"][name] = {}
+            to["patches_replace"][name][key] = patch
+        # this actually patches 2 attn calls -- confusing, since we only want to get one
+        set_model_patch_replace(attn_and_record, "attn1", ("middle", 0, 0))
+        # from diffusers:
+        # unet.mid_block.attentions[0].register_forward_hook()
+        def forward_hook(m, inp, out):
+            nonlocal mid_block_shape
+            mid_block_shape = out[0].shape[-2:]
+        m.model.diffusion_model.middle_block[0].register_forward_hook(forward_hook)
         return (m, )
 
 NODE_CLASS_MAPPINGS = {
