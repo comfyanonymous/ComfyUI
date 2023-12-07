@@ -257,27 +257,26 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
             return x - model_options["sampler_cfg_function"](args)
         # if cfg = 1.0, we can't do sag
         elif "sag" in model_options:
+            assert uncond is not None, "SAG requires uncond guidance"
             sag_scale = model_options["sag_scale"]
             sag_sigma = model_options["sag_sigma"]
             sag_threshold = model_options.get("sag_threshold", 1.0)
 
-            # this method is added by the sag patcher
+            # these methods are added by the sag patcher
             uncond_attn = model.get_attn_scores()
             mid_shape = model.get_mid_block_shape()
             degraded = create_blur_map(uncond_pred, uncond_attn, mid_shape, sag_sigma, sag_threshold)
             degraded_noised = degraded + x - uncond_pred
-            assert uncond is not None, "SAG requires uncond guidance"
+            # call into the UNet with the adversarially blurred image
             (sag, _) = calc_cond_uncond_batch(model, uncond, None, degraded_noised, timestep, model_options)
-            # Unless I've misunderstood the paper, this is supposed to be   (uncond_pred - sag) * sag_scale.
-            # but this is what the automatic1111 implementation does, and it works better??
-            return uncond_pred + (cond_pred - uncond_pred) * cond_scale +   (degraded    - sag) * sag_scale
+            return uncond_pred + (cond_pred - uncond_pred) * cond_scale + (degraded - sag) * sag_scale
         else:
             return uncond_pred + (cond_pred - uncond_pred) * cond_scale
 
 def create_blur_map(x0, attn, mid_shape, sigma=3.0, threshold=1.0):
     # reshape and GAP the attention map
     _, hw1, hw2 = attn.shape
-    b, lc, lh, lw = x0.shape
+    b, _, lh, lw = x0.shape
     attn = attn.reshape(b, -1, hw1, hw2)
     # Global Average Pool
     mask = attn.mean(1, keepdim=False).sum(1, keepdim=False) > threshold
@@ -285,7 +284,6 @@ def create_blur_map(x0, attn, mid_shape, sigma=3.0, threshold=1.0):
     mask = (
         mask.reshape(b, *mid_shape)
         .unsqueeze(1)
-        .repeat(1, lc, 1, 1)
         .type(attn.dtype)
     )
     # Upsample

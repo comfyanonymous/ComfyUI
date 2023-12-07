@@ -101,7 +101,6 @@ class SagNode:
             if name not in to["patches_replace"]:
                 to["patches_replace"][name] = {}
             to["patches_replace"][name][key] = patch
-        # this actually patches 2 attn calls -- confusing, since we only want to get one
         set_model_patch_replace(attn_and_record, "attn1", ("middle", 0, 0))
         # from diffusers:
         # unet.mid_block.attentions[0].register_forward_hook()
