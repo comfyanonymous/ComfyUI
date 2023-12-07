@@ -1,6 +1,6 @@
 ComfyUI
 =======
-A powerful and modular stable diffusion GUI and backend.
+The most powerful and modular stable diffusion GUI and backend.
 -----------
 ![ComfyUI Screenshot](comfyui_screenshot.png)
 
@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x and SDXL
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/) and [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
@@ -30,6 +30,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
 - [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
 - [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
+- [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
+- [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
 - Works fully offline: will never download anything.
@@ -43,9 +45,11 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 |---------------------------|--------------------------------------------------------------------------------------------------------------------|
 | Ctrl + Enter              | Queue up current graph for generation                                                                              |
 | Ctrl + Shift + Enter      | Queue up current graph as first for generation                                                                     |
+| Ctrl + Z/Ctrl + Y         | Undo/Redo                                                                                                          |
 | Ctrl + S                  | Save workflow                                                                                                      |
 | Ctrl + O                  | Load workflow                                                                                                      |
 | Ctrl + A                  | Select all nodes                                                                                                   |
+| Alt + C                   | Collapse/uncollapse selected nodes                                                                                 |
 | Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
 | Ctrl + B                  | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace          | Delete selected nodes                                                                                              |
@@ -69,7 +73,7 @@ Ctrl can also be replaced with Cmd instead for macOS users
 
 There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
 
-### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_cu118_or_cpu.7z)
+### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_cu121_or_cpu.7z)
 
 Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
 
@@ -89,19 +93,22 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
+Note: pytorch does not support python 3.12 yet so make sure your python version is 3.11 or earlier.
+
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.4.2```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6```
 
-This is the command to install the nightly with ROCm 5.6 that supports the 7000 series and might have some performance improvements:
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.6```
+This is the command to install the nightly with ROCm 5.7 that might have some performance improvements:
+
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7```
 
 ### NVIDIA
 
-Nvidia users should install torch and xformers using this command:
+Nvidia users should install pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu118 xformers```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121```
 
 #### Troubleshooting
 
@@ -187,7 +194,7 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 
 Make sure you use the regular loaders/Load Checkpoint node to load checkpoints. It will auto pick the right settings depending on your GPU.
 
-You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers this option does not do anything.
+You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers or pytorch attention this option does not do anything.
 
 ```--dont-upcast-attention```
 

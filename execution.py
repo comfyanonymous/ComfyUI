@@ -2,6 +2,7 @@ import os
 import sys
 import copy
 import json
+import logging
 import threading
 import heapq
 import traceback
@@ -156,7 +157,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             if server.client_id is not None:
                 server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
     except comfy.model_management.InterruptProcessingException as iex:
-        print("Processing interrupted")
+        logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs
         error_details = {
@@ -177,8 +178,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         for node_id, node_outputs in outputs.items():
             output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
-        print("!!! Exception during processing !!!")
-        print(traceback.format_exc())
+        logging.error("!!! Exception during processing !!!")
+        logging.error(traceback.format_exc())
 
         error_details = {
             "node_id": unique_id,
@@ -636,11 +637,11 @@ def validate_prompt(prompt):
         if valid is True:
             good_outputs.add(o)
         else:
-            print(f"Failed to validate prompt for output {o}:")
+            logging.error(f"Failed to validate prompt for output {o}:")
             if len(reasons) > 0:
-                print("* (prompt):")
+                logging.error("* (prompt):")
                 for reason in reasons:
-                    print(f"  - {reason['message']}: {reason['details']}")
+                    logging.error(f"  - {reason['message']}: {reason['details']}")
             errors += [(o, reasons)]
             for node_id, result in validated.items():
                 valid = result[0]
@@ -656,11 +657,11 @@ def validate_prompt(prompt):
                             "dependent_outputs": [],
                             "class_type": class_type
                         }
-                        print(f"* {class_type} {node_id}:")
+                        logging.error(f"* {class_type} {node_id}:")
                         for reason in reasons:
-                            print(f"  - {reason['message']}: {reason['details']}")
+                            logging.error(f"  - {reason['message']}: {reason['details']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
-            print("Output will be ignored")
+            logging.error("Output will be ignored")
 
     if len(good_outputs) == 0:
         errors_list = []
@@ -680,6 +681,7 @@ def validate_prompt(prompt):
 
     return (True, None, list(good_outputs), node_errors)
 
+MAXIMUM_HISTORY_SIZE = 10000
 
 class PromptQueue:
     def __init__(self, server):
@@ -698,10 +700,12 @@ class PromptQueue:
             self.server.queue_updated()
             self.not_empty.notify()
 
-    def get(self):
+    def get(self, timeout=None):
         with self.not_empty:
             while len(self.queue) == 0:
-                self.not_empty.wait()
+                self.not_empty.wait(timeout=timeout)
+                if timeout is not None and len(self.queue) == 0:
+                    return None
             item = heapq.heappop(self.queue)
             i = self.task_counter
             self.currently_running[i] = copy.deepcopy(item)
@@ -712,6 +716,8 @@ class PromptQueue:
     def task_done(self, item_id, outputs):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
+            if len(self.history) > MAXIMUM_HISTORY_SIZE:
+                self.history.pop(next(iter(self.history)))
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
@@ -746,10 +752,20 @@ class PromptQueue:
                     return True
         return False
 
-    def get_history(self, prompt_id=None):
+    def get_history(self, prompt_id=None, max_items=None, offset=-1):
         with self.mutex:
             if prompt_id is None:
-                return copy.deepcopy(self.history)
+                out = {}
+                i = 0
+                if offset < 0 and max_items is not None:
+                    offset = len(self.history) - max_items
+                for k in self.history:
+                    if i >= offset:
+                        out[k] = self.history[k]
+                        if max_items is not None and len(out) >= max_items:
+                            break
+                    i += 1
+                return out
             elif prompt_id in self.history:
                 return {prompt_id: copy.deepcopy(self.history[prompt_id])}
             else:

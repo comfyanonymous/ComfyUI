@@ -29,6 +29,8 @@ folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
+folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
+
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
@@ -36,7 +38,10 @@ input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "inp
 filename_list_cache = {}
 
 if not os.path.exists(input_directory):
-    os.makedirs(input_directory)
+    try:
+        os.makedirs(input_directory)
+    except:
+        print("Failed to create input directory")
 
 def set_output_directory(output_dir):
     global output_directory
@@ -45,6 +50,10 @@ def set_output_directory(output_dir):
 def set_temp_directory(temp_dir):
     global temp_directory
     temp_directory = temp_dir
+
+def set_input_directory(input_dir):
+    global input_directory
+    input_directory = input_dir
 
 def get_output_directory():
     global output_directory
@@ -140,7 +149,7 @@ def recursive_search(directory, excluded_dir_names=None):
     return result, dirs
 
 def filter_files_extensions(files, extensions):
-    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions, files)))
+    return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions or len(extensions) == 0, files)))
 
 
 
@@ -222,8 +231,12 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
     full_output_folder = os.path.join(output_dir, subfolder)
 
     if os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) != output_dir:
-        print("Saving image outside the output folder is not allowed.")
-        return {}
+        err = "**** ERROR: Saving image outside the output folder is not allowed." + \
+              "\n full_output_folder: " + os.path.abspath(full_output_folder) + \
+              "\n         output_dir: " + output_dir + \
+              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) 
+        print(err)
+        raise Exception(err)
 
     try:
         counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1

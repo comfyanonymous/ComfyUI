@@ -248,8 +248,8 @@ class ConditioningSetTimestepRange:
         c = []
         for t in conditioning:
             d = t[1].copy()
-            d['start_percent'] = 1.0 - start
-            d['end_percent'] = 1.0 - end
+            d['start_percent'] = start
+            d['end_percent'] = end
             n = [t[0], d]
             c.append(n)
         return (c, )
@@ -572,10 +572,69 @@ class LoraLoader:
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
-class VAELoader:
+class LoraLoaderModelOnly(LoraLoader):
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), )}}
+        return {"required": { "model": ("MODEL",),
+                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "load_lora_model_only"
+
+    def load_lora_model_only(self, model, lora_name, strength_model):
+        return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
+
+class VAELoader:
+    @staticmethod
+    def vae_list():
+        vaes = folder_paths.get_filename_list("vae")
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+        sdxl_taesd_enc = False
+        sdxl_taesd_dec = False
+        sd1_taesd_enc = False
+        sd1_taesd_dec = False
+
+        for v in approx_vaes:
+            if v.startswith("taesd_decoder."):
+                sd1_taesd_dec = True
+            elif v.startswith("taesd_encoder."):
+                sd1_taesd_enc = True
+            elif v.startswith("taesdxl_decoder."):
+                sdxl_taesd_dec = True
+            elif v.startswith("taesdxl_encoder."):
+                sdxl_taesd_enc = True
+        if sd1_taesd_dec and sd1_taesd_enc:
+            vaes.append("taesd")
+        if sdxl_taesd_dec and sdxl_taesd_enc:
+            vaes.append("taesdxl")
+        return vaes
+
+    @staticmethod
+    def load_taesd(name):
+        sd = {}
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+
+        encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
+        decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
+
+        enc = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", encoder))
+        for k in enc:
+            sd["taesd_encoder.{}".format(k)] = enc[k]
+
+        dec = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", decoder))
+        for k in dec:
+            sd["taesd_decoder.{}".format(k)] = dec[k]
+
+        if name == "taesd":
+            sd["vae_scale"] = torch.tensor(0.18215)
+        elif name == "taesdxl":
+            sd["vae_scale"] = torch.tensor(0.13025)
+        return sd
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "vae_name": (s.vae_list(), )}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -583,8 +642,12 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        vae_path = folder_paths.get_full_path("vae", vae_name)
-        vae = comfy.sd.VAE(ckpt_path=vae_path)
+        if vae_name in ["taesd", "taesdxl"]:
+            sd = self.load_taesd(vae_name)
+        else:
+            vae_path = folder_paths.get_full_path("vae", vae_name)
+            sd = comfy.utils.load_torch_file(vae_path)
+        vae = comfy.sd.VAE(sd=sd)
         return (vae,)
 
 class ControlNetLoader:
@@ -684,7 +747,7 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (1.0 - start_percent, 1.0 - end_percent))
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent))
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
@@ -891,7 +954,7 @@ class EmptyLatentImage:
     def INPUT_TYPES(s):
         return {"required": { "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})}}
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
@@ -967,8 +1030,8 @@ class LatentUpscale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 8}),
+                              "width": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
+                              "height": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upscale"
@@ -976,8 +1039,22 @@ class LatentUpscale:
     CATEGORY = "latent"
 
     def upscale(self, samples, upscale_method, width, height, crop):
-        s = samples.copy()
-        s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
+        if width == 0 and height == 0:
+            s = samples
+        else:
+            s = samples.copy()
+
+            if width == 0:
+                height = max(64, height)
+                width = max(64, round(samples["samples"].shape[3] * height / samples["samples"].shape[2]))
+            elif height == 0:
+                width = max(64, width)
+                height = max(64, round(samples["samples"].shape[2] * width / samples["samples"].shape[3]))
+            else:
+                width = max(64, width)
+                height = max(64, height)
+
+            s["samples"] = comfy.utils.common_upscale(samples["samples"], width // 8, height // 8, upscale_method, crop)
         return (s,)
 
 class LatentUpscaleBy:
@@ -1175,11 +1252,8 @@ class SetLatentNoiseMask:
         s["noise_mask"] = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
         return (s,)
 
-
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-    device = comfy.model_management.get_torch_device()
     latent_image = latent["samples"]
-
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
@@ -1190,22 +1264,11 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
 
-    preview_format = "JPEG"
-    if preview_format not in ["JPEG", "PNG"]:
-        preview_format = "JPEG"
-
-    previewer = latent_preview.get_previewer(device, model.model.latent_format)
-
-    pbar = comfy.utils.ProgressBar(steps)
-    def callback(step, x0, x, total_steps):
-        preview_bytes = None
-        if previewer:
-            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
-        pbar.update_absolute(step + 1, total_steps, preview_bytes)
-
+    callback = latent_preview.prepare_callback(model, steps)
+    disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
     samples = comfy.sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
-                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, seed=seed)
+                                  force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     out = latent.copy()
     out["samples"] = samples
     return (out, )
@@ -1217,7 +1280,7 @@ class KSampler:
                     {"model": ("MODEL",),
                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
                     "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
@@ -1243,7 +1306,7 @@ class KSamplerAdvanced:
                     "add_noise": (["enable", "disable"], ),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
                     "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
@@ -1274,6 +1337,7 @@ class SaveImage:
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
+        self.compress_level = 4
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1307,7 +1371,7 @@ class SaveImage:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{filename}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
@@ -1322,6 +1386,7 @@ class PreviewImage(SaveImage):
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
+        self.compress_level = 1
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1355,7 +1420,7 @@ class LoadImage:
             mask = 1. - torch.from_numpy(mask)
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (image, mask)
+        return (image, mask.unsqueeze(0))
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -1402,7 +1467,7 @@ class LoadImageMask:
                 mask = 1. - mask
         else:
             mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (mask,)
+        return (mask.unsqueeze(0),)
 
     @classmethod
     def IS_CHANGED(s, image, channel):
@@ -1429,8 +1494,8 @@ class ImageScale:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",), "upscale_method": (s.upscale_methods,),
-                              "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
+                              "width": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
+                              "height": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
                               "crop": (s.crop_methods,)}}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "upscale"
@@ -1438,9 +1503,18 @@ class ImageScale:
     CATEGORY = "image/upscaling"
 
     def upscale(self, image, upscale_method, width, height, crop):
-        samples = image.movedim(-1,1)
-        s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
-        s = s.movedim(1,-1)
+        if width == 0 and height == 0:
+            s = image
+        else:
+            samples = image.movedim(-1,1)
+
+            if width == 0:
+                width = max(1, round(samples.shape[3] * height / samples.shape[2]))
+            elif height == 0:
+                height = max(1, round(samples.shape[2] * width / samples.shape[3]))
+
+            s = comfy.utils.common_upscale(samples, width, height, upscale_method, crop)
+            s = s.movedim(1,-1)
         return (s,)
 
 class ImageScaleBy:
@@ -1503,7 +1577,7 @@ class EmptyImage:
     def INPUT_TYPES(s):
         return {"required": { "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
                               "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
                               "color": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFF, "step": 1, "display": "color"}),
                               }}
     RETURN_TYPES = ("IMAGE",)
@@ -1604,7 +1678,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageBatch": ImageBatch,
     "ImagePadForOutpaint": ImagePadForOutpaint,
     "EmptyImage": EmptyImage,
-    "ConditioningAverage ": ConditioningAverage ,
+    "ConditioningAverage": ConditioningAverage ,
     "ConditioningCombine": ConditioningCombine,
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
@@ -1644,6 +1718,7 @@ NODE_CLASS_MAPPINGS = {
 
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
+    "LoraLoaderModelOnly": LoraLoaderModelOnly,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1651,7 +1726,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "KSampler": "KSampler",
     "KSamplerAdvanced": "KSampler (Advanced)",
     # Loaders
-    "CheckpointLoader": "Load Checkpoint (With Config)",
+    "CheckpointLoader": "Load Checkpoint With Config (DEPRECATED)",
     "CheckpointLoaderSimple": "Load Checkpoint",
     "VAELoader": "Load VAE",
     "LoraLoader": "Load LoRA",
@@ -1749,7 +1824,7 @@ def load_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
 
@@ -1772,13 +1847,29 @@ def load_custom_nodes():
         print()
 
 def init_custom_nodes():
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_hypernetwork.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_upscale_model.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_post_processing.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_mask.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_rebatch.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_model_merging.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_tomesd.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_clip_sdxl.py"))
-    load_custom_node(os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras"), "nodes_canny.py"))
+    extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
+    extras_files = [
+        "nodes_latent.py",
+        "nodes_hypernetwork.py",
+        "nodes_upscale_model.py",
+        "nodes_post_processing.py",
+        "nodes_mask.py",
+        "nodes_compositing.py",
+        "nodes_rebatch.py",
+        "nodes_model_merging.py",
+        "nodes_tomesd.py",
+        "nodes_clip_sdxl.py",
+        "nodes_canny.py",
+        "nodes_freelunch.py",
+        "nodes_custom_sampler.py",
+        "nodes_hypertile.py",
+        "nodes_model_advanced.py",
+        "nodes_model_downscale.py",
+        "nodes_images.py",
+        "nodes_video_model.py",
+    ]
+
+    for node_file in extras_files:
+        load_custom_node(os.path.join(extras_dir, node_file))
+
     load_custom_nodes()

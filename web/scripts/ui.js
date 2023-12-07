@@ -462,8 +462,8 @@ class ComfyList {
 						return $el("div", {textContent: item.prompt[0] + ": "}, [
 							$el("button", {
 								textContent: "Load",
-								onclick: () => {
-									app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+								onclick: async () => {
+									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
 									if (item.outputs) {
 										app.nodeOutputs = item.outputs;
 									}
@@ -599,7 +599,7 @@ export class ComfyUI {
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
-			accept: ".json,image/png,.latent,.safetensors",
+			accept: ".json,image/png,.latent,.safetensors,image/webp",
 			style: {display: "none"},
 			parent: document.body,
 			onchange: () => {
@@ -719,20 +719,22 @@ export class ComfyUI {
 							filename += ".json";
 						}
 					}
-					const json = JSON.stringify(app.graph.serialize(), null, 2); // convert the data to a JSON string
-					const blob = new Blob([json], {type: "application/json"});
-					const url = URL.createObjectURL(blob);
-					const a = $el("a", {
-						href: url,
-						download: filename,
-						style: {display: "none"},
-						parent: document.body,
+					app.graphToPrompt().then(p=>{
+						const json = JSON.stringify(p.workflow, null, 2); // convert the data to a JSON string
+						const blob = new Blob([json], {type: "application/json"});
+						const url = URL.createObjectURL(blob);
+						const a = $el("a", {
+							href: url,
+							download: filename,
+							style: {display: "none"},
+							parent: document.body,
+						});
+						a.click();
+						setTimeout(function () {
+							a.remove();
+							window.URL.revokeObjectURL(url);
+						}, 0);
 					});
-					a.click();
-					setTimeout(function () {
-						a.remove();
-						window.URL.revokeObjectURL(url);
-					}, 0);
 				},
 			}),
 			$el("button", {
@@ -782,9 +784,9 @@ export class ComfyUI {
 				}
 			}),
 			$el("button", {
-				id: "comfy-load-default-button", textContent: "Load Default", onclick: () => {
+				id: "comfy-load-default-button", textContent: "Load Default", onclick: async () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
-						app.loadGraphData()
+						await app.loadGraphData()
 					}
 				}
 			}),
@@ -809,7 +811,8 @@ export class ComfyUI {
 			if (
 				this.lastQueueSize != 0 &&
 				status.exec_info.queue_remaining == 0 &&
-				document.getElementById("autoQueueCheckbox").checked
+				document.getElementById("autoQueueCheckbox").checked &&
+				! app.lastExecutionError
 			) {
 				app.queuePrompt(0, this.batchCount);
 			}
