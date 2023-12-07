@@ -1,8 +1,8 @@
-import nodes
+from comfy.nodes.common import MAX_RESOLUTION
 import torch
 import comfy.utils
 import comfy.sd
-import folder_paths
+from comfy.cmd import folder_paths
 
 
 class ImageOnlyCheckpointLoader:
@@ -27,8 +27,8 @@ class SVD_img2vid_Conditioning:
         return {"required": { "clip_vision": ("CLIP_VISION",),
                               "init_image": ("IMAGE",),
                               "vae": ("VAE",),
-                              "width": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 576, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
+                              "width": ("INT", {"default": 1024, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
+                              "height": ("INT", {"default": 576, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
                               "video_frames": ("INT", {"default": 14, "min": 1, "max": 4096}),
                               "motion_bucket_id": ("INT", {"default": 127, "min": 1, "max": 1023}),
                               "fps": ("INT", {"default": 6, "min": 1, "max": 1024}),

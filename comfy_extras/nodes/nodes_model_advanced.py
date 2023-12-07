@@ -1,4 +1,3 @@
-import folder_paths
 import comfy.sd
 import comfy.model_sampling
 import torch

@@ -5,6 +5,7 @@ import os
 import pkgutil
 import time
 import types
+import typing
 
 from . import base_nodes
 from comfy_extras import nodes as comfy_extras_nodes
@@ -12,7 +13,7 @@ from comfy_extras import nodes as comfy_extras_nodes
 try:
     import custom_nodes
 except:
-    custom_nodes = None
+    custom_nodes: typing.Optional[types.ModuleType] = None
 from .package_typing import ExportedNodes
 from functools import reduce
 from pkg_resources import resource_filename, iter_entry_points
@@ -36,18 +37,14 @@ def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleT
         if not os.path.isdir(abs_web_directory):
             raise ImportError(path=abs_web_directory)
         exported_nodes.EXTENSION_WEB_DIRS[module.__name__] = abs_web_directory
+    return node_class_mappings and len(node_class_mappings) > 0 or web_directory
 
 
 def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import_times=False) -> ExportedNodes:
     exported_nodes = ExportedNodes()
     timings = []
-    if hasattr(module, 'NODE_CLASS_MAPPINGS'):
-        node_class_mappings = getattr(module, 'NODE_CLASS_MAPPINGS', None)
-        node_display_names = getattr(module, 'NODE_DISPLAY_NAME_MAPPINGS', None)
-        if node_class_mappings:
-            exported_nodes.NODE_CLASS_MAPPINGS.update(node_class_mappings)
-        if node_display_names:
-            exported_nodes.NODE_DISPLAY_NAME_MAPPINGS.update(node_display_names)
+    if _import_nodes_in_module(exported_nodes, module):
+        pass
     else:
         # Iterate through all the submodules
         for _, name, is_pkg in pkgutil.iter_modules(module.__path__):
@@ -68,7 +65,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
                 success = False
             timings.append((time.perf_counter() - time_before, full_name, success))
 
-    if print_import_times and len(timings) > 0:
+    if print_import_times and len(timings) > 0 or any(not success for (_, _, success) in timings):
         for (duration, module_name, success) in sorted(timings):
             print(f"{duration:6.1f} seconds{'' if success else ' (IMPORT FAILED)'}, {module_name}")
     return exported_nodes

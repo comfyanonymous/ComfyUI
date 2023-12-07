@@ -1,5 +1,5 @@
-import nodes
-import folder_paths
+from comfy.nodes.common import MAX_RESOLUTION
+from comfy.cmd import folder_paths
 from comfy.cli_args import args
 
 from PIL import Image
@@ -9,7 +9,6 @@ import numpy as np
 import json
 import os
 
-MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
 class ImageCrop:
     @classmethod

@@ -435,6 +435,7 @@ class SDTokenizer:
 
         text = escape_important(text)
         parsed_weights = token_weights(text, 1.0)
+        vocab = self.tokenizer.get_vocab()
 
         #tokenize words
         tokens = []
@@ -459,7 +460,12 @@ class SDTokenizer:
                     else:
                         continue
                 #parse word
-                tokens.append([(t, weight) for t in self.tokenizer(word)["input_ids"][self.tokens_start:-1]])
+                exact_word = f"{word}</w>"
+                if exact_word in vocab:
+                    tokenizer_result = [vocab[exact_word]]
+                else:
+                    tokenizer_result = self.tokenizer(word)["input_ids"][self.tokens_start:-1]
+                tokens.append([(t, weight) for t in tokenizer_result])
 
         #reshape token array to CLIP input size
         batched_tokens = []

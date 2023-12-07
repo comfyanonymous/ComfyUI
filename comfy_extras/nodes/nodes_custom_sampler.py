@@ -1,7 +1,7 @@
 import comfy.samplers
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
-import latent_preview
+from comfy.cmd import latent_preview
 import torch
 import comfy.utils
 

@@ -127,9 +127,13 @@ def hijack_progress(server):
 
 
 def cleanup_temp():
-    temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir, ignore_errors=True)
+    try:
+        temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    except NameError:
+        # __file__ was not defined
+        pass
 
 
 def load_extra_path_config(yaml_path):
@@ -178,9 +182,12 @@ def main():
     server = server_module.PromptServer(loop)
     q = execution.PromptQueue(server)
 
-    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
-    if os.path.isfile(extra_model_paths_config_path):
-        load_extra_path_config(extra_model_paths_config_path)
+    try:
+        extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+        if os.path.isfile(extra_model_paths_config_path):
+            load_extra_path_config(extra_model_paths_config_path)
+    except NameError:
+        pass
 
     if args.extra_model_paths_config:
         for config_path in itertools.chain(*args.extra_model_paths_config):
