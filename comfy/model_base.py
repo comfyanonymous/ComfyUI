@@ -54,8 +54,7 @@ class BaseModel(torch.nn.Module):
         print("model_type", model_type.name)
         print("adm", self.adm_channels)
 
-    def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
-        sigma = t
+    def apply_model(self, x, sigma, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         xc = self.model_sampling.calculate_input(sigma, x)
         if c_concat is not None:
             xc = torch.cat([xc] + [c_concat], dim=1)
@@ -70,7 +69,7 @@ class BaseModel(torch.nn.Module):
             dtype = torch.float32
 
         xc = xc.to(dtype)
-        t = self.model_sampling.timestep(t).float()
+        timestep = self.model_sampling.timestep(sigma).float()
         context = context.to(dtype)
         extra_conds = {}
         for o in kwargs:
@@ -80,7 +79,7 @@ class BaseModel(torch.nn.Module):
             extra_conds[o] = extra
 
         with precision_scope(comfy.model_management.get_autocast_device(xc.device)):
-            model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
+            model_output = self.diffusion_model(xc, timestep, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
 
         return self.model_sampling.calculate_denoised(sigma, model_output, x)
 

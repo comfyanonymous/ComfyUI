@@ -11,7 +11,7 @@ import comfy.conds
 
 #The main sampling function shared by all the samplers
 #Returns denoised
-def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_options={}, seed=None):
+def sampling_function(model, x, sigmas, uncond, cond, cond_scale, model_options={}, seed=None):
         def get_area_and_mult(conds, x_in, timestep_in):
             area = (x_in.shape[2], x_in.shape[3], 0, 0)
             strength = 1.0
@@ -134,7 +134,7 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
             return out
 
-        def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options):
+        def calc_cond_uncond_batch(model, cond, uncond, x_in, sigmas, model_options):
             out_cond = torch.zeros_like(x_in)
             out_count = torch.ones_like(x_in) * 1e-37
 
@@ -146,14 +146,14 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
             to_run = []
             for x in cond:
-                p = get_area_and_mult(x, x_in, timestep)
+                p = get_area_and_mult(x, x_in, sigmas)
                 if p is None:
                     continue
 
                 to_run += [(p, COND)]
             if uncond is not None:
                 for x in uncond:
-                    p = get_area_and_mult(x, x_in, timestep)
+                    p = get_area_and_mult(x, x_in, sigmas)
                     if p is None:
                         continue
 
@@ -199,10 +199,10 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
                 batch_chunks = len(cond_or_uncond)
                 input_x = torch.cat(input_x)
                 c = cond_cat(c)
-                timestep_ = torch.cat([timestep] * batch_chunks)
+                sigma_ = torch.cat([sigmas] * batch_chunks)
 
                 if control is not None:
-                    c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond))
+                    c['control'] = control.get_control(input_x, sigma_, c, len(cond_or_uncond))
 
                 transformer_options = {}
                 if 'transformer_options' in model_options:
@@ -220,14 +220,14 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
                         transformer_options["patches"] = patches
 
                 transformer_options["cond_or_uncond"] = cond_or_uncond[:]
-                transformer_options["sigmas"] = timestep
+                transformer_options["sigmas"] = sigmas
 
                 c['transformer_options'] = transformer_options
 
                 if 'model_function_wrapper' in model_options:
-                    output = model_options['model_function_wrapper'](model.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
+                    output = model_options['model_function_wrapper'](model.apply_model, {"input": input_x, "sigma": sigma_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
                 else:
-                    output = model.apply_model(input_x, timestep_, **c).chunk(batch_chunks)
+                    output = model.apply_model(input_x, sigma_, **c).chunk(batch_chunks)
                 del input_x
 
                 for o in range(batch_chunks):
@@ -249,9 +249,9 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
         if math.isclose(cond_scale, 1.0):
             uncond = None
 
-        cond, uncond = calc_cond_uncond_batch(model, cond, uncond, x, timestep, model_options)
+        cond, uncond = calc_cond_uncond_batch(model, cond, uncond, x, sigmas, model_options)
         if "sampler_cfg_function" in model_options:
-            args = {"cond": x - cond, "uncond": x - uncond, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep}
+            args = {"cond": x - cond, "uncond": x - uncond, "cond_scale": cond_scale, "input": x, "sigma": sigmas}
             return x - model_options["sampler_cfg_function"](args)
         else:
             return uncond + (cond - uncond) * cond_scale
