@@ -39,7 +39,7 @@ class ClipTokenWeightEncoder:
 
         out, pooled = self.encode(to_encode)
         if pooled is not None:
-            first_pooled = pooled[0:1].cpu()
+            first_pooled = pooled[0:1].to(model_management.intermediate_device())
         else:
             first_pooled = pooled
 
@@ -56,8 +56,8 @@ class ClipTokenWeightEncoder:
             output.append(z)
 
         if (len(output) == 0):
-            return out[-1:].cpu(), first_pooled
-        return torch.cat(output, dim=-2).cpu(), first_pooled
+            return out[-1:].to(model_management.intermediate_device()), first_pooled
+        return torch.cat(output, dim=-2).to(model_management.intermediate_device()), first_pooled
 
 class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     """Uses the CLIP transformer encoder for text (from huggingface)"""

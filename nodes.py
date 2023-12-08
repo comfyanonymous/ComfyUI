@@ -947,8 +947,8 @@ class GLIGENTextBoxApply:
         return (c, )
 
 class EmptyLatentImage:
-    def __init__(self, device="cpu"):
-        self.device = device
+    def __init__(self):
+        self.device = comfy.model_management.intermediate_device()
 
     @classmethod
     def INPUT_TYPES(s):
@@ -961,7 +961,7 @@ class EmptyLatentImage:
     CATEGORY = "latent"
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.zeros([batch_size, 4, height // 8, width // 8])
+        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
         return ({"samples":latent}, )
 
 

@@ -376,7 +376,7 @@ def lanczos(samples, width, height):
     images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
     images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
     result = torch.stack(images)
-    return result
+    return result.to(samples.device, samples.dtype)
 
 def common_upscale(samples, width, height, upscale_method, crop):
         if crop == "center":
@@ -405,17 +405,17 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return math.ceil((height / (tile_y - overlap))) * math.ceil((width / (tile_x - overlap)))
 
 @torch.inference_mode()
-def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, pbar = None):
-    output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device="cpu")
+def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+    output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device=output_device)
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
-        out = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device="cpu")
-        out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device="cpu")
+        out = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
+        out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
         for y in range(0, s.shape[2], tile_y - overlap):
             for x in range(0, s.shape[3], tile_x - overlap):
                 s_in = s[:,:,y:y+tile_y,x:x+tile_x]
 
-                ps = function(s_in).cpu()
+                ps = function(s_in).to(output_device)
                 mask = torch.ones_like(ps)
                 feather = round(overlap * upscale_amount)
                 for t in range(feather):

@@ -54,10 +54,10 @@ class ClipVisionModel():
             t = outputs[k]
             if t is not None:
                 if k == 'hidden_states':
-                    outputs["penultimate_hidden_states"] = t[-2].cpu()
+                    outputs["penultimate_hidden_states"] = t[-2].to(comfy.model_management.intermediate_device())
                     outputs["hidden_states"] = None
                 else:
-                    outputs[k] = t.cpu()
+                    outputs[k] = t.to(comfy.model_management.intermediate_device())
 
         return outputs
 
