@@ -251,7 +251,8 @@ def sampling_function(model, x, sigmas, uncond, cond, cond_scale, model_options=
 
         cond, uncond = calc_cond_uncond_batch(model, cond, uncond, x, sigmas, model_options)
         if "sampler_cfg_function" in model_options:
-            args = {"cond": x - cond, "uncond": x - uncond, "cond_scale": cond_scale, "input": x, "sigma": sigmas}
+            timesteps = model.model_sampling.timestep(sigmas)
+            args = {"cond": x - cond, "uncond": x - uncond, "cond_scale": cond_scale, "timestep": timesteps, "input": x, "sigma": sigmas}
             return x - model_options["sampler_cfg_function"](args)
         else:
             return uncond + (cond - uncond) * cond_scale
