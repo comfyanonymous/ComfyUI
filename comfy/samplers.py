@@ -276,10 +276,7 @@ class KSamplerX0Inpaint(torch.nn.Module):
             x = x * denoise_mask + (self.latent_image + self.noise * sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1))) * latent_mask
         out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, model_options=model_options, seed=seed)
         if denoise_mask is not None:
-            out *= denoise_mask
-
-        if denoise_mask is not None:
-            out += self.latent_image * latent_mask
+            out = out * denoise_mask + self.latent_image * latent_mask
         return out
 
 def simple_scheduler(model, steps):
