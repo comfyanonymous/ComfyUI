@@ -508,6 +508,12 @@ def text_encoder_dtype(device=None):
     else:
         return torch.float32
 
+def intermediate_device():
+    if args.gpu_only:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
+
 def vae_device():
     return get_torch_device()
 
