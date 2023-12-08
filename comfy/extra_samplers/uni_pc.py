@@ -858,7 +858,7 @@ def predict_eps_sigma(model, input, sigma_in, **kwargs):
     return  (input - model(input, sigma_in, **kwargs)) / sigma
 
 
-def sample_unipc(model, noise, image, sigmas, sampling_function, max_denoise, extra_args=None, callback=None, disable=False, noise_mask=None, variant='bh1'):
+def sample_unipc(model, noise, image, sigmas, max_denoise, extra_args=None, callback=None, disable=False, noise_mask=None, variant='bh1'):
         timesteps = sigmas.clone()
         if sigmas[-1] == 0:
             timesteps = sigmas[:]

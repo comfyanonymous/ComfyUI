@@ -55,12 +55,22 @@ fp_group = parser.add_mutually_exclusive_group()
 fp_group.add_argument("--force-fp32", action="store_true", help="Force fp32 (If this makes your GPU work better please report it).")
 fp_group.add_argument("--force-fp16", action="store_true", help="Force fp16.")
 
-parser.add_argument("--bf16-unet", action="store_true", help="Run the UNET in bf16. This should only be used for testing stuff.")
+fpunet_group = parser.add_mutually_exclusive_group()
+fpunet_group.add_argument("--bf16-unet", action="store_true", help="Run the UNET in bf16. This should only be used for testing stuff.")
+fpunet_group.add_argument("--fp8_e4m3fn-unet", action="store_true", help="Store unet weights in fp8_e4m3fn.")
+fpunet_group.add_argument("--fp8_e5m2-unet", action="store_true", help="Store unet weights in fp8_e5m2.")
 
 fpvae_group = parser.add_mutually_exclusive_group()
 fpvae_group.add_argument("--fp16-vae", action="store_true", help="Run the VAE in fp16, might cause black images.")
 fpvae_group.add_argument("--fp32-vae", action="store_true", help="Run the VAE in full precision fp32.")
 fpvae_group.add_argument("--bf16-vae", action="store_true", help="Run the VAE in bf16.")
+
+fpte_group = parser.add_mutually_exclusive_group()
+fpte_group.add_argument("--fp8_e4m3fn-text-enc", action="store_true", help="Store text encoder weights in fp8 (e4m3fn variant).")
+fpte_group.add_argument("--fp8_e5m2-text-enc", action="store_true", help="Store text encoder weights in fp8 (e5m2 variant).")
+fpte_group.add_argument("--fp16-text-enc", action="store_true", help="Store text encoder weights in fp16.")
+fpte_group.add_argument("--fp32-text-enc", action="store_true", help="Store text encoder weights in fp32.")
+
 
 parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
 

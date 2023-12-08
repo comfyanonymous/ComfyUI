@@ -134,6 +134,10 @@ else:
         import xformers.ops
         XFORMERS_IS_AVAILABLE = True
         try:
+            XFORMERS_IS_AVAILABLE = xformers._has_cpp_library
+        except:
+            pass
+        try:
             XFORMERS_VERSION = xformers.version.__version__
             print("xformers version:", XFORMERS_VERSION)
             if XFORMERS_VERSION.startswith("0.0.18"):
@@ -426,6 +430,13 @@ def dtype_size(dtype):
     dtype_size = 4
     if dtype == torch.float16 or dtype == torch.bfloat16:
         dtype_size = 2
+    elif dtype == torch.float32:
+        dtype_size = 4
+    else:
+        try:
+            dtype_size = dtype.itemsize
+        except: #Old pytorch doesn't have .itemsize
+            pass
     return dtype_size
 
 def unet_offload_device():
@@ -455,6 +466,10 @@ def unet_inital_load_device(parameters, dtype):
 def unet_dtype(device=None, model_params=0):
     if args.bf16_unet:
         return torch.bfloat16
+    if args.fp8_e4m3fn_unet:
+        return torch.float8_e4m3fn
+    if args.fp8_e5m2_unet:
+        return torch.float8_e5m2
     if should_use_fp16(device=device, model_params=model_params):
         return torch.float16
     return torch.float32
@@ -478,6 +493,27 @@ def text_encoder_device():
     else:
         return torch.device("cpu")
 
+def text_encoder_dtype(device=None):
+    if args.fp8_e4m3fn_text_enc:
+        return torch.float8_e4m3fn
+    elif args.fp8_e5m2_text_enc:
+        return torch.float8_e5m2
+    elif args.fp16_text_enc:
+        return torch.float16
+    elif args.fp32_text_enc:
+        return torch.float32
+
+    if should_use_fp16(device, prioritize_performance=False):
+        return torch.float16
+    else:
+        return torch.float32
+
+def intermediate_device():
+    if args.gpu_only:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
+
 def vae_device():
     return get_torch_device()
 
@@ -496,6 +532,17 @@ def get_autocast_device(dev):
         return dev.type
     return "cuda"
 
+def supports_dtype(device, dtype): #TODO
+    if dtype == torch.float32:
+        return True
+    if torch.device("cpu") == device:
+        return False
+    if dtype == torch.float16:
+        return True
+    if dtype == torch.bfloat16:
+        return True
+    return False
+
 def cast_to_device(tensor, device, dtype, copy=False):
     device_supports_cast = False
     if tensor.dtype == torch.float32 or tensor.dtype == torch.float16:
@@ -509,12 +556,12 @@ def cast_to_device(tensor, device, dtype, copy=False):
     if device_supports_cast:
         if copy:
             if tensor.device == device:
-                return tensor.to(dtype, copy=copy)
-            return tensor.to(device, copy=copy).to(dtype)
+                return tensor.to(dtype, copy=copy, non_blocking=True)
+            return tensor.to(device, copy=copy, non_blocking=True).to(dtype, non_blocking=True)
         else:
-            return tensor.to(device).to(dtype)
+            return tensor.to(device, non_blocking=True).to(dtype, non_blocking=True)
     else:
-        return tensor.to(dtype).to(device, copy=copy)
+        return tensor.to(device, dtype, copy=copy, non_blocking=True)
 
 def xformers_enabled():
     global directml_enabled
@@ -578,27 +625,6 @@ def get_free_memory(dev=None, torch_free_too=False):
         return (mem_free_total, mem_free_torch)
     else:
         return mem_free_total
-
-def batch_area_memory(area):
-    if xformers_enabled() or pytorch_attention_flash_attention():
-        #TODO: these formulas are copied from maximum_batch_area below
-        return (area / 20) * (1024 * 1024)
-    else:
-        return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
-
-def maximum_batch_area():
-    global vram_state
-    if vram_state == VRAMState.NO_VRAM:
-        return 0
-
-    memory_free = get_free_memory() / (1024 * 1024)
-    if xformers_enabled() or pytorch_attention_flash_attention():
-        #TODO: this needs to be tweaked
-        area = 20 * memory_free
-    else:
-        #TODO: this formula is because AMD sucks and has memory management issues which might be fixed in the future
-        area = ((memory_free - 1024) * 0.9) / (0.6)
-    return int(max(area, 0))
 
 def cpu_mode():
     global cpu_state

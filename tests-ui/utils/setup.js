@@ -30,16 +30,20 @@ export function mockApi({ mockExtensions, mockNodeDefs } = {}) {
 		mockNodeDefs = JSON.parse(fs.readFileSync(path.resolve("./data/object_info.json")));
 	}
 
+	const events = new EventTarget();
+	const mockApi = {
+		addEventListener: events.addEventListener.bind(events),
+		removeEventListener: events.removeEventListener.bind(events),
+		dispatchEvent: events.dispatchEvent.bind(events),
+		getSystemStats: jest.fn(),
+		getExtensions: jest.fn(() => mockExtensions),
+		getNodeDefs: jest.fn(() => mockNodeDefs),
+		init: jest.fn(),
+		apiURL: jest.fn((x) => "../../web/" + x),
+	};
 	jest.mock("../../web/scripts/api", () => ({
 		get api() {
-			return {
-				addEventListener: jest.fn(),
-				getSystemStats: jest.fn(),
-				getExtensions: jest.fn(() => mockExtensions),
-				getNodeDefs: jest.fn(() => mockNodeDefs),
-				init: jest.fn(),
-				apiURL: jest.fn((x) => "../../web/" + x),
-			};
+			return mockApi;
 		},
 	}));
 }
