@@ -23,6 +23,7 @@ app.registerExtension({
 				Backspace: "#comfy-clear-button",
 				Delete: "#comfy-clear-button",
 				d: "#comfy-load-default-button",
+				k: "#comfy-cancel-generate-button",
 			};
 
 			const modifierKeybindId = modifierKeyIdMap[event.key];
