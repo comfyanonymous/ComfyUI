@@ -383,6 +383,37 @@ describe("group node", () => {
 			getOutput([nodes.pos.id, nodes.neg.id, nodes.empty.id, nodes.sampler.id])
 		);
 	});
+	test("groups can connect to each other via internal reroutes", async () => {
+		const { ez, graph, app } = await start();
+
+		const latent = ez.EmptyLatentImage();
+		const vae = ez.VAELoader();
+		const latentReroute = ez.Reroute();
+		const vaeReroute = ez.Reroute();
+
+		latent.outputs[0].connectTo(latentReroute.inputs[0]);
+		vae.outputs[0].connectTo(vaeReroute.inputs[0]);
+
+		const group1 = await convertToGroup(app, graph, "test", [latentReroute, vaeReroute]);
+		group1.menu.Clone.call();
+		expect(app.graph._nodes).toHaveLength(4);
+		const group2 = graph.find(app.graph._nodes[3]);
+		expect(group2.node.type).toEqual("workflow/test");
+		expect(group2.id).not.toEqual(group1.id);
+
+		group1.outputs.VAE.connectTo(group2.inputs.VAE);
+		group1.outputs.LATENT.connectTo(group2.inputs.LATENT);
+
+		const decode = ez.VAEDecode(group2.outputs.LATENT, group2.outputs.VAE);
+		const preview = ez.PreviewImage(decode.outputs[0]);
+
+		expect((await graph.toPrompt()).output).toEqual({
+			[latent.id]: { inputs: { width: 512, height: 512, batch_size: 1 }, class_type: "EmptyLatentImage" },
+			[vae.id]: { inputs: { vae_name: "vae1.safetensors" }, class_type: "VAELoader" },
+			[decode.id]: { inputs: { samples: [latent.id + "", 0], vae: [vae.id + "", 0] }, class_type: "VAEDecode" },
+			[preview.id]: { inputs: { images: [decode.id + "", 0] }, class_type: "PreviewImage" },
+		});
+	});
 	test("displays generated image on group node", async () => {
 		const { ez, graph, app } = await start();
 		const nodes = createDefaultWorkflow(ez, graph);
