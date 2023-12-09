@@ -602,6 +602,10 @@ export class GroupNodeHandler {
 				innerNode = innerNode.getInputNode(0);
 			}
 
+			if (l && GroupNodeHandler.isGroupNode(innerNode)) {
+				return innerNode.updateLink(l);
+			}
+
 			link.origin_id = innerNode.id;
 			link.origin_slot = l?.origin_slot ?? output.slot;
 			return link;
