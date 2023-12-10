@@ -1,5 +1,18 @@
 import {api} from "./api.js";
 
+/**
+ * 
+ * @param { string } tag HTML Element Tag and optional classes e.g. div.class1.class2
+ * @param { string | Element | Element[] | {
+ * 	 parent?: Element,
+ *   $?: (el: Element) => void, 
+ *   dataset?: DOMStringMap,
+ *   style?: CSSStyleDeclaration,
+ * 	 for?: string
+ * } | undefined } propsOrChildren 
+ * @param { Element[] | undefined } children 
+ * @returns 
+ */
 export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
 	const element = document.createElement(split.shift());
@@ -8,6 +21,11 @@ export function $el(tag, propsOrChildren, children) {
 	}
 
 	if (propsOrChildren) {
+		if (typeof propsOrChildren === "string") {
+			propsOrChildren = { textContent: propsOrChildren };
+		} else if (propsOrChildren instanceof Element) {
+			propsOrChildren = [propsOrChildren];
+		}
 		if (Array.isArray(propsOrChildren)) {
 			element.append(...propsOrChildren);
 		} else {

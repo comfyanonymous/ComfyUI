@@ -1,5 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
+import { $el, ComfyDialog } from "../../scripts/ui.js";
 import { mergeIfValid } from "./widgetInputs.js";
 
 const GROUP = Symbol();
@@ -30,6 +31,110 @@ const Workflow = {
 		groupNodes[name] = data;
 	},
 };
+
+$el("style", {
+	parent: document.body,
+	textContent: `
+		.comfy-group-manage {
+			background: var(--bg-color);
+			color: var(--fg-color);
+			border: none;
+			outline: none;
+			padding: 0;
+			font-family: Arial, sans-serif;
+			border-radius: 10px;
+			display: flex;
+			flex-wrap: wrap;
+			font-size: 0.8rem;
+		}
+
+		.comfy-group-manage header {
+			flex-basis: 100%;
+		}
+
+		.comfy-group-manage h3 {
+			font-size: 1rem;
+		}
+
+		.comfy-group-manage h3, .comfy-group-manage h4 {
+			font-weight: normal;
+			padding: 10px;
+			margin: 0;
+			border-bottom: 1px solid var(--border-color);
+		}
+		
+		.comfy-group-manage ul {
+			margin: 0;
+			padding: 0;
+			list-style: none;
+			background: var(--tr-odd-bg-color);
+		}
+		
+		.comfy-group-manage li {
+			padding: 10px;
+			cursor: pointer;
+		}
+
+		.comfy-group-manage li:hover, .comfy-group-manage li.selected {
+			background: var(--tr-even-bg-color);
+		}
+
+		.comfy-group-manage li.selected {
+			text-decoration: underline;
+		}
+
+		.comfy-group-manage main {
+			border-left: 1px solid var(--border-color);
+			flex: auto;
+			background: var(--comfy-menu-bg);
+		}
+	`,
+});
+
+class ManageGroupDialog extends ComfyDialog {
+	constructor(app) {
+		super();
+		this.app = app;
+		this.element = $el("dialog.comfy-group-manage", {
+			parent: document.body,
+		});
+	}
+
+	show() {
+		const groupNodes = Object.keys(app.graph.extra?.groupNodes ?? {}).concat([
+			"something",
+			"another",
+			"prompt",
+			"chatgpt",
+			"upscale 4x",
+		]);
+		if (!groupNodes.length) return;
+
+		let selected;
+		const items = groupNodes.map((g) =>
+			$el("li", {
+				textContent: g,
+				onclick: (e) => {
+					if (selected) {
+						selected.classList.remove("selected");
+					}
+					selected = e.target;
+					selected.classList.add("selected");
+				},
+			})
+		);
+		const left = $el("div.comfy-group-manage-list", $el("ul", items));
+
+		const inputs = $el("div", [$el("h4", "Inputs")]);
+		const widgets = $el("div", [$el("h4", "Widgets")]);
+		const outputs = $el("div", [$el("h4", "Outputs")]);
+		const main = $el("main", [inputs, widgets, outputs]);
+
+		this.element.replaceChildren($el("header", $el("h3", "Group Nodes")), left, main);
+		this.element.showModal();
+		items[0].click();
+	}
+}
 
 class GroupNodeBuilder {
 	constructor(nodes) {
@@ -755,12 +860,23 @@ export class GroupNodeHandler {
 			let optionIndex = options.findIndex((o) => o.content === "Outputs");
 			if (optionIndex === -1) optionIndex = options.length;
 			else optionIndex++;
-			options.splice(optionIndex, 0, null, {
-				content: "Convert to nodes",
-				callback: () => {
-					return this.convertToNodes();
+			options.splice(
+				optionIndex,
+				0,
+				null,
+				{
+					content: "Convert to nodes",
+					callback: () => {
+						return this.convertToNodes();
+					},
 				},
-			});
+				{
+					content: "Manage Group Node",
+					callback: () => {
+						new ManageGroupDialog(app).show(this.type);
+					},
+				}
+			);
 		};
 
 		// Draw custom collapse icon to identity this as a group
@@ -1024,7 +1140,7 @@ export class GroupNodeHandler {
 }
 
 function addConvertToGroupOptions() {
-	function addOption(options, index) {
+	function addConvertOption(options, index) {
 		const selected = Object.values(app.canvas.selected_nodes ?? {});
 		const disabled = selected.length < 2 || selected.find((n) => GroupNodeHandler.isGroupNode(n));
 		options.splice(index + 1, null, {
@@ -1036,12 +1152,25 @@ function addConvertToGroupOptions() {
 		});
 	}
 
+	function addManageOption(options, index) {
+		const groups = app.graph.extra?.groupNodes;
+		const disabled = !groups || !Object.keys(groups).length;
+		options.splice(index + 1, null, {
+			content: `Manage Group Nodes`,
+			disabled,
+			callback: () => {
+				new ManageGroupDialog(app).show();
+			},
+		});
+	}
+
 	// Add to canvas
 	const getCanvasMenuOptions = LGraphCanvas.prototype.getCanvasMenuOptions;
 	LGraphCanvas.prototype.getCanvasMenuOptions = function () {
 		const options = getCanvasMenuOptions.apply(this, arguments);
 		const index = options.findIndex((o) => o?.content === "Add Group") + 1 || options.length;
-		addOption(options, index);
+		addConvertOption(options, index);
+		addManageOption(options, index + 1);
 		return options;
 	};
 
@@ -1051,7 +1180,7 @@ function addConvertToGroupOptions() {
 		const options = getNodeMenuOptions.apply(this, arguments);
 		if (!GroupNodeHandler.isGroupNode(node)) {
 			const index = options.findIndex((o) => o?.content === "Outputs") + 1 || options.length - 1;
-			addOption(options, index);
+			addConvertOption(options, index);
 		}
 		return options;
 	};
@@ -1082,3 +1211,7 @@ const ext = {
 };
 
 app.registerExtension(ext);
+
+setTimeout(() => {
+	new ManageGroupDialog(app).show();
+}, 200);
