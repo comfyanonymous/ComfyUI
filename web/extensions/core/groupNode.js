@@ -597,9 +597,13 @@ export class GroupNodeHandler {
 			const output = this.groupData.newToOldOutputMap[link.origin_slot];
 			let innerNode = this.innerNodes[output.node.index];
 			let l;
-			while (innerNode.type === "Reroute") {
+			while (innerNode?.type === "Reroute") {
 				l = innerNode.getInputLink(0);
 				innerNode = innerNode.getInputNode(0);
+			}
+
+			if (!innerNode) {
+				return null;
 			}
 
 			if (l && GroupNodeHandler.isGroupNode(innerNode)) {

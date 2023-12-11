@@ -407,12 +407,18 @@ describe("group node", () => {
 		const decode = ez.VAEDecode(group2.outputs.LATENT, group2.outputs.VAE);
 		const preview = ez.PreviewImage(decode.outputs[0]);
 
-		expect((await graph.toPrompt()).output).toEqual({
+		const output = {
 			[latent.id]: { inputs: { width: 512, height: 512, batch_size: 1 }, class_type: "EmptyLatentImage" },
 			[vae.id]: { inputs: { vae_name: "vae1.safetensors" }, class_type: "VAELoader" },
 			[decode.id]: { inputs: { samples: [latent.id + "", 0], vae: [vae.id + "", 0] }, class_type: "VAEDecode" },
 			[preview.id]: { inputs: { images: [decode.id + "", 0] }, class_type: "PreviewImage" },
-		});
+		};
+		expect((await graph.toPrompt()).output).toEqual(output);
+
+		// Ensure missing connections dont cause errors
+		group2.inputs.VAE.disconnect();
+		delete output[decode.id].inputs.vae;
+		expect((await graph.toPrompt()).output).toEqual(output);
 	});
 	test("displays generated image on group node", async () => {
 		const { ez, graph, app } = await start();
