@@ -76,14 +76,8 @@ const undoRedo = async (e) => {
 		if (prevState) {
 			target.push(activeState);
 			isOurLoad = true;
-			// Pause rendering to decrease graph flicker
-			app.canvas.stopRendering();
-			try {
-				await app.loadGraphData(prevState, false);
-				activeState = prevState;
-			} finally {
-				app.canvas.startRendering();
-			}
+			await app.loadGraphData(prevState, false);
+			activeState = prevState;
 		}
 	}
 	if (e.ctrlKey || e.metaKey) {
