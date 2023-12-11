@@ -915,7 +915,7 @@ export class GroupNodeHandler {
 			if (innerNode.type === "PrimitiveNode") {
 				innerNode.primitiveValue = newValue;
 				const primitiveLinked = this.groupData.primitiveToWidget[old.node.index];
-				for (const linked of primitiveLinked) {
+				for (const linked of primitiveLinked ?? []) {
 					const node = this.innerNodes[linked.nodeId];
 					const widget = node.widgets.find((w) => w.name === linked.inputName);
 
