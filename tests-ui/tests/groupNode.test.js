@@ -912,6 +912,9 @@ describe("group node", () => {
 		const r1 = ez.Reroute();
 		const r2 = ez.Reroute();
 
+		latent.widgets.width.value = 64;
+		latent.widgets.height.value = 128;
+
 		latent.widgets.width.convertToInput();
 		latent.widgets.height.convertToInput();
 		latent.widgets.batch_size.convertToInput();
@@ -946,6 +949,9 @@ describe("group node", () => {
 		expect(p2.widgets.value.widget.options?.min).toBe(16); // width/height min
 		expect(p2.widgets.value.widget.options?.max).toBe(8192); // width/height max
 		expect(p2.widgets.value.widget.options?.step).toBe(80); // width/height step * 10
+
+		expect(p1.widgets.value.value).toBe(128);
+		expect(p2.widgets.value.value).toBe(64);
 
 		p1.widgets.value.value = 16;
 		p2.widgets.value.value = 32;

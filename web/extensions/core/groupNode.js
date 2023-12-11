@@ -966,16 +966,43 @@ export class GroupNodeHandler {
 		return true;
 	}
 
+	populateReroute(node, nodeId, map) {
+		if (node.type !== "Reroute") return;
+
+		const link = this.groupData.linksFrom[nodeId]?.[0]?.[0];
+		if (!link) return;
+		const [, , targetNodeId, targetNodeSlot] = link;
+		const targetNode = this.groupData.nodeData.nodes[targetNodeId];
+		const inputs = targetNode.inputs;
+		const targetWidget = inputs?.[targetNodeSlot].widget;
+		if (!targetWidget) return;
+
+		const offset = inputs.length - (targetNode.widgets_values?.length ?? 0);
+		const v = targetNode.widgets_values?.[targetNodeSlot - offset];
+		if (v == null) return;
+
+		const widgetName = Object.values(map)[0];
+		const widget = this.node.widgets.find(w => w.name === widgetName);
+		if(widget) {
+			widget.value = v;
+		}
+	}
+
+
 	populateWidgets() {
 		if (!this.node.widgets) return;
 
 		for (let nodeId = 0; nodeId < this.groupData.nodeData.nodes.length; nodeId++) {
 			const node = this.groupData.nodeData.nodes[nodeId];
-
-			if (!node.widgets_values?.length) continue;
-
-			const map = this.groupData.oldToNewWidgetMap[nodeId];
+			const map = this.groupData.oldToNewWidgetMap[nodeId] ?? {};
 			const widgets = Object.keys(map);
+
+			if (!node.widgets_values?.length) {
+				// special handling for populating values into reroutes
+				// this allows primitives connect to them to pick up the correct value
+				this.populateReroute(node, nodeId, map);
+				continue;
+			}
 
 			let linkedShift = 0;
 			for (let i = 0; i < widgets.length; i++) {
