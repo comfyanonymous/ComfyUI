@@ -1,7 +1,7 @@
 // @ts-check
 /// <reference path="../node_modules/@types/jest/index.d.ts" />
 
-const { start, createDefaultWorkflow, getNodeDef } = require("../utils");
+const { start, createDefaultWorkflow, getNodeDef, checkBeforeAndAfterReload } = require("../utils");
 const lg = require("../utils/litegraph");
 
 describe("group node", () => {
@@ -682,12 +682,13 @@ describe("group node", () => {
 	test("correctly handles widget inputs", async () => {
 		const { ez, graph, app } = await start();
 		const upscaleMethods = (await getNodeDef("ImageScaleBy")).input.required["upscale_method"][0];
-		
+
 		const image = ez.LoadImage();
 		const scale1 = ez.ImageScaleBy(image.outputs[0]);
 		const scale2 = ez.ImageScaleBy(image.outputs[0]);
 		const preview1 = ez.PreviewImage(scale1.outputs[0]);
 		const preview2 = ez.PreviewImage(scale2.outputs[0]);
+		scale1.widgets.upscale_method.value = upscaleMethods[1];
 		scale1.widgets.upscale_method.convertToInput();
 
 		const group = await convertToGroup(app, graph, "test", [scale1, scale2]);
@@ -705,22 +706,26 @@ describe("group node", () => {
 		const primitive = ez.PrimitiveNode();
 		primitive.outputs[0].connectTo(group.inputs[2]);
 		expect(primitive.widgets.value.widget.options.values).toBe(upscaleMethods);
-		expect(primitive.widgets.value.value).toBe(upscaleMethods[0]);
+		expect(primitive.widgets.value.value).toBe(upscaleMethods[1]); // Ensure value is copied
 		primitive.widgets.value.value = upscaleMethods[1];
-
-		// Ensure widget value is applied to prompt
-		expect((await graph.toPrompt()).output).toStrictEqual({
-			[image.id]: { inputs: { image: "example.png", upload: "image" }, class_type: "LoadImage" },
-			[scale1.id]: {
-				inputs: { upscale_method: upscaleMethods[1], scale_by: 1, image: [`${image.id}`, 0] },
-				class_type: "ImageScaleBy",
-			},
-			[scale2.id]: {
-				inputs: { upscale_method: "nearest-exact", scale_by: 1, image: [`${image.id}`, 0] },
-				class_type: "ImageScaleBy",
-			},
-			[preview1.id]: { inputs: { images: [`${scale1.id}`, 0] }, class_type: "PreviewImage" },
-			[preview2.id]: { inputs: { images: [`${scale2.id}`, 0] }, class_type: "PreviewImage" },
+		
+		await checkBeforeAndAfterReload(graph, async (r) => {
+			const scale1id = r ? `${group.id}:0` : scale1.id;
+			const scale2id = r ? `${group.id}:1` : scale2.id;
+			// Ensure widget value is applied to prompt
+			expect((await graph.toPrompt()).output).toStrictEqual({
+				[image.id]: { inputs: { image: "example.png", upload: "image" }, class_type: "LoadImage" },
+				[scale1id]: {
+					inputs: { upscale_method: upscaleMethods[1], scale_by: 1, image: [`${image.id}`, 0] },
+					class_type: "ImageScaleBy",
+				},
+				[scale2id]: {
+					inputs: { upscale_method: "nearest-exact", scale_by: 1, image: [`${image.id}`, 0] },
+					class_type: "ImageScaleBy",
+				},
+				[preview1.id]: { inputs: { images: [`${scale1id}`, 0] }, class_type: "PreviewImage" },
+				[preview2.id]: { inputs: { images: [`${scale2id}`, 0] }, class_type: "PreviewImage" },
+			});
 		});
 	});
 	test("adds widgets in node execution order", async () => {

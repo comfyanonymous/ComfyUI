@@ -426,6 +426,12 @@ export class GroupNodeConfig {
 			});
 			this.nodeDef.input.required[name] = config;
 			this.newToOldWidgetMap[name] = { node, inputName };
+
+			if (!this.oldToNewWidgetMap[node.index]) {
+				this.oldToNewWidgetMap[node.index] = {};
+			}
+			this.oldToNewWidgetMap[node.index][inputName] = name;
+
 			inputMap[slots.length + i] = this.inputCount++;
 		}
 	}
@@ -916,6 +922,7 @@ export class GroupNodeHandler {
 				this.node.widgets[targetWidgetIndex + i].value = primitiveNode.widgets[i].value;
 			}
 		}
+		return true;
 	}
 
 	populateWidgets() {
@@ -933,16 +940,11 @@ export class GroupNodeHandler {
 				const newName = map[oldName];
 				const widgetIndex = this.node.widgets.findIndex((w) => w.name === newName);
 				const mainWidget = this.node.widgets[widgetIndex];
-				if (!newName) {
-					// New name will be null if its a converted widget
-					this.populatePrimitive(node, nodeId, oldName, i, linkedShift);
-
+				if (this.populatePrimitive(node, nodeId, oldName, i, linkedShift)) {
 					// Find the inner widget and shift by the number of linked widgets as they will have been removed too
 					const innerWidget = this.innerNodes[nodeId].widgets?.find((w) => w.name === oldName);
 					linkedShift += innerWidget.linkedWidgets?.length ?? 0;
-					continue;
 				}
-
 				if (widgetIndex === -1) {
 					continue;
 				}
