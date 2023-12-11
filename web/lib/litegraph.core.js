@@ -227,6 +227,8 @@
                 }
             }
 
+            console.log(type);
+            console.log(base_class);
             this.registered_node_types[type] = base_class;
             if (base_class.constructor.name) {
                 this.Nodes[classname] = base_class;
@@ -4327,6 +4329,9 @@
 			target_node.id,
 			target_slot
 		);
+        console.log("new link");
+        console.trace();
+        console.log(link_info);
 
 		//add to graph links list
 		this.graph.links[link_info.id] = link_info;

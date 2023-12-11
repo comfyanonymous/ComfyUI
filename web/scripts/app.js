@@ -1396,6 +1396,8 @@ export class ComfyApp {
 	}
 
 	async registerNodeDef(nodeId, nodeData) {
+		console.log("registerNodeDef");
+		console.log(nodeData);
 		const self = this;
 		const node = Object.assign(
 			function ComfyNode() {
@@ -1418,7 +1420,8 @@ export class ComfyApp {
 						}
 					} else {
 						// Node connection inputs
-						this.addInput(inputName, type);
+						const inputShape = type == "FLOW"? LiteGraph.ARROW_SHAPE : LiteGraph.CIRCLE_SHAPE;
+						this.addInput(inputName, type, { shape: inputShape });
 						widgetCreated = false;
 					}
 
@@ -1436,7 +1439,8 @@ export class ComfyApp {
 					let output = nodeData["output"][o];
 					if(output instanceof Array) output = "COMBO";
 					const outputName = nodeData["output_name"][o] || output;
-					const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
+					// const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
+					const outputShape = output == "FLOW"? LiteGraph.ARROW_SHAPE : (nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE) ;
 					this.addOutput(outputName, output, { shape: outputShape });
 				}
 
@@ -1556,6 +1560,205 @@ export class ComfyApp {
 		});
 	}
 
+
+	calculateFlowConnection(graphData)
+	{
+		if("flows" in graphData)
+		{
+			return graphData.flows;
+		}
+
+		// id-nodes, id-links
+		var nodes = {};
+		var links = {};
+		for(const node of graphData.nodes)
+		{
+			nodes[node.id] = node;
+		}
+		for(const link of graphData.links)
+		{
+			links[link[0]] = link;
+		}
+
+		// in-degree info
+		var in_degree = {};
+		var flow_order = [];	
+		for (const cur_node of graphData.nodes)
+		{
+			// in-degree info
+			var degree = 0;
+			// current node has inputs
+			if('inputs' in cur_node)
+			{
+				for (const inp of cur_node.inputs)
+				{
+					// only connected input
+					if(inp.link != null)
+					{
+						++degree;
+					}
+				}
+			}
+
+			// update in-degree info
+			in_degree[cur_node.id] = degree;
+
+			if(degree == 0)
+			{
+				flow_order.push(cur_node);
+			}
+		}
+
+
+		// calculate flow connection
+		var idx = 0;
+		while(idx < flow_order.length)
+		{
+			let cur_node = flow_order[idx++];
+			if('outputs' in cur_node)
+			{
+				for(const output of cur_node.outputs)
+				{
+					if(output.links === null || output.links.length == 0)
+					{
+						continue;
+					}
+
+					//
+					for(const link_id of output.links)
+					{
+						let link = links[link_id];
+						if(cur_node.id != link[3])
+						{
+							--in_degree[link[3]];
+							if(in_degree[link[3]] == 0)
+							{
+								flow_order.push(nodes[link[3]]);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// update flows data
+		var flows = {};
+		idx = 0;
+		while(idx < flow_order.length)
+		{
+			if(idx == flow_order.length -1)
+			{
+				flows[flow_order[idx].id] = null;
+			}
+			else{
+				flows[flow_order[idx].id] = flow_order[idx+1].id;
+			}
+			++idx;
+		}
+		graphData["flows"] = flows;
+
+		return flows;
+	}
+
+
+	initFlowControlConnection(graphData)
+	{
+		this.calculateFlowConnection(graphData);
+
+		// No nodes exist, just return
+		if(graphData.nodes.length==0)
+		{
+			return graphData;
+		}
+
+		// If flow-control inputs/outputs exist, just return
+		for (const node of graphData.nodes)
+		{
+			if("inputs" in node)
+			{
+				if (node.inputs[0].name == "FROM")
+				{
+					return graphData;
+				}
+				else{
+					break;
+				}
+			}
+		}
+
+		// add flow inputs & outputs
+		for(const cur_node of graphData.nodes)
+		{
+			if(!('inputs' in cur_node))
+			{
+				cur_node.inputs = [];
+			}
+			cur_node.inputs.unshift({name:'FROM', type:"FLOW", link:null, shape: LiteGraph.ARROW_SHAPE});
+			if(!('outputs' in cur_node))
+			{
+				cur_node.outputs = [];
+			}
+			for(const output of cur_node.outputs)
+			{
+				output.slot_index +=1;
+			}
+			cur_node.outputs.unshift({name:"TO", type: "FLOW", slot_index: 0, links:null, shape: LiteGraph.ARROW_SHAPE});
+
+		}
+
+		// update link info
+		for (const link of graphData.links)
+		{
+			link[2] +=1;
+			link[4] +=1;
+		}
+		
+		// max link id
+		var max_link_id = 0;
+		for(const link of graphData.links)
+		{
+			if(max_link_id < link[0])
+			{max_link_id = link[0];}
+		}
+
+		// id-nodes, id-links
+		var nodes = {};
+		for(const node of graphData.nodes)
+		{
+			nodes[node.id] = node;
+		}
+
+		// add links & flows
+		for(let from_id in graphData.flows)
+		{
+			let to_id = graphData.flows[from_id];
+			if(to_id == null)
+				continue;
+
+			let link_id = ++max_link_id;
+			let from_node = nodes[from_id];
+			let to_node = nodes[to_id];
+
+			var link = [link_id, from_id, 0, to_id, 0, "FLOW"];
+			// {id: link_id, 
+			// 	origin_id: from_id, 
+			// 	origin_slot: from_node.outputs.length -1, 
+			// 	target_id: to_id,
+			// 	target_slot: to_node.inputs.length -1,
+			// 	type: "FLOW"
+			// 	// _data: null
+			// };
+			console.log("Add Link:");
+			console.log(link);
+			graphData.links.push(link);
+
+			from_node.outputs[0].links = [link_id];
+			to_node.inputs[0].link = link_id;
+		}
+
+		return graphData;
+	}
+
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
@@ -1593,6 +1796,10 @@ export class ComfyApp {
 		}
 
 		try {
+			console.trace();
+			graphData = this.initFlowControlConnection(graphData);
+			console.log("Graph Data");
+			console.log(graphData);
 			this.graph.configure(graphData);
 		} catch (error) {
 			let errorHint = [];
@@ -1700,7 +1907,9 @@ export class ComfyApp {
 			}
 		}
 
-		const workflow = this.graph.serialize();
+		const _workflow = this.graph.serialize();
+		console.log("GraphToPrompt, originalPrompt");
+		console.log(_workflow);
 		const output = {};
 		// Process nodes in order of execution
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
@@ -1771,7 +1980,7 @@ export class ComfyApp {
 							if (parent?.updateLink) {
 								link = parent.updateLink(link);
 							}
-							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot) - 1];
 						}
 					}
 				}
@@ -1795,7 +2004,37 @@ export class ComfyApp {
 			}
 		}
 
-		return { workflow, output };
+		// Get flows from workflow
+		let workflow = JSON.parse(JSON.stringify(_workflow));
+		var flows = {};
+		for (const link of workflow.links)
+		{
+			flows[link[1]] = link[3];
+		}
+		workflow["flows"] = flows;
+
+		// Remove flow control info from workflow
+		// link
+		for (const link of workflow.links)
+		{
+			--link[2];
+			--link[4];
+		}
+		workflow.links = workflow.links.filter(element=>element[5]!="FLOW");
+		// input & output
+		for (const node of workflow.nodes)
+		{
+			node.inputs.shift();
+			node.outputs.shift();
+		}
+
+		// Remove flow control info from output
+		for (let node_id in output)
+		{
+			delete output[node_id].inputs.FROM;
+		}
+
+		return { workflow, output, flows };
 	}
 
 	#formatPromptError(error) {

@@ -12,6 +12,9 @@ class ComfyApi extends EventTarget {
 	}
 
 	fetchApi(route, options) {
+		console.log("FetchAPI");
+		console.log(route);
+		console.log(options);
 		return fetch(this.apiURL(route), options);
 	}
 
@@ -26,6 +29,7 @@ class ComfyApi extends EventTarget {
 	#pollQueue() {
 		setInterval(async () => {
 			try {
+				console.log("#pollQueue");
 				const resp = await this.fetchApi("/prompt");
 				const status = await resp.json();
 				this.dispatchEvent(new CustomEvent("status", { detail: status }));
@@ -178,7 +182,31 @@ class ComfyApi extends EventTarget {
 	 */
 	async getNodeDefs() {
 		const resp = await this.fetchApi("/object_info", { cache: "no-store" });
-		return await resp.json();
+		let node_defs = await resp.json();
+		console.log(node_defs);
+		try{
+			for (let node_name in node_defs)
+			{
+				let node_def = node_defs[node_name];
+				// add input
+				if(!("optional" in node_def.input))
+				{
+					node_def.input["optional"] = {};
+				}
+				node_def.input["optional"]["FROM"] = ['FLOW'];
+
+				// add output
+				node_def.output.unshift("FLOW");
+				node_def.output_is_list.unshift(false);
+				node_def.output_name.unshift("TO");
+			}
+		} catch(error)
+		{
+			console.log("err happends");
+			console.log(error);
+		}
+		console.log(node_defs);
+		return node_defs;
 	}
 
 	/**
@@ -186,7 +214,7 @@ class ComfyApi extends EventTarget {
 	 * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
 	 * @param {object} prompt The prompt data to queue
 	 */
-	async queuePrompt(number, { output, workflow }) {
+	async queuePrompt(number, { output, workflow, flows }) {
 		const body = {
 			client_id: this.clientId,
 			prompt: output,
@@ -199,6 +227,8 @@ class ComfyApi extends EventTarget {
 			body.number = number;
 		}
 
+		console.log("queuePrompt");
+		console.log(body);
 		const res = await this.fetchApi("/prompt", {
 			method: "POST",
 			headers: {
