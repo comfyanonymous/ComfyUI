@@ -1,7 +1,7 @@
 // @ts-check
 /// <reference path="../node_modules/@types/jest/index.d.ts" />
 
-const { start, createDefaultWorkflow } = require("../utils");
+const { start, createDefaultWorkflow, getNodeDef } = require("../utils");
 const lg = require("../utils/litegraph");
 
 describe("group node", () => {
@@ -273,7 +273,7 @@ describe("group node", () => {
 
 		let reroutes = [];
 		let prevNode = nodes.ckpt;
-		for(let i = 0; i < 5; i++) {
+		for (let i = 0; i < 5; i++) {
 			const reroute = ez.Reroute();
 			prevNode.outputs[0].connectTo(reroute.inputs[0]);
 			prevNode = reroute;
@@ -283,7 +283,7 @@ describe("group node", () => {
 
 		const group = await convertToGroup(app, graph, "test", [...reroutes, ...Object.values(nodes)]);
 		expect((await graph.toPrompt()).output).toEqual(getOutput());
-		
+
 		group.menu["Convert to nodes"].call();
 		expect((await graph.toPrompt()).output).toEqual(getOutput());
 	});
@@ -677,6 +677,50 @@ describe("group node", () => {
 		expect((await graph.toPrompt()).output).toEqual({
 			1: { inputs: { text: "positive" }, class_type: "CLIPTextEncode" },
 			2: { inputs: { text: "positive" }, class_type: "CLIPTextEncode" },
+		});
+	});
+	test("correctly handles widget inputs", async () => {
+		const { ez, graph, app } = await start();
+		const upscaleMethods = (await getNodeDef("ImageScaleBy")).input.required["upscale_method"][0];
+		
+		const image = ez.LoadImage();
+		const scale1 = ez.ImageScaleBy(image.outputs[0]);
+		const scale2 = ez.ImageScaleBy(image.outputs[0]);
+		const preview1 = ez.PreviewImage(scale1.outputs[0]);
+		const preview2 = ez.PreviewImage(scale2.outputs[0]);
+		scale1.widgets.upscale_method.convertToInput();
+
+		const group = await convertToGroup(app, graph, "test", [scale1, scale2]);
+		expect(group.inputs.length).toBe(3);
+		expect(group.inputs[0].input.type).toBe("IMAGE");
+		expect(group.inputs[1].input.type).toBe("IMAGE");
+		expect(group.inputs[2].input.type).toBe("COMBO");
+
+		// Ensure links are maintained
+		expect(group.inputs[0].connection?.originNode?.id).toBe(image.id);
+		expect(group.inputs[1].connection?.originNode?.id).toBe(image.id);
+		expect(group.inputs[2].connection).toBeFalsy();
+
+		// Ensure primitive gets correct type
+		const primitive = ez.PrimitiveNode();
+		primitive.outputs[0].connectTo(group.inputs[2]);
+		expect(primitive.widgets.value.widget.options.values).toBe(upscaleMethods);
+		expect(primitive.widgets.value.value).toBe(upscaleMethods[0]);
+		primitive.widgets.value.value = upscaleMethods[1];
+
+		// Ensure widget value is applied to prompt
+		expect((await graph.toPrompt()).output).toStrictEqual({
+			[image.id]: { inputs: { image: "example.png", upload: "image" }, class_type: "LoadImage" },
+			[scale1.id]: {
+				inputs: { upscale_method: upscaleMethods[1], scale_by: 1, image: [`${image.id}`, 0] },
+				class_type: "ImageScaleBy",
+			},
+			[scale2.id]: {
+				inputs: { upscale_method: "nearest-exact", scale_by: 1, image: [`${image.id}`, 0] },
+				class_type: "ImageScaleBy",
+			},
+			[preview1.id]: { inputs: { images: [`${scale1.id}`, 0] }, class_type: "PreviewImage" },
+			[preview2.id]: { inputs: { images: [`${scale2.id}`, 0] }, class_type: "PreviewImage" },
 		});
 	});
 	test("adds widgets in node execution order", async () => {

@@ -174,6 +174,11 @@ export class GroupNodeConfig {
 			node.index = i;
 			this.processNode(node, seenInputs, seenOutputs);
 		}
+
+		for (const p of this.#convertedToProcess) {
+			p();
+		}
+		this.#convertedToProcess = null;
 		await app.registerNodeDef("workflow/" + this.name, this.nodeDef);
 	}
 
@@ -420,10 +425,12 @@ export class GroupNodeConfig {
 				defaultInput: true,
 			});
 			this.nodeDef.input.required[name] = config;
+			this.newToOldWidgetMap[name] = { node, inputName };
 			inputMap[slots.length + i] = this.inputCount++;
 		}
 	}
 
+	#convertedToProcess = [];
 	processNodeInputs(node, seenInputs, inputs) {
 		const inputMapping = [];
 
@@ -434,7 +441,11 @@ export class GroupNodeConfig {
 		const linksTo = this.linksTo[node.index] ?? {};
 		const inputMap = (this.oldToNewInputMap[node.index] = {});
 		this.processInputSlots(inputs, node, slots, linksTo, inputMap, seenInputs);
-		this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs);
+
+		// Converted inputs have to be processed after all other nodes as they'll be at the end of the list
+		this.#convertedToProcess.push(() =>
+			this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs)
+		);
 
 		return inputMapping;
 	}
