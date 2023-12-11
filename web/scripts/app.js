@@ -1396,8 +1396,6 @@ export class ComfyApp {
 	}
 
 	async registerNodeDef(nodeId, nodeData) {
-		console.log("registerNodeDef");
-		console.log(nodeData);
 		const self = this;
 		const node = Object.assign(
 			function ComfyNode() {
@@ -1740,8 +1738,6 @@ export class ComfyApp {
 			// 	type: "FLOW"
 			// 	// _data: null
 			// };
-			console.log("Add Link:");
-			console.log(link);
 			graphData.links.push(link);
 
 			from_node.outputs[0].links = [link_id];
@@ -1788,10 +1784,7 @@ export class ComfyApp {
 		}
 
 		try {
-			console.trace();
 			graphData = this.initFlowControlConnection(graphData);
-			console.log("Graph Data");
-			console.log(graphData);
 			this.graph.configure(graphData);
 		} catch (error) {
 			let errorHint = [];
@@ -1900,8 +1893,6 @@ export class ComfyApp {
 		}
 
 		const _workflow = this.graph.serialize();
-		console.log("GraphToPrompt, originalPrompt");
-		console.log(_workflow);
 		const output = {};
 		// Process nodes in order of execution
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
