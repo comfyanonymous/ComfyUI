@@ -180,7 +180,7 @@ export function mergeIfValid(output, config2, forceUpdate, recreateWidget, confi
 
 	const isNumber = config1[0] === "INT" || config1[0] === "FLOAT";
 	for (const k of keys.values()) {
-		if (k !== "default" && k !== "forceInput" && k !== "defaultInput") {
+		if (k !== "default" && k !== "forceInput" && k !== "defaultInput" && k !== "control_after_generate" && k !== "multiline") {
 			let v1 = config1[1][k];
 			let v2 = config2[1]?.[k];
 
