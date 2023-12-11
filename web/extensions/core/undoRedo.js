@@ -71,24 +71,21 @@ function graphEqual(a, b, root = true) {
 }
 
 const undoRedo = async (e) => {
+	const updateState = async (source, target) => {
+		const prevState = source.pop();
+		if (prevState) {
+			target.push(activeState);
+			isOurLoad = true;
+			await app.loadGraphData(prevState, false);
+			activeState = prevState;
+		}
+	}
 	if (e.ctrlKey || e.metaKey) {
 		if (e.key === "y") {
-			const prevState = redo.pop();
-			if (prevState) {
-				undo.push(activeState);
-				isOurLoad = true;
-				await app.loadGraphData(prevState);
-				activeState = prevState;
-			}
+			updateState(redo, undo);
 			return true;
 		} else if (e.key === "z") {
-			const prevState = undo.pop();
-			if (prevState) {
-				redo.push(activeState);
-				isOurLoad = true;
-				await app.loadGraphData(prevState);
-				activeState = prevState;
-			}
+			updateState(undo, redo);
 			return true;
 		}
 	}
