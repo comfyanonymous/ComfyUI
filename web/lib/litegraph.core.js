@@ -4309,6 +4309,15 @@
                         changed = true;
                     }
                 break;
+                
+                // if it is a flow-control connection, and the original output link is not null, discounnect
+                case "FLOW": 
+                    console.log("[Link Connect] remove output links of 'FLOW' connection.");
+                    this.graph.beforeChange();
+                    this.disconnectOutput(slot);
+                    changed = true;
+                break;
+
                 default:
                 break;
             }
