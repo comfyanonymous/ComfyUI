@@ -197,7 +197,10 @@ export class GroupNodeConfig {
 			if (!this.linksFrom[sourceNodeId]) {
 				this.linksFrom[sourceNodeId] = {};
 			}
-			this.linksFrom[sourceNodeId][sourceNodeSlot] = l;
+			if (!this.linksFrom[sourceNodeId][sourceNodeSlot]) {
+				this.linksFrom[sourceNodeId][sourceNodeSlot] = [];
+			}
+			this.linksFrom[sourceNodeId][sourceNodeSlot].push(l);
 
 			if (!this.linksTo[targetNodeId]) {
 				this.linksTo[targetNodeId] = {};
@@ -235,11 +238,11 @@ export class GroupNodeConfig {
 			// Skip as its not linked
 			if (!linksFrom) return;
 
-			let type = linksFrom["0"][5];
+			let type = linksFrom["0"][0][5];
 			if (type === "COMBO") {
 				// Use the array items
 				const source = node.outputs[0].widget.name;
-				const fromTypeName = this.nodeData.nodes[linksFrom["0"][2]].type;
+				const fromTypeName = this.nodeData.nodes[linksFrom["0"][0][2]].type;
 				const fromType = globalDefs[fromTypeName];
 				const input = fromType.input.required[source] ?? fromType.input.optional[source];
 				type = input[0];
@@ -263,10 +266,33 @@ export class GroupNodeConfig {
 				return null;
 			}
 
+			let config = {};
 			let rerouteType = "*";
 			if (linksFrom) {
-				const [, , id, slot] = linksFrom["0"];
-				rerouteType = this.nodeData.nodes[id].inputs[slot].type;
+				for (const [, , id, slot] of linksFrom["0"]) {
+					const node = this.nodeData.nodes[id];
+					const input = node.inputs[slot];
+					if (rerouteType === "*") {
+						rerouteType = input.type;
+					}
+					if (input.widget) {
+						const targetDef = globalDefs[node.type];
+						const targetWidget =
+							targetDef.input.required[input.widget.name] ?? targetDef.input.optional[input.widget.name];
+
+						const widget = [targetWidget[0], config];
+						const res = mergeIfValid(
+							{
+								widget,
+							},
+							targetWidget,
+							false,
+							null,
+							widget
+						);
+						config = res?.customConfig ?? config;
+					}
+				}
 			} else if (linksTo) {
 				const [id, slot] = linksTo["0"];
 				rerouteType = this.nodeData.nodes[id].outputs[slot].type;
@@ -287,10 +313,11 @@ export class GroupNodeConfig {
 				}
 			}
 
+			config.forceInput = true;
 			return {
 				input: {
 					required: {
-						[rerouteType]: [rerouteType, {}],
+						[rerouteType]: [rerouteType, config],
 					},
 				},
 				output: [rerouteType],
@@ -690,6 +717,8 @@ export class GroupNodeHandler {
 						top = newNode.pos[1];
 					}
 
+					if (!newNode.widgets) continue;
+
 					const map = this.groupData.oldToNewWidgetMap[innerNode.index];
 					if (map) {
 						const widgets = Object.keys(map);
@@ -746,7 +775,7 @@ export class GroupNodeHandler {
 				}
 			};
 
-			const reconnectOutputs = () => {
+			const reconnectOutputs = (selectedIds) => {
 				for (let groupOutputId = 0; groupOutputId < node.outputs?.length; groupOutputId++) {
 					const output = node.outputs[groupOutputId];
 					if (!output.links) continue;
@@ -895,6 +924,18 @@ export class GroupNodeHandler {
 					}
 				}
 				continue;
+			} else if (innerNode.type === "Reroute") {
+				const rerouteLinks = this.groupData.linksFrom[old.node.index];
+				for (const [_, , targetNodeId, targetSlot] of rerouteLinks["0"]) {
+					const node = this.innerNodes[targetNodeId];
+					const input = node.inputs[targetSlot];
+					if (input.widget) {
+						const widget = node.widgets?.find((w) => w.name === input.widget.name);
+						if (widget) {
+							widget.value = newValue;
+						}
+					}
+				}
 			}
 
 			const widget = innerNode.widgets?.find((w) => w.name === old.inputName);
@@ -926,6 +967,8 @@ export class GroupNodeHandler {
 	}
 
 	populateWidgets() {
+		if (!this.node.widgets) return;
+
 		for (let nodeId = 0; nodeId < this.groupData.nodeData.nodes.length; nodeId++) {
 			const node = this.groupData.nodeData.nodes[nodeId];
 

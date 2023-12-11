@@ -901,4 +901,67 @@ describe("group node", () => {
 		expect(p2.widgets.control_after_generate.value).toBe("randomize");
 		expect(p2.widgets.control_filter_list.value).toBe("/.+/");
 	});
+	test("internal reroutes work with converted inputs and merge options", async () => {
+		const { ez, graph, app } = await start();
+		const vae = ez.VAELoader();
+		const latent = ez.EmptyLatentImage();
+		const decode = ez.VAEDecode(latent.outputs.LATENT, vae.outputs.VAE);
+		const scale = ez.ImageScale(decode.outputs.IMAGE);
+		ez.PreviewImage(scale.outputs.IMAGE);
+
+		const r1 = ez.Reroute();
+		const r2 = ez.Reroute();
+
+		latent.widgets.width.convertToInput();
+		latent.widgets.height.convertToInput();
+		latent.widgets.batch_size.convertToInput();
+
+		scale.widgets.width.convertToInput();
+		scale.widgets.height.convertToInput();
+
+		r1.inputs[0].input.label = "hbw";
+		r1.outputs[0].connectTo(latent.inputs.height);
+		r1.outputs[0].connectTo(latent.inputs.batch_size);
+		r1.outputs[0].connectTo(scale.inputs.width);
+
+		r2.inputs[0].input.label = "wh";
+		r2.outputs[0].connectTo(latent.inputs.width);
+		r2.outputs[0].connectTo(scale.inputs.height);
+
+		const group = await convertToGroup(app, graph, "test", [r1, r2, latent, decode, scale]);
+
+		expect(group.inputs[0].input.type).toBe("VAE");
+		expect(group.inputs[1].input.type).toBe("INT");
+		expect(group.inputs[2].input.type).toBe("INT");
+
+		const p1 = ez.PrimitiveNode();
+		const p2 = ez.PrimitiveNode();
+		p1.outputs[0].connectTo(group.inputs[1]);
+		p2.outputs[0].connectTo(group.inputs[2]);
+
+		expect(p1.widgets.value.widget.options?.min).toBe(16); // width/height min
+		expect(p1.widgets.value.widget.options?.max).toBe(4096); // batch max
+		expect(p1.widgets.value.widget.options?.step).toBe(80); // width/height step * 10
+
+		expect(p2.widgets.value.widget.options?.min).toBe(16); // width/height min
+		expect(p2.widgets.value.widget.options?.max).toBe(8192); // width/height max
+		expect(p2.widgets.value.widget.options?.step).toBe(80); // width/height step * 10
+
+		p1.widgets.value.value = 16;
+		p2.widgets.value.value = 32;
+
+		await checkBeforeAndAfterReload(graph, async (r) => {
+			const id = (v) => (r ? `${group.id}:` : "") + v;
+			expect((await graph.toPrompt()).output).toStrictEqual({
+				1: { inputs: { vae_name: "vae1.safetensors" }, class_type: "VAELoader" },
+				[id(2)]: { inputs: { width: 32, height: 16, batch_size: 16 }, class_type: "EmptyLatentImage" },
+				[id(3)]: { inputs: { samples: [id(2), 0], vae: ["1", 0] }, class_type: "VAEDecode" },
+				[id(4)]: {
+					inputs: { upscale_method: "nearest-exact", width: 16, height: 32, crop: "disabled", image: [id(3), 0] },
+					class_type: "ImageScale",
+				},
+				5: { inputs: { images: [id(4), 0] }, class_type: "PreviewImage" },
+			});
+		});
+	});
 });
