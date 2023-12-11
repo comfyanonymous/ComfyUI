@@ -62,6 +62,15 @@ class manual_cast:
             weight, bias = cast_bias_weight(self, input)
             return torch.nn.functional.layer_norm(input, self.normalized_shape, weight, bias, self.eps)
 
+    @classmethod
+    def conv_nd(s, dims, *args, **kwargs):
+        if dims == 2:
+            return s.Conv2d(*args, **kwargs)
+        elif dims == 3:
+            return s.Conv3d(*args, **kwargs)
+        else:
+            raise ValueError(f"unsupported dimensions: {dims}")
+
 @contextmanager
 def use_comfy_ops(device=None, dtype=None): # Kind of an ugly hack but I can't think of a better way
     old_torch_nn_linear = torch.nn.Linear
