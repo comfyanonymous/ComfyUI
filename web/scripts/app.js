@@ -1713,14 +1713,6 @@ export class ComfyApp {
 			link[4] +=1;
 		}
 		
-		// max link id
-		var max_link_id = 0;
-		for(const link of graphData.links)
-		{
-			if(max_link_id < link[0])
-			{max_link_id = link[0];}
-		}
-
 		// id-nodes, id-links
 		var nodes = {};
 		for(const node of graphData.nodes)
@@ -1735,7 +1727,7 @@ export class ComfyApp {
 			if(to_id == null)
 				continue;
 
-			let link_id = ++max_link_id;
+			let link_id = ++graphData.last_link_id;
 			let from_node = nodes[from_id];
 			let to_node = nodes[to_id];
 
