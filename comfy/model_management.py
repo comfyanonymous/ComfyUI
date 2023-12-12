@@ -56,6 +56,8 @@ except:
     pass
 
 if args.cpu:
+    if args.cpu_cores > 0:
+        torch.set_num_threads(args.cpu_cores)
     cpu_state = CPUState.CPU
 
 def is_intel_xpu():
