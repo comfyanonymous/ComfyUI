@@ -222,7 +222,7 @@ class SequenceFlow:
                 self.server.send_sync("executed", { "node": node_id, "output": node_output_ui, "prompt_id": self.context.prompt_id }, self.server.client_id)
         
         
-    def _is_inputs_changed(self, node_id, input_datas):
+    def _is_inputs_changed(self, node_id, obj, input_datas):
         """
         Wether the inputs of a node changed or not.
         
@@ -237,41 +237,51 @@ class SequenceFlow:
         old_inputs = self.context.old_prompt[node_id]['inputs'] if node_id in self.context.old_prompt else {}
         is_changed = False
         
-        for input_name in node_inputs:
-            is_connection = self.context.is_connection_input(node_inputs=node_inputs, input_name=input_name)
+        # IS_CHANGED defined
+        class_type = self.context.prompt[node_id]['class_type']
+        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+        if hasattr(class_def, 'IS_CHANGED'):
+            is_changed_hash = getattr(obj, "IS_CHANGED")(**input_datas)
+            print(f"[IsInputChanged] is changed hash: {is_changed_hash}")
             
-            if is_connection:
-                #find connected original node
-                original_node_id = node_inputs[input_name][0]
-                is_cur_input_changed = self.context.is_changed[original_node_id]
-                if is_cur_input_changed:
-                    print(f"[IsInputChanged] input changed: input NODE changed.")
-            else:
-                if input_name in old_inputs:
-                    is_cur_input_changed = (node_inputs[input_name] != old_inputs[input_name])
-                    if is_cur_input_changed:
-                        print(f"[IsInputChanged] input changed: input value changed.")
-                else:
-                    is_cur_input_changed = True
-                    if is_cur_input_changed:
-                        print(f"[IsInputChanged] input changed: previous input not exist.")
-                 
-            # input changed 
-            if is_cur_input_changed:
+            old_hash = self.context.is_changed_hash.get(node_id, '')
+            if is_changed_hash != old_hash:
                 is_changed = True
-                break
+                self.context.is_changed_hash[node_id] = is_changed_hash
+                print(f"[IsInputChanged] input changed: is_changed_hash NOT the same.")
+        
+        # check all inputs
+        if is_changed == False:
+            for input_name in node_inputs:
+                is_connection = self.context.is_connection_input(node_inputs=node_inputs, input_name=input_name)
+                
+                if is_connection:
+                    #find connected original node
+                    original_node_id = node_inputs[input_name][0]
+                    is_cur_input_changed = self.context.is_changed[original_node_id]
+                    if is_cur_input_changed:
+                        print(f"[IsInputChanged] input changed: input NODE changed.")
+                else:
+                    if input_name in old_inputs:
+                        is_cur_input_changed = (node_inputs[input_name] != old_inputs[input_name])
+                        if is_cur_input_changed:
+                            print(f"[IsInputChanged] input changed: input value changed.")
+                    else:
+                        is_cur_input_changed = True
+                        if is_cur_input_changed:
+                            print(f"[IsInputChanged] input changed: previous input not exist.")
+                    
+                # input changed 
+                if is_cur_input_changed:
+                    is_changed = True
+                    break
 
         # previous node outputs do not exist
         if is_changed == False and node_id not in self.context.old_outputs:
             is_changed = True
             if is_changed:
                 print(f"[IsInputChanged] input changed: previous output not exist.")
-                
-                
-        # # IS_CHANGED defined
-        # if is_changed == False and node_id in self.context.is_changed_hash:
-        #     is_changed_hash = 
-            
+                  
         return is_changed
     
     
@@ -365,15 +375,15 @@ class SequenceFlow:
             
             self._on_node_executing(cur_node_id)
             
+            # get node object
+            obj = self.context.get_object(cur_node_id)
+            # get inputs
+            input_datas = self.context.get_inputs(cur_node_id)
+            print(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
+            
             # input changed, execute this node
-            if self._is_inputs_changed(cur_node_id):
+            if self._is_inputs_changed(cur_node_id, obj, input_datas):
                 print(f"[Execute Node] input changed.")
-                
-                # get node object
-                obj = self.context.get_object(cur_node_id)
-                # get inputs
-                input_datas = self.context.get_inputs(cur_node_id)
-                print(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
                 
                 # execute
                 node_output, node_output_ui = self._execute_node(
