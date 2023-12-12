@@ -15,6 +15,22 @@ import comfy.model_management
 from framework.app_log import LogUtils
 
 
+def format_value(x):
+    if x is None:
+        return None
+    elif isinstance(x, (int, float, bool, str)):
+        return x
+    else:
+        return str(x)
+    
+    
+def full_type_name(klass):
+    module = klass.__module__
+    if module == 'builtins':
+        return klass.__qualname__
+    return module + '.' + klass.__qualname__
+    
+    
 class ExecuteContextStorage:
     def __init__(self) -> None:
         
@@ -36,6 +52,8 @@ class ExecuteContextStorage:
         
         self.flows = {}
         self.extra_data = {}
+        
+        self.executed = set()
         
         
         
@@ -179,6 +197,7 @@ class ExecuteContextStorage:
         self.outputs = {}
         self.is_changed = {}
         self.outputs_ui = {}
+        self.executed = set()
         
         # prepare outputs
         self._prepare_old_outputs()
@@ -197,8 +216,14 @@ class ExecuteContextStorage:
         # self.old_objects = self.objects
         # self.objects = {}
         
-        self.old_prompt = self.prompt
-        self.prompt = {}
+        # self.old_prompt = self.prompt
+        # self.prompt = {}
+        
+        self.old_prompt = {}
+        for node_id in self.executed:
+            if node_id in self.prompt:
+                self.old_prompt[node_id] = self.prompt[node_id]
+            
         
         
         
@@ -366,6 +391,9 @@ class SequenceFlow:
     
         
     def execute(self):
+        """
+        Execute the flow
+        """
         cur_node_id = self.first_node
         
         # while this is valid id
@@ -373,41 +401,80 @@ class SequenceFlow:
             
             print(f"[Execute Node] ****************** {cur_node_id}, {self.context.prompt[cur_node_id]['class_type']}")
             
-            self._on_node_executing(cur_node_id)
             
-            # get node object
-            obj = self.context.get_object(cur_node_id)
-            # get inputs
-            input_datas = self.context.get_inputs(cur_node_id)
-            print(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
-            
-            # input changed, execute this node
-            if self._is_inputs_changed(cur_node_id, obj, input_datas):
-                print(f"[Execute Node] input changed.")
+            input_datas = []
+            try:
+                self._on_node_executing(cur_node_id)
                 
-                # execute
-                node_output, node_output_ui = self._execute_node(
-                                                obj=obj, input_datas=input_datas, allow_interrupt=True)
+                # get node object
+                obj = self.context.get_object(cur_node_id)
+                # get inputs
+                input_datas = self.context.get_inputs(cur_node_id)
+                print(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
                 
-                # save output
-                self.context.save_outputs(cur_node_id, node_output, node_output_ui, True)
+                # input changed, execute this node
+                if self._is_inputs_changed(cur_node_id, obj, input_datas):
+                    print(f"[Execute Node] input changed.")
+                    
+                    # execute
+                    node_output, node_output_ui = self._execute_node(
+                                obj=obj, input_datas=input_datas, allow_interrupt=True)
+                    
+                    # save output
+                    self.context.save_outputs(cur_node_id, node_output, node_output_ui, True)
 
-            # input not change, copy the result and skip this node
-            else:
-                print(f"[Execute Node] input NOT changed.")
-                node_output, node_output_ui = self.context.get_old_output(cur_node_id)
-                self.context.save_outputs(cur_node_id, node_output, node_output_ui, False)
-            
-            print(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
-            print(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
-            
-            
-            # 
-            self._on_node_executed(cur_node_id, node_output_ui)
+                # input not change, copy the result and skip this node
+                else:
+                    print(f"[Execute Node] input NOT changed.")
+                    node_output, node_output_ui = self.context.get_old_output(cur_node_id)
+                    self.context.save_outputs(cur_node_id, node_output, node_output_ui, False)
+                
+                print(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
+                print(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
+                
+                self.context.executed.add(cur_node_id)
+                # 
+                self._on_node_executed(cur_node_id, node_output_ui)
 
-            # go to the next node
-            cur_node_id = self._get_next_node(cur_node_id)
+                # go to the next node
+                cur_node_id = self._get_next_node(cur_node_id)
             
+            except comfy.model_management.InterruptProcessingException as iex:
+                logging.info("Processing interrupted")
+
+                # skip formatting inputs/outputs
+                error_details = {
+                    "node_id": cur_node_id,
+                }
+
+                return (False, error_details, iex)
+            except Exception as ex:
+                typ, _, tb = sys.exc_info()
+                exception_type = full_type_name(typ)
+                input_data_formatted = {}
+                if input_datas is not None:
+                    input_data_formatted = {}
+                    for name, inputs in input_datas.items():
+                        input_data_formatted[name] = [format_value(x) for x in inputs]
+
+                output_data_formatted = {}
+                for node_id, node_outputs in self.context.outputs.items():
+                    output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
+
+                logging.error("!!! Exception during processing !!!")
+                logging.error(traceback.format_exc())
+
+                error_details = {
+                    "node_id": cur_node_id,
+                    "exception_message": str(ex),
+                    "exception_type": exception_type,
+                    "traceback": traceback.format_tb(tb),
+                    "current_inputs": input_data_formatted,
+                    "current_outputs": output_data_formatted
+                }
+                return (False, error_details, ex)
+        
+        return (True,None, None)   
         
         
 
@@ -509,7 +576,11 @@ class FlowExecutor:
                 flow_exe = SequenceFlow(first_node=first_node_id, context=self.context, server= self.server)
                 
                 # execute
-                flow_exe.execute()
+                succ, err, ex = flow_exe.execute()
+                
+                if succ is not True:
+                    self.handle_execution_error(prompt_id, prompt, self.context.outputs, self.context.executed, err, ex)
+                    break
 
             self.server.last_node_id = None
             
