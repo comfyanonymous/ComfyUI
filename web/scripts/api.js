@@ -218,6 +218,7 @@ class ComfyApi extends EventTarget {
 		const body = {
 			client_id: this.clientId,
 			prompt: output,
+			flows: flows,
 			extra_data: { extra_pnginfo: { workflow } },
 		};
 

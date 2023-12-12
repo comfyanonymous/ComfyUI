@@ -1410,6 +1410,7 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
+        print(f'img path: {image_path}')
         i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
         image = i.convert("RGB")
@@ -1425,6 +1426,7 @@ class LoadImage:
     @classmethod
     def IS_CHANGED(s, image):
         image_path = folder_paths.get_annotated_filepath(image)
+        print(f'img path: {image_path}')
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
@@ -1788,6 +1790,7 @@ def load_custom_node(module_path, ignore=set()):
         sp = os.path.splitext(module_path)
         module_name = sp[0]
     try:
+        print(f'module: {module_name}')
         if os.path.isfile(module_path):
             module_spec = importlib.util.spec_from_file_location(module_name, module_path)
             module_dir = os.path.split(module_path)[0]

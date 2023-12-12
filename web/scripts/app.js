@@ -1653,7 +1653,7 @@ export class ComfyApp {
 			}
 			++idx;
 		}
-		graphData["flows"] = flows;
+		// graphData["flows"] = flows;
 
 		return flows;
 	}
@@ -1661,7 +1661,7 @@ export class ComfyApp {
 
 	initFlowControlConnection(graphData)
 	{
-		this.calculateFlowConnection(graphData);
+		let flows = this.calculateFlowConnection(graphData);
 
 		// No nodes exist, just return
 		if(graphData.nodes.length==0)
@@ -1719,9 +1719,9 @@ export class ComfyApp {
 		}
 
 		// add links & flows
-		for(let from_id in graphData.flows)
+		for(let from_id in flows)
 		{
-			let to_id = graphData.flows[from_id];
+			let to_id = flows[from_id];
 			if(to_id == null)
 				continue;
 
@@ -1784,6 +1784,8 @@ export class ComfyApp {
 		}
 
 		try {
+			console.log("Graph Data (before):");
+			console.log(graphData);
 			graphData = this.initFlowControlConnection(graphData);
 			this.graph.configure(graphData);
 		} catch (error) {
@@ -1880,6 +1882,7 @@ export class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	async graphToPrompt() {
+		console.log("Graph To Prompt");
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
 			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
@@ -1992,7 +1995,7 @@ export class ComfyApp {
 		var flows = {};
 		for (const link of workflow.links)
 		{
-			flows[link[1]] = link[3];
+			flows[link[1]] = link[3].toString();
 		}
 		workflow["flows"] = flows;
 

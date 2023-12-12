@@ -74,6 +74,7 @@ import server
 from server import BinaryEventTypes
 from nodes import init_custom_nodes
 import comfy.model_management
+from framework.flow_execution import FlowExecutor
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -87,7 +88,8 @@ def cuda_malloc_warning():
             print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 def prompt_worker(q, server):
-    e = execution.PromptExecutor(server)
+    # e = execution.PromptExecutor(server)
+    e = FlowExecutor(server)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -100,9 +102,19 @@ def prompt_worker(q, server):
         queue_item = q.get(timeout=timeout)
         if queue_item is not None:
             item, item_id = queue_item
+            print(f"[Prompt worker] item: {item}")
+            print(f"[Prompt worker] itemid: {item_id}")
+            print(f"[Prompt worker] item0: {item[0]}")
+            print(f"[Prompt worker] item1: {item[1]}")
+            print(f"[Prompt worker] item2: {item[2]}")
+            print(f"[Prompt worker] item3: {item[3]}")
+            print(f"[Prompt worker] item4: {item[4]}")
+            print(f"[Prompt worker] item5: {item[5]}")
+            
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
-            e.execute(item[2], prompt_id, item[3], item[4])
+            # e.execute(item[2], prompt_id, item[3], item[4])
+            e.execute(item[2], prompt_id, item[5], item[3], item[4])
             need_gc = True
             q.task_done(item_id, e.outputs_ui)
             if server.client_id is not None:

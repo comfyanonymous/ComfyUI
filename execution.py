@@ -13,6 +13,8 @@ import nodes
 
 import comfy.model_management
 
+from framework.app_log import LogUtils
+
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
@@ -52,24 +54,31 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         max_len_input = 0
     else:
         max_len_input = max([len(x) for x in input_data_all.values()])
-     
+    
+    print(f"[Map Over List] max input len: {max_len_input}")
+    print(f"[Map Over List] input data all: {LogUtils.visible_convert(input_data_all)}")
+    
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         d_new = dict()
         for k,v in d.items():
             d_new[k] = v[i if len(v) > i else -1]
+        print(f"slice dict: {d_new}")
         return d_new
     
     results = []
     if input_is_list:
+        print('input is list')
         if allow_interrupt:
             nodes.before_node_execution()
         results.append(getattr(obj, func)(**input_data_all))
     elif max_len_input == 0:
+        print('max len input  = 0')
         if allow_interrupt:
             nodes.before_node_execution()
         results.append(getattr(obj, func)())
     else:
+        print('mul inputs')
         for i in range(max_len_input):
             if allow_interrupt:
                 nodes.before_node_execution()
@@ -329,6 +338,11 @@ class PromptExecutor:
         with torch.inference_mode():
             #delete cached outputs if nodes don't exist for them
             to_delete = []
+            print(f'[Execute] last output: \n{LogUtils.visible_convert(self.outputs)}')
+            print(f'[Execute] last output ui: \n{LogUtils.visible_convert(self.outputs_ui)}')
+            print(f'[Execute] last storage: \n{LogUtils.visible_convert(self.object_storage)}')
+            print(f'[Execute] last prompt: \n{LogUtils.visible_convert(self.old_prompt)}')
+            print(f'[Execute] new prompt: \n{LogUtils.visible_convert(prompt)}')
             for o in self.outputs:
                 if o not in prompt:
                     to_delete += [o]
