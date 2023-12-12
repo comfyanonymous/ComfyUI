@@ -48,7 +48,7 @@ class BaseModel(torch.nn.Module):
             if self.manual_cast_dtype is not None:
                 operations = comfy.ops.manual_cast
             else:
-                operations = comfy.ops
+                operations = comfy.ops.disable_weight_init
             self.diffusion_model = UNetModel(**unet_config, device=device, operations=operations)
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
