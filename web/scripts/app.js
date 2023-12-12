@@ -1991,13 +1991,16 @@ export class ComfyApp {
 		}
 
 		// Get flows from workflow
+		console.log(_workflow);
 		let workflow = JSON.parse(JSON.stringify(_workflow));
 		var flows = {};
 		for (const link of workflow.links)
 		{
-			flows[link[1]] = link[3].toString();
+			if(link[5] == "FLOW")
+				flows[link[1]] = link[3].toString();
 		}
 		workflow["flows"] = flows;
+		console.log(workflow);
 
 		// Remove flow control info from workflow
 		// link
