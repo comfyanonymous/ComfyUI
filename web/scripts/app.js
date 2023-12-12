@@ -1729,7 +1729,7 @@ export class ComfyApp {
 			let from_node = nodes[from_id];
 			let to_node = nodes[to_id];
 
-			var link = [link_id, from_id, 0, to_id, 0, "FLOW"];
+			var link = [link_id, parseInt(from_id), 0, to_id, 0, "FLOW"];
 			// {id: link_id, 
 			// 	origin_id: from_id, 
 			// 	origin_slot: from_node.outputs.length -1, 
