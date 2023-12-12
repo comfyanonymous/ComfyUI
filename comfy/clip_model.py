@@ -57,12 +57,7 @@ class CLIPEncoder(torch.nn.Module):
         self.layers = torch.nn.ModuleList([CLIPLayer(embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations) for i in range(num_layers)])
 
     def forward(self, x, mask=None, intermediate_output=None):
-        optimized_attention = optimized_attention_for_device(x.device, mask=True)
-        causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
-        if mask is not None:
-            mask += causal_mask
-        else:
-            mask = causal_mask
+        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None)
 
         if intermediate_output is not None:
             if intermediate_output < 0:
@@ -105,6 +100,12 @@ class CLIPTextModel_(torch.nn.Module):
             mask = 1.0 - attention_mask.to(x.dtype).unsqueeze(1).unsqueeze(1).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
             mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
 
+        causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
+        if mask is not None:
+            mask += causal_mask
+        else:
+            mask = causal_mask
+
         x, i = self.encoder(x, mask=mask, intermediate_output=intermediate_output)
         x = self.final_layer_norm(x)
         if i is not None and final_layer_norm_intermediate:
@@ -128,3 +129,60 @@ class CLIPTextModel(torch.nn.Module):
 
     def forward(self, *args, **kwargs):
         return self.text_model(*args, **kwargs)
+
+class CLIPVisionEmbeddings(torch.nn.Module):
+    def __init__(self, embed_dim, num_channels=3, patch_size=14, image_size=224, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.class_embedding = torch.nn.Parameter(torch.empty(embed_dim, dtype=dtype, device=device))
+
+        self.patch_embedding = operations.Conv2d(
+            in_channels=num_channels,
+            out_channels=embed_dim,
+            kernel_size=patch_size,
+            stride=patch_size,
+            bias=False,
+            dtype=dtype,
+            device=device
+        )
+
+        num_patches = (image_size // patch_size) ** 2
+        num_positions = num_patches + 1
+        self.position_embedding = torch.nn.Embedding(num_positions, embed_dim, dtype=dtype, device=device)
+
+    def forward(self, pixel_values):
+        embeds = self.patch_embedding(pixel_values).flatten(2).transpose(1, 2)
+        return torch.cat([self.class_embedding.expand(pixel_values.shape[0], 1, -1), embeds], dim=1) + self.position_embedding.weight
+
+
+class CLIPVision(torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        num_layers = config_dict["num_hidden_layers"]
+        embed_dim = config_dict["hidden_size"]
+        heads = config_dict["num_attention_heads"]
+        intermediate_size = config_dict["intermediate_size"]
+        intermediate_activation = config_dict["hidden_act"]
+
+        self.embeddings = CLIPVisionEmbeddings(embed_dim, config_dict["num_channels"], config_dict["patch_size"], config_dict["image_size"], dtype=torch.float32, device=device, operations=operations)
+        self.pre_layrnorm = operations.LayerNorm(embed_dim)
+        self.encoder = CLIPEncoder(num_layers, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations)
+        self.post_layernorm = operations.LayerNorm(embed_dim)
+
+    def forward(self, pixel_values, attention_mask=None, intermediate_output=None):
+        x = self.embeddings(pixel_values)
+        x = self.pre_layrnorm(x)
+        #TODO: attention_mask?
+        x, i = self.encoder(x, mask=None, intermediate_output=intermediate_output)
+        pooled_output = self.post_layernorm(x[:, 0, :])
+        return x, i, pooled_output
+
+class CLIPVisionModelProjection(torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        self.vision_model = CLIPVision(config_dict, dtype, device, operations)
+        self.visual_projection = operations.Linear(config_dict["hidden_size"], config_dict["projection_dim"], bias=False)
+
+    def forward(self, *args, **kwargs):
+        x = self.vision_model(*args, **kwargs)
+        out = self.visual_projection(x[2])
+        return (x[0], x[1], out)

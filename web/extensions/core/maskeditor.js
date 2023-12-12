@@ -167,10 +167,6 @@ class MaskEditorDialog extends ComfyDialog {
 
 		// If it is specified as relative, using it only as a hidden placeholder for padding is recommended
 		// to prevent anomalies where it exceeds a certain size and goes outside of the window.
-		var placeholder = document.createElement("div");
-		placeholder.style.position = "relative";
-		placeholder.style.height = "50px";
-
 		var bottom_panel = document.createElement("div");
 		bottom_panel.style.position = "absolute";
 		bottom_panel.style.bottom = "0px";
@@ -192,7 +188,6 @@ class MaskEditorDialog extends ComfyDialog {
 		this.brush = brush;
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
-		this.element.appendChild(placeholder); // must below z-index than bottom_panel to avoid covering button
 		this.element.appendChild(bottom_panel);
 		document.body.appendChild(brush);
 
@@ -218,7 +213,6 @@ class MaskEditorDialog extends ComfyDialog {
 
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
-		this.element.appendChild(placeholder); // must below z-index than bottom_panel to avoid covering button
 		this.element.appendChild(bottom_panel);
 
 		bottom_panel.appendChild(clearButton);
