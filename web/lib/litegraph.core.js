@@ -91,6 +91,10 @@
         AUTOHIDE_TITLE: 3,
         VERTICAL_LAYOUT: "vertical", // arrange nodes vertically
 
+        // special INPUT/OUTPUT types
+        TYPE_ANY_DATA: "ANY_DATA",
+        TYPE_FLOW: "FLOW",
+
         proxy: null, //used to redirect calls
         node_images_path: "",
 
@@ -641,7 +645,8 @@
 
             // For nodes supporting multiple connection types
             if (type_a.indexOf(",") == -1 && type_b.indexOf(",") == -1) {
-                return type_a == type_b;
+                // return type_a == type_b;
+                return type_a == type_b || type_a == LiteGraph.TYPE_ANY_DATA || type_b == LiteGraph.TYPE_ANY_DATA;
             }
 
             // Check all permutations to see if one is valid

@@ -13,6 +13,7 @@ import nodes
 
 import comfy.model_management
 from framework.app_log import LogUtils
+from framework.flow_control_nodes import IfConotrolNode
 
 
 def format_value(x):
@@ -383,12 +384,33 @@ class SequenceFlow:
         return output, ui
         
         
+    def _handle_flow_control_node(self, node_id, obj, input_datas):
+        """
+        Handle flow control node before executing.
         
+        RETURN:
+        (bool, str)
+        bool, is this node a flow-control node
+        str, next_node_id, the id of the next node.
+        """
+        node_type = self.context.prompt[node_id]['class_type']
+        # if isinstance(obj, IfConotrolNode):
+        if node_type == "IfConotrolNode":
+            branch_bool = getattr(obj, obj.FUNCTION)(**input_datas)
+            node_flows = self.context.flows[node_id]
+            next_node_id = obj.goto(branch_bool, node_flows)
+            print(f"[Handle control node] is control node.")
+            return (True, next_node_id)
+        else:
+            print(f"[Handle control node] NOT control node.")
+            return (False, None)
     
     
     def _get_next_node(self, node_id):
-        return self.context.flows.get(node_id, None)
-    
+        goto_id = self.context.flows.get(node_id, None)
+        if goto_id is not None:
+            goto_id = goto_id[0]
+        return goto_id
         
     def execute(self):
         """
@@ -408,36 +430,52 @@ class SequenceFlow:
                 
                 # get node object
                 obj = self.context.get_object(cur_node_id)
+                
                 # get inputs
                 input_datas = self.context.get_inputs(cur_node_id)
                 print(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
                 
-                # input changed, execute this node
-                if self._is_inputs_changed(cur_node_id, obj, input_datas):
-                    print(f"[Execute Node] input changed.")
-                    
-                    # execute
-                    node_output, node_output_ui = self._execute_node(
-                                obj=obj, input_datas=input_datas, allow_interrupt=True)
-                    
-                    # save output
-                    self.context.save_outputs(cur_node_id, node_output, node_output_ui, True)
+                is_control_node, next_node_id = self._handle_flow_control_node(cur_node_id, obj, input_datas)
+                
+                # not a control node, just execute it.
+                if not is_control_node:
+                    # input changed, execute this node
+                    if self._is_inputs_changed(cur_node_id, obj, input_datas):
+                        print(f"[Execute Node] input changed.")
+                        
+                        # execute
+                        node_output, node_output_ui = self._execute_node(
+                                    obj=obj, input_datas=input_datas, allow_interrupt=True)
+                        
+                        # save output
+                        self.context.save_outputs(cur_node_id, node_output, node_output_ui, True)
 
-                # input not change, copy the result and skip this node
+                    # input not change, copy the result and skip this node
+                    else:
+                        print(f"[Execute Node] input NOT changed.")
+                        node_output, node_output_ui = self.context.get_old_output(cur_node_id)
+                        self.context.save_outputs(cur_node_id, node_output, node_output_ui, False)
+                    
+                    print(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
+                    print(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
+                    
+                    # go to the next node
+                    next_node_id = self._get_next_node(cur_node_id)
+                    print(f"[Execute Node] next id: {next_node_id}")
+                
+                # is a control node.
                 else:
-                    print(f"[Execute Node] input NOT changed.")
-                    node_output, node_output_ui = self.context.get_old_output(cur_node_id)
-                    self.context.save_outputs(cur_node_id, node_output, node_output_ui, False)
+                    print(f"[Execute Node] next id: {next_node_id}")
+                    print(f"[Execute Node] next id: {next_node_id}")
                 
-                print(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
-                print(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
-                
+                # add to executed list
                 self.context.executed.add(cur_node_id)
                 # 
                 self._on_node_executed(cur_node_id, node_output_ui)
+                
+                cur_node_id = next_node_id
 
-                # go to the next node
-                cur_node_id = self._get_next_node(cur_node_id)
+                
             
             except comfy.model_management.InterruptProcessingException as iex:
                 logging.info("Processing interrupted")
@@ -558,10 +596,12 @@ class FlowExecutor:
             
             # in degree
             in_degree = {}
-            for from_id, to_id in flows.items():
-                val = in_degree.get(to_id, 0)
-                val+=1
-                in_degree[to_id] = val
+            for from_id, goto_lit in flows.items():
+                for to_id in goto_lit:
+                    if to_id is not None:
+                        val = in_degree.get(to_id, 0)
+                        val+=1
+                        in_degree[to_id] = val
             
             # find the first nodes
             first_node_ids = []

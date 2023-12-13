@@ -1848,6 +1848,38 @@ def load_custom_nodes():
                 import_message = " (IMPORT FAILED)"
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
+        
+        
+def load_advance_flow_nodes():
+    base_node_names = set(NODE_CLASS_MAPPINGS.keys())
+    node_paths = folder_paths.get_folder_paths("framework")
+    node_paths += folder_paths.get_folder_paths("common_nodes")
+    
+    node_import_times = []
+    for custom_node_path in node_paths:
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
+        if "__pycache__" in possible_modules:
+            possible_modules.remove("__pycache__")
+
+        for possible_module in possible_modules:
+            module_path = os.path.join(custom_node_path, possible_module)
+            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+            if module_path.endswith(".disabled"): continue
+            time_before = time.perf_counter()
+            success = load_custom_node(module_path, base_node_names)
+            node_import_times.append((time.perf_counter() - time_before, module_path, success))
+
+    if len(node_import_times) > 0:
+        print("\nImport times for custom nodes:")
+        for n in sorted(node_import_times):
+            if n[2]:
+                import_message = ""
+            else:
+                import_message = " (IMPORT FAILED)"
+            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
+        print()
+        
+
 
 def init_custom_nodes():
     extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
@@ -1875,4 +1907,5 @@ def init_custom_nodes():
     for node_file in extras_files:
         load_custom_node(os.path.join(extras_dir, node_file))
 
+    load_advance_flow_nodes()
     load_custom_nodes()

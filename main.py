@@ -102,14 +102,15 @@ def prompt_worker(q, server):
         queue_item = q.get(timeout=timeout)
         if queue_item is not None:
             item, item_id = queue_item
-            print(f"[Prompt worker] item: {item}")
-            print(f"[Prompt worker] itemid: {item_id}")
-            print(f"[Prompt worker] item0: {item[0]}")
-            print(f"[Prompt worker] item1: {item[1]}")
-            print(f"[Prompt worker] item2: {item[2]}")
-            print(f"[Prompt worker] item3: {item[3]}")
-            print(f"[Prompt worker] item4: {item[4]}")
-            print(f"[Prompt worker] item5: {item[5]}")
+            # print(f"[Prompt worker] item: {item}")
+            # print(f"[Prompt worker] itemid: {item_id}")
+            # print(f"[Prompt worker] item0: {item[0]}")
+            # print(f"[Prompt worker] item1: {item[1]}")
+            # print(f"[Prompt worker] item2: {item[2]}")
+            # print(f"[Prompt worker] item3: {item[3]}")
+            # print(f"[Prompt worker] item4: {item[4]}")
+            # print(f"[Prompt worker] item5: {item[5]}")
+            print(f"[Prompt worker] new task: {item_id}")
             
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
