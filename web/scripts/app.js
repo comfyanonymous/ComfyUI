@@ -1397,15 +1397,28 @@ export class ComfyApp {
 
 	async registerNodeDef(nodeId, nodeData) {
 		const self = this;
+		console.log("RegisterNodeDef kkkkkkkk");
+		console.log(nodeData);
 		const node = Object.assign(
 			function ComfyNode() {
-				var inputs = nodeData["input"]["required"];
-				if (nodeData["input"]["optional"] != undefined) {
-					inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"]);
+				// var inputs = nodeData["input"]["required"];
+				// if (nodeData["input"]["optional"] != undefined) {
+				// 	inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"]);
+				// }
+
+				let inputs = [{'key': "FROM", "val": ["FLOW"]}]
+				inputs.push(...Object.entries(nodeData["input"]["required"]).map(([key, val]) => ({ key, val })));
+                if (nodeData["input"]["optional"] != undefined) {
+					inputs.push(...Object.entries(nodeData["input"]["optional"]).map(([key, val]) => ({ key, val })));
 				}
+				console.log("New ComfyNode");
+				console.log(nodeData);
+				console.log(inputs);
+				console.trace();
 				const config = { minWidth: 1, minHeight: 1 };
-				for (const inputName in inputs) {
-					const inputData = inputs[inputName];
+				for (let inp of inputs) {
+					const inputName = inp['key'];
+					const inputData = inp['val'];
 					const type = inputData[0];
 
 					let widgetCreated = true;
@@ -1433,12 +1446,19 @@ export class ComfyApp {
 					}
 				}
 
-				for (const o in nodeData["output"]) {
-					let output = nodeData["output"][o];
+				console.log("output");
+				console.log(nodeData);
+				let _nodeData = {};
+				_nodeData["output"] = ["FLOW"].concat(nodeData["output"]);
+				_nodeData["output_name"] = ["TO"].concat(nodeData["output_name"]);
+				_nodeData["output_is_list"] = [false].concat(nodeData["output_is_list"]);
+				console.log(_nodeData)
+				for (const o in _nodeData["output"]) {
+					let output = _nodeData["output"][o];
 					if(output instanceof Array) output = "COMBO";
-					const outputName = nodeData["output_name"][o] || output;
+					const outputName = _nodeData["output_name"][o] || output;
 					// const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
-					const outputShape = output == "FLOW"? LiteGraph.ARROW_SHAPE : (nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE) ;
+					const outputShape = output == "FLOW"? LiteGraph.ARROW_SHAPE : (_nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE) ;
 					this.addOutput(outputName, output, { shape: outputShape });
 				}
 
@@ -1997,7 +2017,26 @@ export class ComfyApp {
 		for (const link of workflow.links)
 		{
 			if(link[5] == "FLOW")
-				flows[link[1]] = link[3].toString();
+			{
+				let all_goto = [];
+				if (link[1] in flows)
+				{
+					all_goto = flows[link[1]];
+					console.log("Link in flows");
+					console.log(all_goto);
+				}
+				
+				let new_goto = link[3].toString()
+				let origin_slot_int = link[2];
+				// let target_slot = target_slot_int.toString();
+				if (all_goto.length <= origin_slot_int)
+				{
+					all_goto = all_goto.concat(Array(origin_slot_int + 1 - all_goto.length).fill(null));
+				}
+				all_goto[origin_slot_int] = new_goto;
+				console.log(all_goto);
+				flows[link[1]] = all_goto;
+			}				
 		}
 		workflow["flows"] = flows;
 		console.log(workflow);

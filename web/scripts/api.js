@@ -182,31 +182,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async getNodeDefs() {
 		const resp = await this.fetchApi("/object_info", { cache: "no-store" });
-		let node_defs = await resp.json();
-		console.log(node_defs);
-		try{
-			for (let node_name in node_defs)
-			{
-				let node_def = node_defs[node_name];
-				// add input
-				if(!("optional" in node_def.input))
-				{
-					node_def.input["optional"] = {};
-				}
-				node_def.input["optional"]["FROM"] = ['FLOW'];
-
-				// add output
-				node_def.output.unshift("FLOW");
-				node_def.output_is_list.unshift(false);
-				node_def.output_name.unshift("TO");
-			}
-		} catch(error)
-		{
-			console.log("err happends");
-			console.log(error);
-		}
-		console.log(node_defs);
-		return node_defs;
+		return await resp.json();
 	}
 
 	/**
