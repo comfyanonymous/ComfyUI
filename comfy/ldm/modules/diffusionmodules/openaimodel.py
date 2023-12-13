@@ -12,13 +12,13 @@ from .util import (
     checkpoint,
     avg_pool_nd,
     zero_module,
-    normalization,
     timestep_embedding,
     AlphaBlender,
 )
 from ..attention import SpatialTransformer, SpatialVideoTransformer, default
 from comfy.ldm.util import exists
 import comfy.ops
+ops = comfy.ops.disable_weight_init
 
 class TimestepBlock(nn.Module):
     """
@@ -70,7 +70,7 @@ class Upsample(nn.Module):
                  upsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=comfy.ops):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=ops):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -106,7 +106,7 @@ class Downsample(nn.Module):
                  downsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=comfy.ops):
+    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, dtype=None, device=None, operations=ops):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -159,7 +159,7 @@ class ResBlock(TimestepBlock):
         skip_t_emb=False,
         dtype=None,
         device=None,
-        operations=comfy.ops
+        operations=ops
     ):
         super().__init__()
         self.channels = channels
@@ -284,7 +284,7 @@ class VideoResBlock(ResBlock):
         down: bool = False,
         dtype=None,
         device=None,
-        operations=comfy.ops
+        operations=ops
     ):
         super().__init__(
             channels,
@@ -434,7 +434,7 @@ class UNetModel(nn.Module):
         disable_temporal_crossattention=False,
         max_ddpm_temb_period=10000,
         device=None,
-        operations=comfy.ops,
+        operations=ops,
     ):
         super().__init__()
         assert use_spatial_transformer == True, "use_spatial_transformer has to be true"
@@ -581,7 +581,7 @@ class UNetModel(nn.Module):
             up=False,
             dtype=None,
             device=None,
-            operations=comfy.ops
+            operations=ops
         ):
             if self.use_temporal_resblocks:
                 return VideoResBlock(

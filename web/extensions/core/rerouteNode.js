@@ -54,6 +54,7 @@ app.registerExtension({
 						const linkId = currentNode.inputs[0].link;
 						if (linkId !== null) {
 							const link = app.graph.links[linkId];
+							if (!link) return;
 							const node = app.graph.getNodeById(link.origin_id);
 							const type = node.constructor.type;
 							if (type === "Reroute") {

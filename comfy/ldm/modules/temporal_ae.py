@@ -5,6 +5,7 @@ import torch
 from einops import rearrange, repeat
 
 import comfy.ops
+ops = comfy.ops.disable_weight_init
 
 from .diffusionmodules.model import (
     AttnBlock,
@@ -130,9 +131,9 @@ class AttnVideoBlock(AttnBlock):
 
         time_embed_dim = self.in_channels * 4
         self.video_time_embed = torch.nn.Sequential(
-            comfy.ops.Linear(self.in_channels, time_embed_dim),
+            ops.Linear(self.in_channels, time_embed_dim),
             torch.nn.SiLU(),
-            comfy.ops.Linear(time_embed_dim, self.in_channels),
+            ops.Linear(time_embed_dim, self.in_channels),
         )
 
         self.merge_strategy = merge_strategy
