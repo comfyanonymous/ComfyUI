@@ -1397,8 +1397,6 @@ export class ComfyApp {
 
 	async registerNodeDef(nodeId, nodeData) {
 		const self = this;
-		console.log("RegisterNodeDef kkkkkkkk");
-		console.log(nodeData);
 		const node = Object.assign(
 			function ComfyNode() {
 				// var inputs = nodeData["input"]["required"];
@@ -1411,10 +1409,6 @@ export class ComfyApp {
                 if (nodeData["input"]["optional"] != undefined) {
 					inputs.push(...Object.entries(nodeData["input"]["optional"]).map(([key, val]) => ({ key, val })));
 				}
-				console.log("New ComfyNode");
-				console.log(nodeData);
-				console.log(inputs);
-				console.trace();
 				const config = { minWidth: 1, minHeight: 1 };
 				for (let inp of inputs) {
 					const inputName = inp['key'];
@@ -1446,13 +1440,10 @@ export class ComfyApp {
 					}
 				}
 
-				console.log("output");
-				console.log(nodeData);
 				let _nodeData = {};
 				_nodeData["output"] = ["FLOW"].concat(nodeData["output"]);
 				_nodeData["output_name"] = ["TO"].concat(nodeData["output_name"]);
 				_nodeData["output_is_list"] = [false].concat(nodeData["output_is_list"]);
-				console.log(_nodeData)
 				for (const o in _nodeData["output"]) {
 					let output = _nodeData["output"][o];
 					if(output instanceof Array) output = "COMBO";
@@ -1902,7 +1893,6 @@ export class ComfyApp {
 	 * @returns The workflow and node links
 	 */
 	async graphToPrompt() {
-		console.log("Graph To Prompt");
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
 			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
@@ -2011,7 +2001,6 @@ export class ComfyApp {
 		}
 
 		// Get flows from workflow
-		console.log(_workflow);
 		let workflow = JSON.parse(JSON.stringify(_workflow));
 		var flows = {};
 		for (const link of workflow.links)
@@ -2022,8 +2011,6 @@ export class ComfyApp {
 				if (link[1] in flows)
 				{
 					all_goto = flows[link[1]];
-					console.log("Link in flows");
-					console.log(all_goto);
 				}
 				
 				let new_goto = link[3].toString()
@@ -2034,12 +2021,10 @@ export class ComfyApp {
 					all_goto = all_goto.concat(Array(origin_slot_int + 1 - all_goto.length).fill(null));
 				}
 				all_goto[origin_slot_int] = new_goto;
-				console.log(all_goto);
 				flows[link[1]] = all_goto;
 			}				
 		}
 		workflow["flows"] = flows;
-		console.log(workflow);
 
 		// Remove flow control info from workflow
 		// link

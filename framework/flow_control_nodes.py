@@ -9,7 +9,7 @@ class IfConotrolNode:
     RETURN_NAMES = ("On True", "On False")
     FUNCTION = "execute"
 
-    CATEGORY = "flow/if"
+    CATEGORY = "flow"
 
     def execute(self, state):
         if state:
