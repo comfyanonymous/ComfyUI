@@ -78,6 +78,14 @@ export class EzInput extends EzSlot {
 		this.input = input;
 	}
 
+	get connection() {
+		const link = this.node.node.inputs?.[this.index]?.link;
+		if (link == null) {
+			return null;
+		}
+		return new EzConnection(this.node.app, this.node.app.graph.links[link]);
+	}
+
 	disconnect() {
 		this.node.node.disconnectInput(this.index);
 	}

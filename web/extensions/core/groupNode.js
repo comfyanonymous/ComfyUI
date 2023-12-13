@@ -174,6 +174,11 @@ export class GroupNodeConfig {
 			node.index = i;
 			this.processNode(node, seenInputs, seenOutputs);
 		}
+
+		for (const p of this.#convertedToProcess) {
+			p();
+		}
+		this.#convertedToProcess = null;
 		await app.registerNodeDef("workflow/" + this.name, this.nodeDef);
 	}
 
@@ -192,7 +197,10 @@ export class GroupNodeConfig {
 			if (!this.linksFrom[sourceNodeId]) {
 				this.linksFrom[sourceNodeId] = {};
 			}
-			this.linksFrom[sourceNodeId][sourceNodeSlot] = l;
+			if (!this.linksFrom[sourceNodeId][sourceNodeSlot]) {
+				this.linksFrom[sourceNodeId][sourceNodeSlot] = [];
+			}
+			this.linksFrom[sourceNodeId][sourceNodeSlot].push(l);
 
 			if (!this.linksTo[targetNodeId]) {
 				this.linksTo[targetNodeId] = {};
@@ -230,11 +238,11 @@ export class GroupNodeConfig {
 			// Skip as its not linked
 			if (!linksFrom) return;
 
-			let type = linksFrom["0"][5];
+			let type = linksFrom["0"][0][5];
 			if (type === "COMBO") {
 				// Use the array items
 				const source = node.outputs[0].widget.name;
-				const fromTypeName = this.nodeData.nodes[linksFrom["0"][2]].type;
+				const fromTypeName = this.nodeData.nodes[linksFrom["0"][0][2]].type;
 				const fromType = globalDefs[fromTypeName];
 				const input = fromType.input.required[source] ?? fromType.input.optional[source];
 				type = input[0];
@@ -258,10 +266,33 @@ export class GroupNodeConfig {
 				return null;
 			}
 
+			let config = {};
 			let rerouteType = "*";
 			if (linksFrom) {
-				const [, , id, slot] = linksFrom["0"];
-				rerouteType = this.nodeData.nodes[id].inputs[slot].type;
+				for (const [, , id, slot] of linksFrom["0"]) {
+					const node = this.nodeData.nodes[id];
+					const input = node.inputs[slot];
+					if (rerouteType === "*") {
+						rerouteType = input.type;
+					}
+					if (input.widget) {
+						const targetDef = globalDefs[node.type];
+						const targetWidget =
+							targetDef.input.required[input.widget.name] ?? targetDef.input.optional[input.widget.name];
+
+						const widget = [targetWidget[0], config];
+						const res = mergeIfValid(
+							{
+								widget,
+							},
+							targetWidget,
+							false,
+							null,
+							widget
+						);
+						config = res?.customConfig ?? config;
+					}
+				}
 			} else if (linksTo) {
 				const [id, slot] = linksTo["0"];
 				rerouteType = this.nodeData.nodes[id].outputs[slot].type;
@@ -282,10 +313,11 @@ export class GroupNodeConfig {
 				}
 			}
 
+			config.forceInput = true;
 			return {
 				input: {
 					required: {
-						[rerouteType]: [rerouteType, {}],
+						[rerouteType]: [rerouteType, config],
 					},
 				},
 				output: [rerouteType],
@@ -420,10 +452,18 @@ export class GroupNodeConfig {
 				defaultInput: true,
 			});
 			this.nodeDef.input.required[name] = config;
+			this.newToOldWidgetMap[name] = { node, inputName };
+
+			if (!this.oldToNewWidgetMap[node.index]) {
+				this.oldToNewWidgetMap[node.index] = {};
+			}
+			this.oldToNewWidgetMap[node.index][inputName] = name;
+
 			inputMap[slots.length + i] = this.inputCount++;
 		}
 	}
 
+	#convertedToProcess = [];
 	processNodeInputs(node, seenInputs, inputs) {
 		const inputMapping = [];
 
@@ -434,7 +474,11 @@ export class GroupNodeConfig {
 		const linksTo = this.linksTo[node.index] ?? {};
 		const inputMap = (this.oldToNewInputMap[node.index] = {});
 		this.processInputSlots(inputs, node, slots, linksTo, inputMap, seenInputs);
-		this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs);
+
+		// Converted inputs have to be processed after all other nodes as they'll be at the end of the list
+		this.#convertedToProcess.push(() =>
+			this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs)
+		);
 
 		return inputMapping;
 	}
@@ -597,9 +641,13 @@ export class GroupNodeHandler {
 			const output = this.groupData.newToOldOutputMap[link.origin_slot];
 			let innerNode = this.innerNodes[output.node.index];
 			let l;
-			while (innerNode.type === "Reroute") {
+			while (innerNode?.type === "Reroute") {
 				l = innerNode.getInputLink(0);
 				innerNode = innerNode.getInputNode(0);
+			}
+
+			if (!innerNode) {
+				return null;
 			}
 
 			if (l && GroupNodeHandler.isGroupNode(innerNode)) {
@@ -669,6 +717,8 @@ export class GroupNodeHandler {
 						top = newNode.pos[1];
 					}
 
+					if (!newNode.widgets) continue;
+
 					const map = this.groupData.oldToNewWidgetMap[innerNode.index];
 					if (map) {
 						const widgets = Object.keys(map);
@@ -725,7 +775,7 @@ export class GroupNodeHandler {
 				}
 			};
 
-			const reconnectOutputs = () => {
+			const reconnectOutputs = (selectedIds) => {
 				for (let groupOutputId = 0; groupOutputId < node.outputs?.length; groupOutputId++) {
 					const output = node.outputs[groupOutputId];
 					if (!output.links) continue;
@@ -865,7 +915,7 @@ export class GroupNodeHandler {
 			if (innerNode.type === "PrimitiveNode") {
 				innerNode.primitiveValue = newValue;
 				const primitiveLinked = this.groupData.primitiveToWidget[old.node.index];
-				for (const linked of primitiveLinked) {
+				for (const linked of primitiveLinked ?? []) {
 					const node = this.innerNodes[linked.nodeId];
 					const widget = node.widgets.find((w) => w.name === linked.inputName);
 
@@ -874,6 +924,18 @@ export class GroupNodeHandler {
 					}
 				}
 				continue;
+			} else if (innerNode.type === "Reroute") {
+				const rerouteLinks = this.groupData.linksFrom[old.node.index];
+				for (const [_, , targetNodeId, targetSlot] of rerouteLinks["0"]) {
+					const node = this.innerNodes[targetNodeId];
+					const input = node.inputs[targetSlot];
+					if (input.widget) {
+						const widget = node.widgets?.find((w) => w.name === input.widget.name);
+						if (widget) {
+							widget.value = newValue;
+						}
+					}
+				}
 			}
 
 			const widget = innerNode.widgets?.find((w) => w.name === old.inputName);
@@ -901,16 +963,46 @@ export class GroupNodeHandler {
 				this.node.widgets[targetWidgetIndex + i].value = primitiveNode.widgets[i].value;
 			}
 		}
+		return true;
 	}
 
+	populateReroute(node, nodeId, map) {
+		if (node.type !== "Reroute") return;
+
+		const link = this.groupData.linksFrom[nodeId]?.[0]?.[0];
+		if (!link) return;
+		const [, , targetNodeId, targetNodeSlot] = link;
+		const targetNode = this.groupData.nodeData.nodes[targetNodeId];
+		const inputs = targetNode.inputs;
+		const targetWidget = inputs?.[targetNodeSlot].widget;
+		if (!targetWidget) return;
+
+		const offset = inputs.length - (targetNode.widgets_values?.length ?? 0);
+		const v = targetNode.widgets_values?.[targetNodeSlot - offset];
+		if (v == null) return;
+
+		const widgetName = Object.values(map)[0];
+		const widget = this.node.widgets.find(w => w.name === widgetName);
+		if(widget) {
+			widget.value = v;
+		}
+	}
+
+
 	populateWidgets() {
+		if (!this.node.widgets) return;
+
 		for (let nodeId = 0; nodeId < this.groupData.nodeData.nodes.length; nodeId++) {
 			const node = this.groupData.nodeData.nodes[nodeId];
-
-			if (!node.widgets_values?.length) continue;
-
-			const map = this.groupData.oldToNewWidgetMap[nodeId];
+			const map = this.groupData.oldToNewWidgetMap[nodeId] ?? {};
 			const widgets = Object.keys(map);
+
+			if (!node.widgets_values?.length) {
+				// special handling for populating values into reroutes
+				// this allows primitives connect to them to pick up the correct value
+				this.populateReroute(node, nodeId, map);
+				continue;
+			}
 
 			let linkedShift = 0;
 			for (let i = 0; i < widgets.length; i++) {
@@ -918,16 +1010,11 @@ export class GroupNodeHandler {
 				const newName = map[oldName];
 				const widgetIndex = this.node.widgets.findIndex((w) => w.name === newName);
 				const mainWidget = this.node.widgets[widgetIndex];
-				if (!newName) {
-					// New name will be null if its a converted widget
-					this.populatePrimitive(node, nodeId, oldName, i, linkedShift);
-
+				if (this.populatePrimitive(node, nodeId, oldName, i, linkedShift)) {
 					// Find the inner widget and shift by the number of linked widgets as they will have been removed too
 					const innerWidget = this.innerNodes[nodeId].widgets?.find((w) => w.name === oldName);
 					linkedShift += innerWidget.linkedWidgets?.length ?? 0;
-					continue;
 				}
-
 				if (widgetIndex === -1) {
 					continue;
 				}
