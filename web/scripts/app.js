@@ -1469,20 +1469,6 @@ export class ComfyApp {
 		);
 		node.prototype.comfyClass = nodeData.name;
 
-		node.prototype.onConnectionsChange = (inout,
-			target_slot,
-			is_not,
-			link_info,
-			input) => {
-			console.log("On Connections Change.");
-			console.trace();
-			console.log(this.graph.serialize());
-			console.log(`${inout}, ${target_slot}, ${is_not}`);
-			console.log(link_info);
-			console.log(input);
-			console.log();
-		};
-
 		this.#addNodeContextMenuHandler(node);
 		this.#addDrawBackgroundHandler(node, app);
 		this.#addNodeKeyHandler(node);
@@ -1686,8 +1672,6 @@ export class ComfyApp {
 
 	initFlowControlConnection(graphData)
 	{
-		console.log("Initial graphdata");
-		console.log(graphData);
 		let flows = this.calculateFlowConnection(graphData);
 
 		// No nodes exist, just return
@@ -1745,11 +1729,6 @@ export class ComfyApp {
 			nodes[node.id] = node;
 		}
 
-		console.log("graphdata");
-		console.log(graphData);
-		console.log("Flow data");
-		console.log(flows);
-
 		// add links & flows
 		for(let from_id in flows)
 		{
@@ -1765,8 +1744,6 @@ export class ComfyApp {
 				let link_id = ++graphData.last_link_id;
 				let from_node = nodes[from_id];
 				let to_node = nodes[to_id];
-
-				console.log(`${from_id}  ->  ${to_id}`);
 
 				var link = [link_id, parseInt(from_id), 0, to_id, 0, "FLOW"];
 				// {id: link_id, 
