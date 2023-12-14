@@ -1469,6 +1469,20 @@ export class ComfyApp {
 		);
 		node.prototype.comfyClass = nodeData.name;
 
+		node.prototype.onConnectionsChange = (inout,
+			target_slot,
+			is_not,
+			link_info,
+			input) => {
+			console.log("On Connections Change.");
+			console.trace();
+			console.log(this.graph.serialize());
+			console.log(`${inout}, ${target_slot}, ${is_not}`);
+			console.log(link_info);
+			console.log(input);
+			console.log();
+		};
+
 		this.#addNodeContextMenuHandler(node);
 		this.#addDrawBackgroundHandler(node, app);
 		this.#addNodeKeyHandler(node);
@@ -1660,7 +1674,7 @@ export class ComfyApp {
 				flows[flow_order[idx].id] = null;
 			}
 			else{
-				flows[flow_order[idx].id] = flow_order[idx+1].id;
+				flows[flow_order[idx].id] = [flow_order[idx+1].id];
 			}
 			++idx;
 		}
@@ -1672,6 +1686,8 @@ export class ComfyApp {
 
 	initFlowControlConnection(graphData)
 	{
+		console.log("Initial graphdata");
+		console.log(graphData);
 		let flows = this.calculateFlowConnection(graphData);
 
 		// No nodes exist, just return
@@ -1729,30 +1745,43 @@ export class ComfyApp {
 			nodes[node.id] = node;
 		}
 
+		console.log("graphdata");
+		console.log(graphData);
+		console.log("Flow data");
+		console.log(flows);
+
 		// add links & flows
 		for(let from_id in flows)
 		{
-			let to_id = flows[from_id];
-			if(to_id == null)
+			let to_id_list = flows[from_id];
+			if(to_id_list == null)
 				continue;
 
-			let link_id = ++graphData.last_link_id;
-			let from_node = nodes[from_id];
-			let to_node = nodes[to_id];
+			for (let to_id of to_id_list)
+			{
+				if(to_id == null)
+					continue;
 
-			var link = [link_id, parseInt(from_id), 0, to_id, 0, "FLOW"];
-			// {id: link_id, 
-			// 	origin_id: from_id, 
-			// 	origin_slot: from_node.outputs.length -1, 
-			// 	target_id: to_id,
-			// 	target_slot: to_node.inputs.length -1,
-			// 	type: "FLOW"
-			// 	// _data: null
-			// };
-			graphData.links.push(link);
+				let link_id = ++graphData.last_link_id;
+				let from_node = nodes[from_id];
+				let to_node = nodes[to_id];
 
-			from_node.outputs[0].links = [link_id];
-			to_node.inputs[0].link = link_id;
+				console.log(`${from_id}  ->  ${to_id}`);
+
+				var link = [link_id, parseInt(from_id), 0, to_id, 0, "FLOW"];
+				// {id: link_id, 
+				// 	origin_id: from_id, 
+				// 	origin_slot: from_node.outputs.length -1, 
+				// 	target_id: to_id,
+				// 	target_slot: to_node.inputs.length -1,
+				// 	type: "FLOW"
+				// 	// _data: null
+				// };
+				graphData.links.push(link);
+
+				from_node.outputs[0].links = [link_id];
+				to_node.inputs[0].link = link_id;
+			}
 		}
 
 		return graphData;

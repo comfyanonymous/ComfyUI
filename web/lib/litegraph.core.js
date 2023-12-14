@@ -4297,12 +4297,23 @@
             }
         }
 
-        //if there is something already plugged there, disconnect
-        if (target_node.inputs[target_slot] && target_node.inputs[target_slot].link != null) {
-			this.graph.beforeChange();
-            target_node.disconnectInput(target_slot, {doProcessChange: false});
-			changed = true;
-        }
+        console.log("target_node.inputs");
+        console.log(target_node.inputs);
+
+        let target_not_flow = target_node.inputs[target_slot]['type'] != LiteGraph.TYPE_FLOW;
+        console.log(`target is flow: ${target_not_flow}`);
+        console.log(target_node.inputs[target_slot]['type']);
+
+        // //if there is something already plugged there, disconnect
+        // if (target_not_flow && target_node.inputs[target_slot] && target_node.inputs[target_slot].link != null) {
+		// 	this.graph.beforeChange();
+        //     target_node.disconnectInput(target_slot, {doProcessChange: false});
+		// 	changed = true;
+        //     console.log('disconnect input');
+        // }
+        console.log(this.outputs);
+        console.log(output);
+        console.log(slot);
         if (output.links !== null && output.links.length){
             switch(output.type){
                 case LiteGraph.EVENT:
@@ -4318,6 +4329,7 @@
                     this.graph.beforeChange();
                     this.disconnectOutput(slot);
                     changed = true;
+                    console.log("disconnect flow");
                 break;
 
                 default:
@@ -4404,6 +4416,8 @@
      * @return {boolean} if it was disconnected successfully
      */
     LGraphNode.prototype.disconnectOutput = function(slot, target_node) {
+        console.log("disconnect output");
+        console.trace();
         if (slot.constructor === String) {
             slot = this.findOutputSlot(slot);
             if (slot == -1) {
@@ -4489,6 +4503,10 @@
             }
         } //all the links in this output slot
         else {
+            console.log("On disconnnect, infos:");
+            console.log(this);
+            console.log(this.graph.serialize());
+            console.log(this.graph);
             for (var i = 0, l = output.links.length; i < l; i++) {
                 var link_id = output.links[i];
                 var link_info = this.graph.links[link_id];
@@ -4560,6 +4578,9 @@
      * @return {boolean} if it was disconnected successfully
      */
     LGraphNode.prototype.disconnectInput = function(slot) {
+        console.log("disconnect input");
+        console.log(slot);
+        console.trace();
         //seek for the output slot
         if (slot.constructor === String) {
             slot = this.findInputSlot(slot);
@@ -6876,6 +6897,10 @@ LGraphNode.prototype.executeAction = function(action)
         //console.log("pointerevents: processMouseUp stopPropagation");
         e.stopPropagation();
         e.preventDefault();
+
+        console.log("All things down: ");
+        console.log(this.graph);
+        console.log(this.graph.serialize());
         return false;
     };
 

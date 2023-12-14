@@ -140,6 +140,8 @@ const processMouseUp = LGraphCanvas.prototype.processMouseUp;
 LGraphCanvas.prototype.processMouseUp = function (e) {
 	const v = processMouseUp.apply(this, arguments);
 	checkState();
+	console.trace();
+	console.log(this.graph.serialize());
 	return v;
 };
 const processMouseDown = LGraphCanvas.prototype.processMouseDown;
