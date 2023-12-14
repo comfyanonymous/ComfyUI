@@ -61,6 +61,9 @@ class ModelPatcher:
         else:
             self.model_options["sampler_cfg_function"] = sampler_cfg_function
 
+    def set_model_sampler_post_cfg_function(self, post_cfg_function):
+        self.model_options["sampler_post_cfg_function"] = self.model_options.get("sampler_post_cfg_function", []) + [post_cfg_function]
+
     def set_model_unet_function_wrapper(self, unet_wrapper_function):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
@@ -70,13 +73,17 @@ class ModelPatcher:
             to["patches"] = {}
         to["patches"][name] = to["patches"].get(name, []) + [patch]
 
-    def set_model_patch_replace(self, patch, name, block_name, number):
+    def set_model_patch_replace(self, patch, name, block_name, number, transformer_index=None):
         to = self.model_options["transformer_options"]
         if "patches_replace" not in to:
             to["patches_replace"] = {}
         if name not in to["patches_replace"]:
             to["patches_replace"][name] = {}
-        to["patches_replace"][name][(block_name, number)] = patch
+        if transformer_index is not None:
+            block = (block_name, number, transformer_index)
+        else:
+            block = (block_name, number)
+        to["patches_replace"][name][block] = patch
 
     def set_model_attn1_patch(self, patch):
         self.set_model_patch(patch, "attn1_patch")
@@ -84,11 +91,11 @@ class ModelPatcher:
     def set_model_attn2_patch(self, patch):
         self.set_model_patch(patch, "attn2_patch")
 
-    def set_model_attn1_replace(self, patch, block_name, number):
-        self.set_model_patch_replace(patch, "attn1", block_name, number)
+    def set_model_attn1_replace(self, patch, block_name, number, transformer_index=None):
+        self.set_model_patch_replace(patch, "attn1", block_name, number, transformer_index)
 
-    def set_model_attn2_replace(self, patch, block_name, number):
-        self.set_model_patch_replace(patch, "attn2", block_name, number)
+    def set_model_attn2_replace(self, patch, block_name, number, transformer_index=None):
+        self.set_model_patch_replace(patch, "attn2", block_name, number, transformer_index)
 
     def set_model_attn1_output_patch(self, patch):
         self.set_model_patch(patch, "attn1_output_patch")
