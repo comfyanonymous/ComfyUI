@@ -402,7 +402,7 @@ class ManageGroupDialog extends ComfyDialog {
 					display: flex;
 					flex-direction: column;
 				}
-				.comfy-group-manage-list li:not(.selected):hover div{
+				.comfy-group-manage-list li:not(.selected):hover div {
 					text-decoration: underline;
 				}
 				.comfy-group-manage-list li.selected {
@@ -429,6 +429,7 @@ class ManageGroupDialog extends ComfyDialog {
 					border-bottom: 1px solid var(--comfy-menu-bg);
 					padding: 10px;
 					cursor: pointer;
+					font-size: 15px;
 				}
 				.comfy-group-manage-node header a:not(.active):hover {
 					text-decoration: underline;
