@@ -408,6 +408,19 @@ class PromptServer():
 
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
+                
+            # flow inputs
+            if hasattr(obj_class, 'FLOW_INPUTS'):
+                info['flow_inputs'] = obj_class.FLOW_INPUTS
+            else:
+                info['flow_inputs'] = [("FROM", "FLOW")]            # by default, every node has one flow-input
+            # flow outputs
+            if hasattr(obj_class, 'FLOW_OUTPUTS'):
+                info['flow_outputs'] = obj_class.FLOW_OUTPUTS
+            else:
+                info['flow_outputs'] = [("TO", "FLOW")]            # by default, every node has one flow-output
+                
+                
             return info
 
         @routes.get("/object_info")

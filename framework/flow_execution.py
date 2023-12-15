@@ -13,7 +13,7 @@ import nodes
 
 import comfy.model_management
 from framework.app_log import LogUtils
-from framework.flow_control_nodes import IfConotrolNode
+from framework.flow_control_nodes import LoopFlowNode
 
 
 def format_value(x):
@@ -230,18 +230,19 @@ class ExecuteContextStorage:
         
         
 class SequenceFlow:
-    def __init__(self, first_node, context:ExecuteContextStorage, server) -> None:
+    def __init__(self, first_node_id, context:ExecuteContextStorage, server) -> None:
         self.context = context
-        self.first_node = first_node
+        self.first_node_id = first_node_id
         self.server = server
         
     
     def _on_node_executing(self, node_id):
+        print(f"node executing")
         if self.server.client_id is not None:
             self.server.last_node_id = node_id
             self.server.send_sync("executing", { "node": node_id, "prompt_id": self.context.prompt_id }, self.server.client_id)
 
-    def _on_node_executed(self, node_id, node_output_ui):
+    def _on_node_executed(self, node_id, node_output_ui=[]):
         # 
         if len(node_output_ui) > 0:
             if self.server.client_id is not None:
@@ -395,28 +396,82 @@ class SequenceFlow:
         """
         node_type = self.context.prompt[node_id]['class_type']
         # if isinstance(obj, IfConotrolNode):
-        if node_type == "IfConotrolNode":
-            branch_bool = getattr(obj, obj.FUNCTION)(**input_datas)
+        if node_type == "IfConotrolNode" or node_type == "MergeFlowNode":
+            # normalout, branch_bool = getattr(obj, obj.FUNCTION)(**input_datas)
+            outputs, uis = self._execute_node(obj, input_datas, True)
             node_flows = self.context.flows[node_id]
-            next_node_id = obj.goto(branch_bool, node_flows)
+            if hasattr(obj, 'FLOW_GOTO'):
+                next_node_id = getattr(obj, obj.FLOW_GOTO)(**input_datas, flows = node_flows)
+            else:
+                next_node_id = self._node_default_goto(node_flows)
             print(f"[Handle control node] is control node.")
-            return (True, next_node_id)
+            return (True, next_node_id, True, None, None)
+        elif node_type == "LoopFlowNode":
+            # Loop Flow
+            loop_flow = LoopFlow(node_id, self.context, self.server)
+            # init loop flow
+            loop_flow.init_loop(node_id, obj)
+            # execute loop
+            succ, err_detail, exp = loop_flow.execute()
+            
+            # next_node_id 
+            next_node_id = loop_flow.goto()
+            return (True, next_node_id, succ, err_detail, exp)
+             
         else:
             print(f"[Handle control node] NOT control node.")
-            return (False, None)
+            return (False, None, True, None, None)
+    
+    
+    def _node_default_goto(self, flows):
+        return flows[0][0] if (flows is not None and len(flows) > 0 and flows[0] is not None) else None
     
     
     def _get_next_node(self, node_id):
-        goto_id = self.context.flows.get(node_id, None)
-        if goto_id is not None:
-            goto_id = goto_id[0]
+        goto_infos = self.context.flows.get(node_id, None)
+        if goto_infos is not None and len(goto_infos) > 0:
+            goto_id = goto_infos[0][0] if goto_infos[0] is not None else None
+        else:
+            goto_id = None
         return goto_id
+    
+    
+    def _collect_error_details(self, node_id, input_datas, exp):
+        typ, _, tb = sys.exc_info()
+        exception_type = full_type_name(typ)
+        input_data_formatted = {}
+        if input_datas is not None:
+            input_data_formatted = {}
+            for name, inputs in input_datas.items():
+                input_data_formatted[name] = [format_value(x) for x in inputs]
+
+        output_data_formatted = {}
+        for node_id, node_outputs in self.context.outputs.items():
+            output_data_formatted[node_id] = [format(l) for l in node_outputs]
+
+        logging.error("!!! Exception during processing !!!")
+        logging.error(traceback.format_exc())
+
+        error_details = {
+            "node_id": node_id,
+            "exception_message": str(exp),
+            "exception_type": exception_type,
+            "traceback": traceback.format_tb(tb),
+            "current_inputs": input_data_formatted,
+            "current_outputs": output_data_formatted
+        }
+    
         
     def execute(self):
         """
         Execute the flow
+        
+        RETURN:
+        bool, successful or not
+        dict, error details
+        exception, exceptions
         """
-        cur_node_id = self.first_node
+        cur_node_id = self.first_node_id
         
         # while this is valid id
         while cur_node_id is not None:
@@ -424,7 +479,7 @@ class SequenceFlow:
             print(f"[Execute Node] ****************** {cur_node_id}, {self.context.prompt[cur_node_id]['class_type']}")
             
             
-            input_datas = []
+            input_datas = None
             try:
                 self._on_node_executing(cur_node_id)
                 
@@ -435,8 +490,9 @@ class SequenceFlow:
                 input_datas = self.context.get_inputs(cur_node_id)
                 print(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
                 
-                is_control_node, next_node_id = self._handle_flow_control_node(cur_node_id, obj, input_datas)
+                is_control_node, next_node_id, subflow_succ, err_detail, exp = self._handle_flow_control_node(cur_node_id, obj, input_datas)
                 
+                node_output_ui = []
                 # not a control node, just execute it.
                 if not is_control_node:
                     # input changed, execute this node
@@ -461,12 +517,14 @@ class SequenceFlow:
                     
                     # go to the next node
                     next_node_id = self._get_next_node(cur_node_id)
-                    print(f"[Execute Node] next id: {next_node_id}")
+                #     print(f"[Execute Node] next id: {next_node_id}")
                 
                 # is a control node.
                 else:
-                    print(f"[Execute Node] next id: {next_node_id}")
-                    print(f"[Execute Node] next id: {next_node_id}")
+                    if not subflow_succ:
+                        print(f"[Execute Node] Sub flow executed FAILED: {err_detail}")
+                        return (subflow_succ, err_detail, exp)
+                    
                 
                 # add to executed list
                 self.context.executed.add(cur_node_id)
@@ -474,47 +532,105 @@ class SequenceFlow:
                 self._on_node_executed(cur_node_id, node_output_ui)
                 
                 cur_node_id = next_node_id
+                print(f"[Execute Node] next id: {next_node_id}")
 
-                
             
             except comfy.model_management.InterruptProcessingException as iex:
                 logging.info("Processing interrupted")
-
                 # skip formatting inputs/outputs
                 error_details = {
                     "node_id": cur_node_id,
                 }
-
+                print(f"[Execute Node] error: {iex}")
                 return (False, error_details, iex)
+            
             except Exception as ex:
-                typ, _, tb = sys.exc_info()
-                exception_type = full_type_name(typ)
-                input_data_formatted = {}
-                if input_datas is not None:
-                    input_data_formatted = {}
-                    for name, inputs in input_datas.items():
-                        input_data_formatted[name] = [format_value(x) for x in inputs]
-
-                output_data_formatted = {}
-                for node_id, node_outputs in self.context.outputs.items():
-                    output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
-
-                logging.error("!!! Exception during processing !!!")
-                logging.error(traceback.format_exc())
-
-                error_details = {
-                    "node_id": cur_node_id,
-                    "exception_message": str(ex),
-                    "exception_type": exception_type,
-                    "traceback": traceback.format_tb(tb),
-                    "current_inputs": input_data_formatted,
-                    "current_outputs": output_data_formatted
-                }
+                error_details = self._collect_error_details(cur_node_id, input_datas, ex)
                 return (False, error_details, ex)
+                
         
-        return (True,None, None)   
+        print(f"[Execute Node] Done")
+        return (True,None, None) 
+      
+        
+
+class LoopFlow(SequenceFlow):
+    def __init__(self, first_node_id, context: ExecuteContextStorage, server) -> None:
+        super().__init__(first_node_id, context, server)
+        
+        self.loop_node = None
+        self.loop_node_id = None
         
         
+    
+    def init_loop(self, loop_node_id, loop_node_obj:LoopFlowNode):
+        self.loop_node = loop_node_obj
+        self.loop_node_id = loop_node_id
+        self.loop_node.init()
+
+ 
+    def execute(self):
+        """
+        Execute the flow
+        
+        RETURN:
+        bool, successful or not
+        dict, error details
+        exception, exceptions
+        """
+        print(f"[LoopFlow] execute start.")
+        while not self.loop_node.is_loop_end():
+            input_datas = None
+            try:
+                # start executing loop node
+                self._on_node_executing(self.loop_node_id)
+                # get inputs
+                input_datas = self.context.get_inputs(self.loop_node_id)
+                node_output, node_output_ui = self._execute_node(
+                                        obj=self.loop_node, input_datas=input_datas, allow_interrupt=True)
+                # save output
+                self.context.save_outputs(self.loop_node_id, node_output, node_output_ui, True)
+                            
+                self.context.executed.add(self.loop_node_id)
+                # 
+                self._on_node_executed(self.loop_node_id, [])
+                
+                if self.loop_node.is_loop_end():
+                    print(f"[LoopFlow] loop end.")
+                    return (True, None, None)
+                
+                self.first_node_id = self.loop_node.goto(**input_datas, flows=self.context.flows.get(self.loop_node_id, None))
+                
+                print(f"[LoopFlow] first_node of loop: {self.first_node_id}")
+                
+            except comfy.model_management.InterruptProcessingException as iex:
+                logging.info("Processing interrupted")
+                # skip formatting inputs/outputs
+                error_details = {
+                    "node_id": self.loop_node_id,
+                }
+                print(f"[Execute Node] error: {iex}")
+                return (False, error_details, iex)
+            
+            except Exception as ex:
+                error_details = self._collect_error_details(self.loop_node_id, input_datas, ex)
+                return (False, error_details, ex)
+                
+            # execute loop body
+            succ, err_details, exp = super().execute()
+            
+            if not succ:
+                print(f"[LoopNode] Error during executing loop body.")
+                return (succ, err_details, exp)
+        
+        print(f"[LoopFlow] loop end.")
+        return (True, None, None)
+            
+            
+    def goto(self):
+        input_datas = self.context.get_inputs(self.loop_node_id)
+        return self.loop_node.goto(**input_datas, flows=self.context.flows.get(self.loop_node_id, None))
+ 
 
 
 class FlowExecutor:
@@ -596,9 +712,12 @@ class FlowExecutor:
             
             # in degree
             in_degree = {}
-            for from_id, goto_lit in flows.items():
-                for to_id in goto_lit:
-                    if to_id is not None:
+            for from_id, goto_list in flows.items():
+                if goto_list is None:
+                    continue
+                for to_info in goto_list:
+                    if to_info is not None:
+                        to_id = to_info[0]
                         val = in_degree.get(to_id, 0)
                         val+=1
                         in_degree[to_id] = val
@@ -613,7 +732,7 @@ class FlowExecutor:
             # exexute each flow  
             for first_node_id in first_node_ids:
                 # 
-                flow_exe = SequenceFlow(first_node=first_node_id, context=self.context, server= self.server)
+                flow_exe = SequenceFlow(first_node_id=first_node_id, context=self.context, server= self.server)
                 
                 # execute
                 succ, err, ex = flow_exe.execute()
@@ -621,6 +740,9 @@ class FlowExecutor:
                 if succ is not True:
                     self.handle_execution_error(prompt_id, prompt, self.context.outputs, self.context.executed, err, ex)
                     break
+             
+            print(f"[Execution] output list: {LogUtils.visible_convert(self.context.outputs)}")   
+            print(f"[Execution] execution DONE.")
 
             self.server.last_node_id = None
             

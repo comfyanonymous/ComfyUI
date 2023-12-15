@@ -1343,8 +1343,11 @@ export class ComfyApp {
 		let restored = false;
 		try {
 			const json = localStorage.getItem("workflow");
+			console.log("localStorage");
+			console.log(localStorage);
 			if (json) {
-				const workflow = JSON.parse(json);
+				let workflow = JSON.parse(json);
+				workflow = this.workflowToCworkflow(workflow).workflow;
 				await this.loadGraphData(workflow);
 				restored = true;
 			}
@@ -1404,7 +1407,8 @@ export class ComfyApp {
 				// 	inputs = Object.assign({}, nodeData["input"]["required"], nodeData["input"]["optional"]);
 				// }
 
-				let inputs = [{'key': "FROM", "val": ["FLOW"]}]
+				// let inputs = [{'key': "FROM", "val": ["FLOW"]}]
+				let inputs = nodeData['flow_inputs'].map(([key, val]) => ({ key, val: [val] }));
 				inputs.push(...Object.entries(nodeData["input"]["required"]).map(([key, val]) => ({ key, val })));
                 if (nodeData["input"]["optional"] != undefined) {
 					inputs.push(...Object.entries(nodeData["input"]["optional"]).map(([key, val]) => ({ key, val })));
@@ -1441,9 +1445,9 @@ export class ComfyApp {
 				}
 
 				let _nodeData = {};
-				_nodeData["output"] = ["FLOW"].concat(nodeData["output"]);
-				_nodeData["output_name"] = ["TO"].concat(nodeData["output_name"]);
-				_nodeData["output_is_list"] = [false].concat(nodeData["output_is_list"]);
+				_nodeData["output"] = nodeData.flow_outputs.map(([key, val]) => val).concat(nodeData["output"]);
+				_nodeData["output_name"] = nodeData.flow_outputs.map(([key, val]) => key).concat(nodeData["output_name"]);
+				_nodeData["output_is_list"] = nodeData.flow_outputs.map(([key, val]) => false).concat(nodeData["output_is_list"]);
 				for (const o in _nodeData["output"]) {
 					let output = _nodeData["output"][o];
 					if(output instanceof Array) output = "COMBO";
@@ -1488,6 +1492,8 @@ export class ComfyApp {
 			...(await this.#invokeExtensionsAsync("getCustomWidgets")).filter(Boolean)
 		);
 
+		console.log("register nodes");
+		console.log(defs);
 		// Register a node for each definition
 		for (const nodeId in defs) {
 			this.registerNodeDef(nodeId, defs[nodeId]);
@@ -1570,11 +1576,11 @@ export class ComfyApp {
 	}
 
 
-	calculateFlowConnection(graphData)
+	convertOldVersionWorkflow(graphData)
 	{
-		if("flows" in graphData)
+		if(("support_flow_control" in graphData) && graphData["support_flow_control"])
 		{
-			return graphData.flows;
+			return graphData;
 		}
 
 		// id-nodes, id-links
@@ -1650,29 +1656,42 @@ export class ComfyApp {
 			}
 		}
 
+		// add flow_inputs & flow_outputs
+		for (let node of graphData.nodes){
+			let flow_inputs = [{"name": "FROM", "links": null}];
+			let flow_outputs = [{"name": "TO", "link": null}];
+			node["flow_inputs"] = flow_inputs;
+			node["flow_outputs"] = flow_outputs;
+		}
+
 		// update flows data
-		var flows = {};
+		var flows = [];
 		idx = 0;
-		while(idx < flow_order.length)
+		let flow_link_next_id = 0;
+		while(idx < flow_order.length - 1)
 		{
-			if(idx == flow_order.length -1)
-			{
-				flows[flow_order[idx].id] = null;
-			}
-			else{
-				flows[flow_order[idx].id] = [flow_order[idx+1].id];
-			}
+			let cur_link_id = flow_link_next_id++;
+			let from_id = parseInt(flow_order[idx].id);
+			let to_id = parseInt(flow_order[idx+1].id);
+			let cur_flow_link = [cur_link_id, from_id, 0, to_id, 0];
+			flows.push(cur_flow_link);
+
+			nodes[from_id]["flow_inputs"][0]["links"] = [cur_link_id];
+			nodes[from_id]["flow_outputs"][0]["link"] = cur_link_id;
 			++idx;
 		}
+		graphData["flow_links"] = flows;
 		// graphData["flows"] = flows;
 
-		return flows;
+		return graphData;
 	}
 
 
-	initFlowControlConnection(graphData)
+	cworkflowToWorkflow(graphData)
 	{
-		let flows = this.calculateFlowConnection(graphData);
+		console.log("Compitable workflow is: ");
+		console.log(graphData);
+		console.trace();
 
 		// No nodes exist, just return
 		if(graphData.nodes.length==0)
@@ -1680,19 +1699,31 @@ export class ComfyApp {
 			return graphData;
 		}
 
-		// If flow-control inputs/outputs exist, just return
-		for (const node of graphData.nodes)
+		// // If flow-control inputs/outputs exist, just return
+		// for (const node of graphData.nodes)
+		// {
+		// 	if("inputs" in node)
+		// 	{
+		// 		if (node.inputs[0].name == "FROM")
+		// 		{
+		// 			return graphData;
+		// 		}
+		// 		else{
+		// 			break;
+		// 		}
+		// 	}
+		// }
+
+		// id-link map, id-node map
+		let links = {};
+		for(const link of graphData.links)
 		{
-			if("inputs" in node)
-			{
-				if (node.inputs[0].name == "FROM")
-				{
-					return graphData;
-				}
-				else{
-					break;
-				}
-			}
+			links[link[0]] = link;
+		}
+		let nodes = {};
+		for(const node of graphData.nodes)
+		{
+			nodes[node.id] = node;
 		}
 
 		// add flow inputs & outputs
@@ -1702,73 +1733,213 @@ export class ComfyApp {
 			{
 				cur_node.inputs = [];
 			}
-			cur_node.inputs.unshift({name:'FROM', type:"FLOW", link:null, shape: LiteGraph.ARROW_SHAPE});
-			if(!('outputs' in cur_node))
+
+			// add flow inputs to the front of all the normal inputs
+			if(cur_node.inputs == undefined || cur_node.inputs == null)
+				cur_node.inputs = [];
+			let nb_flow_inputs = cur_node["flow_inputs"].length;
+			for (let i = nb_flow_inputs -1; i >= 0; i--)
 			{
+				let flowin = cur_node["flow_inputs"][i];
+				cur_node.inputs.unshift({
+					name: flowin.name,
+					type: "FLOW",
+					shape: LiteGraph.ARROW_SHAPE,
+					link: flowin.links==null ? null : (flowin.links.length>0? flowin.links[0]: null)	// multi-inputs not supported
+				});
+			}
+			// add slot_idx in 'links'
+			for(let i = nb_flow_inputs; i < cur_node.inputs.length; i++)
+			{
+				let link_id = cur_node.inputs[i].link;
+				if(link_id != null)
+				{
+					links[link_id][4] += nb_flow_inputs;
+				}
+			}
+
+			// add flow outputs to the front of all the normal outputs
+			if(cur_node.outputs == undefined || cur_node.outputs == null)
 				cur_node.outputs = [];
-			}
-			for(const output of cur_node.outputs)
+			let nb_flow_outputs = cur_node["flow_outputs"].length;
+			for (let i = nb_flow_outputs - 1; i >= 0; i--)
 			{
-				output.slot_index +=1;
+				let flowout = cur_node["flow_outputs"][i];
+				cur_node.outputs.unshift({
+					name: flowout.name,
+					type: "FLOW",
+					slot_index: i,
+					shape: LiteGraph.ARROW_SHAPE,
+					links: flowout.link 
+				});
 			}
-			cur_node.outputs.unshift({name:"TO", type: "FLOW", slot_index: 0, links:null, shape: LiteGraph.ARROW_SHAPE});
-
-		}
-
-		// update link info
-		for (const link of graphData.links)
-		{
-			link[2] +=1;
-			link[4] +=1;
-		}
-		
-		// id-nodes, id-links
-		var nodes = {};
-		for(const node of graphData.nodes)
-		{
-			nodes[node.id] = node;
-		}
-
-		// add links & flows
-		for(let from_id in flows)
-		{
-			let to_id_list = flows[from_id];
-			if(to_id_list == null)
-				continue;
-
-			for (let to_id of to_id_list)
+			// add slot_idx in 'links'
+			for(let i = nb_flow_outputs; i < cur_node.outputs.length; i++)
 			{
-				if(to_id == null)
-					continue;
-
-				let link_id = ++graphData.last_link_id;
-				let from_node = nodes[from_id];
-				let to_node = nodes[to_id];
-
-				var link = [link_id, parseInt(from_id), 0, to_id, 0, "FLOW"];
-				// {id: link_id, 
-				// 	origin_id: from_id, 
-				// 	origin_slot: from_node.outputs.length -1, 
-				// 	target_id: to_id,
-				// 	target_slot: to_node.inputs.length -1,
-				// 	type: "FLOW"
-				// 	// _data: null
-				// };
-				graphData.links.push(link);
-
-				from_node.outputs[0].links = [link_id];
-				to_node.inputs[0].link = link_id;
+				let link_ids = cur_node.outputs[i].links;
+				if(link_ids != null && link_ids.length>0)
+				{
+					link_ids.forEach(linkid => {
+						links[linkid][2] += nb_flow_outputs;
+					});
+				}
+				cur_node.outputs[i].slot_index += nb_flow_outputs;
 			}
 		}
+
+		if (graphData.flow_links == null)
+		{
+			return graphData;
+		}
+
+		let last_link_id = graphData.last_link_id;
+		for(let flow_link of graphData.flow_links)
+		{
+			let new_link_id = ++last_link_id;
+			graphData.links.push([new_link_id, flow_link[1], flow_link[2], flow_link[3], flow_link[4], "FLOW"]);
+
+			// update link id in nodes
+			nodes[flow_link[1]].outputs[flow_link[2]].links = [new_link_id];
+			nodes[flow_link[3]].inputs[flow_link[4]].link = new_link_id;
+		}
+
+		graphData.last_link_id = last_link_id;
+
+		console.log("workflow is: ");
+		console.log(graphData);
 
 		return graphData;
 	}
+
+
+	/**
+	 * Convert workflow data to compatible workflow data. 
+	 * Output flow data in prompt at the sametime.
+	 */
+	workflowToCworkflow(workflow)
+	{
+		console.log("workflow to c-workflow: ");
+		console.log(workflow);
+
+		//
+		var flow_links = null;
+		if ("links" in workflow)
+		{
+			flow_links = workflow.links.filter(link => link[5] == "FLOW");
+			workflow.links = workflow.links.filter(link => link[5] != "FLOW");
+		}
+		workflow.flow_links = flow_links;
+
+		// id-links map
+		let links_map = {};
+		workflow.links?.forEach(link => {
+			if(link!=null) links_map[link[0]] = link;
+		});
+
+		// input & output
+		for (const node of workflow.nodes)
+		{
+			// flow_inputs data
+			let flow_inputs = node.inputs.filter(inp => inp.type == "FLOW");
+			flow_inputs.forEach(inp => {
+				inp.links = [inp.link];
+				delete inp.link;
+			});
+			node.flow_inputs = flow_inputs;
+
+			// inputs data and related links
+			let node_inputs = node.inputs;
+			for (let idx = node_inputs.length -1; idx >=0; idx--)
+			{
+				// input is flow
+				if (node_inputs[idx].type == 'FLOW')
+				{
+					// update slot index in the links
+					for (let j = idx + 1; j < node_inputs.length; j++)
+					{
+						if (node_inputs[j].link != null && node_inputs[j].type != "FLOW")
+						{
+							--links_map[node_inputs[j].link][4];
+						}
+					}
+
+					// delete input
+					node_inputs.splice(idx, 1);
+				}
+			}
+
+			// flow_outputs data
+			let flow_outputs = node.outputs.filter(op => op.type == "FLOW");
+			flow_outputs.forEach(op => {
+				op.link = op.links == null? null : op.links[0];					// for FLOW output, only one connection is allowed
+				delete op.links;
+			});
+			node.flow_outputs = flow_outputs;
+
+			// output data and related links
+			let node_outputs = node.outputs;
+			for (let idx = node_outputs.length - 1; idx >=0; idx--)
+			{
+				if (node_outputs[idx].type == 'FLOW')
+				{
+					// update slot index in the links
+					for (let j = idx + 1; j < node_outputs.length; j++)
+					{
+						if (node_outputs[j].links != null && node_outputs[j].links.length > 0 
+							&& node_outputs[j].type != "FLOW")
+						{
+							for(const link_id of node_outputs[j].links)
+							{
+								--links_map[link_id][2];
+							}
+						}
+					}
+					// delete input
+					node_outputs.splice(idx, 1);
+				}
+			}
+		}
+
+		// support flow control tag
+		workflow.support_flow_control = true;
+
+		// prompt flow datas
+		var prompt_flows = {};
+		for (const link of workflow.flow_links)
+		{
+			let all_goto = [];
+			if (link[1] in prompt_flows)
+			{
+				all_goto = prompt_flows[link[1]];
+			}
+			
+			let new_goto = link[3].toString();
+			let origin_slot_int = link[2];				// output slot in the original node.
+			if (all_goto.length <= origin_slot_int)
+			{
+				all_goto = all_goto.concat(Array(origin_slot_int + 1 - all_goto.length).fill(null));
+			}
+			all_goto[origin_slot_int] = [new_goto, link[4]];
+			prompt_flows[link[1]] = all_goto;
+		}
+		workflow.nodes.forEach(node => {
+			if (!(node.id in prompt_flows))
+			{
+				prompt_flows[node.id] = null;
+			}
+		});
+
+		return {workflow, prompt_flows};
+	}
+
 
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 */
 	async loadGraphData(graphData) {
+		console.log("Graph Data (before):");
+		console.log(graphData);
 		this.clean();
 
 		let reset_invalid_values = false;
@@ -1801,9 +1972,8 @@ export class ComfyApp {
 		}
 
 		try {
-			console.log("Graph Data (before):");
-			console.log(graphData);
-			graphData = this.initFlowControlConnection(graphData);
+			graphData = this.convertOldVersionWorkflow(graphData);
+			graphData = this.cworkflowToWorkflow(graphData);
 			this.graph.configure(graphData);
 		} catch (error) {
 			let errorHint = [];
@@ -1978,11 +2148,11 @@ export class ComfyApp {
 							}
 						}
 
-						if (link) {
+						if (link && node.inputs[i].type != 'FLOW') {
 							if (parent?.updateLink) {
 								link = parent.updateLink(link);
 							}
-							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot) - 1];
+							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot) - 1]; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 						}
 					}
 				}
@@ -2006,52 +2176,22 @@ export class ComfyApp {
 			}
 		}
 
+		console.log("prompt:");
+		console.log(output);
+
+
 		// Get flows from workflow
 		let workflow = JSON.parse(JSON.stringify(_workflow));
-		var flows = {};
-		for (const link of workflow.links)
-		{
-			if(link[5] == "FLOW")
-			{
-				let all_goto = [];
-				if (link[1] in flows)
-				{
-					all_goto = flows[link[1]];
-				}
-				
-				let new_goto = link[3].toString()
-				let origin_slot_int = link[2];
-				// let target_slot = target_slot_int.toString();
-				if (all_goto.length <= origin_slot_int)
-				{
-					all_goto = all_goto.concat(Array(origin_slot_int + 1 - all_goto.length).fill(null));
-				}
-				all_goto[origin_slot_int] = new_goto;
-				flows[link[1]] = all_goto;
-			}				
-		}
-		workflow["flows"] = flows;
+		
+		// conver normal workflow to compatible workflow
+		let cw_flow = this.workflowToCworkflow(workflow);
+		workflow = cw_flow.workflow;
+		let flows = cw_flow.prompt_flows;
 
-		// Remove flow control info from workflow
-		// link
-		for (const link of workflow.links)
-		{
-			--link[2];
-			--link[4];
-		}
-		workflow.links = workflow.links.filter(element=>element[5]!="FLOW");
-		// input & output
-		for (const node of workflow.nodes)
-		{
-			node.inputs.shift();
-			node.outputs.shift();
-		}
+		console.log("Graph to prompt: ");
+		console.log(workflow);
+		console.log(flows);
 
-		// Remove flow control info from output
-		for (let node_id in output)
-		{
-			delete output[node_id].inputs.FROM;
-		}
 
 		return { workflow, output, flows };
 	}
