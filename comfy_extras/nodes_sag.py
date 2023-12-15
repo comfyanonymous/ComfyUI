@@ -27,9 +27,7 @@ def attention_basic_with_sim(q, k, v, heads, mask=None):
 
     # force cast to fp32 to avoid overflowing
     if _ATTN_PRECISION =="fp32":
-        with torch.autocast(enabled=False, device_type = 'cuda'):
-            q, k = q.float(), k.float()
-            sim = einsum('b i d, b j d -> b i j', q, k) * scale
+        sim = einsum('b i d, b j d -> b i j', q.float(), k.float()) * scale
     else:
         sim = einsum('b i d, b j d -> b i j', q, k) * scale
 
@@ -111,7 +109,6 @@ class SelfAttentionGuidance:
         m = model.clone()
 
         attn_scores = None
-        mid_block_shape = None
 
         # TODO: make this work properly with chunked batches
         #       currently, we can only save the attn from one UNet call
@@ -134,7 +131,6 @@ class SelfAttentionGuidance:
 
         def post_cfg_function(args):
             nonlocal attn_scores
-            nonlocal mid_block_shape
             uncond_attn = attn_scores
 
             sag_scale = scale
