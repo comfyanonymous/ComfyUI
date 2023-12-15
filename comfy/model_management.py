@@ -466,6 +466,8 @@ def unet_inital_load_device(parameters, dtype):
 def unet_dtype(device=None, model_params=0):
     if args.bf16_unet:
         return torch.bfloat16
+    if args.fp16_unet:
+        return torch.float16
     if args.fp8_e4m3fn_unet:
         return torch.float8_e4m3fn
     if args.fp8_e5m2_unet:
@@ -473,6 +475,20 @@ def unet_dtype(device=None, model_params=0):
     if should_use_fp16(device=device, model_params=model_params):
         return torch.float16
     return torch.float32
+
+# None means no manual cast
+def unet_manual_cast(weight_dtype, inference_device):
+    if weight_dtype == torch.float32:
+        return None
+
+    fp16_supported = comfy.model_management.should_use_fp16(inference_device, prioritize_performance=False)
+    if fp16_supported and weight_dtype == torch.float16:
+        return None
+
+    if fp16_supported:
+        return torch.float16
+    else:
+        return torch.float32
 
 def text_encoder_offload_device():
     if args.gpu_only:
@@ -503,10 +519,19 @@ def text_encoder_dtype(device=None):
     elif args.fp32_text_enc:
         return torch.float32
 
+    if is_device_cpu(device):
+        return torch.float16
+
     if should_use_fp16(device, prioritize_performance=False):
         return torch.float16
     else:
         return torch.float32
+
+def intermediate_device():
+    if args.gpu_only:
+        return get_torch_device()
+    else:
+        return torch.device("cpu")
 
 def vae_device():
     return get_torch_device()
@@ -529,7 +554,7 @@ def get_autocast_device(dev):
 def supports_dtype(device, dtype): #TODO
     if dtype == torch.float32:
         return True
-    if torch.device("cpu") == device:
+    if is_device_cpu(device):
         return False
     if dtype == torch.float16:
         return True
@@ -547,15 +572,19 @@ def cast_to_device(tensor, device, dtype, copy=False):
         elif is_intel_xpu():
             device_supports_cast = True
 
+    non_blocking = True
+    if is_device_mps(device):
+        non_blocking = False #pytorch bug? mps doesn't support non blocking
+
     if device_supports_cast:
         if copy:
             if tensor.device == device:
-                return tensor.to(dtype, copy=copy)
-            return tensor.to(device, copy=copy).to(dtype)
+                return tensor.to(dtype, copy=copy, non_blocking=non_blocking)
+            return tensor.to(device, copy=copy, non_blocking=non_blocking).to(dtype, non_blocking=non_blocking)
         else:
-            return tensor.to(device).to(dtype)
+            return tensor.to(device, non_blocking=non_blocking).to(dtype, non_blocking=non_blocking)
     else:
-        return tensor.to(dtype).to(device, copy=copy)
+        return tensor.to(device, dtype, copy=copy, non_blocking=non_blocking)
 
 def xformers_enabled():
     global directml_enabled
