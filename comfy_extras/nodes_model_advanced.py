@@ -92,7 +92,7 @@ class ModelSamplingDiscrete:
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
 
-        model_sampling = ModelSamplingAdvanced()
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
         if zsnr:
             model_sampling.set_sigmas(rescale_zero_terminal_snr_sigmas(model_sampling.sigmas))
 
