@@ -61,6 +61,9 @@ class ModelPatcher:
         else:
             self.model_options["sampler_cfg_function"] = sampler_cfg_function
 
+    def set_model_sampler_post_cfg_function(self, post_cfg_function):
+        self.model_options["sampler_post_cfg_function"] = self.model_options.get("sampler_post_cfg_function", []) + [post_cfg_function]
+
     def set_model_unet_function_wrapper(self, unet_wrapper_function):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
@@ -70,13 +73,17 @@ class ModelPatcher:
             to["patches"] = {}
         to["patches"][name] = to["patches"].get(name, []) + [patch]
 
-    def set_model_patch_replace(self, patch, name, block_name, number):
+    def set_model_patch_replace(self, patch, name, block_name, number, transformer_index=None):
         to = self.model_options["transformer_options"]
         if "patches_replace" not in to:
             to["patches_replace"] = {}
         if name not in to["patches_replace"]:
             to["patches_replace"][name] = {}
-        to["patches_replace"][name][(block_name, number)] = patch
+        if transformer_index is not None:
+            block = (block_name, number, transformer_index)
+        else:
+            block = (block_name, number)
+        to["patches_replace"][name][block] = patch
 
     def set_model_attn1_patch(self, patch):
         self.set_model_patch(patch, "attn1_patch")
@@ -84,11 +91,11 @@ class ModelPatcher:
     def set_model_attn2_patch(self, patch):
         self.set_model_patch(patch, "attn2_patch")
 
-    def set_model_attn1_replace(self, patch, block_name, number):
-        self.set_model_patch_replace(patch, "attn1", block_name, number)
+    def set_model_attn1_replace(self, patch, block_name, number, transformer_index=None):
+        self.set_model_patch_replace(patch, "attn1", block_name, number, transformer_index)
 
-    def set_model_attn2_replace(self, patch, block_name, number):
-        self.set_model_patch_replace(patch, "attn2", block_name, number)
+    def set_model_attn2_replace(self, patch, block_name, number, transformer_index=None):
+        self.set_model_patch_replace(patch, "attn2", block_name, number, transformer_index)
 
     def set_model_attn1_output_patch(self, patch):
         self.set_model_patch(patch, "attn1_output_patch")
@@ -217,13 +224,19 @@ class ModelPatcher:
                 v = (self.calculate_weight(v[1:], v[0].clone(), key), )
 
             if len(v) == 1:
+                patch_type = "diff"
+            elif len(v) == 2:
+                patch_type = v[0]
+                v = v[1]
+
+            if patch_type == "diff":
                 w1 = v[0]
                 if alpha != 0.0:
                     if w1.shape != weight.shape:
                         print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
                     else:
                         weight += alpha * comfy.model_management.cast_to_device(w1, weight.device, weight.dtype)
-            elif len(v) == 4: #lora/locon
+            elif patch_type == "lora": #lora/locon
                 mat1 = comfy.model_management.cast_to_device(v[0], weight.device, torch.float32)
                 mat2 = comfy.model_management.cast_to_device(v[1], weight.device, torch.float32)
                 if v[2] is not None:
@@ -237,7 +250,7 @@ class ModelPatcher:
                     weight += (alpha * torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1))).reshape(weight.shape).type(weight.dtype)
                 except Exception as e:
                     print("ERROR", key, e)
-            elif len(v) == 8: #lokr
+            elif patch_type == "lokr":
                 w1 = v[0]
                 w2 = v[1]
                 w1_a = v[3]
@@ -276,7 +289,7 @@ class ModelPatcher:
                     weight += alpha * torch.kron(w1, w2).reshape(weight.shape).type(weight.dtype)
                 except Exception as e:
                     print("ERROR", key, e)
-            else: #loha
+            elif patch_type == "loha":
                 w1a = v[0]
                 w1b = v[1]
                 if v[2] is not None:
@@ -305,6 +318,18 @@ class ModelPatcher:
                     weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype)
                 except Exception as e:
                     print("ERROR", key, e)
+            elif patch_type == "glora":
+                if v[4] is not None:
+                    alpha *= v[4] / v[0].shape[0]
+
+                a1 = comfy.model_management.cast_to_device(v[0].flatten(start_dim=1), weight.device, torch.float32)
+                a2 = comfy.model_management.cast_to_device(v[1].flatten(start_dim=1), weight.device, torch.float32)
+                b1 = comfy.model_management.cast_to_device(v[2].flatten(start_dim=1), weight.device, torch.float32)
+                b2 = comfy.model_management.cast_to_device(v[3].flatten(start_dim=1), weight.device, torch.float32)
+
+                weight += ((torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)) * alpha).reshape(weight.shape).type(weight.dtype)
+            else:
+                print("patch type not recognized", patch_type, key)
 
         return weight
 
