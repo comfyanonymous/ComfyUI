@@ -104,3 +104,12 @@ export function createDefaultWorkflow(ez, graph) {
 
 	return { ckpt, pos, neg, empty, sampler, decode, save };
 }
+
+export async function getNodeDefs() {
+	const { api } = require("../../web/scripts/api");
+	return api.getNodeDefs();
+}
+
+export async function getNodeDef(nodeId) {
+	return (await getNodeDefs())[nodeId];
+}

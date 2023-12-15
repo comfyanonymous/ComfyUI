@@ -1559,9 +1559,12 @@ export class ComfyApp {
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
+	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
 	 */
-	async loadGraphData(graphData) {
-		this.clean();
+	async loadGraphData(graphData, clean = true) {
+		if (clean !== false) {
+			this.clean();
+		}
 
 		let reset_invalid_values = false;
 		if (!graphData) {
@@ -1771,7 +1774,9 @@ export class ComfyApp {
 							if (parent?.updateLink) {
 								link = parent.updateLink(link);
 							}
-							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+							if (link) {
+								inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+							}
 						}
 					}
 				}

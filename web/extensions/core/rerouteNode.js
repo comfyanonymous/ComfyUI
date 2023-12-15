@@ -1,10 +1,11 @@
 import { app } from "../../scripts/app.js";
+import { mergeIfValid, getWidgetConfig, setWidgetConfig } from "./widgetInputs.js";
 
 // Node that allows you to redirect connections for cleaner graphs
 
 app.registerExtension({
 	name: "Comfy.RerouteNode",
-	registerCustomNodes() {
+	registerCustomNodes(app) {
 		class RerouteNode {
 			constructor() {
 				if (!this.properties) {
@@ -15,6 +16,12 @@ app.registerExtension({
 
 				this.addInput("", "*");
 				this.addOutput(this.properties.showOutputText ? "*" : "", "*");
+
+				this.onAfterGraphConfigured = function () {
+					requestAnimationFrame(() => {
+						this.onConnectionsChange(LiteGraph.INPUT, null, true, null);
+					});
+				};
 
 				this.onConnectionsChange = function (type, index, connected, link_info) {
 					this.applyOrientation();
@@ -47,6 +54,7 @@ app.registerExtension({
 						const linkId = currentNode.inputs[0].link;
 						if (linkId !== null) {
 							const link = app.graph.links[linkId];
+							if (!link) return;
 							const node = app.graph.getNodeById(link.origin_id);
 							const type = node.constructor.type;
 							if (type === "Reroute") {
@@ -54,8 +62,7 @@ app.registerExtension({
 									// We've found a circle
 									currentNode.disconnectInput(link.target_slot);
 									currentNode = null;
-								}
-								else {
+								} else {
 									// Move the previous node
 									currentNode = node;
 								}
@@ -94,8 +101,11 @@ app.registerExtension({
 									updateNodes.push(node);
 								} else {
 									// We've found an output
-									const nodeOutType = node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type ? node.inputs[link.target_slot].type : null;
-									if (inputType && nodeOutType !== inputType) {
+									const nodeOutType =
+										node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type
+											? node.inputs[link.target_slot].type
+											: null;
+									if (inputType && inputType !== "*" && nodeOutType !== inputType) {
 										// The output doesnt match our input so disconnect it
 										node.disconnectInput(link.target_slot);
 									} else {
@@ -111,6 +121,9 @@ app.registerExtension({
 					const displayType = inputType || outputType || "*";
 					const color = LGraphCanvas.link_type_colors[displayType];
 
+					let widgetConfig;
+					let targetWidget;
+					let widgetType;
 					// Update the types of each node
 					for (const node of updateNodes) {
 						// If we dont have an input type we are always wildcard but we'll show the output type
@@ -125,7 +138,35 @@ app.registerExtension({
 							const link = app.graph.links[l];
 							if (link) {
 								link.color = color;
+
+								if (app.configuringGraph) continue;
+								const targetNode = app.graph.getNodeById(link.target_id);
+								const targetInput = targetNode.inputs?.[link.target_slot];
+								if (targetInput?.widget) {
+									const config = getWidgetConfig(targetInput);
+									if (!widgetConfig) {
+										widgetConfig = config[1] ?? {};
+										widgetType = config[0];
+									}
+									if (!targetWidget) {
+										targetWidget = targetNode.widgets?.find((w) => w.name === targetInput.widget.name);
+									}
+
+									const merged = mergeIfValid(targetInput, [config[0], widgetConfig]);
+									if (merged.customConfig) {
+										widgetConfig = merged.customConfig;
+									}
+								}
 							}
+						}
+					}
+
+					for (const node of updateNodes) {
+						if (widgetConfig && outputType) {
+							node.inputs[0].widget = { name: "value" };
+							setWidgetConfig(node.inputs[0], [widgetType ?? displayType, widgetConfig], targetWidget);
+						} else {
+							setWidgetConfig(node.inputs[0], null);
 						}
 					}
 
@@ -173,8 +214,8 @@ app.registerExtension({
 					},
 					{
 						// naming is inverted with respect to LiteGraphNode.horizontal
-						// LiteGraphNode.horizontal == true means that 
-						// each slot in the inputs and outputs are layed out horizontally, 
+						// LiteGraphNode.horizontal == true means that
+						// each slot in the inputs and outputs are layed out horizontally,
 						// which is the opposite of the visual orientation of the inputs and outputs as a node
 						content: "Set " + (this.properties.horizontal ? "Horizontal" : "Vertical"),
 						callback: () => {
@@ -187,7 +228,7 @@ app.registerExtension({
 			applyOrientation() {
 				this.horizontal = this.properties.horizontal;
 				if (this.horizontal) {
-					// we correct the input position, because LiteGraphNode.horizontal 
+					// we correct the input position, because LiteGraphNode.horizontal
 					// doesn't account for title presence
 					// which reroute nodes don't have
 					this.inputs[0].pos = [this.size[0] / 2, 0];
