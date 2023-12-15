@@ -9,7 +9,7 @@ class PerpNeg:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"model": ("MODEL", ),
-                             "clip": ("CLIP", ),
+                             "empty_conditioning": ("CONDITIONING", ),
                              "neg_scale": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0}),
                             }}
     RETURN_TYPES = ("MODEL",)
@@ -17,13 +17,9 @@ class PerpNeg:
 
     CATEGORY = "_for_testing"
 
-    def patch(self, model, clip, neg_scale):
+    def patch(self, model, empty_conditioning, neg_scale):
         m = model.clone()
-
-        tokens = clip.tokenize("")
-        nocond, nocond_pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        nocond = [[nocond, {"pooled_output": nocond_pooled}]]
-        nocond = comfy.sample.convert_cond(nocond)
+        nocond = comfy.sample.convert_cond(empty_conditioning)
 
         def cfg_function(args):
             model = args["model"]
@@ -33,9 +29,9 @@ class PerpNeg:
             x = args["input"]
             sigma = args["sigma"]
             model_options = args["model_options"]
-            
+
             (noise_pred_nocond, _) = comfy.samplers.calc_cond_uncond_batch(model, nocond, None, x, sigma, model_options)
-            
+
             pos = noise_pred_pos - noise_pred_nocond
             neg = noise_pred_neg - noise_pred_nocond
             perp = ((torch.mul(pos, neg).sum())/(torch.norm(neg)**2)) * neg
