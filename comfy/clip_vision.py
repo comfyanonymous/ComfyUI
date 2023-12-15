@@ -39,6 +39,7 @@ class ClipVisionModel():
             self.dtype = torch.float16
 
         self.model = comfy.clip_model.CLIPVisionModelProjection(config, self.dtype, offload_device, comfy.ops.disable_weight_init)
+        self.model.eval()
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
     def load_sd(self, sd):
