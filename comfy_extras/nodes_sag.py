@@ -111,7 +111,6 @@ class SelfAttentionGuidance:
         m = model.clone()
 
         attn_scores = None
-        mid_block_shape = None
 
         # TODO: make this work properly with chunked batches
         #       currently, we can only save the attn from one UNet call
@@ -134,7 +133,6 @@ class SelfAttentionGuidance:
 
         def post_cfg_function(args):
             nonlocal attn_scores
-            nonlocal mid_block_shape
             uncond_attn = attn_scores
 
             sag_scale = scale
