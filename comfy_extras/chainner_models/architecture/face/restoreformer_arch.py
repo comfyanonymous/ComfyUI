@@ -392,14 +392,14 @@ class MultiHeadEncoder(nn.Module):
 
             if i_level != self.num_resolutions - 1:
                 # hs.append(h)
-                hs["block_" + str(i_level)] = h
+                hs[f"block_{i_level}"] = h
                 h = self.down[i_level].downsample(h)
 
         # middle
         # h = hs[-1]
         if self.enable_mid:
             h = self.mid.block_1(h, temb)
-            hs["block_" + str(i_level) + "_atten"] = h
+            hs[f"block_{i_level}_atten"] = h
             h = self.mid.attn_1(h)
             h = self.mid.block_2(h, temb)
             hs["mid_atten"] = h
@@ -655,7 +655,7 @@ class MultiHeadDecoderTransformer(nn.Module):
                 h = self.up[i_level].block[i_block](h, temb)
                 if len(self.up[i_level].attn) > 0:
                     h = self.up[i_level].attn[i_block](
-                        h, hs["block_" + str(i_level) + "_atten"]
+                        h, hs[f"block_{i_level}_atten"]
                     )
                     # hfeature = h.clone()
             if i_level != 0:
