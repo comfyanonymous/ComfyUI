@@ -19,11 +19,13 @@ class Output:
 def clip_preprocess(image, size=224):
     mean = torch.tensor([ 0.48145466,0.4578275,0.40821073], device=image.device, dtype=image.dtype)
     std = torch.tensor([0.26862954,0.26130258,0.27577711], device=image.device, dtype=image.dtype)
-    scale = (size / min(image.shape[1], image.shape[2]))
-    image = torch.nn.functional.interpolate(image.movedim(-1, 1), size=(round(scale * image.shape[1]), round(scale * image.shape[2])), mode="bicubic", antialias=True)
-    h = (image.shape[2] - size)//2
-    w = (image.shape[3] - size)//2
-    image = image[:,:,h:h+size,w:w+size]
+    image = image.movedim(-1, 1)
+    if not (image.shape[2] == size and image.shape[3] == size):
+        scale = (size / min(image.shape[2], image.shape[3]))
+        image = torch.nn.functional.interpolate(image, size=(round(scale * image.shape[2]), round(scale * image.shape[3])), mode="bicubic", antialias=True)
+        h = (image.shape[2] - size)//2
+        w = (image.shape[3] - size)//2
+        image = image[:,:,h:h+size,w:w+size]
     image = torch.clip((255. * image), 0, 255).round() / 255.0
     return (image - mean.view([3,1,1])) / std.view([3,1,1])
 
