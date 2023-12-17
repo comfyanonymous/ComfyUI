@@ -64,6 +64,10 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         print("Set cuda device to:", args.cuda_device)
 
+    if args.deterministic:
+        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
+            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
     import cuda_malloc
 
 import comfy.utils

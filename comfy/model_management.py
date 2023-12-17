@@ -28,6 +28,10 @@ total_vram = 0
 lowvram_available = True
 xpu_available = False
 
+if args.deterministic:
+    print("Using deterministic algorithms for pytorch")
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
 directml_enabled = False
 if args.directml is not None:
     import torch_directml
