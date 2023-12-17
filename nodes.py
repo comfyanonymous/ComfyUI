@@ -33,6 +33,7 @@ import importlib
 
 import folder_paths
 import latent_preview
+import comfy_extras.global_info as global_info
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -1836,9 +1837,11 @@ def load_custom_nodes():
             success = load_custom_node(module_path, base_node_names)
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
+    global_info.variables['custom_nodes.import_state'] = {}
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")
         for n in sorted(node_import_times):
+            global_info.variables['custom_nodes.import_state'][os.path.basename(n[1])] = n[2]
             if n[2]:
                 import_message = ""
             else:
