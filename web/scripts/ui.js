@@ -10,7 +10,7 @@ import {api} from "./api.js";
  *   style?: CSSStyleDeclaration,
  * 	 for?: string
  * } | undefined } propsOrChildren 
- * @param { Element[] | undefined } children 
+ * @param { Element[] | undefined } [children]
  * @returns 
  */
 export function $el(tag, propsOrChildren, children) {

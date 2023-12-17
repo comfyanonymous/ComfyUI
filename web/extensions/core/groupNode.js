@@ -1,7 +1,11 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { $el, ComfyDialog } from "../../scripts/ui.js";
+import { addStylesheet } from "../../scripts/utils.js";
+import { DraggableList } from "../../scripts/ui/draggableList.js";
 import { mergeIfValid } from "./widgetInputs.js";
+
+addStylesheet(import.meta.url);
 
 const GROUP = Symbol();
 
@@ -32,302 +36,6 @@ const Workflow = {
 	},
 };
 
-// $el("style", {
-// 	parent: document.body,
-// 	textContent: `
-// 		.comfy-group-manage {
-// 			background: var(--bg-color);
-// 			color: var(--fg-color);
-// 			border: none;
-// 			outline: none;
-// 			padding: 0;
-// 			font-family: Arial, sans-serif;
-// 			border-radius: 10px;
-// 			display: flex;
-// 			flex-wrap: wrap;
-// 			font-size: 0.8rem;
-// 		}
-
-// 		.comfy-group-manage header {
-// 			flex-basis: 100%;
-// 		}
-
-// 		.comfy-group-manage h3 {
-// 			font-size: 1rem;
-// 		}
-
-// 		.comfy-group-manage h3, .comfy-group-manage h4 {
-// 			font-weight: normal;
-// 			padding: 10px;
-// 			margin: 0;
-// 			border-bottom: 1px solid var(--border-color);
-// 		}
-		
-// 		.comfy-group-manage ul {
-// 			margin: 0;
-// 			padding: 0;
-// 			list-style: none;
-// 			background: var(--tr-odd-bg-color);
-// 		}
-		
-// 		.comfy-group-manage li {
-// 			padding: 10px;
-// 			cursor: pointer;
-// 		}
-
-// 		.comfy-group-manage li:hover, .comfy-group-manage li.selected {
-// 			background: var(--tr-even-bg-color);
-// 		}
-
-// 		.comfy-group-manage li.selected {
-// 			text-decoration: underline;
-// 		}
-
-// 		.comfy-group-manage main {
-// 			border-left: 1px solid var(--border-color);
-// 			flex: auto;
-// 			background: var(--comfy-menu-bg);
-// 		}
-// 	`,
-// });
-
-// Tutorial: https://tahazsh.com/blog/seamless-ui-with-js-drag-to-reorder-example
-
-/***********************
- *      Variables       *
- ***********************/
-
-let listContainer
-
-let draggableItem
-
-let pointerStartX
-let pointerStartY
-
-let itemsGap = 0
-
-let items = []
-
-/***********************
- *    Helper Functions   *
- ***********************/
-
-function getAllItems() {
-  if (!items?.length) {
-    items = Array.from(listContainer.querySelectorAll('.js-item'))
-  }
-  return items
-}
-
-function getIdleItems() {
-  return getAllItems().filter((item) => item.classList.contains('is-idle'))
-}
-
-function isItemAbove(item) {
-  return item.hasAttribute('data-is-above')
-}
-
-function isItemToggled(item) {
-  return item.hasAttribute('data-is-toggled')
-}
-
-/***********************
- *        Setup        *
- ***********************/
-
-function setup() {
-  listContainer = document.querySelector('.js-list')
-
-  if (!listContainer) return
-
-  listContainer.addEventListener('mousedown', dragStart)
-  listContainer.addEventListener('touchstart', dragStart)
-
-  document.addEventListener('mouseup', dragEnd)
-  document.addEventListener('touchend', dragEnd)
-}
-
-/***********************
- *     Drag Start      *
- ***********************/
-
-function dragStart(e) {
-  if (e.target.classList.contains('js-drag-handle')) {
-    draggableItem = e.target.closest('.js-item')
-  }
-
-  if (!draggableItem) return
-
-  pointerStartX = e.clientX || e.touches[0].clientX
-  pointerStartY = e.clientY || e.touches[0].clientY
-
-  setItemsGap()
-  disablePageScroll()
-  initDraggableItem()
-  initItemsState()
-
-  document.addEventListener('mousemove', drag)
-  document.addEventListener('touchmove', drag, { passive: false })
-}
-
-function setItemsGap() {
-  if (getIdleItems().length <= 1) {
-    itemsGap = 0
-    return
-  }
-
-  const item1 = getIdleItems()[0]
-  const item2 = getIdleItems()[1]
-
-  const item1Rect = item1.getBoundingClientRect()
-  const item2Rect = item2.getBoundingClientRect()
-
-  itemsGap = Math.abs(item1Rect.bottom - item2Rect.top)
-}
-
-function disablePageScroll() {
-  document.body.style.overflow = 'hidden'
-  document.body.style.touchAction = 'none'
-  document.body.style.userSelect = 'none'
-}
-
-function initItemsState() {
-  getIdleItems().forEach((item, i) => {
-    if (getAllItems().indexOf(draggableItem) > i) {
-      item.dataset.isAbove = ''
-    }
-  })
-}
-
-function initDraggableItem() {
-  draggableItem.classList.remove('is-idle')
-  draggableItem.classList.add('is-draggable')
-}
-
-/***********************
- *        Drag         *
- ***********************/
-
-function drag(e) {
-  if (!draggableItem) return
-
-  e.preventDefault()
-
-  const clientX = e.clientX || e.touches[0].clientX
-  const clientY = e.clientY || e.touches[0].clientY
-
-  const pointerOffsetX = clientX - pointerStartX
-  const pointerOffsetY = clientY - pointerStartY
-
-  draggableItem.style.transform = `translate(${pointerOffsetX}px, ${pointerOffsetY}px)`
-
-  updateIdleItemsStateAndPosition()
-}
-
-function updateIdleItemsStateAndPosition() {
-  const draggableItemRect = draggableItem.getBoundingClientRect()
-  const draggableItemY = draggableItemRect.top + draggableItemRect.height / 2
-
-  // Update state
-  getIdleItems().forEach((item) => {
-    const itemRect = item.getBoundingClientRect()
-    const itemY = itemRect.top + itemRect.height / 2
-    if (isItemAbove(item)) {
-      if (draggableItemY <= itemY) {
-        item.dataset.isToggled = ''
-      } else {
-        delete item.dataset.isToggled
-      }
-    } else {
-      if (draggableItemY >= itemY) {
-        item.dataset.isToggled = ''
-      } else {
-        delete item.dataset.isToggled
-      }
-    }
-  })
-
-  // Update position
-  getIdleItems().forEach((item) => {
-    if (isItemToggled(item)) {
-      const direction = isItemAbove(item) ? 1 : -1
-      item.style.transform = `translateY(${
-        direction * (draggableItemRect.height + itemsGap)
-      }px)`
-    } else {
-      item.style.transform = ''
-    }
-  })
-}
-
-/***********************
- *      Drag End       *
- ***********************/
-
-function dragEnd() {
-  if (!draggableItem) return
-
-  applyNewItemsOrder()
-  cleanup()
-}
-
-function applyNewItemsOrder() {
-  const reorderedItems = []
-
-  getAllItems().forEach((item, index) => {
-    if (item === draggableItem) {
-      return
-    }
-    if (!isItemToggled(item)) {
-      reorderedItems[index] = item
-      return
-    }
-    const newIndex = isItemAbove(item) ? index + 1 : index - 1
-    reorderedItems[newIndex] = item
-  })
-
-  for (let index = 0; index < getAllItems().length; index++) {
-    const item = reorderedItems[index]
-    if (typeof item === 'undefined') {
-      reorderedItems[index] = draggableItem
-    }
-  }
-
-  reorderedItems.forEach((item) => {
-    listContainer.appendChild(item)
-  })
-}
-
-function cleanup() {
-  itemsGap = 0
-  items = []
-  unsetDraggableItem()
-  unsetItemState()
-
-  document.removeEventListener('mousemove', drag)
-  document.removeEventListener('touchmove', drag)
-}
-
-function unsetDraggableItem() {
-  draggableItem.style = null
-  draggableItem.classList.remove('is-draggable')
-  draggableItem.classList.add('is-idle')
-  draggableItem = null
-}
-
-function unsetItemState() {
-  getIdleItems().forEach((item, i) => {
-    delete item.dataset.isAbove
-    delete item.dataset.isToggled
-    item.style.transform = ''
-  })
-}
-
-/***********************
- *      Start Here     *
- ***********************/
-
-
 class ManageGroupDialog extends ComfyDialog {
 	constructor(app) {
 		super();
@@ -347,124 +55,7 @@ class ManageGroupDialog extends ComfyDialog {
 	}
 
 	show() {
-
 		this.element.innerHTML = `
-			<style>
-				.comfy-group-manage {
-					background: var(--bg-color);
-					color: var(--fg-color);
-					padding: 0;
-					font-family: Arial;
-					border-color: black;
-				}
-				.comfy-group-manage-outer {
-					min-width: 500px;
-				}
-				.comfy-group-manage-outer > header {
-					display: flex; align-items: center; gap: 10px;
-					justify-content: space-between;
-					background: var(--comfy-menu-bg);
-					padding: 15px 20px;
-				}
-				.comfy-group-manage-outer > header select {
-					background: var(--comfy-input-bg);
-					border: 1px solid var(--border-color);
-					color: var(--input-text);
-					padding: 5px 10px;
-					border-radius: 5px;
-				}
-				.comfy-group-manage h2 {
-					margin: 0;
-					font-weight: normal;
-				}
-				.comfy-group-manage main {
-					display: flex;
-				}
-				.comfy-group-manage .drag-handle {
-					font-weight: bold;
-				}
-				.comfy-group-manage-list {
-					border-right: 1px solid var(--comfy-menu-bg);
-				}
-				.comfy-group-manage-list ul {
-					margin: 40px 0 0;
-					padding: 0;
-					list-style: none;
-				}
-				.comfy-group-manage-list li {
-					display: flex;
-					padding: 10px 20px 10px 10px;
-					cursor: pointer;  
-					align-items: center;
-					gap: 5px;
-				}
-				.comfy-group-manage-list div {
-					display: flex;
-					flex-direction: column;
-				}
-				.comfy-group-manage-list li:not(.selected):hover div {
-					text-decoration: underline;
-				}
-				.comfy-group-manage-list li.selected {
-					background: var(--border-color);
-				}
-				.comfy-group-manage-list li span {
-					opacity: 0.7;
-					font-size: smaller;
-				}
-
-				.comfy-group-manage-node {
-					flex: auto;
-					background: var(--border-color);
-				}
-				.comfy-group-manage-node header {
-					display: flex;
-					background: var(--bg-color);
-					height: 40px;
-				}
-				.comfy-group-manage-node header a {
-					text-align: center;
-					flex: auto;
-					border-right: 1px solid var(--comfy-menu-bg);
-					border-bottom: 1px solid var(--comfy-menu-bg);
-					padding: 10px;
-					cursor: pointer;
-					font-size: 15px;
-				}
-				.comfy-group-manage-node header a:not(.active):hover {
-					text-decoration: underline;
-				}
-				.comfy-group-manage-node header a.active {
-					background: var(--border-color);
-					border-bottom: none;
-				}
-				.comfy-group-manage-node > div {
-					padding: 10px;
-					display: flex;
-					align-items: center;
-					gap: 10px;
-				}
-				.comfy-group-manage-node input {
-					border: none;
-					color: var(--input-text);
-					background: var(--comfy-input-bg);
-					padding: 5px 10px;
-				}
-				.comfy-group-manage footer {
-					border-top: 1px solid var(--comfy-menu-bg);
-					padding: 10px;
-					display: flex;
-					gap: 10px;
-				}
-				.comfy-group-manage footer button {
-					font-size: 14px;
-					padding: 5px 10px;
-					border-radius: 0;
-				}
-				.comfy-group-manage footer button:first-child {
-					margin-right: auto;
-				}
-			</style>
 			<div class="comfy-group-manage-outer">
 				<header>
 					<h2>Group Nodes</h2>
@@ -474,11 +65,20 @@ class ManageGroupDialog extends ComfyDialog {
 				</header>
 				<main>
 					<section class="comfy-group-manage-list">
-						<ul>
-							<li class="selected"><span class="drag-handle"></span><div>Load Checkpoint<span>CheckpointLoaderSimple</span></div></li>
-							<li><span class="drag-handle"></span><div>1st Pass<span>KSampler</span></div></li>
-							<li><span class="drag-handle"></span><div>Latent Upscale<span>LatentUpscale</span></div></li>
-							<li><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+						<ul class="comfy-group-manage-list-items" style="max-height: 350px; overflow-y: scroll; overflow-x: hidden">
+							<li class="draggable-item selected"><span class="drag-handle"></span><div>Load Checkpoint<span>CheckpointLoaderSimple</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>1st Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>Latent Upscale<span>LatentUpscale</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
+							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
 						</ul>
 					</section>
 					<section class="comfy-group-manage-node">
@@ -497,12 +97,20 @@ class ManageGroupDialog extends ComfyDialog {
 					</section>
 				</main>
 				<footer>
-					<button class="comfy-button">Delete</button>
+					<button class="comfy-button">Delete Group Node</button>
 					<button class="comfy-button">Save</button>
 					<button class="comfy-button">Close</button>
 				</footer>
 			</div>
-		`
+		`;
+
+		this.element.showModal();
+		const draggable = new DraggableList(document.querySelector(".comfy-group-manage-list-items"), "li");
+		draggable.addEventListener("dragstart", (e) => console.log(e.detail));
+		draggable.addEventListener("dragend", (e) => console.log(e.detail));
+		this.element.addEventListener("close", () => {
+			draggable.dispose();
+		});
 
 		// const groupNodes = Object.keys(app.graph.extra?.groupNodes ?? {}).concat([
 		// 	"something",
@@ -538,9 +146,6 @@ class ManageGroupDialog extends ComfyDialog {
 		// const main = $el("main", [ inputs, widgets, outputs]);
 
 		// this.element.replaceChildren($el("header", $el("h3", "Group Nodes")), left, main);
-		this.element.showModal();
-		
-setup()
 
 		// items[0].click();
 	}
