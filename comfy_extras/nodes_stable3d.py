@@ -20,7 +20,7 @@ def camera_embeddings(elevation, azimuth):
     return embeddings
 
 
-class Zero123_Conditioning:
+class StableZero123_Conditioning:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_vision": ("CLIP_VISION",),
@@ -54,5 +54,5 @@ class Zero123_Conditioning:
         return (positive, negative, {"samples":latent})
 
 NODE_CLASS_MAPPINGS = {
-    "Zero123_Conditioning": Zero123_Conditioning,
+    "StableZero123_Conditioning": StableZero123_Conditioning,
 }
