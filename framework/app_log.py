@@ -27,6 +27,14 @@ class LogUtils:
             for i, vali in enumerate(val):
                 new_data.append(LogUtils.visible_convert(vali, max_len))
             return new_data
+        
+        elif isinstance(val, tuple):
+            new_data = []
+            for i, vali in enumerate(val):
+                new_data.append(LogUtils.visible_convert(vali, max_len))
+            new_data = tuple(new_data)
+            return new_data
+    
         elif isinstance(val, dict):
             new_data = {}
             for key, vali in val.items():

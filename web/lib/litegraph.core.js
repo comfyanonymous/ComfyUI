@@ -637,6 +637,14 @@
                 return true;
             }
 
+            // any data
+            if ((type_a != LiteGraph.TYPE_FLOW && type_b == LiteGraph.TYPE_ANY_DATA) || 
+                (type_b != LiteGraph.TYPE_FLOW && type_a == LiteGraph.TYPE_ANY_DATA)
+            )
+            {
+                return true;
+            }
+
             // Enforce string type to handle toLowerCase call (-1 number not ok)
             type_a = String(type_a);
             type_b = String(type_b);
@@ -645,8 +653,7 @@
 
             // For nodes supporting multiple connection types
             if (type_a.indexOf(",") == -1 && type_b.indexOf(",") == -1) {
-                // return type_a == type_b;
-                return type_a == type_b || type_a == LiteGraph.TYPE_ANY_DATA || type_b == LiteGraph.TYPE_ANY_DATA;
+                return type_a == type_b;
             }
 
             // Check all permutations to see if one is valid

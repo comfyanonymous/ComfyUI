@@ -2083,6 +2083,12 @@ export class ComfyApp {
 
 		const _workflow = this.graph.serialize();
 		const output = {};
+
+		let nb_flowout = {};
+		_workflow.nodes.forEach((node) => { nb_flowout[node.id] = 0; });
+		_workflow.nodes.forEach((node) => {
+			node.outputs.forEach((output) => { if(output.type == "FLOW") { ++nb_flowout[node.id];}});
+		});
 		// Process nodes in order of execution
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
 			const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
@@ -2097,6 +2103,7 @@ export class ComfyApp {
 					continue;
 				}
 
+				const is_input_linked = {};
 				const inputs = {};
 				const widgets = node.widgets;
 
@@ -2106,6 +2113,7 @@ export class ComfyApp {
 						const widget = widgets[i];
 						if (!widget.options || widget.options.serialize !== false) {
 							inputs[widget.name] = widget.serializeValue ? await widget.serializeValue(node, i) : widget.value;
+							is_input_linked[widget.name] = false;
 						}
 					}
 				}
@@ -2152,13 +2160,15 @@ export class ComfyApp {
 							if (parent?.updateLink) {
 								link = parent.updateLink(link);
 							}
-							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot) - 1]; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot) - nb_flowout[link.origin_id]];
+							is_input_linked[node.inputs[i].name] = true;
 						}
 					}
 				}
 
 				output[String(node.id)] = {
 					inputs,
+					is_input_linked,
 					class_type: node.comfyClass,
 				};
 			}

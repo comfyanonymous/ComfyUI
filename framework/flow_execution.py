@@ -58,21 +58,22 @@ class ExecuteContextStorage:
         
         
         
-    def is_connection_input(self, node_inputs, input_name):
+    def is_connection_input(self, node_prompt, input_name):
         """
         Check an input is a connection input or not.
         
         INPUT:
-        node_inputs, input dict
+        node_prompt, prompt info of the node
         input_name, name of the input
         
         RETURN:
         True, the input is a connection input
         False, the input isn't a connection input or the input not found.
         """
-        if input_name in node_inputs:
-            inp = node_inputs[input_name]
-            return isinstance(inp, list)
+        input_linked = node_prompt['is_input_linked']
+        if input_name in input_linked:
+            return input_linked[input_name]
+        return False
         
         
         
@@ -108,7 +109,7 @@ class ExecuteContextStorage:
         input_datas = {}
         for input_name, input_val in inputs.items():
             
-            if self.is_connection_input(node_inputs=inputs, input_name=input_name):
+            if self.is_connection_input(node_prompt=self.prompt[node_id], input_name=input_name):
                 original_output = self.outputs[input_val[0]][input_val[1]]
                 input_datas[input_name] = original_output
                 
@@ -280,7 +281,7 @@ class SequenceFlow:
         # check all inputs
         if is_changed == False:
             for input_name in node_inputs:
-                is_connection = self.context.is_connection_input(node_inputs=node_inputs, input_name=input_name)
+                is_connection = self.context.is_connection_input(node_prompt=self.context.prompt[node_id], input_name=input_name)
                 
                 if is_connection:
                     #find connected original node
@@ -594,6 +595,9 @@ class LoopFlow(SequenceFlow):
                 self.context.executed.add(self.loop_node_id)
                 # 
                 self._on_node_executed(self.loop_node_id, [])
+                
+                print(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
+                print(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
                 
                 if self.loop_node.is_loop_end():
                     print(f"[LoopFlow] loop end.")
