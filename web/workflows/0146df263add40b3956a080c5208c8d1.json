@@ -1,5 +1,5 @@
 {
-  "last_node_id": 97,
+  "last_node_id": 98,
   "last_link_id": 157,
   "nodes": [
     {
@@ -14,7 +14,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 8,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -54,7 +54,7 @@
         "1": 166
       },
       "flags": {},
-      "order": 20,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
@@ -122,7 +122,7 @@
         "1": 166
       },
       "flags": {},
-      "order": 22,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
@@ -227,7 +227,7 @@
         "1": 147.66722106933594
       },
       "flags": {},
-      "order": 15,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
@@ -268,7 +268,7 @@
         "1": 124.52955627441406
       },
       "flags": {},
-      "order": 14,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
@@ -298,31 +298,6 @@
       "bgcolor": "#353"
     },
     {
-      "id": 65,
-      "type": "PreviewImage",
-      "pos": [
-        -781,
-        327
-      ],
-      "size": {
-        "0": 210,
-        "1": 246
-      },
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 142
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "PreviewImage"
-      }
-    },
-    {
       "id": 73,
       "type": "PreviewImage",
       "pos": [
@@ -334,7 +309,7 @@
         "1": 246
       },
       "flags": {},
-      "order": 17,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -359,7 +334,7 @@
         "1": 46
       },
       "flags": {},
-      "order": 24,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
@@ -435,7 +410,7 @@
         "1": 262
       },
       "flags": {},
-      "order": 23,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
@@ -507,7 +482,7 @@
         "1": 178
       },
       "flags": {},
-      "order": 12,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -552,7 +527,7 @@
         "1": 246
       },
       "flags": {},
-      "order": 16,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -566,46 +541,6 @@
       }
     },
     {
-      "id": 93,
-      "type": "AnimeLineArtPreprocessor",
-      "pos": [
-        -258,
-        749
-      ],
-      "size": {
-        "0": 315,
-        "1": 58
-      },
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 148
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            149,
-            151
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "AnimeLineArtPreprocessor"
-      },
-      "widgets_values": [
-        512
-      ]
-    },
-    {
       "id": 86,
       "type": "VAEEncode",
       "pos": [
@@ -617,7 +552,7 @@
         "1": 46
       },
       "flags": {},
-      "order": 9,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -685,204 +620,6 @@
       ],
       "properties": {
         "Node name for S&R": "SetLatentNoiseMask"
-      }
-    },
-    {
-      "id": 96,
-      "type": "VHS_VideoCombine",
-      "pos": [
-        -809,
-        1288
-      ],
-      "size": {
-        "0": 315,
-        "1": 760.6666870117188
-      },
-      "flags": {},
-      "order": 18,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 155
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "Node name for S&R": "VHS_VideoCombine"
-      },
-      "widgets_values": {
-        "frame_rate": 8,
-        "loop_count": 0,
-        "filename_prefix": "AnimateDiff",
-        "format": "image/gif",
-        "pingpong": false,
-        "save_image": true,
-        "crf": 20,
-        "save_metadata": true,
-        "audio_file": "",
-        "videopreview": {
-          "hidden": false,
-          "paused": false,
-          "params": {
-            "filename": "AnimateDiff_00162.gif",
-            "subfolder": "",
-            "type": "output",
-            "format": "image/gif"
-          }
-        }
-      }
-    },
-    {
-      "id": 95,
-      "type": "Robust Video Matting",
-      "pos": [
-        -898.1855828628904,
-        877.004259979883
-      ],
-      "size": {
-        "0": 315,
-        "1": 150
-      },
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "video_frames",
-          "type": "IMAGE",
-          "link": 154
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            155
-          ],
-          "shape": 3,
-          "slot_index": 0
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": [
-            156
-          ],
-          "shape": 3,
-          "slot_index": 1
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "Robust Video Matting"
-      },
-      "widgets_values": [
-        "resnet50",
-        true,
-        "green",
-        4
-      ]
-    },
-    {
-      "id": 97,
-      "type": "GrowMaskWithBlur",
-      "pos": [
-        -277,
-        998
-      ],
-      "size": {
-        "0": 315,
-        "1": 270
-      },
-      "flags": {},
-      "order": 19,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "mask",
-          "type": "MASK",
-          "link": 156
-        }
-      ],
-      "outputs": [
-        {
-          "name": "mask",
-          "type": "MASK",
-          "links": [
-            157
-          ],
-          "shape": 3,
-          "slot_index": 0
-        },
-        {
-          "name": "mask_inverted",
-          "type": "MASK",
-          "links": null,
-          "shape": 3
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "GrowMaskWithBlur"
-      },
-      "widgets_values": [
-        8,
-        0,
-        false,
-        false,
-        true,
-        8,
-        1,
-        0.9400000000000001,
-        1
-      ]
-    },
-    {
-      "id": 90,
-      "type": "VHS_VideoCombine",
-      "pos": [
-        2781,
-        -88
-      ],
-      "size": [
-        780,
-        250
-      ],
-      "flags": {},
-      "order": 25,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 143
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "Node name for S&R": "VHS_VideoCombine"
-      },
-      "widgets_values": {
-        "frame_rate": 30,
-        "loop_count": 0,
-        "filename_prefix": "AnimateDiff",
-        "format": "video/h264-mp4",
-        "pingpong": false,
-        "save_image": true,
-        "crf": 20,
-        "save_metadata": true,
-        "audio_file": "",
-        "videopreview": {
-          "hidden": false,
-          "paused": false,
-          "params": {
-            "filename": "AnimateDiff_00163.mp4",
-            "subfolder": "",
-            "type": "output",
-            "format": "video/h264-mp4"
-          }
-        }
       }
     },
     {
@@ -1000,59 +737,6 @@
       ]
     },
     {
-      "id": 1,
-      "type": "CheckpointLoaderSimpleWithNoiseSelect",
-      "pos": [
-        -455,
-        94
-      ],
-      "size": {
-        "0": 391.317626953125,
-        "1": 141.8805694580078
-      },
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            144
-          ],
-          "shape": 3,
-          "slot_index": 0
-        },
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            1
-          ],
-          "shape": 3,
-          "slot_index": 1
-        },
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            137
-          ],
-          "shape": 3,
-          "slot_index": 2
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CheckpointLoaderSimpleWithNoiseSelect"
-      },
-      "widgets_values": [
-        "cardosAnime_v20.safetensors",
-        "sqrt_linear (AnimateDiff)"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
       "id": 91,
       "type": "ADE_AnimateDiffLoaderWithContext",
       "pos": [
@@ -1064,7 +748,7 @@
         "1": 190
       },
       "flags": {},
-      "order": 7,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -1111,18 +795,281 @@
       ]
     },
     {
+      "id": 90,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        2608,
+        202
+      ],
+      "size": [
+        780,
+        1587.3333333333333
+      ],
+      "flags": {},
+      "order": 26,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 143
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 30,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "video/h264-mp4",
+        "pingpong": false,
+        "save_image": true,
+        "crf": 20,
+        "save_metadata": true,
+        "audio_file": "",
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00002.mp4",
+            "subfolder": "",
+            "type": "output",
+            "format": "video/h264-mp4"
+          }
+        }
+      }
+    },
+    {
+      "id": 93,
+      "type": "AnimeLineArtPreprocessor",
+      "pos": [
+        -31,
+        719
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 148
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            149,
+            151
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "AnimeLineArtPreprocessor"
+      },
+      "widgets_values": [
+        512
+      ]
+    },
+    {
+      "id": 97,
+      "type": "GrowMaskWithBlur",
+      "pos": [
+        227,
+        909
+      ],
+      "size": {
+        "0": 315,
+        "1": 270
+      },
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 156
+        }
+      ],
+      "outputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "links": [
+            157
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "mask_inverted",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "GrowMaskWithBlur"
+      },
+      "widgets_values": [
+        8,
+        0,
+        false,
+        false,
+        true,
+        8,
+        1,
+        0.9400000000000001,
+        1
+      ]
+    },
+    {
+      "id": 95,
+      "type": "Robust Video Matting",
+      "pos": [
+        -228,
+        861
+      ],
+      "size": {
+        "0": 315,
+        "1": 150
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video_frames",
+          "type": "IMAGE",
+          "link": 154
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            155
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            156
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Robust Video Matting"
+      },
+      "widgets_values": [
+        "resnet50",
+        true,
+        "green",
+        4
+      ]
+    },
+    {
+      "id": 96,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        252,
+        1253
+      ],
+      "size": [
+        315,
+        760.6666666666667
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 155
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "image/gif",
+        "pingpong": false,
+        "save_image": true,
+        "crf": 20,
+        "save_metadata": true,
+        "audio_file": "",
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00001.gif",
+            "subfolder": "",
+            "type": "output",
+            "format": "image/gif"
+          }
+        }
+      }
+    },
+    {
+      "id": 65,
+      "type": "PreviewImage",
+      "pos": [
+        -257,
+        383
+      ],
+      "size": {
+        "0": 210,
+        "1": 246
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 142
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
       "id": 89,
       "type": "VHS_LoadVideo",
       "pos": [
-        -1373,
-        501
+        -740,
+        562
       ],
       "size": [
         240,
-        222
+        599.3333333333333
       ],
       "flags": {},
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "outputs": [
         {
@@ -1149,7 +1096,7 @@
         "Node name for S&R": "VHS_LoadVideo"
       },
       "widgets_values": {
-        "video": "Snaptik.app_7263088449652067592.mp4",
+        "video": "dancing_1.mp4",
         "force_rate": 0,
         "force_size": "Disabled",
         "custom_width": 512,
@@ -1162,12 +1109,88 @@
           "hidden": false,
           "paused": false,
           "params": {
-            "filename": "Snaptik.app_7263088449652067592.mp4",
+            "filename": "dancing_1.mp4",
             "type": "input",
             "format": "video"
           }
         }
       }
+    },
+    {
+      "id": 1,
+      "type": "CheckpointLoaderSimpleWithNoiseSelect",
+      "pos": [
+        -188,
+        94
+      ],
+      "size": {
+        "0": 391.317626953125,
+        "1": 141.8805694580078
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            144
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            1
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            137
+          ],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimpleWithNoiseSelect"
+      },
+      "widgets_values": [
+        "cardosAnime_v20.safetensors",
+        "sqrt_linear (AnimateDiff)"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 98,
+      "type": "Note",
+      "pos": [
+        -797,
+        317
+      ],
+      "size": [
+        323.58039785156234,
+        143.03341937499988
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Upload your video here\n\n！！！Please ensure that this video is less than or equal to 3 seconds, otherwise you will have to wait for a considerable amount of time"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
     }
   ],
   "links": [
