@@ -285,16 +285,12 @@ export const ComfyWidgets = {
 	LIST(node, inputName, inputData, app) {
 		const defaultVal = inputData[1] == undefined ? "" : inputData[1].default || "";
 
-		console.trace();
 		let res;
-		// if (multiline) 
 		if(true)
 		{
-			// res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
 			const inputEl = document.createElement("textarea");
 			inputEl.className = "comfy-multiline-input";
 			inputEl.value = defaultVal;
-			// inputEl.placeholder = opts.placeholder || inputName;
 			inputEl.placeholder = inputName;
 
 			const widget = node.addDOMWidget(inputName, "list", inputEl, {
@@ -313,18 +309,10 @@ export const ComfyWidgets = {
 
 			res = { minWidth: 400, minHeight: 200, widget: widget };
 		} 
-		// else {
-		// 	res = { widget: node.addWidget("text", inputName, defaultVal, () => {}, {}) };
-		// }
 
 		const serializeValue = res.widget.serializeValue;
 		res.widget.serializeValue = function () {
 			let val = res.widget.value;
-			// if (serializeValue != undefined)
-			// 	serializeValue();
-			console.log(val);
-			console.trace();
-
 			let list_data = [];
 			if (val != undefined)
 			{
@@ -335,14 +323,69 @@ export const ComfyWidgets = {
 					console.error('Invalid list data:', error);
 				}
 			}
+			if (!Array.isArray(list_data))
+			{
+				console.error('Invalid list data:', val);
+				list_data = [];
+			}
 			return list_data;
 		};
-
-		// if(inputData[1].dynamicPrompts != undefined)
-		// 	res.widget.dynamicPrompts = inputData[1].dynamicPrompts;
-
 		return res;
 	},
+
+	DICT(node, inputName, inputData, app) {
+		const defaultVal = inputData[1] == undefined ? "" : inputData[1].default || "";
+
+		let res;
+		if(true)
+		{
+			const inputEl = document.createElement("textarea");
+			inputEl.className = "comfy-multiline-input";
+			inputEl.value = defaultVal;
+			inputEl.placeholder = inputName;
+
+			const widget = node.addDOMWidget(inputName, "dict", inputEl, {
+				getValue() {
+					return inputEl.value;
+				},
+				setValue(v) {
+					inputEl.value = v;
+				},
+			});
+			widget.inputEl = inputEl;
+
+			inputEl.addEventListener("input", () => {
+				widget.callback?.(widget.value);
+			});
+
+			res = { minWidth: 400, minHeight: 200, widget: widget };
+		} 
+
+		const serializeValue = res.widget.serializeValue;
+		res.widget.serializeValue = function () {
+			let val = res.widget.value;
+
+			let dict_data = {};
+			if (val != undefined)
+			{
+				try{
+					dict_data = JSON.parse(val);
+				}catch(error)
+				{
+					console.error('Invalid dict data:', error);
+					dict_data = {}
+				}
+			}
+			if (typeof dict_data !== 'object')
+			{
+				console.error('Invalid dict data:', val);
+				dict_data = {};
+			}
+			return dict_data;
+		};
+		return res;
+	},
+
 	COMBO(node, inputName, inputData) {
 		const type = inputData[0];
 		let defaultValue = type[0];

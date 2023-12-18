@@ -3,7 +3,7 @@ import { app } from "../../scripts/app.js";
 import { applyTextReplacements } from "../../scripts/utils.js";
 
 const CONVERTED_TYPE = "converted-widget";
-const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN", "LIST"];
+const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN", "LIST", "DICT"];
 const CONFIG = Symbol();
 const GET_CONFIG = Symbol();
 const TARGET = Symbol(); // Used for reroutes to specify the real target widget
