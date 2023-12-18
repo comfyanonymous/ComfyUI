@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#Rename this to comfyui.sh and allow it to be executed
+
+# Set path to the virtual environment
+venv_path="path/to/venv"
+
+# Activate the virtual environment
+source "${venv_path}/bin/activate"
+
+# Set path to preferred Python version within the virtual environment
+python_path="${venv_path}/bin/python"
+
+# Include user-specific command-line arguments if available
+if [ -f "comfyui-user.sh" ]; then
+    source "comfyui-user.sh"
+fi
+
+# Run main.py using the specified Python version and command-line arguments
+${python_path} "$(dirname "$0")/main.py" ${COMMANDLINE_ARGS}
