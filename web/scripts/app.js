@@ -9,6 +9,21 @@ import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
+async function getWorkflow(){
+	let flow_json = null;
+	const queryString = window.location.search;
+	const urlParams = new URLSearchParams(queryString);
+	const workflowId = urlParams.get('workflow');
+	if (workflowId){
+		await fetch('../workflows/' + workflowId + '.json').then(
+			response => {
+				flow_json = response.json()
+			}
+		)
+	} 
+	return flow_json;
+}
+
 function sanitizeNodeName(string) {
 	let entityMap = {
 	'&': '',
@@ -1342,12 +1357,19 @@ export class ComfyApp {
 		// Load previous workflow
 		let restored = false;
 		try {
+			const workflow = await getWorkflow();
 			const json = localStorage.getItem("workflow");
-			if (json) {
-				const workflow = JSON.parse(json);
+
+			if (workflow) {
 				await this.loadGraphData(workflow);
 				restored = true;
-			}
+			} else {
+				if (json) {
+					const workflow = JSON.parse(json);
+					await this.loadGraphData(workflow);
+					restored = true;
+				}
+			} 
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
 		}

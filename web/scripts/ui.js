@@ -455,10 +455,10 @@ class ComfyList {
 				$el("div.comfy-list-items", [
 					...(this.#reverse ? items[section].reverse() : items[section]).map((item) => {
 						// Allow items to specify a custom remove action (e.g. for interrupt current prompt)
-						const removeAction = item.remove || {
-							name: "Delete",
-							cb: () => api.deleteItem(this.#type, item.prompt[1]),
-						};
+						// const removeAction = item.remove || {
+						// 	name: "Delete",
+						// 	cb: () => api.deleteItem(this.#type, item.prompt[1]),
+						// };
 						return $el("div", {textContent: item.prompt[0] + ": "}, [
 							$el("button", {
 								textContent: "Load",
@@ -469,25 +469,25 @@ class ComfyList {
 									}
 								},
 							}),
-							$el("button", {
-								textContent: removeAction.name,
-								onclick: async () => {
-									await removeAction.cb();
-									await this.update();
-								},
-							}),
+							// $el("button", {
+							// 	textContent: removeAction.name,
+							// 	onclick: async () => {
+							// 		await removeAction.cb();
+							// 		await this.update();
+							// 	},
+							// }),
 						]);
 					}),
 				]),
 			]),
 			$el("div.comfy-list-actions", [
-				$el("button", {
-					textContent: "Clear " + this.#text,
-					onclick: async () => {
-						await api.clearItems(this.#type);
-						await this.load();
-					},
-				}),
+				// $el("button", {
+				// 	textContent: "Clear " + this.#text,
+				// 	onclick: async () => {
+				// 		await api.clearItems(this.#type);
+				// 		await this.load();
+				// 	},
+				// }),
 				$el("button", {textContent: "Refresh", onclick: () => this.load()}),
 			])
 		);
@@ -625,18 +625,18 @@ export class ComfyUI {
 				textContent: "Queue Prompt",
 				onclick: () => app.queuePrompt(0, this.batchCount),
 			}),
-			$el("div", {}, [
-				$el("label", {innerHTML: "Extra options"}, [
-					$el("input", {
-						type: "checkbox",
-						onchange: (i) => {
-							document.getElementById("extraOptions").style.display = i.srcElement.checked ? "block" : "none";
-							this.batchCount = i.srcElement.checked ? document.getElementById("batchCountInputRange").value : 1;
-							document.getElementById("autoQueueCheckbox").checked = false;
-						},
-					}),
-				]),
-			]),
+			// $el("div", {}, [
+			// 	$el("label", {innerHTML: "Extra options"}, [
+			// 		$el("input", {
+			// 			type: "checkbox",
+			// 			onchange: (i) => {
+			// 				document.getElementById("extraOptions").style.display = i.srcElement.checked ? "block" : "none";
+			// 				this.batchCount = i.srcElement.checked ? document.getElementById("batchCountInputRange").value : 1;
+			// 				document.getElementById("autoQueueCheckbox").checked = false;
+			// 			},
+			// 		}),
+			// 	]),
+			// ]),
 			$el("div", {id: "extraOptions", style: {width: "100%", display: "none"}}, [
 				$el("div",[
 
@@ -681,11 +681,11 @@ export class ComfyUI {
 				])
 			]),
 			$el("div.comfy-menu-btns", [
-				$el("button", {
-					id: "queue-front-button",
-					textContent: "Queue Front",
-					onclick: () => app.queuePrompt(-1, this.batchCount)
-				}),
+				// $el("button", {
+				// 	id: "queue-front-button",
+				// 	textContent: "Queue Front",
+				// 	onclick: () => app.queuePrompt(-1, this.batchCount)
+				// }),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
 					id: "comfy-view-queue-button",
@@ -774,15 +774,15 @@ export class ComfyUI {
 				textContent: "Refresh",
 				onclick: () => app.refreshComboInNodes()
 			}),
-			$el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
-			$el("button", {
-				id: "comfy-clear-button", textContent: "Clear", onclick: () => {
-					if (!confirmClear.value || confirm("Clear workflow?")) {
-						app.clean();
-						app.graph.clear();
-					}
-				}
-			}),
+			// $el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
+			// $el("button", {
+			// 	id: "comfy-clear-button", textContent: "Clear", onclick: () => {
+			// 		if (!confirmClear.value || confirm("Clear workflow?")) {
+			// 			app.clean();
+			// 			app.graph.clear();
+			// 		}
+			// 	}
+			// }),
 			$el("button", {
 				id: "comfy-load-default-button", textContent: "Load Default", onclick: async () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
