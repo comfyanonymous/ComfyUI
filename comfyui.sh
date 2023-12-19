@@ -15,7 +15,7 @@ ${python_path} "--version"
 if [ ! -x "${python_path}" ]; then
     python_path="python"
     
-        echo "Python path not found, using the environment's default 'python' command instead."
+    echo "Python path not found, using the environment's default 'python' command instead."
     ${python_path} -c "import sys; print(sys.executable)"
     ${python_path} "--version"
 fi
