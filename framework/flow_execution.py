@@ -36,7 +36,7 @@ class ExecuteContextStorage:
     def __init__(self) -> None:
         
         self.old_outputs = {}       # outputs during the last execution
-                                    # {id: [list of outputs]}
+                                    # {id: [list of outputs]}, for each value of an output, save the output in a list
         self.outputs = {}           # output during this execution
         self.is_changed = {}        # output is changed or not
         self.is_changed_hash = {}
@@ -118,18 +118,18 @@ class ExecuteContextStorage:
                 
             else:
                 if ("required" in valid_inputs and input_name in valid_inputs["required"]) or ("optional" in valid_inputs and input_name in valid_inputs["optional"]):
-                    input_datas[input_name] = input_val
+                    input_datas[input_name] = [input_val]
                     
         if "hidden" in valid_inputs:
             h = valid_inputs["hidden"]
             for x in h:
                 if h[x] == "PROMPT":
-                    input_datas[x] = self.prompt
+                    input_datas[x] = [self.prompt]
                 if h[x] == "EXTRA_PNGINFO":
                     if "extra_pnginfo" in self.extra_data:
-                        input_datas[x] = self.extra_data['extra_pnginfo']
+                        input_datas[x] = [self.extra_data['extra_pnginfo']]
                 if h[x] == "UNIQUE_ID":
-                    input_datas[x] = node_id
+                    input_datas[x] = [node_id]
                 
         return input_datas
     
@@ -292,13 +292,14 @@ class SequenceFlow:
         class_type = self.context.prompt[node_id]['class_type']
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         if hasattr(class_def, 'IS_CHANGED'):
-            is_changed_hash = getattr(obj, "IS_CHANGED")(**input_datas)
-            print(f"[IsInputChanged] is changed hash: {is_changed_hash}")
+            is_changed_hashs = self._map_node_over_list(obj, input_datas, 'IS_CHANGED')
+            # is_changed_hash = getattr(obj, "IS_CHANGED")(**input_datas)
+            # print(f"[IsInputChanged] is changed hash: {is_changed_hash}")
             
             old_hash = self.context.is_changed_hash.get(node_id, '')
-            if is_changed_hash != old_hash:
+            if len(is_changed_hashs) != len(old_hash) or not all(old_hash[i] == is_changed_hashs[i] for i in range(len(is_changed_hashs))):
                 is_changed = True
-                self.context.is_changed_hash[node_id] = is_changed_hash
+                self.context.is_changed_hash[node_id] = is_changed_hashs
                 print(f"[IsInputChanged] input changed: is_changed_hash NOT the same.")
         
         # check all inputs
@@ -336,6 +337,52 @@ class SequenceFlow:
         return is_changed
     
     
+    def _map_node_over_list(self, obj, input_datas, func, allow_interrupt=False):
+        """
+        call node functions for each input in the 'input_data'
+        
+        """
+        input_is_list = False
+        if hasattr(obj, "INPUT_IS_LIST"):
+            input_is_list = obj.INPUT_IS_LIST
+            
+        if len(input_datas) == 0:
+            max_len_input = 0
+        else:
+            max_len_input = max([len(x) for x in input_datas.values()])
+            
+            
+        # get a slice of inputs, repeat last input when list isn't long enough
+        def slice_dict(d, i):
+            d_new = dict()
+            for k,v in d.items():
+                d_new[k] = v[i if len(v) > i else -1]
+            return d_new
+        
+        return_values = []
+        if input_is_list:
+            # input is list, pass all the inputs into execution function 
+            if allow_interrupt:
+                nodes.before_node_execution()
+            return_values.append(getattr(obj, func)(**input_datas))
+        elif max_len_input == 0:
+            # no input
+            if allow_interrupt:
+                nodes.before_node_execution()
+            return_values.append(getattr(obj, func)())
+        else:
+            # get one or more than one slice(group) of input
+            # for-each slice(group) of input, execute the node and put all the results in a list
+            # this is a simple  and direct one-node loop feature
+            for i in range(max_len_input):
+                if allow_interrupt:
+                    nodes.before_node_execution()
+                return_values.append(getattr(obj, func)(**slice_dict(input_datas, i)))
+                
+        return return_values
+        
+    
+    
     def _execute_node(self, obj, input_datas, allow_interrupt=True):
         """
         Parse output datas from executed results
@@ -346,66 +393,40 @@ class SequenceFlow:
         RETURN:
         list, list of the results.
         """
-        results = []
-        uis = []
         
-        input_is_list = False
-        if hasattr(obj, "INPUT_IS_LIST"):
-            input_is_list = obj.INPUT_IS_LIST
-        
-        if allow_interrupt:
-            nodes.before_node_execution()
-        if input_is_list:
-            for key,val in input_datas.items():
-                input_datas[key] = [val]
-        return_values = getattr(obj, obj.FUNCTION)(**input_datas)
-        # print(f"[Execute Node] executed result: {LogUtils.visible_convert(return_values)}")
-        
-        # return_values = [return_values]
-        # for r in return_values:
-        #     if isinstance(r, dict):
-        #         if 'ui' in r:
-        #             uis.append(r['ui'])
-        #         if 'result' in r:
-        #             results.append(r['result'])
-        #     else:
-        #         results.append(r)
-        
+        # execute         
+        return_values = self._map_node_over_list(obj, input_datas, obj.FUNCTION, True)
+    
+        results = []        # [[list of outputs of slice0], [list of outputs of slice1], ...]
+        uis = []    
+        # seperate normal results and ui results
+        for r in return_values:
+            if isinstance(r, dict):
+                if 'ui' in r:
+                    uis.append(r['ui'])
+                if 'result' in r:
+                    results.append(r['result'])
+            else:
+                results.append(r)
+                
+        output = []     # [[list of output data0 of all slices], [list of output data1 of all slices], ...]
+        if len(results) > 0:
+            # check which outputs need concatenating
+            # if 'OUTPUT_IS_LIST' attr is set, outputs of that output data in all slice will be concated together
+            output_is_list = [False] * len(results[0])
+            if hasattr(obj, "OUTPUT_IS_LIST"):
+                output_is_list = obj.OUTPUT_IS_LIST
 
-        
-        # output = []
-        # if len(results) > 0:
-        #     # check which outputs need concatenating
-        #     output_is_list = [False] * len(results[0])
-        #     if hasattr(obj, "OUTPUT_IS_LIST"):
-        #         output_is_list = obj.OUTPUT_IS_LIST
+            # merge node execution results
+            for i, is_list in zip(range(len(results[0])), output_is_list):
+                if is_list:
+                    output.append([x for o in results for x in o[i]])
+                else:
+                    output.append([o[i] for o in results])
 
-        #     # merge node execution results
-        #     for i, is_list in zip(range(len(results[0])), output_is_list):
-        #         if is_list:
-        #             output.append([x for o in results for x in o[i]])
-        #         else:
-        #             output.append([o[i] for o in results])
-        # output = output[0] if len(output) > 0 else None
-
-        # ui = dict()    
-        # if len(uis) > 0:
-        #     ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
-        
-        
-        if isinstance(return_values, dict):
-            if 'ui' in return_values:
-                uis = return_values['ui']
-            if 'result' in return_values:
-                results = return_values['result']
-        else:
-            results = return_values
-        output = results
-        ui = uis
-            
-        # print(f"[Execute Node] final output: {LogUtils.visible_convert(output)}")
-        # print(f"[Execute Node] final ui: {ui}")
-        
+        ui = dict()    
+        if len(uis) > 0:
+            ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
         return output, ui
         
         
@@ -425,7 +446,9 @@ class SequenceFlow:
             outputs, uis = self._execute_node(obj, input_datas, True)
             node_flows = self.context.flows[node_id]
             if hasattr(obj, 'FLOW_GOTO'):
-                next_node_id = getattr(obj, obj.FLOW_GOTO)(**input_datas, flows = node_flows)
+                # get the first slice of input data
+                input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas>0) else {} 
+                next_node_id = getattr(obj, obj.FLOW_GOTO)(**input_datas0, flows = node_flows)
             else:
                 next_node_id = self._node_default_goto(node_flows)
             print(f"[Handle control node] is control node.")
@@ -471,7 +494,7 @@ class SequenceFlow:
 
         output_data_formatted = {}
         for node_id, node_outputs in self.context.outputs.items():
-            output_data_formatted[node_id] = [format(l) for l in node_outputs]
+            output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
         logging.error("!!! Exception during processing !!!")
         logging.error(traceback.format_exc())
@@ -484,6 +507,7 @@ class SequenceFlow:
             "current_inputs": input_data_formatted,
             "current_outputs": output_data_formatted
         }
+        return error_details
     
         
     def execute(self):
@@ -626,7 +650,9 @@ class LoopFlow(SequenceFlow):
                     print(f"[LoopFlow] loop end.")
                     return (True, None, None)
                 
-                self.first_node_id = self.loop_node.goto(**input_datas, flows=self.context.flows.get(self.loop_node_id, None))
+                # get the first slice of input data
+                input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas>0) else {} 
+                self.first_node_id = self.loop_node.goto(**input_datas0, flows=self.context.flows.get(self.loop_node_id, None))
                 
                 print(f"[LoopFlow] first_node of loop: {self.first_node_id}")
                 
@@ -656,7 +682,9 @@ class LoopFlow(SequenceFlow):
             
     def goto(self):
         input_datas = self.context.get_inputs(self.loop_node_id)
-        return self.loop_node.goto(**input_datas, flows=self.context.flows.get(self.loop_node_id, None))
+        # get the first slice of input data
+        input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas>0) else {}
+        return self.loop_node.goto(**input_datas0, flows=self.context.flows.get(self.loop_node_id, None))
  
 
 
@@ -702,7 +730,7 @@ class FlowExecutor:
 
         # Next, remove the subsequent outputs since they will not be executed
         to_delete = []
-        for o in self.outputs:
+        for o in self.context.outputs:
             if (o not in current_outputs) and (o not in executed):
                 to_delete += [o]
                 if o in self.old_prompt:
@@ -790,7 +818,7 @@ class FlowExecutor:
                 succ, err, ex = flow_exe.execute()
                 
                 if succ is not True:
-                    self.handle_execution_error(prompt_id, prompt, self.context.outputs, self.context.executed, err, ex)
+                    self.handle_execution_error(prompt_id, prompt, self.context.old_outputs, self.context.executed, err, ex)
                     break
                 
             # get all graph outputs
