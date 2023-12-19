@@ -24,6 +24,26 @@ class ListNode:
         return (self.list_data, )    
         
         
+
+class GetListItem:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "list": ("LIST",), "index": ("INT", {"default": 0})
+                }}
+    
+    RETURN_TYPES = ("ANY_DATA", )
+    FUNCTION = "execute"
+
+    CATEGORY = "flow"
+    
+    
+    def execute(self, list, index):
+        print(f"Get list time: {list}")
+        return (list[index], )
+         
+
         
 class SetListItem:
     
@@ -86,8 +106,84 @@ class SetDictItem:
     
     def execute(self, dict_data, name, value):
         dict_data[name] = value
-        print(f"Set list time: {dict_data}")
-        return (dict_data, )    
+        print(f"Set dict time: {dict_data}")
+        return (dict_data, )   
+    
+    
+    
+
+class GetDictItem:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "dict_data": ("DICT",), "name": ("STRING", {"default": ""})
+                }}
+    
+    RETURN_TYPES = ("ANY_DATA", )
+    FUNCTION = "execute"
+
+    CATEGORY = "flow"
+    
+    def execute(self, dict_data, name):
+        print(f"Get dict time: {dict_data}, {name}")
+        return (dict_data[name], )
+    
+    
+    
+class GraphInputs:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "default_inputs": ("DICT", {"default": {}})}}
+    
+    RETURN_TYPES = ("DICT", )
+    FUNCTION = "execute"
+    
+    INIT_GRAPH_INPUTS = "init_graph_inputs"
+
+    CATEGORY = "flow"
+    
+    
+    def __init__(self) -> None:
+        self.graph_inputs = None
+    
+    
+    def init_graph_inputs(self, graph_inputs):
+        self.graph_inputs = graph_inputs
+    
+    
+    def execute(self, default_inputs):
+        if self.graph_inputs is None:
+            self.graph_inputs = default_inputs
+        
+        return (self.graph_inputs, )
+    
+
+
+class GraphOutputs:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "graph_outputs": ("DICT",)}}
+    
+    RETURN_TYPES = ()
+    FUNCTION = "execute"
+    
+    GET_GRAPH_OUTPUTS = "get_graph_outputs"
+
+    CATEGORY = "flow"
+    
+    
+    def __init__(self) -> None:
+        self.graph_outputs = None
+    
+    
+    def get_graph_outputs(self):
+        return self.graph_outputs
+    
+    
+    def execute(self, graph_outputs):
+        self.graph_outputs = graph_outputs
+        return (self.graph_outputs, )
     
     
     
@@ -95,13 +191,25 @@ NODE_CLASS_MAPPINGS = {
     
     "ListNode": ListNode,
     "SetListItem": SetListItem,
+    "GetListItem": GetListItem,
+    
     "DictNode": DictNode,
-    "SetDictItem": SetDictItem
+    "SetDictItem": SetDictItem,
+    "GetDictItem": GetDictItem,
+    
+    "GraphInputs": GraphInputs,
+    "GraphOutputs": GraphOutputs
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ListNode": "List",
     "SetListItem": "Set List Item",
+    "GetListItem": "Get List Item",
+    
     "DictNode": "Dict",
-    "SetDictItem": "Set Dict Item"
+    "SetDictItem": "Set Dict Item",
+    "GetDictItem": "Get Dict Item",
+    
+    "GraphInputs": "Graph Inputs",
+    "GraphOutputs": "Graph Outputs"
 } 

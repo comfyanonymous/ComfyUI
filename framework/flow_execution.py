@@ -54,6 +54,9 @@ class ExecuteContextStorage:
         self.flows = {}
         self.extra_data = {}
         
+        self.graph_input_nodes = set()
+        self.graph_output_nodes = set()
+        
         self.executed = set()
         
         
@@ -189,6 +192,20 @@ class ExecuteContextStorage:
             
         return self.old_outputs
     
+    
+    def _find_graph_inout(self):
+        """
+        Find all graph input nodes and graph output nodes.
+        """ 
+        self.graph_input_nodes.clear()
+        self.graph_output_nodes.clear()
+        for node_id in self.prompt:
+            node_obj = self.get_object(node_id)
+            if hasattr(node_obj, 'INIT_GRAPH_INPUTS'):
+                self.graph_input_nodes.add(node_id)
+            if hasattr(node_obj, 'GET_GRAPH_OUTPUTS'):
+                self.graph_output_nodes.add(node_id)
+    
         
     def prepare_execution(self, prompt_id, new_prompt, flows, extra_data):
         self.prompt = new_prompt
@@ -207,6 +224,9 @@ class ExecuteContextStorage:
         # prepare objects
         self._prepare_objects()
         
+        # find input and output nodes
+        self._find_graph_inout()
+        
     
     def cleanup_execution(self):
         self.old_outputs = self.outputs
@@ -220,6 +240,9 @@ class ExecuteContextStorage:
         
         # self.old_prompt = self.prompt
         # self.prompt = {}
+        
+        self.graph_input_nodes.clear()
+        self.graph_output_nodes.clear()
         
         self.old_prompt = {}
         for node_id in self.executed:
@@ -688,6 +711,27 @@ class FlowExecutor:
         for o in to_delete:
             d = self.outputs.pop(o)
             del d
+            
+            
+    def apply_graph_inputs(self, grpah_inputs):
+        
+        for node_id in self.context.graph_input_nodes:
+            node_obj = self.context.get_object(node_id)
+            getattr(node_obj, node_obj.INIT_GRAPH_INPUTS)(grpah_inputs)
+        
+        
+        
+    def get_graph_outputs(self):
+        graph_outputs = {}
+        
+        for node_id in self.context.graph_output_nodes:
+            node_obj = self.context.get_object(node_id)
+            cur_output = getattr(node_obj, node_obj.GET_GRAPH_OUTPUTS)()
+            graph_outputs.update(cur_output)
+        return graph_outputs
+        
+            
+    
 
     def execute(self, prompt, prompt_id, flows, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
@@ -713,6 +757,10 @@ class FlowExecutor:
             
             # cleanup models
             comfy.model_management.cleanup_models()
+            
+            # apply inputs
+            # debug ????
+            self.apply_graph_inputs(None)
             
             # in degree
             in_degree = {}
@@ -744,6 +792,12 @@ class FlowExecutor:
                 if succ is not True:
                     self.handle_execution_error(prompt_id, prompt, self.context.outputs, self.context.executed, err, ex)
                     break
+                
+            # get all graph outputs
+            graph_outputs = self.get_graph_outputs()
+            # debug ?????????
+            print(f"[Execute] graph output is: {graph_outputs}")
+              
              
             print(f"[Execution] output list: {LogUtils.visible_convert(self.context.outputs)}")   
             print(f"[Execution] execution DONE.")

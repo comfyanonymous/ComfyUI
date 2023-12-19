@@ -283,7 +283,7 @@ export const ComfyWidgets = {
 		return res;
 	},
 	LIST(node, inputName, inputData, app) {
-		const defaultVal = inputData[1] == undefined ? "" : inputData[1].default || "";
+		const defaultVal = "";
 
 		let res;
 		if(true)
@@ -314,13 +314,13 @@ export const ComfyWidgets = {
 		res.widget.serializeValue = function () {
 			let val = res.widget.value;
 			let list_data = [];
-			if (val != undefined)
+			if (val != undefined && val != "")
 			{
 				try{
 					list_data = JSON.parse(val);
 				}catch(error)
 				{
-					console.error('Invalid list data:', error);
+					console.error('Invalid list data:', error, val);
 				}
 			}
 			if (!Array.isArray(list_data))
@@ -334,7 +334,7 @@ export const ComfyWidgets = {
 	},
 
 	DICT(node, inputName, inputData, app) {
-		const defaultVal = inputData[1] == undefined ? "" : inputData[1].default || "";
+		const defaultVal = "";
 
 		let res;
 		if(true)
@@ -366,13 +366,13 @@ export const ComfyWidgets = {
 			let val = res.widget.value;
 
 			let dict_data = {};
-			if (val != undefined)
+			if (val != undefined && val != "")
 			{
 				try{
 					dict_data = JSON.parse(val);
 				}catch(error)
 				{
-					console.error('Invalid dict data:', error);
+					console.error('Invalid dict data:', error, val);
 					dict_data = {}
 				}
 			}
