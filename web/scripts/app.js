@@ -1600,6 +1600,12 @@ export class ComfyApp {
 		var flow_order = [];	
 		for (const cur_node of graphData.nodes)
 		{
+			// skip Reroute
+			if (cur_node.type == "Reroute")
+			{
+				continue;
+			}
+
 			// in-degree info
 			var degree = 0;
 			// current node has inputs
@@ -1625,25 +1631,32 @@ export class ComfyApp {
 		}
 
 
-		// calculate flow connection
-		var idx = 0;
-		while(idx < flow_order.length)
-		{
-			let cur_node = flow_order[idx++];
-			if('outputs' in cur_node)
+		const degree_linked_out_nodes = (_node) =>{
+			let _outputs = _node.outputs;
+			if(!('outputs' in _node))
+			{ return; }
+
+			for(const output of _node.outputs)
 			{
-				for(const output of cur_node.outputs)
+				if(output.links === null || output.links.length == 0)
 				{
-					if(output.links === null || output.links.length == 0)
+					continue;
+				}
+				for(const link_id of output.links)
+				{
+					let link = links[link_id];
+
+					// if linked node is Reroute node
+					let next_node = nodes[link[3]];
+					if (next_node.type == "Reroute")
 					{
-						continue;
+						degree_linked_out_nodes(next_node);
 					}
 
-					//
-					for(const link_id of output.links)
+					// normal valid nodes
+					else if(_node.id != link[3])
 					{
-						let link = links[link_id];
-						if(cur_node.id != link[3])
+						if (link[3] in in_degree)
 						{
 							--in_degree[link[3]];
 							if(in_degree[link[3]] == 0)
@@ -1654,14 +1667,32 @@ export class ComfyApp {
 					}
 				}
 			}
+		};
+
+
+		// calculate flow connection
+		var idx = 0;
+		while(idx < flow_order.length)
+		{
+			let cur_node = flow_order[idx++];
+			
+			degree_linked_out_nodes(cur_node);
 		}
 
 		// add flow_inputs & flow_outputs
 		for (let node of graphData.nodes){
-			let flow_inputs = [{"name": "FROM", "links": null}];
-			let flow_outputs = [{"name": "TO", "link": null}];
-			node["flow_inputs"] = flow_inputs;
-			node["flow_outputs"] = flow_outputs;
+			if (node.type != "Reroute")
+			{
+				let flow_inputs = [{"name": "FROM", "links": null}];
+				let flow_outputs = [{"name": "TO", "link": null}];
+				node["flow_inputs"] = flow_inputs;
+				node["flow_outputs"] = flow_outputs;
+			}
+			else
+			{
+				node["flow_inputs"] = [];
+				node["flow_outputs"] = [];
+			}
 		}
 
 		// update flows data
