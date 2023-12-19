@@ -7,7 +7,6 @@
 # Set custom path to Python
 python_path="path/to/python"
 
-echo "Python path found, using the preferred Python version."
 ${python_path} -c "import sys; print(sys.executable)"
 ${python_path} "--version"
 
