@@ -599,6 +599,9 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     calculate_start_end_timesteps(model, negative)
     calculate_start_end_timesteps(model, positive)
 
+    if latent_image is not None:
+        latent_image = model.process_latent_in(latent_image)
+
     if hasattr(model, 'extra_conds'):
         positive = encode_model_conds(model.extra_conds, positive, noise, device, "positive", latent_image=latent_image, denoise_mask=denoise_mask)
         negative = encode_model_conds(model.extra_conds, negative, noise, device, "negative", latent_image=latent_image, denoise_mask=denoise_mask)
@@ -613,10 +616,6 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
 
     apply_empty_x_to_equal_area(list(filter(lambda c: c.get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
     apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
-
-    if latent_image is not None:
-        latent_image = model.process_latent_in(latent_image)
-
 
     extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": model_options, "seed":seed}
 
