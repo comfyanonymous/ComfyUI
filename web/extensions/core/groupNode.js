@@ -51,42 +51,13 @@ class ManageGroupDialog extends ComfyDialog {
 		 * @type { GroupNodeConfig }
 		 */
 		const config = def[GROUP];
-		debugger;
 	}
 
 	show() {
 		this.element.innerHTML = `
 			<div class="comfy-group-manage-outer">
-				<header>
-					<h2>Group Nodes</h2>
-					<select>
-						<option>Example Group Node</option>
-					</select>
-				</header>
 				<main>
-					<section class="comfy-group-manage-list">
-						<ul class="comfy-group-manage-list-items" style="max-height: 350px; overflow-y: scroll; overflow-x: hidden">
-							<li class="draggable-item selected"><span class="drag-handle"></span><div>Load Checkpoint<span>CheckpointLoaderSimple</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>1st Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>Latent Upscale<span>LatentUpscale</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-							<li class="draggable-item"><span class="drag-handle"></span><div>2nd Pass<span>KSampler</span></div></li>
-						</ul>
-					</section>
 					<section class="comfy-group-manage-node">
-						<header>
-							<a>Inputs</a>
-							<a class="active">Widgets</a>
-							<a>Outputs</a>
-						</header>
 						<div>
 							<label>
 								ckpt_loader
@@ -96,58 +67,144 @@ class ManageGroupDialog extends ComfyDialog {
 						</div>
 					</section>
 				</main>
-				<footer>
-					<button class="comfy-button">Delete Group Node</button>
-					<button class="comfy-button">Save</button>
-					<button class="comfy-button">Close</button>
-				</footer>
 			</div>
 		`;
 
+		const groupNodes = Object.keys(app.graph.extra?.groupNodes ?? {}).sort((a, b) => a.localeCompare(b));
+		let selectedGroup = groupNodes[0];
+		let selectedNodeIndex;
+		let selectedTab = "Widgets";
+		const innerNodesList = $el("ul.comfy-group-manage-list-items");
+		const widgetsPage = $el("section.comfy-group-manage-node-page");
+		const inputsPage = $el("section.comfy-group-manage-node-page");
+		const outputsPage = $el("section.comfy-group-manage-node-page");
+		const pages = $el("div", [widgetsPage, inputsPage, outputsPage]);
+
+		const tabs = ["Inputs", "Widgets", "Outputs"].reduce((p, n) => {
+			p[n] = $el("a", {
+				onclick: () => {
+					changeSelectedTab(n);
+				},
+				textContent: n,
+			});
+			return p;
+		}, {});
+
+		function changeSelectedTab(tab) {
+			tabs[selectedTab].classList.remove("active");
+			tabs[tab].classList.add("active");
+			selectedTab = tab;
+		}
+
+		function selectedGroupChanged() {
+			const groupData = LiteGraph.registered_node_types["workflow/" + selectedGroup].nodeData[GROUP];
+			const nodes = groupData.nodeData.nodes;
+			selectedNodeIndex = 0;
+
+			const nodeItems = nodes.map((n, i) =>
+				$el(
+					"li.draggable-item",
+					{
+						dataset: {
+							nodeindex: i + "",
+						},
+						onclick: () => {
+							changeSelectedNode(i);
+						},
+					},
+					[
+						$el("span.drag-handle"),
+						$el(
+							"div",
+							{
+								textContent: n.title ?? n.type,
+							},
+							n.title
+								? $el("span", {
+										textContent: n.type,
+								  })
+								: []
+						),
+					]
+				)
+			);
+
+			function changeSelectedNode(index) {
+				nodeItems[selectedNodeIndex].classList.remove("selected");
+				nodeItems[index].classList.add("selected");
+				selectedNodeIndex = index;
+
+				const widgets = groupData.oldToNewWidgetMap[index];
+				widgetsPage.replaceChildren(
+					...Object.keys(widgets).map((oldName) => {
+						let value = widgets[oldName];
+						if (value === oldName) value = "";
+
+						return $el("div", [
+							$el("input", {
+								value,
+								placeholder: oldName,
+								type: "text",
+							}),
+							$el("label", { textContent: "Visible" }, [
+								$el("input", {
+									type: "checkbox",
+									checked: true,
+								}),
+							]),
+						]);
+					})
+				);
+
+				changeSelectedTab(selectedTab);
+			}
+
+			innerNodesList.replaceChildren(...nodeItems);
+
+			changeSelectedNode(0);
+		}
+
+		const outer = $el("div.comfy-group-manage-outer", [
+			$el("header", [
+				$el("h2", "Group Nodes"),
+				$el(
+					"select",
+					{
+						onchange: (e) => {
+							selectedGroup = e.target.value;
+							selectedGroupChanged();
+						},
+					},
+					groupNodes.map((g) =>
+						$el("option", {
+							textContent: g,
+							selected: g === selectedGroup,
+							value: g,
+						})
+					)
+				),
+			]),
+			$el("main", [
+				$el("section.comfy-group-manage-list", innerNodesList),
+				$el("section.comfy-group-manage-node", [$el("header", Object.values(tabs)), pages]),
+			]),
+			$el("footer", [
+				$el("button.comfy-button", "Delete Group Node"),
+				$el("button.comfy-button", "Save"),
+				$el("button.comfy-button", "Close"),
+			]),
+		]);
+		selectedGroupChanged();
+
+		this.element.replaceChildren(outer);
 		this.element.showModal();
+
 		const draggable = new DraggableList(document.querySelector(".comfy-group-manage-list-items"), "li");
 		draggable.addEventListener("dragstart", (e) => console.log(e.detail));
 		draggable.addEventListener("dragend", (e) => console.log(e.detail));
 		this.element.addEventListener("close", () => {
 			draggable.dispose();
 		});
-
-		// const groupNodes = Object.keys(app.graph.extra?.groupNodes ?? {}).concat([
-		// 	"something",
-		// 	"another",
-		// 	"prompt",
-		// 	"chatgpt",
-		// 	"upscale 4x",
-		// ]);
-		// if (!groupNodes.length) return;
-
-		// let selected;
-		// const items = groupNodes.map((g) =>
-		// 	$el("li", {
-		// 		textContent: g,
-		// 		onclick: (e) => {
-		// 			if (selected) {
-		// 				selected.classList.remove("selected");
-		// 			}
-		// 			selected = e.target;
-		// 			selected.classList.add("selected");
-		// 			this.update(g);
-		// 		},
-		// 	})
-		// );
-		// const left = $el("div.comfy-group-manage-list", $el("ul", items));
-
-		// const inputs = $el("div", [$el("h4", "Inputs")]);
-		// this.inputsList = $el("div", { parent: inputs });
-		// const widgets = $el("div", [$el("h4", "Widgets")]);
-		// this.widgetsList = $el("div", { parent: widgets });
-		// const outputs = $el("div", [$el("h4", "Outputs")]);
-		// this.outputsList = $el("div", { parent: outputs });
-		// const main = $el("main", [ inputs, widgets, outputs]);
-
-		// this.element.replaceChildren($el("header", $el("h3", "Group Nodes")), left, main);
-
-		// items[0].click();
 	}
 }
 
@@ -181,11 +238,7 @@ class GroupNodeBuilder {
 				);
 				return;
 			case Workflow.InUse.Registered:
-				if (
-					!confirm(
-						"An group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?"
-					)
-				) {
+				if (!confirm("An group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?")) {
 					return;
 				}
 				break;
@@ -397,8 +450,7 @@ export class GroupNodeConfig {
 					}
 					if (input.widget) {
 						const targetDef = globalDefs[node.type];
-						const targetWidget =
-							targetDef.input.required[input.widget.name] ?? targetDef.input.optional[input.widget.name];
+						const targetWidget = targetDef.input.required[input.widget.name] ?? targetDef.input.optional[input.widget.name];
 
 						const widget = [targetWidget[0], config];
 						const res = mergeIfValid(
@@ -486,9 +538,7 @@ export class GroupNodeConfig {
 		for (const inputName of inputNames) {
 			let widgetType = app.getWidgetType(inputs[inputName], inputName);
 			if (widgetType) {
-				const convertedIndex = node.inputs?.findIndex(
-					(inp) => inp.name === inputName && inp.widget?.name === inputName
-				);
+				const convertedIndex = node.inputs?.findIndex((inp) => inp.name === inputName && inp.widget?.name === inputName);
 				if (convertedIndex > -1) {
 					// This widget has been converted to a widget
 					// We need to store this in the correct position so link ids line up
@@ -597,9 +647,7 @@ export class GroupNodeConfig {
 		this.processInputSlots(inputs, node, slots, linksTo, inputMap, seenInputs);
 
 		// Converted inputs have to be processed after all other nodes as they'll be at the end of the list
-		this.#convertedToProcess.push(() =>
-			this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs)
-		);
+		this.#convertedToProcess.push(() => this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs));
 
 		return inputMapping;
 	}
@@ -1316,6 +1364,9 @@ const ext = {
 
 app.registerExtension(ext);
 
-setTimeout(() => {
+setTimeout(async () => {
+	while (!Object.keys(app.graph.extra?.groupNodes ?? {}).length) {
+		await new Promise((r) => setTimeout(r, 100));
+	}
 	new ManageGroupDialog(app).show();
-}, 200);
+}, 1);

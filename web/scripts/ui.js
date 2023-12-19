@@ -49,7 +49,7 @@ export function $el(tag, propsOrChildren, children) {
 
 			Object.assign(element, propsOrChildren);
 			if (children) {
-				element.append(...children);
+				element.append(...(children instanceof Array ? children : [children]));
 			}
 
 			if (parent) {
