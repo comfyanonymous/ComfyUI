@@ -47,7 +47,8 @@ def convert_cond(cond):
         temp = c[1].copy()
         model_conds = temp.get("model_conds", {})
         if c[0] is not None:
-            model_conds["c_crossattn"] = comfy.conds.CONDCrossAttn(c[0])
+            model_conds["c_crossattn"] = comfy.conds.CONDCrossAttn(c[0]) #TODO: remove
+            temp["cross_attn"] = c[0]
         temp["model_conds"] = model_conds
         out.append(temp)
     return out

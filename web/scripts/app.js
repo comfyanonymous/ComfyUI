@@ -1967,11 +1967,13 @@ export class ComfyApp {
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
+	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
 	 */
-	async loadGraphData(graphData) {
-		console.log("Graph Data (before):");
-		console.log(graphData);
-		this.clean();
+
+	async loadGraphData(graphData, clean = true) {
+		if (clean !== false) {
+			this.clean();
+		}
 
 		let reset_invalid_values = false;
 		if (!graphData) {
