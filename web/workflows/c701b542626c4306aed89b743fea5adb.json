@@ -227,47 +227,6 @@
       }
     },
     {
-      "id": 129,
-      "type": "ControlNetLoaderAdvanced",
-      "pos": [
-        -743.6108262408854,
-        -1536.878170535645
-      ],
-      "size": {
-        "0": 367.79998779296875,
-        "1": 58
-      },
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "timestep_keyframe",
-          "type": "TIMESTEP_KEYFRAME",
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONTROL_NET",
-          "type": "CONTROL_NET",
-          "links": [
-            541
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ControlNetLoaderAdvanced"
-      },
-      "widgets_values": [
-        "control_v11p_sd15_lineart.pth"
-      ],
-      "color": "#2a363b",
-      "bgcolor": "#3f5159"
-    },
-    {
       "id": 233,
       "type": "Reroute",
       "pos": [
@@ -632,7 +591,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 2,
+      "order": 1,
       "mode": 0,
       "outputs": [
         {
@@ -664,7 +623,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 3,
+      "order": 2,
       "mode": 0,
       "outputs": [
         {
@@ -734,7 +693,7 @@
         "1": 194
       },
       "flags": {},
-      "order": 4,
+      "order": 3,
       "mode": 0,
       "outputs": [
         {
@@ -767,7 +726,7 @@
         "integer",
         0,
         984766546587242,
-        90501343091492,
+        578497948142126,
         "randomize"
       ]
     },
@@ -899,7 +858,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 0,
       "outputs": [
         {
@@ -1338,7 +1297,7 @@
         "Node name for S&R": "KSampler"
       },
       "widgets_values": [
-        713107953939038,
+        664183345410761,
         "fixed",
         30,
         7.5,
@@ -1529,7 +1488,7 @@
         "Node name for S&R": "KSampler"
       },
       "widgets_values": [
-        713107953939038,
+        664183345410761,
         "randomize",
         25,
         7.5,
@@ -1552,7 +1511,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "outputs": [
         {
@@ -1592,7 +1551,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 7,
+      "order": 6,
       "mode": 0,
       "outputs": [
         {
@@ -1757,7 +1716,7 @@
         "1": 82
       },
       "flags": {},
-      "order": 8,
+      "order": 7,
       "mode": 0,
       "outputs": [
         {
@@ -1778,7 +1737,7 @@
         "Run widget replace on values": false
       },
       "widgets_values": [
-        713107953939038,
+        664183345410761,
         "randomize"
       ],
       "color": "#2a363b",
@@ -1796,7 +1755,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 9,
+      "order": 8,
       "mode": 0,
       "outputs": [
         {
@@ -1871,7 +1830,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 10,
+      "order": 9,
       "mode": 0,
       "outputs": [
         {
@@ -1905,7 +1864,7 @@
         "1": 122
       },
       "flags": {},
-      "order": 11,
+      "order": 10,
       "mode": 0,
       "outputs": [
         {
@@ -1956,7 +1915,7 @@
         590.7999945746528
       ],
       "flags": {},
-      "order": 12,
+      "order": 11,
       "mode": 0,
       "outputs": [
         {
@@ -2011,7 +1970,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 13,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -2050,7 +2009,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 14,
+      "order": 13,
       "mode": 0,
       "outputs": [
         {
@@ -2084,7 +2043,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 15,
+      "order": 14,
       "mode": 0,
       "outputs": [
         {
@@ -2343,7 +2302,7 @@
       ],
       "size": [
         315,
-        246
+        756.6666666666667
       ],
       "flags": {},
       "order": 46,
@@ -2388,6 +2347,47 @@
           }
         }
       }
+    },
+    {
+      "id": 129,
+      "type": "ControlNetLoaderAdvanced",
+      "pos": [
+        -606,
+        -1223
+      ],
+      "size": {
+        "0": 367.79998779296875,
+        "1": 58
+      },
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "timestep_keyframe",
+          "type": "TIMESTEP_KEYFRAME",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONTROL_NET",
+          "type": "CONTROL_NET",
+          "links": [
+            541
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ControlNetLoaderAdvanced"
+      },
+      "widgets_values": [
+        "control_v1p_sd15_qrcode_monster.safetensors"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
     }
   ],
   "links": [
