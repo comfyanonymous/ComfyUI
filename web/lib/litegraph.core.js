@@ -48,7 +48,7 @@
         EVENT_LINK_COLOR: "#A86",
         CONNECTING_LINK_COLOR: "#AFA",
 
-        MAX_NUMBER_OF_NODES: 1000, //avoid infinite loops
+        MAX_NUMBER_OF_NODES: 5000, //avoid infinite loops
         DEFAULT_POSITION: [100, 100], //default node position
         VALID_SHAPES: ["default", "box", "round", "card"], //,"circle"
 
