@@ -101,15 +101,9 @@ function cworkflowToWorkflow(graphData)
 
     if(!isWorkflowCompatible(graphData))
     {
-        console.log("graph data is not compatible");
-        console.log(graphData);
-        console.trace();
         return graphData;
     }
 
-    console.log("cworkflow to workflow: ");
-    console.log(graphData);
-    console.trace();
 
     // id-link map, id-node map
     let links = {};
@@ -130,7 +124,6 @@ function cworkflowToWorkflow(graphData)
         {
             cur_node.inputs = [];
         }
-        console.log(cur_node);
 
         // add flow inputs to the front of all the normal inputs
         if(cur_node.inputs == undefined || cur_node.inputs == null)
@@ -152,7 +145,6 @@ function cworkflowToWorkflow(graphData)
             let link_id = cur_node.inputs[i].link;
             if(link_id != null)
             {
-                console.log(`link id: ${link_id}`);
                 links[link_id][4] += nb_flow_inputs;
             }
         }
@@ -218,9 +210,6 @@ function cworkflowToWorkflow(graphData)
  */
 function prompt2cprompt(cworkflow, prompt)
 {
-    console.log("cworkflow: ");
-    console.log(cworkflow);
-
     let nodes = {};
     for(const node of cworkflow.nodes)
     {
@@ -245,24 +234,17 @@ function prompt2cprompt(cworkflow, prompt)
             // update slot index
             else{
                 let inp = prompt_inps[inp_name];
-                console.log(inp_name);
-                console.log(inp);
-                console.log(prompt[node_id]);
-                console.log(prompt[node_id].is_input_linked);
                 if (prompt[node_id].is_input_linked[inp_name] && inp)
                 {
                     let ori_id = inp[0];
                     let ori_node = nodes[ori_id];
                     inp[1] -= ori_node.flow_outputs? ori_node.flow_outputs.length : 0;
-                    console.log("info");
-                    console.log(node_id);
-                    console.log(ori_node);
+
                 }
             }
         }
     }
-    console.log("after convert, prompt:");
-    console.log(prompt);
+
     return prompt;
 }
 
