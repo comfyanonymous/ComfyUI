@@ -151,7 +151,7 @@ class SelfAttentionGuidance:
             (sag, _) = comfy.samplers.calc_cond_uncond_batch(model, uncond, None, degraded_noised, sigma, model_options)
             return cfg_result + (degraded - sag) * sag_scale
 
-        m.set_model_sampler_post_cfg_function(post_cfg_function)
+        m.set_model_sampler_post_cfg_function(post_cfg_function, disable_cfg1_optimization=True)
 
         # from diffusers:
         # unet.mid_block.attentions[0].transformer_blocks[0].attn1.patch
