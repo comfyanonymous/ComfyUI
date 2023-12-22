@@ -1,4 +1,5 @@
 import torch
+import queue
 from PIL import Image
 import struct
 import numpy as np
@@ -16,6 +17,80 @@ class LatentPreviewer:
     def decode_latent_to_preview_image(self, preview_format, x0):
         preview_image = self.decode_latent_to_preview(x0)
         return ("JPEG", preview_image, MAX_PREVIEW_RESOLUTION)
+
+class LazyTAESDPreviewerImpl(LatentPreviewer):
+    blank_preview = Image.new(mode="RGB", size = (MAX_PREVIEW_RESOLUTION, MAX_PREVIEW_RESOLUTION), color = (20, 40, 40))
+
+    @classmethod
+    def worker_fun(cls, taesd, pending, ready):
+        while True:
+            wi = None
+            (wi, _) = cls.snarf_all(pending, blocking = True)
+            if wi is None:
+                break
+            with torch.no_grad():
+                x_sample = taesd.decode(wi)[0].detach()
+                x_sample = torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
+                x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
+                x_sample = x_sample.astype(np.uint8)
+            try:
+                ready.put_nowait(Image.fromarray(x_sample))
+            except queue.Full:
+                print("warning: Lazy TAESD: Worker cannot submit - queue full")
+
+    def __init__(self, taesd):
+        import threading
+        self.device = torch.device("cpu")
+        self.pending = queue.Queue(4)
+        self.ready = queue.Queue(4)
+        taesd = taesd.to(self.device)
+        taesd.share_memory()
+        self.worker = threading.Thread(target = self.worker_fun, args = (taesd, self.pending, self.ready))
+        self.worker.start()
+        self.last_preview = self.blank_preview
+
+    def __del__(self):
+        self.snarf_all(self.pending)
+        self.snarf_all(self.ready)
+        self.pending.put(None, True)
+        if self.worker.is_alive():
+            self.worker.join()
+
+    @staticmethod
+    def snarf_all(chan, blocking = False):
+        item = None
+        have_item = False
+        try:
+            while True:
+                item = chan.get_nowait()
+                have_item = True
+                chan.task_done()
+        except queue.Empty:
+            pass
+        if blocking and not have_item:
+            return (chan.get(True), True)
+        return (item, have_item)
+
+    def decode_latent_to_preview_image(self, preview_format, x0, blocking = False):
+        preview_image = self.decode_latent_to_preview(x0, blocking)
+        return ("JPEG", preview_image, MAX_PREVIEW_RESOLUTION)
+
+    def decode_latent_to_preview(self, x0, blocking = False):
+        self.snarf_all(self.pending)
+        x0_slice = x0[:1].to(self.device)
+        (result, _) = self.snarf_all(self.ready)
+        try:
+            self.pending.put_nowait(x0_slice)
+        except queue.Full:
+            print("warning: Lazy TAESD: Worker queue full, cannot submit")
+        if result is None:
+            if blocking:
+                (result, _) = self.snarf_all(self.ready, True)
+            else:
+                return self.last_preview
+        self.last_preview = result
+        return self.last_preview
+
 
 class TAESDPreviewerImpl(LatentPreviewer):
     def __init__(self, taesd):
@@ -68,7 +143,7 @@ def get_previewer(device, latent_format):
         if method == LatentPreviewMethod.TAESD:
             if taesd_decoder_path:
                 taesd = TAESD(None, taesd_decoder_path).to(device)
-                previewer = TAESDPreviewerImpl(taesd)
+                previewer = LazyTAESDPreviewerImpl(taesd)
             else:
                 print("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
 
@@ -91,7 +166,11 @@ def prepare_callback(model, steps, x0_output_dict=None):
 
         preview_bytes = None
         if previewer:
-            preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
+            if isinstance(previewer, LazyTAESDPreviewerImpl) and step + 1 >= total_steps:
+                # Wait for preview to complete on the last step.
+                preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0, True)
+            else:
+                preview_bytes = previewer.decode_latent_to_preview_image(preview_format, x0)
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
     return callback
 
