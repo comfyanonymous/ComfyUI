@@ -283,7 +283,7 @@ class ControlLora(ControlNet):
         cm = self.control_model.state_dict()
 
         for k in sd:
-            weight = comfy.model_management.resolve_lowvram_weight(sd[k], diffusion_model, k)
+            weight = sd[k]
             try:
                 comfy.utils.set_attr(self.control_model, k, weight)
             except:
