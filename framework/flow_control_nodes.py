@@ -93,8 +93,8 @@ class LoopFlowNode:
     def INPUT_TYPES(s):
         return {"required": {"nb_iteration": ("INT", {"default": 1})}}
     
-    RETURN_TYPES = ("INT")
-    RETURN_NAMES = ("current iter")
+    RETURN_TYPES = ("INT", )
+    RETURN_NAMES = ("current iter", )
     FUNCTION = "execute"
     
     FLOW_INPUTS = [("FROM", "FLOW")]

@@ -447,7 +447,7 @@ class SequenceFlow:
             node_flows = self.context.flows[node_id]
             if hasattr(obj, 'FLOW_GOTO'):
                 # get the first slice of input data
-                input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas>0) else {} 
+                input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas)>0 else {} 
                 next_node_id = getattr(obj, obj.FLOW_GOTO)(**input_datas0, flows = node_flows)
             else:
                 next_node_id = self._node_default_goto(node_flows)
@@ -651,7 +651,7 @@ class LoopFlow(SequenceFlow):
                     return (True, None, None)
                 
                 # get the first slice of input data
-                input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas>0) else {} 
+                input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas)>0 else {} 
                 self.first_node_id = self.loop_node.goto(**input_datas0, flows=self.context.flows.get(self.loop_node_id, None))
                 
                 print(f"[LoopFlow] first_node of loop: {self.first_node_id}")
@@ -683,7 +683,7 @@ class LoopFlow(SequenceFlow):
     def goto(self):
         input_datas = self.context.get_inputs(self.loop_node_id)
         # get the first slice of input data
-        input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas>0) else {}
+        input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas)>0 else {}
         return self.loop_node.goto(**input_datas0, flows=self.context.flows.get(self.loop_node_id, None))
  
 

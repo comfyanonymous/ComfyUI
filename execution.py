@@ -407,6 +407,7 @@ def validate_inputs(prompt, item, validated):
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
+    input_linked = prompt[unique_id]['is_input_linked']
 
     class_inputs = obj_class.INPUT_TYPES()
     required_inputs = class_inputs['required']
@@ -430,7 +431,7 @@ def validate_inputs(prompt, item, validated):
         val = inputs[x]
         info = required_inputs[x]
         type_input = info[0]
-        if isinstance(val, list):
+        if (x in input_linked and input_linked[x]):
             if len(val) != 2:
                 error = {
                     "type": "bad_linked_input",
@@ -448,7 +449,7 @@ def validate_inputs(prompt, item, validated):
             o_id = val[0]
             o_class_type = prompt[o_id]['class_type']
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            if r[val[1]] != type_input:
+            if r[val[1]] != type_input and (r[val[1]] != "ANY_DATA") and type_input != "ANY_DATA":
                 received_type = r[val[1]]
                 details = f"{x}, {received_type} != {type_input}"
                 error = {
