@@ -2411,8 +2411,9 @@ function cworkflowToWorkflow(graphData)
 		if(this.onSerialize)
 			this.onSerialize(data);
 
-        return workflowToCworkflow(data).workflow;
-        // return data;
+        data.support_flow_control = true;
+        data.is_compatible = false;
+        return data;
     };
 
     /**
@@ -2430,7 +2431,7 @@ function cworkflowToWorkflow(graphData)
             this.clear();
         }
 
-        data = cworkflowToWorkflow(data);
+        // data = cworkflowToWorkflow(data);
         var nodes = data.nodes;
 
         //decode links info (they are very verbose)

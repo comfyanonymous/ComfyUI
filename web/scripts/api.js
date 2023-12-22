@@ -1,3 +1,6 @@
+import { workflowToCworkflow, prompt2cprompt, getPromptFlow } from "./aiyo_utils.js";
+
+
 class ComfyApi extends EventTarget {
 	#registered = new Set();
 
@@ -190,12 +193,15 @@ class ComfyApi extends EventTarget {
 	 * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
 	 * @param {object} prompt The prompt data to queue
 	 */
-	async queuePrompt(number, { output, workflow, flows }) {
+	async queuePrompt(number, { output, workflow }) {
+		let _workflow = workflowToCworkflow(workflow);
+		let _output = prompt2cprompt(_workflow, output);
+		let _flows = getPromptFlow(_workflow);
 		const body = {
 			client_id: this.clientId,
-			prompt: output,
-			flows: flows,
-			extra_data: { extra_pnginfo: { workflow } },
+			prompt: _output,
+			flows: _flows,
+			extra_data: { extra_pnginfo: { _workflow } },
 		};
 
 		if (number === -1) {

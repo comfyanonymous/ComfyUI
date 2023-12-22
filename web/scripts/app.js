@@ -6,6 +6,7 @@ import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
+import { setWorkflowCompatiblity, cworkflowToWorkflow } from "./aiyo_utils.js";
 
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
@@ -1714,39 +1715,12 @@ export class ComfyApp {
 		graphData["flow_links"] = flows;
 		// graphData["flows"] = flows;
 
+		setWorkflowCompatiblity(graphData, true);
 		return graphData;
 	}
 
 
-	getPromptFlow(cworkflow)
-	{
-		// prompt flow datas
-		var prompt_flows = {};
-		for (const link of cworkflow.flow_links)
-		{
-			let all_goto = [];
-			if (link[1] in prompt_flows)
-			{
-				all_goto = prompt_flows[link[1]];
-			}
-			
-			let new_goto = link[3].toString();
-			let origin_slot_int = link[2];				// output slot in the original node.
-			if (all_goto.length <= origin_slot_int)
-			{
-				all_goto = all_goto.concat(Array(origin_slot_int + 1 - all_goto.length).fill(null));
-			}
-			all_goto[origin_slot_int] = [new_goto, link[4]];
-			prompt_flows[link[1]] = all_goto;
-		}
-		cworkflow.nodes.forEach(node => {
-			if (!(node.id in prompt_flows))
-			{
-				prompt_flows[node.id] = null;
-			}
-		});
-		return prompt_flows;
-	}
+	
 
 
 	/**
@@ -1791,6 +1765,7 @@ export class ComfyApp {
 
 		try {
 			graphData = this.convertOldVersionWorkflow(graphData);
+			graphData = cworkflowToWorkflow(graphData);
 			this.graph.configure(graphData);
 		} catch (error) {
 			let errorHint = [];
@@ -1900,12 +1875,6 @@ export class ComfyApp {
 
 		const workflow = this.graph.serialize();
 		const output = {};
-
-		let nb_flowout = {};
-		workflow.nodes.forEach((node) => { nb_flowout[node.id] = 0; });
-		workflow.nodes.forEach((node) => {
-			nb_flowout[node.id] = node.flow_outputs ? node.flow_outputs.length : 0;
-		});
 		// Process nodes in order of execution
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
 			const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
@@ -1973,12 +1942,14 @@ export class ComfyApp {
 							}
 						}
 
-						if (link && node.inputs[i].type != 'FLOW') {
+						if (link) {
 							if (parent?.updateLink) {
 								link = parent.updateLink(link);
 							}
-							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot) - nb_flowout[link.origin_id]];
 							is_input_linked[node.inputs[i].name] = true;
+							if (link) {
+								inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+							}
 						}
 					}
 				}
@@ -2003,17 +1974,11 @@ export class ComfyApp {
 			}
 		}
 
-		console.log("prompt:");
+		console.log("Graph to prompt: DONE");
+		console.log(workflow);
 		console.log(output);
 
-
-		let flows = this.getPromptFlow(workflow);
-
-		console.log("Graph to prompt: ");
-		console.log(workflow);
-		console.log(flows);
-
-		return { workflow, output, flows };
+		return { workflow, output };
 	}
 
 	#formatPromptError(error) {
