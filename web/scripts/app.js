@@ -1967,6 +1967,7 @@ export class ComfyApp {
 		for (const o in output) {
 			for (const i in output[o].inputs) {
 				if (Array.isArray(output[o].inputs[i])
+					&& (output[o].is_input_linked[i])
 					&& output[o].inputs[i].length === 2
 					&& !output[output[o].inputs[i][0]]) {
 					delete output[o].inputs[i];
