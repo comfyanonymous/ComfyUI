@@ -1595,6 +1595,17 @@ export class ComfyApp {
 			links[link[0]] = link;
 		}
 
+		var ue_node_types = new Set();
+		graphData.nodes.forEach((node) => {
+			if (node.type == "Anything Everywhere" && "inputs" in node &&node.inputs[0].link)
+			{
+				let _link = links[node.inputs[0].link];
+				console.log(links);
+				console.log(_link);
+				ue_node_types.add(nodes[_link[1]].outputs[_link[2]].type);
+			}
+		});
+
 		// in-degree info
 		var in_degree = {};
 		var flow_order = [];	
@@ -1615,7 +1626,7 @@ export class ComfyApp {
 				for (const inp of cur_node.inputs)
 				{
 					// only connected input
-					if(inp.link != null)
+					if(inp.link != null || ue_node_types.has(inp.type))
 					{
 						++degree;
 					}
@@ -1654,6 +1665,11 @@ export class ComfyApp {
 						degree_linked_out_nodes(next_node);
 					}
 
+					else if (next_node.type == "Anything Everywhere")
+					{
+						continue;
+					}
+
 					// normal valid nodes
 					else if(_node.id != link[3])
 					{
@@ -1682,7 +1698,7 @@ export class ComfyApp {
 
 		// add flow_inputs & flow_outputs
 		for (let node of graphData.nodes){
-			if (node.type != "Reroute")
+			if (node.type != "Reroute" && node.type != "Anything Everywhere")
 			{
 				let flow_inputs = [{"name": "FROM", "links": null}];
 				let flow_outputs = [{"name": "TO", "link": null}];
@@ -1708,7 +1724,7 @@ export class ComfyApp {
 			let cur_flow_link = [cur_link_id, from_id, 0, to_id, 0];
 			flows.push(cur_flow_link);
 
-			nodes[from_id]["flow_inputs"][0]["links"] = [cur_link_id];
+			nodes[to_id]["flow_inputs"][0]["links"] = [cur_link_id];
 			nodes[from_id]["flow_outputs"][0]["link"] = cur_link_id;
 			++idx;
 		}

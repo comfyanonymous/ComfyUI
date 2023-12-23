@@ -203,6 +203,23 @@ function cworkflowToWorkflow(graphData)
 }
 
 
+// is connected by "Anything Everywhere"
+function isConnectingUEnode(_node, _prompt_node, _inp_name)
+{
+    if (
+        // inp in inputs not widgets
+        "inputs" in _node 
+        && _node.inputs.filter((_inp)=> _inp.name == _inp_name && _inp.link == null).length > 0 
+        // inp data in prompt is valid
+        && "inputs" in _prompt_node && _inp_name in _prompt_node.inputs && _prompt_node.inputs[_inp_name]
+    )
+    {
+        return true;
+    }
+    else
+    {   return false;}
+}
+
 /**
  * 
  * @param {*} cworkflow, compatible workflow
@@ -234,12 +251,14 @@ function prompt2cprompt(cworkflow, prompt)
             // update slot index
             else{
                 let inp = prompt_inps[inp_name];
-                if (prompt[node_id].is_input_linked[inp_name] && inp)
+                if ((prompt[node_id].is_input_linked[inp_name] && inp)
+                    || isConnectingUEnode(node, prompt[node_id], inp_name))
                 {
                     let ori_id = inp[0];
                     let ori_node = nodes[ori_id];
                     inp[1] -= ori_node.flow_outputs? ori_node.flow_outputs.length : 0;
 
+                    prompt[node_id].is_input_linked[inp_name] = true; // for UEnodes
                 }
             }
         }
