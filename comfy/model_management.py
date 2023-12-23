@@ -754,6 +754,10 @@ def soft_empty_cache(force=False):
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
 
+def unload_all_models():
+    free_memory(1e30, get_torch_device())
+
+
 def resolve_lowvram_weight(weight, model, key): #TODO: remove
     return weight
 
