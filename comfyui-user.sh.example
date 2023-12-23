@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Use this file instead of comfyui.sh, if you want to add your own changes
 # Allow it to be executed
 # Rename this file to comfyui-user.sh
 # Starts ComfyUI
