@@ -3,6 +3,7 @@
 # Allow it to be executed
 # Rename this file to comfyui-venv.sh
 # Starts ComfyUI with a user-defined path to a virtual environment
+# For launch commands rename the file comfyui-user.conf.example to comfyui-user.conf and edit it
 
 # Set path to the virtual environment
 venv_path="path/to/venv"
