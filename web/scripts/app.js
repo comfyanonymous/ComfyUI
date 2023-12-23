@@ -1344,8 +1344,6 @@ export class ComfyApp {
 		let restored = false;
 		try {
 			const json = localStorage.getItem("workflow");
-			console.log("localStorage");
-			console.log(localStorage);
 			if (json) {
 				let workflow = JSON.parse(json);
 				await this.loadGraphData(workflow);
@@ -1492,8 +1490,6 @@ export class ComfyApp {
 			...(await this.#invokeExtensionsAsync("getCustomWidgets")).filter(Boolean)
 		);
 
-		console.log("register nodes");
-		console.log(defs);
 		// Register a node for each definition
 		for (const nodeId in defs) {
 			this.registerNodeDef(nodeId, defs[nodeId]);
@@ -1600,8 +1596,6 @@ export class ComfyApp {
 			if (node.type == "Anything Everywhere" && "inputs" in node &&node.inputs[0].link)
 			{
 				let _link = links[node.inputs[0].link];
-				console.log(links);
-				console.log(_link);
 				ue_node_types.add(nodes[_link[1]].outputs[_link[2]].type);
 			}
 		});
@@ -1990,10 +1984,6 @@ export class ComfyApp {
 				}
 			}
 		}
-
-		console.log("Graph to prompt: DONE");
-		console.log(workflow);
-		console.log(output);
 
 		return { workflow, output };
 	}
