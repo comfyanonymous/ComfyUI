@@ -3,7 +3,7 @@
 # Allow it to be executed
 # Starts ComfyUI
 # If you want to edit this file, check out the comfyui-user.sh.example file instead
-# If you want to use a specific virtual environment, check out the comfyui-venv.sh.example file instead
+# If you want to set a path to a specific virtual environment, check out the comfyui-venv.sh.example file instead
 
 # Set custom path to Python
 python_path="path/to/python"
