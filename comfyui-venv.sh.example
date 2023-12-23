@@ -2,7 +2,7 @@
 
 # Allow it to be executed
 # Rename this file to comfyui-venv.sh
-# Starts ComfyUI with a virtual environment
+# Starts ComfyUI with a user-defined path to a virtual environment
 
 # Set path to the virtual environment
 venv_path="path/to/venv"
