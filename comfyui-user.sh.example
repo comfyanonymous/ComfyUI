@@ -3,6 +3,7 @@
 # Allow it to be executed
 # Rename this file to comfyui-user.sh
 # Starts ComfyUI
+# For launch commands rename the file comfyui-user.conf.example to comfyui-user.conf and edit it
 # Use this file instead of comfyui.sh, if you want to add your own changes to it
 # If you want to set a path to a specific virtual environment, check out the comfyui-venv.sh.example file instead
 
