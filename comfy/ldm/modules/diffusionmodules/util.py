@@ -51,9 +51,9 @@ class AlphaBlender(nn.Module):
         if self.merge_strategy == "fixed":
             # make shape compatible
             # alpha = repeat(self.mix_factor, '1 -> b () t  () ()', t=t, b=bs)
-            alpha = self.mix_factor
+            alpha = self.mix_factor.to(image_only_indicator.device)
         elif self.merge_strategy == "learned":
-            alpha = torch.sigmoid(self.mix_factor)
+            alpha = torch.sigmoid(self.mix_factor.to(image_only_indicator.device))
             # make shape compatible
             # alpha = repeat(alpha, '1 -> s () ()', s = t * bs)
         elif self.merge_strategy == "learned_with_images":
@@ -61,7 +61,7 @@ class AlphaBlender(nn.Module):
             alpha = torch.where(
                 image_only_indicator.bool(),
                 torch.ones(1, 1, device=image_only_indicator.device),
-                rearrange(torch.sigmoid(self.mix_factor), "... -> ... 1"),
+                rearrange(torch.sigmoid(self.mix_factor.to(image_only_indicator.device)), "... -> ... 1"),
             )
             alpha = rearrange(alpha, self.rearrange_pattern)
             # make shape compatible
