@@ -15,7 +15,7 @@ async function getWorkflow(){
 	const urlParams = new URLSearchParams(queryString);
 	const workflowId = urlParams.get('workflow');
 	if (workflowId){
-		await fetch('../workflows/' + workflowId + '.json').then(
+		await fetch('../workflows/' + workflowId + '/' + workflowId + '.json').then(
 			response => {
 				flow_json = response.json()
 			}
