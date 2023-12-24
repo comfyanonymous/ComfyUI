@@ -9,7 +9,7 @@ import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
-async function getWorkflow(){
+async function getWorkflow() {
 	let flow_json = null;
 	const queryString = window.location.search;
 	const urlParams = new URLSearchParams(queryString);
@@ -23,6 +23,14 @@ async function getWorkflow(){
 	} 
 	return flow_json;
 }
+
+function getUserId() {
+	const queryString = window.location.search;
+	const urlParams = new URLSearchParams(queryString);
+	const uid = urlParams.get('user');
+	return uid ? uid: "default";
+}
+
 
 function sanitizeNodeName(string) {
 	let entityMap = {
@@ -67,7 +75,7 @@ export class ComfyApp {
 	constructor() {
 		this.ui = new ComfyUI(this);
 		this.logging = new ComfyLogging(this);
-
+		this.uid = getUserId()
 		/**
 		 * List of extensions that are registered with the app
 		 * @type {ComfyExtension[]}
@@ -1879,9 +1887,8 @@ export class ComfyApp {
 
 				for (let i = 0; i < batchCount; i++) {
 					const p = await this.graphToPrompt();
-
 					try {
-						const res = await api.queuePrompt(number, p);
+						const res = await api.queuePrompt(this.uid, number, p);
 						this.lastNodeErrors = res.node_errors;
 						if (this.lastNodeErrors.length > 0) {
 							this.canvas.draw(true, true);

@@ -467,6 +467,8 @@ class PromptServer():
 
                 self.number += 1
 
+            uid = json_data.get('uid', 'default')
+
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
                 valid = execution.validate_prompt(prompt)
