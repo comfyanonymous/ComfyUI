@@ -82,7 +82,9 @@ def prepare_callback(model, steps, x0_output_dict=None):
     if preview_format not in ["JPEG", "PNG"]:
         preview_format = "JPEG"
 
-    previewer = get_previewer(model.load_device, model.model.latent_format)
+    previewer = None
+    if model:
+        previewer = get_previewer(model.load_device, model.model.latent_format)
 
     pbar = comfy.utils.ProgressBar(steps)
     def callback(step, x0, x, total_steps):
