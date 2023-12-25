@@ -9,6 +9,27 @@ import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
+function setCookie(name, value, days) {
+	var expires = "";
+	if (days) {
+		var date = new Date();
+		date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+		expires = "; expires=" + date.toUTCString();
+	}
+	document.cookie = name + "=" + (value || "") + expires + "; path=/";
+}
+
+function getCookie(name) {
+	var nameEQ = name + "=";
+	var ca = document.cookie.split(';');
+	for (var i = 0; i < ca.length; i++) {
+		var c = ca[i];
+		while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+		if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+	}
+	return null;
+}
+
 async function getWorkflow() {
 	let flow_json = null;
 	const queryString = window.location.search;
@@ -25,10 +46,12 @@ async function getWorkflow() {
 }
 
 function getUserId() {
-	const queryString = window.location.search;
-	const urlParams = new URLSearchParams(queryString);
-	const uid = urlParams.get('user');
-	return uid ? uid: "default";
+	var uid = getCookie('uid');
+	if (uid == null) {
+		uid = prompt("Please enter your nickname \n(less than ten letters)", "anonymous");
+		setCookie('uid', uid, 999);
+	}
+	return uid ? uid : "anonymous";
 }
 
 
@@ -1888,7 +1911,7 @@ export class ComfyApp {
 				for (let i = 0; i < batchCount; i++) {
 					const p = await this.graphToPrompt();
 					try {
-						const res = await api.queuePrompt(this.uid, number, p);
+						const res = await api.queuePrompt(number, p, this.uid);
 						this.lastNodeErrors = res.node_errors;
 						if (this.lastNodeErrors.length > 0) {
 							this.canvas.draw(true, true);

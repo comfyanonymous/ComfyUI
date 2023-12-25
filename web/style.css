@@ -85,11 +85,11 @@ body {
 .comfy-menu {
 	font-size: 15px;
 	position: absolute;
-	top: 50%;
+	top: 25%;
 	right: 0;
 	text-align: center;
 	z-index: 999;
-	width: 170px;
+	width: 270px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -181,14 +181,14 @@ body {
 
 .comfy-list-items {
 	overflow-y: scroll;
-	max-height: 100px;
+	max-height: 400px;
 	min-height: 25px;
 	background-color: var(--comfy-input-bg);
 	padding: 5px;
 }
 
 .comfy-list h4 {
-	min-width: 160px;
+	min-width: 260px;
 	margin: 0;
 	padding: 3px;
 	font-weight: normal;
