@@ -1,6 +1,6 @@
 {
-  "last_node_id": 81,
-  "last_link_id": 148,
+  "last_node_id": 82,
+  "last_link_id": 150,
   "nodes": [
     {
       "id": 50,
@@ -66,68 +66,6 @@
         0,
         1
       ]
-    },
-    {
-      "id": 21,
-      "type": "KSampler",
-      "pos": [
-        4154.360907562478,
-        -1135.3786741882648
-      ],
-      "size": {
-        "0": 315,
-        "1": 262
-      },
-      "flags": {},
-      "order": 27,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 146
-        },
-        {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 83
-        },
-        {
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 84
-        },
-        {
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 121
-        }
-      ],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            100
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KSampler"
-      },
-      "widgets_values": [
-        4014846642,
-        "fixed",
-        26,
-        5,
-        "dpmpp_sde_gpu",
-        "karras",
-        0.85
-      ],
-      "color": "#145494",
-      "bgcolor": "#004080"
     },
     {
       "id": 63,
@@ -419,7 +357,7 @@
       ],
       "size": {
         "0": 443.4000244140625,
-        "1": 198
+        "1": 222
       },
       "flags": {},
       "order": 31,
@@ -456,7 +394,8 @@
         2,
         true,
         true,
-        1
+        1,
+        true
       ],
       "color": "#ff1494",
       "bgcolor": "#ff0080"
@@ -470,7 +409,7 @@
       ],
       "size": {
         "0": 443.4000244140625,
-        "1": 198
+        "1": 222
       },
       "flags": {},
       "order": 37,
@@ -507,7 +446,8 @@
         2,
         true,
         true,
-        1
+        1,
+        true
       ],
       "color": "#ff1494",
       "bgcolor": "#ff0080"
@@ -749,68 +689,6 @@
       "bgcolor": "#533"
     },
     {
-      "id": 7,
-      "type": "KSampler",
-      "pos": [
-        1807.6137353236363,
-        -201.2036741628464
-      ],
-      "size": {
-        "0": 315,
-        "1": 262
-      },
-      "flags": {},
-      "order": 16,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 148
-        },
-        {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 68
-        },
-        {
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 72
-        },
-        {
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 50
-        }
-      ],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            9
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KSampler"
-      },
-      "widgets_values": [
-        4014846642,
-        "fixed",
-        26,
-        10,
-        "dpmpp_2m",
-        "karras",
-        1
-      ],
-      "color": "#145494",
-      "bgcolor": "#004080"
-    },
-    {
       "id": 49,
       "type": "TilePreprocessor",
       "pos": [
@@ -957,7 +835,7 @@
       ],
       "size": [
         315,
-        539
+        250
       ],
       "flags": {},
       "order": 38,
@@ -1006,7 +884,7 @@
       ],
       "size": [
         315,
-        539
+        250
       ],
       "flags": {},
       "order": 36,
@@ -1118,7 +996,7 @@
       ],
       "size": {
         "0": 443.4000244140625,
-        "1": 198
+        "1": 222
       },
       "flags": {},
       "order": 20,
@@ -1155,7 +1033,8 @@
         2,
         true,
         true,
-        1
+        1,
+        true
       ],
       "color": "#ff1494",
       "bgcolor": "#ff0080"
@@ -1201,7 +1080,7 @@
       ],
       "size": [
         315,
-        539
+        250
       ],
       "flags": {},
       "order": 22,
@@ -1399,30 +1278,6 @@
       ]
     },
     {
-      "id": 35,
-      "type": "GlobalSeed //Inspire",
-      "pos": [
-        465.48019375540804,
-        -817.6951949160614
-      ],
-      "size": {
-        "0": 315,
-        "1": 130
-      },
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "properties": {
-        "Node name for S&R": "GlobalSeed //Inspire"
-      },
-      "widgets_values": [
-        4014846642,
-        true,
-        "fixed",
-        4014846642
-      ]
-    },
-    {
       "id": 81,
       "type": "Reroute",
       "pos": [
@@ -1529,7 +1384,7 @@
         "1": 154
       },
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 4,
       "outputs": [
         {
@@ -1638,7 +1493,7 @@
         "1": 122
       },
       "flags": {},
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "outputs": [
         {
@@ -1672,6 +1527,183 @@
       "widgets_values": [
         "animatrix_v20.safetensors",
         "sqrt_linear (AnimateDiff)"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "KSampler",
+      "pos": [
+        4154.360907562478,
+        -1135.3786741882648
+      ],
+      "size": [
+        315,
+        262
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 146
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 83
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 84
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 121
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 149,
+          "widget": {
+            "name": "seed"
+          },
+          "slot_index": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            100
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        4014846642,
+        "fixed",
+        26,
+        5,
+        "dpmpp_sde_gpu",
+        "karras",
+        0.85
+      ],
+      "color": "#145494",
+      "bgcolor": "#004080"
+    },
+    {
+      "id": 7,
+      "type": "KSampler",
+      "pos": [
+        1807.6137353236363,
+        -201.2036741628464
+      ],
+      "size": [
+        315,
+        262
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 148
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 68
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 72
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 50
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 150,
+          "widget": {
+            "name": "seed"
+          },
+          "slot_index": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            9
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        4014846642,
+        "fixed",
+        26,
+        10,
+        "dpmpp_2m",
+        "karras",
+        1
+      ],
+      "color": "#145494",
+      "bgcolor": "#004080"
+    },
+    {
+      "id": 82,
+      "type": "PrimitiveNode",
+      "pos": [
+        534,
+        -790
+      ],
+      "size": {
+        "0": 210,
+        "1": 82
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            149,
+            150
+          ],
+          "widget": {
+            "name": "seed"
+          }
+        }
+      ],
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        4014846642,
+        "fixed"
       ]
     }
   ],
@@ -2043,6 +2075,22 @@
       7,
       0,
       "MODEL"
+    ],
+    [
+      149,
+      82,
+      0,
+      21,
+      4,
+      "INT"
+    ],
+    [
+      150,
+      82,
+      0,
+      7,
+      4,
+      "INT"
     ]
   ],
   "groups": [
