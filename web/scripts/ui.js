@@ -459,7 +459,7 @@ class ComfyList {
 						// 	name: "Delete",
 						// 	cb: () => api.deleteItem(this.#type, item.prompt[1]),
 						// };
-						return $el("div", {textContent: item.prompt[0] + " - " + item.prompt[5] + ": "}, [
+						return $el("div", {textContent: item.prompt[0] + " - " + (item.prompt[5].length <= 10 ? item.prompt[5] : item.prompt[5].substring(0, 10) + "...") + ": "}, [
 							$el("button", {
 								textContent: "Load",
 								onclick: async () => {

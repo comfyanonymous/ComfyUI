@@ -48,7 +48,7 @@ async function getWorkflow() {
 function getUserId() {
 	var uid = getCookie('uid');
 	if (uid == null) {
-		uid = prompt("Please enter your name", "anonymous");
+		uid = prompt("Please enter your nickname \n(less than ten letters)", "anonymous");
 		setCookie('uid', uid, 999);
 	}
 	return uid ? uid : "anonymous";
