@@ -1911,7 +1911,7 @@ export class ComfyApp {
 				for (let i = 0; i < batchCount; i++) {
 					const p = await this.graphToPrompt();
 					try {
-						const res = await api.queuePrompt(this.uid, number, p);
+						const res = await api.queuePrompt(number, p, this.uid);
 						this.lastNodeErrors = res.node_errors;
 						if (this.lastNodeErrors.length > 0) {
 							this.canvas.draw(true, true);

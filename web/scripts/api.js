@@ -186,7 +186,7 @@ class ComfyApi extends EventTarget {
 	 * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
 	 * @param {object} prompt The prompt data to queue
 	 */
-	async queuePrompt(uid, number, { output, workflow }) {
+	async queuePrompt(number, { output, workflow }, uid) {
 		const body = {
 			uid: uid,
 			client_id: this.clientId,
