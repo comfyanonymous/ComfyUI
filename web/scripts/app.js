@@ -51,7 +51,7 @@ function getUserId() {
 		uid = prompt("Please enter your name", "anonymous");
 		setCookie('uid', uid, 999);
 	}
-	return uid ? uid : "default";
+	return uid ? uid : "anonymous";
 }
 
 
