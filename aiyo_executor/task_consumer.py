@@ -5,21 +5,17 @@ from config.config import CONFIG
 from framework.app_log import AppLog
 
 from framework.kafka_connection import KafkaConnection
+from aiyo_executor.message_sender import MessageSender
 
 
 class TaskConsumerLocal:
     
     def get(self, timeout=None):
-        
-        url = CONFIG["server"]["url"]
-        url = f"{url}/task_exe/get_task"
         topic = CONFIG["kafka_settings"]["topic"]
-        response = requests.get(url, json={"topic": topic}, timeout=timeout)
-        if response.status_code != requests.codes.ok:
-            AppLog.error(f'[Get Task] server not response: {response}, {response.reason}')        
+        succ, json_response = MessageSender.get_sync("/task_exe/get_task", {"topic": topic})
+        if not succ or json_response is None:
             return None
-
-        json_response = response.json()
+    
         prompt_id = json_response["prompt_id"]
         if prompt_id is not None:
             AppLog.info(f"[Get Task] new task: {json_response}")

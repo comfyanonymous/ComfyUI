@@ -35,13 +35,13 @@ class AIYoExecutor:
         self.executor = FlowExecutor(msg_sender)
         
         
-    def task_done(self, prompt_id, output_data):
-        url = CONFIG["server"]["url"]
-        url = f"{url}/task_exe/task_done"
-        response = requests.get(url, json={"prompt_id": prompt_id, "output": output_data}, timeout=5)
-        if response.status_code != requests.codes.ok:
-            AppLog.error(f'[Get Task] server not response: {response}, {response.reason}')        
-        
+    def task_done(self, prompt_id, output_data):    
+        succ, response_data = message_sender.MessageSender.post_sync("/task_exe/task_done",
+                                                                     {"prompt_id": prompt_id, "output": output_data})
+        if not succ:
+            AppLog.warning(f'[TaskDone] fail to inform TASK_DONE event to server.') 
+            
+    
     
     def run(self):
         last_gc_collect = 0

@@ -480,7 +480,7 @@ class AIYoServer():
             })
             
             
-        @routes.get("/task_exe/task_done")
+        @routes.post("/task_exe/task_done")
         async def task_done(request):
             json_data = await request.json()
             prompt_id = json_data["prompt_id"]
