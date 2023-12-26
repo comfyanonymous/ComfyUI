@@ -1784,7 +1784,10 @@ export class ComfyApp {
 				output[String(node.id)] = {
 					inputs,
 					class_type: node.comfyClass,
-					title: node.title,
+					// Ignored by the backend.
+					"_meta": {
+						title: node.title,
+					},
 				};
 			}
 		}
