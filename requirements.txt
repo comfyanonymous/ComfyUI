@@ -10,3 +10,6 @@ Pillow
 scipy
 tqdm
 psutil
+
+confluent_kafka
+sentry_sdk
