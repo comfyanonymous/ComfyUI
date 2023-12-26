@@ -177,7 +177,7 @@ LGraphCanvas.prototype.computeVisibleNodes = function () {
 			for (const w of node.widgets) {
 				if (w.element) {
 					w.element.hidden = hidden;
-					w.element.style.display = hidden ? "none" : null;
+					w.element.style.display = hidden ? "none" : undefined;
 					if (hidden) {
 						w.options.onHide?.(w);
 					}
