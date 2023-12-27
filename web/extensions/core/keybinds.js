@@ -19,6 +19,7 @@ app.registerExtension({
 						break;
 					case event.shiftKey:
 						app.queuePrompt(-1); // Queue at start
+						break;
 					default:
 						app.queuePrompt(0); // Queue at end
 						break;
