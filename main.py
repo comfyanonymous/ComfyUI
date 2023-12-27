@@ -109,7 +109,7 @@ def prompt_worker(q, server):
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
             current_time = time.perf_counter()
-            execution_time = "%.2f" % (current_time - execution_start_time)
+            execution_time = round(current_time - execution_start_time, 2)
             q.task_done(item_id, e.outputs_ui, execution_time)
             if server.client_id is not None:
                 server.send_sync("executing", { "node": None, "prompt_id": prompt_id, "execution_time": execution_time }, server.client_id)
