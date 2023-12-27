@@ -768,7 +768,7 @@ export class ComfyUI {
 			// 		});
 			// 	},
 			// }),
-			// $el("button", {id: "comfy-load-button", textContent: "Load", onclick: () => fileInput.click()}),
+			$el("button", {id: "comfy-load-button", textContent: "Load", onclick: () => fileInput.click()}),
 			$el("button", {
 				id: "comfy-refresh-button",
 				textContent: "Refresh",
