@@ -1781,14 +1781,19 @@ export class ComfyApp {
 					}
 				}
 
-				output[String(node.id)] = {
+				let node_data = {
 					inputs,
 					class_type: node.comfyClass,
-					// Ignored by the backend.
-					"_meta": {
-						title: node.title,
-					},
 				};
+
+				if (this.ui.settings.getSettingValue("Comfy.DevMode")) {
+					// Ignored by the backend.
+					node_data["_meta"] = {
+						title: node.title,
+					}
+				}
+
+				output[String(node.id)] = node_data;
 			}
 		}
 
