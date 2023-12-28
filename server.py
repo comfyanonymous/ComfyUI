@@ -48,6 +48,12 @@ async def cache_control(request: web.Request, handler):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
 
+@web.middleware
+async def instance_global_header(request: web.Request, handler):
+    response: web.Response = await handler(request)
+    response.headers.setdefault('ComfyUI-instance-id', PromptServer.instance.instance_id)
+    return response
+
 def create_cors_middleware(allowed_origin: str):
     @web.middleware
     async def cors_middleware(request: web.Request, handler):
@@ -78,7 +84,7 @@ class PromptServer():
         self.messages = asyncio.Queue()
         self.number = 0
 
-        middlewares = [cache_control]
+        middlewares = [cache_control, instance_global_header]
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
@@ -91,6 +97,7 @@ class PromptServer():
         self.routes = routes
         self.last_node_id = None
         self.client_id = None
+        self.instance_id = uuid.uuid4().hex;
 
         self.on_prompt_handlers = []
 
@@ -382,7 +389,10 @@ class PromptServer():
                         "torch_vram_total": torch_vram_total,
                         "torch_vram_free": torch_vram_free,
                     }
-                ]
+                ],
+                "instance": {
+                    "instance_id": self.instance_id
+                },
             }
             return web.json_response(system_stats)
 
