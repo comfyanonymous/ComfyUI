@@ -373,6 +373,7 @@ class PromptServer():
             device_name = comfy.model_management.get_torch_device_name(device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            prompt_queue_tasks_remaining = self.prompt_queue.get_tasks_remaining()
             system_stats = {
                 "system": {
                     "os": os.name,
@@ -391,7 +392,10 @@ class PromptServer():
                     }
                 ],
                 "instance": {
-                    "instance_id": self.instance_id
+                    "instance_id": self.instance_id,
+                    "prompt_queue": {
+                        "tasks_remaining": prompt_queue_tasks_remaining
+                    },
                 },
             }
             return web.json_response(system_stats)
