@@ -265,6 +265,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         del d
     return to_delete
 
+# This class executes prompts (Comfy Workflows)
 class PromptExecutor:
     def __init__(self, server):
         self.outputs = {}
@@ -314,10 +315,13 @@ class PromptExecutor:
         for o in to_delete:
             d = self.outputs.pop(o)
             del d
-
+    
+    # Execute a single prompt.
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
-        nodes.interrupt_processing(False)
+        nodes.interrupt_processing(False) # Why is this here?
 
+        # Client_ID is set to the value from the current prompt being executed
+        # Is this scalable to multiple clients connected to the server?
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
         else:
@@ -685,6 +689,9 @@ def validate_prompt(prompt):
 
 MAXIMUM_HISTORY_SIZE = 10000
 
+# This class holds prompts (comfy workflows) that are waiting to be executed.
+# It is a thread-safe queue, that allows multiple threads to access the same queue.
+# Condition is used to notify threads waiting on the queue becoming non-empty.
 class PromptQueue:
     def __init__(self, server):
         self.server = server

@@ -66,7 +66,7 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 class PromptServer():
-    def __init__(self, loop):
+    def __init__(self, loop: asyncio.AbstractEventLoop):
         PromptServer.instance = self
 
         mimetypes.init()
@@ -109,6 +109,7 @@ class PromptServer():
 
             try:
                 # Send initial state to the new client
+                # Server sets the client id for each new connecting websocket.
                 await self.send("status", { "status": self.get_queue_info(), 'sid': sid }, sid)
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
@@ -474,6 +475,7 @@ class PromptServer():
                 if "extra_data" in json_data:
                     extra_data = json_data["extra_data"]
 
+                # Client id is taken from the json payload and added to "extra_data".
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:

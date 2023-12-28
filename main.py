@@ -90,6 +90,7 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
+# This function gets items from the Queue and executes them.
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
     last_gc_collect = 0
@@ -191,6 +192,7 @@ if __name__ == "__main__":
     server.add_routes()
     hijack_progress(server)
 
+    # Executes jobs on another thread.
     threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
 
     if args.output_directory:
