@@ -790,6 +790,11 @@ export class ComfyUI {
 					}
 				}
 			}),
+			$el("button", {
+				id: "comfy-join-discord-button",
+				textContent: "Join Discord",
+				onclick: () => { window.location.href = "https://discord.gg/BesB8jzsqa" }
+			}),
 		]);
 
 		// const devMode = this.settings.addSetting({
