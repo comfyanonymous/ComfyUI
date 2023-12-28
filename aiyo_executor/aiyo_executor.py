@@ -1,7 +1,7 @@
 
 import time
 import gc
-import requests
+import datetime
 
 from aiohttp import web
 
@@ -13,6 +13,7 @@ from config.config import CONFIG
 from aiyo_executor import message_sender
 from framework.app_log import AppLog
 from server import PromptServer
+from framework.model import tb_data
 
 
 class AIYoExecutor:
@@ -29,19 +30,30 @@ class AIYoExecutor:
         self.task_que = None 
         if CONFIG["deploy"]:
             self.task_que = task_consumer.TaskConsumerDeploy()
+            tb_data.default_connect()
         else:
             self.task_que = task_consumer.TaskConsumerLocal()
             
         self.executor = FlowExecutor(msg_sender)
         
         
-    def task_done(self, prompt_id, output_data):    
+    def task_done(self, prompt_id, graph_output, output_data):    
         succ, response_data = message_sender.MessageSender.post_sync("/task_exe/task_done",
                                                                      {"prompt_id": prompt_id, "output": output_data})
         if not succ:
-            AppLog.warning(f'[TaskDone] fail to inform TASK_DONE event to server.') 
+            AppLog.warning(f'[TaskDone] fail to inform TASK_DONE event to server.')
             
-    
+            
+        # update task result to db
+        if CONFIG["deploy"] and prompt_id is not None:
+            query = {"taskId": prompt_id}
+            update_data = {"taskId": prompt_id, 
+                           "status":3,
+                           "endTime": datetime.datetime.utcnow(),
+                           "result": graph_output,
+                           "error": ""}
+            task_res = tb_data.TaskReuslt.objects(**query).modify(upsert=True, new=True, **update_data)
+            print(f"update result: {task_res}")
     
     def run(self):
         last_gc_collect = 0
@@ -61,9 +73,10 @@ class AIYoExecutor:
                 
                 execution_start_time = time.perf_counter()
                 
-                self.executor.execute(queue_item["prompt"], prompt_id, queue_item["flows"], queue_item["extra_data"], queue_item["outputs_to_execute"])
+                graph_outputs = self.executor.execute(queue_item["prompt"], prompt_id, queue_item["flows"], queue_item.get("flow_args", {}),
+                                      queue_item["extra_data"])#, queue_item["outputs_to_execute"])
                 need_gc = True
-                self.task_done(prompt_id, self.executor.outputs_ui)
+                self.task_done(prompt_id, graph_outputs, self.executor.outputs_ui)
                 if self.msg_sender.client_id is not None:
                     self.msg_sender.send_sync("executing", { "node": None, "prompt_id": prompt_id }, self.msg_sender.client_id)
 

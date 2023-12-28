@@ -12,6 +12,8 @@ from config.config import CONFIG
 import folder_paths
 import aiyo_server.server_task_queue
 import aiyo_server.aiyo_server
+from framework.model import tb_data
+from framework.app_log import AppLog
 
 
 def execute_prestartup_script():
@@ -101,6 +103,7 @@ def hijack_progress(server):
 
 
 def aiyo_server_main():
+    AppLog.init()
     execute_prestartup_script()
     
     loop = asyncio.new_event_loop()
@@ -111,6 +114,8 @@ def aiyo_server_main():
     if CONFIG["deploy"]:
         que = aiyo_server.server_task_queue.TaskQueueKafka(server)
         que.init_producer()
+        
+        tb_data.default_connect()
     else:
         que = aiyo_server.server_task_queue.TaskQueueLocal(server)
 

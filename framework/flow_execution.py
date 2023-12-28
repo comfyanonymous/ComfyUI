@@ -14,6 +14,8 @@ import nodes
 import comfy.model_management
 from framework.app_log import LogUtils
 from framework.flow_control_nodes import LoopFlowNode
+from framework.workflow_utils import WorkflowUtils
+from framework.app_log import AppLog
 
 
 def format_value(x):
@@ -53,9 +55,6 @@ class ExecuteContextStorage:
         
         self.flows = {}
         self.extra_data = {}
-        
-        self.graph_input_nodes = set()
-        self.graph_output_nodes = set()
         
         self.executed = set()
         
@@ -193,18 +192,6 @@ class ExecuteContextStorage:
         return self.old_outputs
     
     
-    def _find_graph_inout(self):
-        """
-        Find all graph input nodes and graph output nodes.
-        """ 
-        self.graph_input_nodes.clear()
-        self.graph_output_nodes.clear()
-        for node_id in self.prompt:
-            node_obj = self.get_object(node_id)
-            if hasattr(node_obj, 'INIT_GRAPH_INPUTS'):
-                self.graph_input_nodes.add(node_id)
-            if hasattr(node_obj, 'GET_GRAPH_OUTPUTS'):
-                self.graph_output_nodes.add(node_id)
     
         
     def prepare_execution(self, prompt_id, new_prompt, flows, extra_data):
@@ -224,9 +211,6 @@ class ExecuteContextStorage:
         # prepare objects
         self._prepare_objects()
         
-        # find input and output nodes
-        self._find_graph_inout()
-        
     
     def cleanup_execution(self):
         self.old_outputs = self.outputs
@@ -241,8 +225,6 @@ class ExecuteContextStorage:
         # self.old_prompt = self.prompt
         # self.prompt = {}
         
-        self.graph_input_nodes.clear()
-        self.graph_output_nodes.clear()
         
         self.old_prompt = {}
         for node_id in self.executed:
@@ -743,25 +725,33 @@ class FlowExecutor:
             
     def apply_graph_inputs(self, grpah_inputs):
         
-        for node_id in self.context.graph_input_nodes:
-            node_obj = self.context.get_object(node_id)
-            getattr(node_obj, node_obj.INIT_GRAPH_INPUTS)(grpah_inputs)
-        
+        # for node_id in self.context.graph_input_nodes:
+        #     node_obj = self.context.get_object(node_id)
+        #     getattr(node_obj, node_obj.INIT_GRAPH_INPUTS)(grpah_inputs)
+        if grpah_inputs is None:
+            return
+        print(f"graph input data: {grpah_inputs}")
+        self.context.prompt = WorkflowUtils.apply_workflow_inputs(self.context.prompt, grpah_inputs)
         
         
     def get_graph_outputs(self):
         graph_outputs = {}
         
-        for node_id in self.context.graph_output_nodes:
-            node_obj = self.context.get_object(node_id)
-            cur_output = getattr(node_obj, node_obj.GET_GRAPH_OUTPUTS)()
-            graph_outputs.update(cur_output)
+        for node_id, node_info in self.context.prompt.items():
+            node_type = node_info["class_type"]
+            node_class = nodes.NODE_CLASS_MAPPINGS[node_type]
+            if hasattr(node_class, "OUTPUT_NODE") and node_class.OUTPUT_NODE:
+                cur_out = self.context.outputs[node_id][0][0]
+                output_name = node_info["inputs"]["name"]
+                if output_name in graph_outputs:
+                    AppLog.warning(f"[GetWorkflowInput] the same workflow input name was found: {output_name}")
+                graph_outputs[output_name] = cur_out
         return graph_outputs
         
             
     
 
-    def execute(self, prompt, prompt_id, flows, extra_data={}, execute_outputs=[]):
+    def execute(self, prompt, prompt_id, flows, flow_args={}, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
         
         print(f"[Execute] prompt: {prompt}")        
@@ -788,7 +778,8 @@ class FlowExecutor:
             
             # apply inputs
             # debug ????
-            self.apply_graph_inputs(None)
+            self.apply_graph_inputs(flow_args)
+            print(f"prompt after apply inputs: {self.context.prompt}")
             
             # in degree
             in_degree = {}
@@ -834,3 +825,5 @@ class FlowExecutor:
             
             # context cleanup
             self.context.cleanup_execution()
+            
+            return graph_outputs

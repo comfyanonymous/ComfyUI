@@ -94,7 +94,6 @@ class AIYoServer():
         self.client_id = None
 
         self.on_prompt_handlers = []
-        print("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -487,6 +486,9 @@ class AIYoServer():
             output_data = json_data["output"]
             self.prompt_queue.task_done(prompt_id, output_data)
             return web.Response(status=200)
+        
+        
+        import aiyo_server.open_api_route
             
         
     def add_routes(self):

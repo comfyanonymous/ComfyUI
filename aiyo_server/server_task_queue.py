@@ -9,6 +9,7 @@ from framework.kafka_connection import KafkaConnection
 
 from config.config import CONFIG
 from framework.task_engine_util import validate_prompt
+from framework.app_log import AppLog
 
 
 MAXIMUM_HISTORY_SIZE = 10000
@@ -183,11 +184,13 @@ class TaskQueueKafka:
         self.consumer = KafkaConnection.create_consumer(CONFIG["topic"])
     
 
-    def put(self, item):
+    def put(self, task_id):
         """
         Put a new task
         """
         with self.mutex:
+            AppLog.info("Here put task to kafka")
+            print("put task into kafka")
             
             # update upload resource to object
             # ????
@@ -196,8 +199,9 @@ class TaskQueueKafka:
             # ?????
             
             # add task into kafka queue
-            msg = item # ????
+            msg = bytes(task_id, encoding='utf-8')
             self.producer.produce(CONFIG["kafka_settings"]["topic"], value=msg)
+            print(msg)
             
             self.server.queue_updated()
             self.not_empty.notify()

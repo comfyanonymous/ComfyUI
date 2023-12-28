@@ -13,3 +13,6 @@ psutil
 
 confluent_kafka
 sentry_sdk
+mongoengine
+minio
+
