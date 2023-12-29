@@ -6,6 +6,8 @@ import minio
 
 from config.config import CONFIG
 from framework.app_log import AppLog
+import folder_paths
+from PIL import Image
 
 
 class MinIOConnection:
@@ -117,3 +119,83 @@ class MinIOConnection:
         except Exception as e:
             AppLog.error(f"[ObjectStorage] fput_object, fail to put: {obj_name}")
     
+    
+    
+    def exist_object(self, obj_name, bucket=None):
+        try:
+            response = self.connection.stat_object(bucket, obj_name)
+            return True
+        except Exception as e:
+            return False
+    
+    
+class ResourceMgr:
+    
+    instance = None
+    
+    @staticmethod
+    def register(mgr_instance):
+        if isinstance(mgr_instance, ResourceMgrLocal) or isinstance(mgr_instance, ResourceMgrRemote):
+            ResourceMgr.instance = mgr_instance
+            return True
+        else:
+            return False
+
+
+
+
+class ResourceMgrLocal(ResourceMgr):
+    
+    def __init__(self) -> None:
+        super().__init__()
+        ResourceMgr.register(self)
+    
+    def get_image(self, image_path, open=True):
+        image_path = folder_paths.get_annotated_filepath(image_path)
+        if open:
+            img = Image.open(image_path)
+        else:
+            img = None    
+        return image_path, img
+    
+    
+    def exist_image(self, image_path):
+        return folder_paths.exists_annotated_filepath(image_path)
+    
+    
+    
+    def after_save_image_to_local(self, local_path):
+        return  local_path  
+    
+    
+    
+class ResourceMgrRemote(ResourceMgr):
+    
+    def __init__(self) -> None:
+        super().__init__()
+        ResourceMgr.register(self)
+    
+    
+    def get_image(self, image_path, open=True):
+        local_path = folder_paths.input_path_remote_to_local(image_path)
+        image_path = MinIOConnection().fget_object(image_path, local_path)
+        if open:
+            img = Image.open(image_path)
+        else:
+            img = None
+        return image_path, img
+    
+    
+    def exist_image(self, image_path):
+        return MinIOConnection().exist_object(image_path)
+    
+    
+    
+    def after_save_image_to_local(self, local_path):
+        file_basename = os.path.basename(local_path)
+        remote_dir = CONFIG["resource"]["out_img_path_cloud"]
+        remote_path = f"{remote_dir}/{file_basename}"
+        MinIOConnection().fput_object(remote_path, local_path)
+        
+        AppLog.info(f"[ResMgr] after_save_image_to_local, remote path: {remote_path}")
+        return remote_path

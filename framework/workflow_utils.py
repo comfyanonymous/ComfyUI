@@ -46,9 +46,10 @@ class WorkflowUtils:
                 print(f"has INPUT_NODE: {node_type}")
                 flow_input_name = node_info["inputs"]["name"]
                 if flow_input_name in flow_inputs:
-                    node_info["inputs"]["data"] = flow_inputs[flow_input_name]
-                    if "data" in node_info["is_input_linked"]:
-                        node_info["is_input_linked"]["data"] = False
+                    inp_name = node_class.INPUT_NODE_DATA
+                    node_info["inputs"][inp_name] = flow_inputs[flow_input_name]
+                    if inp_name in node_info["is_input_linked"]:
+                        node_info["is_input_linked"][inp_name] = False
         return prompt
     
     

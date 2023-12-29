@@ -14,6 +14,7 @@ from aiyo_executor import message_sender
 from framework.app_log import AppLog
 from server import PromptServer
 from framework.model import tb_data
+from framework.model import object_storage
 
 
 class AIYoExecutor:
@@ -31,8 +32,10 @@ class AIYoExecutor:
         if CONFIG["deploy"]:
             self.task_que = task_consumer.TaskConsumerDeploy()
             tb_data.default_connect()
+            self.resource_mgr = object_storage.ResourceMgrRemote()
         else:
             self.task_que = task_consumer.TaskConsumerLocal()
+            self.resource_mgr = object_storage.ResourceMgrLocal()
             
         self.executor = FlowExecutor(msg_sender)
         

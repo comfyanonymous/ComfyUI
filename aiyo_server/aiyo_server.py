@@ -16,6 +16,10 @@ from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
 import server
 
+from config.config import CONFIG
+from framework.model import object_storage
+
+
 try:
     import aiohttp
     from aiohttp import web
@@ -73,6 +77,12 @@ class AIYoServer():
 
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
+        
+        if CONFIG['deploy']:
+            self.resource_mgr = object_storage.ResourceMgrRemote()
+        else:
+            self.resource_mgr = object_storage.ResourceMgrLocal()
+            
 
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None

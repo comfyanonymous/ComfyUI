@@ -19,7 +19,8 @@ class TaskConsumerLocal:
         dict, {prompt_id: str, prompt: dict, flows: dict, extra_data: dict}
         """
         topic = CONFIG["kafka_settings"]["topic"]
-        succ, json_response = APICall.get_sync("/task_exe/get_task", {"topic": topic})
+        url = CONFIG["server"]["url"]
+        succ, json_response = APICall.get_sync(f"{url}/task_exe/get_task", {"topic": topic})
         if not succ or json_response is None:
             return None
     

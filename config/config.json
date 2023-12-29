@@ -36,9 +36,15 @@
 
 
         "resource":{
+            "in_img_path_cloud": "test",
+            "in_img_path_local": "input",
 
+            "out_img_path_cloud": "test",
+            "out_img_path_local": "output",
+
+            "prompt_path_cloud": "test",
+            "prompt_path_local": "input"
         },
-
         "failed_retry": 5,
         "failed_retry_period": 5,
 

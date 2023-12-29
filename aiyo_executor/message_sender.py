@@ -189,7 +189,7 @@ class LocalAPISender:
         url = CONFIG["server"]["url"]
         
         if event == "execution_end":
-            url = f"{url}//task_exe/task_done"
+            url = f"{url}/task_exe/task_done"
             post_data = {
                 "prompt_id": data["prompt_id"],
                 "output": data["result"]

@@ -11,8 +11,9 @@ import folder_paths
 import torch
 
 from comfy.cli_args import args
-from framework.model import object_storage
+from framework.model.object_storage import ResourceMgr
 from config.config import CONFIG
+from framework.app_log import AppLog
 
 
 class IntInput:
@@ -30,7 +31,8 @@ class IntInput:
     CATEGORY = "flow"
     
     INPUT_NODE = True
-    INPUT_NODE_TYPE = "IMAGE"
+    INPUT_NODE_TYPE = "INT"
+    INPUT_NODE_DATA = "data"
     
     
     def execute(self, name, data):
@@ -55,7 +57,9 @@ class FloatInput:
     CATEGORY = "flow"
     
     INPUT_NODE = True
-    INPUT_NODE_TYPE = "IMAGE"
+    INPUT_NODE_TYPE = "FLOAT"
+    INPUT_NODE_DATA = "data"
+    
     
     
     def execute(self, name, data):
@@ -80,7 +84,9 @@ class StringInput:
     CATEGORY = "flow"
     
     INPUT_NODE = True
-    INPUT_NODE_TYPE = "IMAGE"
+    INPUT_NODE_TYPE = "STRING"
+    INPUT_NODE_DATA = "data"
+    
     
     
     def execute(self, name, data):
@@ -95,22 +101,22 @@ class ImageInput:
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         return {"required":
                     {"name": ("STRING", {"default": ""}),
-                        "data": (sorted(files), {"image_upload": True})},
+                        "image": (sorted(files), {"image_upload": True})},
                 }
 
     CATEGORY = "flow"
     
     INPUT_NODE = True
     INPUT_NODE_TYPE = "IMAGE"
+    INPUT_NODE_DATA = "image"
+    
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
-    def load_image(self, name, data):
-        # image_path = folder_paths.get_annotated_filepath(image)
-        print(f"image data: {data}")
-        image_path = object_storage.MinIOConnection().fget_object(data)
-        print(f'img path: {image_path}')
-        i = Image.open(image_path)
+    def load_image(self, name, image):
+        AppLog.info(f"[ImageInput] load_image, image: {image}")
+        image_path, i = ResourceMgr.instance.get_image(image)
+        AppLog.info(f'[ImageInput] load_image, img path: {image_path}')
         i = ImageOps.exif_transpose(i)
         image = i.convert("RGB")
         image = np.array(image).astype(np.float32) / 255.0
@@ -123,19 +129,19 @@ class ImageInput:
         return (image, mask.unsqueeze(0))
 
     @classmethod
-    def IS_CHANGED(s, name, data):
-        print(f"image data: {data}")
-        image_path = object_storage.MinIOConnection().fget_object(data)
-        print(f'img path: {image_path}')
+    def IS_CHANGED(s, name, image):
+        AppLog.info(f"[ImageInput] load_image, image: {image}")
+        image_path, _ = ResourceMgr.instance.get_image(image, open=False)
+        AppLog.info(f'[ImageInput] load_image, img path: {image_path}')
         m = hashlib.sha256()
         with open(image_path, 'rb') as f:
             m.update(f.read())
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, name, data):
-        if not folder_paths.exists_annotated_filepath(data):
-            return "Invalid image file: {}".format(data)
+    def VALIDATE_INPUTS(s, name, image):
+        if not ResourceMgr.instance.exist_image(image):
+            return "Invalid image file: {}".format(image)
 
         return True
     
@@ -159,7 +165,7 @@ class ImageOutput:
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
-    RETURN_TYPES = ("STRING", )
+    RETURN_TYPES = ("IMAGE", )
     FUNCTION = "save_images"
 
     OUTPUT_NODE = True
@@ -194,12 +200,9 @@ class ImageOutput:
             })
             counter += 1
             
-            remote_dir = CONFIG["resource"]["out_img_path_cloud"]
-            remote_path = f"{remote_dir}/{file}"
-            object_storage.MinIOConnection().fput_object(remote_path, local_filepath)
-            print(f"[ImageOutput] remote path: {remote_path}")
-
-        return { "ui": { "images": results }, "result": (remote_path,) }
+            final_path = ResourceMgr.instance.after_save_image_to_local(local_filepath)
+            
+        return { "ui": { "images": results }, "result": (final_path,) }
 
 
 

@@ -249,3 +249,21 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
+
+
+
+from config.config import CONFIG
+
+def input_path_remote_to_local(remote_path):
+    file_basename = os.path.basename(remote_path)
+    file_dir = CONFIG["resource"]["in_img_path_local"]
+    file_path = f"{file_dir}/{file_basename}"
+    return file_path
+    
+    
+    
+def output_path_local_to_remote(local_path):
+    file_basename = os.path.basename(local_path)
+    remote_dir = CONFIG["resource"]["out_img_path_cloud"]
+    remote_path = f"{remote_dir}/{file_basename}"
+    return remote_path
