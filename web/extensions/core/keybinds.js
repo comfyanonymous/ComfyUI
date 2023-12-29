@@ -8,7 +8,21 @@ app.registerExtension({
 
 			// Queue prompt using ctrl or command + enter
 			if (modifierPressed && event.key === "Enter") {
-				app.queuePrompt(event.shiftKey ? -1 : 0).then();
+				event.preventDefault();
+
+				if (!event.altKey) {
+					app.queuePrompt(event.shiftKey ? -1 : 0).then();
+				} else {
+					// Cancel currently running prompt with alt
+					app.stopPromptGeneration(0);
+				}
+
+				return;
+			}
+
+			// Clear pending prompts using ctrl + alt + backspace
+			if (modifierPressed && event.altKey && event.key === "Backspace") {
+				app.clearPromptQueue();
 				return;
 			}
 
@@ -23,7 +37,6 @@ app.registerExtension({
 				Backspace: "#comfy-clear-button",
 				Delete: "#comfy-clear-button",
 				d: "#comfy-load-default-button",
-				k: "#comfy-cancel-generate-button",
 			};
 
 			const modifierKeybindId = modifierKeyIdMap[event.key];

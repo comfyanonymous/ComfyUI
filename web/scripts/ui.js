@@ -471,7 +471,6 @@ class ComfyList {
 							}),
 							$el("button", {
 								textContent: removeAction.name,
-								id: "comfy-cancel-generate-button",
 								onclick: async () => {
 									await removeAction.cb();
 									await this.update();
