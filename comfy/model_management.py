@@ -555,7 +555,10 @@ def intermediate_device():
         return torch.device("cpu")
 
 def vae_device():
-    return get_torch_device()
+    if vram_state == VRAMState.NO_VRAM:
+        return torch.device("cpu")
+    else:
+        return get_torch_device()
 
 def vae_offload_device():
     if args.gpu_only:
