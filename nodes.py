@@ -1,5 +1,6 @@
 import torch
 
+from os import path
 import os
 import sys
 import json
@@ -9,6 +10,8 @@ import math
 import time
 import random
 
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
 from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
@@ -30,7 +33,7 @@ import comfy.model_management
 from comfy.cli_args import args
 
 import importlib
-
+import io
 import folder_paths
 import latent_preview
 
@@ -41,6 +44,32 @@ def interrupt_processing(value=True):
     comfy.model_management.interrupt_current_processing(value)
 
 MAX_RESOLUTION=8192
+
+cred_path = None
+ROOT_BUCKET_NAME = None
+dir_path = path.dirname(path.realpath(__file__))
+
+IMAGE_BUCKET_NAME = "dreamboothy.appspot.com"
+DEV_IMAGE_BUCKET_NAME = "dreamboothy-dev.appspot.com"
+
+cred_path = path.join(dir_path, ".keys/DEV_DO_NOT_COMMIT_devServiceAccountKey.json")
+ROOT_BUCKET_NAME = DEV_IMAGE_BUCKET_NAME
+
+CRED = credentials.Certificate(cred_path)
+app = firebase_admin.initialize_app(CRED)
+db = firestore.client()
+bucket = storage.bucket(ROOT_BUCKET_NAME)
+
+
+def upload_to_storage(img: Image, file_path: str):
+    """Uploads the image to Firebase Storage and returns the public URL"""
+    blob = bucket.blob("COMFY_IMAGES/" + file_path)
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format='PNG')
+    blob.upload_from_string(img_byte_arr.getvalue(), content_type='image/png')
+    blob.make_public()  # Make the blob publicly viewable
+    print("Upload to storage completed.")
+    return blob.public_url
 
 class CLIPTextEncode:
     @classmethod
@@ -1356,6 +1385,7 @@ class SaveImage:
     CATEGORY = "image"
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        print("Saving image")
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
@@ -1373,10 +1403,14 @@ class SaveImage:
 
             file = f"{filename}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
+
+            public_url = upload_to_storage(img, filename)
+
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
-                "type": self.type
+                "type": self.type,
+                "publicUrl": public_url
             })
             counter += 1
 
