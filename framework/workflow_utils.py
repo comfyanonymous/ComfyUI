@@ -4,7 +4,7 @@ import io
 import uuid
 import aiohttp
 import imghdr
-import base64
+import urllib
 
 import nodes
 from framework.app_log import AppLog
@@ -85,5 +85,21 @@ class WorkflowUtils:
         object_storage.MinIOConnection().put_object(new_name, io.BytesIO(file_data), len(file_data))
     
         return True, new_name
+    
+    
+    @staticmethod
+    def upload_file(filename):
+        basename = os.path.basename(filename)
+        # upload
+        remote_dir = CONFIG["resource"]["in_img_path_cloud"]
+        remote_name = f"{remote_dir}/{basename}"
+
+        object_storage.MinIOConnection().fput_object(remote_name, filename)
+        return remote_name        
         
         
+    @staticmethod
+    def extract_filename_from_url(url):
+        parsed_url = urllib.parse.urlparse(url)
+        filename = os.path.basename(parsed_url.path)
+        return filename

@@ -20,4 +20,9 @@ class ErrorCode:
     MISSING_PARAM = 301
     INVALID_PARAM = 302
     
-    # 
+    
+    
+    
+    # execution error
+    EXE_UNEXP = 700
+    

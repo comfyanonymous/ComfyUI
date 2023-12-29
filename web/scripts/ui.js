@@ -1,4 +1,5 @@
 import {api} from "./api.js";
+import { prompt2cprompt, getPromptFlow, workflowToCworkflow } from "./aiyo_utils.js";
 
 export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
@@ -720,6 +721,7 @@ export class ComfyUI {
 						}
 					}
 					app.graphToPrompt().then(p=>{
+
 						const json = JSON.stringify(p.workflow, null, 2); // convert the data to a JSON string
 						const blob = new Blob([json], {type: "application/json"});
 						const url = URL.createObjectURL(blob);
@@ -734,6 +736,63 @@ export class ComfyUI {
 							a.remove();
 							window.URL.revokeObjectURL(url);
 						}, 0);
+
+
+						let _cworkflow=workflowToCworkflow(p.workflow);
+						let _cprompt = prompt2cprompt(_cworkflow, p.output);
+						let _flows = getPromptFlow(_cworkflow);
+						const json_prompt =  JSON.stringify({
+							prompt: _cprompt,
+							flows: _flows,
+							extra_data: {extra_pnginfo: {_cworkflow}},
+						}, null, 2);
+						const blob2 = new Blob([json_prompt], {type: "application/json"});
+						const url2 = URL.createObjectURL(blob2);
+						const dotIndex = filename.lastIndexOf(".");
+						const baseName = filename.substring(0, dotIndex);
+						const extension = filename.substring(dotIndex);
+						let prompt_filename = baseName + "_prompt" + extension;
+						const a2 = $el("a", {
+							href: url2,
+							download: prompt_filename,
+							style: {display: "none"},
+							parent: document.body,
+						});
+						a2.click();
+						setTimeout(function () {
+							a2.remove();
+							window.URL.revokeObjectURL(url2);
+						}, 0);
+
+						// let _cworkflow=workflowToCworkflow(p.workflow);
+						// let _cprompt = prompt2cprompt(_cworkflow, p.output);
+						// let _flows = getPromptFlow(_cworkflow);
+						// const json_prompt =  JSON.stringify({
+						// 	prompt: _cprompt,
+						// 	flows: _flows,
+						// 	extra_data: {extra_pnginfo: {_cworkflow}},
+						// }, null, 2);
+						
+						// const blob1 = new Blob([json], {type: "application/json"});
+						// const url1 = URL.createObjectURL(blob1);
+						// const dotIndex = filename.lastIndexOf(".");
+						// const baseName = filename.substring(0, dotIndex);
+						// const extension = filename.substring(dotIndex);
+						// // let prompt_filename = baseName + "_prompt" + extension;
+						// let prompt_filename = "workflow_prompt.json";
+						// console.log(`[Save] prompt file: ${prompt_filename}`);
+						// console.log(json_prompt);
+						// const b = $el("b", {
+						// 	href: url1,
+						// 	download: prompt_filename,
+						// 	style: {display: "none"},
+						// 	parent: document.body,
+						// });
+						// b.click();
+						// setTimeout(function () {
+						// 	b.remove();
+						// 	window.URL.revokeObjectURL(url1);
+						// }, 0);
 					});
 				},
 			}),

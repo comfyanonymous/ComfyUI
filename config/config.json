@@ -6,10 +6,10 @@
 
         "mongodb_settings":{
             "url": "mongodb://admin:AbcD%23123%2B%2B@43.135.80.90:27017/",
-            "database": "aigc",
-            "task_table": "aigc_task",
-            "task_result_table": "aigc_task_result",
-            "flow_table": "task_flow"
+            "database": "aiyo_engine",
+            "task_table": "engine_task",
+            "task_result_table": "engine_task_result",
+            "flow_table": "flow"
         },
         
         "kafka_settings":{
@@ -25,7 +25,7 @@
             "endpoint": "cos.ap-nanjing.myqcloud.com",
             "access_key": "AKIDogu0zrQsFOLvOhsscDh0GLKD2lP4hOvF",
             "secret_key": "AA1kuxuqiVDqO7wkU8g9Vk1OorrcVOCz",
-            "bucket": "duck-test-1319341997"
+            "bucket": "aiyo-1319341997"
         },
 
         "server":
@@ -37,6 +37,71 @@
 
         "resource":{
 
+        },
+
+        "failed_retry": 5,
+        "failed_retry_period": 5,
+
+
+        "log":{
+            "console_log": 1,
+            "log_file": "log/app.log",
+            "log_level": "INFO"
+        },
+
+        "data_cleaning":
+        {
+            "period": 3600,                   
+            "tmp_path_max_size": 10240,       
+            "lora_path_max_size": 20480       
+        }
+    },
+
+
+
+    "debug_dp": {
+        "deploy": true,
+
+        "mongodb_settings":{
+            "url": "mongodb://admin:AbcD%23123%2B%2B@43.135.80.90:27017/",
+            "database": "aiyo_engine",
+            "task_table": "engine_task",
+            "task_result_table": "engine_task_result",
+            "flow_table": "flow"
+        },
+        
+        "kafka_settings":{
+            "url": "localhost:9092",
+            "topic": "aigc_task_test",
+            "group": "g_aigc_task_test",
+
+            "topic_partitions": 3,
+            "topic_rep_factor": 1
+        },
+
+        "minio_settings":{
+            "endpoint": "cos.ap-nanjing.myqcloud.com",
+            "access_key": "AKIDogu0zrQsFOLvOhsscDh0GLKD2lP4hOvF",
+            "secret_key": "AA1kuxuqiVDqO7wkU8g9Vk1OorrcVOCz",
+            "bucket": "aiyo-1319341997"
+        },
+
+        "server":
+        {
+            "url": "http://127.0.0.1:8188"
+        },
+
+
+
+        "resource":{
+            "in_img_path_cloud": "test",
+            "in_img_path_local": "input",
+
+            "out_img_path_cloud": "test",
+            "out_img_path_local": "output",
+
+            "prompt_path_cloud": "test",
+            "prompt_path_local": "input"
         },
 
         "failed_retry": 5,

@@ -5,7 +5,7 @@ import json
 
 from framework.app_log import AppLog
 from framework.kafka_connection import KafkaConnection
-from aiyo_executor.message_sender import MessageSender
+from aiyo_executor.message_sender import APICall
 from framework.model import tb_data
 from framework.model import object_storage
 from config.config import CONFIG
@@ -19,7 +19,7 @@ class TaskConsumerLocal:
         dict, {prompt_id: str, prompt: dict, flows: dict, extra_data: dict}
         """
         topic = CONFIG["kafka_settings"]["topic"]
-        succ, json_response = MessageSender.get_sync("/task_exe/get_task", {"topic": topic})
+        succ, json_response = APICall.get_sync("/task_exe/get_task", {"topic": topic})
         if not succ or json_response is None:
             return None
     
@@ -48,17 +48,18 @@ class TaskConsumerDeploy:
             task_id = msg.value().decode('utf-8')
             AppLog.info(f"[ConsumeTask] new task: {task_id}")
             
-            nd_prompt, flows, extra_data, flow_args = self._get_task_item(task_id)
+            nd_prompt, flows, extra_data, flow_args, webhooks = self._get_task_item(task_id)
             return {
                 "prompt_id": task_id,
                 "prompt": nd_prompt,
                 "flows": flows,
                 "extra_data": extra_data, 
-                "flow_args": flow_args
+                "flow_args": flow_args,
+                "webhooks": webhooks
             }
             
             
-        return { "prompt_id": None, "prompt": None, "flows": None, "extra_data": None, "flow_args": None }
+        return { "prompt_id": None, "prompt": None, "flows": None, "extra_data": None, "flow_args": None, "webhooks": None }
     
     
     def _get_task_item(self, task_id):
@@ -69,9 +70,11 @@ class TaskConsumerDeploy:
             task_info = task_infos[0]
             flow_id = task_info.flowId
             flow_args = task_info.taskParams
+            webhooks = task_info.webhook
             
             flow_infos = tb_data.Flow.objects(flowId=flow_id)
             flow_info = flow_infos[0] if flow_infos is not None and len(flow_infos)>0 else None
+            prompt_filepath = flow_info.flowPrompt if flow_info is not None else None
             
             # download prompt file
             prompt_filepath = flow_info.flowPrompt if flow_info is not None else None
@@ -93,9 +96,9 @@ class TaskConsumerDeploy:
                     AppLog.info(f"[Promptfile] flows: \n{flows}")
                     AppLog.info(f"[Promptfile] extra data: \n{extra_data}")
                     
-                    return nd_prompt, flows, extra_data, flow_args
+                    return nd_prompt, flows, extra_data, flow_args, webhooks
                 
-        return None, None, None, None
+        return None, None, None, None, None
 
             
             

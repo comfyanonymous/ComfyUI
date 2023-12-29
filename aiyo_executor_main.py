@@ -6,7 +6,7 @@ import importlib.util
 import folder_paths
 import time
 from framework.app_log import AppLog
-from aiyo_executor.message_sender import MessageSender
+from aiyo_executor.message_sender import MessageManager
 from aiyo_executor.aiyo_executor import AIYoExecutor
 
 
@@ -153,7 +153,7 @@ def aiyo_executor_main():
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    msg_sender = MessageSender(loop)
+    msg_sender = MessageManager(loop)
     executor = AIYoExecutor(msg_sender)
     
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")

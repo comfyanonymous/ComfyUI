@@ -27,6 +27,7 @@ class Flow(Document):
     lastUpdatedAt = DateTimeField()
     accessLevel = IntField() # 0 for private; 1 for public
     tags = ListField() # [str0, str1, ...]
+    webhook = DictField()
 
 
 
@@ -41,6 +42,7 @@ class Task(Document):
     createdBy = StringField()
     createdAt = DateTimeField()
     lastUpdatedAt = DateTimeField()
+    webhook = DictField()
     
     
     

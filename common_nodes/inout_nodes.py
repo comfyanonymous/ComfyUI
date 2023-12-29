@@ -184,6 +184,7 @@ class ImageOutput:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             file = f"{str(uuid.uuid4())}.png" #f"{filename}_{counter:05}_.png"
+            full_output_folder = CONFIG["resource"]["out_img_path_local"]
             local_filepath = os.path.join(full_output_folder, file)
             img.save(local_filepath, pnginfo=metadata, compress_level=self.compress_level)
             results.append({

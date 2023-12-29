@@ -745,7 +745,7 @@ class FlowExecutor:
                 output_name = node_info["inputs"]["name"]
                 if output_name in graph_outputs:
                     AppLog.warning(f"[GetWorkflowInput] the same workflow input name was found: {output_name}")
-                graph_outputs[output_name] = cur_out
+                graph_outputs[output_name] = {"value": cur_out, "type": node_class.OUTPUT_NODE_TYPE}
         return graph_outputs
         
             
@@ -760,14 +760,7 @@ class FlowExecutor:
         print(f"[Execute] extra data: {extra_data}")
         print(f"[Execute] execute outputs: {execute_outputs}")
 
-        if "client_id" in extra_data:
-            self.server.client_id = extra_data["client_id"]
-        else:
-            self.server.client_id = None
-
-        if self.server.client_id is not None:
-            self.server.send_sync("execution_start", { "prompt_id": prompt_id}, self.server.client_id)
-
+        
         with torch.inference_mode():
             
             # prepare execution context

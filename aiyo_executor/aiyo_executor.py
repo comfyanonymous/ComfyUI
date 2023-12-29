@@ -18,7 +18,7 @@ from framework.model import tb_data
 
 class AIYoExecutor:
     
-    def __init__(self, msg_sender:message_sender.MessageSender) -> None:
+    def __init__(self, msg_sender:message_sender.MessageManager) -> None:
         PromptServer.instance = self                # hack code for extension supports
         self.supports = []
         routes = web.RouteTableDef()
@@ -37,23 +37,44 @@ class AIYoExecutor:
         self.executor = FlowExecutor(msg_sender)
         
         
-    def task_done(self, prompt_id, graph_output, output_data):    
-        succ, response_data = message_sender.MessageSender.post_sync("/task_exe/task_done",
-                                                                     {"prompt_id": prompt_id, "output": output_data})
-        if not succ:
-            AppLog.warning(f'[TaskDone] fail to inform TASK_DONE event to server.')
+        
+    def task_start(self, prompt_id, task_info):
+        # set message sender
+        if CONFIG["deploy"]:
+            webhooks = task_info.get("webhooks", {})
+            self.msg_sender.message_sender = message_sender.WeebhookSender(on_start=webhooks.get("on_start", None),
+                                                                            on_processing=webhooks.get("on_processing", None),
+                                                                            on_end=webhooks.get("on_end", None))
+        else:
+            self.msg_sender.message_sender = message_sender.LocalAPISender()
             
+        # send START evnet
+        self.msg_sender.send_sync("execution_start", { "prompt_id": prompt_id}, self.msg_sender.client_id)
+        
+        
+    def task_done(self, prompt_id, graph_output, output_ui):    
             
+        output_data = {key:val["value"] for key,val in graph_output.items()}
         # update task result to db
         if CONFIG["deploy"] and prompt_id is not None:
             query = {"taskId": prompt_id}
             update_data = {"taskId": prompt_id, 
                            "status":3,
                            "endTime": datetime.datetime.utcnow(),
-                           "result": graph_output,
+                           "result": output_data,
                            "error": ""}
             task_res = tb_data.TaskReuslt.objects(**query).modify(upsert=True, new=True, **update_data)
             print(f"update result: {task_res}")
+            
+        self.msg_sender.send_sync("execution_end", {"prompt_id": prompt_id, 
+                                                    "result_info": graph_output,
+                                                    "result": output_data,
+                                                    "output_ui": output_ui})
+
+        # remove message_sender
+        # self.msg_sender.message_sender = None
+        AppLog.info(f"[Execute] End: {prompt_id}")
+        
     
     def run(self):
         last_gc_collect = 0
@@ -70,12 +91,25 @@ class AIYoExecutor:
             
             if prompt_id is not None and prompt_id != "":
                 AppLog.info(f"[Prompt worker] new task: {queue_item}")
-                
                 execution_start_time = time.perf_counter()
                 
+                extra_data = queue_item["extra_data"]
+                if "client_id" in extra_data:
+                    self.msg_sender.client_id = extra_data["client_id"]
+                else:
+                    self.msg_sender.client_id = None
+                    
+                # on task start
+                self.task_start(prompt_id, queue_item)
+                
+                
+                
+                # execute workflow
                 graph_outputs = self.executor.execute(queue_item["prompt"], prompt_id, queue_item["flows"], queue_item.get("flow_args", {}),
                                       queue_item["extra_data"])#, queue_item["outputs_to_execute"])
                 need_gc = True
+                
+                # on task done
                 self.task_done(prompt_id, graph_outputs, self.executor.outputs_ui)
                 if self.msg_sender.client_id is not None:
                     self.msg_sender.send_sync("executing", { "node": None, "prompt_id": prompt_id }, self.msg_sender.client_id)
