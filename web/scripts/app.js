@@ -1906,20 +1906,7 @@ export class ComfyApp {
 	}
 
 	async stopPromptGeneration() {
-		const runningKey = "Running";
-		const type = "queue";
-		const items = await api.getItems(type);
-
-		if (!items || !(runningKey in items) || items[runningKey].length === 0) {
-			return;
-		}
-
-		const item = items[runningKey][0];
-		const removeAction = item.remove || {
-			name: "Delete",
-			cb: () => api.deleteItem(type, item.prompt[1]),
-		};
-		await removeAction.cb();
+		await api.interrupt();
 	}
 
 	async clearPromptQueue() {
@@ -1928,8 +1915,7 @@ export class ComfyApp {
 		}
 
 		this.#processingQueue = true;
-		await api.clearItems("queue");
-		await this.stopPromptGeneration(); // Clear remaining running prompt
+		await api.clearItems("queue").then(() => api.interrupt());
 		this.#processingQueue = false;
 	}
 
