@@ -1491,12 +1491,9 @@ class LoadImageMask:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, image, channel):
+    def VALIDATE_INPUTS(s, image):
         if not folder_paths.exists_annotated_filepath(image):
             return "Invalid image file: {}".format(image)
-
-        if channel not in s._color_channels:
-            return "Invalid color channel: {}".format(channel)
 
         return True
 
