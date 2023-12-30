@@ -186,6 +186,9 @@ except:
 if is_intel_xpu():
     VAE_DTYPE = torch.bfloat16
 
+if args.cpu_vae:
+    VAE_DTYPE = torch.float32
+
 if args.fp16_vae:
     VAE_DTYPE = torch.float16
 elif args.bf16_vae:
@@ -555,6 +558,8 @@ def intermediate_device():
         return torch.device("cpu")
 
 def vae_device():
+    if args.cpu_vae:
+        return torch.device("cpu")
     return get_torch_device()
 
 def vae_offload_device():
