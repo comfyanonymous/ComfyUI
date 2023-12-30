@@ -70,23 +70,6 @@ class WorkflowUtils:
                     f.write(chunk)
                     
     
-    @staticmethod
-    async def upload_resource(filefield):
-        filename = filefield.filename
-        new_name = str(uuid.uuid4())
-        file_ext = os.path.splitext(filename)[1]
-        if file_ext is not None and file_ext!="":
-            new_name = f"{new_name}{file_ext}"
-        remote_dir = CONFIG["resource"]["in_img_path_cloud"]
-        new_name = f"{remote_dir}/{new_name}"
-        print(f"image file name: {new_name}")
-        
-        file_data = filefield.file.read()
-
-        object_storage.MinIOConnection().put_object(new_name, io.BytesIO(file_data), len(file_data))
-    
-        return True, new_name
-    
     
     @staticmethod
     def upload_file(filename):

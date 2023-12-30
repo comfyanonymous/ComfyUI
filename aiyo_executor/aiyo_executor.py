@@ -67,7 +67,7 @@ class AIYoExecutor:
                            "result": output_data,
                            "error": ""}
             task_res = tb_data.TaskReuslt.objects(**query).modify(upsert=True, new=True, **update_data)
-            print(f"update result: {task_res}")
+            AppLog.info(f"update result: {task_res}")
             
         self.msg_sender.send_sync("execution_end", {"prompt_id": prompt_id, 
                                                     "result_info": graph_output,

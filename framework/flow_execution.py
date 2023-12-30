@@ -104,9 +104,9 @@ class ExecuteContextStorage:
         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
         valid_inputs = class_def.INPUT_TYPES()
         
-        # print(f"[GetInputs] node id: {node_id}, {self.prompt[node_id]['class_type']}")
-        # print(f"[GetInputs] inputs: {LogUtils.visible_convert(inputs)}")
-        # print(f"[GetInputs] cur outputs: {LogUtils.visible_convert(self.outputs)}")
+        # AppLog.info(f"[GetInputs] node id: {node_id}, {self.prompt[node_id]['class_type']}")
+        # AppLog.info(f"[GetInputs] inputs: {LogUtils.visible_convert(inputs)}")
+        # AppLog.info(f"[GetInputs] cur outputs: {LogUtils.visible_convert(self.outputs)}")
         
         input_datas = {}
         for input_name, input_val in inputs.items():
@@ -243,7 +243,7 @@ class SequenceFlow:
         
     
     def _on_node_executing(self, node_id):
-        print(f"node executing")
+        AppLog.info(f"node executing")
         if self.server.client_id is not None:
             self.server.last_node_id = node_id
             self.server.send_sync("executing", { "node": node_id, "prompt_id": self.context.prompt_id }, self.server.client_id)
@@ -276,13 +276,13 @@ class SequenceFlow:
         if hasattr(class_def, 'IS_CHANGED'):
             is_changed_hashs = self._map_node_over_list(obj, input_datas, 'IS_CHANGED')
             # is_changed_hash = getattr(obj, "IS_CHANGED")(**input_datas)
-            # print(f"[IsInputChanged] is changed hash: {is_changed_hash}")
+            # AppLog.info(f"[IsInputChanged] is changed hash: {is_changed_hash}")
             
             old_hash = self.context.is_changed_hash.get(node_id, '')
             if len(is_changed_hashs) != len(old_hash) or not all(old_hash[i] == is_changed_hashs[i] for i in range(len(is_changed_hashs))):
                 is_changed = True
                 self.context.is_changed_hash[node_id] = is_changed_hashs
-                print(f"[IsInputChanged] input changed: is_changed_hash NOT the same.")
+                AppLog.info(f"[IsInputChanged] input changed: is_changed_hash NOT the same.")
         
         # check all inputs
         if is_changed == False:
@@ -294,16 +294,16 @@ class SequenceFlow:
                     original_node_id = node_inputs[input_name][0]
                     is_cur_input_changed = self.context.is_changed[original_node_id]
                     if is_cur_input_changed:
-                        print(f"[IsInputChanged] input changed: input NODE changed.")
+                        AppLog.info(f"[IsInputChanged] input changed: input NODE changed.")
                 else:
                     if input_name in old_inputs:
                         is_cur_input_changed = (node_inputs[input_name] != old_inputs[input_name])
                         if is_cur_input_changed:
-                            print(f"[IsInputChanged] input changed: input value changed.")
+                            AppLog.info(f"[IsInputChanged] input changed: input value changed.")
                     else:
                         is_cur_input_changed = True
                         if is_cur_input_changed:
-                            print(f"[IsInputChanged] input changed: previous input not exist.")
+                            AppLog.info(f"[IsInputChanged] input changed: previous input not exist.")
                     
                 # input changed 
                 if is_cur_input_changed:
@@ -314,7 +314,7 @@ class SequenceFlow:
         if is_changed == False and node_id not in self.context.old_outputs:
             is_changed = True
             if is_changed:
-                print(f"[IsInputChanged] input changed: previous output not exist.")
+                AppLog.info(f"[IsInputChanged] input changed: previous output not exist.")
                   
         return is_changed
     
@@ -433,7 +433,7 @@ class SequenceFlow:
                 next_node_id = getattr(obj, obj.FLOW_GOTO)(**input_datas0, flows = node_flows)
             else:
                 next_node_id = self._node_default_goto(node_flows)
-            print(f"[Handle control node] is control node.")
+            AppLog.info(f"[Handle control node] is control node.")
             return (True, next_node_id, True, None, None)
         elif node_type == "LoopFlowNode":
             # Loop Flow
@@ -448,7 +448,7 @@ class SequenceFlow:
             return (True, next_node_id, succ, err_detail, exp)
              
         else:
-            print(f"[Handle control node] NOT control node.")
+            AppLog.info(f"[Handle control node] NOT control node.")
             return (False, None, True, None, None)
     
     
@@ -506,7 +506,7 @@ class SequenceFlow:
         # while this is valid id
         while cur_node_id is not None:
             
-            print(f"[Execute Node] ****************** {cur_node_id}, {self.context.prompt[cur_node_id]['class_type']}")
+            AppLog.info(f"[Execute Node] ****************** {cur_node_id}, {self.context.prompt[cur_node_id]['class_type']}")
             
             
             input_datas = None
@@ -518,7 +518,7 @@ class SequenceFlow:
                 
                 # get inputs
                 input_datas = self.context.get_inputs(cur_node_id)
-                print(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
+                AppLog.info(f"[Execute Node] inputs: {LogUtils.visible_convert(input_datas)}")
                 
                 is_control_node, next_node_id, subflow_succ, err_detail, exp = self._handle_flow_control_node(cur_node_id, obj, input_datas)
                 
@@ -527,7 +527,7 @@ class SequenceFlow:
                 if not is_control_node:
                     # input changed, execute this node
                     if self._is_inputs_changed(cur_node_id, obj, input_datas):
-                        print(f"[Execute Node] input changed.")
+                        AppLog.info(f"[Execute Node] input changed.")
                         
                         # execute
                         node_output, node_output_ui = self._execute_node(
@@ -538,21 +538,21 @@ class SequenceFlow:
 
                     # input not change, copy the result and skip this node
                     else:
-                        print(f"[Execute Node] input NOT changed.")
+                        AppLog.info(f"[Execute Node] input NOT changed.")
                         node_output, node_output_ui = self.context.get_old_output(cur_node_id)
                         self.context.save_outputs(cur_node_id, node_output, node_output_ui, False)
                     
-                    print(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
-                    print(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
+                    AppLog.info(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
+                    AppLog.info(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
                     
                     # go to the next node
                     next_node_id = self._get_next_node(cur_node_id)
-                #     print(f"[Execute Node] next id: {next_node_id}")
+                #     AppLog.info(f"[Execute Node] next id: {next_node_id}")
                 
                 # is a control node.
                 else:
                     if not subflow_succ:
-                        print(f"[Execute Node] Sub flow executed FAILED: {err_detail}")
+                        AppLog.info(f"[Execute Node] Sub flow executed FAILED: {err_detail}")
                         return (subflow_succ, err_detail, exp)
                     
                 
@@ -562,7 +562,7 @@ class SequenceFlow:
                 self._on_node_executed(cur_node_id, node_output_ui)
                 
                 cur_node_id = next_node_id
-                print(f"[Execute Node] next id: {next_node_id}")
+                AppLog.info(f"[Execute Node] next id: {next_node_id}")
 
             
             except comfy.model_management.InterruptProcessingException as iex:
@@ -571,7 +571,7 @@ class SequenceFlow:
                 error_details = {
                     "node_id": cur_node_id,
                 }
-                print(f"[Execute Node] error: {iex}")
+                AppLog.info(f"[Execute Node] error: {iex}")
                 return (False, error_details, iex)
             
             except Exception as ex:
@@ -579,7 +579,7 @@ class SequenceFlow:
                 return (False, error_details, ex)
                 
         
-        print(f"[Execute Node] Done")
+        AppLog.info(f"[Execute Node] Done")
         return (True,None, None) 
       
         
@@ -608,7 +608,7 @@ class LoopFlow(SequenceFlow):
         dict, error details
         exception, exceptions
         """
-        print(f"[LoopFlow] execute start.")
+        AppLog.info(f"[LoopFlow] execute start.")
         while not self.loop_node.is_loop_end():
             input_datas = None
             try:
@@ -625,18 +625,18 @@ class LoopFlow(SequenceFlow):
                 # 
                 self._on_node_executed(self.loop_node_id, [])
                 
-                print(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
-                print(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
+                AppLog.info(f"[Execute Node] output: {LogUtils.visible_convert(node_output)}")
+                AppLog.info(f"[Execute Node] output ui: {LogUtils.visible_convert(node_output_ui)}")
                 
                 if self.loop_node.is_loop_end():
-                    print(f"[LoopFlow] loop end.")
+                    AppLog.info(f"[LoopFlow] loop end.")
                     return (True, None, None)
                 
                 # get the first slice of input data
                 input_datas0 = {k:v[0] for k,v in input_datas.items()} if input_datas is not None and len(input_datas)>0 else {} 
                 self.first_node_id = self.loop_node.goto(**input_datas0, flows=self.context.flows.get(self.loop_node_id, None))
                 
-                print(f"[LoopFlow] first_node of loop: {self.first_node_id}")
+                AppLog.info(f"[LoopFlow] first_node of loop: {self.first_node_id}")
                 
             except comfy.model_management.InterruptProcessingException as iex:
                 logging.info("Processing interrupted")
@@ -644,7 +644,7 @@ class LoopFlow(SequenceFlow):
                 error_details = {
                     "node_id": self.loop_node_id,
                 }
-                print(f"[Execute Node] error: {iex}")
+                AppLog.info(f"[Execute Node] error: {iex}")
                 return (False, error_details, iex)
             
             except Exception as ex:
@@ -655,10 +655,10 @@ class LoopFlow(SequenceFlow):
             succ, err_details, exp = super().execute()
             
             if not succ:
-                print(f"[LoopNode] Error during executing loop body.")
+                AppLog.info(f"[LoopNode] Error during executing loop body.")
                 return (succ, err_details, exp)
         
-        print(f"[LoopFlow] loop end.")
+        AppLog.info(f"[LoopFlow] loop end.")
         return (True, None, None)
             
             
@@ -730,7 +730,7 @@ class FlowExecutor:
         #     getattr(node_obj, node_obj.INIT_GRAPH_INPUTS)(grpah_inputs)
         if grpah_inputs is None:
             return
-        print(f"graph input data: {grpah_inputs}")
+        AppLog.info(f"graph input data: {grpah_inputs}")
         self.context.prompt = WorkflowUtils.apply_workflow_inputs(self.context.prompt, grpah_inputs)
         
         
@@ -754,11 +754,11 @@ class FlowExecutor:
     def execute(self, prompt, prompt_id, flows, flow_args={}, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
         
-        print(f"[Execute] prompt: {prompt}")        
-        print(f"[Execute] prompt id: {prompt_id}")
-        print(f"[Execute] flows: {flows}")
-        print(f"[Execute] extra data: {extra_data}")
-        print(f"[Execute] execute outputs: {execute_outputs}")
+        AppLog.info(f"[Execute] prompt: {prompt}")        
+        AppLog.info(f"[Execute] prompt id: {prompt_id}")
+        AppLog.info(f"[Execute] flows: {flows}")
+        AppLog.info(f"[Execute] extra data: {extra_data}")
+        AppLog.info(f"[Execute] execute outputs: {execute_outputs}")
 
         
         with torch.inference_mode():
@@ -772,7 +772,7 @@ class FlowExecutor:
             # apply inputs
             # debug ????
             self.apply_graph_inputs(flow_args)
-            print(f"prompt after apply inputs: {self.context.prompt}")
+            AppLog.info(f"prompt after apply inputs: {self.context.prompt}")
             
             # in degree
             in_degree = {}
@@ -792,7 +792,7 @@ class FlowExecutor:
                 if node_id not in in_degree or in_degree[node_id] <=0:
                     first_node_ids.append(node_id)
                  
-            print(f"[Execute] first nodes: {first_node_ids}") 
+            AppLog.info(f"[Execute] first nodes: {first_node_ids}") 
             # exexute each flow  
             for first_node_id in first_node_ids:
                 # 
@@ -808,11 +808,11 @@ class FlowExecutor:
             # get all graph outputs
             graph_outputs = self.get_graph_outputs()
             # debug ?????????
-            print(f"[Execute] graph output is: {graph_outputs}")
+            AppLog.info(f"[Execute] graph output is: {graph_outputs}")
               
              
-            print(f"[Execution] output list: {LogUtils.visible_convert(self.context.outputs)}")   
-            print(f"[Execution] execution DONE.")
+            AppLog.info(f"[Execution] output list: {LogUtils.visible_convert(self.context.outputs)}")   
+            AppLog.info(f"[Execution] execution DONE.")
 
             self.server.last_node_id = None
             

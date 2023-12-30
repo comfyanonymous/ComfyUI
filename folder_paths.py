@@ -1,5 +1,5 @@
 import os
-import time
+import time, uuid
 
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
 
@@ -254,11 +254,38 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
 
 from config.config import CONFIG
 
-def input_path_remote_to_local(remote_path):
+def input_path_remote_to_local(remote_path, rename=False):
     file_basename = os.path.basename(remote_path)
+    # random rename
+    if rename:
+        new_name = str(uuid.uuid4())
+        file_ext = os.path.splitext(file_basename)[1]
+        if file_ext is not None and file_ext!="":
+            file_basename = f"{new_name}{file_ext}"
     file_dir = CONFIG["resource"]["in_img_path_local"]
     file_path = f"{file_dir}/{file_basename}"
     return file_path
+
+
+
+def input_path_local_to_remote(local_path, rename=False):
+    file_basename = os.path.basename(local_path)
+    # random rename
+    if rename:
+        new_name = str(uuid.uuid4())
+        file_ext = os.path.splitext(file_basename)[1]
+        if file_ext is not None and file_ext!="":
+            file_basename = f"{new_name}{file_ext}"
+    file_dir = CONFIG["resource"]["in_img_path_cloud"]
+    file_path = f"{file_dir}/{file_basename}"
+    return file_path
+
+
+def generate_local_filepath(ext:str):
+    file_dir = CONFIG["resource"]["in_img_path_local"]
+    basename = f"{str(uuid.uuid4())}.{ext}"
+    file_name = f"{file_dir}/{basename}"
+    return file_name
     
     
     

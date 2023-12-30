@@ -186,26 +186,9 @@ class AppLog:
 
 
 
-    # @staticmethod
-    # def _light_weight_log_convert(val, max_len=500):
-        
-    #     if isinstance(val, str):
-    #         if len(val) > max_len:
-    #             return '[HIDDEN] string too long.'
-    #         else:
-    #             return val
-    #     elif isinstance(val, list):
-    #         new_data = []
-    #         for i, vali in enumerate(val):
-    #             new_data.append(AppLog._light_weight_log_convert(vali, max_len))
-    #         return new_data
-    #     elif isinstance(val, dict):
-    #         new_data = {}
-    #         for key, vali in val.items():
-    #             new_data[key] = AppLog._light_weight_log_convert(vali, max_len)
-    #         return new_data
-    #     else:
-    #         return val
+    @staticmethod
+    def visible_convert(val, max_len=500):
+        return LogUtils.visible_convert(val, max_len)
     
     
     

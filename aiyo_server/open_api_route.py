@@ -2,13 +2,15 @@
 
 import uuid
 import datetime
-import os
+import os, io
 import traceback
 import requests
 
 import aiohttp
 from aiohttp import web
     
+import folder_paths
+from framework.model import object_storage
 from aiyo_server.aiyo_server import AIYoServer
 from framework.app_log import AppLog
 
@@ -17,12 +19,13 @@ from framework.workflow_utils import WorkflowUtils
 from framework.err_code import ErrorCode
 from config.config import CONFIG
 from framework.image_util import ImageUtil
+from aiyo_server.server_helper import ServerHelper
 
 
 @AIYoServer.instance.routes.post("/open_api/service/upload_file")
 async def upload_file(request):
     """
-    Queray{
+    Query{
         file, FileField
     }
     """
@@ -44,16 +47,18 @@ async def upload_file(request):
         
     try:
         # upload
-        succ, filename = await WorkflowUtils.upload_resource(file_field)
-        AppLog.info(f"[API] upload resource, result: {succ}, {filename}")    
+        remote_name = folder_paths.input_path_local_to_remote(file_field.filename, rename=True)
+        file_data = file_field.file.read()
+        object_storage.MinIOConnection().put_object(remote_name, io.BytesIO(file_data), len(file_data))
+        AppLog.info(f"[API] upload resource, result: {remote_name}")    
     except Exception as e:
         AppLog.info(f"[API] upload file, unexpected error. \n{traceback.format_exc()}")
         return web.json_response({ "code": ErrorCode.UNEXPECTED, "data":{"filename": ""}, 
                                   "message": "Unexpected error."})
-    if succ:
+    if True:
         return web.json_response({
             "code": ErrorCode.SUCCESS,
-            "data":{"filename": filename},
+            "data":{"filename": remote_name},
             "message": ""
         }, status=200)
     else:
@@ -78,87 +83,21 @@ async def run_flow(request):
     # get json data
     try:    
         json_data =  await request.json()
-        AppLog.info(f"[API] run_flow, json data: {json_data} ")
+        AppLog.info(f"[API] run_flow, json data: {AppLog.visible_convert(json_data)} ")
     except Exception as e:
         code = ErrorCode.INVALID_PARAM
         err = "Faild to get json data from request"
-        AppLog.info(f"[API] run flow. {err}")
+        AppLog.warning(f"[API] run flow. {err}\n{traceback.format_exc()}")
         
+      
+    task_id = None
     if code == ErrorCode.SUCCESS:
         params = json_data.get("body", None)
-        
-        try:      
-            # get flow data
-            flow_infos = tb_data.Flow.objects(flowId=flow_id)
-            flow_info = flow_infos[0] if flow_infos is not None and len(flow_infos)>0 else None
-            webhooks = flow_info.webhook
-            flow_input = flow_info.flowInput
-            
-            # upload image resource
-            # ??
-            for arg_name, arg_val in params.items():
-                if arg_name in flow_input and flow_input[arg_name] == "IMAGE":
-                    # http or https url
-                    if arg_val is not None and (arg_val.startswith("http://") or arg_val.startswith("https://")):
-                        
-                        filename = WorkflowUtils.extract_filename_from_url(arg_val)
-                        fileext = os.path.splitext(filename)[1]
-                        local_dir = CONFIG["resource"]["in_img_path_local"]
-                        basename = f"{str(uuid.uuid4())}{fileext}"
-                        local_name = f"{local_dir}/{basename}"
-                        # download image
-                        response = requests.get(arg_val)
-                        with open(local_name, 'wb') as file:
-                            file.write(response.content)
-                        # upload
-                        remote_name = WorkflowUtils.upload_file(local_name)
-                        # update parameter value
-                        params[arg_name] = remote_name
-                        
-                    
-                    # base64str image
-                    else:
-                        local_dir = CONFIG["resource"]["in_img_path_local"]
-                        basename = f"{str(uuid.uuid4())}.png"
-                        local_name = f"{local_dir}/{basename}"
-                        cur_img = ImageUtil.base64_to_image(arg_val)
-                        cur_img.save(local_name)
-                        # upload
-                        remote_name = WorkflowUtils.upload_file(local_name)
-                        # update parameter value
-                        params[arg_name] = remote_name
-                        
-                        
-            AppLog.info(f"[API Run] params after parse: {params}")
-            
-            # generate task 
-            task_id = str(uuid.uuid4())
-            now = datetime.datetime.utcnow()
-            task = tb_data.Task(taskId=task_id, flowId=flow_id, 
-                                status=0, taskParams=params,
-                                taskType="api",
-                                createdBy="aiyoh", createdAt=now,
-                                lastUpdatedAt=now,
-                                webhook=webhooks)
-            task.save()
-    
-            # add task into task queue
-            AIYoServer.instance.prompt_queue.put(task_id)
-            
-            return web.json_response({
-                "code": ErrorCode.SUCCESS,      # for success
-                "data": {"task_id": task_id},
-                "message": ""
-            })
-            
-        except Exception as e:
-            AppLog.warning(f"[API Run] unexpected error: {traceback.format_exc()}")
-            code = ErrorCode.UNEXPECTED
-            err = "Unexpected error."
+        task_id, (code, err) = ServerHelper.add_user_flow_task(flow_id, params)
     
     return web.json_response({
         "code": code,
-        "data": {"task_id": ""},
+        "data": {"task_id": task_id},
         "message": err
     })
     
@@ -192,14 +131,7 @@ async def register_webhook(request):
         on_end = json_data.get("on_end", None)
         on_processing = json_data.get("on_processing", None)
         
-        flow_info = tb_data.Flow.objects(flowId=flow_id).first()
-        if flow_info is not None:
-            flow_info.webhook = {"on_start": on_start, "on_end": on_end, "on_processing": on_processing}
-            flow_info.save()
-        else:
-            code = ErrorCode.INVALID_PARAM
-            err = f"Can not find flow: {flow_id}"  
-            AppLog.info(f"[API] register_webhook, ERROR. {err}")
+        code, err = ServerHelper.register_webhook(flow_id=flow_id, on_start=on_start, on_processing=on_processing, on_end=on_end)
     
     return web.json_response({
         "code": code,
@@ -212,9 +144,9 @@ async def register_webhook(request):
 @AIYoServer.instance.routes.post("/test/on_start")
 async def test_on_start(request):
     json_data =  await request.json()
-    print("On start")
-    print(json_data)
-    print("\n")
+    AppLog.info("On start")
+    AppLog.info(json_data)
+    AppLog.info("\n")
     return web.Response(status=200)
     
     
@@ -222,12 +154,12 @@ async def test_on_start(request):
 @AIYoServer.instance.routes.post("/test/on_end")
 async def test_on_end(request):
     json_data =  await request.json()
-    print("On end")
-    print(json_data)
+    AppLog.info("On end")
+    AppLog.info(AppLog.visible_convert(json_data))
     img_str = json_data['result']['out_image']
     img = ImageUtil.base64_to_image(img_str)
     img.save("output/b.png")
-    print("\n")
+    AppLog.info("\n")
     return web.Response(status=200)
     
     
@@ -235,8 +167,8 @@ async def test_on_end(request):
 @AIYoServer.instance.routes.post("/test/on_processing")
 async def test_on_processing(request):
     json_data =  await request.json()
-    print("On processing")
-    print(json_data)
-    print("\n")
+    AppLog.info("On processing")
+    AppLog.info(json_data)
+    AppLog.info("\n")
     return web.Response(status=200)
     

@@ -25,7 +25,7 @@ def execute_prestartup_script():
             spec.loader.exec_module(module)
             return True
         except Exception as e:
-            print(f"Failed to execute startup-script: {script_path} / {e}")
+            AppLog.info(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -44,14 +44,13 @@ def execute_prestartup_script():
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
     if len(node_prestartup_times) > 0:
-        print("\nPrestartup times for custom nodes:")
+        AppLog.info("\nPrestartup times for custom nodes:")
         for n in sorted(node_prestartup_times):
             if n[2]:
                 import_message = ""
             else:
                 import_message = " (PRESTARTUP FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
-        print()
+            AppLog.info("{:6.1f} seconds{}:{}".format(n[0], import_message, n[1]))
 
 
 
@@ -72,7 +71,7 @@ def load_extra_path_config(yaml_path):
                 full_path = y
                 if base_path is not None:
                     full_path = os.path.join(base_path, full_path)
-                print("Adding extra search path", x, full_path)
+                AppLog.info(f"Adding extra search path: {x}, {full_path}")
                 folder_paths.add_model_folder_path(x, full_path)
 
 # Main code
@@ -110,14 +109,7 @@ def aiyo_server_main():
     asyncio.set_event_loop(loop)
     
     server = aiyo_server.aiyo_server.AIYoServer(loop)
-    que = None
-    if CONFIG["deploy"]:
-        que = aiyo_server.server_task_queue.TaskQueueKafka(server)
-        que.init_producer()
-        
-        tb_data.default_connect()
-    else:
-        que = aiyo_server.server_task_queue.TaskQueueLocal(server)
+
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):
@@ -134,7 +126,7 @@ def aiyo_server_main():
     
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
-        print(f"Setting output directory to: {output_dir}")
+        AppLog.info(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
     #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
@@ -147,7 +139,7 @@ def aiyo_server_main():
     try:
         loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
     except KeyboardInterrupt:
-        print("\nStopped server")
+        AppLog.info("\nStopped server")
 
 
 if __name__ == "__main__":

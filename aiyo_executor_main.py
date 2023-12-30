@@ -1,3 +1,6 @@
+
+
+
 import comfy.options
 comfy.options.enable_args_parsing()
 
@@ -8,7 +11,8 @@ import time
 from framework.app_log import AppLog
 from aiyo_executor.message_sender import MessageManager
 from aiyo_executor.aiyo_executor import AIYoExecutor
-
+from framework.app_log import AppLog
+AppLog.init()
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -19,7 +23,7 @@ def execute_prestartup_script():
             spec.loader.exec_module(module)
             return True
         except Exception as e:
-            print(f"Failed to execute startup-script: {script_path} / {e}")
+            AppLog.info(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -38,14 +42,13 @@ def execute_prestartup_script():
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
     if len(node_prestartup_times) > 0:
-        print("\nPrestartup times for custom nodes:")
+        AppLog.info("\nPrestartup times for custom nodes:")
         for n in sorted(node_prestartup_times):
             if n[2]:
                 import_message = ""
             else:
                 import_message = " (PRESTARTUP FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
-        print()
+            AppLog.info("{:6.1f} seconds{}:{}".format(n[0], import_message, n[1]))
 
 execute_prestartup_script()
 
@@ -66,7 +69,7 @@ if os.name == "nt":
 def prepare_cuda_env():
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        print("Set cuda device to:", args.cuda_device)
+        AppLog.info("Set cuda device to:", args.cuda_device)
 
     if args.deterministic:
         if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
@@ -95,7 +98,7 @@ def cuda_malloc_warning():
             if b in device_name:
                 cuda_malloc_warning = True
         if cuda_malloc_warning:
-            print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+            AppLog.info("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
 
@@ -132,7 +135,7 @@ def load_extra_path_config(yaml_path):
                 full_path = y
                 if base_path is not None:
                     full_path = os.path.join(base_path, full_path)
-                print("Adding extra search path", x, full_path)
+                AppLog.info(f"Adding extra search path: {x},  {full_path}")
                 folder_paths.add_model_folder_path(x, full_path)
 
 
@@ -143,11 +146,10 @@ async def run(msg_sender):
 
 
 def aiyo_executor_main():
-    AppLog.init()
     
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
-        print(f"Setting temp directory to: {temp_dir}")
+        AppLog.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
@@ -175,7 +177,7 @@ def aiyo_executor_main():
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
-        print(f"Setting output directory to: {output_dir}")
+        AppLog.info(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
     #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
@@ -185,14 +187,14 @@ def aiyo_executor_main():
 
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
-        print(f"Setting input directory to: {input_dir}")
+        AppLog.info(f"Setting input directory to: {input_dir}")
         folder_paths.set_input_directory(input_dir)
 
     try:
         # loop.run_until_complete(msg_sender.publish_loop)
         loop.run_until_complete(run(msg_sender))
     except KeyboardInterrupt:
-        print("\nStopped server")
+        AppLog.info("\nStopped server")
 
     cleanup_temp()
     

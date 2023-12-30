@@ -26,7 +26,6 @@ class TaskQueueLocal:
         self.queue = []
         self.currently_running = {}
         self.history = {}
-        server.prompt_queue = self
         self.number = 0
         
         
@@ -58,7 +57,7 @@ class TaskQueueLocal:
                 response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                 return True, response
             else:
-                print("invalid prompt:", valid[1])
+                AppLog.info("invalid prompt:", valid[1])
                 return False, {"error": valid[1], "node_errors": valid[3]}
         else:
             return False, {"error": "no prompt", "node_errors": []}
@@ -68,7 +67,7 @@ class TaskQueueLocal:
     def _put(self, item):
         with self.mutex:
             heapq.heappush(self.queue, item)
-            self.server.queue_updated()
+            self.server.server_client_communicator.queue_updated()
             self.not_empty.notify()
 
     def get(self, timeout=None):
@@ -84,7 +83,7 @@ class TaskQueueLocal:
             prompt_id = item[1]
             self.currently_running[prompt_id] = copy.deepcopy(item)
             # self.task_counter += 1
-            self.server.queue_updated()
+            self.server.server_client_communicator.queue_updated()
             return (item, prompt_id)
 
     def task_done(self, prompt_id, outputs):
@@ -97,7 +96,7 @@ class TaskQueueLocal:
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
-            self.server.queue_updated()
+            self.server.server_client_communicator.queue_updated()
 
     def get_current_queue(self):
         with self.mutex:
@@ -113,7 +112,7 @@ class TaskQueueLocal:
     def wipe_queue(self):
         with self.mutex:
             self.queue = []
-            self.server.queue_updated()
+            self.server.server_client_communicator.queue_updated()
 
     def delete_queue_item(self, function):
         with self.mutex:
@@ -124,7 +123,7 @@ class TaskQueueLocal:
                     else:
                         self.queue.pop(x)
                         heapq.heapify(self.queue)
-                    self.server.queue_updated()
+                    self.server.server_client_communicator.queue_updated()
                     return True
         return False
 
@@ -156,6 +155,12 @@ class TaskQueueLocal:
             self.history.pop(id_to_delete, None)
 
 
+    def get_queue_info(self):
+        prompt_info = {}
+        exec_info = {}
+        exec_info['queue_remaining'] = self.get_tasks_remaining()
+        prompt_info['exec_info'] = exec_info
+        return prompt_info
 
 
 
@@ -171,7 +176,6 @@ class TaskQueueKafka:
         self.queue = []
         self.currently_running = {}
         self.history = {}
-        server.prompt_queue = self
         
         self.producer = None
         self.consumer = None
@@ -190,7 +194,7 @@ class TaskQueueKafka:
         """
         with self.mutex:
             AppLog.info("Here put task to kafka")
-            print("put task into kafka")
+            AppLog.info("put task into kafka")
             
             # update upload resource to object
             # ????
@@ -201,9 +205,9 @@ class TaskQueueKafka:
             # add task into kafka queue
             msg = bytes(task_id, encoding='utf-8')
             self.producer.produce(CONFIG["kafka_settings"]["topic"], value=msg)
-            print(msg)
+            AppLog.info(msg)
             
-            self.server.queue_updated()
+            self.server.server_client_communicator.queue_updated()
             self.not_empty.notify()
             
 
@@ -219,7 +223,7 @@ class TaskQueueKafka:
             # item id: ???????
             # item_id = item.id
             # self.currently_running[item_id] = copy.deepcopy(item)
-            self.server.queue_updated()
+            self.server.server_client_communicator.queue_updated()
             return (item, 0)
 
 
@@ -237,7 +241,7 @@ class TaskQueueKafka:
             
             # to do  ????????
             
-            self.server.queue_updated()
+            self.server.server_client_communicator.queue_updated()
 
     def get_current_queue(self):
         # with self.mutex:
@@ -260,7 +264,7 @@ class TaskQueueKafka:
     def wipe_queue(self):
         # with self.mutex:
         #     self.queue = []
-        #     self.server.queue_updated()
+        #     self.server.server_client_communicator.queue_updated()
         
         # todo ????????
         pass
@@ -274,7 +278,7 @@ class TaskQueueKafka:
         #             else:
         #                 self.queue.pop(x)
         #                 heapq.heapify(self.queue)
-        #             self.server.queue_updated()
+        #             self.server.server_client_communicator.queue_updated()
         #             return True
         # return False
         
@@ -318,3 +322,11 @@ class TaskQueueKafka:
         
         # todo ????????
         pass
+    
+    
+    def get_queue_info(self):
+        prompt_info = {}
+        exec_info = {}
+        exec_info['queue_remaining'] = self.get_tasks_remaining()
+        prompt_info['exec_info'] = exec_info
+        return prompt_info

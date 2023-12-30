@@ -109,7 +109,7 @@ class APICall:
     @staticmethod
     async def post_async(api, json_data):
         url = api
-        AppLog.info(f"[Post async] api:{api}, data: {json_data}")
+        AppLog.info(f"[Post async] api:{api}, data: {AppLog.visible_convert(json_data)}")
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=json_data) as response:
                 if response.status == 200:
@@ -120,7 +120,7 @@ class APICall:
                         return True, None
                 else:
                     error_message = await response.text()  # 获取错误信息
-                    AppLog.error(f'[Get Async] server not response: {error_message}') 
+                    AppLog.error(f'[Get Async] server not response: {AppLog.visible_convert(error_message)}') 
                     return False, None
 
 
@@ -141,7 +141,7 @@ class WeebhookSender:
             succ,_ = await APICall.post_async(self.on_start, {"task_id": task_id})
             
             if not succ:
-                AppLog.warning(f"[WebhookSender] {event}, fail to call webhook:{self.on_start}, data:{data}")
+                AppLog.warning(f"[WebhookSender] {event}, fail to call webhook:{self.on_start}, data:{AppLog.visible_convert(data)}")
             
         elif event == "execution_end" and self.on_end is not None:
             task_id = data["prompt_id"]
@@ -164,7 +164,7 @@ class WeebhookSender:
             self.on_end = None
             self.on_processing = None
             if not succ:
-                AppLog.warning(f"[WebhookSender] {event}, fail to call webhook:{self.on_end}, data:{data}")
+                AppLog.warning(f"[WebhookSender] {event}, fail to call webhook:{self.on_end}, data:{AppLog.visible_convert(data)}")
             
         elif event == "execution_error" and self.on_end is not None:
             task_id = data["prompt_id"]
