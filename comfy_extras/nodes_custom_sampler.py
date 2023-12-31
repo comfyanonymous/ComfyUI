@@ -13,6 +13,7 @@ class BasicScheduler:
                     {"model": ("MODEL",),
                      "scheduler": (comfy.samplers.SCHEDULER_NAMES, ),
                      "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
@@ -20,8 +21,13 @@ class BasicScheduler:
 
     FUNCTION = "get_sigmas"
 
-    def get_sigmas(self, model, scheduler, steps):
-        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, steps).cpu()
+    def get_sigmas(self, model, scheduler, steps, denoise):
+        total_steps = steps
+        if denoise < 1.0:
+            total_steps = int(steps/denoise)
+
+        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, total_steps).cpu()
+        sigmas = sigmas[-(steps + 1):]
         return (sigmas, )
 
 
