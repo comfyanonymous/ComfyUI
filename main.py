@@ -106,6 +106,8 @@ def prompt_worker(q, server):
             item, item_id = queue_item
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
+            server.last_prompt_id = prompt_id
+
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
             q.task_done(item_id, e.outputs_ui)
@@ -131,7 +133,9 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 def hijack_progress(server):
     def hook(value, total, preview_image):
         comfy.model_management.throw_exception_if_processing_interrupted()
-        server.send_sync("progress", {"value": value, "max": total}, server.client_id)
+        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+
+        server.send_sync("progress", progress, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
