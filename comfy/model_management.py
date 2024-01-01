@@ -186,6 +186,9 @@ except:
 if is_intel_xpu():
     VAE_DTYPE = torch.bfloat16
 
+if args.cpu_vae:
+    VAE_DTYPE = torch.float32
+
 if args.fp16_vae:
     VAE_DTYPE = torch.float16
 elif args.bf16_vae:
@@ -259,6 +262,14 @@ print("VAE dtype:", VAE_DTYPE)
 
 current_loaded_models = []
 
+def module_size(module):
+    module_mem = 0
+    sd = module.state_dict()
+    for k in sd:
+        t = sd[k]
+        module_mem += t.nelement() * t.element_size()
+    return module_mem
+
 class LoadedModel:
     def __init__(self, model):
         self.model = model
@@ -296,14 +307,14 @@ class LoadedModel:
                 if hasattr(m, "comfy_cast_weights"):
                     m.prev_comfy_cast_weights = m.comfy_cast_weights
                     m.comfy_cast_weights = True
-                    module_mem = 0
-                    sd = m.state_dict()
-                    for k in sd:
-                        t = sd[k]
-                        module_mem += t.nelement() * t.element_size()
+                    module_mem = module_size(m)
                     if mem_counter + module_mem < lowvram_model_memory:
                         m.to(self.device)
                         mem_counter += module_mem
+                elif hasattr(m, "weight"): #only modules with comfy_cast_weights can be set to lowvram mode
+                    m.to(self.device)
+                    mem_counter += module_size(m)
+                    print("lowvram: loaded module regularly", m)
 
             self.model_accelerated = True
 
@@ -547,6 +558,8 @@ def intermediate_device():
         return torch.device("cpu")
 
 def vae_device():
+    if args.cpu_vae:
+        return torch.device("cpu")
     return get_torch_device()
 
 def vae_offload_device():

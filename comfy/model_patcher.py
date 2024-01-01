@@ -28,13 +28,9 @@ class ModelPatcher:
         if self.size > 0:
             return self.size
         model_sd = self.model.state_dict()
-        size = 0
-        for k in model_sd:
-            t = model_sd[k]
-            size += t.nelement() * t.element_size()
-        self.size = size
+        self.size = comfy.model_management.module_size(self.model)
         self.model_keys = set(model_sd.keys())
-        return size
+        return self.size
 
     def clone(self):
         n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self.current_device, weight_inplace_update=self.weight_inplace_update)
