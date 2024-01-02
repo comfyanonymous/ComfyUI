@@ -78,8 +78,8 @@
         
         "kafka_settings":{
             "url": "localhost:9092",
-            "topic": "aigc_task_test",
-            "group": "g_aigc_task_test",
+            "topic": "aiyo_task_test",
+            "group": "g_aiyo_task_test",
 
             "topic_partitions": 3,
             "topic_rep_factor": 1
@@ -115,7 +115,7 @@
 
 
         "log":{
-            "console_log": 1,
+            "console_log": 0,
             "log_file": "log/app.log",
             "log_level": "INFO"
         },

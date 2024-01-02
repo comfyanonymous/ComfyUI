@@ -1,6 +1,6 @@
 #!/bin/bash
 
-service="aiyo_server_main"
+service="aiyo_executor_main"
 pids=$(ps -ef | grep "$service" | grep -v grep | awk '{print $2}')
 
 if [ -n "$pids" ]; then
