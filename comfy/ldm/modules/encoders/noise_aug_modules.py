@@ -15,12 +15,12 @@ class CLIPEmbeddingNoiseAugmentation(ImageConcatWithNoiseAugmentation):
 
     def scale(self, x):
         # re-normalize to centered mean and unit variance
-        x = (x - self.data_mean) * 1. / self.data_std
+        x = (x - self.data_mean.to(x.device)) * 1. / self.data_std.to(x.device)
         return x
 
     def unscale(self, x):
         # back to original data stats
-        x = (x * self.data_std) + self.data_mean
+        x = (x * self.data_std.to(x.device)) + self.data_mean.to(x.device)
         return x
 
     def forward(self, x, noise_level=None):

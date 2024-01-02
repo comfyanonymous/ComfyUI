@@ -17,56 +17,32 @@ class LCM(comfy.model_sampling.EPS):
 
         return c_out * x0 + c_skip * model_input
 
-class ModelSamplingDiscreteLCM(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.sigma_data = 1.0
-        timesteps = 1000
-        beta_start = 0.00085
-        beta_end = 0.012
+class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
+    original_timesteps = 50
 
-        betas = torch.linspace(beta_start**0.5, beta_end**0.5, timesteps, dtype=torch.float32) ** 2
-        alphas = 1.0 - betas
-        alphas_cumprod = torch.cumprod(alphas, dim=0)
+    def __init__(self, model_config=None):
+        super().__init__(model_config)
 
-        original_timesteps = 50
-        self.skip_steps = timesteps // original_timesteps
+        self.skip_steps = self.num_timesteps // self.original_timesteps
 
+        sigmas_valid = torch.zeros((self.original_timesteps), dtype=torch.float32)
+        for x in range(self.original_timesteps):
+            sigmas_valid[self.original_timesteps - 1 - x] = self.sigmas[self.num_timesteps - 1 - x * self.skip_steps]
 
-        alphas_cumprod_valid = torch.zeros((original_timesteps), dtype=torch.float32)
-        for x in range(original_timesteps):
-            alphas_cumprod_valid[original_timesteps - 1 - x] = alphas_cumprod[timesteps - 1 - x * self.skip_steps]
-
-        sigmas = ((1 - alphas_cumprod_valid) / alphas_cumprod_valid) ** 0.5
-        self.set_sigmas(sigmas)
-
-    def set_sigmas(self, sigmas):
-        self.register_buffer('sigmas', sigmas)
-        self.register_buffer('log_sigmas', sigmas.log())
-
-    @property
-    def sigma_min(self):
-        return self.sigmas[0]
-
-    @property
-    def sigma_max(self):
-        return self.sigmas[-1]
+        self.set_sigmas(sigmas_valid)
 
     def timestep(self, sigma):
         log_sigma = sigma.log()
         dists = log_sigma.to(self.log_sigmas.device) - self.log_sigmas[:, None]
-        return dists.abs().argmin(dim=0).view(sigma.shape) * self.skip_steps + (self.skip_steps - 1)
+        return (dists.abs().argmin(dim=0).view(sigma.shape) * self.skip_steps + (self.skip_steps - 1)).to(sigma.device)
 
     def sigma(self, timestep):
-        t = torch.clamp(((timestep - (self.skip_steps - 1)) / self.skip_steps).float(), min=0, max=(len(self.sigmas) - 1))
+        t = torch.clamp(((timestep.float().to(self.log_sigmas.device) - (self.skip_steps - 1)) / self.skip_steps).float(), min=0, max=(len(self.sigmas) - 1))
         low_idx = t.floor().long()
         high_idx = t.ceil().long()
         w = t.frac()
         log_sigma = (1 - w) * self.log_sigmas[low_idx] + w * self.log_sigmas[high_idx]
-        return log_sigma.exp()
-
-    def percent_to_sigma(self, percent):
-        return self.sigma(torch.tensor(percent * 999.0))
+        return log_sigma.exp().to(timestep.device)
 
 
 def rescale_zero_terminal_snr_sigmas(sigmas):
@@ -111,15 +87,45 @@ class ModelSamplingDiscrete:
             sampling_type = comfy.model_sampling.V_PREDICTION
         elif sampling == "lcm":
             sampling_type = LCM
-            sampling_base = ModelSamplingDiscreteLCM
+            sampling_base = ModelSamplingDiscreteDistilled
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
 
-        model_sampling = ModelSamplingAdvanced()
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
         if zsnr:
             model_sampling.set_sigmas(rescale_zero_terminal_snr_sigmas(model_sampling.sigmas))
 
+        m.add_object_patch("model_sampling", model_sampling)
+        return (m, )
+
+class ModelSamplingContinuousEDM:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "sampling": (["v_prediction", "eps"],),
+                              "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
+                              "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/model"
+
+    def patch(self, model, sampling, sigma_max, sigma_min):
+        m = model.clone()
+
+        if sampling == "eps":
+            sampling_type = comfy.model_sampling.EPS
+        elif sampling == "v_prediction":
+            sampling_type = comfy.model_sampling.V_PREDICTION
+
+        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousEDM, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_sigma_range(sigma_min, sigma_max)
         m.add_object_patch("model_sampling", model_sampling)
         return (m, )
 
@@ -164,5 +170,6 @@ class RescaleCFG:
 
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
+    "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
     "RescaleCFG": RescaleCFG,
 }
