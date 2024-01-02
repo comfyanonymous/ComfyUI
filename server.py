@@ -584,7 +584,8 @@ class PromptServer():
         message = self.encode_bytes(event, data)
 
         if sid is None:
-            for ws in self.sockets.values():
+            sockets = list(self.sockets.values())
+            for ws in sockets:
                 await send_socket_catch_exception(ws.send_bytes, message)
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
@@ -593,7 +594,8 @@ class PromptServer():
         message = {"type": event, "data": data}
 
         if sid is None:
-            for ws in self.sockets.values():
+            sockets = list(self.sockets.values())
+            for ws in sockets:
                 await send_socket_catch_exception(ws.send_json, message)
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
