@@ -192,6 +192,75 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     
     You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
 
+### Authoring Custom Nodes
+
+Create a `requirements.txt`:
+```
+comfyui
+```
+Observe `comfyui` is now a requirement for using your custom nodes. This will ensure you will be able to access `comfyui` as a library. For example, your code will now be able to import the folder paths using `from comfyui.cmd import folder_paths`. Because you will be using my fork, use this:
+
+```
+comfyui @ git+https://github.com/hiddenswitch/ComfyUI.git
+```
+
+Additionally, create a `pyproject.toml`:
+```
+[build-system]
+requires = ["setuptools", "wheel", "pip"]
+build-backend = "setuptools.build_meta"
+```
+This ensures you will be compatible with later versions of Python.
+
+Finally, move your nodes to a directory with an empty `__init__.py`, i.e., a package. You should have a file structure like this:
+
+```
+# the root of your git repository
+/.git
+/pyproject.toml
+/requirements.txt
+/mypackage_custom_nodes/__init__.py
+/mypackage_custom_nodes/some_nodes.py
+```
+Finally, create a `setup.py` at the root of your custom nodes package / repository. Here is an example:
+
+**setup.py**
+```python
+from setuptools import setup, find_packages
+import os.path
+
+setup(
+    name="mypackage",
+    version="0.0.1",
+    packages=find_packages(),
+    install_requires=open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines(),
+    author='',
+    author_email='',
+    description='',
+    entry_points={
+        'comfyui.custom_nodes': [
+            'mypackage = mypackage_custom_nodes',
+        ],
+    },
+)
+```
+
+All `.py` files located in the package specified by the entrypoint with your package's name will be scanned for node class mappings declared like this:
+
+```py
+NODE_CLASS_MAPPINGS = {
+    "BinaryPreprocessor": Binary_Preprocessor
+}
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "BinaryPreprocessor": "Binary Lines"
+}
+```
+These packages will be scanned recursively.
+
+Since you will be using `pip` to install custom nodes this way, you will get dependency resolution automatically, so you never have to `pip install -r requirements.txt` or similar garbage. this will deprecate / obsolete ComfyUI-Manager's functionality, you can use any pip package manager UI (mostly resolves https://github.com/comfyanonymous/ComfyUI/issues/1773). this also fixes issues like https://github.com/comfyanonymous/ComfyUI/issues/1678 https://github.com/comfyanonymous/ComfyUI/issues/1665 https://github.com/comfyanonymous/ComfyUI/issues/1596 https://github.com/comfyanonymous/ComfyUI/issues/1385 https://github.com/comfyanonymous/ComfyUI/issues/1373.
+
+You would also be able to add the `comfyui` git hash and custom nodes packages by git+commit or name in the metadata for maximum reproducibility.
+
 ### Troubleshooting
 
 > I see a message like `RuntimeError: '"upsample_bilinear2d_channels_last" not implemented for 'Half''`
