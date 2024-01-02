@@ -22,4 +22,4 @@ echo Running the application...
 call %VENV_DIR%\Scripts\activate.bat
 
 
-python aiyo_server_main.py --config "debug_dp"
+python aiyo_server_main.py --config "debug_dp" --listen "0.0.0.0"
