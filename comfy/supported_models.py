@@ -290,6 +290,7 @@ class SD_X4Upscaler(SD20):
 
     unet_extra_config = {
         "disable_self_attentions": [True, True, True, False],
+        "num_classes": 1000,
         "num_heads": 8,
         "num_head_channels": -1,
     }

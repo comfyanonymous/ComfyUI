@@ -9,7 +9,7 @@ class SD_4XUpscale_Conditioning:
                               "positive": ("CONDITIONING",),
                               "negative": ("CONDITIONING",),
                               "scale_ratio": ("FLOAT", {"default": 4.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              # "noise_augmentation": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.01}), #TODO
+                              "noise_augmentation": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                              }}
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
     RETURN_NAMES = ("positive", "negative", "latent")
@@ -18,7 +18,7 @@ class SD_4XUpscale_Conditioning:
 
     CATEGORY = "conditioning/upscale_diffusion"
 
-    def encode(self, images, positive, negative, scale_ratio):
+    def encode(self, images, positive, negative, scale_ratio, noise_augmentation):
         width = max(1, round(images.shape[-2] * scale_ratio))
         height = max(1, round(images.shape[-3] * scale_ratio))
 
@@ -30,11 +30,13 @@ class SD_4XUpscale_Conditioning:
         for t in positive:
             n = [t[0], t[1].copy()]
             n[1]['concat_image'] = pixels
+            n[1]['noise_augmentation'] = noise_augmentation
             out_cp.append(n)
 
         for t in negative:
             n = [t[0], t[1].copy()]
             n[1]['concat_image'] = pixels
+            n[1]['noise_augmentation'] = noise_augmentation
             out_cn.append(n)
 
         latent = torch.zeros([images.shape[0], 4, height // 4, width // 4])
