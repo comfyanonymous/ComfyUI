@@ -28,23 +28,16 @@ version = '0.0.1'
 """
 The package index to the torch built with AMD ROCm.
 """
-amd_torch_index = "https://download.pytorch.org/whl/rocm5.4.2"
+amd_torch_index = "https://download.pytorch.org/whl/rocm5.6"
 
 """
 The package index to torch built with CUDA.
 Observe the CUDA version is in this URL.
 """
-nvidia_torch_index = "https://download.pytorch.org/whl/cu118"
+nvidia_torch_index = "https://download.pytorch.org/whl/cu121"
 
 """
 The package index to torch built against CPU features.
-This includes macOS MPS support.
-"""
-cpu_torch_index_nightlies = "https://download.pytorch.org/whl/nightly/cpu"
-
-"""
-The package index to torch built against CPU features.
-Non-nightlies are selected when building Linux on arm64.
 """
 cpu_torch_index = "https://download.pytorch.org/whl/cpu"
 
@@ -110,22 +103,17 @@ def _is_linux_arm64():
 def dependencies() -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
     # todo: also add all plugin dependencies
-    _alternative_indices = [amd_torch_index, nvidia_torch_index, cpu_torch_index_nightlies]
+    _alternative_indices = [amd_torch_index, nvidia_torch_index]
     session = PipSession()
 
-    gpu_accelerated = False
     index_urls = ['https://pypi.org/simple']
     # prefer nvidia over AMD because AM5/iGPU systems will have a valid ROCm device
     if _is_nvidia():
         index_urls += [nvidia_torch_index]
-        gpu_accelerated = True
     elif _is_amd():
         index_urls += [amd_torch_index]
-        gpu_accelerated = True
-    elif _is_linux_arm64():
-        index_urls += [cpu_torch_index]
     else:
-        index_urls += [cpu_torch_index_nightlies]
+        index_urls += [cpu_torch_index]
 
     if len(index_urls) == 1:
         return _dependencies
