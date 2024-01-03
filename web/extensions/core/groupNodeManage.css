@@ -4,6 +4,7 @@
 	padding: 0;
 	font-family: Arial, Helvetica, sans-serif;
 	border-color: black;
+	margin: 25vh auto;
 }
 .comfy-group-manage-outer {
 	min-width: 500px;
@@ -95,6 +96,14 @@
 .comfy-group-manage-node header a.active {
 	background: var(--border-color);
 	border-bottom: none;
+}
+.comfy-group-manage-node-page {
+	display: none;
+	max-height: 50vh;
+	overflow: auto;
+}
+.comfy-group-manage-node-page.active {
+	display: block;
 }
 .comfy-group-manage-node-page div {
 	padding: 10px;

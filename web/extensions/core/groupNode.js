@@ -1,11 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { $el, ComfyDialog } from "../../scripts/ui.js";
-import { addStylesheet } from "../../scripts/utils.js";
-import { DraggableList } from "../../scripts/ui/draggableList.js";
 import { mergeIfValid } from "./widgetInputs.js";
-
-addStylesheet(import.meta.url);
+import { ManageGroupDialog } from "./groupNodeManage.js";
 
 const GROUP = Symbol();
 
@@ -35,178 +31,6 @@ const Workflow = {
 		groupNodes[name] = data;
 	},
 };
-
-class ManageGroupDialog extends ComfyDialog {
-	constructor(app) {
-		super();
-		this.app = app;
-		this.element = $el("dialog.comfy-group-manage", {
-			parent: document.body,
-		});
-	}
-
-	update(groupId) {
-		const def = LiteGraph.registered_node_types["workflow/" + groupId].nodeData;
-		/**
-		 * @type { GroupNodeConfig }
-		 */
-		const config = def[GROUP];
-	}
-
-	show() {
-		this.element.innerHTML = `
-			<div class="comfy-group-manage-outer">
-				<main>
-					<section class="comfy-group-manage-node">
-						<div>
-							<label>
-								ckpt_loader
-								<input value="ckpt_loader"> 
-							</label>
-							<label>Visible <input type="checkbox"></label>
-						</div>
-					</section>
-				</main>
-			</div>
-		`;
-
-		const groupNodes = Object.keys(app.graph.extra?.groupNodes ?? {}).sort((a, b) => a.localeCompare(b));
-		let selectedGroup = groupNodes[0];
-		let selectedNodeIndex;
-		let selectedTab = "Widgets";
-		const innerNodesList = $el("ul.comfy-group-manage-list-items");
-		const widgetsPage = $el("section.comfy-group-manage-node-page");
-		const inputsPage = $el("section.comfy-group-manage-node-page");
-		const outputsPage = $el("section.comfy-group-manage-node-page");
-		const pages = $el("div", [widgetsPage, inputsPage, outputsPage]);
-
-		const tabs = ["Inputs", "Widgets", "Outputs"].reduce((p, n) => {
-			p[n] = $el("a", {
-				onclick: () => {
-					changeSelectedTab(n);
-				},
-				textContent: n,
-			});
-			return p;
-		}, {});
-
-		function changeSelectedTab(tab) {
-			tabs[selectedTab].classList.remove("active");
-			tabs[tab].classList.add("active");
-			selectedTab = tab;
-		}
-
-		function selectedGroupChanged() {
-			const groupData = LiteGraph.registered_node_types["workflow/" + selectedGroup].nodeData[GROUP];
-			const nodes = groupData.nodeData.nodes;
-			selectedNodeIndex = 0;
-
-			const nodeItems = nodes.map((n, i) =>
-				$el(
-					"li.draggable-item",
-					{
-						dataset: {
-							nodeindex: i + "",
-						},
-						onclick: () => {
-							changeSelectedNode(i);
-						},
-					},
-					[
-						$el("span.drag-handle"),
-						$el(
-							"div",
-							{
-								textContent: n.title ?? n.type,
-							},
-							n.title
-								? $el("span", {
-										textContent: n.type,
-								  })
-								: []
-						),
-					]
-				)
-			);
-
-			function changeSelectedNode(index) {
-				nodeItems[selectedNodeIndex].classList.remove("selected");
-				nodeItems[index].classList.add("selected");
-				selectedNodeIndex = index;
-
-				const widgets = groupData.oldToNewWidgetMap[index];
-				widgetsPage.replaceChildren(
-					...Object.keys(widgets).map((oldName) => {
-						let value = widgets[oldName];
-						if (value === oldName) value = "";
-
-						return $el("div", [
-							$el("input", {
-								value,
-								placeholder: oldName,
-								type: "text",
-							}),
-							$el("label", { textContent: "Visible" }, [
-								$el("input", {
-									type: "checkbox",
-									checked: true,
-								}),
-							]),
-						]);
-					})
-				);
-
-				changeSelectedTab(selectedTab);
-			}
-
-			innerNodesList.replaceChildren(...nodeItems);
-
-			changeSelectedNode(0);
-		}
-
-		const outer = $el("div.comfy-group-manage-outer", [
-			$el("header", [
-				$el("h2", "Group Nodes"),
-				$el(
-					"select",
-					{
-						onchange: (e) => {
-							selectedGroup = e.target.value;
-							selectedGroupChanged();
-						},
-					},
-					groupNodes.map((g) =>
-						$el("option", {
-							textContent: g,
-							selected: g === selectedGroup,
-							value: g,
-						})
-					)
-				),
-			]),
-			$el("main", [
-				$el("section.comfy-group-manage-list", innerNodesList),
-				$el("section.comfy-group-manage-node", [$el("header", Object.values(tabs)), pages]),
-			]),
-			$el("footer", [
-				$el("button.comfy-button", "Delete Group Node"),
-				$el("button.comfy-button", "Save"),
-				$el("button.comfy-button", "Close"),
-			]),
-		]);
-		selectedGroupChanged();
-
-		this.element.replaceChildren(outer);
-		this.element.showModal();
-
-		const draggable = new DraggableList(document.querySelector(".comfy-group-manage-list-items"), "li");
-		draggable.addEventListener("dragstart", (e) => console.log(e.detail));
-		draggable.addEventListener("dragend", (e) => console.log(e.detail));
-		this.element.addEventListener("close", () => {
-			draggable.dispose();
-		});
-	}
-}
 
 class GroupNodeBuilder {
 	constructor(nodes) {
@@ -324,6 +148,8 @@ export class GroupNodeConfig {
 		this.primitiveDefs = {};
 		this.widgetToPrimitive = {};
 		this.primitiveToWidget = {};
+		this.nodeInputs = {};
+		this.outputVisibility = [];
 	}
 
 	async registerType(source = "workflow") {
@@ -331,6 +157,7 @@ export class GroupNodeConfig {
 			output: [],
 			output_name: [],
 			output_is_list: [],
+			output_is_hidden: [],
 			name: source + "/" + this.name,
 			display_name: this.name,
 			category: "group nodes" + ("/" + source),
@@ -502,7 +329,8 @@ export class GroupNodeConfig {
 	}
 
 	getInputConfig(node, inputName, seenInputs, config, extra) {
-		let name = node.inputs?.find((inp) => inp.name === inputName)?.label ?? inputName;
+		const customConfig = this.nodeData.config?.[node.index]?.input?.[inputName];
+		let name = customConfig?.name ?? node.inputs?.find((inp) => inp.name === inputName)?.label ?? inputName;
 		let key = name;
 		let prefix = "";
 		// Special handling for primitive to include the title if it is set rather than just "value"
@@ -594,6 +422,7 @@ export class GroupNodeConfig {
 	}
 
 	processInputSlots(inputs, node, slots, linksTo, inputMap, seenInputs) {
+		this.nodeInputs[node.index] = {};
 		for (let i = 0; i < slots.length; i++) {
 			const inputName = slots[i];
 			if (linksTo[i]) {
@@ -603,6 +432,7 @@ export class GroupNodeConfig {
 			}
 
 			const { name, config } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName]);
+			this.nodeInputs[node.index][inputName] = name;
 			this.nodeDef.input.required[name] = config;
 			inputMap[i] = this.inputCount++;
 		}
@@ -658,21 +488,25 @@ export class GroupNodeConfig {
 		// Add outputs
 		for (let outputId = 0; outputId < def.output.length; outputId++) {
 			const linksFrom = this.linksFrom[node.index];
-			if (linksFrom?.[outputId] && !this.externalFrom[node.index]?.[outputId]) {
-				// This output is linked internally so we can skip it
-				continue;
-			}
+			// If this output is linked internally we flag it to hide
+			const hasLink = linksFrom?.[outputId] && !this.externalFrom[node.index]?.[outputId];
+			const customConfig = this.nodeData.config?.[node.index]?.output?.[outputId];
 
 			oldToNew[outputId] = this.nodeDef.output.length;
 			this.newToOldOutputMap[this.nodeDef.output.length] = { node, slot: outputId };
 			this.nodeDef.output.push(def.output[outputId]);
 			this.nodeDef.output_is_list.push(def.output_is_list[outputId]);
+			this.outputVisibility.push(customConfig?.visible ?? !hasLink);
 
-			let label = def.output_name?.[outputId] ?? def.output[outputId];
-			const output = node.outputs.find((o) => o.name === label);
-			if (output?.label) {
-				label = output.label;
+			let label = customConfig?.name;
+			if (!label) {
+				label = def.output_name?.[outputId] ?? def.output[outputId];
+				const output = node.outputs.find((o) => o.name === label);
+				if (output?.label) {
+					label = output.label;
+				}
 			}
+
 			let name = label;
 			if (name in seenOutputs) {
 				const prefix = `${node.title ?? node.type} `;
@@ -843,6 +677,25 @@ export class GroupNodeHandler {
 			this.updateInnerWidgets();
 
 			return this.innerNodes;
+		};
+
+		this.node.recreate = async () => {
+			const id = this.node.id;
+			const sz = this.node.size;
+			const nodes = this.node.convertToNodes();
+
+			const groupNode = LiteGraph.createNode(this.node.type);
+			groupNode.id = id;
+
+			// Reuse the existing nodes for this instance
+			groupNode.setInnerNodes(nodes);
+			groupNode[GROUP].populateWidgets();
+			app.graph.add(groupNode);
+			groupNode.size = [Math.max(groupNode.size[0], sz[0]), Math.max(groupNode.size[1], sz[1])];
+
+			// Remove all converted nodes and relink them
+			groupNode[GROUP].replaceNodes(nodes);
+			return groupNode;
 		};
 
 		this.node.convertToNodes = () => {
@@ -1044,6 +897,35 @@ export class GroupNodeHandler {
 			return onExecutionStart?.apply(this, arguments);
 		};
 
+		const self = this;
+		const onNodeCreated = this.node.onNodeCreated;
+		this.node.onNodeCreated = function () {
+			const config = self.groupData.nodeData.config;
+			if (config) {
+				for (const n in config) {
+					const inputs = config[n]?.input;
+					for (const w in inputs) {
+						if (inputs[w].visible !== false) continue;
+						const widgetName = self.groupData.oldToNewWidgetMap[n][w];
+						const widget = this.widgets.find((w) => w.name === widgetName);
+						if (widget) {
+							widget.type = "hidden";
+							widget.computeSize = () => [0, -4];
+						}
+					}
+				}
+			}
+
+			// Remove hidden outputs
+			for (let i = self.groupData.outputVisibility.length; i >= 0; i--) {
+				if (!self.groupData.outputVisibility[i]) {
+					this.removeOutput(i);
+				}
+			}
+
+			return onNodeCreated?.apply(this, arguments);
+		};
+
 		function handleEvent(type, getId, getEvent) {
 			const handler = ({ detail }) => {
 				const id = getId(detail);
@@ -1156,7 +1038,7 @@ export class GroupNodeHandler {
 		const [, , targetNodeId, targetNodeSlot] = link;
 		const targetNode = this.groupData.nodeData.nodes[targetNodeId];
 		const inputs = targetNode.inputs;
-		const targetWidget = inputs?.[targetNodeSlot].widget;
+		const targetWidget = inputs?.[targetNodeSlot]?.widget;
 		if (!targetWidget) return;
 
 		const offset = inputs.length - (targetNode.widgets_values?.length ?? 0);
@@ -1260,7 +1142,7 @@ export class GroupNodeHandler {
 	}
 
 	static getGroupData(node) {
-		return node.constructor?.nodeData?.[GROUP];
+		return (node.nodeData ?? node.constructor?.nodeData)?.[GROUP];
 	}
 
 	static isGroupNode(node) {
@@ -1363,10 +1245,3 @@ const ext = {
 };
 
 app.registerExtension(ext);
-
-setTimeout(async () => {
-	while (!Object.keys(app.graph.extra?.groupNodes ?? {}).length) {
-		await new Promise((r) => setTimeout(r, 100));
-	}
-	new ManageGroupDialog(app).show();
-}, 1);

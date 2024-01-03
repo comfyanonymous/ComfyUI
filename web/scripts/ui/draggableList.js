@@ -1,5 +1,6 @@
 // @ts-check
 /*
+	Original implementation:
     https://github.com/TahaSh/drag-to-reorder
     MIT License
 
@@ -249,7 +250,7 @@ export class DraggableList extends EventTarget {
 		this.items = reorderedItems;
 
 		this.dispatchEvent(
-			new CustomEvent("dragstart", {
+			new CustomEvent("dragend", {
 				detail: { element: this.draggableItem, oldPosition, newPosition: reorderedItems.indexOf(this.draggableItem) },
 			})
 		);
