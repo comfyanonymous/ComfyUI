@@ -364,3 +364,24 @@ class Stable_Zero123(BaseModel):
                 cross_attn = self.cc_projection(cross_attn)
             out['c_crossattn'] = comfy.conds.CONDCrossAttn(cross_attn)
         return out
+
+class SD_X4Upscaler(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
+        super().__init__(model_config, model_type, device=device)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+
+        image = kwargs.get("concat_image", None)
+        noise = kwargs.get("noise", None)
+
+        if image is None:
+            image = torch.zeros_like(noise)[:,:3]
+
+        if image.shape[1:] != noise.shape[1:]:
+            image = utils.common_upscale(image, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+        image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        out['c_concat'] = comfy.conds.CONDNoiseShape(image)
+        return out
