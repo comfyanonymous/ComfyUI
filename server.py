@@ -14,6 +14,9 @@ import struct
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
+from prometheus_client import Gauge, generate_latest, CONTENT_TYPE_LATEST
+
+queue_size = Gauge("queue_size", "Current queue size")
 
 try:
     import aiohttp
@@ -389,6 +392,12 @@ class PromptServer():
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
+        
+        @routes.get("/metrics")
+        async def get_metrics(request):
+            response = web.Response(body=generate_latest())
+            response.content_type = CONTENT_TYPE_LATEST
+            return response
 
         def node_info(node_class):
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
@@ -605,6 +614,8 @@ class PromptServer():
             self.messages.put_nowait, (event, data, sid))
 
     def queue_updated(self):
+        queue_info = self.get_queue_info()
+        queue_size.set(queue_info["exec_info"]["queue_remaining"])
         self.send_sync("status", { "status": self.get_queue_info() })
 
     async def publish_loop(self):
