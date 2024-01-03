@@ -10,9 +10,8 @@ Pillow
 scipy
 tqdm
 psutil
-
 confluent_kafka
-sentry_sdk
+sentry-sdk
 mongoengine
 minio
-
+gitpython

@@ -28,7 +28,7 @@ class ServiceConfig:
     
 
     def _load_config(self):
-        with open('config/config.json') as config_file:
+        with open('config/config.json', 'r', encoding='utf-8') as config_file:
             self.all_configs = json.loads(config_file.read())
 
     def __getitem__(self, key):

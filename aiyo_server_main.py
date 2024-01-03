@@ -15,6 +15,7 @@ import aiyo_server.aiyo_server
 from framework.model import tb_data
 from framework.app_log import AppLog
 
+import aiyo_project_init
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -27,6 +28,9 @@ def execute_prestartup_script():
         except Exception as e:
             AppLog.info(f"Failed to execute startup-script: {script_path} / {e}")
         return False
+    
+    # aiyo project init
+    aiyo_project_init.aiyo_proj_init()
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:

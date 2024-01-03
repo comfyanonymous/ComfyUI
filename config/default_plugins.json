@@ -1,0 +1,17 @@
+
+
+{
+    "plugins": [
+        {
+            "author": "Fannovel16",
+            "title": "ComfyUI's ControlNet Auxiliary Preprocessors",
+            "reference": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+            "files": [
+                "https://github.com/Fannovel16/comfyui_controlnet_aux"
+            ],
+            "install_type": "git-clone",
+            "commit": "b706a5bd4dbf4cdd3834ca694c60962e482cf53d",
+            "description": "This is a rework of comfyui_controlnet_preprocessors based on ControlNet auxiliary models by 🤗. I think the old repo isn't good enough to maintain. All old workflow will still be work with this repo but the version option won't do anything. Almost all v1 preprocessors are replaced by v1.1 except those doesn't appear in v1.1. [w/NOTE: Please refrain from using the controlnet preprocessor alongside this installation, as it may lead to conflicts and prevent proper recognition.]"
+        }
+    ]
+}
