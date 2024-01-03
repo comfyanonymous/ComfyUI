@@ -33,3 +33,7 @@ class SDXL(LatentFormat):
                     [-0.3112, -0.2359, -0.2076]
                 ]
         self.taesd_decoder_name = "taesdxl_decoder"
+
+class SD_X4(LatentFormat):
+    def __init__(self):
+        self.scale_factor = 0.08333
