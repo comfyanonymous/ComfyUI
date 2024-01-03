@@ -41,8 +41,12 @@ class AbstractLowScaleModel(nn.Module):
         self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod)))
         self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod - 1)))
 
-    def q_sample(self, x_start, t, noise=None):
-        noise = default(noise, lambda: torch.randn_like(x_start))
+    def q_sample(self, x_start, t, noise=None, seed=None):
+        if noise is None:
+            if seed is None:
+                noise = torch.randn_like(x_start)
+            else:
+                noise = torch.randn(x_start.size(), dtype=x_start.dtype, layout=x_start.layout, generator=torch.manual_seed(seed)).to(x_start.device)
         return (extract_into_tensor(self.sqrt_alphas_cumprod.to(x_start.device), t, x_start.shape) * x_start +
                 extract_into_tensor(self.sqrt_one_minus_alphas_cumprod.to(x_start.device), t, x_start.shape) * noise)
 
@@ -69,12 +73,12 @@ class ImageConcatWithNoiseAugmentation(AbstractLowScaleModel):
         super().__init__(noise_schedule_config=noise_schedule_config)
         self.max_noise_level = max_noise_level
 
-    def forward(self, x, noise_level=None):
+    def forward(self, x, noise_level=None, seed=None):
         if noise_level is None:
             noise_level = torch.randint(0, self.max_noise_level, (x.shape[0],), device=x.device).long()
         else:
             assert isinstance(noise_level, torch.Tensor)
-        z = self.q_sample(x, noise_level)
+        z = self.q_sample(x, noise_level, seed=seed)
         return z, noise_level
 
 
