@@ -1,5 +1,8 @@
 
 import copy, os
+import traceback
+from io import BytesIO
+import struct
 
 import asyncio
 # import struct
@@ -12,8 +15,9 @@ from config.config import CONFIG
 from framework.app_log import AppLog
 from framework.err_code import ErrorCode
 from framework.image_util import ImageUtil
-from PIL import Image
+from PIL import Image, ImageOps
 from framework.model import object_storage
+from framework.event_types import AIYohEventTypes
 
 
 class MessageManager():
@@ -62,9 +66,14 @@ class APICall:
         dict, response data
         """
         url = api
-        response = requests.get(url, json=json_data, timeout=5)
+        try:
+            response = requests.get(url, json=json_data, timeout=5)
+        except Exception as e:
+            AppLog.error(f"[API(Get)] get_syncs, ERROR. \n{e} \n{traceback.format_exc()}")
+            return False, None
+        
         if response.status_code != requests.codes.ok:
-            AppLog.error(f'[Get Task] server not response: {response}, {response.reason}')        
+            AppLog.error(f'[API(Get)] server not response: {response}, {response.reason}')        
             return False, None
         else:
             json_response = response.json()
@@ -124,6 +133,22 @@ class APICall:
                     return False, None
 
 
+    @staticmethod
+    async def post_data_async(api, data):
+        url = api
+        AppLog.info(f"[Post data async] api:{api}, data: {AppLog.visible_convert(data)}")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=data) as response:
+                if response.status == 200:
+                    try:
+                        result = await response.json()
+                        return True, result
+                    except Exception as e:
+                        return True, None
+                else:
+                    error_message = await response.text()  # 获取错误信息
+                    AppLog.error(f'[Get Async] server not response: {AppLog.visible_convert(error_message)}') 
+                    return False, None
 
 
 class WeebhookSender:
@@ -136,14 +161,14 @@ class WeebhookSender:
     
     async def send(self, event, data, sid=None):
         succ = True
-        if event == "execution_start" and self.on_start is not None:
+        if event == AIYohEventTypes.EXE_START and self.on_start is not None:
             task_id = data["prompt_id"]
             succ,_ = await APICall.post_async(self.on_start, {"task_id": task_id})
             
             if not succ:
                 AppLog.warning(f"[WebhookSender] {event}, fail to call webhook:{self.on_start}, data:{AppLog.visible_convert(data)}")
             
-        elif event == "execution_end" and self.on_end is not None:
+        elif event == AIYohEventTypes.EXE_END and self.on_end is not None:
             task_id = data["prompt_id"]
             results = copy.deepcopy(data["result"])
             result_info = data["result_info"]
@@ -166,7 +191,7 @@ class WeebhookSender:
             if not succ:
                 AppLog.warning(f"[WebhookSender] {event}, fail to call webhook:{self.on_end}, data:{AppLog.visible_convert(data)}")
             
-        elif event == "execution_error" and self.on_end is not None:
+        elif event == AIYohEventTypes.EXE_ERR and self.on_end is not None:
             task_id = data["prompt_id"]
             exp_msg = data["exception_message"]
             node_type = data["class_type"]
@@ -188,7 +213,7 @@ class LocalAPISender:
     async def send(self, event, data, sid=None):
         url = CONFIG["server"]["url"]
         
-        if event == "execution_end":
+        if event == AIYohEventTypes.EXE_END:
             url = f"{url}/task_exe/task_done"
             post_data = {
                 "prompt_id": data["prompt_id"],
@@ -197,6 +222,9 @@ class LocalAPISender:
             succ, _ =await APICall.post_async(url, post_data)
             if not succ:
                 AppLog.warning(f"[LocalAPISender] {event}, fail to call :{url}, data:{data}")
+        elif event == AIYohEventTypes.UNENCODED_PREVIEW_IMAGE:
+            await self.send_image(data, sid)
+
         else:
             url = f"{url}/task_exe/send_task_msg"
             post_data = {
@@ -207,3 +235,70 @@ class LocalAPISender:
             succ, _= await APICall.post_async(url, post_data)
             if not succ:
                 AppLog.warning(f"[LocalAPISender] {event}, fail to call :{url}, data:{data}")
+                
+                
+                
+    async def send_image(self, image_data, sid=None):
+        
+        image_type = image_data[0]
+        image = image_data[1]
+        max_size = image_data[2]
+        if max_size is not None:
+            if hasattr(Image, 'Resampling'):
+                resampling = Image.Resampling.BILINEAR
+            else:
+                resampling = Image.ANTIALIAS
+
+            image = ImageOps.contain(image, (max_size, max_size), resampling)
+        
+        img_str = ImageUtil.image_to_base64(image, image_type)
+        post_data = {
+                "event_type": AIYohEventTypes.UNENCODED_PREVIEW_IMAGE,
+                "data": img_str,
+                "sid": sid
+            }
+        
+        url = CONFIG["server"]["url"]
+        url = f"{url}/task_exe/send_task_msg"
+        succ, _ = await APICall.post_async(url, post_data)
+        if not succ:
+            AppLog.warning(f"[LocalAPISender] {AIYohEventTypes.UNENCODED_PREVIEW_IMAGE}, fail to call :{url}, data:{AppLog.visible_convert(post_data)}")
+            
+        # type_num = 1
+        # if image_type == "JPEG":
+        #     type_num = 1
+        # elif image_type == "PNG":
+        #     type_num = 2
+
+        # bytesIO = BytesIO()
+        # header = struct.pack(">I", type_num)
+        # bytesIO.write(header)
+        # image.save(bytesIO, format=image_type, quality=95, compress_level=1)
+        # preview_bytes = bytesIO.getvalue()
+        # await self.send_bytes(AIYohEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
+
+    async def send_bytes(self, event, data, sid=None):
+        message = self.encode_bytes(event, data)
+        
+        url = CONFIG["server"]["url"]
+        url = f"{url}/task_exe/send_prev_image"
+        post_data = {
+            "event_type": event,
+            "data": message,
+            "sid": sid
+        }
+
+        succ, _ = await APICall.post_data_async(url, post_data)
+        if not succ:
+            AppLog.warning(f"[LocalAPISender] {event}, fail to call :{url}, data:{data}")
+            
+            
+    def encode_bytes(self, event, data):
+        if not isinstance(event, int):
+            raise RuntimeError(f"Binary event types must be integers, got {event}")
+
+        packed = struct.pack(">I", event)
+        message = bytearray(packed)
+        message.extend(data)
+        return message
+    

@@ -7,7 +7,7 @@ import aiohttp
 import asyncio
 
 from framework.app_log import AppLog
-
+from framework.image_util import ImageUtil
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -55,16 +55,10 @@ class ServerClientCommunicator:
 
 
     async def send_image(self, image_data, sid=None):
-        image_type = image_data[0]
-        image = image_data[1]
-        max_size = image_data[2]
-        if max_size is not None:
-            if hasattr(Image, 'Resampling'):
-                resampling = Image.Resampling.BILINEAR
-            else:
-                resampling = Image.ANTIALIAS
 
-            image = ImageOps.contain(image, (max_size, max_size), resampling)
+        image = ImageUtil.base64_to_image(image_data)
+        image_type = image.format
+        
         type_num = 1
         if image_type == "JPEG":
             type_num = 1

@@ -1855,19 +1855,37 @@ def load_advance_flow_nodes():
     node_paths = folder_paths.get_folder_paths("framework")
     node_paths += folder_paths.get_folder_paths("common_nodes")
     
+    def find_py_files(folder_path):
+        py_files = []
+        
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if file.endswith(".py"):
+                    py_files.append(os.path.join(root, file))
+        
+        return py_files
+    
     node_import_times = []
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(os.path.realpath(custom_node_path))
-        if "__pycache__" in possible_modules:
-            possible_modules.remove("__pycache__")
+        py_files = find_py_files(custom_node_path)
+        
+        success = True
+        time_before = time.perf_counter()
+        for py_file in py_files:
+            success = load_custom_node(py_file, base_node_names) and success
+        node_import_times.append((time.perf_counter() - time_before, custom_node_path, success))
 
-        for possible_module in possible_modules:
-            module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-            if module_path.endswith(".disabled"): continue
-            time_before = time.perf_counter()
-            success = load_custom_node(module_path, base_node_names)
-            node_import_times.append((time.perf_counter() - time_before, module_path, success))
+        # possible_modules = os.listdir(os.path.realpath(custom_node_path))
+        # if "__pycache__" in possible_modules:
+        #     possible_modules.remove("__pycache__")
+
+        # for possible_module in possible_modules:
+        #     module_path = os.path.join(custom_node_path, possible_module)
+        #     if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+        #     if module_path.endswith(".disabled"): continue
+        #     time_before = time.perf_counter()
+        #     success = load_custom_node(module_path, base_node_names)
+        #     node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")

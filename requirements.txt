@@ -15,3 +15,4 @@ sentry-sdk
 mongoengine
 minio
 gitpython
+opencv-python==4.7.0.72
