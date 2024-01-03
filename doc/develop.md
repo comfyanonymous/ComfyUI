@@ -20,3 +20,9 @@ task_id, str, 任务的id
 progress, float, 0-1, 任务的进度
 
 
+
+## 外部节点
+将插件的信息，写到config/default_plugins.json中
+这样的话，启动时会自动拉取代码。
+
+建议之间到custom_nodes/ComfyUI-Manager/custom-node-list.json中找对应插件的配置，然后加上自己期望的commit id信息。
