@@ -97,7 +97,7 @@ class AIYoExecutor:
                 execution_start_time = time.perf_counter()
                 
                 extra_data = queue_item["extra_data"]
-                if "client_id" in extra_data:
+                if extra_data is not None and "client_id" in extra_data:
                     self.msg_sender.client_id = extra_data["client_id"]
                 else:
                     self.msg_sender.client_id = None

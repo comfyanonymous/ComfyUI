@@ -740,7 +740,7 @@ class FlowExecutor:
         for node_id, node_info in self.context.prompt.items():
             node_type = node_info["class_type"]
             node_class = nodes.NODE_CLASS_MAPPINGS[node_type]
-            if hasattr(node_class, "OUTPUT_NODE") and node_class.OUTPUT_NODE:
+            if hasattr(node_class, "OUTPUT_NODE") and node_class.OUTPUT_NODE and hasattr(node_class, "OUTPUT_NODE_TYPE"):
                 cur_out = self.context.outputs[node_id][0][0]
                 output_name = node_info["inputs"]["name"]
                 if output_name in graph_outputs:
