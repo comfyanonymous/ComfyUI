@@ -57,7 +57,7 @@ class TaskQueueLocal:
                 response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                 return True, response
             else:
-                AppLog.info("invalid prompt:", valid[1])
+                AppLog.info(f"invalid prompt: {valid[1]}")
                 return False, {"error": valid[1], "node_errors": valid[3]}
         else:
             return False, {"error": "no prompt", "node_errors": []}
