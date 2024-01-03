@@ -698,7 +698,7 @@ def validate_prompt(prompt):
 MAXIMUM_HISTORY_SIZE = 10000
 
 class PromptQueue:
-    def __init__(self, server):
+    def __init__(self, server, backup_id):
         self.server = server
         self.mutex = threading.RLock()
         self.not_empty = threading.Condition(self.mutex)
@@ -707,10 +707,31 @@ class PromptQueue:
         self.currently_running = {}
         self.history = {}
         server.prompt_queue = self
+        self.backup_file = backup_id + "_pqbackup.json"
+        if os.path.isfile(self.backup_file):
+            print("Loading backup file")
+            with open(self.backup_file, "r") as f:
+                s = json.loads(f.read())
+                self.queue = s['queue']
+                self.history = s['history']
+                self.task_counter = int(s['task_counter'])
+        
+    def save_backup(self):
+        with open(self.backup_file, "w") as f:
+            if not self.queue:
+                if os.path.isfile(self.backup_file): os.remove(self.backup_file)
+            else:
+                s = {
+                    'queue':self.queue,
+                    'history':self.history,
+                    'task_counter':self.task_counter
+                }
+                json.dump(s,f)
 
     def put(self, item):
         with self.mutex:
             heapq.heappush(self.queue, item)
+            self.save_backup()
             self.server.queue_updated()
             self.not_empty.notify()
 
@@ -735,6 +756,7 @@ class PromptQueue:
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
+            self.save_backup()
             self.server.queue_updated()
 
     def get_current_queue(self):
@@ -751,6 +773,7 @@ class PromptQueue:
     def wipe_queue(self):
         with self.mutex:
             self.queue = []
+            self.save_backup()
             self.server.queue_updated()
 
     def delete_queue_item(self, function):
@@ -762,6 +785,7 @@ class PromptQueue:
                     else:
                         self.queue.pop(x)
                         heapq.heapify(self.queue)
+                    self.save_backup()
                     self.server.queue_updated()
                     return True
         return False
@@ -788,7 +812,9 @@ class PromptQueue:
     def wipe_history(self):
         with self.mutex:
             self.history = {}
+            self.save_backup()
 
     def delete_history_item(self, id_to_delete):
         with self.mutex:
             self.history.pop(id_to_delete, None)
+            self.save_backup()
