@@ -145,7 +145,7 @@ export class ManageGroupDialog extends ComfyDialog {
 		}
 	}
 
-	getEditElement(section, prop, value, placeholder, checked = true) {
+	getEditElement(section, prop, value, placeholder, checked, checkable = true) {
 		if (value === placeholder) value = "";
 		return $el("div", [
 			$el("input", {
@@ -160,6 +160,7 @@ export class ManageGroupDialog extends ComfyDialog {
 				$el("input", {
 					type: "checkbox",
 					checked,
+					disabled: !checkable,
 					onchange: (e) => {
 						this.storeModification({ section, prop, value: { visible: !!e.target.checked } });
 					},
@@ -184,6 +185,8 @@ export class ManageGroupDialog extends ComfyDialog {
 	buildInputsPage() {
 		const inputs = this.groupData.nodeInputs[this.selectedNodeInnerIndex];
 		const items = Object.keys(inputs ?? {});
+		const type = app.graph.extra.groupNodes[this.selectedGroup];
+		const config = type.config?.[this.selectedNodeInnerIndex]?.input;
 		this.inputsPage.replaceChildren(
 			...items
 				.map((oldName) => {
@@ -192,7 +195,7 @@ export class ManageGroupDialog extends ComfyDialog {
 						return;
 					}
 
-					return this.getEditElement("input", oldName, value, oldName);
+					return this.getEditElement("input", oldName, value, oldName, config?.[oldName]?.visible !== false);
 				})
 				.filter(Boolean)
 		);
@@ -205,13 +208,21 @@ export class ManageGroupDialog extends ComfyDialog {
 		const outputs = innerNodeDef?.output ?? [];
 		const groupOutputs = this.groupData.oldToNewOutputMap[this.selectedNodeInnerIndex];
 
+		const type = app.graph.extra.groupNodes[this.selectedGroup];
+		const config = type.config?.[this.selectedNodeInnerIndex]?.output;
+		const node = this.groupData.nodeData.nodes[this.selectedNodeInnerIndex];
+		const checkable = node.type !== "PrimitiveNode";
 		this.outputsPage.replaceChildren(
 			...outputs
 				.map((type, slot) => {
 					const groupOutputIndex = groupOutputs?.[slot];
 					const oldName = innerNodeDef.output_name?.[slot] ?? type;
-					const value = this.groupNodeDef.output_name[groupOutputIndex];
-					return this.getEditElement("output", slot, value, oldName, this.groupData.outputVisibility[groupOutputIndex]);
+					let value = config?.[slot]?.name;
+					const visible = config?.[slot]?.visible || groupOutputIndex != null;
+					if (!value || value === oldName) {
+						value = "";
+					}
+					return this.getEditElement("output", slot, value, oldName, visible, checkable);
 				})
 				.filter(Boolean)
 		);
@@ -274,7 +285,24 @@ export class ManageGroupDialog extends ComfyDialog {
 				]),
 			]),
 			$el("footer", [
-				$el("button.comfy-button", "Delete Group Node"),
+				$el(
+					"button.comfy-button",
+					{
+						onclick: (e) => {
+							const node = app.graph._nodes.find((n) => n.type === "workflow/" + this.selectedGroup);
+							if (node) {
+								alert("This group node is in use in the current workflow, please first remove these.");
+								return;
+							}
+							if (confirm(`Are you sure you want to remove the node: "${this.selectedGroup}"`)) {
+								delete app.graph.extra.groupNodes[this.selectedGroup];
+								LiteGraph.unregisterNodeType("workflow/" + this.selectedGroup);
+							}
+							this.show();
+						},
+					},
+					"Delete Group Node"
+				),
 				$el(
 					"button.comfy-button",
 					{

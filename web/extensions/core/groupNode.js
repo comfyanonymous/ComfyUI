@@ -356,7 +356,7 @@ export class GroupNodeConfig {
 			config = [config[0], { ...config[1], ...extra }];
 		}
 
-		return { name, config };
+		return { name, config, customConfig };
 	}
 
 	processWidgetInputs(inputs, node, inputNames, seenInputs) {
@@ -431,8 +431,11 @@ export class GroupNodeConfig {
 				continue;
 			}
 
-			const { name, config } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName]);
+			const { name, config, customConfig } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName]);
+
 			this.nodeInputs[node.index][inputName] = name;
+			if(customConfig?.visible === false) continue;
+			
 			this.nodeDef.input.required[name] = config;
 			inputMap[i] = this.inputCount++;
 		}
@@ -452,6 +455,7 @@ export class GroupNodeConfig {
 			const { name, config } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName], {
 				defaultInput: true,
 			});
+
 			this.nodeDef.input.required[name] = config;
 			this.newToOldWidgetMap[name] = { node, inputName };
 
@@ -491,12 +495,16 @@ export class GroupNodeConfig {
 			// If this output is linked internally we flag it to hide
 			const hasLink = linksFrom?.[outputId] && !this.externalFrom[node.index]?.[outputId];
 			const customConfig = this.nodeData.config?.[node.index]?.output?.[outputId];
+			const visible = customConfig?.visible ?? !hasLink;
+			this.outputVisibility.push(visible);
+			if (!visible) {
+				continue;
+			}
 
 			oldToNew[outputId] = this.nodeDef.output.length;
 			this.newToOldOutputMap[this.nodeDef.output.length] = { node, slot: outputId };
 			this.nodeDef.output.push(def.output[outputId]);
 			this.nodeDef.output_is_list.push(def.output_is_list[outputId]);
-			this.outputVisibility.push(customConfig?.visible ?? !hasLink);
 
 			let label = customConfig?.name;
 			if (!label) {
@@ -913,13 +921,6 @@ export class GroupNodeHandler {
 							widget.computeSize = () => [0, -4];
 						}
 					}
-				}
-			}
-
-			// Remove hidden outputs
-			for (let i = self.groupData.outputVisibility.length; i >= 0; i--) {
-				if (!self.groupData.outputVisibility[i]) {
-					this.removeOutput(i);
 				}
 			}
 
