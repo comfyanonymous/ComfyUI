@@ -13,6 +13,7 @@ class BasicScheduler:
                     {"model": ("MODEL",),
                      "scheduler": (comfy.samplers.SCHEDULER_NAMES, ),
                      "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
@@ -20,8 +21,15 @@ class BasicScheduler:
 
     FUNCTION = "get_sigmas"
 
-    def get_sigmas(self, model, scheduler, steps):
-        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, steps).cpu()
+    def get_sigmas(self, model, scheduler, steps, denoise):
+        total_steps = steps
+        if denoise < 1.0:
+            total_steps = int(steps/denoise)
+
+        inner_model = model.patch_model(patch_weights=False)
+        sigmas = comfy.samplers.calculate_sigmas_scheduler(inner_model, scheduler, total_steps).cpu()
+        model.unpatch_model()
+        sigmas = sigmas[-(steps + 1):]
         return (sigmas, )
 
 
@@ -87,6 +95,7 @@ class SDTurboScheduler:
         return {"required":
                     {"model": ("MODEL",),
                      "steps": ("INT", {"default": 1, "min": 1, "max": 10}),
+                     "denoise": ("FLOAT", {"default": 1.0, "min": 0, "max": 1.0, "step": 0.01}),
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
@@ -94,9 +103,12 @@ class SDTurboScheduler:
 
     FUNCTION = "get_sigmas"
 
-    def get_sigmas(self, model, steps):
-        timesteps = torch.flip(torch.arange(1, 11) * 100 - 1, (0,))[:steps]
-        sigmas = model.model.model_sampling.sigma(timesteps)
+    def get_sigmas(self, model, steps, denoise):
+        start_step = 10 - int(10 * denoise)
+        timesteps = torch.flip(torch.arange(1, 11) * 100 - 1, (0,))[start_step:start_step + steps]
+        inner_model = model.patch_model(patch_weights=False)
+        sigmas = inner_model.model_sampling.sigma(timesteps)
+        model.unpatch_model()
         sigmas = torch.cat([sigmas, sigmas.new_zeros([1])])
         return (sigmas, )
 

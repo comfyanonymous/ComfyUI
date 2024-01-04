@@ -1,12 +1,14 @@
 import os
 
-from transformers import CLIPTokenizer, CLIPTextModel, CLIPTextConfig, modeling_utils
+from transformers import CLIPTokenizer
 import comfy.ops
 import torch
 import traceback
 import zipfile
 from . import model_management
 import contextlib
+import comfy.clip_model
+import json
 
 def gen_empty_tokens(special_tokens, length):
     start_token = special_tokens.get("start", None)
@@ -37,7 +39,7 @@ class ClipTokenWeightEncoder:
 
         out, pooled = self.encode(to_encode)
         if pooled is not None:
-            first_pooled = pooled[0:1].cpu()
+            first_pooled = pooled[0:1].to(model_management.intermediate_device())
         else:
             first_pooled = pooled
 
@@ -54,8 +56,8 @@ class ClipTokenWeightEncoder:
             output.append(z)
 
         if (len(output) == 0):
-            return out[-1:].cpu(), first_pooled
-        return torch.cat(output, dim=-2).cpu(), first_pooled
+            return out[-1:].to(model_management.intermediate_device()), first_pooled
+        return torch.cat(output, dim=-2).to(model_management.intermediate_device()), first_pooled
 
 class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     """Uses the CLIP transformer encoder for text (from huggingface)"""
@@ -65,31 +67,19 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         "hidden"
     ]
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
-                 freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, textmodel_path=None, dtype=None,
-                 special_tokens={"start": 49406, "end": 49407, "pad": 49407},layer_norm_hidden_state=True, config_class=CLIPTextConfig,
-                 model_class=CLIPTextModel, inner_name="text_model"):  # clip-vit-base-patch32
+                 freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=comfy.clip_model.CLIPTextModel,
+                 special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True):  # clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS
-        self.num_layers = 12
-        if textmodel_path is not None:
-            self.transformer = model_class.from_pretrained(textmodel_path)
-        else:
-            if textmodel_json_config is None:
-                textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_clip_config.json")
-            config = config_class.from_json_file(textmodel_json_config)
-            self.num_layers = config.num_hidden_layers
-            with comfy.ops.use_comfy_ops(device, dtype):
-                with modeling_utils.no_init_weights():
-                    self.transformer = model_class(config)
 
-        self.inner_name = inner_name
-        if dtype is not None:
-            self.transformer.to(dtype)
-            inner_model = getattr(self.transformer, self.inner_name)
-            if hasattr(inner_model, "embeddings"):
-                inner_model.embeddings.to(torch.float32)
-            else:
-                self.transformer.set_input_embeddings(self.transformer.get_input_embeddings().to(torch.float32))
+        if textmodel_json_config is None:
+            textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_clip_config.json")
+
+        with open(textmodel_json_config) as f:
+            config = json.load(f)
+
+        self.transformer = model_class(config, dtype, device, comfy.ops.manual_cast)
+        self.num_layers = self.transformer.num_layers
 
         self.max_length = max_length
         if freeze:
@@ -104,7 +94,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.layer_norm_hidden_state = layer_norm_hidden_state
         if layer == "hidden":
             assert layer_idx is not None
-            assert abs(layer_idx) <= self.num_layers
+            assert abs(layer_idx) < self.num_layers
             self.clip_layer(layer_idx)
         self.layer_default = (self.layer, self.layer_idx)
 
@@ -115,7 +105,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             param.requires_grad = False
 
     def clip_layer(self, layer_idx):
-        if abs(layer_idx) >= self.num_layers:
+        if abs(layer_idx) > self.num_layers:
             self.layer = "last"
         else:
             self.layer = "hidden"
@@ -170,41 +160,31 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         tokens = self.set_up_textual_embeddings(tokens, backup_embeds)
         tokens = torch.LongTensor(tokens).to(device)
 
-        if getattr(self.transformer, self.inner_name).final_layer_norm.weight.dtype != torch.float32:
-            precision_scope = torch.autocast
+        attention_mask = None
+        if self.enable_attention_masks:
+            attention_mask = torch.zeros_like(tokens)
+            max_token = self.transformer.get_input_embeddings().weight.shape[0] - 1
+            for x in range(attention_mask.shape[0]):
+                for y in range(attention_mask.shape[1]):
+                    attention_mask[x, y] = 1
+                    if tokens[x, y] == max_token:
+                        break
+
+        outputs = self.transformer(tokens, attention_mask, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state)
+        self.transformer.set_input_embeddings(backup_embeds)
+
+        if self.layer == "last":
+            z = outputs[0]
         else:
-            precision_scope = lambda a, dtype: contextlib.nullcontext(a)
+            z = outputs[1]
 
-        with precision_scope(model_management.get_autocast_device(device), dtype=torch.float32):
-            attention_mask = None
-            if self.enable_attention_masks:
-                attention_mask = torch.zeros_like(tokens)
-                max_token = self.transformer.get_input_embeddings().weight.shape[0] - 1
-                for x in range(attention_mask.shape[0]):
-                    for y in range(attention_mask.shape[1]):
-                        attention_mask[x, y] = 1
-                        if tokens[x, y] == max_token:
-                            break
+        if outputs[2] is not None:
+            pooled_output = outputs[2].float()
+        else:
+            pooled_output = None
 
-            outputs = self.transformer(input_ids=tokens, attention_mask=attention_mask, output_hidden_states=self.layer=="hidden")
-            self.transformer.set_input_embeddings(backup_embeds)
-
-            if self.layer == "last":
-                z = outputs.last_hidden_state
-            elif self.layer == "pooled":
-                z = outputs.pooler_output[:, None, :]
-            else:
-                z = outputs.hidden_states[self.layer_idx]
-                if self.layer_norm_hidden_state:
-                    z = getattr(self.transformer, self.inner_name).final_layer_norm(z)
-
-            if hasattr(outputs, "pooler_output"):
-                pooled_output = outputs.pooler_output.float()
-            else:
-                pooled_output = None
-
-            if self.text_projection is not None and pooled_output is not None:
-                pooled_output = pooled_output.float().to(self.text_projection.device) @ self.text_projection.float()
+        if self.text_projection is not None and pooled_output is not None:
+            pooled_output = pooled_output.float().to(self.text_projection.device) @ self.text_projection.float()
         return z.float(), pooled_output
 
     def encode(self, tokens):

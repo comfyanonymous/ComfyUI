@@ -34,7 +34,6 @@ def detect_unet_config(state_dict, key_prefix, dtype):
     unet_config = {
         "use_checkpoint": False,
         "image_size": 32,
-        "out_channels": 4,
         "use_spatial_transformer": True,
         "legacy": False
     }
@@ -49,6 +48,12 @@ def detect_unet_config(state_dict, key_prefix, dtype):
     unet_config["dtype"] = dtype
     model_channels = state_dict['{}input_blocks.0.0.weight'.format(key_prefix)].shape[0]
     in_channels = state_dict['{}input_blocks.0.0.weight'.format(key_prefix)].shape[1]
+
+    out_key = '{}out.2.weight'.format(key_prefix)
+    if out_key in state_dict:
+        out_channels = state_dict[out_key].shape[0]
+    else:
+        out_channels = 4
 
     num_res_blocks = []
     channel_mult = []
@@ -122,6 +127,7 @@ def detect_unet_config(state_dict, key_prefix, dtype):
         transformer_depth_middle = -1
 
     unet_config["in_channels"] = in_channels
+    unet_config["out_channels"] = out_channels
     unet_config["model_channels"] = model_channels
     unet_config["num_res_blocks"] = num_res_blocks
     unet_config["transformer_depth"] = transformer_depth
@@ -289,7 +295,13 @@ def unet_config_from_diffusers_unet(state_dict, dtype):
               'channel_mult': [1, 2, 4], 'transformer_depth_middle': -1, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
               'use_temporal_attention': False, 'use_temporal_resblock': False}
 
-    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint, SSD_1B]
+    Segmind_Vega = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
+              'num_classes': 'sequential', 'adm_in_channels': 2816, 'dtype': dtype, 'in_channels': 4, 'model_channels': 320,
+              'num_res_blocks': [2, 2, 2], 'transformer_depth': [0, 0, 1, 1, 2, 2], 'transformer_depth_output': [0, 0, 0, 1, 1, 1, 2, 2, 2],
+              'channel_mult': [1, 2, 4], 'transformer_depth_middle': -1, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
+              'use_temporal_attention': False, 'use_temporal_resblock': False}
+
+    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint, SSD_1B, Segmind_Vega]
 
     for unet_config in supported_models:
         matches = True
