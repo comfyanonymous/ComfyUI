@@ -507,6 +507,17 @@ class PromptServer():
             nodes.interrupt_processing()
             return web.Response(status=200)
 
+        @routes.post("/free")
+        async def post_interrupt(request):
+            json_data = await request.json()
+            unload_models = json_data.get("unload_models", False)
+            free_memory = json_data.get("free_memory", False)
+            if unload_models:
+                self.prompt_queue.set_flag("unload_models", unload_models)
+            if free_memory:
+                self.prompt_queue.set_flag("free_memory", free_memory)
+            return web.Response(status=200)
+
         @routes.post("/history")
         async def post_history(request):
             json_data =  await request.json()
