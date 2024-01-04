@@ -57,8 +57,8 @@ export class ManageGroupDialog extends ComfyDialog {
 		this.selectedTab = tab;
 	}
 
-	changeNode(index) {
-		if (this.selectedNodeIndex === index) return;
+	changeNode(index, force) {
+		if (!force && this.selectedNodeIndex === index) return;
 
 		if (this.selectedNodeIndex != null) {
 			this.nodeItems[this.selectedNodeIndex].classList.remove("selected");
@@ -79,11 +79,15 @@ export class ManageGroupDialog extends ComfyDialog {
 		this.changeTab(this.selectedTab);
 	}
 
-	changeGroup(group) {
-		this.selectedGroup = group;
+	getGroupData() {
 		this.groupNodeType = LiteGraph.registered_node_types["workflow/" + this.selectedGroup];
 		this.groupNodeDef = this.groupNodeType.nodeData;
 		this.groupData = GroupNodeHandler.getGroupData(this.groupNodeType);
+	}
+
+	changeGroup(group, reset = true) {
+		this.selectedGroup = group;
+		this.getGroupData();
 
 		const nodes = this.groupData.nodeData.nodes;
 		this.nodeItems = nodes.map((n, i) =>
@@ -116,15 +120,21 @@ export class ManageGroupDialog extends ComfyDialog {
 
 		this.innerNodesList.replaceChildren(...this.nodeItems);
 
-		this.selectedNodeIndex = null;
-		this.changeNode(0);
+		if (reset) {
+			this.selectedNodeIndex = null;
+			this.changeNode(0);
+		} else {
+			const items = this.draggable.getAllItems();
+			let index = items.findIndex(item => item.classList.contains("selected"));
+			if(index === -1) index = this.selectedNodeIndex;
+			this.changeNode(index, true);
+		}
 
 		const ordered = [...nodes];
 		this.draggable?.dispose();
 		this.draggable = new DraggableList(this.innerNodesList, "li");
 		this.draggable.addEventListener("dragend", ({ detail: { oldPosition, newPosition } }) => {
 			if (oldPosition === newPosition) return;
-
 			ordered.splice(newPosition, 0, ordered.splice(oldPosition, 1)[0]);
 			for (let i = 0; i < ordered.length; i++) {
 				this.storeModification({ nodeIndex: ordered[i].index, section: ORDER, prop: "order", value: i });
@@ -147,6 +157,17 @@ export class ManageGroupDialog extends ComfyDialog {
 
 	getEditElement(section, prop, value, placeholder, checked, checkable = true) {
 		if (value === placeholder) value = "";
+
+		const mods = this.modifications[this.selectedGroup]?.nodes?.[this.selectedNodeInnerIndex]?.[section]?.[prop];
+		if (mods) {
+			if (mods.name != null) {
+				value = mods.name;
+			}
+			if (mods.visible != null) {
+				checked = mods.visible;
+			}
+		}
+
 		return $el("div", [
 			$el("input", {
 				value,
@@ -312,7 +333,7 @@ export class ManageGroupDialog extends ComfyDialog {
 							const types = {};
 							for (const g in this.modifications) {
 								const type = app.graph.extra.groupNodes[g];
-								const config = (type.config ??= {});
+								let config = (type.config ??= {});
 
 								let nodeMods = this.modifications[g]?.nodes;
 								if (nodeMods) {
@@ -321,6 +342,7 @@ export class ManageGroupDialog extends ComfyDialog {
 										// If any node is reordered, they will all need sequencing
 										const orderedNodes = [];
 										const orderedMods = {};
+										const orderedConfig = {};
 
 										for (const n of keys) {
 											const order = nodeMods[n][ORDER].order;
@@ -342,8 +364,17 @@ export class ManageGroupDialog extends ComfyDialog {
 											}
 										}
 
+										// Rewrite modifications
+										for (const id of keys) {
+											if (config[id]) {
+												orderedConfig[type.nodes[id].index] = config[id];
+											}
+											delete config[id];
+										}
+
 										type.nodes = orderedNodes;
 										nodeMods = orderedMods;
+										type.config = config = orderedConfig;
 									}
 
 									merge(config, nodeMods);
@@ -371,6 +402,7 @@ export class ManageGroupDialog extends ComfyDialog {
 
 							this.modifications = {};
 							this.app.graph.setDirtyCanvas(true, true);
+							this.changeGroup(this.selectedGroup, false);
 						},
 					},
 					"Save"

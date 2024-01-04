@@ -4,10 +4,14 @@
 	padding: 0;
 	font-family: Arial, Helvetica, sans-serif;
 	border-color: black;
-	margin: 25vh auto;
+	margin: 20vh auto;
+	max-height: 60vh;
 }
 .comfy-group-manage-outer {
+	max-height: 60vh;
 	min-width: 500px;
+	display: flex;
+	flex-direction: column;
 }
 .comfy-group-manage-outer > header {
 	display: flex;
@@ -30,6 +34,7 @@
 }
 .comfy-group-manage main {
 	display: flex;
+	overflow: hidden;
 }
 .comfy-group-manage .drag-handle {
 	font-weight: bold;
@@ -68,10 +73,14 @@
 	opacity: 0.7;
 	font-size: smaller;
 }
-
 .comfy-group-manage-node {
 	flex: auto;
 	background: var(--border-color);
+	display: flex;
+	flex-direction: column;
+}
+.comfy-group-manage-node > div {
+	overflow: auto;
 }
 .comfy-group-manage-node header {
 	display: flex;
@@ -99,7 +108,6 @@
 }
 .comfy-group-manage-node-page {
 	display: none;
-	max-height: 50vh;
 	overflow: auto;
 }
 .comfy-group-manage-node-page.active {
