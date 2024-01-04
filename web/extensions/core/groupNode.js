@@ -62,7 +62,7 @@ class GroupNodeBuilder {
 				);
 				return;
 			case Workflow.InUse.Registered:
-				if (!confirm("An group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?")) {
+				if (!confirm("A group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?")) {
 					return;
 				}
 				break;
