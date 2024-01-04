@@ -420,10 +420,3 @@ export class ManageGroupDialog extends ComfyDialog {
 		});
 	}
 }
-
-setTimeout(async () => {
-	while (!window.app || !Object.keys(window.app.graph.extra?.groupNodes ?? {}).length) {
-		await new Promise((r) => setTimeout(r, 100));
-	}
-	new ManageGroupDialog(window.app).show();
-}, 1);
