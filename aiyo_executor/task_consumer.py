@@ -2,6 +2,7 @@
 import os
 import time
 import json
+import traceback
 
 from framework.app_log import AppLog
 from framework.kafka_connection import KafkaConnection
@@ -20,7 +21,11 @@ class TaskConsumerLocal:
         """
         topic = CONFIG["kafka_settings"]["topic"]
         url = CONFIG["server"]["url"]
-        succ, json_response = APICall.get_sync(f"{url}/task_exe/get_task", {"topic": topic})
+        try:        
+            succ, json_response = APICall.get_sync(f"{url}/task_exe/get_task", {"topic": topic})
+        except Exception as e:
+            succ = False
+            AppLog.error(f"[Get Task] ERROR. {e}\n {traceback.format_exc()}")
         if not succ or json_response is None:
             return None
     
