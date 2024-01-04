@@ -1,1 +1,1 @@
-recursive-include web *
+recursive-include comfy/web *

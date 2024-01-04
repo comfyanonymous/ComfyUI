@@ -150,7 +150,7 @@ def dependencies() -> List[str]:
 
 package_data = ['sd1_tokenizer/*', '**/*.json', '**/*.yaml']
 if not is_editable:
-    package_data.append('web/**/*')
+    package_data.append('comfy/web/**/*')
 setup(
     name=package_name,
     description="",

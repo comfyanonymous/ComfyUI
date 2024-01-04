@@ -105,7 +105,7 @@ class PromptServer():
         self.app = web.Application(client_max_size=max_upload_size, handler_args={'max_field_size': 16380},
                                    middlewares=middlewares)
         self.sockets = dict()
-        web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../web")
+        web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../web")
         if not os.path.exists(web_root_path):
             web_root_path = resource_filename('comfy', 'web/')
         self.web_root = web_root_path
