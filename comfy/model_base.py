@@ -1,10 +1,12 @@
 import torch
-from .ldm.modules.diffusionmodules.openaimodel import UNetModel
+from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
-from .ldm.modules.diffusionmodules.openaimodel import Timestep
+from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from . import model_management
 from . import conds
+from . import ops
 from enum import Enum
+import contextlib
 from . import utils
 
 class ModelType(Enum):
@@ -13,7 +15,7 @@ class ModelType(Enum):
     V_PREDICTION_EDM = 3
 
 
-from comfy.model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM
+from .model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM
 
 
 def model_sampling(model_config, model_type):
@@ -40,9 +42,14 @@ class BaseModel(torch.nn.Module):
         unet_config = model_config.unet_config
         self.latent_format = model_config.latent_format
         self.model_config = model_config
+        self.manual_cast_dtype = model_config.manual_cast_dtype
 
         if not unet_config.get("disable_unet_model_creation", False):
-            self.diffusion_model = UNetModel(**unet_config, device=device)
+            if self.manual_cast_dtype is not None:
+                operations = ops.manual_cast
+            else:
+                operations = ops.disable_weight_init
+            self.diffusion_model = UNetModel(**unet_config, device=device, operations=operations)
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -61,15 +68,21 @@ class BaseModel(torch.nn.Module):
 
         context = c_crossattn
         dtype = self.get_dtype()
+
+        if self.manual_cast_dtype is not None:
+            dtype = self.manual_cast_dtype
+
         xc = xc.to(dtype)
         t = self.model_sampling.timestep(t).float()
         context = context.to(dtype)
         extra_conds = {}
         for o in kwargs:
             extra = kwargs[o]
-            if hasattr(extra, "to"):
-                extra = extra.to(dtype)
+            if hasattr(extra, "dtype"):
+                if extra.dtype != torch.int and extra.dtype != torch.long:
+                    extra = extra.to(dtype)
             extra_conds[o] = extra
+
         model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
         return self.model_sampling.calculate_denoised(sigma, model_output, x)
 
@@ -117,6 +130,10 @@ class BaseModel(torch.nn.Module):
         adm = self.encode_adm(**kwargs)
         if adm is not None:
             out['y'] = conds.CONDRegular(adm)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDCrossAttn(cross_attn)
         return out
 
     def load_model_weights(self, sd, unet_prefix=""):
@@ -144,11 +161,7 @@ class BaseModel(torch.nn.Module):
 
     def state_dict_for_saving(self, clip_state_dict, vae_state_dict):
         clip_state_dict = self.model_config.process_clip_state_dict_for_saving(clip_state_dict)
-        unet_sd = self.diffusion_model.state_dict()
-        unet_state_dict = {}
-        for k in unet_sd:
-            unet_state_dict[k] = model_management.resolve_lowvram_weight(unet_sd[k], self.diffusion_model, k)
-
+        unet_state_dict = self.diffusion_model.state_dict()
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
         vae_state_dict = self.model_config.process_vae_state_dict_for_saving(vae_state_dict)
         if self.get_dtype() == torch.float16:
@@ -165,9 +178,12 @@ class BaseModel(torch.nn.Module):
 
     def memory_required(self, input_shape):
         if model_management.xformers_enabled() or model_management.pytorch_attention_flash_attention():
+            dtype = self.get_dtype()
+            if self.manual_cast_dtype is not None:
+                dtype = self.manual_cast_dtype
             #TODO: this needs to be tweaked
             area = input_shape[0] * input_shape[2] * input_shape[3]
-            return (area * model_management.dtype_size(self.get_dtype()) / 50) * (1024 * 1024)
+            return (area * model_management.dtype_size(dtype) / 50) * (1024 * 1024)
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
             area = input_shape[0] * input_shape[2] * input_shape[3]
@@ -307,9 +323,75 @@ class SVD_img2vid(BaseModel):
 
         out['c_concat'] = conds.CONDNoiseShape(latent_image)
 
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDCrossAttn(cross_attn)
+
         if "time_conditioning" in kwargs:
             out["time_context"] = conds.CONDCrossAttn(kwargs["time_conditioning"])
 
         out['image_only_indicator'] = conds.CONDConstant(torch.zeros((1,), device=device))
         out['num_video_frames'] = conds.CONDConstant(noise.shape[0])
+        return out
+
+class Stable_Zero123(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.EPS, device=None, cc_projection_weight=None, cc_projection_bias=None):
+        super().__init__(model_config, model_type, device=device)
+        self.cc_projection = ops.manual_cast.Linear(cc_projection_weight.shape[1], cc_projection_weight.shape[0], dtype=self.get_dtype(), device=device)
+        self.cc_projection.weight.copy_(cc_projection_weight)
+        self.cc_projection.bias.copy_(cc_projection_bias)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+
+        latent_image = kwargs.get("concat_latent_image", None)
+        noise = kwargs.get("noise", None)
+
+        if latent_image is None:
+            latent_image = torch.zeros_like(noise)
+
+        if latent_image.shape[1:] != noise.shape[1:]:
+            latent_image = utils.common_upscale(latent_image, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+        latent_image = utils.resize_to_batch_size(latent_image, noise.shape[0])
+
+        out['c_concat'] = conds.CONDNoiseShape(latent_image)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            if cross_attn.shape[-1] != 768:
+                cross_attn = self.cc_projection(cross_attn)
+            out['c_crossattn'] = conds.CONDCrossAttn(cross_attn)
+        return out
+
+class SD_X4Upscaler(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
+        super().__init__(model_config, model_type, device=device)
+        self.noise_augmentor = ImageConcatWithNoiseAugmentation(noise_schedule_config={"linear_start": 0.0001, "linear_end": 0.02}, max_noise_level=350)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+
+        image = kwargs.get("concat_image", None)
+        noise = kwargs.get("noise", None)
+        noise_augment = kwargs.get("noise_augmentation", 0.0)
+        device = kwargs["device"]
+        seed = kwargs["seed"] - 10
+
+        noise_level = round((self.noise_augmentor.max_noise_level) * noise_augment)
+
+        if image is None:
+            image = torch.zeros_like(noise)[:,:3]
+
+        if image.shape[1:] != noise.shape[1:]:
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+        noise_level = torch.tensor([noise_level], device=device)
+        if noise_augment > 0:
+            image, noise_level = self.noise_augmentor(image.to(device), noise_level=noise_level, seed=seed)
+
+        image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        out['c_concat'] = conds.CONDNoiseShape(image)
+        out['y'] = conds.CONDRegular(noise_level)
         return out

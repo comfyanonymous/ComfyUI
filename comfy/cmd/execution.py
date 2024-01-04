@@ -13,6 +13,8 @@ import typing
 from dataclasses import dataclass
 from typing import Tuple
 import sys
+import gc
+import inspect
 
 import torch
 
@@ -442,6 +444,8 @@ class PromptExecutor:
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
             self.server.last_node_id = None
+            if model_management.DISABLE_SMART_MEMORY:
+                model_management.unload_all_models()
 
 
 
@@ -461,6 +465,14 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
 
     errors = []
     valid = True
+
+    # todo: investigate if these are at the right indent level
+    info = None
+    val = None
+
+    validate_function_inputs = []
+    if hasattr(obj_class, "VALIDATE_INPUTS"):
+        validate_function_inputs = inspect.getfullargspec(obj_class.VALIDATE_INPUTS).args
 
     for x in required_inputs:
         if x not in inputs:
@@ -591,29 +603,7 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
                     errors.append(error)
                     continue
 
-            if hasattr(obj_class, "VALIDATE_INPUTS"):
-                input_data_all = get_input_data(inputs, obj_class, unique_id)
-                # ret = obj_class.VALIDATE_INPUTS(**input_data_all)
-                ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
-                for i, r3 in enumerate(ret):
-                    if r3 is not True:
-                        details = f"{x}"
-                        if r3 is not False:
-                            details += f" - {str(r3)}"
-
-                        error = {
-                            "type": "custom_validation_failed",
-                            "message": "Custom validation failed for node",
-                            "details": details,
-                            "extra_info": {
-                                "input_name": x,
-                                "input_config": info,
-                                "received_value": val,
-                            }
-                        }
-                        errors.append(error)
-                        continue
-            else:
+            if x not in validate_function_inputs:
                 if isinstance(type_input, list):
                     if val not in type_input:
                         input_config = info
@@ -639,6 +629,35 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
                         }
                         errors.append(error)
                         continue
+
+    if len(validate_function_inputs) > 0:
+        input_data_all = get_input_data(inputs, obj_class, unique_id)
+        input_filtered = {}
+        for x in input_data_all:
+            if x in validate_function_inputs:
+                input_filtered[x] = input_data_all[x]
+
+        #ret = obj_class.VALIDATE_INPUTS(**input_filtered)
+        ret = map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS")
+        for x in input_filtered:
+            for i, r in enumerate(ret):
+                if r is not True:
+                    details = f"{x}"
+                    if r is not False:
+                        details += f" - {str(r)}"
+
+                    error = {
+                        "type": "custom_validation_failed",
+                        "message": "Custom validation failed for node",
+                        "details": details,
+                        "extra_info": {
+                            "input_name": x,
+                            "input_config": info,
+                            "received_value": val,
+                        }
+                    }
+                    errors.append(error)
+                    continue
 
     if len(errors) > 0 or valid is not True:
         ret = (False, errors, unique_id)
@@ -771,7 +790,7 @@ class PromptQueue:
             self.server.queue_updated()
             self.not_empty.notify()
 
-    def get(self, timeout=None) -> typing.Tuple[QueueTuple, int]:
+    def get(self, timeout=None) -> typing.Optional[typing.Tuple[QueueTuple, int]]:
         with self.not_empty:
             while len(self.queue) == 0:
                 self.not_empty.wait(timeout=timeout)

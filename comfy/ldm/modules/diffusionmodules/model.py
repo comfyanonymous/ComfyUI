@@ -8,6 +8,7 @@ from typing import Optional, Any
 
 from .... import model_management
 from .... import ops
+ops = ops.disable_weight_init
 
 if model_management.xformers_enabled_vae():
     import xformers
@@ -40,7 +41,7 @@ def nonlinearity(x):
 
 
 def Normalize(in_channels, num_groups=32):
-    return torch.nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
+    return ops.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
 
 
 class Upsample(nn.Module):

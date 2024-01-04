@@ -28,18 +28,18 @@ version = '0.0.1'
 """
 The package index to the torch built with AMD ROCm.
 """
-amd_torch_index = "https://download.pytorch.org/whl/rocm5.6"
+amd_torch_index = ("https://download.pytorch.org/whl/rocm5.6", "https://download.pytorch.org/whl/nightly/rocm5.7")
 
 """
 The package index to torch built with CUDA.
 Observe the CUDA version is in this URL.
 """
-nvidia_torch_index = "https://download.pytorch.org/whl/cu121"
+nvidia_torch_index = ("https://download.pytorch.org/whl/cu121", "https://download.pytorch.org/whl/nightly/cu121")
 
 """
 The package index to torch built against CPU features.
 """
-cpu_torch_index = "https://download.pytorch.org/whl/cpu"
+cpu_torch_index = ("https://download.pytorch.org/whl/cpu", "https://download.pytorch.org/whl/nightly/cpu")
 
 # xformers not required for new torch
 
@@ -102,11 +102,11 @@ def _is_linux_arm64():
 
 def dependencies() -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
-    # todo: also add all plugin dependencies
     _alternative_indices = [amd_torch_index, nvidia_torch_index]
     session = PipSession()
 
-    index_urls = ['https://pypi.org/simple']
+    # (stable, nightly) tuple
+    index_urls = [('https://pypi.org/simple', 'https://pypi.org/simple')]
     # prefer nvidia over AMD because AM5/iGPU systems will have a valid ROCm device
     if _is_nvidia():
         index_urls += [nvidia_torch_index]
@@ -118,6 +118,13 @@ def dependencies() -> List[str]:
     if len(index_urls) == 1:
         return _dependencies
 
+    if sys.version_info >= (3, 12):
+        # use the nightlies
+        index_urls = [nightly for (_, nightly) in index_urls]
+        _alternative_indices = [nightly for (_, nightly) in _alternative_indices]
+    else:
+        index_urls = [stable for (stable, _) in index_urls]
+        _alternative_indices = [stable for (stable, _) in _alternative_indices]
     try:
         # pip 23
         finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls, no_index=False)),
@@ -149,7 +156,7 @@ setup(
     description="",
     author="",
     version=version,
-    python_requires=">=3.9,<3.12",
+    python_requires=">=3.9,<3.13",
     # todo: figure out how to include the web directory to eventually let main live inside the package
     # todo: see https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/ for more about adding plugins
     packages=find_packages(exclude=[] if is_editable else ['custom_nodes']),

@@ -3,6 +3,7 @@ torchaudio
 torchvision
 torchdiffeq>=0.2.3
 torchsde>=0.2.6
+torchvision
 einops>=0.6.0
 open-clip-torch>=2.16.0
 transformers>=4.29.1

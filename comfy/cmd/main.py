@@ -23,9 +23,9 @@ def execute_prestartup_script():
         return False
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
+    node_prestartup_times = []
     for custom_node_path in node_paths:
         possible_modules = os.listdir(custom_node_path) if os.path.exists(custom_node_path) else []
-        node_prestartup_times = []
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
@@ -69,6 +69,10 @@ if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
     print("Set cuda device to:", args.cuda_device)
 
+if args.deterministic:
+    if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
+        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
 from .. import utils
 import yaml
 
@@ -78,12 +82,12 @@ from .server import BinaryEventTypes
 from .. import model_management
 
 
-def prompt_worker(q: execution.PromptQueue, _server: server_module.PromptServer):
+def prompt_worker(q, _server):
     e = execution.PromptExecutor(_server)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
-
+    current_time = 0.0
     while True:
         timeout = None
         if need_gc:
@@ -94,11 +98,13 @@ def prompt_worker(q: execution.PromptQueue, _server: server_module.PromptServer)
             item, item_id = queue_item
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
+            _server.last_prompt_id = prompt_id
+
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
             q.task_done(item_id, e.outputs_ui)
             if _server.client_id is not None:
-                _server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, _server.client_id)
+                _server.send_sync("executing", {"node": None, "prompt_id": prompt_id}, _server.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
@@ -119,7 +125,10 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 
 def hijack_progress(server):
     def hook(value, total, preview_image):
-        server.send_sync("progress", {"value": value, "max": total}, server.client_id)
+        model_management.throw_exception_if_processing_interrupted()
+        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+
+        server.send_sync("progress", progress, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
 
@@ -204,7 +213,7 @@ def main():
         print(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
-    #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
+    # These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
     folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
     folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
     folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))

@@ -18,6 +18,7 @@ if model_management.xformers_enabled():
 
 from ...cli_args import args
 from ... import ops
+ops = ops.disable_weight_init
 
 # CrossAttn precision handling
 if args.dont_upcast_attention:
@@ -82,16 +83,6 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-
-def zero_module(module):
-    """
-    Zero out the parameters of a module and return it.
-    """
-    for p in module.parameters():
-        p.detach().zero_()
-    return module
-
-
 def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
 
@@ -112,19 +103,20 @@ def attention_basic(q, k, v, heads, mask=None):
 
     # force cast to fp32 to avoid overflowing
     if _ATTN_PRECISION =="fp32":
-        with torch.autocast(enabled=False, device_type = 'cuda'):
-            q, k = q.float(), k.float()
-            sim = einsum('b i d, b j d -> b i j', q, k) * scale
+        sim = einsum('b i d, b j d -> b i j', q.float(), k.float()) * scale
     else:
         sim = einsum('b i d, b j d -> b i j', q, k) * scale
 
     del q, k
 
     if exists(mask):
-        mask = rearrange(mask, 'b ... -> b (...)')
-        max_neg_value = -torch.finfo(sim.dtype).max
-        mask = repeat(mask, 'b j -> (b h) () j', h=h)
-        sim.masked_fill_(~mask, max_neg_value)
+        if mask.dtype == torch.bool:
+            mask = rearrange(mask, 'b ... -> b (...)') #TODO: check if this bool part matches pytorch attention
+            max_neg_value = -torch.finfo(sim.dtype).max
+            mask = repeat(mask, 'b j -> (b h) () j', h=h)
+            sim.masked_fill_(~mask, max_neg_value)
+        else:
+            sim += mask
 
     # attention, what we cannot get enough of
     sim = sim.softmax(dim=-1)
@@ -349,6 +341,18 @@ else:
 if model_management.pytorch_attention_enabled():
     optimized_attention_masked = attention_pytorch
 
+def optimized_attention_for_device(device, mask=False):
+    if device == torch.device("cpu"): #TODO
+        if model_management.pytorch_attention_enabled():
+            return attention_pytorch
+        else:
+            return attention_basic
+    if mask:
+        return optimized_attention_masked
+
+    return optimized_attention
+
+
 class CrossAttention(nn.Module):
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None, device=None, operations=ops):
         super().__init__()
@@ -393,7 +397,7 @@ class BasicTransformerBlock(nn.Module):
         self.is_res = inner_dim == dim
 
         if self.ff_in:
-            self.norm_in = nn.LayerNorm(dim, dtype=dtype, device=device)
+            self.norm_in = operations.LayerNorm(dim, dtype=dtype, device=device)
             self.ff_in = FeedForward(dim, dim_out=inner_dim, dropout=dropout, glu=gated_ff, dtype=dtype, device=device, operations=operations)
 
         self.disable_self_attn = disable_self_attn
@@ -413,10 +417,10 @@ class BasicTransformerBlock(nn.Module):
 
             self.attn2 = CrossAttention(query_dim=inner_dim, context_dim=context_dim_attn2,
                                 heads=n_heads, dim_head=d_head, dropout=dropout, dtype=dtype, device=device, operations=operations)  # is self-attn if context is none
-            self.norm2 = nn.LayerNorm(inner_dim, dtype=dtype, device=device)
+            self.norm2 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
 
-        self.norm1 = nn.LayerNorm(inner_dim, dtype=dtype, device=device)
-        self.norm3 = nn.LayerNorm(inner_dim, dtype=dtype, device=device)
+        self.norm1 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
+        self.norm3 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
         self.checkpoint = checkpoint
         self.n_heads = n_heads
         self.d_head = d_head
@@ -558,7 +562,7 @@ class SpatialTransformer(nn.Module):
             context_dim = [context_dim] * depth
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = Normalize(in_channels, dtype=dtype, device=device)
+        self.norm = operations.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
         if not use_linear:
             self.proj_in = operations.Conv2d(in_channels,
                                      inner_dim,

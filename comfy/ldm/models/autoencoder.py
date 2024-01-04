@@ -9,6 +9,7 @@ from ..modules.distributions.distributions import DiagonalGaussianDistribution
 
 from ..util import instantiate_from_config, get_obj_from_str
 from ..modules.ema import LitEma
+from ... import ops
 
 class DiagonalGaussianRegularizer(torch.nn.Module):
     def __init__(self, sample: bool = True):
@@ -162,12 +163,12 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             },
             **kwargs,
         )
-        self.quant_conv = torch.nn.Conv2d(
+        self.quant_conv = ops.disable_weight_init.Conv2d(
             (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
             (1 + ddconfig["double_z"]) * embed_dim,
             1,
         )
-        self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+        self.post_quant_conv = ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
 
     def get_autoencoder_params(self) -> list:

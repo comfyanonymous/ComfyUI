@@ -1,9 +1,9 @@
-import comfy.samplers
-import comfy.sample
+from comfy import samplers
+from comfy import sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
 from comfy.cmd import latent_preview
 import torch
-import comfy.utils
+from comfy import utils
 
 
 class BasicScheduler:
@@ -11,8 +11,9 @@ class BasicScheduler:
     def INPUT_TYPES(s):
         return {"required":
                     {"model": ("MODEL",),
-                     "scheduler": (comfy.samplers.SCHEDULER_NAMES, ),
+                     "scheduler": (samplers.SCHEDULER_NAMES, ),
                      "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
+                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
@@ -20,8 +21,15 @@ class BasicScheduler:
 
     FUNCTION = "get_sigmas"
 
-    def get_sigmas(self, model, scheduler, steps):
-        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, steps).cpu()
+    def get_sigmas(self, model, scheduler, steps, denoise):
+        total_steps = steps
+        if denoise < 1.0:
+            total_steps = int(steps/denoise)
+
+        inner_model = model.patch_model(patch_weights=False)
+        sigmas = samplers.calculate_sigmas_scheduler(inner_model, scheduler, total_steps).cpu()
+        model.unpatch_model()
+        sigmas = sigmas[-(steps + 1):]
         return (sigmas, )
 
 
@@ -87,6 +95,7 @@ class SDTurboScheduler:
         return {"required":
                     {"model": ("MODEL",),
                      "steps": ("INT", {"default": 1, "min": 1, "max": 10}),
+                     "denoise": ("FLOAT", {"default": 1.0, "min": 0, "max": 1.0, "step": 0.01}),
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
@@ -94,9 +103,12 @@ class SDTurboScheduler:
 
     FUNCTION = "get_sigmas"
 
-    def get_sigmas(self, model, steps):
-        timesteps = torch.flip(torch.arange(1, 11) * 100 - 1, (0,))[:steps]
-        sigmas = model.model.model_sampling.sigma(timesteps)
+    def get_sigmas(self, model, steps, denoise):
+        start_step = 10 - int(10 * denoise)
+        timesteps = torch.flip(torch.arange(1, 11) * 100 - 1, (0,))[start_step:start_step + steps]
+        inner_model = model.patch_model(patch_weights=False)
+        sigmas = inner_model.model_sampling.sigma(timesteps)
+        model.unpatch_model()
         sigmas = torch.cat([sigmas, sigmas.new_zeros([1])])
         return (sigmas, )
 
@@ -159,7 +171,7 @@ class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"sampler_name": (comfy.samplers.SAMPLER_NAMES, ),
+                    {"sampler_name": (samplers.SAMPLER_NAMES, ),
                       }
                }
     RETURN_TYPES = ("SAMPLER",)
@@ -168,7 +180,7 @@ class KSamplerSelect:
     FUNCTION = "get_sampler"
 
     def get_sampler(self, sampler_name):
-        sampler = comfy.samplers.sampler_object(sampler_name)
+        sampler = samplers.sampler_object(sampler_name)
         return (sampler, )
 
 class SamplerDPMPP_2M_SDE:
@@ -191,7 +203,7 @@ class SamplerDPMPP_2M_SDE:
             sampler_name = "dpmpp_2m_sde"
         else:
             sampler_name = "dpmpp_2m_sde_gpu"
-        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "solver_type": solver_type})
+        sampler = samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "solver_type": solver_type})
         return (sampler, )
 
 
@@ -215,7 +227,7 @@ class SamplerDPMPP_SDE:
             sampler_name = "dpmpp_sde"
         else:
             sampler_name = "dpmpp_sde_gpu"
-        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})
+        sampler = samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})
         return (sampler, )
 
 class SamplerCustom:
@@ -248,7 +260,7 @@ class SamplerCustom:
             noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
         else:
             batch_inds = latent["batch_index"] if "batch_index" in latent else None
-            noise = comfy.sample.prepare_noise(latent_image, noise_seed, batch_inds)
+            noise = sample.prepare_noise(latent_image, noise_seed, batch_inds)
 
         noise_mask = None
         if "noise_mask" in latent:
@@ -257,8 +269,8 @@ class SamplerCustom:
         x0_output = {}
         callback = latent_preview.prepare_callback(model, sigmas.shape[-1] - 1, x0_output)
 
-        disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
-        samples = comfy.sample.sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise_seed)
+        disable_pbar = not utils.PROGRESS_BAR_ENABLED
+        samples = sample.sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise_seed)
 
         out = latent.copy()
         out["samples"] = samples
