@@ -112,8 +112,11 @@ class ExecuteContextStorage:
         for input_name, input_val in inputs.items():
             
             if self.is_connection_input(node_prompt=self.prompt[node_id], input_name=input_name):
-                original_output = self.outputs[input_val[0]][input_val[1]]
-                input_datas[input_name] = original_output
+                if input_val[0] in self.outputs:
+                    original_output = self.outputs[input_val[0]][input_val[1]]
+                    input_datas[input_name] = original_output
+                else:
+                    input_datas[input_name] = [None]
                 
             else:
                 if ("required" in valid_inputs and input_name in valid_inputs["required"]) or ("optional" in valid_inputs and input_name in valid_inputs["optional"]):
@@ -292,7 +295,7 @@ class SequenceFlow:
                 if is_connection:
                     #find connected original node
                     original_node_id = node_inputs[input_name][0]
-                    is_cur_input_changed = self.context.is_changed[original_node_id]
+                    is_cur_input_changed = original_node_id in self.context.is_changed and self.context.is_changed[original_node_id]
                     if is_cur_input_changed:
                         AppLog.info(f"[IsInputChanged] input changed: input NODE changed.")
                 else:
@@ -331,7 +334,7 @@ class SequenceFlow:
         if len(input_datas) == 0:
             max_len_input = 0
         else:
-            max_len_input = max([len(x) for x in input_datas.values()])
+            max_len_input = max([len(x) if x is not None else 0 for x in input_datas.values()])
             
             
         # get a slice of inputs, repeat last input when list isn't long enough

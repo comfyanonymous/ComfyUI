@@ -94,6 +94,31 @@ class StringInput:
     
     
     
+class BoolInput:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { 
+            "name": ("STRING", {"default": ""}),
+            "data": ("BOOLEAN", {"default": False})
+            }}
+    
+    
+    RETURN_TYPES = ("BOOLEAN", )
+    FUNCTION = "execute"
+
+    CATEGORY = "flow"
+    
+    INPUT_NODE = True
+    INPUT_NODE_TYPE = "BOOLEAN"
+    INPUT_NODE_DATA = "data"
+    
+    
+    
+    def execute(self, name, data):
+        return (data, ) 
+    
+    
+    
 class ImageInput:
     @classmethod
     def INPUT_TYPES(s):
@@ -211,6 +236,7 @@ NODE_CLASS_MAPPINGS = {
     "IntInput": IntInput,
     "FloatInput": FloatInput,
     "StringInput": StringInput,
+    "BoolInput": BoolInput,
     "ImageInput": ImageInput,
     "ImageOutput": ImageOutput
 }
@@ -219,6 +245,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "IntInput": "Int Input",
     "FloatInput": "Float Input",
     "StringInput": "String Input",
+    "BoolInput": "Bool Input",
     "ImageInput": "Image Input",
     "ImageOutput": "Image Output"
 } 

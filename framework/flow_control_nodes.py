@@ -87,6 +87,36 @@ class MergeFlowNode:
         
         
         
+class AnyFirstValidInput:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "input0": ("ANY_DATA",)
+                }, 
+                "optional": {
+                    "input1": ("ANY_DATA",),
+                    "input2": ("ANY_DATA",),
+                    "input3": ("ANY_DATA",),
+                    "input4": ("ANY_DATA",),
+                    "input5": ("ANY_DATA",)
+                }
+                }
+    
+    RETURN_TYPES = ("ANY_DATA", )
+    FUNCTION = "execute"
+
+    CATEGORY = "flow"
+    
+    # def __init__(self) -> None:
+    #     self.input_vals = [None, None, None, None, None, None]
+    #     # self.input_valid = [False, False, False, False, False, False]
+    
+    def execute(self, input0, input1=None, input2=None, input3=None, input4=None, input5=None):
+        input_list=[input0, input1, input2, input3, input4, input5]
+        res = next((x for x in input_list if x is not None), None)
+        return (res, )
+    
+    
 
 class LoopFlowNode:
     @classmethod
@@ -149,11 +179,13 @@ NODE_CLASS_MAPPINGS = {
     
     "IfConotrolNode": IfConotrolNode,
     "MergeFlowNode": MergeFlowNode,
-    "LoopFlowNode": LoopFlowNode
+    "LoopFlowNode": LoopFlowNode,
+    "AnyFirstValidInput": AnyFirstValidInput
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "IfConotrolNode": "If(Go To)",
     "MergeFlowNode": "Merge Flow",
-    "LoopFlowNode": "Loop"
+    "LoopFlowNode": "Loop",
+    "AnyFirstValidInput": "Any First Valid Input"
 }  
