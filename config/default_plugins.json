@@ -1,17 +1,134 @@
-
-
 {
-    "plugins": [
-        {
-            "author": "Fannovel16",
-            "title": "ComfyUI's ControlNet Auxiliary Preprocessors",
-            "reference": "https://github.com/Fannovel16/comfyui_controlnet_aux",
-            "files": [
-                "https://github.com/Fannovel16/comfyui_controlnet_aux"
-            ],
-            "install_type": "git-clone",
-            "commit": "b706a5bd4dbf4cdd3834ca694c60962e482cf53d",
-            "description": "This is a rework of comfyui_controlnet_preprocessors based on ControlNet auxiliary models by 🤗. I think the old repo isn't good enough to maintain. All old workflow will still be work with this repo but the version option won't do anything. Almost all v1 preprocessors are replaced by v1.1 except those doesn't appear in v1.1. [w/NOTE: Please refrain from using the controlnet preprocessor alongside this installation, as it may lead to conflicts and prevent proper recognition.]"
-        }
-    ]
+  "plugins": [
+    {
+      "author": "Dr.Lt.Data",
+      "title": "ComfyUI-Manager",
+      "reference": "https://github.com/ltdrdata/ComfyUI-Manager",
+      "files": [
+        "https://github.com/ltdrdata/ComfyUI-Manager"
+      ],
+      "install_type": "git-clone",
+      "commit": "001154622564b17223ce0191803c5fff7b87146c",
+      "description": "ComfyUI-Manager itself is also a custom node."
+    },
+    {
+      "author": "Stability-AI",
+      "title": "stability-ComfyUI-nodes",
+      "reference": "https://github.com/Stability-AI/stability-ComfyUI-nodes",
+      "files": [
+        "https://github.com/Stability-AI/stability-ComfyUI-nodes"
+      ],
+      "install_type": "git-clone",
+      "commit": "001154622564b17223ce0191803c5fff7b87146c",
+      "description": "Nodes: ColorBlend, ControlLoraSave, GetImageSize. NOTE: Control-LoRA recolor example uses these nodes."
+    },
+
+    {
+      "author": "jags111",
+      "title": "Efficiency Nodes for ComfyUI Version 2.0+",
+      "reference": "https://github.com/jags111/efficiency-nodes-comfyui",
+      "files": [
+        "https://github.com/jags111/efficiency-nodes-comfyui"
+      ],
+      "install_type": "git-clone",
+      "commit": "eeee10561a6adcffabf5b8bb13266ac4f62749ac",
+      "description": "A collection of ComfyUI custom nodes to help streamline workflows and reduce total node count.[w/NOTE: This node is originally created by LucianoCirino, but the [a/original repository](https://github.com/LucianoCirino/efficiency-nodes-comfyui) is no longer maintained and has been forked by a new maintainer. To use the forked version, you should uninstall the original version and **REINSTALL** this one.]"
+    },
+
+    {
+      "author": "Derfuu",
+      "title": "Derfuu_ComfyUI_ModdedNodes",
+      "reference": "https://github.com/Derfuu/Derfuu_ComfyUI_ModdedNodes",
+      "files": [
+        "https://github.com/Derfuu/Derfuu_ComfyUI_ModdedNodes"
+      ],
+      "install_type": "git-clone",
+      "commit": "2ace4c463d5b2063de35e46ebb9bd3f10e2d34b4",
+      "description": "Automate calculation depending on image sizes or something you want."
+    },
+
+    {
+      "author": "pythongosssss",
+      "title": "pythongosssss/ComfyUI-Custom-Scripts",
+      "reference": "https://github.com/pythongosssss/ComfyUI-Custom-Scripts",
+      "files": [
+        "https://github.com/pythongosssss/ComfyUI-Custom-Scripts"
+      ],
+      "install_type": "git-clone",
+      "commit": "27555d4f71bb4e24b87571f89eab2b4a06677bb6",
+      "description": "This extension provides: Auto Arrange Graph, Workflow SVG, Favicon Status, Image Feed, Latent Upscale By, Lock Nodes & Groups, Lora Subfolders, Preset Text, Show Text, Touch Support, Link Render Mode, Locking, Node Finder, Quick Nodes, Show Image On Menu, Show Text, Workflow Managements, Custom Widget Default Values"
+    },
+
+    {
+      "author": "cubiq",
+      "title": "ComfyUI_IPAdapter_plus",
+      "reference": "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
+      "files": [
+        "https://github.com/cubiq/ComfyUI_IPAdapter_plus"
+      ],
+      "install_type": "git-clone",
+      "commit": "a4e71ccbbf930125f53e19d0ecca80425a1fecaa",
+      "description": "ComfyUI reference implementation for IPAdapter models. The code is mostly taken from the original IPAdapter repository and laksjdjf's implementation, all credit goes to them. I just made the extension closer to ComfyUI philosophy."
+    },
+
+    {
+      "author": "twri",
+      "title": "SDXL Prompt Styler",
+      "reference": "https://github.com/twri/sdxl_prompt_styler",
+      "files": [
+        "https://github.com/twri/sdxl_prompt_styler"
+      ],
+      "install_type": "git-clone",
+      "commit": "95eea10c7024376903cee1185088d50c0965299d",
+      "description": "SDXL Prompt Styler is a node that enables you to style prompts based on predefined templates stored in a JSON file."
+    },
+
+    {
+      "author": "Gourieff",
+      "title": "ReActor Node for ComfyUI",
+      "reference": "https://github.com/Gourieff/comfyui-reactor-node",
+      "files": [
+        "https://github.com/Gourieff/comfyui-reactor-node"
+      ],
+      "install_type": "git-clone",
+      "commit": "58a8346cddf6ec4fb35f5c401ecc247adc819f02",
+      "description": "The Fast and Simple 'roop-like' Face Swap Extension Node for ComfyUI, based on ReActor (ex Roop-GE) SD-WebUI Face Swap Extension"
+    },
+
+    {
+      "author": "rgthree",
+      "title": "rgthree's ComfyUI Nodes",
+      "reference": "https://github.com/rgthree/rgthree-comfy",
+      "files": [
+        "https://github.com/rgthree/rgthree-comfy"
+      ],
+      "nodename_pattern": " \\(rgthree\\)$",
+      "install_type": "git-clone",
+      "commit": "20779341846faac7e54ddd44f540425cad94ea9d",
+      "description": "Nodes: Seed, Reroute, Context, Lora Loader Stack, Context Switch, Fast Muter. These custom nodes helps organize the building of complex workflows."
+    },
+
+    {
+      "author": "mav-rik",
+      "title": "Facerestore CF (Code Former)",
+      "reference": "https://github.com/mav-rik/facerestore_cf",
+      "files": [
+        "https://github.com/mav-rik/facerestore_cf"
+      ],
+      "install_type": "git-clone",
+      "commit": "2b5d727ed658e0b3feb14a620d67dad1b1bcb0ab",
+      "description": "This is a copy of [a/facerestore custom node](https://civitai.com/models/24690/comfyui-facerestore-node) with a bit of a change to support CodeFormer Fidelity parameter. These ComfyUI nodes can be used to restore faces in images similar to the face restore option in AUTOMATIC1111 webui.\nNOTE: To use this node, you need to download the face restoration model and face detection model from the 'Install models' menu."
+    },
+    {
+      "author": "Fannovel16",
+      "title": "ComfyUI's ControlNet Auxiliary Preprocessors",
+      "reference": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+      "files": [
+        "https://github.com/Fannovel16/comfyui_controlnet_aux"
+      ],
+      "install_type": "git-clone",
+      "commit": "00089f36d2ba37bc82b11f819c63000e037fd107",
+      "description": "This is a rework of comfyui_controlnet_preprocessors based on ControlNet auxiliary models by 🤗. I think the old repo isn't good enough to maintain. All old workflow will still be work with this repo but the version option won't do anything. Almost all v1 preprocessors are replaced by v1.1 except those doesn't appear in v1.1. [w/NOTE: Please refrain from using the controlnet preprocessor alongside this installation, as it may lead to conflicts and prevent proper recognition.]"
+    }
+  ]
 }
