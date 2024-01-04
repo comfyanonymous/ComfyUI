@@ -600,11 +600,11 @@ class VAELoader:
         encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
         decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
 
-        enc = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", encoder))
+        enc = utils.load_torch_file(folder_paths.get_full_path("vae_approx", encoder))
         for k in enc:
             sd["taesd_encoder.{}".format(k)] = enc[k]
 
-        dec = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", decoder))
+        dec = utils.load_torch_file(folder_paths.get_full_path("vae_approx", decoder))
         for k in dec:
             sd["taesd_decoder.{}".format(k)] = dec[k]
 
@@ -931,7 +931,7 @@ class GLIGENTextBoxApply:
 
 class EmptyLatentImage:
     def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
+        self.device = model_management.intermediate_device()
 
     @classmethod
     def INPUT_TYPES(s):
