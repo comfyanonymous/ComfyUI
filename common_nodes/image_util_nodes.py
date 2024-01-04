@@ -2,6 +2,7 @@
 
 from nodes import MAX_RESOLUTION
 from nodes import ImageScale, ImagePadForOutpaint
+from framework.app_log import AppLog
 
 
 class ImageExpand:
@@ -137,8 +138,9 @@ class ImageExpandBy:
         d2, imgh2, imgw2, imgd2 = image.size()
         _right = max(0, tar_w - _left - imgw2)
         _bottom = max(0, tar_h - _top - imgh2)
+        _feathering = int(min(imgh2, imgw2) * feathering)
         
-        _feathering = min(imgh2, imgw2) * feathering
+        AppLog.info(f"[ImageExpandBy] left:{_left}, top: {_top}, right:{_right}, bottom:{_bottom}, feathering:{_feathering}")
         new_img, new_mask = ImagePadForOutpaint().expand_image(image, _left, _top, _right, _bottom, _feathering)
         
         
