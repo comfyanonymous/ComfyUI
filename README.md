@@ -179,7 +179,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
 
  5. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
     ```shell
-    pip install -e .
+    pip install -e .[test]
     ```
  6. To run the web server:
     ```shell
@@ -189,7 +189,11 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     ```shell
     comfyui-openapi-gen
     ```
-    
+    To run tests:
+    ```shell
+    pytest tests/inference
+    (cd tests-ui && npm ci && npm test:generate && npm test)
+    ```
     You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
 
 ### Authoring Custom Nodes

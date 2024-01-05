@@ -18,14 +18,14 @@ function forEachKey(cb) {
 }
 
 export function setup(ctx) {
-	const lg = fs.readFileSync(path.resolve("../web/lib/litegraph.core.js"), "utf-8");
+	const lg = fs.readFileSync(path.resolve("../comfy/web/lib/litegraph.core.js"), "utf-8");
 	const globalTemp = {};
 	(function (console) {
 		eval(lg);
 	}).call(globalTemp, nop);
 
 	forEachKey((k) => (ctx[k] = globalTemp[k]));
-	require(path.resolve("../web/lib/litegraph.extensions.js"));
+	require(path.resolve("../comfy/web/lib/litegraph.extensions.js"));
 }
 
 export function teardown(ctx) {

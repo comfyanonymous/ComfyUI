@@ -1,0 +1,2 @@
+pytest
+websocket-client==1.6.1

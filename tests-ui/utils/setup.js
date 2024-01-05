@@ -1,4 +1,4 @@
-require("../../web/scripts/api");
+require("../../comfy/web/scripts/api");
 
 const fs = require("fs");
 const path = require("path");
@@ -14,7 +14,7 @@ function* walkSync(dir) {
 }
 
 /**
- * @typedef { import("../../web/types/comfy").ComfyObjectInfo } ComfyObjectInfo
+ * @typedef { import("../../comfy/web/types/comfy").ComfyObjectInfo } ComfyObjectInfo
  */
 
 /**
@@ -22,9 +22,9 @@ function* walkSync(dir) {
  */
 export function mockApi({ mockExtensions, mockNodeDefs } = {}) {
 	if (!mockExtensions) {
-		mockExtensions = Array.from(walkSync(path.resolve("../web/extensions/core")))
+		mockExtensions = Array.from(walkSync(path.resolve("../comfy/web/extensions/core")))
 			.filter((x) => x.endsWith(".js"))
-			.map((x) => path.relative(path.resolve("../web"), x));
+			.map((x) => path.relative(path.resolve("../comfy/web"), x));
 	}
 	if (!mockNodeDefs) {
 		mockNodeDefs = JSON.parse(fs.readFileSync(path.resolve("./data/object_info.json")));
@@ -41,7 +41,7 @@ export function mockApi({ mockExtensions, mockNodeDefs } = {}) {
 		init: jest.fn(),
 		apiURL: jest.fn((x) => "../../web/" + x),
 	};
-	jest.mock("../../web/scripts/api", () => ({
+	jest.mock("../../comfy/web/scripts/api", () => ({
 		get api() {
 			return mockApi;
 		},

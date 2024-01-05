@@ -15,7 +15,7 @@ export async function start(config = {}) {
 	}
 
 	mockApi(config);
-	const { app } = require("../../web/scripts/app");
+	const { app } = require("../../comfy/web/scripts/app");
 	config.preSetup?.(app);
 	await app.setup();
 	return { ...Ez.graph(app, global["LiteGraph"], global["LGraphCanvas"]), app };
@@ -35,7 +35,7 @@ export async function checkBeforeAndAfterReload(graph, cb) {
  * @param { string } name
  * @param { Record<string, string | [string | string[], any]> } input
  * @param { (string | string[])[] | Record<string, string | string[]> } output
- * @returns { Record<string, import("../../web/types/comfy").ComfyObjectInfo> }
+ * @returns { Record<string, import("../../comfy/web/types/comfy").ComfyObjectInfo> }
  */
 export function makeNodeDef(name, input, output = {}) {
 	const nodeDef = {
@@ -106,7 +106,7 @@ export function createDefaultWorkflow(ez, graph) {
 }
 
 export async function getNodeDefs() {
-	const { api } = require("../../web/scripts/api");
+	const { api } = require("../../comfy/web/scripts/api");
 	return api.getNodeDefs();
 }
 
