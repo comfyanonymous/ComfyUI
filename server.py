@@ -508,7 +508,7 @@ class PromptServer():
             return web.Response(status=200)
 
         @routes.post("/free")
-        async def post_interrupt(request):
+        async def post_free(request):
             json_data = await request.json()
             unload_models = json_data.get("unload_models", False)
             free_memory = json_data.get("free_memory", False)
