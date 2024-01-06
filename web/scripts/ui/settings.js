@@ -43,6 +43,11 @@ export class ComfySettingsDialog extends ComfyDialog {
 		} else {
 			this.settingsValues = await api.getSettings();
 		}
+
+		// Trigger onChange for any settings added before load
+		for (const id in this.settingsLookup) {
+			this.settingsLookup[id].onChange?.(this.settingsValues[this.getId(id)]);
+		}
 	}
 
 	getId(id) {
