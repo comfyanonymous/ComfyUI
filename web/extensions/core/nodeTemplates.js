@@ -73,7 +73,7 @@ class ManageTemplates extends ComfyDialog {
 	}
 
 	async load() {
-		let templates;
+		let templates = [];
 		if (app.storageLocation === "server") {
 			if (app.isNewUserSession) {
 				// New user so migrate existing templates
@@ -85,7 +85,10 @@ class ManageTemplates extends ComfyDialog {
 			} else {
 				const res = await api.getUserData(file);
 				if (res.status === 200) {
-					templates = await res.json();
+					try {
+						templates = await res.json();
+					} catch (error) {
+					}
 				} else if (res.status !== 404) {
 					console.error(res.status + " " + res.statusText);
 				}
