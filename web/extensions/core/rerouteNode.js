@@ -29,7 +29,7 @@ app.registerExtension({
 					// Prevent multiple connections to different types when we have no input
 					if (connected && type === LiteGraph.OUTPUT) {
 						// Ignore wildcard nodes as these will be updated to real types
-						const types = new Set(this.outputs[0].links.map((l) => app.graph.links[l].type).filter((t) => t !== "*"));
+						const types = new Set(this.outputs[0].links.map((l) => app.graph.links[l].type).filter((t) => t !== "*" && t !== "ANY_DATA"));
 						if (types.size > 1) {
 							const linksToDisconnect = [];
 							for (let i = 0; i < this.outputs[0].links.length - 1; i++) {
@@ -105,7 +105,13 @@ app.registerExtension({
 										node.inputs && node.inputs[link?.target_slot] && node.inputs[link.target_slot].type
 											? node.inputs[link.target_slot].type
 											: null;
-									if (inputType && inputType !== "*" && nodeOutType !== inputType) {
+									// if (inputType && inputType !== "*" && nodeOutType !== inputType) {
+									if (inputType && nodeOutType !== inputType &&
+										((inputType !== "*" && inputType != "ANY_DATA" && nodeOutType != "ANY_DATA")
+											|| (inputType == "FLOW") 
+                							|| (nodeOutType == "FLOW"))
+										) {
+
 										// The output doesnt match our input so disconnect it
 										node.disconnectInput(link.target_slot);
 									} else {
