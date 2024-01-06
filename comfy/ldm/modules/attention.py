@@ -294,11 +294,14 @@ def attention_xformers(q, k, v, heads, mask=None):
         (q, k, v),
     )
 
-    # actually compute the attention, what we cannot get enough of
-    out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None)
+    if mask is not None:
+        pad = 8 - q.shape[1] % 8
+        mask_out = torch.empty([q.shape[0], q.shape[1], q.shape[1] + pad], dtype=q.dtype, device=q.device)
+        mask_out[:, :, :mask.shape[-1]] = mask
+        mask = mask_out[:, :, :mask.shape[-1]]
 
-    if exists(mask):
-        raise NotImplementedError
+    out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=mask)
+
     out = (
         out.unsqueeze(0)
         .reshape(b, heads, -1, dim_head)
