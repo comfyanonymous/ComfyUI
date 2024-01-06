@@ -1,28 +1,23 @@
 
 
-import uuid
-import datetime
-import os, io
-import traceback
-import requests
 
-import aiohttp
+import io
+import traceback
+
 from aiohttp import web
     
 import folder_paths
 from framework.model import object_storage
-from aiyo_server.aiyo_server import AIYoServer
+from aiyo_api_server.aiyo_api_server import AIYoApiServer
 from framework.app_log import AppLog
 
-from framework.model import tb_data
-from framework.workflow_utils import WorkflowUtils
+
 from framework.err_code import ErrorCode
-from config.config import CONFIG
 from framework.image_util import ImageUtil
-from aiyo_server.server_helper import ServerHelper
+from aiyo_api_server.server_helper import ServerHelper
 
 
-@AIYoServer.instance.routes.post("/open_api/service/upload_file")
+@AIYoApiServer.instance.routes.post("/open_api/service/upload_file")
 async def upload_file(request):
     """
     Query{
@@ -67,7 +62,7 @@ async def upload_file(request):
                                   "message": "Upload failed."})
 
 
-@AIYoServer.instance.routes.post("/open_api/service/{flow_id}/run")
+@AIYoApiServer.instance.routes.post("/open_api/service/{flow_id}/run")
 async def run_flow(request):
     """
     INPUTS:
@@ -103,7 +98,7 @@ async def run_flow(request):
     
 
 
-@AIYoServer.instance.routes.post("/open_api/service/{flow_id}/register_webhook")
+@AIYoApiServer.instance.routes.post("/open_api/service/{flow_id}/register_webhook")
 async def register_webhook(request):
     """
     INPUTS:
@@ -141,7 +136,7 @@ async def register_webhook(request):
     
     
     
-@AIYoServer.instance.routes.post("/test/on_start")
+@AIYoApiServer.instance.routes.post("/test/on_start")
 async def test_on_start(request):
     json_data =  await request.json()
     AppLog.info("On start")
@@ -151,7 +146,7 @@ async def test_on_start(request):
     
     
     
-@AIYoServer.instance.routes.post("/test/on_end")
+@AIYoApiServer.instance.routes.post("/test/on_end")
 async def test_on_end(request):
     json_data =  await request.json()
     AppLog.info("On end")
@@ -164,7 +159,7 @@ async def test_on_end(request):
     
     
     
-@AIYoServer.instance.routes.post("/test/on_processing")
+@AIYoApiServer.instance.routes.post("/test/on_processing")
 async def test_on_processing(request):
     json_data =  await request.json()
     AppLog.info("On processing")

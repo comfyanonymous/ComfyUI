@@ -4,23 +4,19 @@
 
 import uuid
 import datetime
-import os, io
+import os
 import traceback
 import requests
 import urllib
 
-import aiohttp
-from aiohttp import web
     
 import folder_paths
 from framework.model import object_storage
-from aiyo_server.aiyo_server import AIYoServer
+from aiyo_api_server.aiyo_api_server import AIYoApiServer
 from framework.app_log import AppLog
 
 from framework.model import tb_data
-from framework.workflow_utils import WorkflowUtils
 from framework.err_code import ErrorCode
-from config.config import CONFIG
 from framework.image_util import ImageUtil
 
 class ServerHelper:
@@ -114,7 +110,7 @@ class ServerHelper:
             task.save()
     
             # add task into task queue
-            AIYoServer.instance.prompt_queue.put(task_id)
+            AIYoApiServer.instance.prompt_queue.put(task_id)
             return task_id, (code, err)
             
         except Exception as e:

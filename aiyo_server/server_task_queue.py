@@ -67,7 +67,7 @@ class TaskQueueLocal:
     def _put(self, item):
         with self.mutex:
             heapq.heappush(self.queue, item)
-            self.server.server_client_communicator.queue_updated()
+            self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
             self.not_empty.notify()
 
     def get(self, timeout=None):
@@ -83,7 +83,7 @@ class TaskQueueLocal:
             prompt_id = item[1]
             self.currently_running[prompt_id] = copy.deepcopy(item)
             # self.task_counter += 1
-            self.server.server_client_communicator.queue_updated()
+            self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
             return (item, prompt_id)
 
     def task_done(self, prompt_id, outputs):
@@ -96,7 +96,8 @@ class TaskQueueLocal:
             self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
-            self.server.server_client_communicator.queue_updated()
+            self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
+
 
     def get_current_queue(self):
         with self.mutex:
@@ -112,7 +113,8 @@ class TaskQueueLocal:
     def wipe_queue(self):
         with self.mutex:
             self.queue = []
-            self.server.server_client_communicator.queue_updated()
+            self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
+
 
     def delete_queue_item(self, function):
         with self.mutex:
@@ -123,7 +125,8 @@ class TaskQueueLocal:
                     else:
                         self.queue.pop(x)
                         heapq.heapify(self.queue)
-                    self.server.server_client_communicator.queue_updated()
+                        self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
+
                     return True
         return False
 
@@ -206,8 +209,8 @@ class TaskQueueKafka:
             msg = bytes(task_id, encoding='utf-8')
             self.producer.produce(CONFIG["kafka_settings"]["topic"], value=msg)
             AppLog.info(msg)
-            
-            self.server.server_client_communicator.queue_updated()
+            self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
+
             self.not_empty.notify()
             
 
@@ -223,7 +226,8 @@ class TaskQueueKafka:
             # item id: ???????
             # item_id = item.id
             # self.currently_running[item_id] = copy.deepcopy(item)
-            self.server.server_client_communicator.queue_updated()
+            self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
+
             return (item, 0)
 
 
@@ -241,7 +245,8 @@ class TaskQueueKafka:
             
             # to do  ????????
             
-            self.server.server_client_communicator.queue_updated()
+            self.server.server_client_communicator.queue_updated() if self.server.server_client_communicator is not None else None
+
 
     def get_current_queue(self):
         # with self.mutex:

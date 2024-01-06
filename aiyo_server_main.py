@@ -12,7 +12,6 @@ from config.config import CONFIG
 import folder_paths
 import aiyo_server.server_task_queue
 import aiyo_server.aiyo_server
-from framework.model import tb_data
 from framework.app_log import AppLog
 
 import aiyo_project_init

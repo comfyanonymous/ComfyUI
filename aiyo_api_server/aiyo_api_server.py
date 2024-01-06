@@ -2,18 +2,12 @@ import os
 import sys
 
 
-import nodes
-
-import urllib
-
-import server
-
-from config.config import CONFIG
 from framework.app_log import AppLog
 from framework.model import object_storage
 from framework.model import tb_data
-from aiyo_server.server_client_communicate import ServerClientCommunicator
 from aiyo_server import server_task_queue
+from aiyo_server.server_client_communicate import ServerClientCommunicator
+
 
 try:
     import aiohttp
@@ -57,29 +51,23 @@ def create_cors_middleware(allowed_origin: str):
 
 
 
-class AIYoServer():
-    def __init__(self, loop):
-        server.PromptServer.instance = self         # hack code for extension supports
-        AIYoServer.instance = self
+class AIYoApiServer():
+    def __init__(self):
+        # server.PromptServer.instance = self         # hack code for extension supports
+        AIYoApiServer.instance = self
 
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
         
         # init task queue, resource manager
-        que = None
-        if CONFIG["deploy"]:
-            que = server_task_queue.TaskQueueKafka(self)
-            que.init_producer()
-            tb_data.default_connect()
-            
-            self.resource_mgr = object_storage.ResourceMgrRemote()
-        else:
-            self.resource_mgr = object_storage.ResourceMgrLocal()
-            que = server_task_queue.TaskQueueLocal(self)
-        self.prompt_queue = que
+        que = server_task_queue.TaskQueueKafka(self)
+        que.init_producer()
+        tb_data.default_connect()
+        
+        self.resource_mgr = object_storage.ResourceMgrRemote()
 
+        self.prompt_queue = que
         self.supports = ["custom_nodes_from_web"]
-        self.loop = loop
         self.number = 0
 
         middlewares = [cache_control]
@@ -98,52 +86,31 @@ class AIYoServer():
         self.on_prompt_handlers = []
         
         # server client communicator
-        self.server_client_communicator = ServerClientCommunicator(self)
-
+        self.server_client_communicator = None #ServerClientCommunicator(self)
         
-        import aiyo_server.editor_route
-            
-        
-    def add_routes(self):
-        self.app.add_routes(self.routes)
-
-        for name, dir in nodes.EXTENSION_WEB_DIRS.items():
-            self.app.add_routes([
-                web.static('/extensions/' + urllib.parse.quote(name), dir, follow_symlinks=True),
-            ])
-
-        self.app.add_routes([
-            web.static('/', self.web_root, follow_symlinks=True),
-        ])
+        import aiyo_api_server.open_api_route
         
 
-    async def publish_loop(self):
-        while True:
-            await self.server_client_communicator.process_one()
 
-
-    async def start(self, address, port, verbose=True, call_on_start=None):
-        runner = web.AppRunner(self.app, access_log=None)
-        await runner.setup()
-        site = web.TCPSite(runner, address, port)
-        await site.start()
+    def start(self, address, port, verbose=True, call_on_start=None):
+        # runner = web.AppRunner(self.app, access_log=None)
+        # await runner.setup()
+        # site = web.TCPSite(runner, address, port)
+        # await site.start()
 
         if address == '':
             address = '0.0.0.0'
-        if verbose:
-            AppLog.info("Starting server\n")
-            AppLog.info("To see the GUI go to: http://{}:{}".format(address, port))
+        AppLog.info("Starting server\n")
+        AppLog.info("To see the GUI go to: http://{}:{}".format(address, port))
         if call_on_start is not None:
             call_on_start(address, port)
+        self.app.add_routes(self.routes)
+        web.run_app(self.app, host=address, port=port)
 
-    def add_on_prompt_handler(self, handler):
-        self.on_prompt_handlers.append(handler)
-
-    def trigger_on_prompt(self, json_data):
-        for handler in self.on_prompt_handlers:
-            try:
-                json_data = handler(json_data)
-            except Exception as e:
-                AppLog.info(f"[ERROR] An error occurred during the on_prompt_handler processing")
-
-        return json_data
+    # async def publish_loop(self):
+    #     import time
+    #     while True:
+    #         #await self.server_client_communicator.process_one()
+    #         time.sleep(1)            
+    
+    

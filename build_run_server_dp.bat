@@ -2,7 +2,7 @@
 setlocal
 
 set VENV_DIR=venv
-set REQUIREMENTS=requirements.txt
+set REQUIREMENTS=requirements_api_server.txt
 
 echo Setting up virtual environment...
 python -m venv %VENV_DIR%
@@ -22,4 +22,4 @@ echo Running the application...
 call %VENV_DIR%\Scripts\activate.bat
 
 
-python aiyo_server_main.py --config "debug_dp" --listen "0.0.0.0"
+python aiyo_api_server_main.py --config "debug_dp" --listen "0.0.0.0"
