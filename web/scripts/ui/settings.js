@@ -38,19 +38,36 @@ export class ComfySettingsDialog extends ComfyDialog {
 	}
 
 	async load() {
-		this.settingsValues = await api.getSettings();
+		if (this.app.storageLocation === "browser") {
+			this.settingsValues = localStorage;
+		} else {
+			this.settingsValues = await api.getSettings();
+		}
+	}
+
+	getId(id) {
+		if (this.app.storageLocation === "browser") {
+			id = "Comfy.Settings." + id;
+		}
+		return id;
 	}
 
 	getSettingValue(id, defaultValue) {
-		return this.settingsValues[id] ?? defaultValue;
+		let value = this.settingsValues[this.getId(id)];
+		if(value != null) {
+			if(this.app.storageLocation === "browser") {
+				value = JSON.parse(value);
+			}
+		}
+		return value ?? defaultValue;
 	}
 
 	async setSettingValueAsync(id, value) {
 		const json = JSON.stringify(value);
 		localStorage["Comfy.Settings." + id] = json; // backwards compatibility for extensions keep setting in storage
 
-		let oldValue = this.settingsValues[id];
-		this.settingsValues[id] = value;
+		let oldValue = this.getSettingValue(id, undefined);
+		this.settingsValues[this.getId(id)] = value;
 
 		if (id in this.settingsLookup) {
 			this.settingsLookup[id].onChange?.(value, oldValue);
@@ -76,7 +93,7 @@ export class ComfySettingsDialog extends ComfyDialog {
 		}
 
 		let skipOnChange = false;
-		let value = this.settingsValues[id];
+		let value = this.getSettingValue(id);
 		if (value == null) {
 			if (this.app.isNewUserSession) {
 				// Check if we have a localStorage value but not a setting value and we are a new user

@@ -27,18 +27,12 @@ export async function start(config = {}) {
 	Object.assign(localStorage, config.localStorage ?? {});
 	document.body.innerHTML = html;
 
-	mockUtils();
 	mockApi(config);
 	const { app } = require("../../web/scripts/app");
 	config.preSetup?.(app);
 	await app.setup();
-	return { ...Ez.graph(app, global["LiteGraph"], global["LGraphCanvas"]), app };
-}
 
-function mockUtils() {
-	jest.mock("../../web/scripts/utils", () => ({
-		addStylesheet: () => Promise.resolve()
-	}));
+	return { ...Ez.graph(app, global["LiteGraph"], global["LGraphCanvas"]), app };
 }
 
 /**

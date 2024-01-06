@@ -74,19 +74,26 @@ class ManageTemplates extends ComfyDialog {
 
 	async load() {
 		let templates;
-		if (app.isNewUserSession) {
-			// New user so migrate existing templates
+		if (app.storageLocation === "server") {
+			if (app.isNewUserSession) {
+				// New user so migrate existing templates
+				const json = localStorage.getItem(id);
+				if (json) {
+					templates = JSON.parse(json);
+				}
+				await api.storeUserData(file, json, { stringify: false });
+			} else {
+				const res = await api.getUserData(file);
+				if (res.status === 200) {
+					templates = await res.json();
+				} else if (res.status !== 404) {
+					console.error(res.status + " " + res.statusText);
+				}
+			}
+		} else {
 			const json = localStorage.getItem(id);
 			if (json) {
 				templates = JSON.parse(json);
-			}
-			await api.storeUserData(file, json, { stringify: false });
-		} else {
-			const res = await api.getUserData(file);
-			if (res.status === 200) {
-				templates = await res.json();
-			} else if (res.status !== 404) {
-				console.error(res.status + " " + res.statusText);
 			}
 		}
 
@@ -94,13 +101,17 @@ class ManageTemplates extends ComfyDialog {
 	}
 
 	async store() {
-		const templates = JSON.stringify(this.templates, undefined, 4);
-		localStorage.setItem(id, templates); // Backwards compatibility
-		try {
-			await api.storeUserData(file, templates, { stringify: false });
-		} catch (error) {
-			console.error(error);
-			alert(error.message);
+		if(app.storageLocation === "server") {
+			const templates = JSON.stringify(this.templates, undefined, 4);
+			localStorage.setItem(id, templates); // Backwards compatibility
+			try {
+				await api.storeUserData(file, templates, { stringify: false });
+			} catch (error) {
+				console.error(error);
+				alert(error.message);
+			}
+		} else {
+			localStorage.setItem(id, JSON.stringify(this.templates));
 		}
 	}
 

@@ -324,10 +324,10 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
-	 * Gets a list of users or true if single user mode and default user is created, or false if single user mode and default user is not created.
-	 * @returns { Promise<string, unknown> | boolean } If multi-user, a dictionary of id -> value, else whether the default user is created
+	 * Gets user configuration data and where data should be stored
+	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> } 
 	 */
-	async getUsers() {
+	async getUserConfig() {
 		return (await this.fetchApi("/users")).json();
 	}
 

@@ -91,10 +91,13 @@ class UserManager():
         @routes.get("/users")
         async def get_users(request):
             if args.multi_user:
-                return web.json_response(self.users)
+                return web.json_response({"storage": "server", "users": self.users})
             else:
                 user_dir = self.get_request_user_filepath(request, None, create_dir=False)
-                return web.json_response(os.path.exists(user_dir))
+                return web.json_response({
+                    "storage": "server" if args.server_storage else "browser", 
+                    "migrated": os.path.exists(user_dir)
+                })
 
         @routes.post("/users")
         async def post_users(request):

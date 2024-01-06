@@ -21,14 +21,14 @@ function* walkSync(dir) {
  * @param {{ 
  * 	mockExtensions?: string[], 
  * 	mockNodeDefs?: Record<string, ComfyObjectInfo>,
- * 	users?: boolean | Record<string, string>
 * 	settings?: Record<string, string>
+* 	userConfig?: {storage: "server" | "browser", users?: Record<string, any>, migrated?: boolean },
 * 	userData?: Record<string, any>
  * }} config
  */
 export function mockApi(config = {}) {
-	let { mockExtensions, mockNodeDefs, users, settings, userData } = {
-		users: true,
+	let { mockExtensions, mockNodeDefs, userConfig, settings, userData } = {
+		userConfig,
 		settings: {},
 		userData: {},
 		...config,
@@ -53,13 +53,13 @@ export function mockApi(config = {}) {
 		init: jest.fn(),
 		apiURL: jest.fn((x) => "../../web/" + x),
 		createUser: jest.fn((username) => {
-			if(username in users) {
+			if(username in userConfig.users) {
 				return { status: 400, json: () => "Duplicate" }
 			}
-			users[username + "!"] = username;
+			userConfig.users[username + "!"] = username;
 			return { status: 200, json: () => username + "!" }
 		}),
-		getUsers: jest.fn(() => users),
+		getUserConfig: jest.fn(() => userConfig ?? { storage: "browser", migrated: false }),
 		getSettings: jest.fn(() => settings),
 		storeSettings: jest.fn((v) => Object.assign(settings, v)),
 		getUserData: jest.fn((f) => {

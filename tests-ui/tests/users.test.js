@@ -21,20 +21,48 @@ describe("users", () => {
 	}
 
 	describe("multi-user", () => {
+		function mockAddStylesheet() {
+			const utils = require("../../web/scripts/utils");
+			utils.addStylesheet = jest.fn().mockReturnValue(Promise.resolve());
+		}
+
+		async function waitForUserScreenShow() {
+			mockAddStylesheet();
+
+			// Wait for "show" to be called
+			const { UserSelectionScreen } = require("../../web/scripts/ui/userSelection");
+			let resolve, reject;
+			const fn = UserSelectionScreen.prototype.show;
+			const p = new Promise((res, rej) => {
+				resolve = res;
+				reject = rej;
+			});
+			jest.spyOn(UserSelectionScreen.prototype, "show").mockImplementation(async (...args) => {
+				const res = fn(...args);
+				await new Promise(process.nextTick); // wait for promises to resolve
+				resolve();
+				return res;
+			});
+			// @ts-ignore
+			setTimeout(() => reject("timeout waiting for UserSelectionScreen to be shown."), 500);
+			await p;
+			await new Promise(process.nextTick); // wait for promises to resolve
+		}
+
 		async function testUserScreen(onShown, users) {
 			if (!users) {
 				users = {};
 			}
 			const starting = start({
 				resetEnv: true,
-				users,
+				userConfig: { storage: "server", users },
 			});
 
 			// Ensure no current user
 			expect(localStorage["Comfy.userId"]).toBeFalsy();
 			expect(localStorage["Comfy.userName"]).toBeFalsy();
 
-			await new Promise(process.nextTick); // wait for promises to resolve
+			await waitForUserScreenShow();
 
 			const selection = document.querySelectorAll("#comfy-user-selection")?.[0];
 			expect(selection).toBeTruthy();
@@ -153,8 +181,11 @@ describe("users", () => {
 		it("doesnt show user screen if current user", async () => {
 			const starting = start({
 				resetEnv: true,
-				users: {
-					"User!": "User",
+				userConfig: {
+					storage: "server",
+					users: {
+						"User!": "User",
+					},
 				},
 				localStorage: {
 					"Comfy.userId": "User!",
@@ -170,8 +201,11 @@ describe("users", () => {
 		it("allows user switching", async () => {
 			const { app } = await start({
 				resetEnv: true,
-				users: {
-					"User!": "User",
+				userConfig: {
+					storage: "server",
+					users: {
+						"User!": "User",
+					},
 				},
 				localStorage: {
 					"Comfy.userId": "User!",
@@ -187,9 +221,9 @@ describe("users", () => {
 		it("doesnt show user creation if no default user", async () => {
 			const { app } = await start({
 				resetEnv: true,
-				users: false,
+				userConfig: { migrated: false, storage: "server" },
 			});
-            expectNoUserScreen();
+			expectNoUserScreen();
 
 			// It should store the settings
 			const { api } = require("../../web/scripts/api");
@@ -201,9 +235,9 @@ describe("users", () => {
 		it("doesnt show user creation if default user", async () => {
 			const { app } = await start({
 				resetEnv: true,
-				users: true,
+				userConfig: { migrated: true, storage: "server" },
 			});
-            expectNoUserScreen();
+			expectNoUserScreen();
 
 			// It should store the settings
 			const { api } = require("../../web/scripts/api");
@@ -214,8 +248,46 @@ describe("users", () => {
 		it("doesnt allow user switching", async () => {
 			const { app } = await start({
 				resetEnv: true,
+				userConfig: { migrated: true, storage: "server" },
 			});
-            expectNoUserScreen();
+			expectNoUserScreen();
+
+			expect(app.ui.settings.settingsLookup["Comfy.SwitchUser"]).toBeFalsy();
+		});
+	});
+	describe("browser-user", () => {
+		it("doesnt show user creation if no default user", async () => {
+			const { app } = await start({
+				resetEnv: true,
+				userConfig: { migrated: false, storage: "browser" },
+			});
+			expectNoUserScreen();
+
+			// It should store the settings
+			const { api } = require("../../web/scripts/api");
+			expect(api.storeSettings).toHaveBeenCalledTimes(0);
+			expect(api.storeUserData).toHaveBeenCalledTimes(0);
+			expect(app.isNewUserSession).toBeFalsy();
+		});
+		it("doesnt show user creation if default user", async () => {
+			const { app } = await start({
+				resetEnv: true,
+				userConfig: { migrated: true, storage: "server" },
+			});
+			expectNoUserScreen();
+
+			// It should store the settings
+			const { api } = require("../../web/scripts/api");
+			expect(api.storeSettings).toHaveBeenCalledTimes(0);
+			expect(api.storeUserData).toHaveBeenCalledTimes(0);
+			expect(app.isNewUserSession).toBeFalsy();
+		});
+		it("doesnt allow user switching", async () => {
+			const { app } = await start({
+				resetEnv: true,
+				userConfig: { migrated: true, storage: "browser" },
+			});
+			expectNoUserScreen();
 
 			expect(app.ui.settings.settingsLookup["Comfy.SwitchUser"]).toBeFalsy();
 		});

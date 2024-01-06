@@ -1308,10 +1308,11 @@ export class ComfyApp {
 	}
 
 	async #setUser() {
-		const users = await api.getUsers();
-		if(typeof users === "boolean") {
-			// Single user mode returns true/false for if the default user is created
-			if(!users) {
+		const userConfig = await api.getUserConfig();
+		this.storageLocation = userConfig.storage;
+		if (typeof userConfig.migrated == "boolean") {
+			// Single user mode migrated true/false for if the default user is created
+			if (!userConfig.migrated && this.storageLocation === "server") {
 				// Default user not created yet
 				await this.#migrateSettings();
 			}
@@ -1320,6 +1321,7 @@ export class ComfyApp {
 
 		this.multiUserServer = true;
 		let user = localStorage["Comfy.userId"];
+		const users = userConfig.users ?? {};
 		if (!user || !users[user]) {
 			// This will rarely be hit so move the loading to on demand
 			const { UserSelectionScreen } = await import("./ui/userSelection.js");
