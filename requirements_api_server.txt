@@ -1,10 +1,7 @@
 
-einops
 aiohttp
-accelerate
 pyyaml
 Pillow
-scipy
 tqdm
 psutil
 confluent_kafka
@@ -12,4 +9,4 @@ sentry-sdk
 mongoengine
 minio
 gitpython
-opencv-python==4.7.0.72
+requests
