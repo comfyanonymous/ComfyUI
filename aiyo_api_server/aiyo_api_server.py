@@ -6,7 +6,6 @@ from framework.app_log import AppLog
 from framework.model import object_storage
 from framework.model import tb_data
 from aiyo_api_server import server_task_queue
-from aiyo_server.server_client_communicate import ServerClientCommunicator
 
 
 try:
