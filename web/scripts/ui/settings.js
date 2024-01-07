@@ -61,7 +61,10 @@ export class ComfySettingsDialog extends ComfyDialog {
 		let value = this.settingsValues[this.getId(id)];
 		if(value != null) {
 			if(this.app.storageLocation === "browser") {
-				value = JSON.parse(value);
+				try {
+					value = JSON.parse(value);
+				} catch (error) {
+				}
 			}
 		}
 		return value ?? defaultValue;
