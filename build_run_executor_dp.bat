@@ -16,6 +16,8 @@ if %errorlevel% neq 0 (
 echo Installing requirements...
 pip install -r %REQUIREMENTS%
 
+python aiyo_project_init.py
+
 echo Setup complete.
 
 echo Running the application...

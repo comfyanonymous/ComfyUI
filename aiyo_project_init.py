@@ -148,3 +148,9 @@ def aiyo_proj_init():
         
         download_models()
 
+
+
+if __name__ == "__main__":
+    aiyo_proj_init()
+    
+    
