@@ -1,7 +1,5 @@
 
 einops
-transformers>=4.25.1
-safetensors>=0.3.0
 aiohttp
 accelerate
 pyyaml
