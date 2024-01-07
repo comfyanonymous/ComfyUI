@@ -1315,6 +1315,7 @@ export class ComfyApp {
 		this.#addAfterConfigureHandler();
 
 		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
+		canvas.show_info = this.ui.settings.getSettingValue("Comfy.DevMode", false);
 		this.ctx = canvasEl.getContext("2d");
 
 		LiteGraph.release_link_on_empty_shows_menu = true;

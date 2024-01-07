@@ -809,7 +809,7 @@ export class ComfyUI {
 			name: "Enable Dev mode Options",
 			type: "boolean",
 			defaultValue: false,
-			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
+			onChange: function(value) { (app.canvas && (app.canvas.show_info = value)); document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
 		});
 
 		dragElement(this.menuContainer, this.settings);
