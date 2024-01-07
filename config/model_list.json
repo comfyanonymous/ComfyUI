@@ -1,0 +1,82 @@
+
+{
+    "models":
+    {
+        "checkpoints": {
+            "realistic_vision_v60b1_vae_v51": {
+                "path": "sd15/realistic_vision_v60b1_vae_v51.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/realistic_vision_v60b1_vae_v51.safetensors",
+                "description": "显示风格的底模，适合做扩图"
+            },
+            "samaritan_3Dcartoon_v40": {
+                "path": "sdxl/samaritan_3Dcartoon_v40.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sdxl/samaritan_3Dcartoon_v40.safetensors", 
+                "description": "3d卡通风格的底模"
+            }
+        },
+
+        "clip": {},
+
+        "clip_vision": {
+            "clip_vit_large_path14":
+            {
+                "path": "clip_vit_large_patch14.bin",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/clip_vision/clip_vit_large_patch14.bin",
+                "description": "配合coadapter使用"
+            },
+            "ipa_clipvision_sd15":
+            {
+                "path": "ipa_clipvision_sd15.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/clip_vision/ipa_clipvision_sd15.safetensors",
+                "description": "ipadapter 专用的sd15版的clipvision."
+            }
+        },
+
+        "controlnet": {
+            "brightness": {
+                "path": "control_v1p_sd15_brightness.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet/control_v1p_sd15_brightness.safetensors",
+                "description": ""
+            }
+        },
+
+        "ipadapter":
+        {
+            "ipa_plus_sd15":{
+                "path": "ip-adapter-plus_sd15.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ipadapter/ip-adapter-plus_sd15.safetensors", 
+                "description": ""
+            }
+        },
+
+        "lora": {
+            "age":
+            {
+                "path": "sdxl/sliders/age.pt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sdxl/sliders/age.pt",
+                "description": "XL的年龄控制lora"
+            }
+        },
+
+        "style_models": {
+            "coadpater": {
+                "path": "coadapter-style-sd15v1.pth",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/style_model/coadapter-style-sd15v1.pth",
+                "description": ""
+            }
+        }
+    },
+
+    "model_paths":{
+        "checkpoints": "checkpoints",
+        "clip": "clip",
+        "clip_vision": "clip_vision",
+        "controlnet": "controlnet",
+        "ipadapter": "ipadapter",
+        "lora": "loras",
+        "style_models": "style_models"
+    },
+
+    "major_version": 0,
+    "minor_version": 0
+}
