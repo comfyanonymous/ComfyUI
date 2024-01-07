@@ -11,7 +11,7 @@ fi
 
 
 VENV_DIR=venv
-REQUIREMENTS=requirements.txt
+REQUIREMENTS=requirements_api_server.txt
 
 echo Setting up virtual environment...
 if [ ! -d "$VENV_DIR" ]; then
