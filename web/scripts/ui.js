@@ -596,14 +596,26 @@ export class ComfyUI {
 			defaultValue: 0,
 		});
 
+		let fileInputProcessing = false;
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
 			accept: ".json,image/png,.latent,.safetensors,image/webp",
 			style: {display: "none"},
 			parent: document.body,
-			onchange: () => {
-				app.handleFile(fileInput.files[0]);
+			onchange: async () => {
+				if (!fileInput.value)
+					return;
+				if (!fileInputProcessing) {
+					fileInputProcessing = true;
+					try {
+						await app.handleFile(fileInput.files[0]);
+					} catch (error) {
+						console.error(error);
+					}
+					fileInputProcessing = false;
+				}
+				fileInput.value = "";
 			},
 		});
 

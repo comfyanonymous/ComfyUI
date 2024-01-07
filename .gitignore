@@ -1,3 +1,4 @@
+.DS_Store
 __pycache__/
 *.py[cod]
 /output/
@@ -9,6 +10,7 @@ __pycache__/
 !custom_nodes/example_node.py.example
 extra_model_paths.yaml
 /.vs
+/.vscode
 .idea/
 venv/
 /web/extensions/*
