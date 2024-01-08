@@ -1400,30 +1400,40 @@ class LoadImage:
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        return {"required":
-                    {"image": (sorted(files), {"image_upload": True})},
-                }
+        return {
+            "required": {
+                "image": (sorted(files), {"image_upload": True}),
+            },
+            "optional": {
+                "is_transparent": (["True", "False"], {"checkbox": True, "default": "False"})
+            },
+        }
 
     CATEGORY = "image"
-
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
-    def load_image(self, image):
+
+    def load_image(self, image, is_transparent="False"):
         image_path = folder_paths.get_annotated_filepath(image)
         img = Image.open(image_path)
         output_images = []
         output_masks = []
-        for i in ImageSequence.Iterator(img):
-            i = ImageOps.exif_transpose(i)
-            image = i.convert("RGB")
-            image = np.array(image).astype(np.float32) / 255.0
-            image = torch.from_numpy(image)[None,]
-            if 'A' in i.getbands():
-                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)
+        for frame in ImageSequence.Iterator(img):
+            frame = ImageOps.exif_transpose(frame)
+            if is_transparent == "True" and 'A' in frame.getbands():
+                frame = frame.convert("RGBA")
             else:
-                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-            output_images.append(image)
+                frame = frame.convert("RGB")
+            
+            image_np = np.array(frame).astype(np.float32) / 255.0
+            image_tensor = torch.from_numpy(image_np)[None,]
+
+            if 'A' in frame.getbands() and is_transparent == "True":
+                alpha_mask = np.array(frame.getchannel('A')).astype(np.float32) / 255.0
+                mask = torch.from_numpy(alpha_mask)
+            else:
+                mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
+            output_images.append(image_tensor)
             output_masks.append(mask.unsqueeze(0))
 
         if len(output_images) > 1:
