@@ -1,4 +1,5 @@
 import {api} from "./api.js";
+import { getUserId } from "./utils.js";
 
 export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
@@ -455,10 +456,17 @@ class ComfyList {
 				$el("div.comfy-list-items", [
 					...(this.#reverse ? items[section].reverse() : items[section]).map((item) => {
 						// Allow items to specify a custom remove action (e.g. for interrupt current prompt)
-						// const removeAction = item.remove || {
-						// 	name: "Delete",
-						// 	cb: () => api.deleteItem(this.#type, item.prompt[1]),
-						// };
+						const removeAction = item.remove || {
+							name: "Delete",
+							cb: () => {
+								var uid = getUserId();
+								if(uid == item.prompt[5]) {
+									api.deleteItem(this.#type, item.prompt[1])
+								} else {
+									alert("You can only delete your own prompts.")
+								}
+							},
+						};
 						return $el("div", {textContent: item.prompt[0] + " - " + (item.prompt[5].length <= 10 ? item.prompt[5] : item.prompt[5].substring(0, 10) + "...") + ": "}, [
 							$el("button", {
 								textContent: "Load",
@@ -469,13 +477,18 @@ class ComfyList {
 									}
 								},
 							}),
-							// $el("button", {
-							// 	textContent: removeAction.name,
-							// 	onclick: async () => {
-							// 		await removeAction.cb();
-							// 		await this.update();
-							// 	},
-							// }),
+							$el("button", {
+								textContent: removeAction.name,
+								onclick: async () => {
+									var uid = getUserId();
+									if(uid == item.prompt[5]) {
+										await removeAction.cb();
+										await this.update();
+									} else {
+										alert("You can only delete your own prompts.")
+									}
+								},
+							}),
 						]);
 					}),
 				]),

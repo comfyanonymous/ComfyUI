@@ -6,56 +6,10 @@ import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
-
+import { getUserId } from "./utils.js";
+import { getWorkflow } from "./utils.js";
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
-function setCookie(name, value, days) {
-	var expires = "";
-	if (days) {
-		var date = new Date();
-		date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-		expires = "; expires=" + date.toUTCString();
-	}
-	document.cookie = name + "=" + (value || "") + expires + "; path=/";
-}
-
-function getCookie(name) {
-	var nameEQ = name + "=";
-	var ca = document.cookie.split(';');
-	for (var i = 0; i < ca.length; i++) {
-		var c = ca[i];
-		while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-		if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-	}
-	return null;
-}
-
-async function getWorkflow() {
-	let flow_json = null;
-	const queryString = window.location.search;
-	const urlParams = new URLSearchParams(queryString);
-	const workflowId = urlParams.get('workflow');
-	if (workflowId){
-		await fetch('../workflows/' + workflowId + '/' + workflowId + '.json').then(
-			response => {
-				flow_json = response.json()
-			}
-		)
-	} 
-	return flow_json;
-}
-
-function getUserId() {
-	var uid = getCookie('uid');
-	if (uid == null) {
-		const queryString = window.location.search;
-		const urlParams = new URLSearchParams(queryString);
-		const email = urlParams.get('email');
-		uid = prompt("Please enter your nickname \n(less than ten letters)", email ? email.split("@")[0] : "anonymous");
-		setCookie('uid', uid, 999);
-	}
-	return uid ? uid : "anonymous";
-}
 
 
 function sanitizeNodeName(string) {
