@@ -63,7 +63,6 @@ class UserManager():
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
                 return None
-            parent = os.path.join(path, os.pardir)
 
         if create_dir and not os.path.exists(parent):
             os.mkdir(parent)
