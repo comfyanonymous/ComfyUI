@@ -37,6 +37,12 @@
                 "path": "control_v1p_sd15_brightness.safetensors",
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet/control_v1p_sd15_brightness.safetensors",
                 "description": ""
+            },
+            "inpaint_v11p_fp16_sd15":
+            {
+                "path": "control_v11p_sd15_inpaint_fp16.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet/control_v11p_sd15_inpaint_fp16.safetensors",
+                "description": ""
             }
         },
 
