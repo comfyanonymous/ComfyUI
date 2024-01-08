@@ -333,7 +333,7 @@ class MaskEditorDialog extends ComfyDialog {
 		alpha_url.searchParams.delete('channel');
 		alpha_url.searchParams.delete('preview');
 		alpha_url.searchParams.set('channel', 'a');
-		let mask_image = await loadImage(alpha_url);
+		let mask_image = await loadImage(alpha_url.src);
 
 		// original image load
 		const rgb_url = new URL(ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src);
@@ -347,7 +347,7 @@ class MaskEditorDialog extends ComfyDialog {
 			self.invalidateCanvas(self.image, mask_image);
 			self.initializeCanvasPanZoom();
 		};
-		this.image.src = rgb_url;
+		this.image.src = rgb_url.src;
 	}
 
 	initializeCanvasPanZoom() {

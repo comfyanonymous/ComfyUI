@@ -287,7 +287,7 @@ export class ComfyApp {
 							callback: () => {
 								let url = new URL(img.src);
 								url.searchParams.delete('preview');
-								window.open(url, "_blank")
+								window.open(url.src, "_blank")
 							},
 						},
 						{
@@ -296,7 +296,7 @@ export class ComfyApp {
 								const a = document.createElement("a");
 								let url = new URL(img.src);
 								url.searchParams.delete('preview');
-								a.href = url;
+								a.href = url.src;
 								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
 								a.click();
