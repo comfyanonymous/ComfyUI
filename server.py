@@ -30,6 +30,7 @@ from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
 
+from app.user_manager import UserManager
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -72,6 +73,7 @@ class PromptServer():
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
+        self.user_manager = UserManager()
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
@@ -532,6 +534,7 @@ class PromptServer():
             return web.Response(status=200)
         
     def add_routes(self):
+        self.user_manager.add_routes(self.routes)
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
