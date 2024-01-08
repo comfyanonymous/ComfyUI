@@ -1472,6 +1472,8 @@ class LoadImageMask:
         i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
         if i.getbands() != ("R", "G", "B", "A"):
+            if i.mode == 'I':
+                i = i.point(lambda i: i * (1 / 255))
             i = i.convert("RGBA")
         mask = None
         c = channel[0].upper()
