@@ -102,6 +102,7 @@ class BaseModel(torch.nn.Module):
             cond_concat = []
             denoise_mask = kwargs.get("denoise_mask", None)
             latent_image = kwargs.get("latent_image", None)
+            masked_latent = kwargs.get("masked_latent", None)
             noise = kwargs.get("noise", None)
             device = kwargs["device"]
 
@@ -119,7 +120,11 @@ class BaseModel(torch.nn.Module):
                     if ck == "mask":
                         cond_concat.append(denoise_mask[:,:1].to(device))
                     elif ck == "masked_image":
-                        cond_concat.append(latent_image.to(device)) #NOTE: the latent_image should be masked by the mask in pixel space
+                        if masked_latent is not None:
+                            masked_latent = comfy.utils.repeat_to_batch_size(masked_latent, latent_image.shape[0])
+                            cond_concat.append(masked_latent.to(device))
+                        else:
+                            cond_concat.append(latent_image.to(device))  # NOTE: the latent_image should be masked by the mask in pixel space
                 else:
                     if ck == "mask":
                         cond_concat.append(torch.ones_like(noise)[:,:1])

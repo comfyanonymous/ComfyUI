@@ -350,14 +350,16 @@ class VAEEncodeForInpaint:
 
             mask_erosion = torch.clamp(torch.nn.functional.conv2d(mask.round(), kernel_tensor, padding=padding), 0, 1)
 
+        t = vae.encode(pixels)
+
         m = (1.0 - mask.round()).squeeze(1)
         for i in range(3):
             pixels[:,:,:,i] -= 0.5
             pixels[:,:,:,i] *= m
             pixels[:,:,:,i] += 0.5
-        t = vae.encode(pixels)
+        masked_latent = vae.encode(pixels)
 
-        return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
+        return ({"samples": t, "noise_mask": (mask_erosion[:, :, :x, :y].round()), "masked_latent": masked_latent},)
 
 class SaveLatent:
     def __init__(self):
@@ -1263,6 +1265,21 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
     noise_mask = None
     if "noise_mask" in latent:
         noise_mask = latent["noise_mask"]
+
+    if "masked_latent" in latent:
+        masked_latent = latent["masked_latent"]
+        c = []
+        for t in positive:
+            n = [t[0], t[1].copy()]
+            n[1]['masked_latent'] = masked_latent
+            c.append(n)
+        positive = c
+        c = []
+        for t in negative:
+            n = [t[0], t[1].copy()]
+            n[1]['masked_latent'] = masked_latent
+            c.append(n)
+        negative = c
 
     callback = latent_preview.prepare_callback(model, steps)
     disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED

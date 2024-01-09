@@ -602,6 +602,13 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     if latent_image is not None:
         latent_image = model.process_latent_in(latent_image)
 
+    for t in positive:
+        if "masked_latent" in t:
+            t["masked_latent"] = model.process_latent_in(t["masked_latent"])
+    for t in negative:
+        if "masked_latent" in t:
+            t["masked_latent"] = model.process_latent_in(t["masked_latent"])
+
     if hasattr(model, 'extra_conds'):
         positive = encode_model_conds(model.extra_conds, positive, noise, device, "positive", latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
         negative = encode_model_conds(model.extra_conds, negative, noise, device, "negative", latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
