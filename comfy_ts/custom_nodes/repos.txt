@@ -1,0 +1,16 @@
+https://github.com/BlenderNeko/ComfyUI_Cutoff main 5bd9caa
+https://github.com/cubiq/ComfyUI_IPAdapter_plus main 689fa4a
+https://github.com/EllangoK/ComfyUI-post-processing-nodes master de7a29b
+https://github.com/Fannovel16/ComfyUI-Frame-Interpolation main 59c1c7e
+https://github.com/Fannovel16/comfyui_controlnet_aux main ce7e758
+https://github.com/Gourieff/comfyui-reactor-node master 0646e3b
+https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite main 0592867
+https://github.com/ltdrdata/ComfyUI-Inspire-Pack main 7707662
+https://github.com/ltdrdata/ComfyUI-Impact-Pack Main 7ae1e83
+https://github.com/melMass/comfy_mtb main 90f3bc2
+https://github.com/pythongosssss/ComfyUI-Custom-Scripts main 27555d4
+https://github.com/pythongosssss/ComfyUI-WD14-Tagger main b8a6394
+https://github.com/SOELexicon/ComfyUI-LexTools main 3cff522
+https://github.com/storyicon/comfyui_segment_anything master d38e3ca
+https://github.com/Ttl/ComfyUi_NNLatentUpscale master 08105da
+

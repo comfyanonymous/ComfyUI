@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>502 | README | RunPod </title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        #content {
+            width: 80%;
+            max-width: 800px;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            color: #444;
+        }
+
+        a {
+            color: #1e90ff;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="content"></div>
+
+    <script>
+        // Instantiate Showdown
+        var converter = new showdown.Converter();
+
+        fetch('/README.md')
+            .then(response => response.text())
+            .then(text => {
+                // Convert markdown to HTML
+                var html = converter.makeHtml(text);
+
+                // Insert HTML into the page
+                document.getElementById('content').innerHTML = html;
+            });
+    </script>
+</body>
+
+</html>

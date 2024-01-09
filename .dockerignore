@@ -1,0 +1,17 @@
+# General unnecessary files
+**/__pycache__/
+/*.py[cod]
+/.ci
+/.github
+/.idea
+/.vs
+/venv
+
+# Specific ComfyUI folders we won't be using
+/custom_nodes
+/input
+/models
+/output
+/temp
+/tests
+/tests-ui

@@ -1,0 +1,3 @@
+/runpod-volume/models/ipadapter /app/ComfyUI/models/ipadapter
+/runpod-volume/models/sams /app/ComfyUI/models/sams
+/runpod-volume/models/svd /app/ComfyUI/models/svd

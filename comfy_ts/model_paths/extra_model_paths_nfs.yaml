@@ -1,0 +1,26 @@
+#Rename this to extra_model_paths.yaml and ComfyUI will load it
+
+#config for comfyui
+#base path should be an existing comfy install or a central folder where you store all of your models
+
+nfs:
+  base_path: /usr/share/memory/
+  blip: models/blip/
+  checkpoints: models/checkpoints/
+  clip: models/clip/
+  clip_vision: models/clip_vision/
+  configs: models/configs/
+  controlnet: models/controlnet/
+  facedetection: models/facedetection/
+  face_restore: models/face_restore/
+  facerestore_models: models/facerestore_models/
+  gligen: models/gligen/
+  grounding-dino: models/grounding-dino/
+  ipadapter: models/ipadapter/
+  insightface: models/insightface/
+  loras: models/loras/
+  sams: models/sams/
+  svd: models/svd/
+  ultralytics: models/ultralytics/
+  upscale_models: models/upscale_models/
+  vae: models/vae/
