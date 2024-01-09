@@ -51,6 +51,9 @@ def attention_basic_with_sim(q, k, v, heads, mask=None):
     )
     return (out, sim)
 
+def ceildiv(a, b):
+    return -(a // -b)
+
 def create_blur_map(x0, attn, sigma=3.0, threshold=1.0):
     # reshape and GAP the attention map
     _, hw1, hw2 = attn.shape
@@ -58,8 +61,10 @@ def create_blur_map(x0, attn, sigma=3.0, threshold=1.0):
     attn = attn.reshape(b, -1, hw1, hw2)
     # Global Average Pool
     mask = attn.mean(1, keepdim=False).sum(1, keepdim=False) > threshold
-    ratio = math.ceil(math.sqrt(lh * lw / hw1))
-    mid_shape = [math.ceil(lh / ratio), math.ceil(lw / ratio)]
+    ratio = math.sqrt(lh * lw / hw1)
+    new_lh = lh // ratio if lh > lw else ceildiv(lh, ratio)
+    new_lw = lw // ratio if lw > lh else ceildiv(lw, ratio)
+    mid_shape = [int(new_lh), int(new_lw)]
 
     # Reshape
     mask = (
