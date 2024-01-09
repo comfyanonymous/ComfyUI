@@ -118,10 +118,10 @@ if [ -d "/runpod-volume/models/" ] && [[ "1" -ne $NO_MODEL_CACHE ]] ; then
     mkdir /usr/share/memory
     cp -r /runpod-volume/models /usr/share/memory
     echo "Copying config for local model cache"
-    cp /usr/share/configs/extra_model_paths_cache.yaml /app/ComfyUI/extra_model_paths.yaml &
+    cp /app/comfy_ts/model_paths/extra_model_paths_cache.yaml /app/extra_model_paths.yaml &
 else
     echo "Copying config for loading models from NFS"
-    cp /usr/share/configs/extra_model_paths_nfs.yaml /app/ComfyUI/extra_model_paths.yaml
+    cp /app/comfy_ts/model_paths/extra_model_paths_nfs.yaml /app/extra_model_paths.yaml
 fi
 }
 

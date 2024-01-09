@@ -3,12 +3,12 @@ CUSTOM_NODE_DIR="/app/custom_nodes"
 VENV_DIR="/venv"
 . "$VENV_DIR"/bin/activate
 
+# Ensure the custom_nodes directory exists
+mkdir -p "$CUSTOM_NODE_DIR"
 
 cd "$CUSTOM_NODE_DIR"
 counter=0
 errors=0
-
-
 
 while read URL BRANCH COMMIT
     do

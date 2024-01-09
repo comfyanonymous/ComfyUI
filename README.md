@@ -20,10 +20,10 @@ Note that the docker-build does not copy the models in the docker-image (that wo
 
 ### Docker To Do:
 
-- Make sure filesystem cache is working.
-- I don't think we're currently using comfy_ts/extra_model_paths at all?
-- Make sure sym-links are working.
+- Make sure filesystem cache and sym-links are working.
+- Do we really need the extra_model_paths?
 - We probably won't need sym-links and extra-model paths anymore to be honest; we can build those into comfy-ts directly.
+- Stop custom nodes from downloading external files and doing pip-install at runtime (on startup). We should ensure that's all done at build-time.
 
 ### General To Do:
 

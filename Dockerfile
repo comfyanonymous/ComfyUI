@@ -44,15 +44,16 @@ RUN pip install --upgrade --no-cache-dir pip && \
     pip install --upgrade wheel && \
     pip install --upgrade --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-# Copy entire ComfyTS repo. Folders / files in .dockerignore will not be included
-COPY . .
-
-RUN pip install --no-cache-dir -r ./requirements.txt \
-    && pip install --no-cache-dir -r ./requirements-ts.txt 
+COPY requirements.txt requirements-ts.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r requirements-ts.txt 
 
 # Set up Jupyter Notebook
 RUN jupyter contrib nbextension install --user && \
     jupyter nbextension enable --py widgetsnbextension
+
+# Copy entire ComfyTS repo. Folders / files in .dockerignore will not be included
+COPY . .
 
 # Setup NGINX Proxy
 RUN mv ./comfy_ts/nginx.conf /etc/nginx/nginx.conf
