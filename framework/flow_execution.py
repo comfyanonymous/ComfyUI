@@ -290,6 +290,12 @@ class SequenceFlow:
         # check all inputs
         if is_changed == False:
             for input_name in node_inputs:
+                cur_input_info = node_inputs[input_name]
+                old_input_info = self.context.old_prompt.get(node_id, {}).get("inputs", {}).get(input_name, None)
+                if cur_input_info != old_input_info:
+                    is_changed = True
+                    break
+                
                 is_connection = self.context.is_connection_input(node_prompt=self.context.prompt[node_id], input_name=input_name)
                 
                 if is_connection:
