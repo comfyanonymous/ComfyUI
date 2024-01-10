@@ -41,15 +41,10 @@ def get_images(ws, prompt):
             continue #previews are binary data
 
     history = get_history(prompt_id)[prompt_id]
-    for o in history['outputs']:
-        for node_id in history['outputs']:
-            node_output = history['outputs'][node_id]
-            if 'images' in node_output:
-                images_output = []
-                for image in node_output['images']:
-                    image_data = get_image(image['filename'], image['subfolder'], image['type'])
-                    images_output.append(image_data)
-            output_images[node_id] = images_output
+    for node_id, val in history['outputs'].items():
+        if 'images' in val:
+            image_list = [get_image(i['filename'], i['subfolder'], i['type']) for i in val['images']]
+            output_images[node_id] = image_list
 
     return output_images
 
