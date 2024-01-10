@@ -126,7 +126,10 @@ class ControlBase:
                         if o[i] is None:
                             o[i] = prev_val
                         else:
-                            o[i] += prev_val
+                            if o[i].shape[0] < prev_val.shape[0]:
+                                o[i] = prev_val + o[i]
+                            else:
+                                o[i] += prev_val
         return out
 
 class ControlNet(ControlBase):
