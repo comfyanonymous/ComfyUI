@@ -295,7 +295,7 @@ async def get_object_info(request):
         try:
             out[x] = node_info(x)
         except Exception as e:
-            AppLog.info(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
+            AppLog.info(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
             AppLog.info(traceback.print_exc())
     return web.json_response(out)
 

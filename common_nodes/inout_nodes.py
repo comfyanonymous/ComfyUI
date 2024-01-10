@@ -47,7 +47,7 @@ class FloatInput:
     def INPUT_TYPES(s):
         return {"required": { 
             "name": ("STRING", {"default": ""}),
-            "data": ("FLOAT", {"default": 0})
+            "data": ("FLOAT", {"default": 0, "step": 0.01})
             }}
     
     
@@ -123,7 +123,9 @@ class ImageInput:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        _files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
+        files = [""]
+        files.extend(_files)
         return {"required":
                     {"name": ("STRING", {"default": ""}),
                         "image": (sorted(files), {"image_upload": True})},
@@ -140,6 +142,9 @@ class ImageInput:
     FUNCTION = "load_image"
     def load_image(self, name, image):
         AppLog.info(f"[ImageInput] load_image, image: {image}")
+        
+        if image is None or image == "":
+            return (None, None)
         image_path, i = ResourceMgr.instance.get_image(image)
         AppLog.info(f'[ImageInput] load_image, img path: {image_path}')
         i = ImageOps.exif_transpose(i)
@@ -156,15 +161,19 @@ class ImageInput:
     @classmethod
     def IS_CHANGED(s, name, image):
         AppLog.info(f"[ImageInput] load_image, image: {image}")
-        image_path, _ = ResourceMgr.instance.get_image(image, open=False)
-        AppLog.info(f'[ImageInput] load_image, img path: {image_path}')
         m = hashlib.sha256()
-        with open(image_path, 'rb') as f:
-            m.update(f.read())
+        
+        if image is not None and image != "":
+            image_path, _ = ResourceMgr.instance.get_image(image, open=False)
+            AppLog.info(f'[ImageInput] load_image, img path: {image_path}')
+            with open(image_path, 'rb') as f:
+                m.update(f.read())
         return m.digest().hex()
 
     @classmethod
     def VALIDATE_INPUTS(s, name, image):
+        if image is None or image == "":
+            return True
         if not ResourceMgr.instance.exist_image(image):
             return "Invalid image file: {}".format(image)
 

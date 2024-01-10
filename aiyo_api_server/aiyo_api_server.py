@@ -113,3 +113,5 @@ class AIYoApiServer():
     #         time.sleep(1)            
     
     
+    def add_on_prompt_handler(self, onprompt):
+        pass

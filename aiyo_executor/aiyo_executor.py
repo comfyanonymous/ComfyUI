@@ -129,4 +129,5 @@ class AIYoExecutor:
                     last_gc_collect = current_time
                     need_gc = False
         
-        
+    def add_on_prompt_handler(self, onprompt):
+        pass

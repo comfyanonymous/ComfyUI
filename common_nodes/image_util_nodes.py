@@ -126,16 +126,18 @@ class ImagePadForOutpaintAdvance:
         new_image[:, top:top + d2, left:left + d3, :] = image
         
         if padding_mode == "nearest":
-            left_pixels = new_image[:, :, left:left+1, :]
-            new_image[:, :, :left, :] = left_pixels.repeat(1, 1, left, 1)
-            right_pixels = new_image[:, :, -right-1:-right, :]
-            new_image[:, :, -right:, :] = right_pixels.repeat(1, 1, right, 1)
+            if left > 0 and right > 0:
+                left_pixels = new_image[:, :, left:left+1, :]
+                new_image[:, :, :left, :] = left_pixels.repeat(1, 1, left, 1)
+                right_pixels = new_image[:, :, -right-1:-right, :]
+                new_image[:, :, -right:, :] = right_pixels.repeat(1, 1, right, 1)
 
             # 填充顶部和底部
-            top_pixels = new_image[:, top:top+1, :, :]
-            new_image[:, :top, :, :] = top_pixels.repeat(1, top, 1, 1)
-            bottom_pixels = new_image[:, -bottom-1:-bottom, :, :]
-            new_image[:, -bottom:, :, :] = bottom_pixels.repeat(1, bottom, 1, 1)
+            if top > 0 and bottom > 0:
+                top_pixels = new_image[:, top:top+1, :, :]
+                new_image[:, :top, :, :] = top_pixels.repeat(1, top, 1, 1)
+                bottom_pixels = new_image[:, -bottom-1:-bottom, :, :]
+                new_image[:, -bottom:, :, :] = bottom_pixels.repeat(1, bottom, 1, 1)
 
 
         mask = torch.ones(
@@ -180,6 +182,7 @@ class ImageExpand:
     @classmethod
     def INPUT_TYPES(s):
         padding_mode = ["empty", "nearest"]
+        upscale_methods = ImageScale.upscale_methods
         return {
             "required": {
                 "image": ("IMAGE",),
@@ -192,6 +195,7 @@ class ImageExpand:
                 
                 "feathering": ("INT", {"default": 40, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
                 "padding_mode": (padding_mode, ),
+                "upscale_method": (upscale_methods,)
                 
             }
         }
@@ -204,7 +208,7 @@ class ImageExpand:
     
     
     def expand_image(self, image, target_width, target_height, left, top, 
-                     max_width=1024, max_height=1024, feathering=40, padding_mode="nearest"):
+                     max_width=1024, max_height=1024, feathering=40, padding_mode="nearest", upscale_method="bilinear"):
         print(type(image))
         print(image.size())
         d1, imgh, imgw, imgd = image.size()
@@ -224,7 +228,7 @@ class ImageExpand:
             _left = int(_left / f_h)
             _top = int(_top / f_h)
             image = ImageScale().upscale(image, width=int(imgw/f_h), height=int(imgh/f_h), 
-                                         upscale_method="nearest-exact", crop="disabled")[0]
+                                         upscale_method=upscale_method, crop="disabled")[0]
         elif f_w > f_h and target_width > max_width:
             # resize
             tar_h = int(target_height * max_width / float(target_width))
@@ -232,7 +236,7 @@ class ImageExpand:
             _left = int(_left / f_w)
             _top = int(_top / f_w)
             image = ImageScale().upscale(image, width=int(imgw/f_w), height=int(imgh/f_w), 
-                                         upscale_method="nearest-exact", crop="disabled")[0]
+                                         upscale_method=upscale_method, crop="disabled")[0]
             
         d2, imgh2, imgw2, imgd2 = image.size()
         _right = max(0, tar_w - _left - imgw2)
@@ -256,6 +260,8 @@ class ImageExpandBy:
     @classmethod
     def INPUT_TYPES(s):
         padding_mode = ["empty", "nearest"]
+        upscale_methods = ImageScale.upscale_methods
+        
         return {
             "required": {
                 "image": ("IMAGE",),
@@ -268,6 +274,8 @@ class ImageExpandBy:
                 
                 "feathering": ("FLOAT", {"default": 0.05, "min": 0, "max": 1, "step": 0.001}),
                 "padding_mode": (padding_mode, ),
+                "upscale_method": (upscale_methods,)
+                
                 
             }
         }
@@ -280,7 +288,7 @@ class ImageExpandBy:
     
     
     def expand_image(self, image, target_width, target_height, left, top, 
-                     max_width=1024, max_height=1024, feathering=0.05, padding_mode="nearest"):
+                     max_width=1024, max_height=1024, feathering=0.05, padding_mode="nearest", upscale_method="bilinear"):
         print(type(image))
         print(image.size())
         d1, imgh, imgw, imgd = image.size()
@@ -299,7 +307,7 @@ class ImageExpandBy:
             _left = int(_left / f_h)
             _top = int(_top / f_h)
             image = ImageScale().upscale(image, width=int(imgw/f_h), height=int(imgh/f_h), 
-                                         upscale_method="nearest-exact", crop="disabled")[0]
+                                         upscale_method=upscale_method, crop="disabled")[0]
         elif f_w > f_h and tar_w > max_width:
             # resize
             tar_h = int(tar_h / f_w)
@@ -307,7 +315,7 @@ class ImageExpandBy:
             _left = int(_left / f_w)
             _top = int(_top / f_w)
             image = ImageScale().upscale(image, width=int(imgw/f_w), height=int(imgh/f_w), 
-                                         upscale_method="nearest-exact", crop="disabled")[0]
+                                         upscale_method=upscale_method, crop="disabled")[0]
             
         d2, imgh2, imgw2, imgd2 = image.size()
         _right = max(0, tar_w - _left - imgw2)
@@ -316,7 +324,6 @@ class ImageExpandBy:
         
         AppLog.info(f"[ImageExpandBy] left:{_left}, top: {_top}, right:{_right}, bottom:{_bottom}, feathering:{_feathering}")
         new_img, new_mask = ImagePadForOutpaintAdvance().expand_image(image, _left, _top, _right, _bottom, _feathering, padding_mode)
-        
         
         return (new_img, new_mask)
     
