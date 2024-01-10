@@ -2,6 +2,7 @@
 import time
 import gc
 import datetime
+import traceback
 
 from aiohttp import web
 
@@ -40,6 +41,12 @@ class AIYoExecutor:
         self.executor = FlowExecutor(msg_sender)
         
         
+    def on_task_start(self, prompt_id, task_info):
+        # update task status
+        if CONFIG["deploy"] and prompt_id is not None:
+            tb_data.Task.objects(taskId=prompt_id).modify(status=2)
+        
+        
         
     def task_start(self, prompt_id, task_info):
         # set message sender
@@ -51,24 +58,40 @@ class AIYoExecutor:
         else:
             self.msg_sender.message_sender = message_sender.LocalAPISender()
             
+        # 
+        self.on_task_start(prompt_id, task_info)
+            
         # send START evnet
         self.msg_sender.send_sync("execution_start", { "prompt_id": prompt_id}, self.msg_sender.client_id)
         
         
-    def task_done(self, prompt_id, graph_output, output_ui):    
-            
-        output_data = {key:val["value"] for key,val in graph_output.items()}
+        
+    def on_task_done(self, succ, prompt_id, output_data, output_ui, err, exp):
         # update task result to db
         if CONFIG["deploy"] and prompt_id is not None:
+            status = 3 if succ else 4
+            
+            now = datetime.datetime.utcnow()
             query = {"taskId": prompt_id}
             update_data = {"taskId": prompt_id, 
-                           "status":3,
-                           "endTime": datetime.datetime.utcnow(),
+                           "status":status,
+                           "endTime": now,
                            "result": output_data,
-                           "error": ""}
+                           "error": err}
             task_res = tb_data.TaskReuslt.objects(**query).modify(upsert=True, new=True, **update_data)
             AppLog.info(f"update result: {task_res}")
             
+            tb_data.Task.objects(**query).modify(status=status)
+            
+        
+    def task_done(self, succ, prompt_id, graph_output, output_ui, err, exp):    
+            
+        output_data = {key:val["value"] for key,val in graph_output.items()}
+    
+        # on task done
+        self.on_task_done(succ, prompt_id, output_data, output_ui, err, exp)
+            
+        # msg
         self.msg_sender.send_sync("execution_end", {"prompt_id": prompt_id, 
                                                     "result_info": graph_output,
                                                     "result": output_data,
@@ -105,15 +128,34 @@ class AIYoExecutor:
                 # on task start
                 self.task_start(prompt_id, queue_item)
                 
-                
-                
                 # execute workflow
-                graph_outputs = self.executor.execute(queue_item["prompt"], prompt_id, queue_item["flows"], queue_item.get("flow_args", {}),
-                                      queue_item["extra_data"])#, queue_item["outputs_to_execute"])
+                try: 
+                    succ, graph_outputs,err, exp = self.executor.execute(queue_item["prompt"], prompt_id, queue_item["flows"], queue_item.get("flow_args", {}),
+                                        queue_item["extra_data"])#, queue_item["outputs_to_execute"])
+                except Exception as e:
+                    graph_outputs = {}
+                    msg = f"Unexpected error. \n {traceback.format_exc()}"
+                    mes = {
+                        "prompt_id": prompt_id,
+                        "node_id": 0,
+                        "node_type": "",
+                        "executed": [],
+                        
+                        "exception_message": "Unexpected error.",
+                        "exception_type": "",
+                        "traceback": traceback.format_exc(),
+                        "current_inputs": None,
+                        "current_outputs": None
+                    }
+                    self.msg_sender.send_sync("execution_error", mes, None)
+                    succ = False
+                    err = msg
+                    exp = e
+                    
                 need_gc = True
                 
                 # on task done
-                self.task_done(prompt_id, graph_outputs, self.executor.outputs_ui)
+                self.task_done(succ, prompt_id, graph_outputs, self.executor.outputs_ui, err, exp)
                 if self.msg_sender.client_id is not None:
                     self.msg_sender.send_sync("executing", { "node": None, "prompt_id": prompt_id }, self.msg_sender.client_id)
 

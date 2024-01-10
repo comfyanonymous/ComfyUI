@@ -802,22 +802,26 @@ class FlowExecutor:
                     first_node_ids.append(node_id)
                  
             AppLog.info(f"[Execute] first nodes: {first_node_ids}") 
+            succ = True
             # exexute each flow  
             for first_node_id in first_node_ids:
                 # 
                 flow_exe = SequenceFlow(first_node_id=first_node_id, context=self.context, server= self.server)
                 
                 # execute
-                succ, err, ex = flow_exe.execute()
+                _succ, err, ex = flow_exe.execute()
                 
-                if succ is not True:
+                if _succ is not True:
                     self.handle_execution_error(prompt_id, prompt, self.context.old_outputs, self.context.executed, err, ex)
+                    succ = False
                     break
-                
-            # get all graph outputs
-            graph_outputs = self.get_graph_outputs()
-            # debug ?????????
-            AppLog.info(f"[Execute] graph output is: {graph_outputs}")
+
+            if succ:
+                # get all graph outputs
+                graph_outputs = self.get_graph_outputs()
+                AppLog.info(f"[Execute] graph output is: {graph_outputs}")
+            else:
+                AppLog.warning(f"[Execute] graph execute fail. \n{err} \n{ex}")
               
              
             AppLog.info(f"[Execution] output list: {LogUtils.visible_convert(self.context.outputs)}")   
@@ -828,4 +832,4 @@ class FlowExecutor:
             # context cleanup
             self.context.cleanup_execution()
             
-            return graph_outputs
+            return succ, graph_outputs, err, ex

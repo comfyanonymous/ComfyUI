@@ -49,8 +49,11 @@ class MessageManager():
 
     async def publish_loop(self):
         while True:
-            msg = await self.messages.get()
-            await self.send(*msg)
+            try:
+                msg = await self.messages.get()
+                await self.send(*msg)
+            except Exception as e:
+                AppLog.warning(f"[MessageMgr] public loop: Unexpected err. \n{traceback.format_exc()}")
             
 
 
