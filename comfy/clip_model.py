@@ -57,7 +57,7 @@ class CLIPEncoder(torch.nn.Module):
         self.layers = torch.nn.ModuleList([CLIPLayer(embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations) for i in range(num_layers)])
 
     def forward(self, x, mask=None, intermediate_output=None):
-        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None)
+        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
         if intermediate_output is not None:
             if intermediate_output < 0:
