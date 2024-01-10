@@ -143,6 +143,8 @@ class SelfAttentionGuidance:
             sigma = args["sigma"]
             model_options = args["model_options"]
             x = args["input"]
+            if min(cfg_result.shape[2:]) <= 4: #skip when too small to add padding
+                return cfg_result
 
             # create the adversarially blurred image
             degraded = create_blur_map(uncond_pred, uncond_attn, sag_sigma, sag_threshold)
