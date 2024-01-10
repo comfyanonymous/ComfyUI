@@ -8,6 +8,7 @@ import os
 import traceback
 import requests
 import urllib
+import base64
 
     
 import folder_paths
@@ -134,3 +135,78 @@ class ServerHelper:
             err = f"Can not find flow: {flow_id}"  
             AppLog.info(f"[RegisterWebhook] register_webhook, ERROR. {err}")
         return code, err
+    
+    
+    @staticmethod
+    def _parse_result_for_user(result_data, flow_output_info):
+        # parse task result for user request
+        for res_name, res_val in result_data.items():
+            # for IMAGE data, download and convert to BASE64 data
+            if flow_output_info is not None and res_name in flow_output_info and flow_output_info[res_name] == "IMAGE":
+                # get image data
+                data = object_storage.MinIOConnection().get_object(res_val)
+                # convert to base64
+                base64_data = base64.b64encode(data).decode('utf-8')
+                result_data[res_name] = base64_data
+        return result_data
+    
+    
+    @staticmethod
+    def get_task_progress(task_id):
+        code = 1
+        status = -1         # not exist
+        progress = 0.0        # float, from 0.0 -1.0
+        result = None
+        fail_msg = ""
+        err_msg = ""
+        try:
+            task_info = tb_data.Task.objects(taskId=task_id).first()
+            if task_info is not None:
+                status = task_info.status
+                if status == 3:                 # task finished
+                    # find task results
+                    task_res = tb_data.TaskReuslt.objects(taskId=task_id).first()
+                    if task_res is not None:
+                        # get flow data
+                        flow_info = tb_data.Flow.objects(flowId=task_info.flowId).first()
+                        flow_out_info = flow_info.flowOutput
+                        # parse result data
+                        result_data = ServerHelper._parse_result_for_user(task_res.result, flow_out_info)
+                        progress = 1.0
+                        result = result_data
+                        fail_msg = ""
+                        status = 3
+                    else:
+                        result_data = None
+                        progress = 1.0
+                        fail_msg = "Task result not found. FAIL due to unexpected error."
+                        status = 4
+                        
+                elif status == 4:               # task failed
+                    # find task results
+                    task_res = tb_data.TaskReuslt.objects(taskId=task_id).first()
+                    if task_res is not None:
+                        progress = 1.0
+                        result = None
+                        fail_msg = task_res.error
+                    else:
+                        progress = 1.0
+                        result = None
+                        fail_msg = "Task result not found. FAIL due to unexpected error." 
+                else:
+                    progress = 0.5 if status ==2 else 0.0
+        
+        except Exception as e:
+            code = ErrorCode.EXE_UNEXP
+            err_msg = f"Unexpected error"
+            
+            AppLog.warning(f"[Helper.get_task_progress] {err_msg}\n {traceback.format_exc()}")          
+            
+        AppLog.info(f"[Helper.get_task_progress] code: {status}, status: {status}, progress: {progress}, \nresult: {AppLog.visible_convert(result)}, \nfail_msg: {fail_msg}, \nerr: {err_msg}")
+        return code, {
+            "status": status,
+            "progress": progress,
+            "result": result,
+            "fail_msg": fail_msg
+        }, err_msg
+                    

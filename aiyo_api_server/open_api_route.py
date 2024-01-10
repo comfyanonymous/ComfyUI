@@ -135,6 +135,20 @@ async def register_webhook(request):
     }) 
     
     
+@AIYoApiServer.instance.routes.get("/open_api/task/{task_id}/progress")
+async def get_task_progress(request):
+    task_id = request.match_info.get("task_id", None)
+    AppLog.info(f"[API] get_task_progress, recieve. task id: {task_id}")
+    
+    code, res, err = ServerHelper.get_task_progress(task_id)
+    return web.json_response({
+        "code": code,
+        "data": res,
+        "message": err
+    })
+    
+    
+    
     
 @AIYoApiServer.instance.routes.post("/test/on_start")
 async def test_on_start(request):
