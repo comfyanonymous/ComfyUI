@@ -112,8 +112,7 @@ parser.add_argument("--windows-standalone-build", action="store_true", help="Win
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 
-parser.add_argument("--server-storage", action="store_true", help="Saves settings and other user configuration on the server instead of in browser storage.")
-parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage. If enabled, server-storage will be unconditionally enabled.")
+parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
@@ -125,6 +124,3 @@ if args.windows_standalone_build:
 
 if args.disable_auto_launch:
     args.auto_launch = False
-
-if args.multi_user:
-    args.server_storage = True
