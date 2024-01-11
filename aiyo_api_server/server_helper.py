@@ -36,7 +36,8 @@ class ServerHelper:
         Parse user inputs. 
         upload image resources and update image path value in the inputs
         """
-        try:      
+        try:   
+            AppLog.info(f"[ParseUserFlowInput] start...")   
             # upload image resource
             for arg_name, arg_val in params.items():
                 if arg_name in flow_input and flow_input[arg_name] == "IMAGE":
@@ -45,25 +46,38 @@ class ServerHelper:
                         # local file name
                         filename = ServerHelper.extract_filename_from_url(arg_val)
                         local_name = folder_paths.input_path_remote_to_local(filename, rename=True)
+                        
                         # download image
+                        AppLog.info(f"[ParseUserFlowInput] download image: {arg_val}")   
                         response = requests.get(arg_val)
                         with open(local_name, 'wb') as file:
                             file.write(response.content)
+                        AppLog.info(f"[ParseUserFlowInput] image download DONE: {arg_val}")   
+                        
                         # upload
                         remote_name = folder_paths.input_path_local_to_remote(local_name, rename=False)
+                        AppLog.info(f"[ParseUserFlowInput] upload image: {remote_name}")   
                         object_storage.MinIOConnection().fput_object(remote_name, local_name)
+                        AppLog.info(f"[ParseUserFlowInput] image upload DONE: {remote_name}")   
+                        
                         # update parameter value
                         params[arg_name] = remote_name
                         
                     
                     # base64str image
                     else:
+                        AppLog.info(f"[ParseUserFlowInput] base64 image: {arg_val}")   
                         local_name = folder_paths.generate_local_filepath('png')
                         cur_img = ImageUtil.base64_to_image(arg_val)
                         cur_img.save(local_name)
+                        AppLog.info(f"[ParseUserFlowInput] parse image DONE: {arg_val}")   
+                        
                         # upload
                         remote_name = folder_paths.input_path_local_to_remote(local_name, rename=False)
                         object_storage.MinIOConnection().fput_object(remote_name, local_name)
+                        AppLog.info(f"[ParseUserFlowInput] upload image DONE: {remote_name}")   
+                        
+                        
                         # update parameter value
                         params[arg_name] = remote_name
 
