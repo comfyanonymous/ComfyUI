@@ -4,7 +4,7 @@
 
 import uuid
 import datetime
-import os
+import os, io
 import traceback
 import requests
 import urllib
@@ -45,19 +45,13 @@ class ServerHelper:
                     if arg_val is not None and (arg_val.startswith("http://") or arg_val.startswith("https://")):
                         # local file name
                         filename = ServerHelper.extract_filename_from_url(arg_val)
-                        local_name = folder_paths.input_path_remote_to_local(filename, rename=True)
+                        remote_name = folder_paths.input_path_local_to_remote(filename, rename=True)
+
                         
                         # download image
                         AppLog.info(f"[ParseUserFlowInput] download image: {arg_val}")   
                         response = requests.get(arg_val)
-                        with open(local_name, 'wb') as file:
-                            file.write(response.content)
-                        AppLog.info(f"[ParseUserFlowInput] image download DONE: {arg_val}")   
-                        
-                        # upload
-                        remote_name = folder_paths.input_path_local_to_remote(local_name, rename=False)
-                        AppLog.info(f"[ParseUserFlowInput] upload image: {remote_name}")   
-                        object_storage.MinIOConnection().fput_object(remote_name, local_name)
+                        object_storage.MinIOConnection().put_object(remote_name, io.BytesIO(response.content), len(response.content))
                         AppLog.info(f"[ParseUserFlowInput] image upload DONE: {remote_name}")   
                         
                         # update parameter value
@@ -69,14 +63,12 @@ class ServerHelper:
                         AppLog.info(f"[ParseUserFlowInput] base64 image: {arg_val}")   
                         local_name = folder_paths.generate_local_filepath('png')
                         cur_img = ImageUtil.base64_to_image(arg_val)
-                        cur_img.save(local_name)
-                        AppLog.info(f"[ParseUserFlowInput] parse image DONE: {arg_val}")   
-                        
-                        # upload
-                        remote_name = folder_paths.input_path_local_to_remote(local_name, rename=False)
-                        object_storage.MinIOConnection().fput_object(remote_name, local_name)
+                        image_byte_array = io.BytesIO()
+                        cur_img.save(image_byte_array, format='JPEG')
+                        image_byte_array.seek(0)
+                        remote_name = folder_paths.input_path_local_to_remote('a.jpg', rename=True)
+                        object_storage.MinIOConnection().put_object(remote_name, image_byte_array, image_byte_array.getbuffer().nbytes)
                         AppLog.info(f"[ParseUserFlowInput] upload image DONE: {remote_name}")   
-                        
                         
                         # update parameter value
                         params[arg_name] = remote_name
