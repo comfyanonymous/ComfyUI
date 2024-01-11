@@ -129,6 +129,18 @@
       "install_type": "git-clone",
       "commit": "00089f36d2ba37bc82b11f819c63000e037fd107",
       "description": "This is a rework of comfyui_controlnet_preprocessors based on ControlNet auxiliary models by 🤗. I think the old repo isn't good enough to maintain. All old workflow will still be work with this repo but the version option won't do anything. Almost all v1 preprocessors are replaced by v1.1 except those doesn't appear in v1.1. [w/NOTE: Please refrain from using the controlnet preprocessor alongside this installation, as it may lead to conflicts and prevent proper recognition.]"
+    },
+
+    {
+        "author": "Dr.Lt.Data",
+        "title": "ComfyUI Impact Pack",
+        "reference": "https://github.com/ltdrdata/ComfyUI-Impact-Pack",
+        "files": [
+            "https://github.com/ltdrdata/ComfyUI-Impact-Pack"
+        ],
+        "pip": ["ultralytics"],
+        "install_type": "git-clone",
+        "description": "This extension offers various detector nodes and detailer nodes that allow you to configure a workflow that automatically enhances facial details. And provide iterative upscaler.\n[w/NOTE:'Segs & Mask' has been renamed to 'ImpactSegsAndMask.' Please replace the node with the new name.]"
     }
   ]
 }

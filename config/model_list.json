@@ -52,6 +52,11 @@
                 "path": "ip-adapter-plus_sd15.safetensors",
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ipadapter/ip-adapter-plus_sd15.safetensors", 
                 "description": ""
+            },
+            "ipa_plus_face_sdxl_vit_h":{
+                "path": "ip-adapter-plus-face_sdxl_vit-h.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ipadapter/ip-adapter-plus-face_sdxl_vit-h.safetensors", 
+                "description": "ipa专精与脸部的模型，sdxl版本，但是配合的clipvision模型需要用1.5的"
             }
         },
 
@@ -61,6 +66,13 @@
                 "path": "sdxl/sliders/age.pt",
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sdxl/sliders/age.pt",
                 "description": "XL的年龄控制lora"
+            },
+
+            "lcm_sdxl":
+            {
+                "path": "sdxl/lcm_lora_sdxl.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sdxl/lcm_lora_sdxl.safetensors",
+                "description": "lcm lora for SDXL"
             }
         },
 
