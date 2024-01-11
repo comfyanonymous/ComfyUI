@@ -19,8 +19,10 @@ class BASE:
     clip_prefix = []
     clip_vision_prefix = None
     noise_aug_config = None
-    beta_schedule = "linear"
+    sampling_settings = {}
     latent_format = latent_formats.LatentFormat
+
+    manual_cast_dtype = None
 
     @classmethod
     def matches(s, unet_config):
@@ -53,6 +55,12 @@ class BASE:
     def process_clip_state_dict(self, state_dict):
         return state_dict
 
+    def process_unet_state_dict(self, state_dict):
+        return state_dict
+
+    def process_vae_state_dict(self, state_dict):
+        return state_dict
+
     def process_clip_state_dict_for_saving(self, state_dict):
         replace_prefix = {"": "cond_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
@@ -65,3 +73,5 @@ class BASE:
         replace_prefix = {"": "first_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
+    def set_manual_cast(self, manual_cast_dtype):
+        self.manual_cast_dtype = manual_cast_dtype
