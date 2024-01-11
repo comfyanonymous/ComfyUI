@@ -84,35 +84,41 @@ class ServerHelper:
         err = ''
         try:      
             # get flow data
-            flow_infos = tb_data.Flow.objects(flowId=flow_id)
-            flow_info = flow_infos[0] if flow_infos is not None and len(flow_infos)>0 else None
-            webhooks = flow_info.webhook
-            flow_input = flow_info.flowInput
+            flow_info = tb_data.Flow.objects(flowId=flow_id).first()
+            if flow_info is not None:
             
-            # parse input data 
-            # and upload image resource
-            succ, params, status = ServerHelper.parse_user_flow_input(params=params, flow_input=flow_input)
-            code = status[0]
-            err = status[1]
-            if not succ: 
-                AppLog.info(f"[AddUserTask] parse user input FAIL. code:{code}, err:{err}")
-                return None, (code, err)
-            AppLog.info(f"[AddUserTask] params after parse: {params}")
+                webhooks = flow_info.webhook
+                flow_input = flow_info.flowInput
+                
+                # parse input data 
+                # and upload image resource
+                succ, params, status = ServerHelper.parse_user_flow_input(params=params, flow_input=flow_input)
+                code = status[0]
+                err = status[1]
+                if not succ: 
+                    AppLog.info(f"[AddUserTask] parse user input FAIL. code:{code}, err:{err}")
+                    return None, (code, err)
+                AppLog.info(f"[AddUserTask] params after parse: {params}")
+                
+                # generate task 
+                task_id = str(uuid.uuid4())
+                now = datetime.datetime.utcnow()
+                task = tb_data.Task(taskId=task_id, flowId=flow_id, 
+                                    status=0, taskParams=params,
+                                    taskType="api",
+                                    createdBy="aiyoh", createdAt=now,
+                                    lastUpdatedAt=now,
+                                    webhook=webhooks)
+                task.save()
+        
+                # add task into task queue
+                AIYoApiServer.instance.prompt_queue.put(task_id)
+                return task_id, (code, err)
             
-            # generate task 
-            task_id = str(uuid.uuid4())
-            now = datetime.datetime.utcnow()
-            task = tb_data.Task(taskId=task_id, flowId=flow_id, 
-                                status=0, taskParams=params,
-                                taskType="api",
-                                createdBy="aiyoh", createdAt=now,
-                                lastUpdatedAt=now,
-                                webhook=webhooks)
-            task.save()
-    
-            # add task into task queue
-            AIYoApiServer.instance.prompt_queue.put(task_id)
-            return task_id, (code, err)
+            else:
+                code = ErrorCode.INVALID_PARAM
+                err = "flow_id not exist."
+                return None, (code, err)    
             
         except Exception as e:
             AppLog.warning(f"[AddUserTask] unexpected error: {traceback.format_exc()}")
