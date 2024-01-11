@@ -94,7 +94,7 @@ class UserManager():
             else:
                 user_dir = self.get_request_user_filepath(request, None, create_dir=False)
                 return web.json_response({
-                    "storage": "server" if args.server_storage else "browser", 
+                    "storage": "server",
                     "migrated": os.path.exists(user_dir)
                 })
 
