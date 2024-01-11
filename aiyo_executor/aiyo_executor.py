@@ -52,10 +52,11 @@ class AIYoExecutor:
         # set message sender
         if CONFIG["deploy"]:
             webhooks = task_info.get("webhooks", {})
-            if webhooks is not None:
-                self.msg_sender.message_sender = message_sender.WeebhookSender(on_start=webhooks.get("on_start", None),
-                                                                                on_processing=webhooks.get("on_processing", None),
-                                                                                on_end=webhooks.get("on_end", None))
+            if webhooks is None:
+                webhooks = {}
+            self.msg_sender.message_sender = message_sender.WeebhookSender(on_start=webhooks.get("on_start", None),
+                                                                            on_processing=webhooks.get("on_processing", None),
+                                                                            on_end=webhooks.get("on_end", None))
         else:
             self.msg_sender.message_sender = message_sender.LocalAPISender()
             
