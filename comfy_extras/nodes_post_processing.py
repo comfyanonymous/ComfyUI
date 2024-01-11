@@ -23,7 +23,7 @@ class Blend:
                     "max": 1.0,
                     "step": 0.01
                 }),
-                "blend_mode": (["normal", "multiply", "screen", "overlay", "soft_light"],),
+                "blend_mode": (["normal", "multiply", "screen", "overlay", "soft_light", "difference"],),
             },
         }
 
@@ -54,6 +54,8 @@ class Blend:
             return torch.where(img1 <= 0.5, 2 * img1 * img2, 1 - 2 * (1 - img1) * (1 - img2))
         elif mode == "soft_light":
             return torch.where(img2 <= 0.5, img1 - (1 - 2 * img2) * img1 * (1 - img1), img1 + (2 * img2 - 1) * (self.g(img1) - img1))
+        elif mode == "difference":
+            return img1 - img2
         else:
             raise ValueError(f"Unsupported blend mode: {mode}")
 
@@ -224,7 +226,7 @@ class Sharpen:
         batch_size, height, width, channels = image.shape
 
         kernel_size = sharpen_radius * 2 + 1
-        kernel = gaussian_kernel(kernel_size, sigma) * -(alpha*10)
+        kernel = gaussian_kernel(kernel_size, sigma, device=image.device) * -(alpha*10)
         center = kernel_size // 2
         kernel[center, center] = kernel[center, center] - kernel.sum() + 1.0
         kernel = kernel.repeat(channels, 1, 1).unsqueeze(1)

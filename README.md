@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x and SDXL
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/) and [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
@@ -30,6 +30,8 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
 - [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
 - [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
+- [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
+- [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
 - Works fully offline: will never download anything.
@@ -43,6 +45,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 |---------------------------|--------------------------------------------------------------------------------------------------------------------|
 | Ctrl + Enter              | Queue up current graph for generation                                                                              |
 | Ctrl + Shift + Enter      | Queue up current graph as first for generation                                                                     |
+| Ctrl + Z/Ctrl + Y         | Undo/Redo                                                                                                          |
 | Ctrl + S                  | Save workflow                                                                                                      |
 | Ctrl + O                  | Load workflow                                                                                                      |
 | Ctrl + A                  | Select all nodes                                                                                                   |
@@ -90,21 +93,26 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
-Note: pytorch does not support python 3.12 yet so make sure your python version is 3.11 or earlier.
+Note: pytorch stable does not support python 3.12 yet. If you have python 3.12 you will have to use the nightly version of pytorch. If you run into issues you should try python 3.11 instead.
 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
 ```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6```
 
-This is the command to install the nightly with ROCm 5.7 that might have some performance improvements:
+This is the command to install the nightly with ROCm 5.7 which has a python 3.12 package and might have some performance improvements:
+
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7```
 
 ### NVIDIA
 
-Nvidia users should install pytorch using this command:
+Nvidia users should install stable pytorch using this command:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121```
+
+This is the command to install pytorch nightly instead which has a python 3.12 package and might have performance improvements:
+
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121```
 
 #### Troubleshooting
 
@@ -190,7 +198,7 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 
 Make sure you use the regular loaders/Load Checkpoint node to load checkpoints. It will auto pick the right settings depending on your GPU.
 
-You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers this option does not do anything.
+You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers or pytorch attention this option does not do anything.
 
 ```--dont-upcast-attention```
 
