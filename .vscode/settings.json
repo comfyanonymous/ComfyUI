@@ -1,9 +1,0 @@
-{
-	"path-intellisense.mappings": {
-		"../": "${workspaceFolder}/web/extensions/core"
-	},
-	"[python]": {
-		"editor.defaultFormatter": "ms-python.autopep8"
-	},
-	"python.formatting.provider": "none"
-}

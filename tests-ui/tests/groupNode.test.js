@@ -970,4 +970,36 @@ describe("group node", () => {
 			});
 		});
 	});
+	test("converted inputs with linked widgets map values correctly on creation", async () => {
+		const { ez, graph, app } = await start();
+		const k1 = ez.KSampler();
+		const k2 = ez.KSampler();
+		k1.widgets.seed.convertToInput();
+		k2.widgets.seed.convertToInput();
+
+		const rr = ez.Reroute();
+		rr.outputs[0].connectTo(k1.inputs.seed);
+		rr.outputs[0].connectTo(k2.inputs.seed);
+
+		const group = await convertToGroup(app, graph, "test", [k1, k2, rr]);
+		expect(group.widgets.steps.value).toBe(20);
+		expect(group.widgets.cfg.value).toBe(8);
+		expect(group.widgets.scheduler.value).toBe("normal");
+		expect(group.widgets["KSampler steps"].value).toBe(20);
+		expect(group.widgets["KSampler cfg"].value).toBe(8);
+		expect(group.widgets["KSampler scheduler"].value).toBe("normal");
+	});
+	test("allow multiple of the same node type to be added", async () => {
+		const { ez, graph, app } = await start();
+		const nodes = [...Array(10)].map(() => ez.ImageScaleBy());
+		const group = await convertToGroup(app, graph, "test", nodes);
+		expect(group.inputs.length).toBe(10);
+		expect(group.outputs.length).toBe(10);
+		expect(group.widgets.length).toBe(20);
+		expect(group.widgets.map((w) => w.widget.name)).toStrictEqual(
+			[...Array(10)]
+				.map((_, i) => `${i > 0 ? "ImageScaleBy " : ""}${i > 1 ? i + " " : ""}`)
+				.flatMap((p) => [`${p}upscale_method`, `${p}scale_by`])
+		);
+	});
 });

@@ -82,14 +82,14 @@ class VideoResBlock(ResnetBlock):
 
             x = self.time_stack(x, temb)
 
-            alpha = self.get_alpha(bs=b // timesteps)
+            alpha = self.get_alpha(bs=b // timesteps).to(x.device)
             x = alpha * x + (1.0 - alpha) * x_mix
 
             x = rearrange(x, "b c t h w -> (b t) c h w")
         return x
 
 
-class AE3DConv(torch.nn.Conv2d):
+class AE3DConv(ops.Conv2d):
     def __init__(self, in_channels, out_channels, video_kernel_size=3, *args, **kwargs):
         super().__init__(in_channels, out_channels, *args, **kwargs)
         if isinstance(video_kernel_size, Iterable):
@@ -97,7 +97,7 @@ class AE3DConv(torch.nn.Conv2d):
         else:
             padding = int(video_kernel_size // 2)
 
-        self.time_mix_conv = torch.nn.Conv3d(
+        self.time_mix_conv = ops.Conv3d(
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=video_kernel_size,
@@ -167,7 +167,7 @@ class AttnVideoBlock(AttnBlock):
         emb = emb[:, None, :]
         x_mix = x_mix + emb
 
-        alpha = self.get_alpha()
+        alpha = self.get_alpha().to(x.device)
         x_mix = self.time_mix_block(x_mix, timesteps=timesteps)
         x = alpha * x + (1.0 - alpha) * x_mix  # alpha merge
 
