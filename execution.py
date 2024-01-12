@@ -334,6 +334,7 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
+        self.status_notes = []
         self.add_note("execution_start", { "prompt_id": prompt_id}, broadcast=False)
 
         with torch.inference_mode():
