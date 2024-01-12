@@ -10,7 +10,7 @@ from framework.app_log import AppLog
 
 # Main code
 from comfy.cli_args import args
-
+from config.config import CONFIG
 
 
 def aiyo_server_main():

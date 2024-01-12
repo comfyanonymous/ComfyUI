@@ -12,6 +12,7 @@ from framework.app_log import AppLog
 from aiyo_executor.message_sender import MessageManager
 from aiyo_executor.aiyo_executor import AIYoExecutor
 import aiyo_project_init
+from config.config import CONFIG
 from framework.app_log import AppLog
 AppLog.init()
 

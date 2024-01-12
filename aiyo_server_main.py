@@ -15,6 +15,8 @@ import aiyo_server.aiyo_server
 from framework.app_log import AppLog
 
 import aiyo_project_init
+from config.config import CONFIG
+
 
 def execute_prestartup_script():
     def execute_script(script_path):
