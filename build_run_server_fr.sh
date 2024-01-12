@@ -26,4 +26,5 @@ echo Setup complete.
 
 echo Running the application...
 . "$VENV_DIR/bin/activate"
-nohup python aiyo_api_server_main.py ---config "aiyoh_engine_fr" --listen "0.0.0.0" > nohup.out 2>&1 &
+nohup python aiyo_api_server_main.py --config "aiyoh_engine_fr" --listen "0.0.0.0" > nohup.out 2>&1 &
+
