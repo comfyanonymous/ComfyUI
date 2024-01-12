@@ -124,15 +124,14 @@ def aiyo_proj_init():
                             cur_rep.head.reference = new_branch
                             cur_rep.head.reset(index=True, working_tree=True)
                             
+                        req_txt = f"{local_path}/requirements.txt"
+                        if os.path.exists(req_txt):
+                            print(f"Instailing requirements: {req_txt}")
+                            subprocess.check_call(['pip', 'install', '-r', req_txt])
+                        else:
+                            print(f"requirement file not exist: {req_txt}")
                     else:
                         print(f"Clone {git_url}:  repo exist.")
-                        
-                    req_txt = f"{local_path}/requirements.txt"
-                    if os.path.exists(req_txt):
-                        print(f"Instailing requirements: {req_txt}")
-                        subprocess.check_call(['pip', 'install', '-r', req_txt])
-                    else:
-                        print(f"requirement file not exist: {req_txt}")
                         
                 except Exception as e:  
                     print(f'Clone {git_url} FAIL.  network error.')
