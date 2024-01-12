@@ -57,7 +57,7 @@ class CLIPEncoder(torch.nn.Module):
         self.layers = torch.nn.ModuleList([CLIPLayer(embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations) for i in range(num_layers)])
 
     def forward(self, x, mask=None, intermediate_output=None):
-        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None)
+        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
         if intermediate_output is not None:
             if intermediate_output < 0:
@@ -151,7 +151,7 @@ class CLIPVisionEmbeddings(torch.nn.Module):
 
     def forward(self, pixel_values):
         embeds = self.patch_embedding(pixel_values).flatten(2).transpose(1, 2)
-        return torch.cat([self.class_embedding.expand(pixel_values.shape[0], 1, -1), embeds], dim=1) + self.position_embedding.weight
+        return torch.cat([self.class_embedding.to(embeds.device).expand(pixel_values.shape[0], 1, -1), embeds], dim=1) + self.position_embedding.weight.to(embeds.device)
 
 
 class CLIPVision(torch.nn.Module):

@@ -252,5 +252,59 @@ class SVD_img2vid(supported_models_base.BASE):
     def clip_target(self):
         return None
 
-models = [SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, Segmind_Vega]
+class Stable_Zero123(supported_models_base.BASE):
+    unet_config = {
+        "context_dim": 768,
+        "model_channels": 320,
+        "use_linear_in_transformer": False,
+        "adm_in_channels": None,
+        "use_temporal_attention": False,
+        "in_channels": 8,
+    }
+
+    unet_extra_config = {
+        "num_heads": 8,
+        "num_head_channels": -1,
+    }
+
+    clip_vision_prefix = "cond_stage_model.model.visual."
+
+    latent_format = latent_formats.SD15
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Stable_Zero123(self, device=device, cc_projection_weight=state_dict["cc_projection.weight"], cc_projection_bias=state_dict["cc_projection.bias"])
+        return out
+
+    def clip_target(self):
+        return None
+
+class SD_X4Upscaler(SD20):
+    unet_config = {
+        "context_dim": 1024,
+        "model_channels": 256,
+        'in_channels': 7,
+        "use_linear_in_transformer": True,
+        "adm_in_channels": None,
+        "use_temporal_attention": False,
+    }
+
+    unet_extra_config = {
+        "disable_self_attentions": [True, True, True, False],
+        "num_classes": 1000,
+        "num_heads": 8,
+        "num_head_channels": -1,
+    }
+
+    latent_format = latent_formats.SD_X4
+
+    sampling_settings = {
+        "linear_start": 0.0001,
+        "linear_end": 0.02,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.SD_X4Upscaler(self, device=device)
+        return out
+
+models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, Segmind_Vega, SD_X4Upscaler]
 models += [SVD_img2vid]

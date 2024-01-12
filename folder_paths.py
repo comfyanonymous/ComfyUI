@@ -34,6 +34,7 @@ folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers"
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
 
 filename_list_cache = {}
 
@@ -184,8 +185,7 @@ def cached_filename_list_(folder_name):
     if folder_name not in filename_list_cache:
         return None
     out = filename_list_cache[folder_name]
-    if time.perf_counter() < (out[2] + 0.5):
-        return out
+
     for x in out[1]:
         time_modified = out[1][x]
         folder = x

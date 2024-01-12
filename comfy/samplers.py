@@ -244,14 +244,15 @@ def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options):
 #The main sampling function shared by all the samplers
 #Returns denoised
 def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_options={}, seed=None):
-        if math.isclose(cond_scale, 1.0):
+        if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
             uncond_ = None
         else:
             uncond_ = uncond
 
         cond_pred, uncond_pred = calc_cond_uncond_batch(model, cond, uncond_, x, timestep, model_options)
         if "sampler_cfg_function" in model_options:
-            args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep}
+            args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
+                    "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
             cfg_result = x - model_options["sampler_cfg_function"](args)
         else:
             cfg_result = uncond_pred + (cond_pred - uncond_pred) * cond_scale
@@ -598,6 +599,13 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     calculate_start_end_timesteps(model, negative)
     calculate_start_end_timesteps(model, positive)
 
+    if latent_image is not None:
+        latent_image = model.process_latent_in(latent_image)
+
+    if hasattr(model, 'extra_conds'):
+        positive = encode_model_conds(model.extra_conds, positive, noise, device, "positive", latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
+        negative = encode_model_conds(model.extra_conds, negative, noise, device, "negative", latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
+
     #make sure each cond area has an opposite one with the same area
     for c in positive:
         create_cond_with_same_area_if_none(negative, c)
@@ -608,13 +616,6 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
 
     apply_empty_x_to_equal_area(list(filter(lambda c: c.get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
     apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
-
-    if latent_image is not None:
-        latent_image = model.process_latent_in(latent_image)
-
-    if hasattr(model, 'extra_conds'):
-        positive = encode_model_conds(model.extra_conds, positive, noise, device, "positive", latent_image=latent_image, denoise_mask=denoise_mask)
-        negative = encode_model_conds(model.extra_conds, negative, noise, device, "negative", latent_image=latent_image, denoise_mask=denoise_mask)
 
     extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": model_options, "seed":seed}
 

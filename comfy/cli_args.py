@@ -66,6 +66,8 @@ fpvae_group.add_argument("--fp16-vae", action="store_true", help="Run the VAE in
 fpvae_group.add_argument("--fp32-vae", action="store_true", help="Run the VAE in full precision fp32.")
 fpvae_group.add_argument("--bf16-vae", action="store_true", help="Run the VAE in bf16.")
 
+parser.add_argument("--cpu-vae", action="store_true", help="Run the VAE on the CPU.")
+
 fpte_group = parser.add_mutually_exclusive_group()
 fpte_group.add_argument("--fp8_e4m3fn-text-enc", action="store_true", help="Store text encoder weights in fp8 (e4m3fn variant).")
 fpte_group.add_argument("--fp8_e5m2-text-enc", action="store_true", help="Store text encoder weights in fp8 (e5m2 variant).")
@@ -102,13 +104,15 @@ vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for e
 
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
-
+parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
 parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
+
+parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
