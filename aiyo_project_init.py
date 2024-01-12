@@ -109,32 +109,35 @@ def aiyo_proj_init():
                 git_url = plg_info['files'][0]
                 repo_name = git_url.split("/")[-1].split(".")[0]
                 
+                print(f"PLUGIN: {plg_info.get('title', '')}")
                 try:
+                    
                     local_path = f'{ext_path}/{repo_name}'
                     print(f'Cloning repo from: {git_url}')
                     print(f'    to: {local_path}')
                     if not os.path.exists(local_path):
-                    
                         repo.Repo.clone_from(git_url, local_path, recursive=True)
-                        
-                        rep_cm = repo_name.get("commit", None)
+                        rep_cm = plg_info.get("commit", None)
                         if rep_cm is not None and rep_cm != "":
                             cur_rep = repo.Repo(local_path)
                             new_branch = cur_rep.create_head("aiyoh_work", rep_cm)
                             cur_rep.head.reference = new_branch
                             cur_rep.head.reset(index=True, working_tree=True)
                             
-                    
-                        req_txt = f"{local_path}/requirements.txt"
-                        if os.path.exists(req_txt):
-                            subprocess.check_call(['pip', 'install', '-r', req_txt])
-                                
-                        else:
-                            print(f"Clone {git_url}:  repo exist.")
+                    else:
+                        print(f"Clone {git_url}:  repo exist.")
+                        
+                    req_txt = f"{local_path}/requirements.txt"
+                    if os.path.exists(req_txt):
+                        print(f"Instailing requirements: {req_txt}")
+                        subprocess.check_call(['pip', 'install', '-r', req_txt])
+                    else:
+                        print(f"requirement file not exist: {req_txt}")
                         
                 except Exception as e:  
                     print(f'Clone {git_url} FAIL.  network error.')
                     print(e.args)
+                    print(f"{traceback.format_exc()}")
                 print(f'Clone repo DONE: {git_url}')
 
         except Exception as e:
