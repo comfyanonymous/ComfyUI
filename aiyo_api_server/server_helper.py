@@ -177,7 +177,7 @@ class ServerHelper:
                 status = task_info.status
                 if status == 3:                 # task finished
                     # find task results
-                    task_res = tb_data.TaskReuslt.objects(taskId=task_id).first()
+                    task_res = tb_data.TaskResult.objects(taskId=task_id).first()
                     if task_res is not None:
                         # get flow data
                         flow_info = tb_data.Flow.objects(flowId=task_info.flowId).first()
@@ -196,7 +196,7 @@ class ServerHelper:
                         
                 elif status == 4:               # task failed
                     # find task results
-                    task_res = tb_data.TaskReuslt.objects(taskId=task_id).first()
+                    task_res = tb_data.TaskResult.objects(taskId=task_id).first()
                     if task_res is not None:
                         progress = 1.0
                         result = None
