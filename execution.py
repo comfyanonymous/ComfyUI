@@ -731,12 +731,12 @@ class PromptQueue:
             self.server.queue_updated()
             return (item, i)
 
-    def task_done(self, item_id, outputs):
+    def task_done(self, item_id, outputs, execution_time):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
                 self.history.pop(next(iter(self.history)))
-            self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
+            self.history[prompt[1]] = { "prompt": prompt, "outputs": {} , "execution_time": execution_time }
             for o in outputs:
                 self.history[prompt[1]]["outputs"][o] = outputs[o]
             self.server.queue_updated()
