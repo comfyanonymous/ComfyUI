@@ -22,5 +22,5 @@ jobs:
       run: | 
         npm ci
         npm run test:generate
-        npm test
+        npm test -- --verbose
       working-directory: ./tests-ui

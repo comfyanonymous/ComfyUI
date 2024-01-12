@@ -74,7 +74,7 @@ class SaveAnimatedWEBP:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "image/animation"
 
     def save_images(self, images, fps, filename_prefix, lossless, quality, method, num_frames=0, prompt=None, extra_pnginfo=None):
         method = self.methods.get(method)
@@ -136,7 +136,7 @@ class SaveAnimatedPNG:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "image/animation"
 
     def save_images(self, images, fps, compress_level, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append

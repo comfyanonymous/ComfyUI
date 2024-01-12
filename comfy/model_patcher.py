@@ -28,13 +28,9 @@ class ModelPatcher:
         if self.size > 0:
             return self.size
         model_sd = self.model.state_dict()
-        size = 0
-        for k in model_sd:
-            t = model_sd[k]
-            size += t.nelement() * t.element_size()
-        self.size = size
+        self.size = comfy.model_management.module_size(self.model)
         self.model_keys = set(model_sd.keys())
-        return size
+        return self.size
 
     def clone(self):
         n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self.current_device, weight_inplace_update=self.weight_inplace_update)
@@ -55,14 +51,18 @@ class ModelPatcher:
     def memory_required(self, input_shape):
         return self.model.memory_required(input_shape=input_shape)
 
-    def set_model_sampler_cfg_function(self, sampler_cfg_function):
+    def set_model_sampler_cfg_function(self, sampler_cfg_function, disable_cfg1_optimization=False):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
             self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
         else:
             self.model_options["sampler_cfg_function"] = sampler_cfg_function
+        if disable_cfg1_optimization:
+            self.model_options["disable_cfg1_optimization"] = True
 
-    def set_model_sampler_post_cfg_function(self, post_cfg_function):
+    def set_model_sampler_post_cfg_function(self, post_cfg_function, disable_cfg1_optimization=False):
         self.model_options["sampler_post_cfg_function"] = self.model_options.get("sampler_post_cfg_function", []) + [post_cfg_function]
+        if disable_cfg1_optimization:
+            self.model_options["disable_cfg1_optimization"] = True
 
     def set_model_unet_function_wrapper(self, unet_wrapper_function):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
@@ -174,40 +174,41 @@ class ModelPatcher:
                     sd.pop(k)
         return sd
 
-    def patch_model(self, device_to=None):
+    def patch_model(self, device_to=None, patch_weights=True):
         for k in self.object_patches:
             old = getattr(self.model, k)
             if k not in self.object_patches_backup:
                 self.object_patches_backup[k] = old
             setattr(self.model, k, self.object_patches[k])
 
-        model_sd = self.model_state_dict()
-        for key in self.patches:
-            if key not in model_sd:
-                print("could not patch. key doesn't exist in model:", key)
-                continue
+        if patch_weights:
+            model_sd = self.model_state_dict()
+            for key in self.patches:
+                if key not in model_sd:
+                    print("could not patch. key doesn't exist in model:", key)
+                    continue
 
-            weight = model_sd[key]
+                weight = model_sd[key]
 
-            inplace_update = self.weight_inplace_update
+                inplace_update = self.weight_inplace_update
 
-            if key not in self.backup:
-                self.backup[key] = weight.to(device=self.offload_device, copy=inplace_update)
+                if key not in self.backup:
+                    self.backup[key] = weight.to(device=self.offload_device, copy=inplace_update)
+
+                if device_to is not None:
+                    temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
+                else:
+                    temp_weight = weight.to(torch.float32, copy=True)
+                out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+                if inplace_update:
+                    comfy.utils.copy_to_param(self.model, key, out_weight)
+                else:
+                    comfy.utils.set_attr(self.model, key, out_weight)
+                del temp_weight
 
             if device_to is not None:
-                temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
-            else:
-                temp_weight = weight.to(torch.float32, copy=True)
-            out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
-            if inplace_update:
-                comfy.utils.copy_to_param(self.model, key, out_weight)
-            else:
-                comfy.utils.set_attr(self.model, key, out_weight)
-            del temp_weight
-
-        if device_to is not None:
-            self.model.to(device_to)
-            self.current_device = device_to
+                self.model.to(device_to)
+                self.current_device = device_to
 
         return self.model
 

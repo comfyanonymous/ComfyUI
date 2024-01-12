@@ -126,7 +126,10 @@ class ControlBase:
                         if o[i] is None:
                             o[i] = prev_val
                         else:
-                            o[i] += prev_val
+                            if o[i].shape[0] < prev_val.shape[0]:
+                                o[i] = prev_val + o[i]
+                            else:
+                                o[i] += prev_val
         return out
 
 class ControlNet(ControlBase):
@@ -283,7 +286,7 @@ class ControlLora(ControlNet):
         cm = self.control_model.state_dict()
 
         for k in sd:
-            weight = comfy.model_management.resolve_lowvram_weight(sd[k], diffusion_model, k)
+            weight = sd[k]
             try:
                 comfy.utils.set_attr(self.control_model, k, weight)
             except:
