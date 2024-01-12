@@ -12,6 +12,13 @@
                 "path": "sdxl/samaritan_3Dcartoon_v40.safetensors",
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sdxl/samaritan_3Dcartoon_v40.safetensors", 
                 "description": "3d卡通风格的底模"
+            },
+
+            "disney_pixar_cartoon_typeA_fp16_v10": {
+                "path": "sd15/disney_pixar_cartoon_typeA_fp16_v10.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/disney_pixar_cartoon_typeA_fp16_v10.safetensors", 
+                "description": "3d卡通风格的底模",
+                "reference": "https://civitai.com/models/120635/disney-pixar-cartoon-type-a-fp16cleaned"
             }
         },
 
@@ -82,6 +89,18 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/style_model/coadapter-style-sd15v1.pth",
                 "description": ""
             }
+        },
+
+
+        "vae": {
+            "YOZORA":
+            {
+                "path": "YOZORA.vae.pt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/vae/YOZORA.vae.pt",
+                "description": "配合一些sd15的卡通底模使用",
+                "reference": "https://huggingface.co/huggingface675/YOZORA.vae.pt"
+
+            }
         }
     },
 
@@ -92,7 +111,8 @@
         "controlnet": "controlnet",
         "ipadapter": "ipadapter",
         "lora": "loras",
-        "style_models": "style_models"
+        "style_models": "style_models",
+        "vae": "vae"
     },
 
     "major_version": 0,
