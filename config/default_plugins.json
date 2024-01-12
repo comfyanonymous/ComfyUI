@@ -8,7 +8,7 @@
         "https://github.com/ltdrdata/ComfyUI-Manager"
       ],
       "install_type": "git-clone",
-      "commit": "001154622564b17223ce0191803c5fff7b87146c",
+      "commit": "8860e7b39501d441553e4a075b33161da10a97a2",
       "description": "ComfyUI-Manager itself is also a custom node."
     },
     {
