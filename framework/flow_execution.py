@@ -821,6 +821,7 @@ class FlowExecutor:
                 graph_outputs = self.get_graph_outputs()
                 AppLog.info(f"[Execute] graph output is: {graph_outputs}")
             else:
+                graph_outputs = {}
                 AppLog.warning(f"[Execute] graph execute fail. \n{err} \n{ex}")
               
              
