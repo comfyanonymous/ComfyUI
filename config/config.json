@@ -115,7 +115,7 @@
 
 
         "log":{
-            "console_log": 0,
+            "console_log": 1,
             "log_file": "log/app.log",
             "log_level": "INFO"
         },
@@ -133,11 +133,8 @@
         "deploy": true,
 
         "mongodb_settings":{
-            "url": "mongodb://admin:AbcD%23123%2B%2B@43.135.80.90:27017/",
-            "database": "aiyo_engine",
-            "task_table": "engine_task",
-            "task_result_table": "engine_task_result",
-            "flow_table": "flow"
+            "url": "mongodb://admin:AbcD%23123%40@lb-m1h2lciy-x0guse4wn9z3y57t.clb.ap-tokyo.tencentclb.com:20017/",
+            "database": "aiyoh_engine"
         },
         
         "kafka_settings":{
@@ -150,10 +147,11 @@
         },
 
         "minio_settings":{
-            "endpoint": "cos.ap-nanjing.myqcloud.com",
-            "access_key": "AKIDogu0zrQsFOLvOhsscDh0GLKD2lP4hOvF",
-            "secret_key": "AA1kuxuqiVDqO7wkU8g9Vk1OorrcVOCz",
-            "bucket": "aiyo-1319341997"
+            "endpoint": "s3.ap-northeast-1.amazonaws.com",
+            "region": "ap-northeast-1",
+            "access_key": "AKIA3CZGA3ILGMI2HPEL",
+            "secret_key": "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",
+            "bucket": "aurobit-s3-01"
         },
 
         "server":
@@ -164,13 +162,13 @@
 
 
         "resource":{
-            "in_img_path_cloud": "test",
+            "in_img_path_cloud": "aiyoh/engine/input",
             "in_img_path_local": "input",
 
-            "out_img_path_cloud": "test",
+            "out_img_path_cloud": "aiyoh/engine/output",
             "out_img_path_local": "output",
 
-            "prompt_path_cloud": "test",
+            "prompt_path_cloud": "aiyoh/engine/workflow",
             "prompt_path_local": "input"
         },
 
@@ -243,7 +241,7 @@
 
 
         "log":{
-            "console_log": 0,
+            "console_log": 1,
             "log_file": "log/app.log",
             "log_level": "INFO"
         },
