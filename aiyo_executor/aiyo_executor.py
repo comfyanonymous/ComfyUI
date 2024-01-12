@@ -80,7 +80,7 @@ class AIYoExecutor:
                            "endTime": now,
                            "result": output_data,
                            "error": err}
-            task_res = tb_data.TaskReuslt.objects(**query).modify(upsert=True, new=True, **update_data)
+            task_res = tb_data.TaskResult.objects(**query).modify(upsert=True, new=True, **update_data)
             AppLog.info(f"update result: {task_res}")
             
             tb_data.Task.objects(**query).modify(status=status)
@@ -88,8 +88,10 @@ class AIYoExecutor:
         
     def task_done(self, succ, prompt_id, graph_output, output_ui, err, exp):    
             
-        output_data = {key:val["value"] for key,val in graph_output.items()}
-    
+        if graph_output is not None:
+            output_data = {key:val["value"] for key,val in graph_output.items()}
+        else:
+            output_data = {}
         # on task done
         self.on_task_done(succ, prompt_id, output_data, output_ui, err, exp)
             

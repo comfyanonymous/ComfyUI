@@ -60,7 +60,7 @@ class ServerHelper:
                     
                     # base64str image
                     else:
-                        AppLog.info(f"[ParseUserFlowInput] base64 image: {arg_val}")   
+                        AppLog.info(f"[ParseUserFlowInput] base64 image: {AppLog.visible_convert(arg_val)}")   
                         local_name = folder_paths.generate_local_filepath('png')
                         cur_img = ImageUtil.base64_to_image(arg_val)
                         image_byte_array = io.BytesIO()
