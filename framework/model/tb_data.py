@@ -47,7 +47,7 @@ class Task(Document):
     
     
     
-class TaskReuslt(Document):
+class TaskResult(Document):
     
     taskId = StringField(required=True)
     status = IntField(required=True)
