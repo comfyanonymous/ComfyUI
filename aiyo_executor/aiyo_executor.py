@@ -2,7 +2,7 @@
 import time
 import gc
 import datetime
-import traceback
+import traceback, json
 
 from aiohttp import web
 
@@ -72,18 +72,28 @@ class AIYoExecutor:
         # update task result to db
         if CONFIG["deploy"] and prompt_id is not None:
             status = 3 if succ else 4
+            _err = err
+            if isinstance(err, dict):
+                _err = json.dumps(err)
+                
+            try:
+                now = datetime.datetime.utcnow()
+                query = {"taskId": prompt_id}
+                update_data = {"taskId": prompt_id, 
+                            "status":status,
+                            "endTime": now,
+                            "result": output_data,
+                            "error": _err}
+                AppLog.info(f"update data:{update_data}")
+                task_res = tb_data.TaskResult.objects(**query).modify(upsert=True, new=True, **update_data)
+                AppLog.info(f"update result: {task_res}")
+            except Exception as e:
+                AppLog.error(f"[OnTaskDonw] ERROR, fail to update status to TaskResult DB. {e}\n{traceback.format_exc()}")
             
-            now = datetime.datetime.utcnow()
-            query = {"taskId": prompt_id}
-            update_data = {"taskId": prompt_id, 
-                           "status":status,
-                           "endTime": now,
-                           "result": output_data,
-                           "error": err}
-            task_res = tb_data.TaskResult.objects(**query).modify(upsert=True, new=True, **update_data)
-            AppLog.info(f"update result: {task_res}")
-            
-            tb_data.Task.objects(**query).modify(status=status)
+            try:
+                tb_data.Task.objects(**query).modify(status=status)
+            except Exception as e:
+                AppLog.error(f"[OnTaskDonw] ERROR, fail to update status to Task DB. {e}\n{traceback.format_exc()}")
             
         
     def task_done(self, succ, prompt_id, graph_output, output_ui, err, exp):    

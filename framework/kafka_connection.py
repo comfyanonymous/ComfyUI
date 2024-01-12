@@ -4,6 +4,7 @@
 import confluent_kafka
 
 from config.config import CONFIG
+from framework.app_log import AppLog
 
 
 
@@ -26,6 +27,9 @@ class KafkaConnection:
     def create_consumer(kfk_topic):
         # connect kafka
         kafka_config = CONFIG['kafka_settings']
+        AppLog.info(f"[CreateConsumer] kafka config: {kafka_config}")
+        AppLog.info(f"[CreateConsumer] kafka topic: {kfk_topic}")
+        
         consumer_config = {
             'bootstrap.servers': kafka_config["url"],
             'group.id': kafka_config["group"]
