@@ -276,12 +276,12 @@ class PromptExecutor:
         self.outputs = {}
         self.object_storage = {}
         self.outputs_ui = {}
-        self.status_notes = []
+        self.status_messages = []
         self.success = True
         self.old_prompt = {}
 
-    def add_note(self, event, data, broadcast: bool):
-        self.status_notes.append((event, data))
+    def add_message(self, event, data, broadcast: bool):
+        self.status_messages.append((event, data))
         if self.server.client_id is not None or broadcast:
             self.server.send_sync(event, data, self.server.client_id)
 
@@ -298,7 +298,7 @@ class PromptExecutor:
                 "node_type": class_type,
                 "executed": list(executed),
             }
-            self.add_note("execution_interrupted", mes, broadcast=True)
+            self.add_message("execution_interrupted", mes, broadcast=True)
         else:
             mes = {
                 "prompt_id": prompt_id,
@@ -312,7 +312,7 @@ class PromptExecutor:
                 "current_inputs": error["current_inputs"],
                 "current_outputs": error["current_outputs"],
             }
-            self.add_note("execution_error", mes, broadcast=False)
+            self.add_message("execution_error", mes, broadcast=False)
         
         # Next, remove the subsequent outputs since they will not be executed
         to_delete = []
@@ -334,8 +334,8 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
-        self.status_notes = []
-        self.add_note("execution_start", { "prompt_id": prompt_id}, broadcast=False)
+        self.status_messages = []
+        self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
 
         with torch.inference_mode():
             #delete cached outputs if nodes don't exist for them
@@ -368,7 +368,7 @@ class PromptExecutor:
                     del d
 
             comfy.model_management.cleanup_models()
-            self.add_note("execution_cached",
+            self.add_message("execution_cached",
                           { "nodes": list(current_outputs) , "prompt_id": prompt_id},
                           broadcast=False)
             executed = set()
@@ -742,7 +742,7 @@ class PromptQueue:
     class ExecutionStatus(NamedTuple):
         status_str: Literal['success', 'error']
         completed: bool
-        notes: List[str]
+        messages: List[str]
 
     def task_done(self, item_id, outputs,
                   status: Optional['PromptQueue.ExecutionStatus']):
