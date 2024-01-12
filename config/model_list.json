@@ -50,6 +50,14 @@
                 "path": "control_v11p_sd15_inpaint_fp16.safetensors",
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet/control_v11p_sd15_inpaint_fp16.safetensors",
                 "description": ""
+            },
+            "coontrolnet_openpose_v11p_sd15":
+            {
+                "path": "control_v11p_sd15_openpose.pth",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet/control_v11p_sd15_openpose.pth",
+                "description": "",
+                "reference": "https://huggingface.co/thibaud/controlnet-openpose-sdxl-1.0"
+
             }
         },
 
@@ -64,6 +72,12 @@
                 "path": "ip-adapter-plus-face_sdxl_vit-h.safetensors",
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ipadapter/ip-adapter-plus-face_sdxl_vit-h.safetensors", 
                 "description": "ipa专精与脸部的模型，sdxl版本，但是配合的clipvision模型需要用1.5的"
+            },
+            "ipa_plus_faceid_plus_sd15":{
+                "path": "ip-adapter-faceid-plus_sd15.bin",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ipadapter/ip-adapter-faceid-plus_sd15.bin", 
+                "description": "faceid plus, SD1.5",
+                "reference": "https://huggingface.co/h94/IP-Adapter-FaceID/tree/main"
             }
         },
 
@@ -75,11 +89,25 @@
                 "description": "XL的年龄控制lora"
             },
 
-            "lcm_sdxl":
+            "lcm_sdxl_lora":
             {
                 "path": "sdxl/lcm_lora_sdxl.safetensors",
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sdxl/lcm_lora_sdxl.safetensors",
                 "description": "lcm lora for SDXL"
+            },
+
+            "lcm_sd15_lora":
+            {
+                "path": "sd15/lcm_lora_sd15.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/lcm_lora_sd15.safetensors",
+                "description": "lcm lora for SD15"
+            },
+
+            "ipa_plus_faceid_plus_sd15_lora":{
+                "path": "ipadapter/ip-adapter-faceid-plus_sd15_lora.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/ipadapter/ip-adapter-faceid-plus_sd15_lora.safetensors", 
+                "description": "faceid plus 配合使用的lora， SD1.5",
+                "reference": "https://huggingface.co/h94/IP-Adapter-FaceID/tree/main"
             }
         },
 
@@ -101,6 +129,26 @@
                 "reference": "https://huggingface.co/huggingface675/YOZORA.vae.pt"
 
             }
+        },
+
+        "upscale_models":
+        {
+            "RealESRGAN_x4plus_anime_6b":
+            {
+                "path": "RealESRGAN_x4plus_anime_6B.pth",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/upscale_models/RealESRGAN_x4plus_anime_6B.pth",
+                "description": "用于anime风格的upscale模型，放大2*2倍",
+                "reference": "https://github.com/xinntao/Real-ESRGAN/tree/master"
+            }
+        },
+
+        "ultralytics": {
+            "face_yolov8m":
+            {
+                "path": "bbox/face_yolov8m.pt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ultralytics/face_yolov8m.pt",
+                "description": "人脸检测"
+            }
         }
     },
 
@@ -112,7 +160,10 @@
         "ipadapter": "ipadapter",
         "lora": "loras",
         "style_models": "style_models",
-        "vae": "vae"
+        "vae": "vae",
+        "upscale_models": "upscale_models",
+
+        "ultralytics": "ultralytics"
     },
 
     "major_version": 0,

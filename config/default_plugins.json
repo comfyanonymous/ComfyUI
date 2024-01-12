@@ -60,18 +60,6 @@
     },
 
     {
-      "author": "cubiq",
-      "title": "ComfyUI_IPAdapter_plus",
-      "reference": "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-      "files": [
-        "https://github.com/cubiq/ComfyUI_IPAdapter_plus"
-      ],
-      "install_type": "git-clone",
-      "commit": "a4e71ccbbf930125f53e19d0ecca80425a1fecaa",
-      "description": "ComfyUI reference implementation for IPAdapter models. The code is mostly taken from the original IPAdapter repository and laksjdjf's implementation, all credit goes to them. I just made the extension closer to ComfyUI philosophy."
-    },
-
-    {
       "author": "twri",
       "title": "SDXL Prompt Styler",
       "reference": "https://github.com/twri/sdxl_prompt_styler",
@@ -141,6 +129,31 @@
         "pip": ["ultralytics"],
         "install_type": "git-clone",
         "description": "This extension offers various detector nodes and detailer nodes that allow you to configure a workflow that automatically enhances facial details. And provide iterative upscaler.\n[w/NOTE:'Segs & Mask' has been renamed to 'ImpactSegsAndMask.' Please replace the node with the new name.]"
+    },
+
+    {
+      "author": "Kosinkadink",
+      "title": "ComfyUI-Advanced-ControlNet",
+      "reference": "https://github.com/Kosinkadink/ComfyUI-Advanced-ControlNet",
+      "files": [
+          "https://github.com/Kosinkadink/ComfyUI-Advanced-ControlNet"
+      ],
+      "install_type": "git-clone",
+      "commit": "f4af0e3e0f3128d7029009bbbb743bc959d58c3e",
+      "description": "Nodes: ControlNetLoaderAdvanced, DiffControlNetLoaderAdvanced, ScaledSoftControlNetWeights, SoftControlNetWeights, CustomControlNetWeights, SoftT2IAdapterWeights, CustomT2IAdapterWeights"
+    },
+
+    {
+      "author": "cubiq",
+      "title": "ComfyUI_IPAdapter_plus",
+      "reference": "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
+      "files": [
+          "https://github.com/cubiq/ComfyUI_IPAdapter_plus"
+      ],
+      "pip": ["insightface"],
+      "install_type": "git-clone",
+      "commit": "c37485514b9b88934078b372ebcd62c7480c41d8",
+      "description": "ComfyUI reference implementation for IPAdapter models. The code is mostly taken from the original IPAdapter repository and laksjdjf's implementation, all credit goes to them. I just made the extension closer to ComfyUI philosophy."
     }
   ]
 }
