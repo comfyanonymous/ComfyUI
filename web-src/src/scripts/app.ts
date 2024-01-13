@@ -6,10 +6,13 @@ import { defaultGraph } from './defaultGraph.js';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo.js';
 import { addDomClippingSetting } from './domWidget.js';
 import { createImageHost, calculateImageGrid } from './ui/imagePreview.js';
-import { LGraph, LGraphCanvas, LiteGraph } from 'litegraph.js';
+import { LGraph, LGraphCanvas, LiteGraph as LG } from 'litegraph.js';
 import { QueueItem } from '../types/many';
 import { ComfyExtension } from '../types/comfy.js';
-// import { LiteGraph } from '../types/litegraph.extensions.js'
+import { LiteGraphCorrected } from '../types/litegraph.js';
+
+// LiteGraph var with corrected typing
+const LiteGraph = LG as typeof LG & LiteGraphCorrected;
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
@@ -82,8 +85,8 @@ export class ComfyApp {
     ctx: CanvasRenderingContext2D | null
     saveInterval: NodeJS.Timeout | null;
 
-    // This makes it possible to destroy a ComfyApp instance
-    private eventListeners: Map<string, EventListenerOrEventListenerObject>;
+    // This makes it possible to cleanup a ComfyApp instance's listeners
+    private abortController: AbortController;
 
     constructor() {
         this.ui = new ComfyUI(this);
@@ -97,7 +100,7 @@ export class ComfyApp {
         this.graph = null;
         this.ctx = null;
         this.saveInterval = null;
-        this.eventListeners = new Map();
+        this.abortController = new AbortController()
     }
 
     getPreviewFormatParam() {
@@ -797,7 +800,7 @@ export class ComfyApp {
                     }
                 }
             }
-        });
+        }, { signal: this.abortController.signal });
 
         // Always clear over node on drag leave
         this.canvasEl.addEventListener('dragleave', async () => {
@@ -805,7 +808,7 @@ export class ComfyApp {
                 this.dragOverNode = null;
                 this.graph.setDirtyCanvas(false, true);
             }
-        });
+        }, { signal: this.abortController.signal });
 
         // Add handler for dropping onto a specific node
         this.canvasEl.addEventListener(
@@ -827,7 +830,7 @@ export class ComfyApp {
                 this.dragOverNode = null;
             },
             false
-        );
+        ), { signal: this.abortController.signal }
     }
 
     /**
@@ -893,7 +896,7 @@ export class ComfyApp {
                 // Litegraph default paste
                 this.canvas.pasteFromClipboard();
             }
-        });
+        }, { signal: this.abortController.signal });
     }
 
     /**
@@ -914,7 +917,7 @@ export class ComfyApp {
                 e.stopImmediatePropagation();
                 return false;
             }
-        });
+        }, { signal: this.abortController.signal });
     }
 
     /**
@@ -1291,10 +1294,10 @@ export class ComfyApp {
     #addKeyboardHandler() {
         window.addEventListener('keydown', e => {
             this.shiftDown = e.shiftKey;
-        });
+        }, { signal: this.abortController.signal });
         window.addEventListener('keyup', e => {
             this.shiftDown = e.shiftKey;
-        });
+        }, { signal: this.abortController.signal });
     }
 
     #addConfigureHandler() {
@@ -1329,6 +1332,23 @@ export class ComfyApp {
 
             return r;
         };
+    }
+
+    #addResizeCanvasListener() {
+        const resizeCanvas = () => {
+            const canvasEl = this.canvasEl;
+            if (canvasEl) {
+                // Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
+                const scale = Math.max(window.devicePixelRatio, 1);
+                const { width, height } = canvasEl.getBoundingClientRect();
+                canvasEl.width = Math.round(width * scale);
+                canvasEl.height = Math.round(height * scale);
+                canvasEl.getContext('2d')?.scale(scale, scale);
+                this.canvas?.draw(true, true);
+            }
+        }
+        window.addEventListener('resize', resizeCanvas, { signal: this.abortController.signal });
+        resizeCanvas(); // call immediately
     }
 
     /**
@@ -1464,8 +1484,7 @@ export class ComfyApp {
         this.graph.start();
 
         // Ensure the canvas fills the window
-        this.#resizeCanvas();
-        window.addEventListener('resize', this.#resizeCanvas.bind(this));
+        this.#addResizeCanvasListener();
 
         await this.#invokeExtensionsAsync('init');
         await this.registerNodes();
@@ -1499,19 +1518,6 @@ export class ComfyApp {
         this.#addKeyboardHandler();
 
         await this.#invokeExtensionsAsync('setup');
-    }
-
-    #resizeCanvas() {
-        const canvasEl = this.canvasEl;
-        if (canvasEl) {
-            // Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
-            const scale = Math.max(window.devicePixelRatio, 1);
-            const { width, height } = canvasEl.getBoundingClientRect();
-            canvasEl.width = Math.round(width * scale);
-            canvasEl.height = Math.round(height * scale);
-            canvasEl.getContext('2d')?.scale(scale, scale);
-            this.canvas?.draw(true, true);
-        }
     }
 
     /**
@@ -2223,7 +2229,7 @@ export class ComfyApp {
     /**
      * Used when unmounting ComfyUI
      */
-    destroy() {
+    cleanup() {
         if (this.graph) {this.graph.stop();}
 
         // Clear the save interval
@@ -2233,10 +2239,7 @@ export class ComfyApp {
         }
 
         // Remove event listeners added in setup
-        window.removeEventListener('resize', this.#resizeCanvas.bind(this));
-        window.removeEventListener('keydown', this.handleKeyDown);
-        window.removeEventListener('keyup', this.handleKeyUp);
-        // ... add other event listeners that you need to remove
+        this.abortController.abort();
 
         // Remove the canvas element from the DOM if it was added
         if (this.canvasEl && this.canvasEl.parentNode) {
@@ -2263,7 +2266,7 @@ export class ComfyApp {
 
         // Reset UI elements or settings to their initial state
         if (this.ui) {
-            this.ui.reset(); // Assuming there's a reset method to clear UI changes
+            this.ui.reset(); // ??? this does not exist
         }
     }
 }
