@@ -2,7 +2,7 @@ import { api } from "./api.js"
 import "./domWidget.js";
 
 let controlValueRunBefore = false;
-function updateControlWidgetLabel(widget) {
+export function updateControlWidgetLabel(widget) {
 	let replacement = "after";
 	let find = "before";
 	if (controlValueRunBefore) {
