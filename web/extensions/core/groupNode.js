@@ -843,6 +843,7 @@ export class GroupNodeHandler {
 			const r = onDrawForeground?.apply?.(this, arguments);
 			if (+app.runningNodeId === this.id && this.runningInternalNodeId !== null) {
 				const n = groupData.nodes[this.runningInternalNodeId];
+				if(!n) return;
 				const message = `Running ${n.title || n.type} (${this.runningInternalNodeId}/${groupData.nodes.length})`;
 				ctx.save();
 				ctx.font = "12px sans-serif";
