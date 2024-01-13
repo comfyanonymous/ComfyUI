@@ -177,6 +177,7 @@ def attention_sub_quad(query, key, value, heads, mask=None):
         kv_chunk_size_min=kv_chunk_size_min,
         use_checkpoint=False,
         upcast_attention=upcast_attention,
+        mask=mask,
     )
 
     hidden_states = hidden_states.to(dtype)
@@ -239,6 +240,12 @@ def attention_split(q, k, v, heads, mask=None):
                 else:
                     s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k) * scale
 
+                if mask is not None:
+                    if len(mask.shape) == 2:
+                        s1 += mask[i:end]
+                    else:
+                        s1 += mask[:, i:end]
+
                 s2 = s1.softmax(dim=-1).to(v.dtype)
                 del s1
                 first_op_done = True
@@ -294,11 +301,14 @@ def attention_xformers(q, k, v, heads, mask=None):
         (q, k, v),
     )
 
-    # actually compute the attention, what we cannot get enough of
-    out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None)
+    if mask is not None:
+        pad = 8 - q.shape[1] % 8
+        mask_out = torch.empty([q.shape[0], q.shape[1], q.shape[1] + pad], dtype=q.dtype, device=q.device)
+        mask_out[:, :, :mask.shape[-1]] = mask
+        mask = mask_out[:, :, :mask.shape[-1]]
 
-    if exists(mask):
-        raise NotImplementedError
+    out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=mask)
+
     out = (
         out.unsqueeze(0)
         .reshape(b, heads, -1, dim_head)
@@ -323,7 +333,6 @@ def attention_pytorch(q, k, v, heads, mask=None):
 
 
 optimized_attention = attention_basic
-optimized_attention_masked = attention_basic
 
 if model_management.xformers_enabled():
     print("Using xformers cross attention")
@@ -339,15 +348,18 @@ else:
         print("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
-if model_management.pytorch_attention_enabled():
-    optimized_attention_masked = attention_pytorch
+optimized_attention_masked = optimized_attention
 
-def optimized_attention_for_device(device, mask=False):
-    if device == torch.device("cpu"): #TODO
+def optimized_attention_for_device(device, mask=False, small_input=False):
+    if small_input:
         if model_management.pytorch_attention_enabled():
-            return attention_pytorch
+            return attention_pytorch #TODO: need to confirm but this is probably slightly faster for small inputs in all cases
         else:
             return attention_basic
+
+    if device == torch.device("cpu"):
+        return attention_sub_quad
+
     if mask:
         return optimized_attention_masked
 

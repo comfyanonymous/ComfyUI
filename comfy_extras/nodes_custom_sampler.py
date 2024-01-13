@@ -26,9 +26,8 @@ class BasicScheduler:
         if denoise < 1.0:
             total_steps = int(steps/denoise)
 
-        inner_model = model.patch_model(patch_weights=False)
-        sigmas = comfy.samplers.calculate_sigmas_scheduler(inner_model, scheduler, total_steps).cpu()
-        model.unpatch_model()
+        comfy.model_management.load_models_gpu([model])
+        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, total_steps).cpu()
         sigmas = sigmas[-(steps + 1):]
         return (sigmas, )
 

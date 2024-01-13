@@ -307,7 +307,7 @@ export class ManageGroupDialog extends ComfyDialog {
 			]),
 			$el("footer", [
 				$el(
-					"button.comfy-button",
+					"button.comfy-btn",
 					{
 						onclick: (e) => {
 							const node = app.graph._nodes.find((n) => n.type === "workflow/" + this.selectedGroup);
@@ -325,7 +325,7 @@ export class ManageGroupDialog extends ComfyDialog {
 					"Delete Group Node"
 				),
 				$el(
-					"button.comfy-button",
+					"button.comfy-btn",
 					{
 						onclick: async () => {
 							let nodesByType;
@@ -407,7 +407,7 @@ export class ManageGroupDialog extends ComfyDialog {
 					},
 					"Save"
 				),
-				$el("button.comfy-button", { onclick: () => this.element.close() }, "Close"),
+				$el("button.comfy-btn", { onclick: () => this.element.close() }, "Close"),
 			]),
 		]);
 
