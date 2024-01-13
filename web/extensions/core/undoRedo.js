@@ -106,6 +106,7 @@ const bindInput = (activeEl) => {
 	}
 };
 
+let keyIgnored = false;
 window.addEventListener(
 	"keydown",
 	(e) => {
@@ -115,6 +116,9 @@ window.addEventListener(
 				// Ignore events on inputs, they have their native history
 				return;
 			}
+
+			keyIgnored = e.key === "Control" || e.key === "Shift" || e.key === "Alt" || e.key === "Meta";
+			if (keyIgnored) return;
 
 			// Check if this is a ctrl+z ctrl+y
 			if (await undoRedo(e)) return;
@@ -126,6 +130,13 @@ window.addEventListener(
 	},
 	true
 );
+
+window.addEventListener("keyup", (e) => {
+	if (keyIgnored) {
+		keyIgnored = false;
+		checkState();
+	}
+});
 
 // Handle clicking DOM elements (e.g. widgets)
 window.addEventListener("mouseup", () => {
