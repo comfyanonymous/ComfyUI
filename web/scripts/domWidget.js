@@ -239,7 +239,8 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 				node.flags?.collapsed ||
 				(!!options.hideOnZoom && app.canvas.ds.scale < 0.5) ||
 				widget.computedHeight <= 0 ||
-				widget.type === "converted-widget";
+				widget.type === "converted-widget"||
+				widget.type === "hidden";
 			element.hidden = hidden;
 			element.style.display = hidden ? "none" : null;
 			if (hidden) {
