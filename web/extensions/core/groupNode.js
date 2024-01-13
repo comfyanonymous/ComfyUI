@@ -1,6 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 import { mergeIfValid } from "./widgetInputs.js";
+import { ManageGroupDialog } from "./groupNodeManage.js";
 
 const GROUP = Symbol();
 
@@ -61,11 +62,7 @@ class GroupNodeBuilder {
 				);
 				return;
 			case Workflow.InUse.Registered:
-				if (
-					!confirm(
-						"An group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?"
-					)
-				) {
+				if (!confirm("A group node with this name already exists embedded in this workflow, are you sure you want to overwrite it?")) {
 					return;
 				}
 				break;
@@ -151,6 +148,8 @@ export class GroupNodeConfig {
 		this.primitiveDefs = {};
 		this.widgetToPrimitive = {};
 		this.primitiveToWidget = {};
+		this.nodeInputs = {};
+		this.outputVisibility = [];
 	}
 
 	async registerType(source = "workflow") {
@@ -158,6 +157,7 @@ export class GroupNodeConfig {
 			output: [],
 			output_name: [],
 			output_is_list: [],
+			output_is_hidden: [],
 			name: source + "/" + this.name,
 			display_name: this.name,
 			category: "group nodes" + ("/" + source),
@@ -277,8 +277,7 @@ export class GroupNodeConfig {
 					}
 					if (input.widget) {
 						const targetDef = globalDefs[node.type];
-						const targetWidget =
-							targetDef.input.required[input.widget.name] ?? targetDef.input.optional[input.widget.name];
+						const targetWidget = targetDef.input.required[input.widget.name] ?? targetDef.input.optional[input.widget.name];
 
 						const widget = [targetWidget[0], config];
 						const res = mergeIfValid(
@@ -330,7 +329,8 @@ export class GroupNodeConfig {
 	}
 
 	getInputConfig(node, inputName, seenInputs, config, extra) {
-		let name = node.inputs?.find((inp) => inp.name === inputName)?.label ?? inputName;
+		const customConfig = this.nodeData.config?.[node.index]?.input?.[inputName];
+		let name = customConfig?.name ?? node.inputs?.find((inp) => inp.name === inputName)?.label ?? inputName;
 		let key = name;
 		let prefix = "";
 		// Special handling for primitive to include the title if it is set rather than just "value"
@@ -356,7 +356,7 @@ export class GroupNodeConfig {
 			config = [config[0], { ...config[1], ...extra }];
 		}
 
-		return { name, config };
+		return { name, config, customConfig };
 	}
 
 	processWidgetInputs(inputs, node, inputNames, seenInputs) {
@@ -366,9 +366,7 @@ export class GroupNodeConfig {
 		for (const inputName of inputNames) {
 			let widgetType = app.getWidgetType(inputs[inputName], inputName);
 			if (widgetType) {
-				const convertedIndex = node.inputs?.findIndex(
-					(inp) => inp.name === inputName && inp.widget?.name === inputName
-				);
+				const convertedIndex = node.inputs?.findIndex((inp) => inp.name === inputName && inp.widget?.name === inputName);
 				if (convertedIndex > -1) {
 					// This widget has been converted to a widget
 					// We need to store this in the correct position so link ids line up
@@ -424,6 +422,7 @@ export class GroupNodeConfig {
 	}
 
 	processInputSlots(inputs, node, slots, linksTo, inputMap, seenInputs) {
+		this.nodeInputs[node.index] = {};
 		for (let i = 0; i < slots.length; i++) {
 			const inputName = slots[i];
 			if (linksTo[i]) {
@@ -432,7 +431,11 @@ export class GroupNodeConfig {
 				continue;
 			}
 
-			const { name, config } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName]);
+			const { name, config, customConfig } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName]);
+
+			this.nodeInputs[node.index][inputName] = name;
+			if(customConfig?.visible === false) continue;
+			
 			this.nodeDef.input.required[name] = config;
 			inputMap[i] = this.inputCount++;
 		}
@@ -452,6 +455,7 @@ export class GroupNodeConfig {
 			const { name, config } = this.getInputConfig(node, inputName, seenInputs, inputs[inputName], {
 				defaultInput: true,
 			});
+
 			this.nodeDef.input.required[name] = config;
 			this.newToOldWidgetMap[name] = { node, inputName };
 
@@ -477,9 +481,7 @@ export class GroupNodeConfig {
 		this.processInputSlots(inputs, node, slots, linksTo, inputMap, seenInputs);
 
 		// Converted inputs have to be processed after all other nodes as they'll be at the end of the list
-		this.#convertedToProcess.push(() =>
-			this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs)
-		);
+		this.#convertedToProcess.push(() => this.processConvertedWidgets(inputs, node, slots, converted, linksTo, inputMap, seenInputs));
 
 		return inputMapping;
 	}
@@ -490,8 +492,12 @@ export class GroupNodeConfig {
 		// Add outputs
 		for (let outputId = 0; outputId < def.output.length; outputId++) {
 			const linksFrom = this.linksFrom[node.index];
-			if (linksFrom?.[outputId] && !this.externalFrom[node.index]?.[outputId]) {
-				// This output is linked internally so we can skip it
+			// If this output is linked internally we flag it to hide
+			const hasLink = linksFrom?.[outputId] && !this.externalFrom[node.index]?.[outputId];
+			const customConfig = this.nodeData.config?.[node.index]?.output?.[outputId];
+			const visible = customConfig?.visible ?? !hasLink;
+			this.outputVisibility.push(visible);
+			if (!visible) {
 				continue;
 			}
 
@@ -500,11 +506,15 @@ export class GroupNodeConfig {
 			this.nodeDef.output.push(def.output[outputId]);
 			this.nodeDef.output_is_list.push(def.output_is_list[outputId]);
 
-			let label = def.output_name?.[outputId] ?? def.output[outputId];
-			const output = node.outputs.find((o) => o.name === label);
-			if (output?.label) {
-				label = output.label;
+			let label = customConfig?.name;
+			if (!label) {
+				label = def.output_name?.[outputId] ?? def.output[outputId];
+				const output = node.outputs.find((o) => o.name === label);
+				if (output?.label) {
+					label = output.label;
+				}
 			}
+
 			let name = label;
 			if (name in seenOutputs) {
 				const prefix = `${node.title ?? node.type} `;
@@ -677,6 +687,25 @@ export class GroupNodeHandler {
 			return this.innerNodes;
 		};
 
+		this.node.recreate = async () => {
+			const id = this.node.id;
+			const sz = this.node.size;
+			const nodes = this.node.convertToNodes();
+
+			const groupNode = LiteGraph.createNode(this.node.type);
+			groupNode.id = id;
+
+			// Reuse the existing nodes for this instance
+			groupNode.setInnerNodes(nodes);
+			groupNode[GROUP].populateWidgets();
+			app.graph.add(groupNode);
+			groupNode.size = [Math.max(groupNode.size[0], sz[0]), Math.max(groupNode.size[1], sz[1])];
+
+			// Remove all converted nodes and relink them
+			groupNode[GROUP].replaceNodes(nodes);
+			return groupNode;
+		};
+
 		this.node.convertToNodes = () => {
 			const addInnerNodes = () => {
 				const backup = localStorage.getItem("litegrapheditor_clipboard");
@@ -769,6 +798,7 @@ export class GroupNodeHandler {
 						const slot = node.inputs[groupSlotId];
 						if (slot.link == null) continue;
 						const link = app.graph.links[slot.link];
+						if (!link) continue;
 						//  connect this node output to the input of another node
 						const originNode = app.graph.getNodeById(link.origin_id);
 						originNode.connect(link.origin_slot, newNode, +innerInputId);
@@ -806,12 +836,23 @@ export class GroupNodeHandler {
 			let optionIndex = options.findIndex((o) => o.content === "Outputs");
 			if (optionIndex === -1) optionIndex = options.length;
 			else optionIndex++;
-			options.splice(optionIndex, 0, null, {
-				content: "Convert to nodes",
-				callback: () => {
-					return this.convertToNodes();
+			options.splice(
+				optionIndex,
+				0,
+				null,
+				{
+					content: "Convert to nodes",
+					callback: () => {
+						return this.convertToNodes();
+					},
 				},
-			});
+				{
+					content: "Manage Group Node",
+					callback: () => {
+						new ManageGroupDialog(app).show(this.type);
+					},
+				}
+			);
 		};
 
 		// Draw custom collapse icon to identity this as a group
@@ -863,6 +904,28 @@ export class GroupNodeHandler {
 		this.node.onExecutionStart = function () {
 			this.resetExecution = true;
 			return onExecutionStart?.apply(this, arguments);
+		};
+
+		const self = this;
+		const onNodeCreated = this.node.onNodeCreated;
+		this.node.onNodeCreated = function () {
+			const config = self.groupData.nodeData.config;
+			if (config) {
+				for (const n in config) {
+					const inputs = config[n]?.input;
+					for (const w in inputs) {
+						if (inputs[w].visible !== false) continue;
+						const widgetName = self.groupData.oldToNewWidgetMap[n][w];
+						const widget = this.widgets.find((w) => w.name === widgetName);
+						if (widget) {
+							widget.type = "hidden";
+							widget.computeSize = () => [0, -4];
+						}
+					}
+				}
+			}
+
+			return onNodeCreated?.apply(this, arguments);
 		};
 
 		function handleEvent(type, getId, getEvent) {
@@ -927,13 +990,15 @@ export class GroupNodeHandler {
 				continue;
 			} else if (innerNode.type === "Reroute") {
 				const rerouteLinks = this.groupData.linksFrom[old.node.index];
-				for (const [_, , targetNodeId, targetSlot] of rerouteLinks["0"]) {
-					const node = this.innerNodes[targetNodeId];
-					const input = node.inputs[targetSlot];
-					if (input.widget) {
-						const widget = node.widgets?.find((w) => w.name === input.widget.name);
-						if (widget) {
-							widget.value = newValue;
+				if (rerouteLinks) {
+					for (const [_, , targetNodeId, targetSlot] of rerouteLinks["0"]) {
+						const node = this.innerNodes[targetNodeId];
+						const input = node.inputs[targetSlot];
+						if (input.widget) {
+							const widget = node.widgets?.find((w) => w.name === input.widget.name);
+							if (widget) {
+								widget.value = newValue;
+							}
 						}
 					}
 				}
@@ -975,7 +1040,7 @@ export class GroupNodeHandler {
 		const [, , targetNodeId, targetNodeSlot] = link;
 		const targetNode = this.groupData.nodeData.nodes[targetNodeId];
 		const inputs = targetNode.inputs;
-		const targetWidget = inputs?.[targetNodeSlot].widget;
+		const targetWidget = inputs?.[targetNodeSlot]?.widget;
 		if (!targetWidget) return;
 
 		const offset = inputs.length - (targetNode.widgets_values?.length ?? 0);
@@ -983,12 +1048,11 @@ export class GroupNodeHandler {
 		if (v == null) return;
 
 		const widgetName = Object.values(map)[0];
-		const widget = this.node.widgets.find(w => w.name === widgetName);
-		if(widget) {
+		const widget = this.node.widgets.find((w) => w.name === widgetName);
+		if (widget) {
 			widget.value = v;
 		}
 	}
-
 
 	populateWidgets() {
 		if (!this.node.widgets) return;
@@ -1080,7 +1144,7 @@ export class GroupNodeHandler {
 	}
 
 	static getGroupData(node) {
-		return node.constructor?.nodeData?.[GROUP];
+		return (node.nodeData ?? node.constructor?.nodeData)?.[GROUP];
 	}
 
 	static isGroupNode(node) {
@@ -1112,7 +1176,7 @@ export class GroupNodeHandler {
 }
 
 function addConvertToGroupOptions() {
-	function addOption(options, index) {
+	function addConvertOption(options, index) {
 		const selected = Object.values(app.canvas.selected_nodes ?? {});
 		const disabled = selected.length < 2 || selected.find((n) => GroupNodeHandler.isGroupNode(n));
 		options.splice(index + 1, null, {
@@ -1124,12 +1188,25 @@ function addConvertToGroupOptions() {
 		});
 	}
 
+	function addManageOption(options, index) {
+		const groups = app.graph.extra?.groupNodes;
+		const disabled = !groups || !Object.keys(groups).length;
+		options.splice(index + 1, null, {
+			content: `Manage Group Nodes`,
+			disabled,
+			callback: () => {
+				new ManageGroupDialog(app).show();
+			},
+		});
+	}
+
 	// Add to canvas
 	const getCanvasMenuOptions = LGraphCanvas.prototype.getCanvasMenuOptions;
 	LGraphCanvas.prototype.getCanvasMenuOptions = function () {
 		const options = getCanvasMenuOptions.apply(this, arguments);
 		const index = options.findIndex((o) => o?.content === "Add Group") + 1 || options.length;
-		addOption(options, index);
+		addConvertOption(options, index);
+		addManageOption(options, index + 1);
 		return options;
 	};
 
@@ -1139,7 +1216,7 @@ function addConvertToGroupOptions() {
 		const options = getNodeMenuOptions.apply(this, arguments);
 		if (!GroupNodeHandler.isGroupNode(node)) {
 			const index = options.findIndex((o) => o?.content === "Outputs") + 1 || options.length - 1;
-			addOption(options, index);
+			addConvertOption(options, index);
 		}
 		return options;
 	};
