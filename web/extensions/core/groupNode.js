@@ -798,6 +798,7 @@ export class GroupNodeHandler {
 						const slot = node.inputs[groupSlotId];
 						if (slot.link == null) continue;
 						const link = app.graph.links[slot.link];
+						if (!link) continue;
 						//  connect this node output to the input of another node
 						const originNode = app.graph.getNodeById(link.origin_id);
 						originNode.connect(link.origin_slot, newNode, +innerInputId);
