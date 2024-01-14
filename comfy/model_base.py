@@ -210,7 +210,7 @@ class BaseModel(torch.nn.Module):
             return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
 
 
-def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0):
+def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
     adm_inputs = []
     weights = []
     noise_aug = []
@@ -219,7 +219,7 @@ def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge
             weight = unclip_cond["strength"]
             noise_augment = unclip_cond["noise_augmentation"]
             noise_level = round((noise_augmentor.max_noise_level - 1) * noise_augment)
-            c_adm, noise_level_emb = noise_augmentor(adm_cond.to(device), noise_level=torch.tensor([noise_level], device=device))
+            c_adm, noise_level_emb = noise_augmentor(adm_cond.to(device), noise_level=torch.tensor([noise_level], device=device), seed=seed)
             adm_out = torch.cat((c_adm, noise_level_emb), 1) * weight
             weights.append(weight)
             noise_aug.append(noise_augment)
@@ -245,11 +245,11 @@ class SD21UNCLIP(BaseModel):
         if unclip_conditioning is None:
             return torch.zeros((1, self.adm_channels))
         else:
-            return unclip_adm(unclip_conditioning, device, self.noise_augmentor, kwargs.get("unclip_noise_augment_merge", 0.05))
+            return unclip_adm(unclip_conditioning, device, self.noise_augmentor, kwargs.get("unclip_noise_augment_merge", 0.05), kwargs.get("seed", 0) - 10)
 
 def sdxl_pooled(args, noise_augmentor):
     if "unclip_conditioning" in args:
-        return unclip_adm(args.get("unclip_conditioning", None), args["device"], noise_augmentor)[:,:1280]
+        return unclip_adm(args.get("unclip_conditioning", None), args["device"], noise_augmentor, seed=args.get("seed", 0) - 10)[:,:1280]
     else:
         return args["pooled_output"]
 
