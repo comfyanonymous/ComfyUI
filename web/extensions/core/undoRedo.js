@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js"
 
 const MAX_HISTORY = 50;
 
@@ -15,6 +16,7 @@ function checkState() {
 		}
 		activeState = clone(currentState);
 		redo.length = 0;
+		api.dispatchEvent(new CustomEvent("graphChanged", { detail: activeState }));
 	}
 }
 
@@ -143,6 +145,11 @@ window.addEventListener("mouseup", () => {
 	checkState();
 });
 
+// Handle prompt queue event for dynamic widget changes
+api.addEventListener("promptQueued", () => {
+	checkState();
+});
+
 // Handle litegraph clicks
 const processMouseUp = LGraphCanvas.prototype.processMouseUp;
 LGraphCanvas.prototype.processMouseUp = function (e) {
@@ -156,3 +163,11 @@ LGraphCanvas.prototype.processMouseDown = function (e) {
 	checkState();
 	return v;
 };
+
+// Handle litegraph context menu for COMBO widgets
+const close = LiteGraph.ContextMenu.prototype.close;
+LiteGraph.ContextMenu.prototype.close = function(e) {
+	const v = close.apply(this, arguments);
+	checkState();
+	return v;
+}
