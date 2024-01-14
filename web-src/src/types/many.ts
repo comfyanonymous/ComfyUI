@@ -53,7 +53,7 @@ export interface SerializedNodeObject {
     widgets?: ComfyWidget[] | null;
 }
 
-export interface ComfyNode extends Object {
+export interface ComfyNode {
     id: string;
     imgs: ComfyImages;
     imageIndex?: number;
@@ -61,6 +61,7 @@ export interface ComfyNode extends Object {
     images?: ComfyImages;
     widgets: ComfyWidget[];
     computeSize: () => number[];
+    onDragDrop: (e: DragEvent) => any
 }
 
 export type ClassMethod<T> = {

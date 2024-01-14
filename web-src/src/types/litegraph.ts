@@ -1,6 +1,6 @@
 // Litegraph.d.js file is incomplete and missing several properties, so we add them here
 
-import { Vector4 } from 'litegraph.js';
+import {LGraphNode, Vector4} from 'litegraph.js';
 
 export interface LiteGraphCorrected {
     DEFAULT_GROUP_FONT_SIZE: number;
@@ -10,4 +10,9 @@ export interface LiteGraphCorrected {
 
     release_link_on_empty_shows_menu: boolean;
     alt_drag_do_clone_nodes: boolean;
+}
+
+export interface LGraphNodeExtended extends LGraphNode {
+    onDragDrop: (e: DragEvent) => any
+
 }

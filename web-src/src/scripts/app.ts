@@ -6,10 +6,10 @@ import { defaultGraph } from './defaultGraph.js';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo.js';
 import { addDomClippingSetting } from './domWidget.js';
 import { createImageHost, calculateImageGrid } from './ui/imagePreview.js';
-import { LGraph, LGraphCanvas, LiteGraph as LG } from 'litegraph.js';
+import {LGraph, LGraphCanvas, LGraphNode, LiteGraph as LG} from 'litegraph.js';
 import {ComfyFile, ComfyImageWidget, ComfyNode, ComfyWidget, QueueItem, SerializedNodeObject} from '../types/many';
 import { ComfyExtension } from '../types/comfy.js';
-import { LiteGraphCorrected } from '../types/litegraph.js';
+import {LGraphNodeExtended, LiteGraphCorrected} from '../types/litegraph.js';
 
 // LiteGraph var with corrected typing
 const LiteGraph = LG as typeof LG & LiteGraphCorrected;
@@ -88,6 +88,8 @@ export class ComfyApp {
 
     // This makes it possible to cleanup a ComfyApp instance's listeners
     private abortController: AbortController = new AbortController();
+
+    private dragOverNode?: LGraphNodeExtended | null;
 
     constructor() {
         this.ui = new ComfyUI(this);
@@ -536,7 +538,7 @@ export class ComfyApp {
                             if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
                                 this.imgs = imgs.filter(Boolean);
                                 this.setSizeForImage?.();
-                                app.graph.setDirtyCanvas(true);
+                                app.graph?.setDirtyCanvas(true, false);
                             }
                         });
                     } else {
@@ -544,7 +546,7 @@ export class ComfyApp {
                     }
                 }
 
-                function calculateGrid(w, h, n) {
+                function calculateGrid(w: number, h: number, n: number) {
                     let columns, rows, cellsize;
 
                     if (w > h) {
@@ -572,7 +574,7 @@ export class ComfyApp {
                     return { cell_size, columns, rows };
                 }
 
-                function is_all_same_aspect_ratio(imgs) {
+                function is_all_same_aspect_ratio(imgs: HTMLImageElement[]) {
                     // assume: imgs.length >= 2
                     let ratio = imgs[0].naturalWidth / imgs[0].naturalHeight;
 
@@ -585,7 +587,7 @@ export class ComfyApp {
                 }
 
                 if (this.imgs?.length) {
-                    const widgetIdx = this.widgets?.findIndex(w => w.name === ANIM_PREVIEW_WIDGET);
+                    const widgetIdx = this.widgets?.findIndex((w: ComfyWidget) => w.name === ANIM_PREVIEW_WIDGET);
 
                     if (this.animatedImages) {
                         // Instead of using the canvas we'll use a IMG
@@ -613,7 +615,7 @@ export class ComfyApp {
                         this.widgets.splice(widgetIdx, 1);
                     }
 
-                    const canvas = app.graph.list_of_graphcanvas[0];
+                    const canvas = app.graph?.list_of_graphcanvas[0];
                     const mouse = canvas.graph_mouse;
                     if (!canvas.pointer_is_down && this.pointerDown) {
                         if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
@@ -636,7 +638,7 @@ export class ComfyApp {
                     dh -= shiftY;
 
                     if (imageIndex == null) {
-                        var cellWidth, cellHeight, shiftX, cell_padding, cols;
+                        let cellWidth: number, cellHeight: number, shiftX: number, cell_padding: number, cols: number;
 
                         const compact_mode = is_all_same_aspect_ratio(this.imgs);
                         if (!compact_mode) {
@@ -651,7 +653,12 @@ export class ComfyApp {
                             shiftY = (dh - cell_size * rows) / 2 + top;
                         } else {
                             cell_padding = 0;
-                            ({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh));
+                            ({cellWidth, cellHeight, cols, shiftX} = calculateImageGrid(this.imgs, dw, dh) as {
+                                cellWidth: number,
+                                cellHeight: number,
+                                cols: number,
+                                shiftX: number
+                            });
                         }
 
                         let anyHovered = false;
@@ -681,7 +688,9 @@ export class ComfyApp {
                                         value = 125;
                                     }
                                     ctx.filter = `contrast(${value}%) brightness(${value}%)`;
-                                    canvas.canvas.style.cursor = 'pointer';
+                                    if (canvas) {
+                                        canvas.canvas.style.cursor = 'pointer';
+                                    }
                                 }
                             }
                             this.imageRects.push([x, y, cellWidth, cellHeight]);
@@ -737,7 +746,7 @@ export class ComfyApp {
                         let y = (dh - h) / 2 + shiftY;
                         ctx.drawImage(this.imgs[imageIndex], x, y, w, h);
 
-                        const drawButton = (x, y, sz, text) => {
+                        const drawButton = (x: number, y: number, sz: number, text: string) => {
                             const hovered = LiteGraph.isInsideRectangle(
                                 mouse[0],
                                 mouse[1],
@@ -803,7 +812,7 @@ export class ComfyApp {
             event.preventDefault();
             event.stopPropagation();
 
-            const n = this.dragOverNode;
+            const n = this.dragOverNode as LGraphNodeExtended;
             this.dragOverNode = null;
             // Node handles file drop, we dont use the built in onDropFile handler as its buggy
             // If you drag multiple files it will call it multiple times with the same file
@@ -811,14 +820,14 @@ export class ComfyApp {
                 return;
             }
             // Dragging from Chrome->Firefox there is a file but its a bmp, so ignore that
-            if (event.dataTransfer.files.length && event.dataTransfer.files[0].type !== 'image/bmp') {
+            if (event.dataTransfer?.files.length && event.dataTransfer.files[0].type !== 'image/bmp') {
                 await this.handleFile(event.dataTransfer.files[0]);
             } else {
                 // Try loading the first URI in the transfer list
                 const validTypes = ['text/uri-list', 'text/x-moz-url'];
-                const match = [...event.dataTransfer.types].find(t => validTypes.find(v => t === v));
+                const match = [...(event.dataTransfer?.types || [])].find(t => validTypes.find(v => t === v));
                 if (match) {
-                    const uri = event.dataTransfer.getData(match)?.split('\n')?.[0];
+                    const uri = event.dataTransfer?.getData(match)?.split('\n')?.[0];
                     if (uri) {
                         await this.handleFile(await (await fetch(uri)).blob());
                     }
@@ -827,26 +836,26 @@ export class ComfyApp {
         }, { signal: this.abortController.signal });
 
         // Always clear over node on drag leave
-        this.canvasEl.addEventListener('dragleave', async () => {
+        this.canvasEl?.addEventListener('dragleave', async () => {
             if (this.dragOverNode) {
                 this.dragOverNode = null;
-                this.graph.setDirtyCanvas(false, true);
+                this.graph?.setDirtyCanvas(false, true);
             }
         }, { signal: this.abortController.signal });
 
         // Add handler for dropping onto a specific node
-        this.canvasEl.addEventListener(
+        this.canvasEl?.addEventListener(
             'dragover',
             e => {
-                this.canvas.adjustMouseEvent(e);
-                const node = this.graph.getNodeOnPos(e.canvasX, e.canvasY);
+                this.canvas?.adjustMouseEvent(e);
+                const node = this.graph?.getNodeOnPos(e.canvasX, e.canvasY);
                 if (node) {
                     if (node.onDragOver && node.onDragOver(e)) {
                         this.dragOverNode = node;
 
                         // dragover event is fired very frequently, run this on an animation frame
                         requestAnimationFrame(() => {
-                            this.graph.setDirtyCanvas(false, true);
+                            this.graph?.setDirtyCanvas(false, true);
                         });
                         return;
                     }
@@ -876,8 +885,8 @@ export class ComfyApp {
 
                     // If an image node is selected, paste into it
                     if (
-                        this.canvas.current_node &&
-                        this.canvas.current_node.is_selected &&
+                        this.canvas?.current_node &&
+                        this.canvas?.current_node.is_selected &&
                         ComfyApp.isImageNode(this.canvas.current_node)
                     ) {
                         imageNode = this.canvas.current_node;
@@ -913,12 +922,12 @@ export class ComfyApp {
             if (workflow && workflow.version && workflow.nodes && workflow.extra) {
                 await this.loadGraphData(workflow);
             } else {
-                if (e.target.type === 'text' || e.target.type === 'textarea') {
+                if (e.target?.type === 'text' || e.target?.type === 'textarea') {
                     return;
                 }
 
                 // Litegraph default paste
-                this.canvas.pasteFromClipboard();
+                this.canvas?.pasteFromClipboard();
             }
         }, { signal: this.abortController.signal });
     }
@@ -928,15 +937,15 @@ export class ComfyApp {
      */
     #addCopyHandler() {
         document.addEventListener('copy', e => {
-            if (e.target.type === 'text' || e.target.type === 'textarea') {
+            if (e.target?.type === 'text' || e.target?.type === 'textarea') {
                 // Default system copy
                 return;
             }
 
             // copy nodes and clear clipboard
-            if (e.target.className === 'litegraph' && this.canvas.selected_nodes) {
+            if (e.target?.className === 'litegraph' && this.canvas?.selected_nodes) {
                 this.canvas.copyToClipboard();
-                e.clipboardData.setData('text', ' '); //clearData doesn't remove images from clipboard
+                e.clipboardData?.setData('text', ' '); //clearData doesn't remove images from clipboard
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 return false;
@@ -1013,7 +1022,7 @@ export class ComfyApp {
 
             var block_default = false;
 
-            if (e.target.localName == 'input') {
+            if (e.target?.localName == 'input') {
                 return;
             }
 
@@ -1052,7 +1061,7 @@ export class ComfyApp {
                 if (e.key === 'c' && e.altKey) {
                     if (this.selected_nodes) {
                         for (var i in this.selected_nodes) {
-                            this.selected_nodes[i].collapse();
+                            this.selected_nodes[i].collapse(false);
                         }
                     }
                     block_default = true;
