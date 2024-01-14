@@ -286,16 +286,79 @@ export class ComfyApp {
 							content: "Open Image",
 							callback: () => {
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
-								window.open(url, "_blank")
+								url.searchParams.delete("preview");
+								window.open(url, "_blank");
 							},
 						},
+						...(typeof window.ClipboardItem !== "undefined"
+							? [
+									{
+										content: "Copy Image",
+										callback: async () => {
+											const url = new URL(img.src);
+											url.searchParams.delete("preview");
+
+											const writeImage = async (blob) => {
+												await navigator.clipboard.write([
+													new ClipboardItem({
+														[blob.type]: blob,
+													}),
+												]);
+											};
+
+											try {
+												const data = await fetch(url);
+												const blob = await data.blob();
+												try {
+													await writeImage(blob);
+												} catch (error) {
+													// Chrome seems to only support PNG on write, convert and try again
+													if (blob.type !== "image/png") {
+														const canvas = $el("canvas", {
+															width: img.naturalWidth,
+															height: img.naturalHeight,
+														});
+														const ctx = canvas.getContext("2d");
+														let image;
+														if (typeof window.createImageBitmap === "undefined") {
+															image = new Image();
+															const p = new Promise((resolve, reject) => {
+																image.onload = resolve;
+																image.onerror = reject;
+															}).finally(() => {
+																URL.revokeObjectURL(image.src);
+															});
+															image.src = URL.createObjectURL(blob);
+															await p;
+														} else {
+															image = await createImageBitmap(blob);
+														}
+														try {
+															ctx.drawImage(image, 0, 0);
+															canvas.toBlob(writeImage, "image/png");
+														} finally {
+															if (typeof image.close === "function") {
+																image.close();
+															}
+														}
+
+														return;
+													}
+													throw error;
+												}
+											} catch (error) {
+												alert("Error copying image: " + (error.message ?? error));
+											}
+										},
+									},
+							  ]
+							: []),
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
+								url.searchParams.delete("preview");
 								a.href = url;
 								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
