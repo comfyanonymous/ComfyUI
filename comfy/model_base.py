@@ -100,10 +100,28 @@ class BaseModel(torch.nn.Module):
         if self.inpaint_model:
             concat_keys = ("mask", "masked_image")
             cond_concat = []
-            denoise_mask = kwargs.get("denoise_mask", None)
-            latent_image = kwargs.get("latent_image", None)
+            denoise_mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+            concat_latent_image = kwargs.get("concat_latent_image", None)
+            if concat_latent_image is None:
+                concat_latent_image = kwargs.get("latent_image", None)
+            else:
+                concat_latent_image = self.process_latent_in(concat_latent_image)
+
             noise = kwargs.get("noise", None)
             device = kwargs["device"]
+
+            if concat_latent_image.shape[1:] != noise.shape[1:]:
+                concat_latent_image = utils.common_upscale(concat_latent_image, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+            concat_latent_image = utils.resize_to_batch_size(concat_latent_image, noise.shape[0])
+
+            if len(denoise_mask.shape) == len(noise.shape):
+                denoise_mask = denoise_mask[:,:1]
+
+            denoise_mask = denoise_mask.reshape((-1, 1, denoise_mask.shape[-2], denoise_mask.shape[-1]))
+            if denoise_mask.shape[-2:] != noise.shape[-2:]:
+                denoise_mask = utils.common_upscale(denoise_mask, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            denoise_mask = utils.resize_to_batch_size(denoise_mask.round(), noise.shape[0])
 
             def blank_inpaint_image_like(latent_image):
                 blank_image = torch.ones_like(latent_image)
@@ -117,9 +135,9 @@ class BaseModel(torch.nn.Module):
             for ck in concat_keys:
                 if denoise_mask is not None:
                     if ck == "mask":
-                        cond_concat.append(denoise_mask[:,:1].to(device))
+                        cond_concat.append(denoise_mask.to(device))
                     elif ck == "masked_image":
-                        cond_concat.append(latent_image.to(device)) #NOTE: the latent_image should be masked by the mask in pixel space
+                        cond_concat.append(concat_latent_image.to(device)) #NOTE: the latent_image should be masked by the mask in pixel space
                 else:
                     if ck == "mask":
                         cond_concat.append(torch.ones_like(noise)[:,:1])

@@ -121,6 +121,7 @@ body {
 	width: 100%;
 }
 
+.comfy-btn,
 .comfy-menu > button,
 .comfy-menu-btns button,
 .comfy-menu .comfy-list button,
@@ -133,6 +134,7 @@ body {
 	margin-top: 2px;
 }
 
+.comfy-btn:hover:not(:disabled),
 .comfy-menu > button:hover,
 .comfy-menu-btns button:hover,
 .comfy-menu .comfy-list button:hover,
@@ -143,6 +145,12 @@ body {
 }
 
 .comfy-menu span.drag-handle {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+span.drag-handle {
 	width: 10px;
 	height: 20px;
 	display: inline-block;
@@ -158,12 +166,9 @@ body {
 	letter-spacing: 2px;
 	color: var(--drag-text);
 	text-shadow: 1px 0 1px black;
-	position: absolute;
-	top: 0;
-	left: 0;
 }
 
-.comfy-menu span.drag-handle::after {
+span.drag-handle::after {
 	content: '.. .. ..';
 }
 
