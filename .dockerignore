@@ -6,6 +6,7 @@
 /.idea
 /.vs
 /venv
+.env*
 
 # Specific ComfyUI folders we won't be using
 /custom_nodes

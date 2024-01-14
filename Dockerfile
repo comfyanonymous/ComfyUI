@@ -6,7 +6,7 @@ ENV SHELL=/bin/bash
 ENV PYTHONUNBUFFERED=1
 
 # Set the working directory in the docker container
-WORKDIR /app
+WORKDIR /comfy-ts
 
 # Configure apt-get to automatically use noninteractive settings
 ENV DEBIAN_FRONTEND=noninteractive
@@ -56,12 +56,12 @@ RUN jupyter contrib nbextension install --user && \
 COPY . .
 
 # Setup NGINX Proxy
-RUN mv ./comfy_ts/nginx.conf /etc/nginx/nginx.conf
-RUN mv ./comfy_ts/readme.html /usr/share/nginx/html/readme.html
+RUN mv ./build_files/nginx.conf /etc/nginx/nginx.conf
+RUN mv ./build_files/readme.html /usr/share/nginx/html/readme.html
 
 # Use dos2unix to ensure line-endings are unix-style
 # TO DO: if we build these directories into ComfyTS, we can remove this step
-RUN mv ./comfy_ts/model_paths/symlinks.txt .
+RUN mv ./build_files/model_paths/symlinks.txt .
 RUN dos2unix ./symlinks.txt
 
 # Copying the catfs precompiled binary to container
@@ -70,19 +70,22 @@ COPY catfs /usr/local/bin
 # Installing rsfw-cache
 WORKDIR /opt
 #RUN git clone https://github.com/m-arbaro/rsfw-cache
-WORKDIR /app
+WORKDIR /comfy-ts
 # Creating mountpoint for tmpfs:
 # RUN mkdir /usr/share/memory
 
 # Clone Custom-Nodes into container and install their dependencies
 RUN mkdir -p /usr/share/custom_nodes && \
-    mv ./comfy_ts/custom_nodes/repos.txt /usr/share/custom_nodes/
-RUN mv ./comfy_ts/custom_nodes/pull_custom_nodes.sh /usr/local/bin/pull_custom_nodes.sh && \
+    mv ./build_files/custom_nodes/repos.txt /usr/share/custom_nodes/
+RUN mv ./build_files/custom_nodes/pull_custom_nodes.sh /usr/local/bin/pull_custom_nodes.sh && \
     dos2unix /usr/local/bin/pull_custom_nodes.sh && \
     /usr/local/bin/pull_custom_nodes.sh > /var/log/pull_custom_nodes.log
 
+RUN mv ./build_files/model_paths ./model_paths
+
 # This will be our start script
-RUN mv ./comfy_ts/start.sh .
+RUN mv ./build_files/start.sh . && \
+    rm -rf ./build_files
 RUN dos2unix ./start.sh && \
     chmod +x ./start.sh
 
@@ -95,4 +98,4 @@ RUN dos2unix ./start.sh && \
 # USER appuser
 
 # Run ComfyTS, Jupyter Notebook, and NGINX Proxy
-CMD ["/app/start.sh"]
+CMD ["/comfy-ts/start.sh"]

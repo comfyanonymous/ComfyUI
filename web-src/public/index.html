@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>ComfyUI</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+        <link rel="stylesheet" type="text/css" href="./lib/litegraph.css" />
+        <link rel="stylesheet" type="text/css" href="./style.css" />
+        <link rel="stylesheet" type="text/css" href="./user.css" />
+        <script type="text/javascript" src="./lib/litegraph.extensions.js" defer></script>
+        <script type="module">
+            import { app } from './scripts/app.js';
+            await app.setup();
+            window.app = app;
+            window.graph = app.graph;
+        </script>
+    </head>
+    <body class="litegraph">
+        <div id="comfy-user-selection" class="comfy-user-selection" style="display: none">
+            <main class="comfy-user-selection-inner">
+                <h1>ComfyUI</h1>
+            </main>
+        </div>
+    </body>
+</html>
