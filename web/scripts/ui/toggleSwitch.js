@@ -1,11 +1,14 @@
 import { $el } from "../ui.js";
 
 /**
+ * @typedef { { text: string, value?: string, tooltip?: string } } ToggleSwitchItem
+ */
+/**
  * Creates a toggle switch element
  * @param { string } name
- * @param { Array<string | { text: string, value?: string, callback: (selected: boolean) => void } } items
+ * @param { Array<string | ToggleSwitchItem } items
  * @param { Object } [opts]
- * @param { () => void } [opts.onChange]
+ * @param { (e: { item: ToggleSwitchItem, prev?: ToggleSwitchItem }) => void } [opts.onChange]
  */
 export function toggleSwitch(name, items, { onChange } = {}) {
 	let selectedIndex;
