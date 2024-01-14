@@ -7,7 +7,7 @@ import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from 
 import { addDomClippingSetting } from './domWidget.js';
 import { createImageHost, calculateImageGrid } from './ui/imagePreview.js';
 import { LGraph, LGraphCanvas, LiteGraph as LG } from 'litegraph.js';
-import { QueueItem } from '../types/many';
+import {ComfyFile, ComfyImageWidget, ComfyNode, ComfyWidget, QueueItem, SerializedNodeObject} from '../types/many';
 import { ComfyExtension } from '../types/comfy.js';
 import { LiteGraphCorrected } from '../types/litegraph.js';
 
@@ -26,8 +26,9 @@ function sanitizeNodeName(string: string) {
         '`': '',
         '=': '',
     };
+
     return String(string).replace(/[&<>"'`=]/g, function fromEntityMap(s) {
-        return entityMap[s];
+        return entityMap[s as keyof typeof entityMap];
     });
 }
 
@@ -46,8 +47,8 @@ export class ComfyApp {
      * Content Clipboard
      */
     static clipspace: SerializedNodeObject | null = null;
-    static clipspace_invalidate_handler = null;
-    static open_maskeditor = null;
+    static clipspace_invalidate_handler: (() => void) | null = null;
+    static open_maskeditor: (() => void) | null = null;
     static clipspace_return_node = null;
 
     /** The UI manager for the app */
@@ -112,7 +113,7 @@ export class ComfyApp {
         return '&rand=' + Math.random();
     }
 
-    static isImageNode(node) {
+    static isImageNode(node: ComfyNode) {
         return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
     }
 
@@ -126,14 +127,14 @@ export class ComfyApp {
         ComfyApp.clipspace_return_node = null;
     }
 
-    static copyToClipspace(node) {
+    static copyToClipspace(node: ComfyNode) {
         var widgets = null;
         if (node.widgets) {
             widgets = node.widgets.map(({ type, name, value }) => ({
                 type,
                 name,
                 value,
-            }));
+            })) as ComfyWidget[];
         }
 
         var imgs = undefined;
@@ -144,7 +145,7 @@ export class ComfyApp {
 
             for (let i = 0; i < node.imgs.length; i++) {
                 imgs[i] = new Image();
-                imgs[i].src = node.imgs[i].src;
+                imgs[i].src = (node.imgs[i] as HTMLImageElement).src;
                 orig_imgs[i] = imgs[i];
             }
         }
@@ -170,13 +171,13 @@ export class ComfyApp {
         }
     }
 
-    static pasteFromClipspace(node) {
+    static pasteFromClipspace(node: ComfyNode) {
         if (ComfyApp.clipspace) {
             // image paste
             if (ComfyApp.clipspace.imgs && node.imgs) {
                 if (node.images && ComfyApp.clipspace.images) {
                     if (ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-                        node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']]];
+                        node.images = [ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] as HTMLImageElement];
                     } else {
                         node.images = ComfyApp.clipspace.images;
                     }
@@ -188,14 +189,14 @@ export class ComfyApp {
                     // deep-copy to cut link with clipspace
                     if (ComfyApp.clipspace['img_paste_mode'] == 'selected') {
                         const img = new Image();
-                        img.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+                        img.src = (ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] as HTMLImageElement).src;
                         node.imgs = [img];
                         node.imageIndex = 0;
                     } else {
                         const imgs = [];
                         for (let i = 0; i < ComfyApp.clipspace.imgs.length; i++) {
                             imgs[i] = new Image();
-                            imgs[i].src = ComfyApp.clipspace.imgs[i].src;
+                            imgs[i].src = (ComfyApp.clipspace.imgs[i] as HTMLImageElement).src;
                             node.imgs = imgs;
                         }
                     }
@@ -204,7 +205,7 @@ export class ComfyApp {
 
             if (node.widgets) {
                 if (ComfyApp.clipspace.images) {
-                    const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']];
+                    const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] as ComfyFile;
                     const index = node.widgets.findIndex(obj => obj.name === 'image');
                     if (index >= 0) {
                         if (
@@ -222,9 +223,10 @@ export class ComfyApp {
                     }
                 }
                 if (ComfyApp.clipspace.widgets) {
-                    ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+                    ComfyApp.clipspace.widgets.forEach(({type, name, value}) => {
                         const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
                         if (prop && prop.type != 'button') {
+                            value = value as ComfyFile;
                             if (prop.type != 'image' && typeof prop.value == 'string' && value.filename) {
                                 prop.value =
                                     (value.subfolder ? value.subfolder + '/' : '') +
@@ -239,7 +241,8 @@ export class ComfyApp {
                 }
             }
 
-            app.graph.setDirtyCanvas(true);
+            // TODO: I added false as the second arg but I'm not sure if that's right
+            app.graph?.setDirtyCanvas(true, false);
         }
     }
 
@@ -249,12 +252,12 @@ export class ComfyApp {
      * @param  {any[]} args Any arguments to pass to the callback
      * @returns
      */
-    #invokeExtensions(method, ...args) {
+    #invokeExtensions(method: keyof ComfyExtension, ...args: any[]) {
         let results = [];
         for (const ext of this.extensions) {
             if (method in ext) {
                 try {
-                    results.push(ext[method](...args, this));
+                    results.push((ext[method] as Function)(...args, this));
                 } catch (error) {
                     console.error(
                         `Error calling extension '${ext.name}' method '${method}'`,
@@ -275,12 +278,12 @@ export class ComfyApp {
      * @param  {...any} args Any arguments to pass to the callback
      * @returns
      */
-    async #invokeExtensionsAsync(method, ...args) {
+    async #invokeExtensionsAsync(method: keyof ComfyExtension, ...args: any[]) {
         return await Promise.all(
             this.extensions.map(async ext => {
                 if (method in ext) {
                     try {
-                        return await ext[method](...args, this);
+                        return await (ext[method] as Function)(...args, this);
                     } catch (error) {
                         console.error(
                             `Error calling extension '${ext.name}' method '${method}'`,
@@ -299,11 +302,15 @@ export class ComfyApp {
      * e.g. this adds Open Image functionality for nodes that show images
      * @param {*} node The node to add the menu handler
      */
-    #addNodeContextMenuHandler(node) {
-        node.prototype.getExtraMenuOptions = function (_, options) {
+    #addNodeContextMenuHandler(node: ComfyNode) {
+        type Option = { content: string; callback: () => void; };
+
+        // TODO: remove this ts annotation and fix the prototype issue
+        // @ts-expect-error
+        node.prototype.getExtraMenuOptions = function (_: any, options: Option[]) {
             if (this.imgs) {
                 // If this node has images then we add an open in new tab item
-                let img;
+                let img: HTMLImageElement | undefined;
                 if (this.imageIndex != null) {
                     // An image is selected so select that
                     img = this.imgs[this.imageIndex];
@@ -316,22 +323,26 @@ export class ComfyApp {
                         {
                             content: 'Open Image',
                             callback: () => {
+                                if (img) {
                                 let url = new URL(img.src);
                                 url.searchParams.delete('preview');
                                 window.open(url, '_blank');
+                                }
                             },
                         },
                         {
                             content: 'Save Image',
                             callback: () => {
-                                const a = document.createElement('a');
-                                let url = new URL(img.src);
-                                url.searchParams.delete('preview');
-                                a.href = url;
-                                a.setAttribute('download', new URLSearchParams(url.search).get('filename'));
-                                document.body.append(a);
-                                a.click();
-                                requestAnimationFrame(() => a.remove());
+                                if (img) {
+                                    const a = document.createElement('a');
+                                    let url = new URL(img.src);
+                                    url.searchParams.delete('preview');
+                                    a.href = url.toString();
+                                    a.setAttribute('download', <string>new URLSearchParams(url.search).get('filename'));
+                                    document.body.append(a);
+                                    a.click();
+                                    requestAnimationFrame(() => a.remove());
+                                }
                             },
                         }
                     );
@@ -340,7 +351,7 @@ export class ComfyApp {
 
             options.push({
                 content: 'Bypass',
-                callback: obj => {
+                callback: () => {
                     if (this.mode === 4) this.mode = 0;
                     else this.mode = 4;
                     this.graph.change();
@@ -351,7 +362,7 @@ export class ComfyApp {
             if (!ComfyApp.clipspace_return_node) {
                 options.push({
                     content: 'Copy (Clipspace)',
-                    callback: obj => {
+                    callback: () => {
                         ComfyApp.copyToClipspace(this);
                     },
                 });
@@ -368,10 +379,12 @@ export class ComfyApp {
                 if (ComfyApp.isImageNode(this)) {
                     options.push({
                         content: 'Open in MaskEditor',
-                        callback: obj => {
+                        callback: () => {
                             ComfyApp.copyToClipspace(this);
                             ComfyApp.clipspace_return_node = this;
-                            ComfyApp.open_maskeditor();
+                            if (ComfyApp.open_maskeditor) {
+                                ComfyApp.open_maskeditor();
+                            }
                         },
                     });
                 }
@@ -379,10 +392,16 @@ export class ComfyApp {
         };
     }
 
-    #addNodeKeyHandler(node) {
+    #addNodeKeyHandler(node: ComfyNode) {
         const app = this;
+
+        // TODO: remove this ts annotation and fix the prototype issue
+        // @ts-expect-error
         const origNodeOnKeyDown = node.prototype.onKeyDown;
 
+
+        // TODO: remove this ts annotation and fix the prototype issue
+        // @ts-expect-error
         node.prototype.onKeyDown = function (e) {
             if (origNodeOnKeyDown && origNodeOnKeyDown.apply(this, e) === false) {
                 return false;
@@ -411,7 +430,7 @@ export class ComfyApp {
                 handled = true;
             }
 
-            if (handled === true) {
+            if (handled) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 return false;
@@ -424,16 +443,16 @@ export class ComfyApp {
      * e.g. Draws images and handles thumbnail navigation on nodes that output images
      * @param {*} node The node to add the draw handler
      */
-    #addDrawBackgroundHandler(node) {
+    #addDrawBackgroundHandler(node: ComfyNode) {
         const app = this;
 
-        function getImageTop(node) {
-            let shiftY;
+        function getImageTop(node: ComfyNode) {
+            let shiftY: number;
             if (node.imageOffset != null) {
                 shiftY = node.imageOffset;
             } else {
                 if (node.widgets?.length) {
-                    const w = node.widgets[node.widgets.length - 1];
+                    const w = node.widgets[node.widgets.length - 1] as ComfyImageWidget;
                     shiftY = w.last_y;
                     if (w.computeSize) {
                         shiftY += w.computeSize()[1] + 4;
@@ -449,6 +468,9 @@ export class ComfyApp {
             return shiftY;
         }
 
+
+        // TODO: remove this ts annotation and fix the prototype issue
+        // @ts-expect-error
         node.prototype.setSizeForImage = function (force) {
             if (!force && this.animatedImages) return;
 
@@ -462,9 +484,12 @@ export class ComfyApp {
             }
         };
 
+
+        // TODO: remove this ts annotation and fix the prototype issue
+        // @ts-expect-error
         node.prototype.onDrawBackground = function (ctx) {
             if (!this.flags.collapsed) {
-                let imgURLs = [];
+                let imgURLs: string[] = [];
                 let imagesChanged = false;
 
                 const output = app.nodeOutputs[this.id + ''];
@@ -474,7 +499,7 @@ export class ComfyApp {
                         this.images = output.images;
                         imagesChanged = true;
                         imgURLs = imgURLs.concat(
-                            output.images.map(params => {
+                            output.images.map((params: string) => {
                                 return api.apiURL(
                                     '/view?' +
                                         new URLSearchParams(params).toString() +
