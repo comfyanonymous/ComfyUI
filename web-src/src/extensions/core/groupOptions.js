@@ -1,12 +1,11 @@
-import { app } from '../../scripts/app.js';
-import { LiteGraph } from 'litegraph.js';
+import {app} from "../../scripts/app.js";
 
 function setNodeMode(node, mode) {
     node.mode = mode;
     node.graph.change();
 }
 
-function addNodesToGroup(group, nodes = []) {
+function addNodesToGroup(group, nodes=[]) {
     var x1, y1, x2, y2;
     var nx1, ny1, nx2, ny2;
     var node;
@@ -16,14 +15,14 @@ function addNodesToGroup(group, nodes = []) {
 
     for (var n of [group._nodes, nodes]) {
         for (var i in n) {
-            node = n[i];
+            node = n[i]
 
-            nx1 = node.pos[0];
-            ny1 = node.pos[1];
-            nx2 = node.pos[0] + node.size[0];
-            ny2 = node.pos[1] + node.size[1];
+            nx1 = node.pos[0]
+            ny1 = node.pos[1]
+            nx2 = node.pos[0] + node.size[0]
+            ny2 = node.pos[1] + node.size[1]
 
-            if (node.type != 'Reroute') {
+            if (node.type != "Reroute") {
                 ny1 -= LiteGraph.NODE_TITLE_HEIGHT;
             }
 
@@ -62,7 +61,7 @@ function addNodesToGroup(group, nodes = []) {
 }
 
 app.registerExtension({
-    name: 'Comfy.GroupOptions',
+    name: "Comfy.GroupOptions",
     setup() {
         const orig = LGraphCanvas.prototype.getCanvasMenuOptions;
         // graph_mouse
@@ -71,14 +70,14 @@ app.registerExtension({
             const group = this.graph.getGroupOnPos(this.graph_mouse[0], this.graph_mouse[1]);
             if (!group) {
                 options.push({
-                    content: 'Add Group For Selected Nodes',
+                    content: "Add Group For Selected Nodes",
                     disabled: !Object.keys(app.canvas.selected_nodes || {}).length,
                     callback: () => {
                         var group = new LiteGraph.LGraphGroup();
-                        addNodesToGroup(group, this.selected_nodes);
+                        addNodesToGroup(group, this.selected_nodes)
                         app.canvas.graph.add(group);
                         this.graph.change();
-                    },
+                    }
                 });
 
                 return options;
@@ -89,12 +88,12 @@ app.registerExtension({
             const nodesInGroup = group._nodes;
 
             options.push({
-                content: 'Add Selected Nodes To Group',
+                content: "Add Selected Nodes To Group",
                 disabled: !Object.keys(app.canvas.selected_nodes || {}).length,
                 callback: () => {
-                    addNodesToGroup(group, this.selected_nodes);
+                    addNodesToGroup(group, this.selected_nodes)
                     this.graph.change();
-                },
+                }
             });
 
             // No nodes in group, return default options
@@ -115,20 +114,20 @@ app.registerExtension({
             }
 
             options.push({
-                content: 'Fit Group To Nodes',
+                content: "Fit Group To Nodes",
                 callback: () => {
-                    addNodesToGroup(group);
+                    addNodesToGroup(group)
                     this.graph.change();
-                },
+                }
             });
 
             options.push({
-                content: 'Select Nodes',
+                content: "Select Nodes",
                 callback: () => {
                     this.selectNodes(nodesInGroup);
                     this.graph.change();
                     this.canvas.focus();
-                },
+                }
             });
 
             // Modes
@@ -144,117 +143,117 @@ app.registerExtension({
                     case 0:
                         // All nodes are always, option to disable, and bypass
                         options.push({
-                            content: 'Set Group Nodes to Never',
+                            content: "Set Group Nodes to Never",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 2);
                                 }
-                            },
+                            }
                         });
                         options.push({
-                            content: 'Bypass Group Nodes',
+                            content: "Bypass Group Nodes",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 4);
                                 }
-                            },
+                            }
                         });
                         break;
                     case 2:
                         // All nodes are never, option to enable, and bypass
                         options.push({
-                            content: 'Set Group Nodes to Always',
+                            content: "Set Group Nodes to Always",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 0);
                                 }
-                            },
+                            }
                         });
                         options.push({
-                            content: 'Bypass Group Nodes',
+                            content: "Bypass Group Nodes",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 4);
                                 }
-                            },
+                            }
                         });
                         break;
                     case 4:
                         // All nodes are bypass, option to enable, and disable
                         options.push({
-                            content: 'Set Group Nodes to Always',
+                            content: "Set Group Nodes to Always",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 0);
                                 }
-                            },
+                            }
                         });
                         options.push({
-                            content: 'Set Group Nodes to Never',
+                            content: "Set Group Nodes to Never",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 2);
                                 }
-                            },
+                            }
                         });
                         break;
                     default:
                         // All nodes are On Trigger or On Event(Or other?), option to disable, set to always, or bypass
                         options.push({
-                            content: 'Set Group Nodes to Always',
+                            content: "Set Group Nodes to Always",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 0);
                                 }
-                            },
+                            }
                         });
                         options.push({
-                            content: 'Set Group Nodes to Never',
+                            content: "Set Group Nodes to Never",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 2);
                                 }
-                            },
+                            }
                         });
                         options.push({
-                            content: 'Bypass Group Nodes',
+                            content: "Bypass Group Nodes",
                             callback: () => {
                                 for (const node of nodesInGroup) {
                                     setNodeMode(node, 4);
                                 }
-                            },
+                            }
                         });
                         break;
                 }
             } else {
                 // Nodes are not all the same mode, add a menu option to change the mode to always, never, or bypass
                 options.push({
-                    content: 'Set Group Nodes to Always',
+                    content: "Set Group Nodes to Always",
                     callback: () => {
                         for (const node of nodesInGroup) {
                             setNodeMode(node, 0);
                         }
-                    },
+                    }
                 });
                 options.push({
-                    content: 'Set Group Nodes to Never',
+                    content: "Set Group Nodes to Never",
                     callback: () => {
                         for (const node of nodesInGroup) {
                             setNodeMode(node, 2);
                         }
-                    },
+                    }
                 });
                 options.push({
-                    content: 'Bypass Group Nodes',
+                    content: "Bypass Group Nodes",
                     callback: () => {
                         for (const node of nodesInGroup) {
                             setNodeMode(node, 4);
                         }
-                    },
+                    }
                 });
             }
 
-            return options;
-        };
-    },
+            return options
+        }
+    }
 });
