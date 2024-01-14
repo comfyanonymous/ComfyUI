@@ -444,10 +444,12 @@ dialog::backdrop {
 }
 
 .comfy-toggle-switch label {
-	padding: 0 4px;
-	display: block;
+	padding: 2px 0px 3px 6px;
 	flex: auto;
 	border-radius: 8px;
+    align-items: center;
+    display: flex;
+    justify-content: center;
 }
 
 .comfy-toggle-switch label:first-child {
