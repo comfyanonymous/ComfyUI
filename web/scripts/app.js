@@ -1,5 +1,5 @@
 import { ComfyLogging } from "./logging.js";
-import { ComfyWidgets } from "./widgets.js";
+import { ComfyWidgets, initWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
@@ -1291,10 +1291,92 @@ export class ComfyApp {
 	    await Promise.all(extensionPromises);
 	}
 
+	async #migrateSettings() {
+		this.isNewUserSession = true;
+		// Store all current settings
+		const settings = Object.keys(this.ui.settings).reduce((p, n) => {
+			const v = localStorage[`Comfy.Settings.${n}`];
+			if (v) {
+				try {
+					p[n] = JSON.parse(v);
+				} catch (error) {}
+			}
+			return p;
+		}, {});
+
+		await api.storeSettings(settings);
+	}
+
+	async #setUser() {
+		const userConfig = await api.getUserConfig();
+		this.storageLocation = userConfig.storage;
+		if (typeof userConfig.migrated == "boolean") {
+			// Single user mode migrated true/false for if the default user is created
+			if (!userConfig.migrated && this.storageLocation === "server") {
+				// Default user not created yet
+				await this.#migrateSettings();
+			}
+			return;
+		}
+
+		this.multiUserServer = true;
+		let user = localStorage["Comfy.userId"];
+		const users = userConfig.users ?? {};
+		if (!user || !users[user]) {
+			// This will rarely be hit so move the loading to on demand
+			const { UserSelectionScreen } = await import("./ui/userSelection.js");
+		
+			this.ui.menuContainer.style.display = "none";
+			const { userId, username, created } = await new UserSelectionScreen().show(users, user);
+			this.ui.menuContainer.style.display = "";
+
+			user = userId;
+			localStorage["Comfy.userName"] = username;
+			localStorage["Comfy.userId"] = user;
+
+			if (created) {
+				api.user = user;
+				await this.#migrateSettings();
+			}
+		}
+
+		api.user = user;
+
+		this.ui.settings.addSetting({
+			id: "Comfy.SwitchUser",
+			name: "Switch User",
+			type: (name) => {
+				let currentUser = localStorage["Comfy.userName"];
+				if (currentUser) {
+					currentUser = ` (${currentUser})`;
+				}
+				return $el("tr", [
+					$el("td", [
+						$el("label", {
+							textContent: name,
+						}),
+					]),
+					$el("td", [
+						$el("button", {
+							textContent: name + (currentUser ?? ""),
+							onclick: () => {
+								delete localStorage["Comfy.userId"];
+								delete localStorage["Comfy.userName"];
+								window.location.reload();
+							},
+						}),
+					]),
+				]);
+			},
+		});
+	}
+
 	/**
 	 * Set up the app on the page
 	 */
 	async setup() {
+		await this.#setUser();
+		await this.ui.settings.load();
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
@@ -1338,6 +1420,7 @@ export class ComfyApp {
 
 		await this.#invokeExtensionsAsync("init");
 		await this.registerNodes();
+		initWidgets(this);
 
 		// Load previous workflow
 		let restored = false;
@@ -1692,6 +1775,14 @@ export class ComfyApp {
 	 */
 	async graphToPrompt() {
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
+			if (outerNode.widgets) {
+				for (const widget of outerNode.widgets) {
+					// Allow widgets to run callbacks before a prompt has been queued
+					// e.g. random seed before every gen
+					widget.beforeQueued?.();
+				}
+			}
+
 			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
 				if (node.isVirtualNode) {

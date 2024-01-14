@@ -1,7 +1,7 @@
 import torch
-from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel
+from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
-from comfy.ldm.modules.diffusionmodules.openaimodel import Timestep
+from comfy.ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 import comfy.model_management
 import comfy.conds
 import comfy.ops
@@ -78,8 +78,9 @@ class BaseModel(torch.nn.Module):
         extra_conds = {}
         for o in kwargs:
             extra = kwargs[o]
-            if hasattr(extra, "to"):
-                extra = extra.to(dtype)
+            if hasattr(extra, "dtype"):
+                if extra.dtype != torch.int and extra.dtype != torch.long:
+                    extra = extra.to(dtype)
             extra_conds[o] = extra
 
         model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
@@ -99,10 +100,28 @@ class BaseModel(torch.nn.Module):
         if self.inpaint_model:
             concat_keys = ("mask", "masked_image")
             cond_concat = []
-            denoise_mask = kwargs.get("denoise_mask", None)
-            latent_image = kwargs.get("latent_image", None)
+            denoise_mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+            concat_latent_image = kwargs.get("concat_latent_image", None)
+            if concat_latent_image is None:
+                concat_latent_image = kwargs.get("latent_image", None)
+            else:
+                concat_latent_image = self.process_latent_in(concat_latent_image)
+
             noise = kwargs.get("noise", None)
             device = kwargs["device"]
+
+            if concat_latent_image.shape[1:] != noise.shape[1:]:
+                concat_latent_image = utils.common_upscale(concat_latent_image, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+            concat_latent_image = utils.resize_to_batch_size(concat_latent_image, noise.shape[0])
+
+            if len(denoise_mask.shape) == len(noise.shape):
+                denoise_mask = denoise_mask[:,:1]
+
+            denoise_mask = denoise_mask.reshape((-1, 1, denoise_mask.shape[-2], denoise_mask.shape[-1]))
+            if denoise_mask.shape[-2:] != noise.shape[-2:]:
+                denoise_mask = utils.common_upscale(denoise_mask, noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            denoise_mask = utils.resize_to_batch_size(denoise_mask.round(), noise.shape[0])
 
             def blank_inpaint_image_like(latent_image):
                 blank_image = torch.ones_like(latent_image)
@@ -116,9 +135,9 @@ class BaseModel(torch.nn.Module):
             for ck in concat_keys:
                 if denoise_mask is not None:
                     if ck == "mask":
-                        cond_concat.append(denoise_mask[:,:1].to(device))
+                        cond_concat.append(denoise_mask.to(device))
                     elif ck == "masked_image":
-                        cond_concat.append(latent_image.to(device)) #NOTE: the latent_image should be masked by the mask in pixel space
+                        cond_concat.append(concat_latent_image.to(device)) #NOTE: the latent_image should be masked by the mask in pixel space
                 else:
                     if ck == "mask":
                         cond_concat.append(torch.ones_like(noise)[:,:1])
@@ -363,4 +382,36 @@ class Stable_Zero123(BaseModel):
             if cross_attn.shape[-1] != 768:
                 cross_attn = self.cc_projection(cross_attn)
             out['c_crossattn'] = comfy.conds.CONDCrossAttn(cross_attn)
+        return out
+
+class SD_X4Upscaler(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
+        super().__init__(model_config, model_type, device=device)
+        self.noise_augmentor = ImageConcatWithNoiseAugmentation(noise_schedule_config={"linear_start": 0.0001, "linear_end": 0.02}, max_noise_level=350)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+
+        image = kwargs.get("concat_image", None)
+        noise = kwargs.get("noise", None)
+        noise_augment = kwargs.get("noise_augmentation", 0.0)
+        device = kwargs["device"]
+        seed = kwargs["seed"] - 10
+
+        noise_level = round((self.noise_augmentor.max_noise_level) * noise_augment)
+
+        if image is None:
+            image = torch.zeros_like(noise)[:,:3]
+
+        if image.shape[1:] != noise.shape[1:]:
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+
+        noise_level = torch.tensor([noise_level], device=device)
+        if noise_augment > 0:
+            image, noise_level = self.noise_augmentor(image.to(device), noise_level=noise_level, seed=seed)
+
+        image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        out['c_concat'] = comfy.conds.CONDNoiseShape(image)
+        out['y'] = comfy.conds.CONDRegular(noise_level)
         return out

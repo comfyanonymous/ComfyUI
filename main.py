@@ -97,7 +97,7 @@ def prompt_worker(q, server):
     gc_collect_interval = 10.0
 
     while True:
-        timeout = None
+        timeout = 1000.0
         if need_gc:
             timeout = max(gc_collect_interval - (current_time - last_gc_collect), 0.0)
 
@@ -106,15 +106,35 @@ def prompt_worker(q, server):
             item, item_id = queue_item
             execution_start_time = time.perf_counter()
             prompt_id = item[1]
+            server.last_prompt_id = prompt_id
+
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
-            q.task_done(item_id, e.outputs_ui)
+            q.task_done(item_id,
+                        e.outputs_ui,
+                        status=execution.PromptQueue.ExecutionStatus(
+                            status_str='success' if e.success else 'error',
+                            completed=e.success,
+                            messages=e.status_messages))
             if server.client_id is not None:
                 server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
             print("Prompt executed in {:.2f} seconds".format(execution_time))
+
+        flags = q.get_flags()
+        free_memory = flags.get("free_memory", False)
+
+        if flags.get("unload_models", free_memory):
+            comfy.model_management.unload_all_models()
+            need_gc = True
+            last_gc_collect = 0
+
+        if free_memory:
+            e.reset()
+            need_gc = True
+            last_gc_collect = 0
 
         if need_gc:
             current_time = time.perf_counter()
@@ -131,7 +151,9 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 def hijack_progress(server):
     def hook(value, total, preview_image):
         comfy.model_management.throw_exception_if_processing_interrupted()
-        server.send_sync("progress", {"value": value, "max": total}, server.client_id)
+        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+
+        server.send_sync("progress", progress, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
