@@ -53,16 +53,6 @@ export interface SerializedNodeObject {
     widgets?: ComfyWidget[] | null;
 }
 
-export class ComfyNode {
-    id: string;
-    imgs: ComfyImages;
-    imageIndex?: number;
-    imageOffset?: number;
-    images?: ComfyImages;
-    widgets: ComfyWidget[];
-    computeSize: () => number[];
-}
-
 export type ClassMethod<T> = {
     [K in keyof T]: T[K] extends (...args: any[]) => any ? T[K] : never;
 };

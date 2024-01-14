@@ -90,6 +90,8 @@ export class ComfyApp {
     // This makes it possible to cleanup a ComfyApp instance's listeners
     private abortController: AbortController = new AbortController();
 
+    private dragOverNode?: LGraphNodeExtended | null;
+
     constructor() {
         this.ui = new ComfyUI(this);
         this.logging = new ComfyLogging(this);
@@ -307,7 +309,7 @@ export class ComfyApp {
             event.preventDefault();
             event.stopPropagation();
 
-            const n = this.dragOverNode;
+            const n = this.dragOverNode as LGraphNodeExtended;
             this.dragOverNode = null;
             // Node handles file drop, we dont use the built in onDropFile handler as its buggy
             // If you drag multiple files it will call it multiple times with the same file
@@ -315,14 +317,14 @@ export class ComfyApp {
                 return;
             }
             // Dragging from Chrome->Firefox there is a file but its a bmp, so ignore that
-            if (event.dataTransfer.files.length && event.dataTransfer.files[0].type !== 'image/bmp') {
+            if (event.dataTransfer?.files.length && event.dataTransfer.files[0].type !== 'image/bmp') {
                 await this.handleFile(event.dataTransfer.files[0]);
             } else {
                 // Try loading the first URI in the transfer list
                 const validTypes = ['text/uri-list', 'text/x-moz-url'];
-                const match = [...event.dataTransfer.types].find(t => validTypes.find(v => t === v));
+                const match = [...(event.dataTransfer?.types || [])].find(t => validTypes.find(v => t === v));
                 if (match) {
-                    const uri = event.dataTransfer.getData(match)?.split('\n')?.[0];
+                    const uri = event.dataTransfer?.getData(match)?.split('\n')?.[0];
                     if (uri) {
                         await this.handleFile(await (await fetch(uri)).blob());
                     }
@@ -331,26 +333,26 @@ export class ComfyApp {
         }, { signal: this.abortController.signal });
 
         // Always clear over node on drag leave
-        this.canvasEl.addEventListener('dragleave', async () => {
+        this.canvasEl?.addEventListener('dragleave', async () => {
             if (this.dragOverNode) {
                 this.dragOverNode = null;
-                this.graph.setDirtyCanvas(false, true);
+                this.graph?.setDirtyCanvas(false, true);
             }
         }, { signal: this.abortController.signal });
 
         // Add handler for dropping onto a specific node
-        this.canvasEl.addEventListener(
+        this.canvasEl?.addEventListener(
             'dragover',
             e => {
-                this.canvas.adjustMouseEvent(e);
-                const node = this.graph.getNodeOnPos(e.canvasX, e.canvasY);
+                this.canvas?.adjustMouseEvent(e);
+                const node = this.graph?.getNodeOnPos(e.canvasX, e.canvasY);
                 if (node) {
                     if (node.onDragOver && node.onDragOver(e)) {
                         this.dragOverNode = node;
 
                         // dragover event is fired very frequently, run this on an animation frame
                         requestAnimationFrame(() => {
-                            this.graph.setDirtyCanvas(false, true);
+                            this.graph?.setDirtyCanvas(false, true);
                         });
                         return;
                     }
@@ -380,8 +382,8 @@ export class ComfyApp {
 
                     // If an image node is selected, paste into it
                     if (
-                        this.canvas.current_node &&
-                        this.canvas.current_node.is_selected &&
+                        this.canvas?.current_node &&
+                        this.canvas?.current_node.is_selected &&
                         ComfyApp.isImageNode(this.canvas.current_node)
                     ) {
                         imageNode = this.canvas.current_node;
@@ -417,12 +419,12 @@ export class ComfyApp {
             if (workflow && workflow.version && workflow.nodes && workflow.extra) {
                 await this.loadGraphData(workflow);
             } else {
-                if (e.target.type === 'text' || e.target.type === 'textarea') {
+                if (e.target?.type === 'text' || e.target?.type === 'textarea') {
                     return;
                 }
 
                 // Litegraph default paste
-                this.canvas.pasteFromClipboard();
+                this.canvas?.pasteFromClipboard();
             }
         }, { signal: this.abortController.signal });
     }
@@ -432,15 +434,15 @@ export class ComfyApp {
      */
     #addCopyHandler() {
         document.addEventListener('copy', e => {
-            if (e.target.type === 'text' || e.target.type === 'textarea') {
+            if (e.target?.type === 'text' || e.target?.type === 'textarea') {
                 // Default system copy
                 return;
             }
 
             // copy nodes and clear clipboard
-            if (e.target.className === 'litegraph' && this.canvas.selected_nodes) {
+            if (e.target?.className === 'litegraph' && this.canvas?.selected_nodes) {
                 this.canvas.copyToClipboard();
-                e.clipboardData.setData('text', ' '); //clearData doesn't remove images from clipboard
+                e.clipboardData?.setData('text', ' '); //clearData doesn't remove images from clipboard
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 return false;
@@ -517,7 +519,7 @@ export class ComfyApp {
 
             var block_default = false;
 
-            if (e.target.localName == 'input') {
+            if (e.target?.localName == 'input') {
                 return;
             }
 
@@ -556,7 +558,7 @@ export class ComfyApp {
                 if (e.key === 'c' && e.altKey) {
                     if (this.selected_nodes) {
                         for (var i in this.selected_nodes) {
-                            this.selected_nodes[i].collapse();
+                            this.selected_nodes[i].collapse(false);
                         }
                     }
                     block_default = true;
