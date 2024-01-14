@@ -1,14 +1,16 @@
 import { $el } from "../ui.js";
 
 /**
- *
+ * Creates a toggle switch element
+ * @param { string } name
  * @param { Array<string | { text: string, value?: string, callback: (selected: boolean) => void } } items
- * @param {*} onChange
+ * @param { Object } [opts]
+ * @param { () => void } [opts.onChange]
  */
 export function toggleSwitch(name, items, { onChange } = {}) {
 	let selectedIndex;
 	let elements;
-
+	
 	function updateSelected(index) {
 		if (selectedIndex != null) {
 			elements[selectedIndex].classList.remove("comfy-toggle-selected");
