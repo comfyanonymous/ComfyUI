@@ -86,7 +86,7 @@ export class ComfyApp {
     saveInterval: NodeJS.Timeout | null;
 
     // This makes it possible to cleanup a ComfyApp instance's listeners
-    private abortController: AbortController;
+    private abortController: AbortController = new AbortController();
 
     constructor() {
         this.ui = new ComfyUI(this);
@@ -100,7 +100,6 @@ export class ComfyApp {
         this.graph = null;
         this.ctx = null;
         this.saveInterval = null;
-        this.abortController = new AbortController()
     }
 
     getPreviewFormatParam() {
@@ -2235,7 +2234,7 @@ export class ComfyApp {
         // Clear the save interval
         if (this.saveInterval) {
             clearInterval(this.saveInterval);
-            this.saveInterval = null;
+            this.saveInterval = null; 
         }
 
         // Remove event listeners added in setup
