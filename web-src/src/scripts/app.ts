@@ -7,9 +7,10 @@ import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from 
 import { addDomClippingSetting } from './domWidget.js';
 import { createImageHost, calculateImageGrid } from './ui/imagePreview.js';
 import { LGraph, LGraphCanvas, LiteGraph as LG } from 'litegraph.js';
-import {ComfyFile, ComfyImageWidget, ComfyNode, ComfyWidget, QueueItem, SerializedNodeObject} from '../types/many';
+import {ComfyFile, ComfyImageWidget, ComfyWidget, QueueItem, SerializedNodeObject} from '../types/many';
 import { ComfyExtension } from '../types/comfy.js';
 import { LiteGraphCorrected } from '../types/litegraph.js';
+import { ComfyNode } from './comfyNode';
 
 // LiteGraph var with corrected typing
 const LiteGraph = LG as typeof LG & LiteGraphCorrected;
@@ -278,7 +279,7 @@ export class ComfyApp {
      * @param  {...any} args Any arguments to pass to the callback
      * @returns
      */
-    async #invokeExtensionsAsync(method: keyof ComfyExtension, ...args: any[]) {
+    async invokeExtensionsAsync(method: keyof ComfyExtension, ...args: any[]) {
         return await Promise.all(
             this.extensions.map(async ext => {
                 if (method in ext) {
@@ -295,503 +296,6 @@ export class ComfyApp {
                 }
             })
         );
-    }
-
-    /**
-     * Adds special context menu handling for nodes
-     * e.g. this adds Open Image functionality for nodes that show images
-     * @param {*} node The node to add the menu handler
-     */
-    #addNodeContextMenuHandler(node: ComfyNode) {
-        type Option = { content: string; callback: () => void; };
-
-        // TODO: remove this ts annotation and fix the prototype issue
-        // @ts-expect-error
-        node.prototype.getExtraMenuOptions = function (_: any, options: Option[]) {
-            if (this.imgs) {
-                // If this node has images then we add an open in new tab item
-                let img: HTMLImageElement | undefined;
-                if (this.imageIndex != null) {
-                    // An image is selected so select that
-                    img = this.imgs[this.imageIndex];
-                } else if (this.overIndex != null) {
-                    // No image is selected but one is hovered
-                    img = this.imgs[this.overIndex];
-                }
-                if (img) {
-                    options.unshift(
-                        {
-                            content: 'Open Image',
-                            callback: () => {
-                                if (img) {
-                                let url = new URL(img.src);
-                                url.searchParams.delete('preview');
-                                window.open(url, '_blank');
-                                }
-                            },
-                        },
-                        {
-                            content: 'Save Image',
-                            callback: () => {
-                                if (img) {
-                                    const a = document.createElement('a');
-                                    let url = new URL(img.src);
-                                    url.searchParams.delete('preview');
-                                    a.href = url.toString();
-                                    a.setAttribute('download', <string>new URLSearchParams(url.search).get('filename'));
-                                    document.body.append(a);
-                                    a.click();
-                                    requestAnimationFrame(() => a.remove());
-                                }
-                            },
-                        }
-                    );
-                }
-            }
-
-            options.push({
-                content: 'Bypass',
-                callback: () => {
-                    if (this.mode === 4) this.mode = 0;
-                    else this.mode = 4;
-                    this.graph.change();
-                },
-            });
-
-            // prevent conflict of clipspace content
-            if (!ComfyApp.clipspace_return_node) {
-                options.push({
-                    content: 'Copy (Clipspace)',
-                    callback: () => {
-                        ComfyApp.copyToClipspace(this);
-                    },
-                });
-
-                if (ComfyApp.clipspace != null) {
-                    options.push({
-                        content: 'Paste (Clipspace)',
-                        callback: () => {
-                            ComfyApp.pasteFromClipspace(this);
-                        },
-                    });
-                }
-
-                if (ComfyApp.isImageNode(this)) {
-                    options.push({
-                        content: 'Open in MaskEditor',
-                        callback: () => {
-                            ComfyApp.copyToClipspace(this);
-                            ComfyApp.clipspace_return_node = this;
-                            if (ComfyApp.open_maskeditor) {
-                                ComfyApp.open_maskeditor();
-                            }
-                        },
-                    });
-                }
-            }
-        };
-    }
-
-    #addNodeKeyHandler(node: ComfyNode) {
-        const app = this;
-
-        // TODO: remove this ts annotation and fix the prototype issue
-        // @ts-expect-error
-        const origNodeOnKeyDown = node.prototype.onKeyDown;
-
-
-        // TODO: remove this ts annotation and fix the prototype issue
-        // @ts-expect-error
-        node.prototype.onKeyDown = function (e) {
-            if (origNodeOnKeyDown && origNodeOnKeyDown.apply(this, e) === false) {
-                return false;
-            }
-
-            if (this.flags.collapsed || !this.imgs || this.imageIndex === null) {
-                return;
-            }
-
-            let handled = false;
-
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                if (e.key === 'ArrowLeft') {
-                    this.imageIndex -= 1;
-                } else if (e.key === 'ArrowRight') {
-                    this.imageIndex += 1;
-                }
-                this.imageIndex %= this.imgs.length;
-
-                if (this.imageIndex < 0) {
-                    this.imageIndex = this.imgs.length + this.imageIndex;
-                }
-                handled = true;
-            } else if (e.key === 'Escape') {
-                this.imageIndex = null;
-                handled = true;
-            }
-
-            if (handled) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-            }
-        };
-    }
-
-    /**
-     * Adds Custom drawing logic for nodes
-     * e.g. Draws images and handles thumbnail navigation on nodes that output images
-     * @param {*} node The node to add the draw handler
-     */
-    #addDrawBackgroundHandler(node: ComfyNode) {
-        const app = this;
-
-        function getImageTop(node: ComfyNode) {
-            let shiftY: number;
-            if (node.imageOffset != null) {
-                shiftY = node.imageOffset;
-            } else {
-                if (node.widgets?.length) {
-                    const w = node.widgets[node.widgets.length - 1] as ComfyImageWidget;
-                    shiftY = w.last_y;
-                    if (w.computeSize) {
-                        shiftY += w.computeSize()[1] + 4;
-                    } else if (w.computedHeight) {
-                        shiftY += w.computedHeight;
-                    } else {
-                        shiftY += LiteGraph.NODE_WIDGET_HEIGHT + 4;
-                    }
-                } else {
-                    shiftY = node.computeSize()[1];
-                }
-            }
-            return shiftY;
-        }
-
-
-        // TODO: remove this ts annotation and fix the prototype issue
-        // @ts-expect-error
-        node.prototype.setSizeForImage = function (force) {
-            if (!force && this.animatedImages) return;
-
-            if (this.inputHeight || this.freeWidgetSpace > 210) {
-                this.setSize(this.size);
-                return;
-            }
-            const minHeight = getImageTop(this) + 220;
-            if (this.size[1] < minHeight) {
-                this.setSize([this.size[0], minHeight]);
-            }
-        };
-
-
-        // TODO: remove this ts annotation and fix the prototype issue
-        // @ts-expect-error
-        node.prototype.onDrawBackground = function (ctx) {
-            if (!this.flags.collapsed) {
-                let imgURLs: string[] = [];
-                let imagesChanged = false;
-
-                const output = app.nodeOutputs[this.id + ''];
-                if (output?.images) {
-                    this.animatedImages = output?.animated?.find(Boolean);
-                    if (this.images !== output.images) {
-                        this.images = output.images;
-                        imagesChanged = true;
-                        imgURLs = imgURLs.concat(
-                            output.images.map((params: string) => {
-                                return api.apiURL(
-                                    '/view?' +
-                                        new URLSearchParams(params).toString() +
-                                        (this.animatedImages ? '' : app.getPreviewFormatParam()) +
-                                        app.getRandParam()
-                                );
-                            })
-                        );
-                    }
-                }
-
-                const preview = app.nodePreviewImages[this.id + ''];
-                if (this.preview !== preview) {
-                    this.preview = preview;
-                    imagesChanged = true;
-                    if (preview != null) {
-                        imgURLs.push(preview);
-                    }
-                }
-
-                if (imagesChanged) {
-                    this.imageIndex = null;
-                    if (imgURLs.length > 0) {
-                        Promise.all(
-                            imgURLs.map(src => {
-                                return new Promise(r => {
-                                    const img = new Image();
-                                    img.onload = () => r(img);
-                                    img.onerror = () => r(null);
-                                    img.src = src;
-                                });
-                            })
-                        ).then(imgs => {
-                            if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
-                                this.imgs = imgs.filter(Boolean);
-                                this.setSizeForImage?.();
-                                app.graph.setDirtyCanvas(true);
-                            }
-                        });
-                    } else {
-                        this.imgs = null;
-                    }
-                }
-
-                function calculateGrid(w, h, n) {
-                    let columns, rows, cellsize;
-
-                    if (w > h) {
-                        cellsize = h;
-                        columns = Math.ceil(w / cellsize);
-                        rows = Math.ceil(n / columns);
-                    } else {
-                        cellsize = w;
-                        rows = Math.ceil(h / cellsize);
-                        columns = Math.ceil(n / rows);
-                    }
-
-                    while (columns * rows < n) {
-                        cellsize++;
-                        if (w >= h) {
-                            columns = Math.ceil(w / cellsize);
-                            rows = Math.ceil(n / columns);
-                        } else {
-                            rows = Math.ceil(h / cellsize);
-                            columns = Math.ceil(n / rows);
-                        }
-                    }
-
-                    const cell_size = Math.min(w / columns, h / rows);
-                    return { cell_size, columns, rows };
-                }
-
-                function is_all_same_aspect_ratio(imgs) {
-                    // assume: imgs.length >= 2
-                    let ratio = imgs[0].naturalWidth / imgs[0].naturalHeight;
-
-                    for (let i = 1; i < imgs.length; i++) {
-                        let this_ratio = imgs[i].naturalWidth / imgs[i].naturalHeight;
-                        if (ratio != this_ratio) return false;
-                    }
-
-                    return true;
-                }
-
-                if (this.imgs?.length) {
-                    const widgetIdx = this.widgets?.findIndex(w => w.name === ANIM_PREVIEW_WIDGET);
-
-                    if (this.animatedImages) {
-                        // Instead of using the canvas we'll use a IMG
-                        if (widgetIdx > -1) {
-                            // Replace content
-                            const widget = this.widgets[widgetIdx];
-                            widget.options.host.updateImages(this.imgs);
-                        } else {
-                            const host = createImageHost(this);
-                            this.setSizeForImage(true);
-                            const widget = this.addDOMWidget(ANIM_PREVIEW_WIDGET, 'img', host.el, {
-                                host,
-                                getHeight: host.getHeight,
-                                onDraw: host.onDraw,
-                                hideOnZoom: false,
-                            });
-                            widget.serializeValue = () => undefined;
-                            widget.options.host.updateImages(this.imgs);
-                        }
-                        return;
-                    }
-
-                    if (widgetIdx > -1) {
-                        this.widgets[widgetIdx].onRemove?.();
-                        this.widgets.splice(widgetIdx, 1);
-                    }
-
-                    const canvas = app.graph.list_of_graphcanvas[0];
-                    const mouse = canvas.graph_mouse;
-                    if (!canvas.pointer_is_down && this.pointerDown) {
-                        if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
-                            this.imageIndex = this.pointerDown.index;
-                        }
-                        this.pointerDown = null;
-                    }
-
-                    let imageIndex = this.imageIndex;
-                    const numImages = this.imgs.length;
-                    if (numImages === 1 && !imageIndex) {
-                        this.imageIndex = imageIndex = 0;
-                    }
-
-                    const top = getImageTop(this);
-                    var shiftY = top;
-
-                    let dw = this.size[0];
-                    let dh = this.size[1];
-                    dh -= shiftY;
-
-                    if (imageIndex == null) {
-                        var cellWidth, cellHeight, shiftX, cell_padding, cols;
-
-                        const compact_mode = is_all_same_aspect_ratio(this.imgs);
-                        if (!compact_mode) {
-                            // use rectangle cell style and border line
-                            cell_padding = 2;
-                            const { cell_size, columns, rows } = calculateGrid(dw, dh, numImages);
-                            cols = columns;
-
-                            cellWidth = cell_size;
-                            cellHeight = cell_size;
-                            shiftX = (dw - cell_size * cols) / 2;
-                            shiftY = (dh - cell_size * rows) / 2 + top;
-                        } else {
-                            cell_padding = 0;
-                            ({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh));
-                        }
-
-                        let anyHovered = false;
-                        this.imageRects = [];
-                        for (let i = 0; i < numImages; i++) {
-                            const img = this.imgs[i];
-                            const row = Math.floor(i / cols);
-                            const col = i % cols;
-                            const x = col * cellWidth + shiftX;
-                            const y = row * cellHeight + shiftY;
-                            if (!anyHovered) {
-                                anyHovered = LiteGraph.isInsideRectangle(
-                                    mouse[0],
-                                    mouse[1],
-                                    x + this.pos[0],
-                                    y + this.pos[1],
-                                    cellWidth,
-                                    cellHeight
-                                );
-                                if (anyHovered) {
-                                    this.overIndex = i;
-                                    let value = 110;
-                                    if (canvas.pointer_is_down) {
-                                        if (!this.pointerDown || this.pointerDown.index !== i) {
-                                            this.pointerDown = { index: i, pos: [...mouse] };
-                                        }
-                                        value = 125;
-                                    }
-                                    ctx.filter = `contrast(${value}%) brightness(${value}%)`;
-                                    canvas.canvas.style.cursor = 'pointer';
-                                }
-                            }
-                            this.imageRects.push([x, y, cellWidth, cellHeight]);
-
-                            let wratio = cellWidth / img.width;
-                            let hratio = cellHeight / img.height;
-                            var ratio = Math.min(wratio, hratio);
-
-                            let imgHeight = ratio * img.height;
-                            let imgY = row * cellHeight + shiftY + (cellHeight - imgHeight) / 2;
-                            let imgWidth = ratio * img.width;
-                            let imgX = col * cellWidth + shiftX + (cellWidth - imgWidth) / 2;
-
-                            ctx.drawImage(
-                                img,
-                                imgX + cell_padding,
-                                imgY + cell_padding,
-                                imgWidth - cell_padding * 2,
-                                imgHeight - cell_padding * 2
-                            );
-                            if (!compact_mode) {
-                                // rectangle cell and border line style
-                                ctx.strokeStyle = '#8F8F8F';
-                                ctx.lineWidth = 1;
-                                ctx.strokeRect(
-                                    x + cell_padding,
-                                    y + cell_padding,
-                                    cellWidth - cell_padding * 2,
-                                    cellHeight - cell_padding * 2
-                                );
-                            }
-
-                            ctx.filter = 'none';
-                        }
-
-                        if (!anyHovered) {
-                            this.pointerDown = null;
-                            this.overIndex = null;
-                        }
-                    } else {
-                        // Draw individual
-                        let w = this.imgs[imageIndex].naturalWidth;
-                        let h = this.imgs[imageIndex].naturalHeight;
-
-                        const scaleX = dw / w;
-                        const scaleY = dh / h;
-                        const scale = Math.min(scaleX, scaleY, 1);
-
-                        w *= scale;
-                        h *= scale;
-
-                        let x = (dw - w) / 2;
-                        let y = (dh - h) / 2 + shiftY;
-                        ctx.drawImage(this.imgs[imageIndex], x, y, w, h);
-
-                        const drawButton = (x, y, sz, text) => {
-                            const hovered = LiteGraph.isInsideRectangle(
-                                mouse[0],
-                                mouse[1],
-                                x + this.pos[0],
-                                y + this.pos[1],
-                                sz,
-                                sz
-                            );
-                            let fill = '#333';
-                            let textFill = '#fff';
-                            let isClicking = false;
-                            if (hovered) {
-                                canvas.canvas.style.cursor = 'pointer';
-                                if (canvas.pointer_is_down) {
-                                    fill = '#1e90ff';
-                                    isClicking = true;
-                                } else {
-                                    fill = '#eee';
-                                    textFill = '#000';
-                                }
-                            } else {
-                                this.pointerWasDown = null;
-                            }
-
-                            ctx.fillStyle = fill;
-                            ctx.beginPath();
-                            ctx.roundRect(x, y, sz, sz, [4]);
-                            ctx.fill();
-                            ctx.fillStyle = textFill;
-                            ctx.font = '12px Arial';
-                            ctx.textAlign = 'center';
-                            ctx.fillText(text, x + 15, y + 20);
-
-                            return isClicking;
-                        };
-
-                        if (numImages > 1) {
-                            if (drawButton(dw - 40, dh + top - 40, 30, `${this.imageIndex + 1}/${numImages}`)) {
-                                let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
-                                if (!this.pointerDown || !this.pointerDown.index === i) {
-                                    this.pointerDown = { index: i, pos: [...mouse] };
-                                }
-                            }
-
-                            if (drawButton(dw - 40, top + 10, 30, `x`)) {
-                                if (!this.pointerDown || !this.pointerDown.index === null) {
-                                    this.pointerDown = { index: null, pos: [...mouse] };
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
     }
 
     /**
@@ -1510,7 +1014,7 @@ export class ComfyApp {
         // Ensure the canvas fills the window
         this.#addResizeCanvasListener();
 
-        await this.#invokeExtensionsAsync('init');
+        await this.invokeExtensionsAsync('init');
         await this.registerNodes();
 
         // Load previous workflow
@@ -1541,7 +1045,7 @@ export class ComfyApp {
         this.#addPasteHandler();
         this.#addKeyboardHandler();
 
-        await this.#invokeExtensionsAsync('setup');
+        await this.invokeExtensionsAsync('setup');
     }
 
     /**
@@ -1552,7 +1056,7 @@ export class ComfyApp {
         // Load node definitions from the backend
         const defs = await api.getNodeDefs();
         await this.registerNodesFromDefs(defs);
-        await this.#invokeExtensionsAsync('registerCustomNodes');
+        await this.invokeExtensionsAsync('registerCustomNodes');
     }
 
     getWidgetType(inputData, inputName) {
@@ -1569,84 +1073,38 @@ export class ComfyApp {
         }
     }
 
-    async registerNodeDef(nodeId, nodeData) {
-        const self = this;
-        const node = Object.assign(
-            function ComfyNode() {
-                var inputs = nodeData['input']['required'];
-                if (nodeData['input']['optional'] != undefined) {
-                    inputs = Object.assign({}, nodeData['input']['required'], nodeData['input']['optional']);
-                }
-                const config = { minWidth: 1, minHeight: 1 };
-                for (const inputName in inputs) {
-                    const inputData = inputs[inputName];
-                    const type = inputData[0];
+    // Register a node class so it can be listed when we want to create a new one
+    async registerNodeDef(nodeId: string, nodeData: any) {
+        // Capture nodeData and app in a closure and return a new constructor function
+        const comfyNodeConstructor = class extends ComfyNode {
+            static title: string;
+            static comfyClass: string;
+            static nodeData: any;
 
-                    let widgetCreated = true;
-                    const widgetType = self.getWidgetType(inputData, inputName);
-                    if (widgetType) {
-                        if (widgetType === 'COMBO') {
-                            Object.assign(config, self.widgets.COMBO(this, inputName, inputData, app) || {});
-                        } else {
-                            Object.assign(config, self.widgets[widgetType](this, inputName, inputData, app) || {});
-                        }
-                    } else {
-                        // Node connection inputs
-                        this.addInput(inputName, type);
-                        widgetCreated = false;
-                    }
-
-                    if (widgetCreated && inputData[1]?.forceInput && config?.widget) {
-                        if (!config.widget.options) config.widget.options = {};
-                        config.widget.options.forceInput = inputData[1].forceInput;
-                    }
-                    if (widgetCreated && inputData[1]?.defaultInput && config?.widget) {
-                        if (!config.widget.options) config.widget.options = {};
-                        config.widget.options.defaultInput = inputData[1].defaultInput;
-                    }
-                }
-
-                for (const o in nodeData['output']) {
-                    let output = nodeData['output'][o];
-                    if (output instanceof Array) output = 'COMBO';
-                    const outputName = nodeData['output_name'][o] || output;
-                    const outputShape = nodeData['output_is_list'][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
-                    this.addOutput(outputName, output, { shape: outputShape });
-                }
-
-                const s = this.computeSize();
-                s[0] = Math.max(config.minWidth, s[0] * 1.5);
-                s[1] = Math.max(config.minHeight, s[1]);
-                this.size = s;
-                this.serialize_widgets = true;
-
-                app.#invokeExtensionsAsync('nodeCreated', this);
-            },
-            {
-                title: nodeData.display_name || nodeData.name,
-                comfyClass: nodeData.name,
-                nodeData,
+            constructor() {
+                super(nodeData, app);
             }
-        );
-        node.prototype.comfyClass = nodeData.name;
+        };
 
-        this.#addNodeContextMenuHandler(node);
-        this.#addDrawBackgroundHandler(node, app);
-        this.#addNodeKeyHandler(node);
+        // Add these properties in as well to maintain consistency for the extension-message broadcast
+        // we're about to do. Idk if any of the extensions actually use this info though.
+        comfyNodeConstructor.title = nodeData.display_name || nodeData.name;
+        comfyNodeConstructor.comfyClass = nodeData.name;
+        comfyNodeConstructor.nodeData = nodeData;
 
-        await this.#invokeExtensionsAsync('beforeRegisterNodeDef', node, nodeData);
-        LiteGraph.registerNodeType(nodeId, node);
-        node.category = nodeData.category;
+        await this.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
+
+        LiteGraph.registerNodeType(nodeId, comfyNodeConstructor);
     }
 
     async registerNodesFromDefs(defs) {
-        await this.#invokeExtensionsAsync('addCustomNodeDefs', defs);
+        await this.invokeExtensionsAsync('addCustomNodeDefs', defs);
 
         // Generate list of known widgets
         this.widgets = Object.assign(
             {},
             ComfyWidgets,
-            ...(await this.#invokeExtensionsAsync('getCustomWidgets')).filter(Boolean)
+            ...(await this.invokeExtensionsAsync('getCustomWidgets')).filter(Boolean)
         );
 
         // Register a node for each definition
@@ -1766,7 +1224,7 @@ export class ComfyApp {
         }
 
         const missingNodeTypes = [];
-        await this.#invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
+        await this.invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
         for (let n of graphData.nodes) {
             // Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
             if (n.type == 'T2IAdapterLoader') n.type = 'ControlNetLoader';
@@ -1872,7 +1330,7 @@ export class ComfyApp {
         if (missingNodeTypes.length) {
             this.showMissingNodesError(missingNodeTypes);
         }
-        await this.#invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
+        await this.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
     }
 
     /**
@@ -2291,7 +1749,7 @@ export class ComfyApp {
         this.nodePreviewImages = {};
 
         // Invoke any necessary cleanup methods for extensions
-        this.#invokeExtensionsAsync('destroy');
+        this.invokeExtensionsAsync('destroy');
 
         // If there are any other properties or resources that were set up
         // and need to be cleaned up, do so here.

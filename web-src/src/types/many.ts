@@ -5,36 +5,36 @@ export type QueueItem = {
 
 export interface ComfyButtonWidget {
     name: string;
-    type: "button";
+    type: 'button';
     value: HTMLButtonElement;
-    callback: (value: any) => void
+    callback: (value: any) => void;
 }
 
 export interface ComfyImageWidget {
     name: string;
-    type: "image";
+    type: 'image';
     last_y: number;
     computedHeight: number;
     value: HTMLImageElement;
     computeSize: () => number[];
-    callback: (value: any) => void
+    callback: (value: any) => void;
 }
 
 export interface ComfyFileWidget {
     name: string;
-    type: "file";
+    type: 'file';
     value: ComfyFile;
-    callback: (value: any) => void
+    callback: (value: any) => void;
 }
 
 export interface ComfyTextWidget {
     name: string;
-    type: "text";
+    type: 'text';
     value: string;
-    callback: (value: any) => void
+    callback: (value: any) => void;
 }
 
-export type ComfyWidget = ComfyImageWidget | ComfyButtonWidget | ComfyFileWidget | ComfyTextWidget
+export type ComfyWidget = ComfyImageWidget | ComfyButtonWidget | ComfyFileWidget | ComfyTextWidget;
 
 export interface ComfyFile {
     type: string;
@@ -42,7 +42,7 @@ export interface ComfyFile {
     subfolder: string;
 }
 
-export type ComfyImages = HTMLImageElement[] | ComfyFile[]
+export type ComfyImages = HTMLImageElement[] | ComfyFile[];
 
 export interface SerializedNodeObject {
     imgs?: ComfyImages;
@@ -53,7 +53,7 @@ export interface SerializedNodeObject {
     widgets?: ComfyWidget[] | null;
 }
 
-export interface ComfyNode extends Object {
+export class ComfyNode {
     id: string;
     imgs: ComfyImages;
     imageIndex?: number;
