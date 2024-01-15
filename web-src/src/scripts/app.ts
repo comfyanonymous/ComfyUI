@@ -12,6 +12,7 @@ import { ComfyExtension } from '../types/comfy.js';
 import { LiteGraphCorrected } from '../types/litegraph.js';
 import { ComfyNode } from './comfyNode';
 
+
 // LiteGraph var with corrected typing
 const LiteGraph = LG as typeof LG & LiteGraphCorrected;
 
@@ -91,6 +92,8 @@ export class ComfyApp {
     private abortController: AbortController = new AbortController();
 
     private dragOverNode?: LGraphNodeExtended | null;
+
+    widgets: ComfyWidgets | null = null;
 
     constructor() {
         this.ui = new ComfyUI(this);

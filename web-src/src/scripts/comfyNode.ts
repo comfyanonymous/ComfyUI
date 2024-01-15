@@ -1,5 +1,6 @@
 import { ComfyApp } from './app';
 import { LGraphNode } from 'litegraph.js';
+import { IWidget } from 'litegraph.js';
 
 // TO DO: replace 'any' types with actually useful types
 export class ComfyNode extends LGraphNode {
@@ -13,6 +14,7 @@ export class ComfyNode extends LGraphNode {
     images: any[] | undefined;
     nodeData: any;
     serialize_widgets: boolean;
+    widgets: any[]; // idk how to type widgets yet
 
     constructor(nodeData: any, app: ComfyApp) {
         super();
@@ -21,6 +23,7 @@ export class ComfyNode extends LGraphNode {
         this.category = nodeData.category;
         this.comfyClass = nodeData.name;
         this.nodeData = nodeData;
+        this.widgets = [];
 
         let inputs = nodeData['input']['required'];
         if (nodeData['input']['optional'] != undefined) {
