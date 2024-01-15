@@ -141,6 +141,17 @@
         "pip": ["ultralytics"],
         "install_type": "git-clone",
         "description": "This extension offers various detector nodes and detailer nodes that allow you to configure a workflow that automatically enhances facial details. And provide iterative upscaler.\n[w/NOTE:'Segs & Mask' has been renamed to 'ImpactSegsAndMask.' Please replace the node with the new name.]"
-    }
+    },
+
+    {
+      "author": "storyicon",
+      "title": "segment anything",
+      "reference": "https://github.com/storyicon/comfyui_segment_anything",
+      "files": [
+          "https://github.com/storyicon/comfyui_segment_anything"
+      ],
+      "install_type": "git-clone",
+      "description": "Based on GroundingDino and SAM, use semantic strings to segment any element in an image. The comfyui version of sd-webui-segment-anything."
+  }
   ]
 }

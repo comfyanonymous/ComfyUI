@@ -92,7 +92,7 @@ class TaskConsumerDeploy:
                 # if not exist ????              
                 object_storage.MinIOConnection().fget_object(obj_name=prompt_filepath, file_path=prompt_filepath_local)
                 
-                with open(prompt_filepath_local) as json_file:
+                with open(prompt_filepath_local, "r", encoding="utf-8") as json_file:
                     data = json.load(json_file)
                     nd_prompt = data["prompt"]
                     flows = data["flows"]
