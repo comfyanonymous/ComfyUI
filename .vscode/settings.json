@@ -1,0 +1,9 @@
+{
+    "[python]": {
+        "editor.formatOnSave": true
+    },
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "notebook.formatOnCellExecution": true,
+    "notebook.formatOnSave.enabled": true
+}

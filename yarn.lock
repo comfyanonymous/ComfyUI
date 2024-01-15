@@ -848,10 +848,9 @@ kind-of@^6.0.0, kind-of@^6.0.2:
   resolved "https://registry.yarnpkg.com/kind-of/-/kind-of-6.0.3.tgz#07c05034a6c349fa06e24fa35aa76db4580ce4dd"
   integrity sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==
 
-litegraph.js@^0.7.18:
-  version "0.7.18"
-  resolved "https://registry.yarnpkg.com/litegraph.js/-/litegraph.js-0.7.18.tgz#6c7db4c57ca7428f295c778c38f0605c3f4a13fd"
-  integrity sha512-1WEwjOO58j4FcLX8DvsuMXM371MEq4Y+8pBr3q2pBhJ9nDkwBtBd9Gj6bxArBKhW6i42bSOyv9ybeuez6NAxoQ==
+"litegraph.js@github:void-tech-art/litegraph.js#master":
+  version "0.7.14"
+  resolved "https://codeload.github.com/void-tech-art/litegraph.js/tar.gz/db8b499ffdda5e1bb640d8a21a29fec260433612"
 
 "lru-cache@^9.1.1 || ^10.0.0":
   version "10.1.0"

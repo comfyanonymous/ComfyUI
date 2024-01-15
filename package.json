@@ -21,6 +21,6 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "litegraph.js": "^0.7.18"
+    "litegraph.js": "github:void-tech-art/litegraph.js#master"
   }
 }
