@@ -5,15 +5,16 @@
 import { LiteGraph, LGraphCanvas } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyApp } from './app';
+import { ComfyGraph } from './comfyGraph';
 
 // TO DO: list all hot keys this class has and what they do
 
-export class ComfyLGraphCanvas extends LGraphCanvas {
+export class ComfyCanvas extends LGraphCanvas {
     app: ComfyApp; // reference to the app this canvas is inside of
     selected_group_moving: boolean = false;
     
-    constructor(app: ComfyApp, ...args: ConstructorParameters<typeof LGraphCanvas>) {
-        super(...args);
+    constructor(app: ComfyApp, canvas: HTMLCanvasElement | string, graph?: ComfyGraph, options?: { skip_render?: boolean; autoresize?: boolean; }) {
+        super(canvas, graph, options);
         this.app = app;
     }
 

@@ -1,6 +1,5 @@
 import { ComfyApp } from './app';
 import { LGraphNode } from 'litegraph.js';
-import { IWidget } from 'litegraph.js';
 
 // TO DO: replace 'any' types with actually useful types
 export class ComfyNode extends LGraphNode {

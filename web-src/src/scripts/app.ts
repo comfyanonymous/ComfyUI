@@ -6,7 +6,8 @@ import { defaultGraph } from './defaultGraph.js';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo.js';
 import { addDomClippingSetting } from './domWidget.js';
 import {LGraph, LiteGraph} from 'litegraph.js';
-import { ComfyLGraphCanvas } from './comfyLGraphCanvas';
+import { ComfyCanvas } from './comfyCanvas.js';
+import { ComfyGraph } from './comfyGraph.js';
 import {
     ComfyFile,
     ComfyNodeError,
@@ -86,8 +87,8 @@ export class ComfyApp {
      * The canvas element associated with the app, if any
      */
     canvasEl: HTMLCanvasElement & { id: string; } | null;
-    canvas: ComfyLGraphCanvas | null;
-    graph: LGraph | null;
+    canvas: ComfyCanvas | null;
+    graph: ComfyGraph | null;
     ctx: CanvasRenderingContext2D | null
     saveInterval: NodeJS.Timeout | null;
 
@@ -102,6 +103,7 @@ export class ComfyApp {
     runningNodeId: number | null;
     lastExecutionError: { node_id: number, message: string } | null;
     lastNodeErrors: Record<string, ComfyNodeError>;
+    configuringGraph: boolean = false;
 
     constructor() {
         this.ui = new ComfyUI(this);
@@ -727,11 +729,11 @@ export class ComfyApp {
         this.#addConfigureHandler();
         this.#addApiUpdateHandlers();
 
-        this.graph = new LGraph();
+        this.graph = new ComfyGraph(app);
 
         this.#addAfterConfigureHandler();
 
-        this.canvas = new ComfyLGraphCanvas(this, canvasEl, this.graph);
+        this.canvas = new ComfyCanvas(this, canvasEl, this.graph);
         this.ctx = canvasEl.getContext('2d');
 
         LiteGraph.release_link_on_empty_shows_menu = true;
@@ -1388,7 +1390,7 @@ export class ComfyApp {
      * Registers a Comfy web extension with the app
      * @param {ComfyExtension} extension
      */
-    registerExtension(extension) {
+    registerExtension(extension: ComfyExtension) {
         if (!extension.name) {
             throw new Error("Extensions must have a 'name' property.");
         }

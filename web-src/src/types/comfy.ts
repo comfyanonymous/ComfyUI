@@ -1,5 +1,6 @@
 import { LGraphNode, IWidget } from 'litegraph.js';
 import { ComfyApp } from '../scripts/app';
+import { ComfyNode } from '../scripts/comfyNode';
 
 export interface ComfyExtension {
     /**
@@ -38,7 +39,7 @@ export interface ComfyExtension {
      * @param nodeData The original node object info config object
      * @param app The ComfyUI app instance
      */
-    beforeRegisterNodeDef(nodeType: typeof LGraphNode, nodeData: ComfyObjectInfo, app: ComfyApp): Promise<void>;
+    beforeRegisterNodeDef(nodeType: typeof ComfyNode, nodeData: ComfyObjectInfo, app: ComfyApp): Promise<void>;
     /**
      * Allows the extension to register additional nodes with LGraph after standard nodes are added
      * @param app The ComfyUI app instance
