@@ -90,19 +90,20 @@ class TaskConsumerDeploy:
                 prompt_filepath_local = f"{prompt_filepath_local}/{prompt_filebase}"  
                 
                 # if not exist ????              
-                object_storage.MinIOConnection().fget_object(obj_name=prompt_filepath, file_path=prompt_filepath_local)
+                file_path = object_storage.MinIOConnection().fget_object(obj_name=prompt_filepath, file_path=prompt_filepath_local)
                 
-                with open(prompt_filepath_local, "r", encoding="utf-8") as json_file:
-                    data = json.load(json_file)
-                    nd_prompt = data["prompt"]
-                    flows = data["flows"]
-                    extra_data = data["extra_data"]
-                    
-                    AppLog.info(f"[Promptfile] nd prompt: \n{nd_prompt}")
-                    AppLog.info(f"[Promptfile] flows: \n{flows}")
-                    AppLog.info(f"[Promptfile] extra data: \n{extra_data}")
-                    
-                    return nd_prompt, flows, extra_data, flow_args, webhooks
+                if file_path is not None:
+                    with open(prompt_filepath_local, "r", encoding="utf-8") as json_file:
+                        data = json.load(json_file)
+                        nd_prompt = data["prompt"]
+                        flows = data["flows"]
+                        extra_data = data["extra_data"]
+                        
+                        AppLog.info(f"[Promptfile] nd prompt: \n{nd_prompt}")
+                        AppLog.info(f"[Promptfile] flows: \n{flows}")
+                        AppLog.info(f"[Promptfile] extra data: \n{extra_data}")
+                        
+                        return nd_prompt, flows, extra_data, flow_args, webhooks
                 
         return None, None, None, None, None
 
