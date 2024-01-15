@@ -8,7 +8,7 @@
         "https://github.com/ltdrdata/ComfyUI-Manager"
       ],
       "install_type": "git-clone",
-      "commit": "001154622564b17223ce0191803c5fff7b87146c",
+      "commit": "8860e7b39501d441553e4a075b33161da10a97a2",
       "description": "ComfyUI-Manager itself is also a custom node."
     },
     {
@@ -57,18 +57,6 @@
       "install_type": "git-clone",
       "commit": "27555d4f71bb4e24b87571f89eab2b4a06677bb6",
       "description": "This extension provides: Auto Arrange Graph, Workflow SVG, Favicon Status, Image Feed, Latent Upscale By, Lock Nodes & Groups, Lora Subfolders, Preset Text, Show Text, Touch Support, Link Render Mode, Locking, Node Finder, Quick Nodes, Show Image On Menu, Show Text, Workflow Managements, Custom Widget Default Values"
-    },
-
-    {
-      "author": "cubiq",
-      "title": "ComfyUI_IPAdapter_plus",
-      "reference": "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
-      "files": [
-        "https://github.com/cubiq/ComfyUI_IPAdapter_plus"
-      ],
-      "install_type": "git-clone",
-      "commit": "a4e71ccbbf930125f53e19d0ecca80425a1fecaa",
-      "description": "ComfyUI reference implementation for IPAdapter models. The code is mostly taken from the original IPAdapter repository and laksjdjf's implementation, all credit goes to them. I just made the extension closer to ComfyUI philosophy."
     },
 
     {
@@ -152,6 +140,30 @@
       ],
       "install_type": "git-clone",
       "description": "Based on GroundingDino and SAM, use semantic strings to segment any element in an image. The comfyui version of sd-webui-segment-anything."
-  }
+  },
+  {
+      "author": "Kosinkadink",
+      "title": "ComfyUI-Advanced-ControlNet",
+      "reference": "https://github.com/Kosinkadink/ComfyUI-Advanced-ControlNet",
+      "files": [
+          "https://github.com/Kosinkadink/ComfyUI-Advanced-ControlNet"
+      ],
+      "install_type": "git-clone",
+      "commit": "f4af0e3e0f3128d7029009bbbb743bc959d58c3e",
+      "description": "Nodes: ControlNetLoaderAdvanced, DiffControlNetLoaderAdvanced, ScaledSoftControlNetWeights, SoftControlNetWeights, CustomControlNetWeights, SoftT2IAdapterWeights, CustomT2IAdapterWeights"
+    },
+
+    {
+      "author": "cubiq",
+      "title": "ComfyUI_IPAdapter_plus",
+      "reference": "https://github.com/cubiq/ComfyUI_IPAdapter_plus",
+      "files": [
+          "https://github.com/cubiq/ComfyUI_IPAdapter_plus"
+      ],
+      "pip": ["insightface"],
+      "install_type": "git-clone",
+      "commit": "c37485514b9b88934078b372ebcd62c7480c41d8",
+      "description": "ComfyUI reference implementation for IPAdapter models. The code is mostly taken from the original IPAdapter repository and laksjdjf's implementation, all credit goes to them. I just made the extension closer to ComfyUI philosophy."
+    }
   ]
 }
