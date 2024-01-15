@@ -1,5 +1,5 @@
 import { ComfyLogging } from "./logging.js";
-import { ComfyWidgets } from "./widgets.js";
+import { ComfyWidgets, initWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
@@ -269,6 +269,71 @@ export class ComfyApp {
 	 * @param {*} node The node to add the menu handler
 	 */
 	#addNodeContextMenuHandler(node) {
+		function getCopyImageOption(img) {
+			if (typeof window.ClipboardItem === "undefined") return [];
+			return [
+				{
+					content: "Copy Image",
+					callback: async () => {
+						const url = new URL(img.src);
+						url.searchParams.delete("preview");
+
+						const writeImage = async (blob) => {
+							await navigator.clipboard.write([
+								new ClipboardItem({
+									[blob.type]: blob,
+								}),
+							]);
+						};
+
+						try {
+							const data = await fetch(url);
+							const blob = await data.blob();
+							try {
+								await writeImage(blob);
+							} catch (error) {
+								// Chrome seems to only support PNG on write, convert and try again
+								if (blob.type !== "image/png") {
+									const canvas = $el("canvas", {
+										width: img.naturalWidth,
+										height: img.naturalHeight,
+									});
+									const ctx = canvas.getContext("2d");
+									let image;
+									if (typeof window.createImageBitmap === "undefined") {
+										image = new Image();
+										const p = new Promise((resolve, reject) => {
+											image.onload = resolve;
+											image.onerror = reject;
+										}).finally(() => {
+											URL.revokeObjectURL(image.src);
+										});
+										image.src = URL.createObjectURL(blob);
+										await p;
+									} else {
+										image = await createImageBitmap(blob);
+									}
+									try {
+										ctx.drawImage(image, 0, 0);
+										canvas.toBlob(writeImage, "image/png");
+									} finally {
+										if (typeof image.close === "function") {
+											image.close();
+										}
+									}
+
+									return;
+								}
+								throw error;
+							}
+						} catch (error) {
+							alert("Error copying image: " + (error.message ?? error));
+						}
+					},
+				},
+			];
+		}
+
 		node.prototype.getExtraMenuOptions = function (_, options) {
 			if (this.imgs) {
 				// If this node has images then we add an open in new tab item
@@ -286,16 +351,17 @@ export class ComfyApp {
 							content: "Open Image",
 							callback: () => {
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
-								window.open(url, "_blank")
+								url.searchParams.delete("preview");
+								window.open(url, "_blank");
 							},
 						},
+						...getCopyImageOption(img), 
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
+								url.searchParams.delete("preview");
 								a.href = url;
 								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
@@ -308,33 +374,41 @@ export class ComfyApp {
 			}
 
 			options.push({
-					content: "Bypass",
-					callback: (obj) => { if (this.mode === 4) this.mode = 0; else this.mode = 4; this.graph.change(); }
-				});
+				content: "Bypass",
+				callback: (obj) => {
+					if (this.mode === 4) this.mode = 0;
+					else this.mode = 4;
+					this.graph.change();
+				},
+			});
 
 			// prevent conflict of clipspace content
-			if(!ComfyApp.clipspace_return_node) {
+			if (!ComfyApp.clipspace_return_node) {
 				options.push({
-						content: "Copy (Clipspace)",
-						callback: (obj) => { ComfyApp.copyToClipspace(this); }
-					});
+					content: "Copy (Clipspace)",
+					callback: (obj) => {
+						ComfyApp.copyToClipspace(this);
+					},
+				});
 
-				if(ComfyApp.clipspace != null) {
+				if (ComfyApp.clipspace != null) {
 					options.push({
-							content: "Paste (Clipspace)",
-							callback: () => { ComfyApp.pasteFromClipspace(this); }
-						});
+						content: "Paste (Clipspace)",
+						callback: () => {
+							ComfyApp.pasteFromClipspace(this);
+						},
+					});
 				}
 
-				if(ComfyApp.isImageNode(this)) {
+				if (ComfyApp.isImageNode(this)) {
 					options.push({
-							content: "Open in MaskEditor",
-							callback: (obj) => {
-								ComfyApp.copyToClipspace(this);
-								ComfyApp.clipspace_return_node = this;
-								ComfyApp.open_maskeditor();
-							}
-						});
+						content: "Open in MaskEditor",
+						callback: (obj) => {
+							ComfyApp.copyToClipspace(this);
+							ComfyApp.clipspace_return_node = this;
+							ComfyApp.open_maskeditor();
+						},
+					});
 				}
 			}
 		};
@@ -1420,6 +1494,7 @@ export class ComfyApp {
 
 		await this.#invokeExtensionsAsync("init");
 		await this.registerNodes();
+		initWidgets(this);
 
 		// Load previous workflow
 		let restored = false;
@@ -1774,6 +1849,14 @@ export class ComfyApp {
 	 */
 	async graphToPrompt() {
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
+			if (outerNode.widgets) {
+				for (const widget of outerNode.widgets) {
+					// Allow widgets to run callbacks before a prompt has been queued
+					// e.g. random seed before every gen
+					widget.beforeQueued?.();
+				}
+			}
+
 			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
 				if (node.isVirtualNode) {
