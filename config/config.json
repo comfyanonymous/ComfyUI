@@ -241,7 +241,7 @@
 
 
         "log":{
-            "console_log": 1,
+            "console_log": 0,
             "log_file": "log/app.log",
             "log_level": "INFO"
         },
