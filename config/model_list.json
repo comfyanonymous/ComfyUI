@@ -182,6 +182,15 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/yzd-v/DWPose/yolox_l.onnx",
                 "description": "人脸检测"
             }
+        },
+
+        "grounding_dino": {
+            "groundingdino_swint_ogc": 
+            {
+                "path": "groundingdino_swint_ogc.pth",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/grounding-dino/groundingdino_swint_ogc.pth",
+                "description": ""
+            }
         }
     },
 
@@ -197,6 +206,8 @@
         "upscale_models": "models/upscale_models",
 
         "ultralytics": "models/ultralytics",
+        "grounding_dino": "models/grounding-dino",
+
         "controlnet_aux": "custom_nodes/comfyui_controlnet_aux/ckpts"
 
     },
