@@ -606,6 +606,7 @@ export class ComfyUI {
 				!app.lastExecutionError
 			) {
 				app.queuePrompt(0, this.batchCount);
+				status.exec_info.queue_remaining += this.batchCount;
 				this.graphHasChanged = false;
 			}
 			this.lastQueueSize = status.exec_info.queue_remaining;
