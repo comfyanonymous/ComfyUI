@@ -1,3 +1,38 @@
+declare global {
+    interface Window {
+        clipboardData: DataTransfer
+    }
+
+    interface UIEvent {
+        canvasX: number
+        canvasY: number
+    }
+
+    interface EventTarget {
+        type: string
+        localName: string
+        className: string
+    }
+}
+
+export interface ComfyError {
+    node_id: number;
+    message: string;
+    extra_info: {
+        [x: string]: any;
+    }
+}
+
+export interface ComfyNodeError {
+    errors: ComfyError[]
+}
+
+export interface ComfyProgress {
+    max: number;
+    min: number;
+    value: number;
+}
+
 export type QueueItem = {
     number: number;
     batchCount: number;

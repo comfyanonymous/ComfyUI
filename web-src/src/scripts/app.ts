@@ -5,11 +5,17 @@ import { api } from './api.js';
 import { defaultGraph } from './defaultGraph.js';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo.js';
 import { addDomClippingSetting } from './domWidget.js';
-import { createImageHost, calculateImageGrid } from './ui/imagePreview.js';
-import { LGraph, LGraphCanvas, LiteGraph as LG } from 'litegraph.js';
-import {ComfyFile, ComfyImageWidget, ComfyWidget, QueueItem, SerializedNodeObject} from '../types/many';
+import {LGraph, LGraphCanvas, LiteGraph as LG} from 'litegraph.js';
+import {
+    ComfyFile,
+    ComfyNodeError,
+    ComfyProgress,
+    ComfyWidget,
+    QueueItem,
+    SerializedNodeObject
+} from '../types/many';
 import { ComfyExtension } from '../types/comfy.js';
-import { LiteGraphCorrected } from '../types/litegraph.js';
+import {LiteGraphCorrected} from '../types/litegraph.js';
 import { ComfyNode } from './comfyNode';
 
 
@@ -72,7 +78,7 @@ export class ComfyApp {
     /**
      * Stores the preview image data for each node
      */
-    nodePreviewImages: Record<string, HTMLImageElement>;
+    nodePreviewImages: Record<string, HTMLImageElement | string[]>;
 
     /**
      * Indicates if the shift key on the keyboard is pressed
@@ -91,9 +97,14 @@ export class ComfyApp {
     // This makes it possible to cleanup a ComfyApp instance's listeners
     private abortController: AbortController = new AbortController();
 
-    private dragOverNode?: LGraphNodeExtended | null;
+    private dragOverNode?: ComfyNode | null;
 
     widgets: ComfyWidgets | null = null;
+
+    progress: ComfyProgress | null
+    runningNodeId: number | null;
+    lastExecutionError: { node_id: number, message: string } | null;
+    lastNodeErrors: Record<string, ComfyNodeError>;
 
     constructor() {
         this.ui = new ComfyUI(this);
@@ -107,6 +118,10 @@ export class ComfyApp {
         this.graph = null;
         this.ctx = null;
         this.saveInterval = null;
+        this.progress = null;
+        this.runningNodeId = null;
+        this.lastExecutionError = null;
+        this.lastNodeErrors = {};
     }
 
     getPreviewFormatParam() {
@@ -312,11 +327,11 @@ export class ComfyApp {
             event.preventDefault();
             event.stopPropagation();
 
-            const n = this.dragOverNode as LGraphNodeExtended;
+            const n = this.dragOverNode;
             this.dragOverNode = null;
             // Node handles file drop, we dont use the built in onDropFile handler as its buggy
             // If you drag multiple files it will call it multiple times with the same file
-            if (n && n.onDragDrop && (await n.onDragDrop(event))) {
+            if (n && n.onDragDrop && (n.onDragDrop(event))) {
                 return;
             }
             // Dragging from Chrome->Firefox there is a file but its a bmp, so ignore that
@@ -348,7 +363,7 @@ export class ComfyApp {
             'dragover',
             e => {
                 this.canvas?.adjustMouseEvent(e);
-                const node = this.graph?.getNodeOnPos(e.canvasX, e.canvasY);
+                const node = <ComfyNode | null | undefined>this.graph?.getNodeOnPos(e.canvasX, e.canvasY);
                 if (node) {
                     if (node.onDragOver && node.onDragOver(e)) {
                         this.dragOverNode = node;
@@ -375,32 +390,40 @@ export class ComfyApp {
             // this is handled by litegraph
             if (this.shiftDown) return;
 
-            let data = e.clipboardData || window.clipboardData;
+            let data: DataTransfer | string = e.clipboardData || window.clipboardData;
             const items = data.items;
 
             // Look for image paste data
             for (const item of items) {
                 if (item.type.startsWith('image/')) {
-                    var imageNode = null;
+                    let imageNode: ComfyNode | null = null;
 
                     // If an image node is selected, paste into it
                     if (
                         this.canvas?.current_node &&
                         this.canvas?.current_node.is_selected &&
-                        ComfyApp.isImageNode(this.canvas.current_node)
+                        ComfyApp.isImageNode(this.canvas.current_node as ComfyNode)
                     ) {
-                        imageNode = this.canvas.current_node;
+                        imageNode = this.canvas.current_node as ComfyNode;
                     }
 
                     // No image node selected: add a new one
                     if (!imageNode) {
-                        const newNode = LiteGraph.createNode('LoadImage');
-                        newNode.pos = [...this.canvas.graph_mouse];
-                        imageNode = this.graph.add(newNode);
-                        this.graph.change();
+                        const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
+                        if (this.canvas) {
+                            newNode.pos = [...this.canvas.graph_mouse];
+                        }
+
+                        // imageNode = this.graph?.add(newNode);
+                        this.graph?.add(newNode);
+                        imageNode = newNode;
+
+                        this.graph?.change();
                     }
                     const blob = item.getAsFile();
-                    imageNode.pasteFile(blob);
+                    if (blob) {
+                        imageNode?.pasteFile(blob);
+                    }
                     return;
                 }
             }
@@ -463,7 +486,8 @@ export class ComfyApp {
 
         const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
         LGraphCanvas.prototype.processMouseDown = function (e) {
-            const res = origProcessMouseDown.apply(this, arguments);
+            // const res = origProcessMouseDown.apply(this, arguments);
+            const res = origProcessMouseDown.apply(this, [e]);
 
             this.selected_group_moving = false;
 
@@ -497,7 +521,8 @@ export class ComfyApp {
                 this.selected_group = null;
             }
 
-            const res = origProcessMouseMove.apply(this, arguments);
+            // const res = origProcessMouseMove.apply(this, arguments);
+            const res = origProcessMouseMove.apply(this, [e]);
 
             if (orig_selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
                 this.selected_group = orig_selected_group;
@@ -546,11 +571,19 @@ export class ComfyApp {
                 if (e.key === 'b' && e.ctrlKey) {
                     if (this.selected_nodes) {
                         for (var i in this.selected_nodes) {
-                            if (this.selected_nodes[i].mode === 4) {
+
+                            // if (this.selected_nodes[i].mode === 4) {
+                            //     // never
+                            //     this.selected_nodes[i].mode = 0; // always
+                            // } else {
+                            //     this.selected_nodes[i].mode = 4; // never
+                            // }
+
+                            if (this.selected_nodes[i].mode === LiteGraph.NEVER) {
                                 // never
                                 this.selected_nodes[i].mode = 0; // always
                             } else {
-                                this.selected_nodes[i].mode = 4; // never
+                                this.selected_nodes[i].mode = LiteGraph.NEVER; // never
                             }
                         }
                     }
@@ -589,7 +622,8 @@ export class ComfyApp {
             }
 
             // Fall through to Litegraph defaults
-            return origProcessKey.apply(this, arguments);
+            // return origProcessKey.apply(this, arguments);
+            return origProcessKey.apply(this, [e]);
         };
     }
 
@@ -619,8 +653,12 @@ export class ComfyApp {
 
                 ctx.fillStyle = group.color || '#335';
                 ctx.strokeStyle = group.color || '#335';
-                var pos = group._pos;
-                var size = group._size;
+                // var pos = group._pos;
+                // var size = group._size;
+
+                const pos = group.pos;
+                const size = group.size;
+
                 ctx.globalAlpha = 0.25 * this.editor_alpha;
                 ctx.beginPath();
                 var font_size = group.font_size || LiteGraph.DEFAULT_GROUP_FONT_SIZE;
@@ -631,7 +669,8 @@ export class ComfyApp {
 
             ctx.restore();
 
-            const res = origDrawGroups.apply(this, arguments);
+            // const res = origDrawGroups.apply(this, arguments);
+            const res = origDrawGroups.apply(this, [canvas, ctx]);
             return res;
         };
     }
@@ -643,14 +682,15 @@ export class ComfyApp {
         const origDrawNodeShape = LGraphCanvas.prototype.drawNodeShape;
         const self = this;
 
-        LGraphCanvas.prototype.drawNodeShape = function (node, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
-            const res = origDrawNodeShape.apply(this, arguments);
+        LGraphCanvas.prototype.drawNodeShape = function (node: ComfyNode, ctx, size, fgcolor, bgcolor, selected, mouse_over) {
+            // const res = origDrawNodeShape.apply(this, arguments);
+            const res = origDrawNodeShape.apply(this, [node, ctx, size, fgcolor, bgcolor, selected, mouse_over]);
 
             const nodeErrors = self.lastNodeErrors?.[node.id];
 
             let color = null;
             let lineWidth = 1;
-            if (node.id === +self.runningNodeId) {
+            if (node.id === +(self.runningNodeId ?? 0)) {
                 color = '#0f0';
             } else if (self.dragOverNode && node.id === self.dragOverNode.id) {
                 color = 'dodgerblue';
@@ -663,7 +703,8 @@ export class ComfyApp {
             }
 
             if (color) {
-                const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+                // const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+                const shape = node.shape || LiteGraph.ROUND_SHAPE;
                 ctx.lineWidth = lineWidth;
                 ctx.globalAlpha = 0.8;
                 ctx.beginPath();
@@ -698,7 +739,7 @@ export class ComfyApp {
                 ctx.globalAlpha = 1;
             }
 
-            if (self.progress && node.id === +self.runningNodeId) {
+            if (self.progress && node.id === +(self.runningNodeId ?? 0)) {
                 ctx.fillStyle = 'green';
                 ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
                 ctx.fillStyle = bgcolor;
@@ -734,13 +775,15 @@ export class ComfyApp {
                 this.editor_alpha = 0.4;
             }
 
-            if (node.mode === 4) {
+            // if (node.mode === 4) {
+            if (node.mode === LiteGraph.NEVER) {
                 // never
                 node.bgcolor = '#FF00FF';
                 this.editor_alpha = 0.2;
             }
 
-            const res = origDrawNode.apply(this, arguments);
+            // const res = origDrawNode.apply(this, arguments);
+            const res = origDrawNode.apply(this, [node, ctx]);
 
             this.editor_alpha = editor_alpha;
             node.bgcolor = old_color;
@@ -767,13 +810,13 @@ export class ComfyApp {
 
         api.addEventListener('progress', ({ detail }) => {
             this.progress = detail;
-            this.graph.setDirtyCanvas(true, false);
+            this.graph?.setDirtyCanvas(true, false);
         });
 
         api.addEventListener('executing', ({ detail }) => {
             this.progress = null;
             this.runningNodeId = detail;
-            this.graph.setDirtyCanvas(true, false);
+            this.graph?.setDirtyCanvas(true, false);
             delete this.nodePreviewImages[this.runningNodeId];
         });
 
@@ -791,7 +834,7 @@ export class ComfyApp {
             } else {
                 this.nodeOutputs[detail.node] = detail.output;
             }
-            const node = this.graph.getNodeById(detail.node);
+            const node = this.graph?.getNodeById(detail.node);
             if (node) {
                 if (node.onExecuted) node.onExecuted(detail.output);
             }
@@ -800,7 +843,8 @@ export class ComfyApp {
         api.addEventListener('execution_start', ({ detail }) => {
             this.runningNodeId = null;
             this.lastExecutionError = null;
-            this.graph._nodes.forEach(node => {
+            this.graph?._nodes.forEach(node => {
+                node = node as ComfyNode;
                 if (node.onExecutionStart) node.onExecutionStart();
             });
         });
@@ -809,7 +853,7 @@ export class ComfyApp {
             this.lastExecutionError = detail;
             const formattedError = this.#formatExecutionError(detail);
             this.ui.dialog.show(formattedError);
-            this.canvas.draw(true, true);
+            this.canvas?.draw(true, true);
         });
 
         api.addEventListener('b_preview', ({ detail }) => {

@@ -15,6 +15,7 @@ export class ComfyNode extends LGraphNode {
     nodeData: any;
     serialize_widgets: boolean;
     widgets: any[]; // idk how to type widgets yet
+    resetExecution: boolean;
 
     constructor(nodeData: any, app: ComfyApp) {
         super();
@@ -24,12 +25,13 @@ export class ComfyNode extends LGraphNode {
         this.comfyClass = nodeData.name;
         this.nodeData = nodeData;
         this.widgets = [];
+        this.resetExecution = false;
 
         let inputs = nodeData['input']['required'];
         if (nodeData['input']['optional'] != undefined) {
-            inputs = { ...nodeData['input']['required'], ...nodeData['input']['optional'] };
+            inputs = {...nodeData['input']['required'], ...nodeData['input']['optional']};
         }
-        const config = { minWidth: 1, minHeight: 1 };
+        const config = {minWidth: 1, minHeight: 1};
         for (const inputName in inputs) {
             const inputData = inputs[inputName];
             const type = inputData[0];
@@ -63,7 +65,7 @@ export class ComfyNode extends LGraphNode {
             if (output instanceof Array) output = 'COMBO';
             const outputName = nodeData['output_name'][o] || output;
             const outputShape = nodeData['output_is_list'][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
-            this.addOutput(outputName, output, { shape: outputShape });
+            this.addOutput(outputName, output, {shape: outputShape});
         }
 
         const s = this.computeSize();
@@ -150,9 +152,9 @@ export class ComfyNode extends LGraphNode {
                         output.images.map((params: string) => {
                             return api.apiURL(
                                 '/view?' +
-                                    new URLSearchParams(params).toString() +
-                                    (this.animatedImages ? '' : app.getPreviewFormatParam()) +
-                                    app.getRandParam()
+                                new URLSearchParams(params).toString() +
+                                (this.animatedImages ? '' : app.getPreviewFormatParam()) +
+                                app.getRandParam()
                             );
                         })
                     );
@@ -250,7 +252,7 @@ export class ComfyNode extends LGraphNode {
                     if (!compact_mode) {
                         // use rectangle cell style and border line
                         cell_padding = 2;
-                        const { cell_size, columns, rows } = calculateGrid(dw, dh, numImages);
+                        const {cell_size, columns, rows} = calculateGrid(dw, dh, numImages);
                         cols = columns;
 
                         cellWidth = cell_size;
@@ -259,7 +261,7 @@ export class ComfyNode extends LGraphNode {
                         shiftY = (dh - cell_size * rows) / 2 + top;
                     } else {
                         cell_padding = 0;
-                        ({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh));
+                        ({cellWidth, cellHeight, cols, shiftX} = calculateImageGrid(this.imgs, dw, dh));
                     }
 
                     let anyHovered = false;
@@ -284,7 +286,7 @@ export class ComfyNode extends LGraphNode {
                                 let value = 110;
                                 if (canvas.pointer_is_down) {
                                     if (!this.pointerDown || this.pointerDown.index !== i) {
-                                        this.pointerDown = { index: i, pos: [...mouse] };
+                                        this.pointerDown = {index: i, pos: [...mouse]};
                                     }
                                     value = 125;
                                 }
@@ -386,13 +388,13 @@ export class ComfyNode extends LGraphNode {
                         if (drawButton(dw - 40, dh + top - 40, 30, `${this.imageIndex + 1}/${numImages}`)) {
                             let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
                             if (!this.pointerDown || !this.pointerDown.index === i) {
-                                this.pointerDown = { index: i, pos: [...mouse] };
+                                this.pointerDown = {index: i, pos: [...mouse]};
                             }
                         }
 
                         if (drawButton(dw - 40, top + 10, 30, `x`)) {
                             if (!this.pointerDown || !this.pointerDown.index === null) {
-                                this.pointerDown = { index: null, pos: [...mouse] };
+                                this.pointerDown = {index: null, pos: [...mouse]};
                             }
                         }
                     }
@@ -488,4 +490,43 @@ export class ComfyNode extends LGraphNode {
             }
         }
     }
+
+    onDragDrop(e: DragEvent) {
+        console.log('onDragDrop called');
+        let handled = false;
+        if (!e.dataTransfer) return handled;
+
+        for (const file of e.dataTransfer.files) {
+            if (file.type.startsWith('image/')) {
+                uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
+                handled = true;
+            }
+        }
+
+        return handled;
+    }
+
+    onDragOver(e: DragEvent) {
+        if (e.dataTransfer && e.dataTransfer.items) {
+            const image = [...e.dataTransfer.items].find(f => f.kind === 'file');
+            return !!image;
+        }
+
+        return false;
+    }
+
+    onExecutionStart(...arguments: any[]) {
+        this.resetExecution = true;
+        return this.onExecutionStart?.apply(this, arguments);
+    }
+
+    pasteFile(file: File) {
+        if (file.type.startsWith('image/')) {
+            const is_pasted = file.name === 'image.png' && file.lastModified - Date.now() < 2000;
+            uploadFile(file, true, is_pasted);
+            return true;
+        }
+
+        return false;
+    };
 }
