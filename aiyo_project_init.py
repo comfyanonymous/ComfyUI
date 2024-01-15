@@ -59,7 +59,7 @@ def ab_download_resource(url, file_path, cache_resource=False, cache_dir=""):
 
 def download_models():
     
-    model_root = "models"
+    # model_root = "models"
     with open("config/model_list.json", "r", encoding="utf-8") as model_config_file:
         model_config = json.loads(model_config_file.read())
         
@@ -69,7 +69,7 @@ def download_models():
         # for each type of models download
         for model_type, model_type_info in all_type_models.items():
             
-            model_dir = f"{model_root}/{model_paths.get(model_type, model_type)}"
+            model_dir = f"{model_paths.get(model_type, model_type)}"
             
             for model_name, model_info in model_type_info.items():
                 url = model_info["url"]

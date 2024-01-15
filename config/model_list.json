@@ -149,21 +149,56 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ultralytics/face_yolov8m.pt",
                 "description": "人脸检测"
             }
+        },
+
+        "controlnet_aux": {
+            "dw-ll_ucoco_384_bs5":
+            {
+                "path": "hr16/DWPose-TorchScript-BatchSize5/dw-ll_ucoco_384_bs5.torchscript.pt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/hr16/DWPose-TorchScript-BatchSize5/dw-ll_ucoco_384_bs5.torchscript.pt",
+                "description": "人脸检测"
+            },
+            "dw-ll_ucoco":
+            {
+                "path": "hr16/UnJIT-DWPose/dw-ll_ucoco.onnx",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/hr16/UnJIT-DWPose/dw-ll_ucoco.onnx",
+                "description": "人脸检测"
+            },
+            "yolox_l":
+            {
+                "path": "hr16/yolox-onnx/yolox_l.torchscript.pt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/hr16/yolox-onnx/yolox_l.torchscript.pt",
+                "description": "人脸检测"
+            },
+            "dw-ll_ucoco_384":
+            {
+                "path": "yzd-v/DWPose/dw-ll_ucoco_384.onnx",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/yzd-v/DWPose/dw-ll_ucoco_384.onnx",
+                "description": "人脸检测"
+            },
+            "yzd_yolox_l":
+            {
+                "path": "yzd-v/DWPose/yolox_l.onnx",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/yzd-v/DWPose/yolox_l.onnx",
+                "description": "人脸检测"
+            }
         }
     },
 
     "model_paths":{
-        "checkpoints": "checkpoints",
-        "clip": "clip",
-        "clip_vision": "clip_vision",
-        "controlnet": "controlnet",
-        "ipadapter": "ipadapter",
-        "lora": "loras",
-        "style_models": "style_models",
-        "vae": "vae",
-        "upscale_models": "upscale_models",
+        "checkpoints": "models/checkpoints",
+        "clip": "models/clip",
+        "clip_vision": "models/clip_vision",
+        "controlnet": "models/controlnet",
+        "ipadapter": "models/ipadapter",
+        "lora": "models/loras",
+        "style_models": "models/style_models",
+        "vae": "models/vae",
+        "upscale_models": "models/upscale_models",
 
-        "ultralytics": "ultralytics"
+        "ultralytics": "models/ultralytics",
+        "controlnet_aux": "custom_nodes/comfyui_controlnet_aux/ckpts"
+
     },
 
     "major_version": 0,
