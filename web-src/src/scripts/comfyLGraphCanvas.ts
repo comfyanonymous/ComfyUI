@@ -9,7 +9,7 @@ import { ComfyApp } from './app';
 // TO DO: list all hot keys this class has and what they do
 
 export class ComfyLGraphCanvas extends LGraphCanvas {
-    app: ComfyApp; // reference to its parent
+    app: ComfyApp; // reference to the app this canvas is inside of
     selected_group_moving: boolean = false;
     
     constructor(app: ComfyApp, ...args: ConstructorParameters<typeof LGraphCanvas>) {

@@ -1,5 +1,5 @@
 import { LGraphNode, IWidget } from 'litegraph.js';
-import { ComfyApp } from '../../scripts/app';
+import { ComfyApp } from '../scripts/app';
 
 export interface ComfyExtension {
     /**
