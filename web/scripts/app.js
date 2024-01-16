@@ -1499,12 +1499,19 @@ export class ComfyApp {
 		// Load previous workflow
 		let restored = false;
 		try {
+			const workflow = await getWorkflow();
 			const json = localStorage.getItem("workflow");
-			if (json) {
-				const workflow = JSON.parse(json);
+
+			if (workflow) {
 				await this.loadGraphData(workflow);
 				restored = true;
-			}
+			} else {
+				if (json) {
+					const workflow = JSON.parse(json);
+					await this.loadGraphData(workflow);
+					restored = true;
+				}
+			} 
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
 		}

@@ -1,5 +1,20 @@
 import { $el } from "./ui.js";
 
+export async function getWorkflow() {
+	let flow_json = null;
+	const queryString = window.location.search;
+	const urlParams = new URLSearchParams(queryString);
+	const workflowId = urlParams.get('workflow');
+	if (workflowId) {
+		await fetch('../workflows/' + workflowId + '/' + workflowId + '.json').then(
+			response => {
+				flow_json = response.json()
+			}
+		)
+	}
+	return flow_json;
+}
+
 // Simple date formatter
 const parts = {
 	d: (d) => d.getDate(),
