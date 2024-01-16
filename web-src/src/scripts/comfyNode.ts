@@ -17,6 +17,15 @@ export class ComfyNode extends LGraphNode {
     widgets: any[]; // idk how to type widgets yet
     resetExecution: boolean;
 
+    onGraphConfigured?: () => void
+    onAfterGraphConfigured?: () => void
+
+    // not sure what type the `output` param is yet
+    onExecuted?: (output: any) => void
+
+    // not sure what type the `defs` param is yet
+    refreshComboInNode?: (defs: any[]) => void
+
     constructor(nodeData: any, app: ComfyApp) {
         super();
         this.app = app;
