@@ -1,3 +1,4 @@
+import { app } from './app';
 import { ComfyObjectInfo } from '../types/comfy';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
@@ -430,3 +431,7 @@ export class ComfyApi extends EventTarget {
         }
     }
 }
+
+// Again, all custom-nodes are written with the assumption that `api` is a singleton
+// object already instantiated.
+export const api = app.api;

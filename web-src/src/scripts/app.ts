@@ -1319,6 +1319,7 @@ export class ComfyApp {
         } finally {
             this.#processingQueue = false;
         }
+        this.api.dispatchEvent(new CustomEvent("promptQueued", { detail: { number, batchCount } }));
     }
 
     /**

@@ -381,6 +381,34 @@ export class ComfyUI {
             },
         });
 
+        const autoQueueModeEl = toggleSwitch(
+            'autoQueueMode',
+            [
+                { text: 'instant', tooltip: 'A new prompt will be queued as soon as the queue reaches 0' },
+                {
+                    text: 'change',
+                    tooltip: 'A new prompt will be queued when the queue is at 0 and the graph is/has changed',
+                },
+            ],
+            {
+                onChange: value => {
+                    this.autoQueueMode = value.item.value;
+                },
+            }
+        );
+        autoQueueModeEl.style.display = 'none';
+
+        api.addEventListener('graphChanged', () => {
+            if (this.autoQueueMode === 'change') {
+                if (this.lastQueueSize === 0) {
+                    this.graphHasChanged = false;
+                    app.queuePrompt(0, this.batchCount);
+                } else {
+                    this.graphHasChanged = true;
+                }
+            }
+        });
+
         this.menuContainer = $el('div.comfy-menu', { parent: document.body }, [
             $el(
                 'div.drag-handle',
@@ -415,6 +443,7 @@ export class ComfyUI {
                                 ? document.getElementById('batchCountInputRange').value
                                 : 1;
                             document.getElementById('autoQueueCheckbox').checked = false;
+                            this.autoQueueEnabled = false;
                         },
                     }),
                 ]),
@@ -457,7 +486,12 @@ export class ComfyUI {
                         type: 'checkbox',
                         checked: false,
                         title: 'Automatically queue prompt when the queue size hits 0',
+                        onchange: (e: Event) => {
+                            this.autoQueueEnabled = e.target.checked;
+                            autoQueueModeEl.style.display = this.autoQueueEnabled ? '' : 'none';
+                        },
                     }),
+                    autoQueueModeEl,
                 ]),
             ]),
             $el('div.comfy-menu-btns', [
@@ -601,10 +635,13 @@ export class ComfyUI {
             if (
                 this.lastQueueSize != 0 &&
                 status.exec_info.queue_remaining == 0 &&
-                document.getElementById('autoQueueCheckbox').checked &&
+                this.autoQueueEnabled &&
+                (this.autoQueueMode === 'instant' || this.graphHasChanged) &&
                 !app.lastExecutionError
             ) {
                 app.queuePrompt(0, this.batchCount);
+                status.exec_info.queue_remaining += this.batchCount;
+                this.graphHasChanged = false;
             }
             this.lastQueueSize = status.exec_info.queue_remaining;
         }
