@@ -6,6 +6,7 @@ import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
+import { getWorkflow } from "./utils.js";
 
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
