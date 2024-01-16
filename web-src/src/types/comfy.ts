@@ -52,13 +52,13 @@ export interface ComfyExtension {
      * @param node The node that has been loaded
      * @param app The ComfyUI app instance
      */
-    loadedGraphNode(node: LGraphNode, app: ComfyApp);
+    loadedGraphNode(node: LGraphNode, app: ComfyApp): Promise<void;
     /**
      * Allows the extension to run code after the constructor of the node
      * @param node The node that has been created
      * @param app The ComfyUI app instance
      */
-    nodeCreated(node: LGraphNode, app: ComfyApp);
+    nodeCreated(node: LGraphNode, app: ComfyApp): Promise<void>;
 }
 
 export type ComfyObjectInfo = {

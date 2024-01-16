@@ -3,6 +3,10 @@ declare global {
         clipboardData: DataTransfer
     }
 
+    interface Event {
+        detail: any
+    }
+
     interface UIEvent {
         canvasX: number
         canvasY: number
@@ -15,18 +19,36 @@ declare global {
     }
 }
 
-export interface ComfyError {
-    node_id: number;
-    message: string;
-    extra_info: {
+export interface ComfyError extends Error {
+    details: string;
+    fileName?: string
+    node_id?: number;
+    node_type?: string;
+    traceback: string[];
+    exception_message: string;
+    extra_info?: {
         [x: string]: any;
     }
 }
 
+export interface ComfyPromptError extends Error {
+    error: ComfyError
+    response: {
+        node_errors: ComfyNodeError[]
+        error: ComfyError
+    }
+}
+
 export interface ComfyNodeError {
+    class_type: string
     errors: ComfyError[]
 }
 
+export interface TemplateData {
+    templates?: {
+        data: string
+    }[]
+}
 export interface ComfyProgress {
     max: number;
     min: number;

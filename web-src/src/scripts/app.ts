@@ -5,20 +5,23 @@ import { api } from './api.js';
 import { defaultGraph } from './defaultGraph.js';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo.js';
 import { addDomClippingSetting } from './domWidget.js';
-import {LGraph, LiteGraph} from 'litegraph.js';
+import { LGraph, LiteGraph } from 'litegraph.js';
 import { ComfyCanvas } from './comfyCanvas.js';
 import { ComfyGraph } from './comfyGraph.js';
 import {
+    ComfyError,
     ComfyFile,
     ComfyNodeError,
-    ComfyProgress,
+    ComfyProgress, ComfyPromptError,
     ComfyWidget,
     QueueItem,
-    SerializedNodeObject
+    SerializedNodeObject, TemplateData
 } from '../types/many';
 import { ComfyExtension } from '../types/comfy.js';
 
 import { ComfyNode } from './comfyNode';
+import {ComfyLGraph} from "./comfyLGraph";
+import {isNull} from "node:util";
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
@@ -102,8 +105,11 @@ export class ComfyApp {
     progress: ComfyProgress | null
     runningNodeId: number | null;
     lastExecutionError: { node_id: number, message: string } | null;
-    lastNodeErrors: Record<string, ComfyNodeError>;
+    lastNodeErrors: Record<string, ComfyNodeError> | ComfyNodeError[] | null;
     configuringGraph: boolean = false;
+    isNewUserSession: boolean = false;
+    storageLocation: string | null = null;
+    multiUserServer: boolean = false;
 
     constructor() {
         this.ui = new ComfyUI(this);
@@ -120,7 +126,7 @@ export class ComfyApp {
         this.progress = null;
         this.runningNodeId = null;
         this.lastExecutionError = null;
-        this.lastNodeErrors = {};
+        this.lastNodeErrors = null;
     }
 
     getPreviewFormatParam() {
@@ -298,12 +304,12 @@ export class ComfyApp {
      * @param  {...any} args Any arguments to pass to the callback
      * @returns
      */
-    async invokeExtensionsAsync(method: keyof ComfyExtension, ...args: any[]) {
+    async invokeExtensionsAsync(method: keyof ComfyExtension | string, ...args: any[]) {
         return await Promise.all(
             this.extensions.map(async ext => {
                 if (method in ext) {
                     try {
-                        return await (ext[method] as Function)(...args, this);
+                        return await (ext[method as keyof ComfyExtension] as Function)(...args, this);
                     } catch (error) {
                         console.error(
                             `Error calling extension '${ext.name}' method '${method}'`,
@@ -343,7 +349,8 @@ export class ComfyApp {
                 if (match) {
                     const uri = event.dataTransfer?.getData(match)?.split('\n')?.[0];
                     if (uri) {
-                        await this.handleFile(await (await fetch(uri)).blob());
+                        const blob = await (await fetch(uri)).blob()
+                        await this.handleFile(new File([blob], ""));
                     }
                 }
             }
@@ -500,7 +507,9 @@ export class ComfyApp {
             this.progress = null;
             this.runningNodeId = detail;
             this.graph?.setDirtyCanvas(true, false);
-            delete this.nodePreviewImages[this.runningNodeId];
+            if (this.runningNodeId) {
+                delete this.nodePreviewImages[this.runningNodeId];
+            }
         });
 
         api.addEventListener('executed', ({ detail }) => {
@@ -523,12 +532,12 @@ export class ComfyApp {
             }
         });
 
-        api.addEventListener('execution_start', ({ detail }) => {
+        api.addEventListener('execution_start', () => {
             this.runningNodeId = null;
             this.lastExecutionError = null;
-            this.graph?._nodes.forEach(node => {
-                node = node as ComfyNode;
-                if (node.onExecutionStart) node.onExecutionStart();
+            this.graph?.nodes.forEach(node => {
+                let nnode = node as ComfyNode;
+                if (nnode.onExecutionStart) nnode.onExecutionStart();
             });
         });
 
@@ -567,7 +576,8 @@ export class ComfyApp {
         LGraph.prototype.configure = function () {
             app.configuringGraph = true;
             try {
-                return configure.apply(this, arguments);
+                // return configure.apply(this, arguments);
+                return configure.apply(this, [app]);
             } finally {
                 app.configuringGraph = false;
             }
@@ -576,17 +586,21 @@ export class ComfyApp {
 
     #addAfterConfigureHandler() {
         const app = this;
+        if (!app.graph) return;
+
         const onConfigure = app.graph.onConfigure;
         app.graph.onConfigure = function () {
+            const graphNodes = (app.graph?.nodes || []) as ComfyNode[];
+
             // Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
-            for (const node of app.graph._nodes) {
+            for (const node of graphNodes) {
                 node.onGraphConfigured?.();
             }
 
-            const r = onConfigure?.apply(this, arguments);
+            const r = onConfigure?.apply(this, []);
 
             // Fire after onConfigure, used by primitves to generate widget using input nodes config
-            for (const node of app.graph._nodes) {
+            for (const node of graphNodes) {
                 node.onAfterGraphConfigured?.();
             }
 
@@ -615,10 +629,10 @@ export class ComfyApp {
      * Loads all extensions from the API into the window in parallel
      */
     async #loadExtensions() {
-        const extensions = await api.getExtensions();
+        const extensions = <string[]>await api.getExtensions();
         this.logging.addEntry('Comfy.App', 'debug', { Extensions: extensions });
 
-        const extensionPromises = extensions.map(async ext => {
+        const extensionPromises = extensions.map(async (ext) => {
             try {
                 await import(api.apiURL(ext));
             } catch (error) {
@@ -632,7 +646,7 @@ export class ComfyApp {
     async #migrateSettings() {
         this.isNewUserSession = true;
         // Store all current settings
-        const settings = Object.keys(this.ui.settings).reduce((p, n) => {
+        const settings = Object.keys(this.ui.settings).reduce((p: { [x: string]: any }, n) => {
             const v = localStorage[`Comfy.Settings.${n}`];
             if (v) {
                 try {
@@ -683,7 +697,9 @@ export class ComfyApp {
         this.ui.settings.addSetting({
             id: 'Comfy.SwitchUser',
             name: 'Switch User',
-            type: name => {
+            defaultValue: "any",
+            onChange: "any",
+            type: (name: string) => {
                 let currentUser = localStorage['Comfy.userName'];
                 if (currentUser) {
                     currentUser = ` (${currentUser})`;
@@ -787,14 +803,14 @@ export class ComfyApp {
         await this.invokeExtensionsAsync('registerCustomNodes');
     }
 
-    getWidgetType(inputData, inputName) {
+    getWidgetType(inputData: string | string[], inputName: string) {
         const type = inputData[0];
 
         if (Array.isArray(type)) {
             return 'COMBO';
-        } else if (`${type}:${inputName}` in this.widgets) {
+        } else if (this.widgets && `${type}:${inputName}` in this.widgets) {
             return `${type}:${inputName}`;
-        } else if (type in this.widgets) {
+        } else if (this.widgets && type in this.widgets) {
             return type;
         } else {
             return null;
@@ -825,7 +841,7 @@ export class ComfyApp {
         LiteGraph.registerNodeType(nodeId, comfyNodeConstructor);
     }
 
-    async registerNodesFromDefs(defs) {
+    async registerNodesFromDefs(defs: any[]) {
         await this.invokeExtensionsAsync('addCustomNodeDefs', defs);
 
         // Generate list of known widgets
@@ -841,14 +857,14 @@ export class ComfyApp {
         }
     }
 
-    loadTemplateData(templateData) {
+    loadTemplateData(templateData?: TemplateData) {
         if (!templateData?.templates) {
             return;
         }
 
         const old = localStorage.getItem('litegrapheditor_clipboard');
 
-        var maxY, nodeBottom, node;
+        var maxY: number | boolean, nodeBottom: number | boolean, node;
 
         for (const template of templateData.templates) {
             if (!template?.data) {
@@ -856,14 +872,14 @@ export class ComfyApp {
             }
 
             localStorage.setItem('litegrapheditor_clipboard', template.data);
-            app.canvas.pasteFromClipboard();
+            app.canvas?.pasteFromClipboard();
 
             // Move mouse position down to paste the next template below
 
             maxY = false;
 
-            for (const i in app.canvas.selected_nodes) {
-                node = app.canvas.selected_nodes[i];
+            for (const i in app.canvas?.selected_nodes) {
+                node = app.canvas?.selected_nodes[Number(i)];
 
                 nodeBottom = node.pos[1] + node.size[1];
 
@@ -872,14 +888,17 @@ export class ComfyApp {
                 }
             }
 
-            app.canvas.graph_mouse[1] = maxY + 50;
+            if (app.canvas && typeof maxY === "number") {
+                app.canvas.graph_mouse[1] = maxY + 50;
+            }
         }
 
-        localStorage.setItem('litegrapheditor_clipboard', old);
+        localStorage.setItem('litegrapheditor_clipboard', String(old));
     }
 
-    showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
-        let seenTypes = new Set();
+    // TODO: properly type the params
+    showMissingNodesError(missingNodeTypes: any[], hasAddedNodes = true) {
+        let seenTypes = new Set<string>();
 
         this.ui.dialog.show(
             $el('div.comfy-missing-nodes', [
@@ -913,7 +932,7 @@ export class ComfyApp {
                             }
                             return $el('li', children);
                         })
-                        .filter(Boolean)
+                        .filter(Boolean) as Element[]
                 ),
                 ...(hasAddedNodes
                     ? [
@@ -934,7 +953,7 @@ export class ComfyApp {
      * @param {*} graphData A serialized graph object
      * @param { boolean } clean If the graph state, e.g. images, should be cleared
      */
-    async loadGraphData(graphData?: defaultGraph, clean: boolean = true) {
+    async loadGraphData(graphData?: any, clean: boolean = true) {
         if (clean !== false) {
             this.clean();
         }
@@ -951,7 +970,7 @@ export class ComfyApp {
             graphData = structuredClone(graphData);
         }
 
-        const missingNodeTypes = [];
+        const missingNodeTypes: string[] = [];
         await this.invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
         for (let n of graphData.nodes) {
             // Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
@@ -967,23 +986,24 @@ export class ComfyApp {
         }
 
         try {
-            this.graph.configure(graphData);
+            this.graph?.configure(graphData);
         } catch (error) {
+            const err = error as ComfyError;
             let errorHint = [];
             // Try extracting filename to see if it was caused by an extension script
-            const filename = error.fileName || (error.stack || '').match(/(\/extensions\/.*\.js)/)?.[1];
+            const filename = err.fileName || (err.stack || '').match(/(\/extensions\/.*\.js)/)?.[1];
             const pos = (filename || '').indexOf('/extensions/');
             if (pos > -1) {
                 errorHint.push(
                     $el('span', {
                         textContent: 'This may be due to the following script:',
                     }),
-                    $el('br'),
+                    $el('br', {}),
                     $el('span', {
                         style: {
                             fontWeight: 'bold',
                         },
-                        textContent: filename.substring(pos),
+                        textContent: filename?.substring(pos),
                     })
                 );
             }
@@ -996,7 +1016,7 @@ export class ComfyApp {
                     }),
                     $el('pre', {
                         style: { padding: '5px', backgroundColor: 'rgba(255,0,0,0.2)' },
-                        textContent: error.toString(),
+                        textContent: err.toString(),
                     }),
                     $el('pre', {
                         style: {
@@ -1007,7 +1027,7 @@ export class ComfyApp {
                             overflow: 'auto',
                             backgroundColor: 'rgba(0,0,0,0.2)',
                         },
-                        textContent: error.stack || 'No stacktrace available',
+                        textContent: err.stack || 'No stacktrace available',
                     }),
                     ...errorHint,
                 ]).outerHTML
@@ -1016,7 +1036,8 @@ export class ComfyApp {
             return;
         }
 
-        for (const node of this.graph._nodes) {
+        // for (const node of this.graph._nodes) {
+        for (const node of (this.graph?.nodes || [])) {
             const size = node.computeSize();
             size[0] = Math.max(node.size[0], size[0]);
             size[1] = Math.max(node.size[1], size[1]);
@@ -1066,7 +1087,8 @@ export class ComfyApp {
      * @returns The workflow and node links
      */
     async graphToPrompt() {
-        for (const outerNode of this.graph.computeExecutionOrder(false)) {
+        // for (const outerNode of this.graph.computeExecutionOrder(false)) {
+        for (const outerNode of this.graph?.computeExecutionOrder(false, false)) {
             if (outerNode.widgets) {
 				for (const widget of outerNode.widgets) {
 					// Allow widgets to run callbacks before a prompt has been queued
@@ -1086,10 +1108,11 @@ export class ComfyApp {
             }
         }
 
-        const workflow = this.graph.serialize();
-        const output = {};
+        const workflow = this.graph?.serialize();
+        const output: Record<number, LGraphNode> = {};
         // Process nodes in order of execution
-        for (const outerNode of this.graph.computeExecutionOrder(false)) {
+        // for (const outerNode of this.graph.computeExecutionOrder(false)) {
+        for (const outerNode of this.graph?.computeExecutionOrder(false, false)) {
             const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
             const innerNodes = !skipNode && outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
             for (const node of innerNodes) {
@@ -1102,7 +1125,7 @@ export class ComfyApp {
                     continue;
                 }
 
-                const inputs = {};
+                const inputs: Record<string, any> = {};
                 const widgets = node.widgets;
 
                 // Store all widget values
@@ -1173,11 +1196,14 @@ export class ComfyApp {
 
                 if (this.ui.settings.getSettingValue('Comfy.DevMode')) {
                     // Ignored by the backend.
+
+                    // @ts-expect-error
                     node_data['_meta'] = {
                         title: node.title,
                     };
                 }
 
+                // @ts-expect-error
                 output[String(node.id)] = node_data;
             }
         }
@@ -1199,7 +1225,7 @@ export class ComfyApp {
         return { workflow, output };
     }
 
-    #formatPromptError(error) {
+    #formatPromptError(error: ComfyPromptError | string | null) {
         if (error == null) {
             return '(unknown error)';
         } else if (typeof error === 'string') {
@@ -1220,7 +1246,7 @@ export class ComfyApp {
         return '(unknown error)';
     }
 
-    #formatExecutionError(error) {
+    #formatExecutionError(error: ComfyError | null) {
         if (error == null) {
             return '(unknown error)';
         }
@@ -1232,7 +1258,7 @@ export class ComfyApp {
         return `Error occurred when executing ${nodeType}:\n\n${error.exception_message}\n\n${traceback}`;
     }
 
-    async queuePrompt(number, batchCount = 1) {
+    async queuePrompt(number: number, batchCount = 1) {
         this.#queueItems.push({ number, batchCount });
 
         // Only have one action process the items so each one gets a unique seed correctly
@@ -1245,42 +1271,53 @@ export class ComfyApp {
 
         try {
             while (this.#queueItems.length) {
-                ({ number, batchCount } = this.#queueItems.pop());
+                const queueItem = this.#queueItems.pop()
+                if (queueItem) {
+                    ({number, batchCount} = queueItem);
 
-                for (let i = 0; i < batchCount; i++) {
-                    const p = await this.graphToPrompt();
+                    for (let i = 0; i < batchCount; i++) {
+                        const p = await this.graphToPrompt();
 
-                    try {
-                        const res = await api.queuePrompt(number, p);
-                        this.lastNodeErrors = res.node_errors;
-                        if (this.lastNodeErrors.length > 0) {
-                            this.canvas.draw(true, true);
+                        try {
+                            const res = await api.queuePrompt(number, p);
+                            this.lastNodeErrors = res.node_errors;
+
+                            if (this.lastNodeErrors) {
+                                let errors = Array.isArray(this.lastNodeErrors) ? this.lastNodeErrors : Object.keys(this.lastNodeErrors)
+                                if (errors.length > 0) {
+                                    this.canvas?.draw(true, true);
+                                }
+                            }
+                        } catch (error) {
+                            const err = error as ComfyPromptError;
+
+                            const formattedError = this.#formatPromptError(err);
+                            this.ui.dialog.show(formattedError);
+                            if (err?.response) {
+                                this.lastNodeErrors = err.response.node_errors;
+                                this.canvas?.draw(true, true);
+                            }
+                            break;
                         }
-                    } catch (error) {
-                        const formattedError = this.#formatPromptError(error);
-                        this.ui.dialog.show(formattedError);
-                        if (error.response) {
-                            this.lastNodeErrors = error.response.node_errors;
-                            this.canvas.draw(true, true);
-                        }
-                        break;
-                    }
 
-                    for (const n of p.workflow.nodes) {
-                        const node = graph.getNodeById(n.id);
-                        if (node.widgets) {
-                            for (const widget of node.widgets) {
-                                // Allow widgets to run callbacks after a prompt has been queued
-                                // e.g. random seed after every gen
-                                if (widget.afterQueued) {
-                                    widget.afterQueued();
+                        if (p.workflow) {
+                            for (const n of p.workflow.nodes) {
+                                const node = this.graph?.getNodeById(n.id);
+                                if (node?.widgets) {
+                                    for (const widget of node.widgets) {
+                                        // Allow widgets to run callbacks after a prompt has been queued
+                                        // e.g. random seed after every gen
+                                        if (widget.afterQueued) {
+                                            widget.afterQueued();
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    this.canvas.draw(true, true);
-                    await this.ui.queue.update();
+                        this.canvas?.draw(true, true);
+                        await this.ui.queue.update();
+                    }
                 }
             }
         } finally {
@@ -1292,7 +1329,7 @@ export class ComfyApp {
      * Loads workflow data from the specified file
      * @param {File} file
      */
-    async handleFile(file) {
+    async handleFile(file: File) {
         if (file.type === 'image/png') {
             const pngInfo = await getPngMetadata(file);
             if (pngInfo) {
@@ -1318,7 +1355,7 @@ export class ComfyApp {
         } else if (file.type === 'application/json' || file.name?.endsWith('.json')) {
             const reader = new FileReader();
             reader.onload = async () => {
-                const jsonContent = JSON.parse(reader.result);
+                const jsonContent = JSON.parse(<string>reader.result);
                 if (jsonContent?.templates) {
                     this.loadTemplateData(jsonContent);
                 } else if (this.isApiJson(jsonContent)) {
@@ -1338,11 +1375,11 @@ export class ComfyApp {
         }
     }
 
-    isApiJson(data) {
+    isApiJson(data: Record<string, any>) {
         return Object.values(data).every(v => v.class_type);
     }
 
-    loadApiJson(apiData) {
+    loadApiJson(apiData: Record<string, any>) {
         const missingNodeTypes = Object.values(apiData).filter(n => !LiteGraph.registered_node_types[n.class_type]);
         if (missingNodeTypes.length) {
             this.showMissingNodesError(
@@ -1353,28 +1390,33 @@ export class ComfyApp {
         }
 
         const ids = Object.keys(apiData);
-        app.graph.clear();
+        app.graph?.clear();
         for (const id of ids) {
             const data = apiData[id];
             const node = LiteGraph.createNode(data.class_type);
+
+            // @ts-expect-error
             node.id = isNaN(+id) ? id : +id;
-            graph.add(node);
+            this.graph?.add(node);
         }
 
         for (const id of ids) {
             const data = apiData[id];
-            const node = app.graph.getNodeById(id);
+            const node = app.graph?.getNodeById(Number(id));
+            
             for (const input in data.inputs ?? {}) {
                 const value = data.inputs[input];
                 if (value instanceof Array) {
                     const [fromId, fromSlot] = value;
-                    const fromNode = app.graph.getNodeById(fromId);
-                    const toSlot = node.inputs?.findIndex(inp => inp.name === input);
-                    if (toSlot !== -1) {
-                        fromNode.connect(fromSlot, node, toSlot);
+                    const fromNode = app.graph?.getNodeById(fromId);
+                    if (node) {
+                        const toSlot = node?.inputs?.findIndex(inp => inp.name === input);
+                        if (toSlot !== -1) {
+                            fromNode?.connect(fromSlot, node, toSlot);
+                        }
                     }
                 } else {
-                    const widget = node.widgets?.find(w => w.name === input);
+                    const widget = node?.widgets?.find(w => w.name === input);
                     if (widget) {
                         widget.value = value;
                         widget.callback?.(value);
@@ -1383,7 +1425,7 @@ export class ComfyApp {
             }
         }
 
-        app.graph.arrange();
+        app.graph?.arrange();
     }
 
     /**
@@ -1410,9 +1452,10 @@ export class ComfyApp {
             this.registerNodeDef(nodeId, defs[nodeId]);
         }
 
-        for (let nodeNum in this.graph._nodes) {
-            const node = this.graph._nodes[nodeNum];
-            const def = defs[node.type];
+        // for (let nodeNum in this.graph._nodes) {
+        for (let nodeNum in this.graph?.nodes) {
+            const node = this.graph.nodes[Number(nodeNum)] as ComfyNode;
+            const def = defs[node.type!];
 
             // Allow primitive nodes to handle refresh
             node.refreshComboInNode?.(defs);
@@ -1472,7 +1515,9 @@ export class ComfyApp {
         // Release any created object URLs
         for (const id in this.nodePreviewImages) {
             const urls = this.nodePreviewImages[id];
-            urls.forEach(URL.revokeObjectURL);
+            if (Array.isArray(urls)) {
+                urls.forEach(URL.revokeObjectURL);
+            }
         }
         this.nodePreviewImages = {};
 
@@ -1484,7 +1529,8 @@ export class ComfyApp {
 
         // Reset UI elements or settings to their initial state
         if (this.ui) {
-            this.ui.reset(); // ??? this does not exist
+            // TODO: looks like the reset method does not exist
+            // this.ui.reset(); // ??? this does not exist
         }
     }
 }

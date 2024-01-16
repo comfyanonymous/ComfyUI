@@ -11,9 +11,11 @@ export const ComfyDialog = _ComfyDialog;
  * 	 parent?: Element,
  *   $?: (el: Element) => void, 
  *   dataset?: DOMStringMap,
- *   style?: CSSStyleDeclaration,
- * 	 for?: string
- * } | undefined } propsOrChildren 
+ *   style?: Partial<CSSStyleDeclaration>,
+ *   textContent?: string | null,
+ *   onclick?: () => void,
+ *   for?: string,
+ * } | undefined } propsOrChildren
  * @param { Element[] | undefined } [children]
  * @returns 
  */

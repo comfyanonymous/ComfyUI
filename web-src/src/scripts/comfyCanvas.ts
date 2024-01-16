@@ -2,7 +2,7 @@
 // which is a difficult-to-maintain pattern.
 // Instead, in ComfyTS we use class-inheritance to extend the functionality of Litegraph's
 // original base classes. This is simpler and more maintanable.
-import { LiteGraph, LGraphCanvas } from 'litegraph.js';
+import {LiteGraph, LGraphCanvas, Vector2} from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyApp } from './app';
 import { ComfyGraph } from './comfyGraph';
