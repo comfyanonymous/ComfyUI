@@ -1,10 +1,16 @@
-class ComfyApi extends EventTarget {
+import { ComfyObjectInfo } from '../types/comfy';
+
+type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
+
+export class ComfyApi extends EventTarget {
     socket: WebSocket | null = null;
-    #registered: Set<string>;
     api_host: string;
     api_base: string;
     user: string | undefined;
     clientId: string | undefined;
+
+    /** Set of custom message types */
+    #registered: Set<string>;
 
     constructor() {
         super();
@@ -17,7 +23,7 @@ class ComfyApi extends EventTarget {
         return this.api_base + route;
     }
 
-    fetchApi(route: string, options?: RequestInit): Promise<Response> {
+    fetchApi<T>(route: string, options?: RequestInit): Promise<T> {
         if (!options) {
             options = {};
         }
@@ -27,7 +33,7 @@ class ComfyApi extends EventTarget {
         // Assuming `this.user` is of type `string | undefined`
         (options.headers as Record<string, string>)['Comfy-User'] = this.user || '';
 
-        return fetch(this.apiURL(route), options);
+        return fetch(this.apiURL(route), options) as Promise<T>;
     }
 
     addEventListener(
@@ -129,7 +135,7 @@ class ComfyApi extends EventTarget {
                         case 'status':
                             if (msg.data.sid) {
                                 this.clientId = msg.data.sid;
-                                window.name = this.clientId;
+                                if (this.clientId) window.name = this.clientId;
                             }
                             this.dispatchEvent(new CustomEvent('status', { detail: msg.data.status }));
                             break;
@@ -165,9 +171,7 @@ class ComfyApi extends EventTarget {
         });
     }
 
-    /**
-     * Initialises sockets and realtime updates
-     */
+    /** Initialises sockets for realtime updates */
     init() {
         this.#createSocket();
     }
@@ -194,28 +198,23 @@ class ComfyApi extends EventTarget {
      * Loads node object definitions for the graph
      * @returns The node definitions
      */
-    async getNodeDefs() {
+    async getNodeDefs(): Promise<Record<string, ComfyObjectInfo>> {
         const resp = await this.fetchApi('/object_info', { cache: 'no-store' });
         return await resp.json();
     }
 
     /**
-     *
      * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
      * @param {object} prompt The prompt data to queue
      */
-    async queuePrompt(number, { output, workflow }) {
+    async queuePrompt(number: number, { output, workflow }) {
         const body = {
             client_id: this.clientId,
             prompt: output,
             extra_data: { extra_pnginfo: { workflow } },
+            front: number === -1 ? true : undefined,
+            number: number > 0 ? number : undefined,
         };
-
-        if (number === -1) {
-            body.front = true;
-        } else if (number != 0) {
-            body.number = number;
-        }
 
         const res = await this.fetchApi('/prompt', {
             method: 'POST',
@@ -239,7 +238,7 @@ class ComfyApi extends EventTarget {
      * @param {string} type The type of items to load, queue or history
      * @returns The items of the specified type grouped by their status
      */
-    async getItems(type) {
+    async getItems(type: string) {
         if (type === 'queue') {
             return this.getQueue();
         }
@@ -258,7 +257,7 @@ class ComfyApi extends EventTarget {
                 // Running action uses a different endpoint for cancelling
                 Running: data.queue_running.map(prompt => ({
                     prompt,
-                    remove: { name: 'Cancel', cb: () => api.interrupt() },
+                    remove: { name: 'Cancel', cb: () => this.interrupt() },
                 })),
                 Pending: data.queue_pending.map(prompt => ({ prompt })),
             };
@@ -296,7 +295,7 @@ class ComfyApi extends EventTarget {
      * @param {*} type The endpoint to post to
      * @param {*} body Optional POST data
      */
-    async #postItem(type, body) {
+    async #postItem(type: string, body?: object) {
         try {
             await this.fetchApi('/' + type, {
                 method: 'POST',
@@ -315,7 +314,7 @@ class ComfyApi extends EventTarget {
      * @param {string} type The type of item to delete, queue or history
      * @param {number} id The id of the item to delete
      */
-    async deleteItem(type, id) {
+    async deleteItem(type: string, id: number) {
         await this.#postItem(type, { delete: [id] });
     }
 
@@ -323,7 +322,7 @@ class ComfyApi extends EventTarget {
      * Clears the specified list
      * @param {string} type The type of list to clear, queue or history
      */
-    async clearItems(type) {
+    async clearItems(type: string) {
         await this.#postItem(type, { clear: true });
     }
 
@@ -331,7 +330,7 @@ class ComfyApi extends EventTarget {
      * Interrupts the execution of the running prompt
      */
     async interrupt() {
-        await this.#postItem('interrupt', null);
+        await this.#postItem('interrupt');
     }
 
     /**
@@ -347,7 +346,7 @@ class ComfyApi extends EventTarget {
      * @param { string } username
      * @returns The fetch response
      */
-    createUser(username) {
+    createUser(username: string) {
         return this.fetchApi('/users', {
             method: 'POST',
             headers: {
@@ -370,7 +369,7 @@ class ComfyApi extends EventTarget {
      * @param { string } id The id of the setting to fetch
      * @returns { Promise<unknown> } The setting value
      */
-    async getSetting(id) {
+    async getSetting(id: string) {
         return (await this.fetchApi(`/settings/${encodeURIComponent(id)}`)).json();
     }
 
@@ -379,7 +378,7 @@ class ComfyApi extends EventTarget {
      * @param { Record<string, unknown> } settings Dictionary of setting id -> value to save
      * @returns { Promise<void> }
      */
-    async storeSettings(settings) {
+    async storeSettings(settings: Record<string, unknown>) {
         return this.fetchApi(`/settings`, {
             method: 'POST',
             body: JSON.stringify(settings),
@@ -392,7 +391,7 @@ class ComfyApi extends EventTarget {
      * @param { unknown } value The value of the setting
      * @returns { Promise<void> }
      */
-    async storeSetting(id, value) {
+    async storeSetting(id: string, value) {
         return this.fetchApi(`/settings/${encodeURIComponent(id)}`, {
             method: 'POST',
             body: JSON.stringify(value),
@@ -405,7 +404,7 @@ class ComfyApi extends EventTarget {
      * @param { RequestInit } [options]
      * @returns { Promise<unknown> } The fetch response object
      */
-    async getUserData(file, options) {
+    async getUserData(file: string, options: RequestInit) {
         return this.fetchApi(`/userdata/${encodeURIComponent(file)}`, options);
     }
 
@@ -416,7 +415,11 @@ class ComfyApi extends EventTarget {
      * @param { RequestInit & { stringify?: boolean, throwOnError?: boolean } } [options]
      * @returns { Promise<void> }
      */
-    async storeUserData(file, data, options = { stringify: true, throwOnError: true }) {
+    async storeUserData(
+        file: string,
+        data: BodyInit,
+        options: storeUserDataOptions = { stringify: true, throwOnError: true }
+    ) {
         const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}`, {
             method: 'POST',
             body: options?.stringify ? JSON.stringify(data) : data,
@@ -427,5 +430,3 @@ class ComfyApi extends EventTarget {
         }
     }
 }
-
-export const api = new ComfyApi();

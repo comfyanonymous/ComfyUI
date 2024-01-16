@@ -1,53 +1,63 @@
 declare global {
     interface Window {
-        clipboardData: DataTransfer
+        clipboardData: DataTransfer;
     }
 
     interface Event {
-        detail: any
+        detail: any;
     }
 
     interface UIEvent {
-        canvasX: number
-        canvasY: number
+        canvasX: number;
+        canvasY: number;
     }
 
     interface EventTarget {
-        type: string
-        localName: string
-        className: string
+        type: string;
+        localName: string;
+        className: string;
     }
 }
 
 export interface ComfyError extends Error {
     details: string;
-    fileName?: string
+    fileName?: string;
     node_id?: number;
     node_type?: string;
     traceback: string[];
     exception_message: string;
     extra_info?: {
         [x: string]: any;
-    }
+    };
 }
 
 export interface ComfyPromptError extends Error {
-    error: ComfyError
+    error: ComfyError;
     response: {
-        node_errors: ComfyNodeError[]
-        error: ComfyError
-    }
+        // This could also be ComfyNodeError[] as an array, rather than a dict,
+        // which is potentially an error in ComfyUI's server.py
+        node_errors: Record<string, ComfyNodeError>;
+        error: ComfyError;
+    };
+}
+
+// This is also defined in our protofiles
+export interface WorkflowStep {
+    class_type: string;
+    inputs: { [key: string]: any } | undefined;
+    _meta?: { title: string };
 }
 
 export interface ComfyNodeError {
-    class_type: string
-    errors: ComfyError[]
+    class_type: string;
+    dependent_outputs: WorkflowStep[];
+    errors: ComfyError[];
 }
 
 export interface TemplateData {
     templates?: {
-        data: string
-    }[]
+        data: string;
+    }[];
 }
 export interface ComfyProgress {
     max: number;

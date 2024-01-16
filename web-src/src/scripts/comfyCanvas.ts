@@ -2,7 +2,7 @@
 // which is a difficult-to-maintain pattern.
 // Instead, in ComfyTS we use class-inheritance to extend the functionality of Litegraph's
 // original base classes. This is simpler and more maintanable.
-import {LiteGraph, LGraphCanvas, Vector2} from 'litegraph.js';
+import { LiteGraph, LGraphCanvas, Vector2 } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyApp } from './app';
 import { ComfyGraph } from './comfyGraph';
@@ -12,10 +12,21 @@ import { ComfyGraph } from './comfyGraph';
 export class ComfyCanvas extends LGraphCanvas {
     app: ComfyApp; // reference to the app this canvas is inside of
     selected_group_moving: boolean = false;
-    
-    constructor(app: ComfyApp, canvas: HTMLCanvasElement | string, graph?: ComfyGraph, options?: { skip_render?: boolean; autoresize?: boolean; }) {
+
+    abortController = new AbortController();
+
+    constructor(
+        app: ComfyApp,
+        canvas: HTMLCanvasElement & { id: string },
+        graph?: ComfyGraph,
+        options?: { skip_render?: boolean; autoresize?: boolean }
+    ) {
         super(canvas, graph, options);
         this.app = app;
+
+        // Add canvas-event listeners
+        window.addEventListener('resize', this.resizeCanvas, { signal: this.abortController.signal });
+        this.resizeCanvas(); // call immediately
     }
 
     /** Draws group header bar */
@@ -56,111 +67,121 @@ export class ComfyCanvas extends LGraphCanvas {
 
     /** Draws node highlights (executing, drag drop) and progress bar */
     drawNode(node: ComfyNode, ctx: CanvasRenderingContext2D): void {
-            var editor_alpha = this.editor_alpha;
-            var old_color = node.bgcolor;
+        var editor_alpha = this.editor_alpha;
+        var old_color = node.bgcolor;
 
-            if (node.mode === 2) {
-                // never
-                this.editor_alpha = 0.4;
-            }
+        if (node.mode === 2) {
+            // never
+            this.editor_alpha = 0.4;
+        }
 
-            // if (node.mode === 4) {
-            if (node.mode === LiteGraph.NEVER) {
-                // never
-                node.bgcolor = '#FF00FF';
-                this.editor_alpha = 0.2;
-            }
+        // if (node.mode === 4) {
+        if (node.mode === LiteGraph.NEVER) {
+            // never
+            node.bgcolor = '#FF00FF';
+            this.editor_alpha = 0.2;
+        }
 
-            const res = super.drawNode(node, ctx);
+        const res = super.drawNode(node, ctx);
 
-            this.editor_alpha = editor_alpha;
-            node.bgcolor = old_color;
+        this.editor_alpha = editor_alpha;
+        node.bgcolor = old_color;
 
-            return res;
-        };
+        return res;
+    }
 
-    drawNodeShape(node: ComfyNode, ctx: CanvasRenderingContext2D, size: [number, number], fgcolor: string, bgcolor: string, selected: boolean, mouse_over: boolean): void {
+    // This function breaks encapsulation by using data from ComfyApp, which
+    // is the object containing this.
+    drawNodeShape(
+        node: ComfyNode,
+        ctx: CanvasRenderingContext2D,
+        size: [number, number],
+        fgcolor: string,
+        bgcolor: string,
+        selected: boolean,
+        mouse_over: boolean
+    ): void {
         const res = super.drawNodeShape(node, ctx, size, fgcolor, bgcolor, selected, mouse_over);
         const self = this.app;
 
-            const nodeErrors = self.lastNodeErrors?.[node.id];
+        const nodeErrors = self.lastNodeErrors?.[node.id];
 
-            let color = null;
-            let lineWidth = 1;
-            if (node.id === +(self.runningNodeId ?? 0)) {
-                color = '#0f0';
-            } else if (self.dragOverNode && node.id === self.dragOverNode.id) {
-                color = 'dodgerblue';
-            } else if (nodeErrors?.errors) {
-                color = 'red';
-                lineWidth = 2;
-            } else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
-                color = '#f0f';
-                lineWidth = 2;
-            }
+        let color = null;
+        let lineWidth = 1;
+        if (node.id === +(self.runningNodeId ?? 0)) {
+            color = '#0f0';
+        } else if (self.dragOverNode && node.id === self.dragOverNode.id) {
+            color = 'dodgerblue';
+        } else if (nodeErrors?.errors) {
+            color = 'red';
+            lineWidth = 2;
+        } else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
+            color = '#f0f';
+            lineWidth = 2;
+        }
 
-            if (color) {
-                // const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
-                const shape = node.shape || LiteGraph.ROUND_SHAPE;
-                ctx.lineWidth = lineWidth;
-                ctx.globalAlpha = 0.8;
-                ctx.beginPath();
-                if (shape == LiteGraph.BOX_SHAPE)
-                    ctx.rect(
-                        -6,
-                        -6 - LiteGraph.NODE_TITLE_HEIGHT,
-                        12 + size[0] + 1,
-                        12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT
-                    );
-                else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
-                    ctx.roundRect(
-                        -6,
-                        -6 - LiteGraph.NODE_TITLE_HEIGHT,
-                        12 + size[0] + 1,
-                        12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
-                        this.round_radius * 2
-                    );
-                else if (shape == LiteGraph.CARD_SHAPE)
-                    ctx.roundRect(
-                        -6,
-                        -6 - LiteGraph.NODE_TITLE_HEIGHT,
-                        12 + size[0] + 1,
-                        12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
-                        [this.round_radius * 2, this.round_radius * 2, 2, 2]
-                    );
-                else if (shape == LiteGraph.CIRCLE_SHAPE)
-                    ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
-                ctx.strokeStyle = color;
-                ctx.stroke();
-                ctx.strokeStyle = fgcolor;
-                ctx.globalAlpha = 1;
-            }
+        if (color) {
+            // const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+            const shape = node.shape || LiteGraph.ROUND_SHAPE;
+            ctx.lineWidth = lineWidth;
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            if (shape == LiteGraph.BOX_SHAPE)
+                ctx.rect(
+                    -6,
+                    -6 - LiteGraph.NODE_TITLE_HEIGHT,
+                    12 + size[0] + 1,
+                    12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT
+                );
+            else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
+                ctx.roundRect(
+                    -6,
+                    -6 - LiteGraph.NODE_TITLE_HEIGHT,
+                    12 + size[0] + 1,
+                    12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
+                    this.round_radius * 2
+                );
+            else if (shape == LiteGraph.CARD_SHAPE)
+                ctx.roundRect(
+                    -6,
+                    -6 - LiteGraph.NODE_TITLE_HEIGHT,
+                    12 + size[0] + 1,
+                    12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
+                    [this.round_radius * 2, this.round_radius * 2, 2, 2]
+                );
+            else if (shape == LiteGraph.CIRCLE_SHAPE)
+                ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
+            ctx.strokeStyle = color;
+            ctx.stroke();
+            ctx.strokeStyle = fgcolor;
+            ctx.globalAlpha = 1;
+        }
 
-            if (self.progress && node.id === +(self.runningNodeId ?? 0)) {
-                ctx.fillStyle = 'green';
-                ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
-                ctx.fillStyle = bgcolor;
-            }
+        if (self.progress && node.id === +(self.runningNodeId ?? 0)) {
+            ctx.fillStyle = 'green';
+            ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
+            ctx.fillStyle = bgcolor;
+        }
 
-            // Highlight inputs that failed validation
-            if (nodeErrors) {
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = 'red';
-                for (const error of nodeErrors.errors) {
-                    if (error.extra_info && error.extra_info.input_name) {
-                        const inputIndex = node.findInputSlot(error.extra_info.input_name);
-                        if (inputIndex !== -1) {
-                            let pos = node.getConnectionPos(true, inputIndex);
-                            ctx.beginPath();
-                            ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 12, 0, 2 * Math.PI, false);
-                            ctx.stroke();
-                        }
+        // Highlight inputs that failed validation
+        if (nodeErrors) {
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'red';
+            for (const error of nodeErrors.errors) {
+                if (error.extra_info && error.extra_info.input_name) {
+                    const inputIndex = node.findInputSlot(error.extra_info.input_name);
+                    if (inputIndex !== -1) {
+                        let pos = node.getConnectionPos(true, inputIndex);
+                        ctx.beginPath();
+                        ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 12, 0, 2 * Math.PI, false);
+                        ctx.stroke();
                     }
                 }
             }
+        }
 
-            return res;
-    };
+        return res;
+    }
 
     /** Handle keypress, Ctrl + M mute/unmute selected nodes, and other hot keys */
     processKey(e: KeyboardEvent): boolean | undefined {
@@ -259,7 +280,6 @@ export class ComfyCanvas extends LGraphCanvas {
         return res;
     }
 
-
     processMouseMove(e: MouseEvent): boolean | undefined {
         const orig_selected_group = this.selected_group;
 
@@ -275,5 +295,37 @@ export class ComfyCanvas extends LGraphCanvas {
 
         return res;
     }
-}
 
+    /** Ensures the canvas fills the window */
+    resizeCanvas() {
+        const canvasEl = this.canvas;
+
+        // Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
+        const scale = Math.max(window.devicePixelRatio, 1);
+        const { width, height } = canvasEl.getBoundingClientRect();
+        canvasEl.width = Math.round(width * scale);
+        canvasEl.height = Math.round(height * scale);
+        canvasEl.getContext('2d')?.scale(scale, scale);
+        this.draw(true, true);
+    }
+
+    /** Changes the background color of the canvas. */
+    updateBackground(image: string, clearBackgroundColor: string) {
+        this._bg_img = new Image();
+        this._bg_img.name = image;
+        this._bg_img.src = image;
+        this._bg_img.onload = () => {
+            this.draw(true, true);
+        };
+        this.background_image = image;
+
+        this.clear_background = true;
+        this.clear_background_color = clearBackgroundColor;
+        this._pattern = null;
+    }
+
+    cleanup() {
+        // Remove event listeners added by the constructor
+        this.abortController.abort();
+    }
+}
