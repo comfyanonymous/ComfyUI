@@ -12,10 +12,12 @@ import { ComfyGraph } from './comfyGraph';
 export class ComfyCanvas extends LGraphCanvas {
     app: ComfyApp; // reference to the app this canvas is inside of
     selected_group_moving: boolean = false;
+    graph_mouse: Vector2 | null
     
     constructor(app: ComfyApp, canvas: HTMLCanvasElement | string, graph?: ComfyGraph, options?: { skip_render?: boolean; autoresize?: boolean; }) {
         super(canvas, graph, options);
         this.app = app;
+        this.graph_mouse = null;
     }
 
     /** Draws group header bar */

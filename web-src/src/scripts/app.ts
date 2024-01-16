@@ -20,8 +20,6 @@ import {
 import { ComfyExtension } from '../types/comfy.js';
 
 import { ComfyNode } from './comfyNode';
-import {ComfyLGraph} from "./comfyLGraph";
-import {isNull} from "node:util";
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
@@ -417,7 +415,9 @@ export class ComfyApp {
                     if (!imageNode) {
                         const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
                         if (this.canvas) {
-                            newNode.pos = [...this.canvas.graph_mouse];
+                            if (this.canvas.graph_mouse) {
+                                newNode.pos = [...this.canvas.graph_mouse];
+                            }
                         }
 
                         // imageNode = this.graph?.add(newNode);
@@ -889,7 +889,9 @@ export class ComfyApp {
             }
 
             if (app.canvas && typeof maxY === "number") {
-                app.canvas.graph_mouse[1] = maxY + 50;
+                if (app.canvas.graph_mouse) {
+                    app.canvas.graph_mouse[1] = maxY + 50;
+                }
             }
         }
 
@@ -1109,7 +1111,7 @@ export class ComfyApp {
         }
 
         const workflow = this.graph?.serialize();
-        const output: Record<number, LGraphNode> = {};
+        const output: Record<number, ComfyNode> = {};
         // Process nodes in order of execution
         // for (const outerNode of this.graph.computeExecutionOrder(false)) {
         for (const outerNode of this.graph?.computeExecutionOrder(false, false)) {
