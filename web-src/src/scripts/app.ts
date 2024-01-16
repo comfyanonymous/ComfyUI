@@ -408,13 +408,22 @@ export class ComfyApp {
                     if (item.type.startsWith('image/')) {
                         let imageNode: ComfyNode | null = null;
 
-                        // If an image node is selected, paste into it
-                        if (
-                            this.canvas?.current_node &&
-                            this.canvas?.current_node.is_selected &&
-                            ComfyApp.isImageNode(this.canvas.current_node as ComfyNode)
-                        ) {
-                            imageNode = this.canvas.current_node as ComfyNode;
+                    // If an image node is selected, paste into it
+                    if (
+                        this.canvas?.current_node &&
+                        this.canvas?.current_node.is_selected &&
+                        ComfyApp.isImageNode(this.canvas.current_node as ComfyNode)
+                    ) {
+                        imageNode = this.canvas.current_node as ComfyNode;
+                    }
+
+                    // No image node selected: add a new one
+                    if (!imageNode) {
+                        const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
+                        if (this.canvas) {
+                            if (this.canvas.graph_mouse) {
+                                newNode.pos = [...this.canvas.graph_mouse];
+                            }
                         }
 
                         // No image node selected: add a new one
