@@ -59,6 +59,19 @@ export interface TemplateData {
         data: string;
     }[];
 }
+
+export interface PngInfo {
+    parameters: string
+    Workflow: string
+    workflow: string
+    prompt: string
+}
+
+export interface LatentInfo {
+    workflow: string
+    prompt: string
+}
+
 export interface ComfyProgress {
     max: number;
     min: number;

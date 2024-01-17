@@ -288,7 +288,7 @@ class ComfyList {
 
 export class ComfyUI {
     app: ComfyApp;
-    dialog: typeof ComfyDialog;
+    dialog: ComfyDialog;
     settings: ComfySettingsDialog;
     batchCount: number;
     lastQueueSize: number;

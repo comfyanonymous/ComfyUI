@@ -1,8 +1,10 @@
 import { api } from './api.js';
 import { LiteGraph } from 'litegraph.js';
+import {LatentInfo, PngInfo} from "../types/many";
+import {ComfyGraph} from "./comfyGraph";
 
-export function getPngMetadata(file) {
-    return new Promise(r => {
+export function getPngMetadata(file: File) {
+    return new Promise<PngInfo>(r => {
         const reader = new FileReader();
         reader.onload = event => {
             // Get the PNG data as a Uint8Array
@@ -106,8 +108,8 @@ function splitValues(input) {
     return output;
 }
 
-export function getWebpMetadata(file) {
-    return new Promise(r => {
+export function getWebpMetadata(file: File) {
+    return new Promise<PngInfo>(r => {
         const reader = new FileReader();
         reader.onload = event => {
             const webp = new Uint8Array(event.target.result);
@@ -149,8 +151,8 @@ export function getWebpMetadata(file) {
     });
 }
 
-export function getLatentMetadata(file) {
-    return new Promise(r => {
+export function getLatentMetadata(file: File) {
+    return new Promise<LatentInfo>(r => {
         const reader = new FileReader();
         reader.onload = event => {
             const safetensorsData = new Uint8Array(event.target.result);
@@ -166,7 +168,7 @@ export function getLatentMetadata(file) {
     });
 }
 
-export async function importA1111(graph, parameters) {
+export async function importA1111(graph: ComfyGraph, parameters: string) {
     const p = parameters.lastIndexOf('\nSteps:');
     if (p > -1) {
         const embeddings = await api.getEmbeddings();

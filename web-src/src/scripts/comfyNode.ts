@@ -1,5 +1,6 @@
 import { ComfyApp } from './app';
 import { LiteGraph, LGraphNode } from 'litegraph.js';
+import {ComfyObjectInfo} from "../types/comfy";
 
 // TO DO: replace 'any' types with actually useful types
 export class ComfyNode extends LGraphNode {
@@ -24,7 +25,7 @@ export class ComfyNode extends LGraphNode {
     onExecuted?: (output: any) => void;
 
     // not sure what type the `defs` param is yet
-    refreshComboInNode?: (defs: any[]) => void;
+    refreshComboInNode?: (defs: Record<string, ComfyObjectInfo>) => void;
 
     constructor(nodeData: any, app: ComfyApp) {
         super();

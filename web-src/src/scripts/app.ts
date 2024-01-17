@@ -1,5 +1,5 @@
 import { ComfyLogging } from './logging';
-import { ComfyWidgets, initWidgets } from './widgets';
+import {ComfyWidgets} from './widgets';
 import { ComfyUI, $el } from './ui';
 import { ComfyApi } from './api';
 import { defaultGraph } from './defaultGraph';
@@ -143,7 +143,7 @@ export class ComfyApp {
     }
 
     static copyToClipspace(node: ComfyNode) {
-        var widgets = null;
+        let widgets = null;
         if (node.widgets) {
             widgets = node.widgets.map(({ type, name, value }) => ({
                 type,
@@ -152,8 +152,8 @@ export class ComfyApp {
             })) as ComfyWidget[];
         }
 
-        var imgs = undefined;
-        var orig_imgs = undefined;
+        let imgs = undefined;
+        let orig_imgs = undefined;
         if (node.imgs != undefined) {
             imgs = [];
             orig_imgs = [];
@@ -165,7 +165,7 @@ export class ComfyApp {
             }
         }
 
-        var selectedIndex = 0;
+        let selectedIndex = 0;
         if (node.imageIndex) {
             selectedIndex = node.imageIndex;
         }
@@ -385,8 +385,7 @@ export class ComfyApp {
                 this.dragOverNode = null;
             },
             false
-        ),
-            { signal: this.abortController.signal };
+        ), {signal: this.abortController.signal};
     }
 
     /**
@@ -408,42 +407,43 @@ export class ComfyApp {
                     if (item.type.startsWith('image/')) {
                         let imageNode: ComfyNode | null = null;
 
-                    // If an image node is selected, paste into it
-                    if (
-                        this.canvas?.current_node &&
-                        this.canvas?.current_node.is_selected &&
-                        ComfyApp.isImageNode(this.canvas.current_node as ComfyNode)
-                    ) {
-                        imageNode = this.canvas.current_node as ComfyNode;
-                    }
-
-                    // No image node selected: add a new one
-                    if (!imageNode) {
-                        const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
-                        if (this.canvas) {
-                            if (this.canvas.graph_mouse) {
-                                newNode.pos = [...this.canvas.graph_mouse];
-                            }
+                        // If an image node is selected, paste into it
+                        if (
+                            this.canvas?.current_node &&
+                            this.canvas?.current_node.is_selected &&
+                            ComfyApp.isImageNode(this.canvas.current_node as ComfyNode)
+                        ) {
+                            imageNode = this.canvas.current_node as ComfyNode;
                         }
 
                         // No image node selected: add a new one
                         if (!imageNode) {
                             const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
                             if (this.canvas) {
-                                newNode.pos = [...this.canvas.graph_mouse];
+                                if (this.canvas.graph_mouse) {
+                                    newNode.pos = [...this.canvas.graph_mouse];
+                                }
                             }
 
-                            // imageNode = this.graph?.add(newNode);
-                            this.graph?.add(newNode);
-                            imageNode = newNode;
+                            // No image node selected: add a new one
+                            if (!imageNode) {
+                                const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
+                                if (this.canvas) {
+                                    newNode.pos = [...this.canvas.graph_mouse];
+                                }
 
-                            this.graph?.change();
+                                // imageNode = this.graph?.add(newNode);
+                                this.graph?.add(newNode);
+                                imageNode = newNode;
+
+                                this.graph?.change();
+                            }
+                            const blob = item.getAsFile();
+                            if (blob) {
+                                imageNode?.pasteFile(blob);
+                            }
+                            return;
                         }
-                        const blob = item.getAsFile();
-                        if (blob) {
-                            imageNode?.pasteFile(blob);
-                        }
-                        return;
                     }
                 }
 
@@ -475,6 +475,7 @@ export class ComfyApp {
             { signal: this.abortController.signal }
         );
     }
+
 
     /**
      * Adds a handler on copy that serializes selected nodes to JSON
@@ -591,8 +592,8 @@ export class ComfyApp {
                     const id = this.runningNodeId;
                     if (id == null) return;
 
-                    const blob = detail;
-                    const blobUrl = URL.createObjectURL(blob);
+                    // const blob = detail;
+                    const blobUrl = URL.createObjectURL(detail);
                     this.nodePreviewImages[id] = [blobUrl];
                 },
             ],
@@ -947,7 +948,7 @@ export class ComfyApp {
      * @param { boolean } clean If the graph state, e.g. images, should be cleared
      */
     async loadGraphData(graphData?: any, clean: boolean = true) {
-        if (clean !== false) {
+        if (clean) {
             this.clean();
         }
 
@@ -1229,7 +1230,7 @@ export class ComfyApp {
         } else if (error.response) {
             let message = error.response.error.message;
             if (error.response.error.details) message += ': ' + error.response.error.details;
-            for (const [nodeID, nodeError] of Object.entries(error.response.node_errors)) {
+            for (const [_, nodeError] of Object.entries(error.response.node_errors)) {
                 message += '\n' + nodeError.class_type + ':';
                 for (const errorReason of nodeError.errors) {
                     message += '\n    - ' + errorReason.message + ': ' + errorReason.details;
@@ -1246,7 +1247,6 @@ export class ComfyApp {
         }
 
         const traceback = error.traceback.join('');
-        const nodeId = error.node_id;
         const nodeType = error.node_type;
 
         return `Error occurred when executing ${nodeType}:\n\n${error.exception_message}\n\n${traceback}`;
@@ -1335,7 +1335,7 @@ export class ComfyApp {
                 } else if (pngInfo.prompt) {
                     this.loadApiJson(JSON.parse(pngInfo.prompt));
                 } else if (pngInfo.parameters) {
-                    importA1111(this.graph, pngInfo.parameters);
+                    importA1111(this.graph!, pngInfo.parameters);
                 }
             }
         } else if (file.type === 'image/webp') {
@@ -1462,7 +1462,7 @@ export class ComfyApp {
 
             for (const widgetNum in node.widgets) {
                 const widget = node.widgets[widgetNum];
-                if (widget.type == 'combo' && def['input']['required'][widget.name] !== undefined) {
+                if (widget.type == 'combo' && def.input && def.input.required?.[widget.name] !== undefined) {
                     widget.options.values = def['input']['required'][widget.name][0];
 
                     if (widget.name != 'image' && !widget.options.values.includes(widget.value)) {
