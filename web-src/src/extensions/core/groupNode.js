@@ -349,7 +349,7 @@ export class GroupNodeConfig {
 		}
 		if (config[0] === "IMAGEUPLOAD") {
 			if (!extra) extra = {};
-			extra.widget = `${prefix}${config[1]?.widget ?? "image"}`;
+			extra.widget = this.oldToNewWidgetMap[node.index]?.[config[1]?.widget ?? "image"] ?? "image";
 		}
 
 		if (extra) {
