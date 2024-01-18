@@ -1,5 +1,12 @@
 import { app } from './app';
 import { ComfyObjectInfo } from '../types/comfy';
+import {
+    ComfyExtensionsResponse,
+    HistoryResponse,
+    QueuePromptResponse,
+    QueueResponse,
+    SystemStatsResponse
+} from "../types/api";
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
@@ -24,7 +31,7 @@ export class ComfyApi extends EventTarget {
         return this.api_base + route;
     }
 
-    fetchApi<T>(route: string, options?: RequestInit): Promise<T> {
+    fetchApi(route: string, options?: RequestInit) {
         if (!options) {
             options = {};
         }
@@ -34,7 +41,8 @@ export class ComfyApi extends EventTarget {
         // Assuming `this.user` is of type `string | undefined`
         (options.headers as Record<string, string>)['Comfy-User'] = this.user || '';
 
-        return fetch(this.apiURL(route), options) as Promise<T>;
+        // return fetch(this.apiURL(route), options) as Promise<T>;
+        return fetch(this.apiURL(route), options);
     }
 
     addEventListener(
@@ -183,7 +191,7 @@ export class ComfyApi extends EventTarget {
      */
     async getExtensions() {
         const resp = await this.fetchApi('/extensions', { cache: 'no-store' });
-        return await resp.json();
+        return <ComfyExtensionsResponse>await resp.json();
     }
 
     /**
@@ -231,7 +239,7 @@ export class ComfyApi extends EventTarget {
             };
         }
 
-        return await res.json();
+        return <QueuePromptResponse>await res.json();
     }
 
     /**
@@ -253,7 +261,7 @@ export class ComfyApi extends EventTarget {
     async getQueue() {
         try {
             const res = await this.fetchApi('/queue');
-            const data = await res.json();
+            const data = <QueueResponse>await res.json();
             return {
                 // Running action uses a different endpoint for cancelling
                 Running: data.queue_running.map(prompt => ({
@@ -275,7 +283,8 @@ export class ComfyApi extends EventTarget {
     async getHistory(max_items = 200) {
         try {
             const res = await this.fetchApi(`/history?max_items=${max_items}`);
-            return { History: Object.values(await res.json()) };
+            const history = <HistoryResponse>await res.json();
+            return {History: Object.values(history)};
         } catch (error) {
             console.error(error);
             return { History: [] };
@@ -288,7 +297,7 @@ export class ComfyApi extends EventTarget {
      */
     async getSystemStats() {
         const res = await this.fetchApi('/system_stats');
-        return await res.json();
+        return <SystemStatsResponse>await res.json();
     }
 
     /**
@@ -392,7 +401,7 @@ export class ComfyApi extends EventTarget {
      * @param { unknown } value The value of the setting
      * @returns { Promise<void> }
      */
-    async storeSetting(id: string, value) {
+    async storeSetting(id: string, value: Record<string, any>) {
         return this.fetchApi(`/settings/${encodeURIComponent(id)}`, {
             method: 'POST',
             body: JSON.stringify(value),
