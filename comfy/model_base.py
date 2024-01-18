@@ -179,19 +179,28 @@ class BaseModel(torch.nn.Module):
     def process_latent_out(self, latent):
         return self.latent_format.process_out(latent)
 
-    def state_dict_for_saving(self, clip_state_dict, vae_state_dict):
-        clip_state_dict = self.model_config.process_clip_state_dict_for_saving(clip_state_dict)
+    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+        extra_sds = []
+        if clip_state_dict is not None:
+            extra_sds.append(self.model_config.process_clip_state_dict_for_saving(clip_state_dict))
+        if vae_state_dict is not None:
+            extra_sds.append(self.model_config.process_vae_state_dict_for_saving(vae_state_dict))
+        if clip_vision_state_dict is not None:
+            extra_sds.append(self.model_config.process_clip_vision_state_dict_for_saving(clip_vision_state_dict))
+
         unet_state_dict = self.diffusion_model.state_dict()
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
-        vae_state_dict = self.model_config.process_vae_state_dict_for_saving(vae_state_dict)
+
         if self.get_dtype() == torch.float16:
-            clip_state_dict = utils.convert_sd_to(clip_state_dict, torch.float16)
-            vae_state_dict = utils.convert_sd_to(vae_state_dict, torch.float16)
+            extra_sds = map(lambda sd: utils.convert_sd_to(sd, torch.float16), extra_sds)
 
         if self.model_type == ModelType.V_PREDICTION:
             unet_state_dict["v_pred"] = torch.tensor([])
 
-        return {**unet_state_dict, **vae_state_dict, **clip_state_dict}
+        for sd in extra_sds:
+            unet_state_dict.update(sd)
+
+        return unet_state_dict
 
     def set_inpaint(self):
         self.inpaint_model = True
