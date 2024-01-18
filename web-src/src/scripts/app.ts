@@ -59,7 +59,7 @@ export class ComfyApp {
     static clipspace: SerializedNodeObject | null = null;
     static clipspace_invalidate_handler: (() => void) | null = null;
     static open_maskeditor: (() => void) | null = null;
-    static clipspace_return_node = null;
+    static clipspace_return_node: ComfyNode | null = null;
 
     /** The UI manager for the app */
     ui: ComfyUI;
@@ -106,7 +106,7 @@ export class ComfyApp {
     progress: ComfyProgress | null = null;
     runningNodeId: number | null = null;
     lastExecutionError: { node_id: number; message: string } | null = null;
-    lastNodeErrors: Record<string, ComfyNodeError> | null = null;
+    lastNodeErrors: Record<string, ComfyError> | null = null;
     configuringGraph: boolean = false;
     isNewUserSession: boolean = false;
     storageLocation: string | null = null;
@@ -134,7 +134,7 @@ export class ComfyApp {
 
     onClipspaceEditorSave() {
         if (ComfyApp.clipspace_return_node) {
-            this.pasteFromClipspace(ComfyApp.clipspace_return_node);
+            ComfyApp.pasteFromClipspace(ComfyApp.clipspace_return_node);
         }
     }
 
@@ -186,7 +186,7 @@ export class ComfyApp {
         }
     }
 
-    pasteFromClipspace(node: ComfyNode) {
+    static pasteFromClipspace(node: ComfyNode) {
         if (ComfyApp.clipspace) {
             // image paste
             if (ComfyApp.clipspace.imgs && node.imgs) {
@@ -1232,8 +1232,10 @@ export class ComfyApp {
             if (error.response.error.details) message += ': ' + error.response.error.details;
             for (const [_, nodeError] of Object.entries(error.response.node_errors)) {
                 message += '\n' + nodeError.class_type + ':';
-                for (const errorReason of nodeError.errors) {
-                    message += '\n    - ' + errorReason.message + ': ' + errorReason.details;
+                if (nodeError.errors) {
+                    for (const errorReason of nodeError.errors) {
+                        message += '\n    - ' + errorReason.message + ': ' + errorReason.details;
+                    }
                 }
             }
             return message;
@@ -1246,7 +1248,7 @@ export class ComfyApp {
             return '(unknown error)';
         }
 
-        const traceback = error.traceback.join('');
+        const traceback = error.traceback?.join('');
         const nodeType = error.node_type;
 
         return `Error occurred when executing ${nodeType}:\n\n${error.exception_message}\n\n${traceback}`;

@@ -6,6 +6,8 @@ import { ComfyApp } from './app.js';
 export const ComfyDialog = _ComfyDialog;
 
 type ElementProps = {
+    width?: number;
+    height?: number;
     parent?: Element;
     $?: (el: Element) => void;
     dataset?: DOMStringMap;

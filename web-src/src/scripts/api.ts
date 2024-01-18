@@ -1,12 +1,14 @@
 import { app } from './app';
 import { ComfyObjectInfo } from '../types/comfy';
 import {
-    ComfyExtensionsResponse,
-    HistoryResponse,
+    EmbeddingsResponse,
+    ExtensionsResponse,
+    HistoryResponse, ObjectInfoResponse,
     QueuePromptResponse,
-    QueueResponse,
-    SystemStatsResponse
+    QueueResponse, SettingsResponse,
+    SystemStatsResponse, UserConfigResponse
 } from "../types/api";
+import {WorkflowStep} from "../types/many";
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
@@ -191,7 +193,7 @@ export class ComfyApi extends EventTarget {
      */
     async getExtensions() {
         const resp = await this.fetchApi('/extensions', { cache: 'no-store' });
-        return <ComfyExtensionsResponse>await resp.json();
+        return <ExtensionsResponse>await resp.json();
     }
 
     /**
@@ -200,7 +202,7 @@ export class ComfyApi extends EventTarget {
      */
     async getEmbeddings() {
         const resp = await this.fetchApi('/embeddings', { cache: 'no-store' });
-        return await resp.json();
+        return <EmbeddingsResponse>await resp.json();
     }
 
     /**
@@ -209,14 +211,14 @@ export class ComfyApi extends EventTarget {
      */
     async getNodeDefs(): Promise<Record<string, ComfyObjectInfo>> {
         const resp = await this.fetchApi('/object_info', { cache: 'no-store' });
-        return await resp.json();
+        return <ObjectInfoResponse>await resp.json();
     }
 
     /**
      * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
      * @param {object} prompt The prompt data to queue
      */
-    async queuePrompt(number: number, { output, workflow }) {
+    async queuePrompt(number: number, {output, workflow}: { output: Record<string, WorkflowStep>, workflow: any }) {
         const body = {
             client_id: this.clientId,
             prompt: output,
@@ -283,6 +285,10 @@ export class ComfyApi extends EventTarget {
     async getHistory(max_items = 200) {
         try {
             const res = await this.fetchApi(`/history?max_items=${max_items}`);
+            if (!res.ok) {
+                throw new Error(`Error fetching history: ${res.status} ${res.statusText}`);
+            }
+
             const history = <HistoryResponse>await res.json();
             return {History: Object.values(history)};
         } catch (error) {
@@ -297,6 +303,10 @@ export class ComfyApi extends EventTarget {
      */
     async getSystemStats() {
         const res = await this.fetchApi('/system_stats');
+        if (!res.ok) {
+            throw new Error(`Error fetching system stats: ${res.status} ${res.statusText}`);
+        }
+
         return <SystemStatsResponse>await res.json();
     }
 
@@ -348,7 +358,8 @@ export class ComfyApi extends EventTarget {
      * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> }
      */
     async getUserConfig() {
-        return (await this.fetchApi('/users')).json();
+        const response = await this.fetchApi('/users')
+        return <UserConfigResponse>await response.json();
     }
 
     /**
@@ -371,7 +382,8 @@ export class ComfyApi extends EventTarget {
      * @returns { Promise<string, unknown> } A dictionary of id -> value
      */
     async getSettings() {
-        return (await this.fetchApi('/settings')).json();
+        const response = await this.fetchApi('/settings');
+        return <SettingsResponse>await response.json();
     }
 
     /**
@@ -380,7 +392,8 @@ export class ComfyApi extends EventTarget {
      * @returns { Promise<unknown> } The setting value
      */
     async getSetting(id: string) {
-        return (await this.fetchApi(`/settings/${encodeURIComponent(id)}`)).json();
+        const response = await this.fetchApi(`/settings/${encodeURIComponent(id)}`)
+        return await response.json();
     }
 
     /**
@@ -437,6 +450,41 @@ export class ComfyApi extends EventTarget {
         });
         if (resp.status !== 200) {
             throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
+        }
+    }
+
+    async uploadFile(file: File, updateNode: boolean, pasted = false) {
+        try {
+            // Wrap file in formdata so it includes filename
+            const body = new FormData();
+            body.append('image', file);
+            if (pasted) body.append('subfolder', 'pasted');
+            const resp = await this.fetchApi('/upload/image', {
+                method: 'POST',
+                body,
+            });
+
+            if (resp.status === 200) {
+                const data = await resp.json();
+                // Add the file to the dropdown list and update the widget value
+                let path = data.name;
+                if (data.subfolder) {
+                    path = data.subfolder + '/' + path;
+                }
+
+                if (!imageWidget.options.values.includes(path)) {
+                    imageWidget.options.values.push(path);
+                }
+
+                if (updateNode) {
+                    showImage(path);
+                    imageWidget.value = path;
+                }
+            } else {
+                alert(resp.status + ' - ' + resp.statusText);
+            }
+        } catch (error) {
+            alert(error);
         }
     }
 }

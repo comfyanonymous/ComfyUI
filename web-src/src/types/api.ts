@@ -1,6 +1,8 @@
 import {ComfyError} from "./many";
 
-export type ComfyExtensionsResponse = string[];
+export type ExtensionsResponse = string[];
+
+export type EmbeddingsResponse = string[];
 
 export type ViewFileResponse = ArrayBuffer | string;
 
@@ -38,6 +40,7 @@ export interface HistoryResponse {
 }
 
 export type QueueDataTypes = number | string | object;
+
 export type QueueData = QueueDataTypes | Array<QueueDataTypes>;
 
 
@@ -49,7 +52,7 @@ export interface QueueResponse {
 export interface QueuePromptResponse {
     prompt_id: string,
     number: number,
-    "node_errors": Record<string, ComfyError>
+    node_errors: Record<string, ComfyError>
 }
 
 export interface SystemStatsResponse {
@@ -59,6 +62,18 @@ export interface SystemStatsResponse {
         embedded_python: boolean
     },
     devices: SystemDeviceStat[],
+}
+
+export interface UserConfigResponse {
+    storage: "server";
+    migrated: boolean;
+    users: {
+        [key: string]: any
+    }[]
+}
+
+export interface SettingsResponse {
+    [key: string]: any
 }
 
 interface SystemDeviceStat {

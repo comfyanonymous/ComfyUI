@@ -378,7 +378,7 @@ export const ComfyWidgets: ComfyWidgets = {
         const imageWidget = node.widgets.find(w => w.name === (inputData[1]?.widget ?? 'image'));
         let uploadWidget;
 
-        function showImage(name) {
+        function showImage(name: string) {
             const img = new Image();
             img.onload = () => {
                 node.imgs = [img];

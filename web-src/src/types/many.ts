@@ -24,8 +24,11 @@ export interface ComfyError extends Error {
     fileName?: string;
     node_id?: number;
     node_type?: string;
-    traceback: string[];
-    exception_message: string;
+    class_type?: string;
+    traceback?: string[];
+    errors?: ComfyError[];
+    exception_message?: string;
+    dependent_outputs?: WorkflowStep[];
     extra_info?: {
         [x: string]: any;
     };
@@ -36,7 +39,7 @@ export interface ComfyPromptError extends Error {
     response: {
         // This could also be ComfyNodeError[] as an array, rather than a dict,
         // which is potentially an error in ComfyUI's server.py
-        node_errors: Record<string, ComfyNodeError>;
+        node_errors: Record<string, ComfyError>;
         error: ComfyError;
     };
 }

@@ -1,6 +1,10 @@
-import { ComfyApp } from './app';
-import { LiteGraph, LGraphNode } from 'litegraph.js';
+import {ANIM_PREVIEW_WIDGET, ComfyApp} from './app';
+import {LiteGraph, LGraphNode, Vector2} from 'litegraph.js';
 import {ComfyObjectInfo} from "../types/comfy";
+import {api} from "./api";
+import {$el, ComfyUI} from "./ui";
+import {calculateGrid, getImageTop, is_all_same_aspect_ratio} from "./helpers";
+import {calculateImageGrid, createImageHost} from "./ui/imagePreview";
 
 // TO DO: replace 'any' types with actually useful types
 export class ComfyNode extends LGraphNode {
@@ -8,10 +12,10 @@ export class ComfyNode extends LGraphNode {
     // title: string;
     category: any;
     // comfyClass: string;
-    imageIndex: number | undefined;
+    imageIndex?: number | null;
     imageOffset: number | undefined;
     animatedImages: any | undefined;
-    imgs: HTMLImageElement[] | undefined;
+    imgs?: HTMLImageElement[] | null;
     images: any[] | undefined;
     // nodeData: any;
     serialize_widgets: boolean;
@@ -26,6 +30,11 @@ export class ComfyNode extends LGraphNode {
 
     // not sure what type the `defs` param is yet
     refreshComboInNode?: (defs: Record<string, ComfyObjectInfo>) => void;
+    private inputHeight: number;
+    private freeWidgetSpace: number;
+    private imageRects: [number, number, number, number][];
+    private overIndex: number | null;
+    private pointerDown: { pos: Vector2; index: number | null } | null;
 
     constructor(nodeData: any, app: ComfyApp) {
         super();
@@ -36,6 +45,8 @@ export class ComfyNode extends LGraphNode {
         // this.nodeData = nodeData;
         this.widgets = [];
         this.resetExecution = false;
+        this.pointerDown = null;
+        this.overIndex = null;
 
         let inputs = nodeData['input']['required'];
         if (nodeData['input']['optional'] != undefined) {
@@ -50,9 +61,9 @@ export class ComfyNode extends LGraphNode {
             const widgetType = this.getWidgetType(inputData, inputName, app);
             if (widgetType) {
                 if (widgetType === 'COMBO') {
-                    Object.assign(config, app.widgets.COMBO(this, inputName, inputData, app) || {});
+                    Object.assign(config, this.app.widgets?.COMBO(this, inputName, inputData, app, "") || {});
                 } else {
-                    Object.assign(config, app.widgets[widgetType](this, inputName, inputData, app) || {});
+                    Object.assign(config, this.app.widgets?.[widgetType](this, inputName, inputData, app, "") || {});
                 }
             } else {
                 // Node connection inputs
@@ -102,18 +113,19 @@ export class ComfyNode extends LGraphNode {
 
         // Handle left and right arrow keys
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-            if (e.key === 'ArrowLeft') {
-                this.imageIndex -= 1;
-            } else if (e.key === 'ArrowRight') {
-                this.imageIndex += 1;
-            }
+            if (this.imageIndex) {
+                if (e.key === 'ArrowLeft') {
+                    this.imageIndex -= 1;
+                } else if (e.key === 'ArrowRight') {
+                    this.imageIndex += 1;
+                }
 
-            // Wrap around the image index
-            this.imageIndex %= this.imgs.length;
-            if (this.imageIndex < 0) {
-                this.imageIndex = this.imgs.length + this.imageIndex;
+                // Wrap around the image index
+                this.imageIndex %= this.imgs.length;
+                if (this.imageIndex < 0) {
+                    this.imageIndex = this.imgs.length + this.imageIndex;
+                }
             }
-
             handled = true;
         } else if (e.key === 'Escape') {
             // Handle escape key
@@ -196,7 +208,8 @@ export class ComfyNode extends LGraphNode {
                         if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
                             this.imgs = imgs.filter(Boolean);
                             this.setSizeForImage?.();
-                            app.graph.setDirtyCanvas(true);
+                            // app.graph.setDirtyCanvas(true);
+                            app.graph?.setDirtyCanvas(true, false);
                         }
                     });
                 } else {
@@ -233,7 +246,7 @@ export class ComfyNode extends LGraphNode {
                     this.widgets.splice(widgetIdx, 1);
                 }
 
-                const canvas = app.graph.list_of_graphcanvas[0];
+                const canvas = app.graph?.list_of_graphcanvas[0];
                 const mouse = canvas.graph_mouse;
                 if (!canvas.pointer_is_down && this.pointerDown) {
                     if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
@@ -256,7 +269,7 @@ export class ComfyNode extends LGraphNode {
                 dh -= shiftY;
 
                 if (imageIndex == null) {
-                    var cellWidth, cellHeight, shiftX, cell_padding, cols;
+                    let cellWidth: number, cellHeight: number, shiftX: number, cell_padding: number, cols: number;
 
                     const compact_mode = is_all_same_aspect_ratio(this.imgs);
                     if (!compact_mode) {
@@ -292,16 +305,18 @@ export class ComfyNode extends LGraphNode {
                                 cellHeight
                             );
                             if (anyHovered) {
+                                if (canvas) {
                                 this.overIndex = i;
                                 let value = 110;
-                                if (canvas.pointer_is_down) {
+                                    if (canvas.pointer_is_down) {
                                     if (!this.pointerDown || this.pointerDown.index !== i) {
                                         this.pointerDown = { index: i, pos: [...mouse] };
                                     }
                                     value = 125;
                                 }
                                 ctx.filter = `contrast(${value}%) brightness(${value}%)`;
-                                canvas.canvas.style.cursor = 'pointer';
+                                    canvas.canvas.style.cursor = 'pointer';
+                                }
                             }
                         }
                         this.imageRects.push([x, y, cellWidth, cellHeight]);
@@ -357,7 +372,7 @@ export class ComfyNode extends LGraphNode {
                     let y = (dh - h) / 2 + shiftY;
                     ctx.drawImage(this.imgs[imageIndex], x, y, w, h);
 
-                    const drawButton = (x, y, sz, text) => {
+                    const drawButton = (x: number, y: number, sz: number, text: string) => {
                         const hovered = LiteGraph.isInsideRectangle(
                             mouse[0],
                             mouse[1],
@@ -370,13 +385,15 @@ export class ComfyNode extends LGraphNode {
                         let textFill = '#fff';
                         let isClicking = false;
                         if (hovered) {
-                            canvas.canvas.style.cursor = 'pointer';
-                            if (canvas.pointer_is_down) {
-                                fill = '#1e90ff';
-                                isClicking = true;
-                            } else {
-                                fill = '#eee';
-                                textFill = '#000';
+                            if (canvas) {
+                                canvas.canvas.style.cursor = 'pointer';
+                                if (canvas.pointer_is_down) {
+                                    fill = '#1e90ff';
+                                    isClicking = true;
+                                } else {
+                                    fill = '#eee';
+                                    textFill = '#000';
+                                }
                             }
                         } else {
                             this.pointerWasDown = null;
@@ -395,10 +412,12 @@ export class ComfyNode extends LGraphNode {
                     };
 
                     if (numImages > 1) {
-                        if (drawButton(dw - 40, dh + top - 40, 30, `${this.imageIndex + 1}/${numImages}`)) {
-                            let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
-                            if (!this.pointerDown || !this.pointerDown.index === i) {
-                                this.pointerDown = { index: i, pos: [...mouse] };
+                        if (this.imageIndex && this.pointerDown) {
+                            if (drawButton(dw - 40, dh + top - 40, 30, `${this.imageIndex + 1}/${numImages}`)) {
+                                let i = this.imageIndex + 1 >= numImages ? 0 : this.imageIndex + 1;
+                                if (!this.pointerDown || !this.pointerDown.index === i) {
+                                    this.pointerDown = {index: i, pos: [...mouse]};
+                                }
                             }
                         }
 
@@ -463,8 +482,10 @@ export class ComfyNode extends LGraphNode {
         options.push({
             content: 'Bypass',
             callback: () => {
-                if (this.mode === 4) this.mode = 0;
-                else this.mode = 4;
+                // if (this.mode === 4) this.mode = 0;
+                // else this.mode = 4;
+                if (this.mode === LiteGraph.NEVER) this.mode = LiteGraph.ALWAYS;
+                else this.mode = LiteGraph.NEVER;
                 this.graph?.change();
             },
         });
@@ -526,9 +547,9 @@ export class ComfyNode extends LGraphNode {
         return false;
     }
 
-    onExecutionStart(...arguments: any[]) {
+    onExecutionStart(...args: any[]): Promise<void> {
         this.resetExecution = true;
-        return this.onExecutionStart?.apply(this, arguments);
+        return this.onExecutionStart?.apply(this, args);
     }
 
     pasteFile(file: File) {
@@ -551,12 +572,14 @@ function getCopyImageOption(img: HTMLImageElement) {
                 const url = new URL(img.src);
                 url.searchParams.delete('preview');
 
-                const writeImage = async (blob: Blob) => {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({
-                            [blob.type]: blob,
-                        }),
-                    ]);
+                const writeImage = async (blob: Blob | null) => {
+                    if (blob) {
+                        await navigator.clipboard.write([
+                            new ClipboardItem({
+                                [blob.type]: blob,
+                            }),
+                        ]);
+                    }
                 };
 
                 try {
@@ -570,17 +593,19 @@ function getCopyImageOption(img: HTMLImageElement) {
                             const canvas = $el('canvas', {
                                 width: img.naturalWidth,
                                 height: img.naturalHeight,
-                            });
+                            }) as HTMLCanvasElement;
                             const ctx = canvas.getContext('2d');
                             let image: HTMLImageElement | ImageBitmap;
 
                             if (typeof window.createImageBitmap === 'undefined') {
                                 image = new Image();
                                 const p = new Promise((resolve, reject) => {
+                                    if (image instanceof HTMLImageElement) {
                                     image.onload = resolve;
                                     image.onerror = reject;
+                                    }
                                 }).finally(() => {
-                                    URL.revokeObjectURL(image.src);
+                                    URL.revokeObjectURL((image as HTMLImageElement).src);
                                 });
                                 image.src = URL.createObjectURL(blob);
                                 await p;
@@ -588,10 +613,10 @@ function getCopyImageOption(img: HTMLImageElement) {
                                 image = await createImageBitmap(blob);
                             }
                             try {
-                                ctx.drawImage(image, 0, 0);
+                                ctx?.drawImage(image, 0, 0);
                                 canvas.toBlob(writeImage, 'image/png');
                             } finally {
-                                if (typeof image.close === 'function') {
+                                if ('close' in image && typeof image.close === 'function') {
                                     image.close();
                                 }
                             }
@@ -601,7 +626,7 @@ function getCopyImageOption(img: HTMLImageElement) {
                         throw error;
                     }
                 } catch (error: unknown) {
-                    alert('Error copying image: ' + (error.message ?? error));
+                    alert('Error copying image: ' + (error as Error).message);
                 }
             },
         },
