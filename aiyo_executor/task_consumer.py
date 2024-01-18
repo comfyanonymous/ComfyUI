@@ -44,28 +44,38 @@ class TaskConsumerDeploy:
         self.consumer = KafkaConnection.create_consumer(CONFIG["kafka_settings"]["topic"])
     
     def get(self, timeout=None):
-        
-        if timeout is not None:
-            msg = self.consumer.poll(timeout=timeout)
-        else:
-            msg = self.consumer.poll(timeout=1)
-        
+
+        err = None
+        msg = None        
+        try:
+            if timeout is not None:
+                msg = self.consumer.poll(timeout=timeout)
+            else:
+                msg = self.consumer.poll(timeout=1)
+        except Exception as e:
+            err = "Error occure when trying to get task msg from consumer."
+            AppLog.warning(f"[ConsumeTask] {err}, {e}\n{traceback.format_exc()}")
+            
         if msg is not None:
-            task_id = msg.value().decode('utf-8')
-            AppLog.info(f"[ConsumeTask] new task: {task_id}")
-            
-            nd_prompt, flows, extra_data, flow_args, webhooks = self._get_task_item(task_id)
-            return {
-                "prompt_id": task_id,
-                "prompt": nd_prompt,
-                "flows": flows,
-                "extra_data": extra_data, 
-                "flow_args": flow_args,
-                "webhooks": webhooks
-            }
-            
-            
+            try:
+                task_id = msg.value().decode('utf-8')
+                AppLog.info(f"[ConsumeTask] new task: {task_id}")
+                
+                nd_prompt, flows, extra_data, flow_args, webhooks = self._get_task_item(task_id)
+                return {
+                    "prompt_id": task_id,
+                    "prompt": nd_prompt,
+                    "flows": flows,
+                    "extra_data": extra_data, 
+                    "flow_args": flow_args,
+                    "webhooks": webhooks
+                }
+            except Exception as e:
+                err = "Error occure when trying to get task task info."
+                AppLog.warning(f"[ConsumeTask] {err}, {e}\n{traceback.format_exc()}")
+
         return { "prompt_id": None, "prompt": None, "flows": None, "extra_data": None, "flow_args": None, "webhooks": None }
+    
     
     
     def _get_task_item(self, task_id):
