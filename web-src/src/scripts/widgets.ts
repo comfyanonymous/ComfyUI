@@ -1,9 +1,10 @@
 import { api } from './api.js';
 import './domWidget.js';
 import { IWidget } from 'litegraph.js';
+import {ComfyWidget} from "../types/many";
 
 interface WidgetReturnType {
-    widget: IWidget; // I could be wrong on this type
+    widget: ComfyWidget;
 }
 
 // Define the type for the widget creation functions

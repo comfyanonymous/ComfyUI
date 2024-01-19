@@ -1,3 +1,7 @@
+import {IWidget, widgetTypes} from "litegraph.js";
+import {ComfyNode} from "../scripts/comfyNode";
+import {ComfyWidget} from "./comfy";
+
 declare global {
     interface Window {
         clipboardData: DataTransfer;
@@ -117,7 +121,6 @@ export interface ComfyTextWidget {
     callback: (value: any) => void;
 }
 
-export type ComfyWidget = ComfyImageWidget | ComfyButtonWidget | ComfyFileWidget | ComfyTextWidget;
 
 export interface ComfyFile {
     type: string;
@@ -135,15 +138,3 @@ export interface SerializedNodeObject {
     original_imgs?: ComfyImages;
     widgets?: ComfyWidget[] | null;
 }
-
-export interface ComfyNodeConfig {
-    minWidth: number,
-    minHeight: number,
-    widget?: {
-        options?: {
-            forceInput?: boolean,
-            defaultInput?: string
-        }
-    }
-}
-

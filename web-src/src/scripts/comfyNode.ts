@@ -1,11 +1,11 @@
 import {ANIM_PREVIEW_WIDGET, app, ComfyApp} from './app';
-import {LiteGraph, LGraphNode, Vector2, IWidget, widgetTypes} from 'litegraph.js';
+import {LiteGraph, LGraphNode, Vector2} from 'litegraph.js';
 import {ComfyObjectInfo} from "../types/comfy";
 import {api} from "./api";
-import {$el, ComfyUI} from "./ui";
+import {$el} from "./ui";
 import {calculateGrid, getImageTop, is_all_same_aspect_ratio} from "./helpers";
 import {calculateImageGrid, createImageHost} from "./ui/imagePreview";
-import {ComfyNodeConfig} from "../types/many";
+import {AddDOMWidgetOptions, ComfyNodeConfig, ComfyWidget, comfyWidgetTypes} from "../types/comfy";
 import {computeSize, elementWidgets, getClipPath} from "./domWidget";
 
 const SIZE = Symbol();
@@ -23,7 +23,7 @@ export class ComfyNode extends LGraphNode {
     images: any[] | undefined;
     // nodeData: any;
     serialize_widgets: boolean;
-    widgets: IWidget[]; // idk how to type widgets yet
+    widgets: ComfyWidget[]; // idk how to type widgets yet
     resetExecution: boolean;
     pointerWasDown: boolean | null;
 
@@ -257,14 +257,16 @@ export class ComfyNode extends LGraphNode {
                     } else {
                         const host = createImageHost(this);
                         this.setSizeForImage(true);
-                        const widget = this.addDOMWidget(ANIM_PREVIEW_WIDGET, 'img', host.el, {
+                        const widget = this.addDOMWidget(ANIM_PREVIEW_WIDGET, 'img', host.el as HTMLElement, {
                             host,
                             getHeight: host.getHeight,
                             onDraw: host.onDraw,
                             hideOnZoom: false,
                         });
-                        widget.serializeValue = () => undefined;
-                        widget.options.host.updateImages(this.imgs);
+                        if (widget) {
+                            widget.serializeValue = () => undefined;
+                            widget.options.host.updateImages(this.imgs);
+                        }
                     }
                     return;
                 }
@@ -603,7 +605,7 @@ export class ComfyNode extends LGraphNode {
         return false;
     }
 
-    addDOMWidget(name: string, type: string, element: HTMLElement, options): IWidget | undefined {
+    addDOMWidget(name: string, type: string, element: HTMLElement, options: AddDOMWidgetOptions): ComfyWidget | undefined {
         let enableDomClipping = true;
         options = {hideOnZoom: true, selectOn: ['focus', 'click'], ...options};
 
@@ -621,20 +623,17 @@ export class ComfyNode extends LGraphNode {
             document.addEventListener('mousedown', mouseDownHandler);
         }
 
-        const self = this;
-        const widget: IWidget = {
+        const widget: ComfyWidget = {
             name,
-            type: type as widgetTypes,
+            type: type as comfyWidgetTypes,
             get value() {
                 return options.getValue?.() ?? undefined;
             },
             set value(v) {
                 options.setValue?.(v);
-
-                // TODO: this arguments don't match the expected arguments in the callback type
                 widget.callback?.(widget.value);
             },
-            draw: function (ctx: CanvasRenderingContext2D, node: LGraphNode, widgetWidth: number, y: number, widgetHeight: number) {
+            draw: function (ctx, node, widgetWidth, y, widgetHeight) {
                 if (widget.computedHeight == null) {
                     computeSize.call(node, node.size);
                 }
@@ -642,7 +641,7 @@ export class ComfyNode extends LGraphNode {
                 const hidden =
                     node.flags?.collapsed ||
                     (!!options.hideOnZoom && (app.canvas && app.canvas.ds.scale < 0.5)) ||
-                    widget.computedHeight <= 0 ||
+                    (widget.computedHeight && widget.computedHeight <= 0) ||
                     widget.type === 'converted-widget' ||
                     widget.type === 'hidden';
                 element.hidden = hidden;
@@ -689,13 +688,14 @@ export class ComfyNode extends LGraphNode {
             },
         };
 
-        for (const evt of options.selectOn) {
-            element.addEventListener(evt, () => {
-                this.app.canvas?.selectNode(this);
-                this.app.canvas?.bringToFront(this);
-            });
+        if (options.selectOn) {
+            for (const evt of options.selectOn) {
+                element.addEventListener(evt, () => {
+                    this.app.canvas?.selectNode(this);
+                    this.app.canvas?.bringToFront(this);
+                });
+            }
         }
-
         this.addCustomWidget(widget);
         elementWidgets.add(this);
 
