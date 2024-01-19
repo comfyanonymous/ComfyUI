@@ -19,6 +19,13 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/disney_pixar_cartoon_typeA_fp16_v10.safetensors", 
                 "description": "3d卡通风格的底模",
                 "reference": "https://civitai.com/models/120635/disney-pixar-cartoon-type-a-fp16cleaned"
+            },
+
+            "revAnimated_v122EOL": {
+                "path": "sd15/revAnimated_v122EOL.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/revAnimated_v122EOL.safetensors", 
+                "description": "二次元风格",
+                "reference": ""
             }
         },
 
@@ -108,6 +115,13 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/ipadapter/ip-adapter-faceid-plus_sd15_lora.safetensors", 
                 "description": "faceid plus 配合使用的lora， SD1.5",
                 "reference": "https://huggingface.co/h94/IP-Adapter-FaceID/tree/main"
+            },
+
+            "blind_box":{
+                "path": "sd15/blindbox_v1_mix.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/blindbox_v1_mix.safetensors", 
+                "description": "盲盒风格， SD1.5",
+                "reference": ""
             }
         },
 
