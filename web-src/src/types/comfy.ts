@@ -94,6 +94,7 @@ export interface ComfyWidget<TValue = any, TOption = any> extends IWidget<TValue
     onRemove?: () => void;
     callback?: (value: TValue) => void;
     serializeValue?: () => undefined;
+    afterQueued?: () => void;
 }
 
 interface ComfyOptionsHost {

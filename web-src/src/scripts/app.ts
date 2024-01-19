@@ -12,17 +12,14 @@ import { ComfyNode } from './comfyNode';
 import {
     ComfyError,
     ComfyFile,
-    ComfyNodeError,
     ComfyProgress,
     ComfyPromptError,
-    ComfyWidget,
     QueueItem,
     SerializedNodeObject,
     TemplateData,
     WorkflowStep,
 } from '../types/many';
-import { ComfyExtension } from '../types/comfy';
-import { ComfyObjectInfo } from '../types/comfy';
+import {ComfyExtension, ComfyWidget, ComfyObjectInfo} from '../types/comfy';
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
@@ -78,7 +75,7 @@ export class ComfyApp {
     /**
      * Stores the preview image data for each node
      */
-    nodePreviewImages: Record<string, HTMLImageElement | string> = {};
+    nodePreviewImages: Record<string, HTMLImageElement | string | string[]> | null;
 
     /**
      * Indicates if the shift key on the keyboard is pressed
@@ -116,6 +113,7 @@ export class ComfyApp {
         this.api = new ComfyApi();
         this.ui = new ComfyUI(this);
         this.logging = new ComfyLogging(this);
+        this.nodePreviewImages = null;
     }
 
     getPreviewFormatParam() {
@@ -253,7 +251,7 @@ export class ComfyApp {
                                     (value.type ? ` [${value.type}]` : '');
                             } else {
                                 prop.value = value;
-                                prop.callback(value);
+                                prop.callback?.(value);
                             }
                         }
                     });
@@ -539,7 +537,7 @@ export class ComfyApp {
                     this.progress = null;
                     this.runningNodeId = detail;
                     this.graph?.setDirtyCanvas(true, false);
-                    if (this.runningNodeId) {
+                    if (this.runningNodeId && this.nodePreviewImages) {
                         delete this.nodePreviewImages[this.runningNodeId];
                     }
                 },
@@ -594,7 +592,9 @@ export class ComfyApp {
 
                     // const blob = detail;
                     const blobUrl = URL.createObjectURL(detail);
-                    this.nodePreviewImages[id] = [blobUrl];
+                    if (this.nodePreviewImages) {
+                        this.nodePreviewImages[id] = [blobUrl];
+                    }
                 },
             ],
         ];
@@ -1464,12 +1464,12 @@ export class ComfyApp {
 
             for (const widgetNum in node.widgets) {
                 const widget = node.widgets[widgetNum];
-                if (widget.type == 'combo' && def.input && def.input.required?.[widget.name] !== undefined) {
+                if (widget.type == 'combo' && !!widget.name && def.input && def.input.required?.[widget.name] !== undefined) {
                     widget.options.values = def['input']['required'][widget.name][0];
 
                     if (widget.name != 'image' && !widget.options.values.includes(widget.value)) {
                         widget.value = widget.options.values[0];
-                        widget.callback(widget.value);
+                        widget.callback?.(widget.value);
                     }
                 }
             }
