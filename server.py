@@ -270,6 +270,10 @@ class PromptServer():
 
                 if "subfolder" in request.rel_url.query:
                     full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
+                    # Normalize paths to ensure the same drive letter
+                    full_output_dir = os.path.normpath(full_output_dir)
+                    output_dir = os.path.normpath(output_dir)
+                    
                     if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
                         return web.Response(status=403)
                     output_dir = full_output_dir
