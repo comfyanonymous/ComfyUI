@@ -78,7 +78,7 @@ export class ComfyApp {
     /**
      * Stores the preview image data for each node
      */
-    nodePreviewImages: Record<string, HTMLImageElement | string[]> = {};
+    nodePreviewImages: Record<string, HTMLImageElement | string> = {};
 
     /**
      * Indicates if the shift key on the keyboard is pressed
@@ -1517,7 +1517,11 @@ export class ComfyApp {
         for (const id in this.nodePreviewImages) {
             const urls = this.nodePreviewImages[id];
             if (Array.isArray(urls)) {
-                urls.forEach(URL.revokeObjectURL);
+                urls.forEach((url) => {
+                    if (typeof url === 'string') {
+                        URL.revokeObjectURL(url);
+                    }
+                });
             }
         }
         this.nodePreviewImages = {};

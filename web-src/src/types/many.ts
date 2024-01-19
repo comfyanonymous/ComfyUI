@@ -136,6 +136,14 @@ export interface SerializedNodeObject {
     widgets?: ComfyWidget[] | null;
 }
 
-export type ClassMethod<T> = {
-    [K in keyof T]: T[K] extends (...args: any[]) => any ? T[K] : never;
-};
+export interface ComfyNodeConfig {
+    minWidth: number,
+    minHeight: number,
+    widget?: {
+        options?: {
+            forceInput?: boolean,
+            defaultInput?: string
+        }
+    }
+}
+
