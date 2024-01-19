@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { ComfyDialog as _ComfyDialog } from './ui/dialog.js';
 import { ComfySettingsDialog } from './ui/settings.js';
 import { ComfyApp } from './app.js';
+import {toggleSwitch} from "./ui/toggleSwitch";
 
 export const ComfyDialog = _ComfyDialog;
 
@@ -15,6 +16,10 @@ type ElementProps = {
     textContent?: string | null;
     onclick?: () => void;
     for?: string;
+    accept?: string;
+    onchange?: (v: any) => void
+    innerHTML?: string
+    href?: string
 };
 
 /** tag is an HTML Element Tag and optional classes e.g. div.class1.class2 */
@@ -24,7 +29,7 @@ export function $el(
     children?: Element[]
 ): Element {
     const split = tag.split('.');
-    const element = document.createElement(split.shift());
+    const element = document.createElement(split.shift()!);
     if (split.length > 0) {
         element.classList.add(...split);
     }
@@ -38,42 +43,44 @@ export function $el(
         if (Array.isArray(propsOrChildren)) {
             element.append(...propsOrChildren);
         } else {
-            const { parent, $: cb, dataset, style } = propsOrChildren;
-            delete propsOrChildren.parent;
-            delete propsOrChildren.$;
-            delete propsOrChildren.dataset;
-            delete propsOrChildren.style;
+            if (propsOrChildren) {
+                const {parent, $: cb, dataset, style} = propsOrChildren as ElementProps;
+                delete (propsOrChildren as ElementProps).parent;
+                delete (propsOrChildren as ElementProps).$;
+                delete (propsOrChildren as ElementProps).dataset;
+                delete (propsOrChildren as ElementProps).style;
 
-            if (Object.hasOwn(propsOrChildren, 'for')) {
-                element.setAttribute('for', propsOrChildren.for);
-            }
+                if (Object.hasOwn(propsOrChildren as ElementProps, 'for')) {
+                    element.setAttribute('for', (propsOrChildren as ElementProps).for!);
+                }
 
-            if (style) {
-                Object.assign(element.style, style);
-            }
+                if (style) {
+                    Object.assign(element.style, style);
+                }
 
-            if (dataset) {
-                Object.assign(element.dataset, dataset);
-            }
+                if (dataset) {
+                    Object.assign(element.dataset, dataset);
+                }
 
-            Object.assign(element, propsOrChildren);
-            if (children) {
-                element.append(...(children instanceof Array ? children : [children]));
-            }
+                Object.assign(element, propsOrChildren);
+                if (children) {
+                    element.append(...(children instanceof Array ? children : [children]));
+                }
 
-            if (parent) {
-                parent.append(element);
-            }
+                if (parent) {
+                    parent.append(element);
+                }
 
-            if (cb) {
-                cb(element);
+                if (cb) {
+                    cb(element);
+                }
             }
         }
     }
     return element;
 }
 
-function dragElement(dragEl, settings) {
+function dragElement(dragEl: HTMLElement, settings) {
     var posDiffX = 0,
         posDiffY = 0,
         posStartX = 0,
@@ -132,21 +139,21 @@ function dragElement(dragEl, settings) {
     function restorePos() {
         let pos = localStorage.getItem('Comfy.MenuPosition');
         if (pos) {
-            pos = JSON.parse(pos);
-            newPosX = pos.x;
-            newPosY = pos.y;
+            const newPos = JSON.parse(pos);
+            newPosX = newPos.x;
+            newPosY = newPos.y;
             positionElement();
             ensureInBounds();
         }
     }
 
-    let savePos = undefined;
+    let savePos: undefined | any = undefined;
     settings.addSetting({
         id: 'Comfy.MenuPosition',
         name: 'Save menu position',
         type: 'boolean',
         defaultValue: savePos,
-        onChange(value) {
+        onChange(value: any) {
             if (savePos === undefined && value) {
                 restorePos();
             }
@@ -198,13 +205,16 @@ class ComfyList {
     #type;
     #text;
     #reverse;
+    element: HTMLElement;
+    private button: HTMLButtonElement | null;
 
-    constructor(text, type, reverse) {
+    constructor(text: string, type: string, reverse: boolean) {
         this.#text = text;
         this.#type = type || text.toLowerCase();
         this.#reverse = reverse || false;
-        this.element = $el('div.comfy-list');
+        this.element = $el('div.comfy-list') as HTMLElement;
         this.element.style.display = 'none';
+        this.button = null;
     }
 
     get visible() {
@@ -267,14 +277,18 @@ class ComfyList {
 
     async show() {
         this.element.style.display = 'block';
-        this.button.textContent = 'Close';
+        if (this.button) {
+            this.button.textContent = 'Close';
+        }
 
         await this.load();
     }
 
     hide() {
         this.element.style.display = 'none';
-        this.button.textContent = 'View ' + this.#text;
+        if (this.button) {
+            this.button.textContent = 'View ' + this.#text;
+        }
     }
 
     toggle() {
@@ -297,7 +311,10 @@ export class ComfyUI {
     queue: ComfyList;
     history: ComfyList;
     menuContainer: HTMLElement;
-    queueSize: HTMLElement;
+    queueSize: HTMLElement | null;
+    autoQueueMode?: { text: string, value?: string, tooltip?: string } | string | null;
+    graphHasChanged: boolean = false;
+    autoQueueEnabled: boolean = false;
 
     constructor(app: ComfyApp) {
         this.app = app;
@@ -306,8 +323,10 @@ export class ComfyUI {
 
         this.batchCount = 1;
         this.lastQueueSize = 0;
-        this.queue = new ComfyList('Queue');
+        this.queue = new ComfyList('Queue', 'queue', true);
         this.history = new ComfyList('History', 'history', true);
+        this.autoQueueMode = null
+        this.queueSize = null
 
         api.addEventListener('status', () => {
             this.queue.update();
@@ -319,6 +338,7 @@ export class ComfyUI {
             name: 'Require confirmation when clearing workflow',
             type: 'boolean',
             defaultValue: true,
+            onChange: () => undefined
         });
 
         const promptFilename = this.settings.addSetting({
@@ -326,6 +346,7 @@ export class ComfyUI {
             name: 'Prompt for filename when saving workflow',
             type: 'boolean',
             defaultValue: true,
+            onChange: () => undefined
         });
 
         /**
@@ -344,6 +365,7 @@ export class ComfyUI {
             name: 'When displaying a preview in the image widget, convert it to a lightweight image, e.g. webp, jpeg, webp;50, etc.',
             type: 'text',
             defaultValue: '',
+            onChange: () => undefined
         });
 
         this.settings.addSetting({
@@ -351,6 +373,7 @@ export class ComfyUI {
             name: 'Disable sliders.',
             type: 'boolean',
             defaultValue: false,
+            onChange: () => undefined
         });
 
         this.settings.addSetting({
@@ -358,6 +381,7 @@ export class ComfyUI {
             name: 'Disable rounding floats (requires page reload).',
             type: 'boolean',
             defaultValue: false,
+            onChange: () => undefined
         });
 
         this.settings.addSetting({
@@ -370,6 +394,7 @@ export class ComfyUI {
                 step: 1,
             },
             defaultValue: 0,
+            onChange: () => undefined
         });
 
         const fileInput = $el('input', {
@@ -379,9 +404,11 @@ export class ComfyUI {
             style: { display: 'none' },
             parent: document.body,
             onchange: () => {
-                app.handleFile(fileInput.files[0]);
+                if ('files' in fileInput && Array.isArray(fileInput.files)) {
+                    app.handleFile(fileInput.files[0]);
+                }
             },
-        });
+        }) as HTMLInputElement;
 
         const autoQueueModeEl = toggleSwitch(
             'autoQueueMode',
@@ -397,11 +424,11 @@ export class ComfyUI {
                     this.autoQueueMode = value.item.value;
                 },
             }
-        );
+        ) as HTMLElement;
         autoQueueModeEl.style.display = 'none';
 
         api.addEventListener('graphChanged', () => {
-            if (this.autoQueueMode === 'change') {
+            if (this.autoQueueMode && this.autoQueueMode === 'change') {
                 if (this.lastQueueSize === 0) {
                     this.graphHasChanged = false;
                     app.queuePrompt(0, this.batchCount);
@@ -424,7 +451,7 @@ export class ComfyUI {
                 },
                 [
                     $el('span.drag-handle'),
-                    $el('span', { $: q => (this.queueSize = q) }),
+                    $el('span', {$: q => (this.queueSize = q as HTMLElement)}),
                     $el('button.comfy-settings-btn', { textContent: '⚙️', onclick: () => this.settings.show() }),
                 ]
             ),
@@ -442,9 +469,9 @@ export class ComfyUI {
                                 ? 'block'
                                 : 'none';
                             this.batchCount = i.srcElement.checked
-                                ? document.getElementById('batchCountInputRange').value
+                                ? document.getElementById('batchCountInputRange')?.value
                                 : 1;
-                            document.getElementById('autoQueueCheckbox').checked = false;
+                            document.getElementById('autoQueueCheckbox')?.checked = false;
                             this.autoQueueEnabled = false;
                         },
                     }),
@@ -489,7 +516,7 @@ export class ComfyUI {
                         checked: false,
                         title: 'Automatically queue prompt when the queue size hits 0',
                         onchange: (e: Event) => {
-                            this.autoQueueEnabled = e.target.checked;
+                            this.autoQueueEnabled = e.target?.checked;
                             autoQueueModeEl.style.display = this.autoQueueEnabled ? '' : 'none';
                         },
                     }),
@@ -503,7 +530,7 @@ export class ComfyUI {
                     onclick: () => app.queuePrompt(-1, this.batchCount),
                 }),
                 $el('button', {
-                    $: b => (this.queue.button = b),
+                    $: b => (this.queue.button = b as HTMLButtonElement),
                     id: 'comfy-view-queue-button',
                     textContent: 'View Queue',
                     onclick: () => {
@@ -512,7 +539,7 @@ export class ComfyUI {
                     },
                 }),
                 $el('button', {
-                    $: b => (this.history.button = b),
+                    $: b => (this.history.button = b as HTMLButtonElement),
                     id: 'comfy-view-history-button',
                     textContent: 'View History',
                     onclick: () => {
@@ -544,7 +571,7 @@ export class ComfyUI {
                             download: filename,
                             style: { display: 'none' },
                             parent: document.body,
-                        });
+                        }) as HTMLAnchorElement;
                         a.click();
                         setTimeout(function () {
                             a.remove();
@@ -632,20 +659,22 @@ export class ComfyUI {
     }
 
     setStatus(status) {
-        this.queueSize.textContent = 'Queue size: ' + (status ? status.exec_info.queue_remaining : 'ERR');
-        if (status) {
-            if (
-                this.lastQueueSize != 0 &&
-                status.exec_info.queue_remaining == 0 &&
-                this.autoQueueEnabled &&
-                (this.autoQueueMode === 'instant' || this.graphHasChanged) &&
-                !app.lastExecutionError
-            ) {
-                app.queuePrompt(0, this.batchCount);
-                status.exec_info.queue_remaining += this.batchCount;
-                this.graphHasChanged = false;
+        if (this.queueSize) {
+            this.queueSize.textContent = 'Queue size: ' + (status ? status.exec_info.queue_remaining : 'ERR');
+            if (status) {
+                if (
+                    this.lastQueueSize != 0 &&
+                    status.exec_info.queue_remaining == 0 &&
+                    this.autoQueueEnabled &&
+                    (this.autoQueueMode === 'instant' || this.graphHasChanged) &&
+                    !app.lastExecutionError
+                ) {
+                    app.queuePrompt(0, this.batchCount);
+                    status.exec_info.queue_remaining += this.batchCount;
+                    this.graphHasChanged = false;
+                }
+                this.lastQueueSize = status.exec_info.queue_remaining;
             }
-            this.lastQueueSize = status.exec_info.queue_remaining;
         }
     }
 }
