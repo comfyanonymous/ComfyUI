@@ -1,5 +1,5 @@
 import {ANIM_PREVIEW_WIDGET, app, ComfyApp} from './app';
-import {LiteGraph, LGraphNode, Vector2} from 'litegraph.js';
+import {LiteGraph, LGraphNode, Vector2, IWidget, widgetTypes} from 'litegraph.js';
 import {ComfyObjectInfo} from "../types/comfy";
 import {api} from "./api";
 import {$el, ComfyUI} from "./ui";
@@ -23,7 +23,7 @@ export class ComfyNode extends LGraphNode {
     images: any[] | undefined;
     // nodeData: any;
     serialize_widgets: boolean;
-    widgets: any[]; // idk how to type widgets yet
+    widgets: IWidget[]; // idk how to type widgets yet
     resetExecution: boolean;
     pointerWasDown: boolean | null;
 
@@ -170,7 +170,7 @@ export class ComfyNode extends LGraphNode {
     setSizeForImage(force: boolean = false) {
         if (!force && this.animatedImages) return;
 
-        if (this.inputHeight || this.freeWidgetSpace > 210) {
+        if (this.inputHeight || (this.freeWidgetSpace && this.freeWidgetSpace > 210)) {
             this.setSize(this.size);
             return;
         }
@@ -603,7 +603,7 @@ export class ComfyNode extends LGraphNode {
         return false;
     }
 
-    addDOMWidget(name: string, type: string, element: HTMLElement, options) {
+    addDOMWidget(name: string, type: string, element: HTMLElement, options): IWidget | undefined {
         let enableDomClipping = true;
         options = {hideOnZoom: true, selectOn: ['focus', 'click'], ...options};
 
@@ -621,17 +621,20 @@ export class ComfyNode extends LGraphNode {
             document.addEventListener('mousedown', mouseDownHandler);
         }
 
-        const widget = {
-            type,
+        const self = this;
+        const widget: IWidget = {
             name,
+            type: type as widgetTypes,
             get value() {
                 return options.getValue?.() ?? undefined;
             },
             set value(v) {
                 options.setValue?.(v);
+
+                // TODO: this arguments don't match the expected arguments in the callback type
                 widget.callback?.(widget.value);
             },
-            draw: function (ctx: CanvasRenderingContext2D, node: ComfyNode, widgetWidth: number, y: number, widgetHeight: number) {
+            draw: function (ctx: CanvasRenderingContext2D, node: LGraphNode, widgetWidth: number, y: number, widgetHeight: number) {
                 if (widget.computedHeight == null) {
                     computeSize.call(node, node.size);
                 }
@@ -666,11 +669,11 @@ export class ComfyNode extends LGraphNode {
                     width: `${widgetWidth - margin * 2}px`,
                     height: `${(widget.computedHeight ?? 50) - margin * 2}px`,
                     position: 'absolute',
-                    zIndex: app.graph?.nodes.indexOf(node),
+                    zIndex: app.graph?.nodes.indexOf(node as ComfyNode),
                 });
 
                 if (enableDomClipping) {
-                    element.style.clipPath = getClipPath(node, element, elRect);
+                    element.style.clipPath = getClipPath(node as ComfyNode, element, elRect);
                     element.style.willChange = 'clip-path';
                 }
 
