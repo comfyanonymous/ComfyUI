@@ -1,14 +1,14 @@
-import {ANIM_PREVIEW_WIDGET, app} from './app.js';
-import {LGraphCanvas, LGraphNode, LiteGraph} from 'litegraph.js';
-import {ComfyNode} from "./comfyNode";
+import { ANIM_PREVIEW_WIDGET, ComfyApp, app } from './app.js';
+import { LGraphCanvas, LGraphNode, LiteGraph } from 'litegraph.js';
+import { ComfyNode } from './comfyNode';
 
 const SIZE = Symbol();
 
 interface Point {
-    x: number,
-    y: number,
-    width: number,
-    height: number,
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }
 
 function intersect(a: Point, b: Point) {
@@ -29,7 +29,12 @@ export function getClipPath(node: ComfyNode, element: Element, elRect: Point) {
 
             const bounding = selectedNode.getBounding();
             const intersection = intersect(
-                {x: elRect.x / scale, y: elRect.y / scale, width: elRect.width / scale, height: elRect.height / scale},
+                {
+                    x: elRect.x / scale,
+                    y: elRect.y / scale,
+                    width: elRect.width / scale,
+                    height: elRect.height / scale,
+                },
                 {
                     x: selectedNode.pos[0] + app.canvas.ds.offset[0] - MARGIN,
                     y: selectedNode.pos[1] + app.canvas.ds.offset[1] - LiteGraph.NODE_TITLE_HEIGHT - MARGIN,
@@ -179,161 +184,12 @@ export function computeSize(size: number[]) {
     }
 }
 
-// Override the compute visible nodes function to allow us to hide/show DOM elements when the node goes offscreen
-export const elementWidgets = new Set();
-const computeVisibleNodes = LGraphCanvas.prototype.computeVisibleNodes;
-LGraphCanvas.prototype.computeVisibleNodes = function () {
-    const visibleNodes = computeVisibleNodes.apply(this, arguments);
-    for (const node of app.graph._nodes) {
-        if (elementWidgets.has(node)) {
-            const hidden = visibleNodes.indexOf(node) === -1;
-            for (const w of node.widgets) {
-                if (w.element) {
-                    w.element.hidden = hidden;
-                    w.element.style.display = hidden ? 'none' : undefined;
-                    if (hidden) {
-                        w.options.onHide?.(w);
-                    }
-                }
-            }
-        }
-    }
-
-    return visibleNodes;
-};
-
-let enableDomClipping = true;
-
-export function addDomClippingSetting() {
+export function addDomClippingSetting(app: ComfyApp) {
     app.ui.settings.addSetting({
         id: 'Comfy.DOMClippingEnabled',
         name: 'Enable DOM element clipping (enabling may reduce performance)',
         type: 'boolean',
-        defaultValue: enableDomClipping,
-        onChange(value) {
-            enableDomClipping = !!value;
-        },
+        defaultValue: true,
+        onChange(value: boolean) {},
     });
 }
-
-LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
-    options = { hideOnZoom: true, selectOn: ['focus', 'click'], ...options };
-
-    if (!element.parentElement) {
-        document.body.append(element);
-    }
-
-    let mouseDownHandler;
-    if (element.blur) {
-        mouseDownHandler = event => {
-            if (!element.contains(event.target)) {
-                element.blur();
-            }
-        };
-        document.addEventListener('mousedown', mouseDownHandler);
-    }
-
-    const widget = {
-        type,
-        name,
-        get value() {
-            return options.getValue?.() ?? undefined;
-        },
-        set value(v) {
-            options.setValue?.(v);
-            widget.callback?.(widget.value);
-        },
-        draw: function (ctx, node, widgetWidth, y, widgetHeight) {
-            if (widget.computedHeight == null) {
-                computeSize.call(node, node.size);
-            }
-
-            const hidden =
-                node.flags?.collapsed ||
-                (!!options.hideOnZoom && app.canvas.ds.scale < 0.5) ||
-                widget.computedHeight <= 0 ||
-                widget.type === 'converted-widget' ||
-                widget.type === 'hidden';
-            element.hidden = hidden;
-            element.style.display = hidden ? 'none' : null;
-            if (hidden) {
-                widget.options.onHide?.(widget);
-                return;
-            }
-
-            const margin = 10;
-            const elRect = ctx.canvas.getBoundingClientRect();
-            const transform = new DOMMatrix()
-                .scaleSelf(elRect.width / ctx.canvas.width, elRect.height / ctx.canvas.height)
-                .multiplySelf(ctx.getTransform())
-                .translateSelf(margin, margin + y);
-
-            const scale = new DOMMatrix().scaleSelf(transform.a, transform.d);
-
-            Object.assign(element.style, {
-                transformOrigin: '0 0',
-                transform: scale,
-                left: `${transform.a + transform.e}px`,
-                top: `${transform.d + transform.f}px`,
-                width: `${widgetWidth - margin * 2}px`,
-                height: `${(widget.computedHeight ?? 50) - margin * 2}px`,
-                position: 'absolute',
-                zIndex: app.graph._nodes.indexOf(node),
-            });
-
-            if (enableDomClipping) {
-                element.style.clipPath = getClipPath(node, element, elRect);
-                element.style.willChange = 'clip-path';
-            }
-
-            this.options.onDraw?.(widget);
-        },
-        element,
-        options,
-        onRemove() {
-            if (mouseDownHandler) {
-                document.removeEventListener('mousedown', mouseDownHandler);
-            }
-            element.remove();
-        },
-    };
-
-    for (const evt of options.selectOn) {
-        element.addEventListener(evt, () => {
-            app.canvas.selectNode(this);
-            app.canvas.bringToFront(this);
-        });
-    }
-
-    this.addCustomWidget(widget);
-    elementWidgets.add(this);
-
-    const collapse = this.collapse;
-    this.collapse = function () {
-        collapse.apply(this, arguments);
-        if (this.flags?.collapsed) {
-            element.hidden = true;
-            element.style.display = 'none';
-        }
-    };
-
-    const onRemoved = this.onRemoved;
-    this.onRemoved = function () {
-        element.remove();
-        elementWidgets.delete(this);
-        onRemoved?.apply(this, arguments);
-    };
-
-    if (!this[SIZE]) {
-        this[SIZE] = true;
-        const onResize = this.onResize;
-        this.onResize = function (size) {
-            options.beforeResize?.call(widget, this);export
-            computeSize.call(this, size);
-            onResize?.apply(this, arguments);
-            options.afterResize?.call(widget, this);
-        };
-    }
-
-    return widget;
-};

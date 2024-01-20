@@ -1,4 +1,4 @@
-import {LGraphNode, IWidget, widgetTypes} from 'litegraph.js';
+import { LGraphNode, IWidget, widgetTypes } from 'litegraph.js';
 import { ComfyApp } from '../scripts/app';
 import { ComfyNode } from '../scripts/comfyNode';
 
@@ -84,24 +84,11 @@ export type ComfyObjectInfo = {
 
 export type ComfyObjectInfoConfig = [string | any[]] | [string | any[], any];
 
-
-export type comfyWidgetTypes = widgetTypes & ('converted-widget' | 'hidden');
-
-export interface ComfyWidget<TValue = any, TOption = any> extends IWidget<TValue, TOption> {
-    type: comfyWidgetTypes;
-    computedHeight?: number;
-    element: HTMLElement;
-    onRemove?: () => void;
-    callback?: (value: TValue) => void;
-    serializeValue?: () => undefined;
-    afterQueued?: () => void;
-}
-
 interface ComfyOptionsHost {
-    el: Element
-    updateImages: (imgs: (HTMLImageElement | string)[]) => void
-    getHeight: () => void
-    onDraw: () => void
+    el: Element;
+    updateImages: (imgs: (HTMLImageElement | string)[]) => void;
+    getHeight: () => void;
+    onDraw: () => void;
 }
 
 export interface AddDOMWidgetOptions {
@@ -117,12 +104,12 @@ export interface AddDOMWidgetOptions {
 }
 
 export interface ComfyNodeConfig {
-    minWidth: number,
-    minHeight: number,
+    minWidth: number;
+    minHeight: number;
     widget?: {
         options?: {
-            forceInput?: boolean,
-            defaultInput?: string
-        }
-    }
+            forceInput?: boolean;
+            defaultInput?: string;
+        };
+    };
 }

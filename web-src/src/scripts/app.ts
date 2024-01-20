@@ -1,5 +1,5 @@
 import { ComfyLogging } from './logging';
-import {ComfyWidgets} from './widgets';
+import { WidgetFactory } from './widgets';
 import { ComfyUI, $el } from './ui';
 import { ComfyApi } from './api';
 import { defaultGraph } from './defaultGraph';
@@ -19,7 +19,8 @@ import {
     TemplateData,
     WorkflowStep,
 } from '../types/many';
-import {ComfyExtension, ComfyWidget, ComfyObjectInfo} from '../types/comfy';
+import { ComfyExtension, ComfyObjectInfo } from '../types/comfy';
+import { ComfyWidget } from './comfyWidget';
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
@@ -75,7 +76,7 @@ export class ComfyApp {
     /**
      * Stores the preview image data for each node
      */
-    nodePreviewImages: Record<string, HTMLImageElement | string | string[]> | null;
+    nodePreviewImages: Record<string, HTMLImageElement | string | string[]> = {};
 
     /**
      * Indicates if the shift key on the keyboard is pressed
@@ -98,7 +99,7 @@ export class ComfyApp {
 
     dragOverNode?: ComfyNode | null;
 
-    widgets: ComfyWidgets | null = null;
+    widgets: WidgetFactory | null = null;
 
     progress: ComfyProgress | null = null;
     runningNodeId: number | null = null;
@@ -108,12 +109,12 @@ export class ComfyApp {
     isNewUserSession: boolean = false;
     storageLocation: string | null = null;
     multiUserServer: boolean = false;
+    elementWidgets: Set<ComfyNode> = new Set();
 
     constructor() {
         this.api = new ComfyApi();
         this.ui = new ComfyUI(this);
         this.logging = new ComfyLogging(this);
-        this.nodePreviewImages = null;
     }
 
     getPreviewFormatParam() {
@@ -197,7 +198,7 @@ export class ComfyApp {
                         node.images = ComfyApp.clipspace.images;
                     }
 
-                    if (this.nodeOutputs[node.id + '']) this.nodeOutputs[node.id + ''].images = node.images;
+                    if (app.nodeOutputs[node.id + '']) app.nodeOutputs[node.id + ''].images = node.images;
                 }
 
                 if (ComfyApp.clipspace.imgs) {
@@ -258,8 +259,7 @@ export class ComfyApp {
                 }
             }
 
-            // TODO: I added false as the second arg but I'm not sure if that's right
-            this.graph?.setDirtyCanvas(true, false);
+            app.graph?.setDirtyCanvas(true, true);
         }
     }
 
@@ -383,7 +383,8 @@ export class ComfyApp {
                 this.dragOverNode = null;
             },
             false
-        ), {signal: this.abortController.signal};
+        ),
+            { signal: this.abortController.signal };
     }
 
     /**
@@ -437,8 +438,8 @@ export class ComfyApp {
                                 this.graph?.change();
                             }
                             const blob = item.getAsFile();
-                            if (blob) {
-                                imageNode?.pasteFile(blob);
+                            if (blob && imageNode.pasteFile) {
+                                imageNode.pasteFile(blob);
                             }
                             return;
                         }
@@ -473,7 +474,6 @@ export class ComfyApp {
             { signal: this.abortController.signal }
         );
     }
-
 
     /**
      * Adds a handler on copy that serializes selected nodes to JSON
@@ -537,7 +537,7 @@ export class ComfyApp {
                     this.progress = null;
                     this.runningNodeId = detail;
                     this.graph?.setDirtyCanvas(true, false);
-                    if (this.runningNodeId && this.nodePreviewImages) {
+                    if (this.runningNodeId) {
                         delete this.nodePreviewImages[this.runningNodeId];
                     }
                 },
@@ -570,8 +570,7 @@ export class ComfyApp {
                     this.runningNodeId = null;
                     this.lastExecutionError = null;
                     this.graph?.nodes.forEach(node => {
-                        let nnode = node as ComfyNode;
-                        if (nnode.onExecutionStart) nnode.onExecutionStart();
+                        if (node.onExecutionStart) node.onExecutionStart();
                     });
                 },
             ],
@@ -592,9 +591,7 @@ export class ComfyApp {
 
                     // const blob = detail;
                     const blobUrl = URL.createObjectURL(detail);
-                    if (this.nodePreviewImages) {
-                        this.nodePreviewImages[id] = [blobUrl];
-                    }
+                    this.nodePreviewImages[id] = [blobUrl];
                 },
             ],
         ];
@@ -740,7 +737,7 @@ export class ComfyApp {
         canvasEl.tabIndex = 1;
         document.body.prepend(canvasEl);
 
-        addDomClippingSetting();
+        addDomClippingSetting(this);
 
         this.graph = new ComfyGraph(this);
 
@@ -841,7 +838,7 @@ export class ComfyApp {
         // Generate list of known widgets
         this.widgets = Object.assign(
             {},
-            ComfyWidgets,
+            WidgetFactory,
             ...(await this.invokeExtensionsAsync('getCustomWidgets')).filter(Boolean)
         );
 
@@ -1321,7 +1318,7 @@ export class ComfyApp {
         } finally {
             this.#processingQueue = false;
         }
-        this.api.dispatchEvent(new CustomEvent("promptQueued", { detail: { number, batchCount } }));
+        this.api.dispatchEvent(new CustomEvent('promptQueued', { detail: { number, batchCount } }));
     }
 
     /**
@@ -1464,7 +1461,12 @@ export class ComfyApp {
 
             for (const widgetNum in node.widgets) {
                 const widget = node.widgets[widgetNum];
-                if (widget.type == 'combo' && !!widget.name && def.input && def.input.required?.[widget.name] !== undefined) {
+                if (
+                    widget.type == 'combo' &&
+                    !!widget.name &&
+                    def.input &&
+                    def.input.required?.[widget.name] !== undefined
+                ) {
                     widget.options.values = def['input']['required'][widget.name][0];
 
                     if (widget.name != 'image' && !widget.options.values.includes(widget.value)) {
@@ -1517,7 +1519,7 @@ export class ComfyApp {
         for (const id in this.nodePreviewImages) {
             const urls = this.nodePreviewImages[id];
             if (Array.isArray(urls)) {
-                urls.forEach((url) => {
+                urls.forEach(url => {
                     if (typeof url === 'string') {
                         URL.revokeObjectURL(url);
                     }

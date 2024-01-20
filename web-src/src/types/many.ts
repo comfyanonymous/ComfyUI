@@ -1,6 +1,6 @@
-import {IWidget, widgetTypes} from "litegraph.js";
-import {ComfyNode} from "../scripts/comfyNode";
-import {ComfyWidget} from "./comfy";
+import { IWidget, widgetTypes } from 'litegraph.js';
+import { ComfyNode } from '../scripts/comfyNode';
+import { ComfyWidget } from '../scripts/comfyWidget';
 
 declare global {
     interface Window {
@@ -68,15 +68,15 @@ export interface TemplateData {
 }
 
 export interface PngInfo {
-    parameters: string
-    Workflow: string
-    workflow: string
-    prompt: string
+    parameters: string;
+    Workflow: string;
+    workflow: string;
+    prompt: string;
 }
 
 export interface LatentInfo {
-    workflow: string
-    prompt: string
+    workflow: string;
+    prompt: string;
 }
 
 export interface ComfyProgress {
@@ -120,7 +120,6 @@ export interface ComfyTextWidget {
     value: string;
     callback: (value: any) => void;
 }
-
 
 export interface ComfyFile {
     type: string;

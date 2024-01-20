@@ -1,12 +1,13 @@
-import {ANIM_PREVIEW_WIDGET, app, ComfyApp} from './app';
-import {LiteGraph, LGraphNode, Vector2} from 'litegraph.js';
-import {ComfyObjectInfo} from "../types/comfy";
-import {api} from "./api";
-import {$el} from "./ui";
-import {calculateGrid, getImageTop, is_all_same_aspect_ratio} from "./helpers";
-import {calculateImageGrid, createImageHost} from "./ui/imagePreview";
-import {AddDOMWidgetOptions, ComfyNodeConfig, ComfyWidget, comfyWidgetTypes} from "../types/comfy";
-import {computeSize, elementWidgets, getClipPath} from "./domWidget";
+import { ANIM_PREVIEW_WIDGET, app, ComfyApp } from './app';
+import { LiteGraph, LGraphNode, Vector2 } from 'litegraph.js';
+import { ComfyObjectInfo } from '../types/comfy';
+import { api } from './api';
+import { $el } from './ui';
+import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from './helpers';
+import { calculateImageGrid, createImageHost } from './ui/imagePreview';
+import { AddDOMWidgetOptions, ComfyNodeConfig } from '../types/comfy';
+import { ComfyWidget, comfyWidgetTypes } from './comfyWidget';
+import { getClipPath } from './domWidget';
 
 const SIZE = Symbol();
 
@@ -27,8 +28,13 @@ export class ComfyNode extends LGraphNode {
     resetExecution: boolean;
     pointerWasDown: boolean | null;
 
+    /** Widgets can add event-handlers to nodes. These are some of them. */
     onGraphConfigured?: () => void;
     onAfterGraphConfigured?: () => void;
+    onExecutionStart?: (...args: any[]) => void;
+    onDragDrop?(e: DragEvent): boolean;
+    onDragOver?(e: DragEvent): boolean;
+    pasteFile?(file: File): boolean | object;
 
     // not sure what type the `output` param is yet
     onExecuted?: (output: any) => void;
@@ -43,7 +49,7 @@ export class ComfyNode extends LGraphNode {
     imageRects: [number, number, number, number][] | null;
     overIndex: number | null;
     pointerDown: { pos: Vector2; index: number | null } | null;
-    preview: HTMLImageElement | string | null;
+    preview: HTMLImageElement | string | string[] | null;
 
     [SIZE]: boolean | null;
 
@@ -59,15 +65,15 @@ export class ComfyNode extends LGraphNode {
         this.pointerDown = null;
         this.overIndex = null;
         this.pointerWasDown = null;
-        this.inputHeight = null
-        this.freeWidgetSpace = null
-        this.imageRects = null
-        this.preview = null
+        this.inputHeight = null;
+        this.freeWidgetSpace = null;
+        this.imageRects = null;
+        this.preview = null;
         this[SIZE] = null;
 
         let inputs = nodeData['input']['required'];
         if (nodeData['input']['optional'] != undefined) {
-            inputs = {...nodeData['input']['required'], ...nodeData['input']['optional']};
+            inputs = { ...nodeData['input']['required'], ...nodeData['input']['optional'] };
         }
         const config: ComfyNodeConfig = {
             minWidth: 1,
@@ -75,9 +81,9 @@ export class ComfyNode extends LGraphNode {
             widget: {
                 options: {
                     forceInput: false,
-                    defaultInput: ''
-                }
-            }
+                    defaultInput: '',
+                },
+            },
         };
 
         for (const inputName in inputs) {
@@ -88,9 +94,9 @@ export class ComfyNode extends LGraphNode {
             const widgetType = this.getWidgetType(inputData, inputName, app);
             if (widgetType) {
                 if (widgetType === 'COMBO') {
-                    Object.assign(config, this.app.widgets?.COMBO(this, inputName, inputData, app, "") || {});
+                    Object.assign(config, this.app.widgets?.COMBO(this, inputName, inputData, app, '') || {});
                 } else {
-                    Object.assign(config, this.app.widgets?.[widgetType](this, inputName, inputData, app, "") || {});
+                    Object.assign(config, this.app.widgets?.[widgetType](this, inputName, inputData, app, '') || {});
                 }
             } else {
                 // Node connection inputs
@@ -113,7 +119,7 @@ export class ComfyNode extends LGraphNode {
             if (output instanceof Array) output = 'COMBO';
             const outputName = nodeData['output_name'][o] || output;
             const outputShape = nodeData['output_is_list'][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE;
-            this.addOutput(outputName, output, {shape: outputShape});
+            this.addOutput(outputName, output, { shape: outputShape });
         }
 
         const s = this.computeSize();
@@ -124,7 +130,7 @@ export class ComfyNode extends LGraphNode {
     }
 
     getWidgetType(inputData: any, inputName: string, app: ComfyApp): string | null {
-        return app.getWidgetType(inputData, inputName,);
+        return app.getWidgetType(inputData, inputName);
     }
 
     // TO DO: this only makes sense if this is a node with imageIndex defined
@@ -187,7 +193,7 @@ export class ComfyNode extends LGraphNode {
     onDrawBackground(ctx: any) {
         const app = this.app;
         if (!this.flags.collapsed) {
-            let imgURLs: (HTMLImageElement | string)[] = [];
+            let imgURLs: (HTMLImageElement | string | string[])[] = [];
             let imagesChanged = false;
 
             const output = app.nodeOutputs[this.id + ''];
@@ -200,9 +206,9 @@ export class ComfyNode extends LGraphNode {
                         output.images.map((params: string) => {
                             return api.apiURL(
                                 '/view?' +
-                                new URLSearchParams(params).toString() +
-                                (this.animatedImages ? '' : app.getPreviewFormatParam()) +
-                                app.getRandParam()
+                                    new URLSearchParams(params).toString() +
+                                    (this.animatedImages ? '' : app.getPreviewFormatParam()) +
+                                    app.getRandParam()
                             );
                         })
                     );
@@ -223,7 +229,7 @@ export class ComfyNode extends LGraphNode {
                 if (imgURLs.length > 0) {
                     Promise.all(
                         imgURLs.map(src => {
-                            return new Promise<HTMLImageElement | null>((r) => {
+                            return new Promise<HTMLImageElement | null>(r => {
                                 const img = new Image();
                                 img.onload = () => r(img);
                                 img.onerror = () => r(null);
@@ -234,7 +240,7 @@ export class ComfyNode extends LGraphNode {
                         })
                     ).then(imgs => {
                         if ((!output || this.images === output.images) && (!preview || this.preview === preview)) {
-                            this.imgs = imgs.filter(Boolean) as HTMLImageElement[]
+                            this.imgs = imgs.filter(Boolean) as HTMLImageElement[];
                             this.setSizeForImage?.();
                             // app.graph.setDirtyCanvas(true);
                             app.graph?.setDirtyCanvas(true, false);
@@ -305,7 +311,7 @@ export class ComfyNode extends LGraphNode {
                     if (!compact_mode) {
                         // use rectangle cell style and border line
                         cell_padding = 2;
-                        const {cell_size, columns, rows} = calculateGrid(dw, dh, numImages);
+                        const { cell_size, columns, rows } = calculateGrid(dw, dh, numImages);
                         cols = columns;
 
                         cellWidth = cell_size;
@@ -314,13 +320,12 @@ export class ComfyNode extends LGraphNode {
                         shiftY = (dh - cell_size * rows) / 2 + top;
                     } else {
                         cell_padding = 0;
-                        ({cellWidth, cellHeight, cols, shiftX} = calculateImageGrid(this.imgs, dw, dh) as {
-                            cellWidth: number,
-                            cellHeight: number,
-                            cols: number,
-                            shiftX: number
+                        ({ cellWidth, cellHeight, cols, shiftX } = calculateImageGrid(this.imgs, dw, dh) as {
+                            cellWidth: number;
+                            cellHeight: number;
+                            cols: number;
+                            shiftX: number;
                         });
-
                     }
 
                     let anyHovered = false;
@@ -346,7 +351,7 @@ export class ComfyNode extends LGraphNode {
                                     let value = 110;
                                     if (canvas.pointer_is_down) {
                                         if (!this.pointerDown || this.pointerDown.index !== i) {
-                                            this.pointerDown = {index: i, pos: [...mouse]};
+                                            this.pointerDown = { index: i, pos: [...mouse] };
                                         }
                                         value = 125;
                                     }
@@ -455,7 +460,7 @@ export class ComfyNode extends LGraphNode {
                                 // if (!this.pointerDown || !this.pointerDown.index === i) {
                                 if (!this.pointerDown || !(this.pointerDown.index === i)) {
                                     if (mouse) {
-                                        this.pointerDown = {index: i, pos: [...mouse]};
+                                        this.pointerDown = { index: i, pos: [...mouse] };
                                     }
                                 }
                             }
@@ -465,7 +470,7 @@ export class ComfyNode extends LGraphNode {
                             // if (!this.pointerDown || !this.pointerDown.index === null)) {
                             if (!this.pointerDown || !(this.pointerDown.index === null)) {
                                 if (mouse) {
-                                    this.pointerDown = {index: null, pos: [...mouse]};
+                                    this.pointerDown = { index: null, pos: [...mouse] };
                                 }
                             }
                         }
@@ -566,48 +571,13 @@ export class ComfyNode extends LGraphNode {
         }
     }
 
-    onDragDrop(e: DragEvent) {
-        console.log('onDragDrop called');
-        let handled = false;
-        if (!e.dataTransfer) return handled;
-
-        for (const file of e.dataTransfer.files) {
-            if (file.type.startsWith('image/')) {
-                uploadFile(file, !handled); // Dont await these, any order is fine, only update on first one
-                handled = true;
-            }
-        }
-
-        return handled;
-    }
-
-    onDragOver(e: DragEvent) {
-        if (e.dataTransfer && e.dataTransfer.items) {
-            const image = [...e.dataTransfer.items].find(f => f.kind === 'file');
-            return !!image;
-        }
-
-        return false;
-    }
-
-    onExecutionStart(...args: any[]): Promise<void> {
-        this.resetExecution = true;
-        return this.onExecutionStart?.apply(this, args);
-    }
-
-    pasteFile(file: File) {
-        if (file.type.startsWith('image/')) {
-            const is_pasted = file.name === 'image.png' && file.lastModified - Date.now() < 2000;
-            uploadFile(file, true, is_pasted);
-            return true;
-        }
-
-        return false;
-    }
-
-    addDOMWidget(name: string, type: string, element: HTMLElement, options: AddDOMWidgetOptions): ComfyWidget | undefined {
-        let enableDomClipping = true;
-        options = {hideOnZoom: true, selectOn: ['focus', 'click'], ...options};
+    addDOMWidget(
+        name: string,
+        type: string,
+        element: HTMLElement,
+        options: AddDOMWidgetOptions
+    ): ComfyWidget | undefined {
+        options = { hideOnZoom: true, selectOn: ['focus', 'click'], ...options };
 
         if (!element.parentElement) {
             document.body.append(element);
@@ -615,7 +585,7 @@ export class ComfyNode extends LGraphNode {
 
         let mouseDownHandler: (event: MouseEvent) => void;
         if (element.blur) {
-            mouseDownHandler = (event) => {
+            mouseDownHandler = event => {
                 if (!element.contains(event.target as Node)) {
                     element.blur();
                 }
@@ -635,12 +605,12 @@ export class ComfyNode extends LGraphNode {
             },
             draw: function (ctx, node, widgetWidth, y, widgetHeight) {
                 if (widget.computedHeight == null) {
-                    computeSize.call(node, node.size);
+                    adjustWidgetSizesAndPositions(node, node.size);
                 }
 
                 const hidden =
                     node.flags?.collapsed ||
-                    (!!options.hideOnZoom && (app.canvas && app.canvas.ds.scale < 0.5)) ||
+                    (!!options.hideOnZoom && app.canvas && app.canvas.ds.scale < 0.5) ||
                     (widget.computedHeight && widget.computedHeight <= 0) ||
                     widget.type === 'converted-widget' ||
                     widget.type === 'hidden';
@@ -671,7 +641,7 @@ export class ComfyNode extends LGraphNode {
                     zIndex: app.graph?.nodes.indexOf(node as ComfyNode),
                 });
 
-                if (enableDomClipping) {
+                if (app.ui.settings.getSettingValue('Comfy.DOMClippingEnabled', true)) {
                     element.style.clipPath = getClipPath(node as ComfyNode, element, elRect);
                     element.style.willChange = 'clip-path';
                 }
@@ -696,8 +666,9 @@ export class ComfyNode extends LGraphNode {
                 });
             }
         }
+
         this.addCustomWidget(widget);
-        elementWidgets.add(this);
+        app.elementWidgets.add(this);
 
         const collapse = this.collapse;
         this.collapse = function (...args: [force: boolean]) {
@@ -711,7 +682,7 @@ export class ComfyNode extends LGraphNode {
         const onRemoved = this.onRemoved;
         this.onRemoved = function (...args: []) {
             element.remove();
-            elementWidgets.delete(this);
+            app.elementWidgets.delete(this);
             onRemoved?.apply(this, args);
         };
 
@@ -720,7 +691,7 @@ export class ComfyNode extends LGraphNode {
             const onResize = this.onResize;
             this.onResize = function (...args: [size: number[]]) {
                 options.beforeResize?.call(widget, this);
-                computeSize.call(this, args[0]);
+                adjustWidgetSizesAndPositions(this, args[0]);
                 onResize?.apply(this, args);
                 options.afterResize?.call(widget, this);
             };
@@ -768,8 +739,8 @@ function getCopyImageOption(img: HTMLImageElement) {
                                 image = new Image();
                                 const p = new Promise((resolve, reject) => {
                                     if (image instanceof HTMLImageElement) {
-                                    image.onload = resolve;
-                                    image.onerror = reject;
+                                        image.onload = resolve;
+                                        image.onerror = reject;
                                     }
                                 }).finally(() => {
                                     URL.revokeObjectURL((image as HTMLImageElement).src);
@@ -798,4 +769,136 @@ function getCopyImageOption(img: HTMLImageElement) {
             },
         },
     ];
+}
+
+type DOMWidgetInfo = {
+    minHeight: number;
+    prefHeight: number;
+    w: ComfyWidget;
+    diff?: number;
+};
+
+export function adjustWidgetSizesAndPositions(node: ComfyNode, size: number[]) {
+    if (node.widgets?.[0]?.last_y == null) return;
+
+    let y = node.widgets[0].last_y;
+    let freeSpace = size[1] - y;
+
+    let widgetHeight = 0;
+    let dom: DOMWidgetInfo[] = [];
+    for (const w of node.widgets) {
+        if (w.type === 'converted-widget') {
+            // Ignore
+            delete w.computedHeight;
+        } else if (w.computeSize) {
+            widgetHeight += w.computeSize(node.size[0])[1] + 4;
+        } else if (w.element) {
+            // Extract DOM widget size info
+            const styles = getComputedStyle(w.element);
+            let minHeight =
+                w.options.getMinHeight?.() ?? parseInt(styles.getPropertyValue('--comfy-widget-min-height'));
+            let maxHeight =
+                w.options.getMaxHeight?.() ?? parseInt(styles.getPropertyValue('--comfy-widget-max-height'));
+
+            let prefHeight = w.options.getHeight?.() ?? styles.getPropertyValue('--comfy-widget-height');
+            if (prefHeight.endsWith?.('%')) {
+                prefHeight = size[1] * (parseFloat(prefHeight.substring(0, prefHeight.length - 1)) / 100);
+            } else {
+                prefHeight = parseInt(prefHeight);
+                if (isNaN(minHeight)) {
+                    minHeight = prefHeight;
+                }
+            }
+            if (isNaN(minHeight)) {
+                minHeight = 50;
+            }
+            if (!isNaN(maxHeight)) {
+                if (!isNaN(prefHeight)) {
+                    prefHeight = Math.min(prefHeight, maxHeight);
+                } else {
+                    prefHeight = maxHeight;
+                }
+            }
+            dom.push({
+                minHeight,
+                prefHeight,
+                w,
+            });
+        } else {
+            widgetHeight += LiteGraph.NODE_WIDGET_HEIGHT + 4;
+        }
+    }
+
+    freeSpace -= widgetHeight;
+
+    // Calculate sizes with all widgets at their min height
+    const prefGrow = []; // Nodes that want to grow to their prefd size
+    const canGrow = []; // Nodes that can grow to auto size
+    let growBy = 0;
+    for (const d of dom) {
+        freeSpace -= d.minHeight;
+        if (isNaN(d.prefHeight)) {
+            canGrow.push(d);
+            d.w.computedHeight = d.minHeight;
+        } else {
+            const diff = d.prefHeight - d.minHeight;
+            if (diff > 0) {
+                prefGrow.push(d);
+                growBy += diff;
+                d.diff = diff;
+            } else {
+                d.w.computedHeight = d.minHeight;
+            }
+        }
+    }
+
+    if (node.imgs && !node.widgets.find(w => w.name === ANIM_PREVIEW_WIDGET)) {
+        // Allocate space for image
+        freeSpace -= 220;
+    }
+
+    node.freeWidgetSpace = freeSpace;
+
+    if (freeSpace < 0) {
+        // Not enough space for all widgets so we need to grow
+        size[1] -= freeSpace;
+        node?.graph?.setDirtyCanvas(true, true);
+    } else {
+        // Share the space between each
+        const growDiff = freeSpace - growBy;
+        if (growDiff > 0) {
+            // All pref sizes can be fulfilled
+            freeSpace = growDiff;
+            for (const d of prefGrow) {
+                d.w.computedHeight = d.prefHeight;
+            }
+        } else {
+            // We need to grow evenly
+            const shared = -growDiff / prefGrow.length;
+            for (const d of prefGrow) {
+                d.w.computedHeight = d.prefHeight - shared;
+            }
+            freeSpace = 0;
+        }
+
+        if (freeSpace > 0 && canGrow.length) {
+            // Grow any that are auto height
+            const shared = freeSpace / canGrow.length;
+            for (const d of canGrow) {
+                d.w.computedHeight = shared + (d.w.computedHeight || 0);
+            }
+        }
+    }
+
+    // Position each of the widgets
+    for (const w of node.widgets) {
+        w.y = y;
+        if (w.computedHeight) {
+            y += w.computedHeight;
+        } else if (w.computeSize) {
+            y += w.computeSize(node.size[0])[1] + 4;
+        } else {
+            y += LiteGraph.NODE_WIDGET_HEIGHT + 4;
+        }
+    }
 }

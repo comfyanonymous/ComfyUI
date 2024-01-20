@@ -1,7 +1,7 @@
 import { LiteGraph } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyImageWidget } from '../types/many';
-import {ComfyWidget} from "../types/comfy";
+import { ComfyWidget } from './comfyWidget';
 
 // ========= Helper functions for onDrawbackground =========
 
@@ -40,17 +40,16 @@ export function getImageTop(node: ComfyNode) {
     } else {
         if (node.widgets?.length) {
             const w = node.widgets[node.widgets.length - 1] as ComfyWidget;
-            if (!w.last_y) throw "";
+            if (!w.last_y) throw '';
 
             shiftY = w.last_y;
             if (w.computeSize) {
-                shiftY += w.computeSize()[1] + 4;
+                shiftY += w.computeSize(node.size[0])[1] + 4;
             } else if (w.computedHeight) {
                 shiftY += w.computedHeight;
             } else {
                 shiftY += LiteGraph.NODE_WIDGET_HEIGHT + 4;
             }
-
         } else {
             shiftY = node.computeSize()[1];
         }

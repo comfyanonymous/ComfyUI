@@ -29,6 +29,30 @@ export class ComfyCanvas extends LGraphCanvas {
         this.resizeCanvas(); // call immediately
     }
 
+    /** Override the compute visible nodes function to allow us to hide/show DOM elements when the node goes offscreen */
+    computeVisibleNodes(nodes: ComfyNode[]) {
+        const visibleNodes = super.computeVisibleNodes(nodes);
+
+        if (this.app?.graph?.nodes) {
+            for (const node of this.app?.graph?.nodes) {
+                if (this.app.elementWidgets.has(node)) {
+                    const hidden = visibleNodes.indexOf(node) === -1;
+                    for (const w of node.widgets) {
+                        if (w.element) {
+                            w.element.hidden = hidden;
+                            w.element.style.display = hidden ? 'none' : '';
+                            if (hidden) {
+                                w.options.onHide?.(w);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return visibleNodes;
+    }
+
     /** Draws group header bar */
     drawGroups(canvas: HTMLCanvasElement | string, ctx: CanvasRenderingContext2D): void {
         if (!this.graph) {
@@ -311,19 +335,23 @@ export class ComfyCanvas extends LGraphCanvas {
         this.draw(true, true);
     }
 
-    /** Changes the background color of the canvas. */
+    /** Changes the background color and image of the canvas. */
     updateBackground(image: string, clearBackgroundColor: string) {
-        this._bg_img = new Image();
-        this._bg_img.name = image;
-        this._bg_img.src = image;
-        this._bg_img.onload = () => {
-            this.draw(true, true);
-        };
+        // TO DO: verify that this works corectly
         this.background_image = image;
+        this.drawBackCanvas();
+
+        // this._bg_img = new Image();
+        // this._bg_img.name = image;
+        // this._bg_img.src = image;
+        // this._bg_img.onload = () => {
+        //     this.draw(true, true);
+        // };
+        // this.background_image = image;
 
         this.clear_background = true;
         this.clear_background_color = clearBackgroundColor;
-        this._pattern = null;
+        // this._pattern = null;
     }
 
     cleanup() {

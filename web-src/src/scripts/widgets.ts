@@ -1,7 +1,9 @@
 import { api } from './api.js';
 import './domWidget.js';
 import { IWidget } from 'litegraph.js';
-import {ComfyWidget} from "../types/many";
+import { ComfyWidget } from './comfyWidget';
+import { ComfyNode } from './comfyNode.js';
+import { ComfyApp } from './app.js';
 
 interface WidgetReturnType {
     widget: ComfyWidget;
@@ -9,11 +11,11 @@ interface WidgetReturnType {
 
 // Define the type for the widget creation functions
 type WidgetCreationFunction =
-    | ((node: any, inputName: string, inputData: any, app: any) => WidgetReturnType)
-    | ((node: any, inputName: string, inputData: any, app: any, widgetName: string) => WidgetReturnType);
+    | ((node: ComfyNode, inputName: string, inputData: any, app: ComfyApp) => WidgetReturnType)
+    | ((node: ComfyNode, inputName: string, inputData: any, app: ComfyApp, widgetName: string) => WidgetReturnType);
 
 // Define the structure of the widgets collection
-export interface ComfyWidgets {
+export interface WidgetFactory {
     [key: string]: WidgetCreationFunction;
 }
 
@@ -308,7 +310,8 @@ export function initWidgets(app) {
     });
 }
 
-export const ComfyWidgets: ComfyWidgets = {
+/** Collection of factory-functions that add widgets to nodes */
+export const WidgetFactory: WidgetFactory = {
     'INT:seed': seedWidget,
     'INT:noise_seed': seedWidget,
     FLOAT(node, inputName, inputData, app) {
@@ -498,7 +501,7 @@ export const ComfyWidgets: ComfyWidgets = {
         uploadWidget.serialize = false;
 
         // Add handler to check if an image is being dragged over our node
-        node.onDragOver = function (e) {
+        node.onDragOver = function (e: DragEvent) {
             if (e.dataTransfer && e.dataTransfer.items) {
                 const image = [...e.dataTransfer.items].find(f => f.kind === 'file');
                 return !!image;
@@ -508,7 +511,7 @@ export const ComfyWidgets: ComfyWidgets = {
         };
 
         // On drop upload files
-        node.onDragDrop = function (e) {
+        node.onDragDrop = function (e: DragEvent) {
             console.log('onDragDrop called');
             let handled = false;
             for (const file of e.dataTransfer.files) {
@@ -521,7 +524,7 @@ export const ComfyWidgets: ComfyWidgets = {
             return handled;
         };
 
-        node.pasteFile = function (file) {
+        node.pasteFile = function (file: File) {
             if (file.type.startsWith('image/')) {
                 const is_pasted = file.name === 'image.png' && file.lastModified - Date.now() < 2000;
                 uploadFile(file, true, is_pasted);
@@ -533,3 +536,6 @@ export const ComfyWidgets: ComfyWidgets = {
         return { widget: uploadWidget };
     },
 };
+
+/** Legacy name, for backwards compatability */
+export { WidgetFactory as ComfyWidgets };
