@@ -215,8 +215,8 @@ export class ComfyNode extends LGraphNode {
                 }
             }
 
-            const preview = app.nodePreviewImages[this.id + ''];
-            if (this.preview !== preview) {
+            const preview = app.nodePreviewImages?.[this.id + ''];
+            if (preview && this.preview !== preview) {
                 this.preview = preview;
                 imagesChanged = true;
                 if (preview != null) {
