@@ -20,3 +20,6 @@ venv/
 node_modules/
 .env.*
 !.env.example
+
+# Build dir
+/web/
