@@ -41,16 +41,15 @@
 }
 .comfy-group-manage-list {
 	border-right: 1px solid var(--comfy-menu-bg);
-	overflow-y: scroll;
+	overflow-y: auto;
 	overflow-x: hidden;
 }
 .comfy-group-manage-list ul {
-	margin: 40px 0 0;
 	padding: 0;
 	list-style: none;
 }
 .comfy-group-manage-list-items {
-	max-height: 70vh;
+	overflow: hidden;
 }
 .comfy-group-manage-list li {
 	display: flex;
