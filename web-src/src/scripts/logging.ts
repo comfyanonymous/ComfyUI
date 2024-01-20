@@ -1,5 +1,6 @@
 import { $el, ComfyDialog } from './ui.js';
 import { api } from './api.js';
+import { ComfyApp } from './app.js';
 
 $el('style', {
     textContent: `
@@ -236,7 +237,7 @@ export class ComfyLogging {
      */
     entries = [];
 
-    #enabled;
+    #enabled: boolean = false;
     #console = {};
 
     get enabled() {
@@ -253,7 +254,7 @@ export class ComfyLogging {
         this.#enabled = value;
     }
 
-    constructor(app) {
+    constructor(app: ComfyApp) {
         this.app = app;
 
         this.dialog = new ComfyLoggingDialog(this);

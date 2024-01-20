@@ -3,6 +3,8 @@ import { widgetTypes, IWidget } from 'litegraph.js';
 
 export type comfyWidgetTypes = widgetTypes & ('converted-widget' | 'hidden');
 
+// TO DO: I think this should be a class, rather than an interface?
+// Also what are the generics for?
 export interface ComfyWidget<TValue = any, TOption = any> extends IWidget<TValue, TOption> {
     type: comfyWidgetTypes;
     computedHeight?: number;
