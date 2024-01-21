@@ -1,15 +1,3 @@
-# Stage 1: Build stage
-FROM node:18 as builder
-
-WORKDIR /web-src
-
-COPY /web-src/ .
-COPY package.json yarn.lock ./
-
-RUN yarn install
-RUN yarn build || true
-
-# Stage 2: Production stage
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 as runtime
 
 # Configure shell
@@ -64,7 +52,6 @@ RUN pip install --no-cache-dir -r requirements.txt \
 RUN jupyter contrib nbextension install --user && \
     jupyter nbextension enable --py widgetsnbextension
 
-# Folders / files in .dockerignore will not be included
 # Copy the necessary parts of ComfyTS. 
 COPY . .
 COPY ./app ./app
@@ -73,9 +60,6 @@ COPY ./comfy ./comfy
 COPY ./comfy_extras ./comfy_extras
 COPY ./notebooks ./notebooks
 COPY ./script_examples ./script_examples
-
-# Copy over our UI build files
-# COPY --from=builder ./web ./web
 
 # Setup NGINX Proxy
 RUN mv ./build_files/nginx.conf /etc/nginx/nginx.conf

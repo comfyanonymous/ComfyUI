@@ -1,4 +1,4 @@
-# General unnecessary files
+# General dev files
 **/__pycache__/
 /*.py[cod]
 /.ci
@@ -7,8 +7,9 @@
 /.vs
 /venv
 .env*
+node_modules/
 
-# Specific ComfyUI folders we won't be using
+# Specific ComfyUI folders we do not want to copy into the build
 /custom_nodes
 /input
 /models
