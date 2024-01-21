@@ -97,10 +97,10 @@ run_comfy() {
     # Check if CUDA is available
     if python -c "import torch; print(torch.cuda.is_available())" | grep True; then
         echo "CUDA is available. Running ComfyUI with GPU support."
-        python main.py --gpu-only --disable-metadata --listen --port 3000 &
+        python main.py --gpu-only --disable-metadata --listen --port 8188 &
     else
         echo "WARNING: CUDA unavailable. Running ComfyUI in CPU mode. DO NOT do this in production!"
-        python main.py --cpu --disable-metadata --listen --port 3000 &
+        python main.py --cpu --disable-metadata --listen --port 8188 &
     fi
 
     # Capture the PID of the ComfyUI process, and wait to see if it starts
