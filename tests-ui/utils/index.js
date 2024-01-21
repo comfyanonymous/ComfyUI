@@ -1,10 +1,18 @@
 const { mockApi } = require("./setup");
 const { Ez } = require("./ezgraph");
 const lg = require("./litegraph");
+const fs = require("fs");
+const path = require("path");
+
+const html = fs.readFileSync(path.resolve(__dirname, "../../web/index.html"))
 
 /**
  *
- * @param { Parameters<mockApi>[0] & { resetEnv?: boolean, preSetup?(app): Promise<void> } } config
+ * @param { Parameters<typeof mockApi>[0] & { 
+ * 	resetEnv?: boolean, 
+ * 	preSetup?(app): Promise<void>,
+ *  localStorage?: Record<string, string> 
+ * } } config
  * @returns
  */
 export async function start(config = {}) {
@@ -12,12 +20,18 @@ export async function start(config = {}) {
 		jest.resetModules();
 		jest.resetAllMocks();
         lg.setup(global);
+		localStorage.clear();
+		sessionStorage.clear();
 	}
+
+	Object.assign(localStorage, config.localStorage ?? {});
+	document.body.innerHTML = html;
 
 	mockApi(config);
 	const { app } = require("../../web/scripts/app");
 	config.preSetup?.(app);
 	await app.setup();
+
 	return { ...Ez.graph(app, global["LiteGraph"], global["LGraphCanvas"]), app };
 }
 

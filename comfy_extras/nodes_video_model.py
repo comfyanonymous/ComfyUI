@@ -3,6 +3,7 @@ import torch
 import comfy.utils
 import comfy.sd
 import folder_paths
+import comfy_extras.nodes_model_merging
 
 
 class ImageOnlyCheckpointLoader:
@@ -78,10 +79,26 @@ class VideoLinearCFGGuidance:
         m.set_model_sampler_cfg_function(linear_cfg)
         return (m, )
 
+class ImageOnlyCheckpointSave(comfy_extras.nodes_model_merging.CheckpointSave):
+    CATEGORY = "_for_testing"
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "clip_vision": ("CLIP_VISION",),
+                              "vae": ("VAE",),
+                              "filename_prefix": ("STRING", {"default": "checkpoints/ComfyUI"}),},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
+
+    def save(self, model, clip_vision, vae, filename_prefix, prompt=None, extra_pnginfo=None):
+        comfy_extras.nodes_model_merging.save_checkpoint(model, clip_vision=clip_vision, vae=vae, filename_prefix=filename_prefix, output_dir=self.output_dir, prompt=prompt, extra_pnginfo=extra_pnginfo)
+        return {}
+
 NODE_CLASS_MAPPINGS = {
     "ImageOnlyCheckpointLoader": ImageOnlyCheckpointLoader,
     "SVD_img2vid_Conditioning": SVD_img2vid_Conditioning,
     "VideoLinearCFGGuidance": VideoLinearCFGGuidance,
+    "ImageOnlyCheckpointSave": ImageOnlyCheckpointSave,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
