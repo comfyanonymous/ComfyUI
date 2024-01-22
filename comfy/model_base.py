@@ -6,7 +6,6 @@ import comfy.model_management
 import comfy.conds
 import comfy.ops
 from enum import Enum
-import contextlib
 from . import utils
 
 class ModelType(Enum):
