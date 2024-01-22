@@ -1,9 +1,6 @@
 import torch
-import contextlib
-import math
 
 from comfy import model_management
-from .ldm.util import instantiate_from_config
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 import yaml
 
@@ -534,7 +531,14 @@ def load_unet(unet_path):
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
     return model
 
-def save_checkpoint(output_path, model, clip, vae, metadata=None):
-    model_management.load_models_gpu([model, clip.load_model()])
-    sd = model.model.state_dict_for_saving(clip.get_sd(), vae.get_sd())
+def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, metadata=None):
+    clip_sd = None
+    load_models = [model]
+    if clip is not None:
+        load_models.append(clip.load_model())
+        clip_sd = clip.get_sd()
+
+    model_management.load_models_gpu(load_models)
+    clip_vision_sd = clip_vision.get_sd() if clip_vision is not None else None
+    sd = model.model.state_dict_for_saving(clip_sd, vae.get_sd(), clip_vision_sd)
     comfy.utils.save_torch_file(sd, output_path, metadata=metadata)

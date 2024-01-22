@@ -138,15 +138,27 @@ def recursive_search(directory, excluded_dir_names=None):
         excluded_dir_names = []
 
     result = []
-    dirs = {directory: os.path.getmtime(directory)}
+    dirs = {}
+
+    # Attempt to add the initial directory to dirs with error handling
+    try:
+        dirs[directory] = os.path.getmtime(directory)
+    except FileNotFoundError:
+        print(f"Warning: Unable to access {directory}. Skipping this path.")
+        
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
         for file_name in filenames:
             relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
             result.append(relative_path)
+        
         for d in subdirs:
             path = os.path.join(dirpath, d)
-            dirs[path] = os.path.getmtime(path)
+            try:
+                dirs[path] = os.path.getmtime(path)
+            except FileNotFoundError:
+                print(f"Warning: Unable to access {path}. Skipping this path.")
+                continue
     return result, dirs
 
 def filter_files_extensions(files, extensions):
