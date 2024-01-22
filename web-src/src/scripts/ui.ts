@@ -1,8 +1,10 @@
 import { api } from './api.js';
 import { ComfyDialog as _ComfyDialog } from './ui/dialog.js';
 import { ComfySettingsDialog } from './ui/settings.js';
-import { ComfyApp } from './app.js';
+import {app, ComfyApp} from './app.js';
 import {toggleSwitch} from "./ui/toggleSwitch";
+import {ComfyPromptStatus} from "../types/comfy";
+import {ComfyHistoryItem, ComfyItems, ComfyQueueItem} from "../types/many";
 
 export const ComfyDialog = _ComfyDialog;
 
@@ -11,8 +13,9 @@ type ElementProps = {
     height?: number;
     parent?: Element;
     $?: (el: Element) => void;
+    title?: string;
     dataset?: DOMStringMap;
-    style?: Partial<CSSStyleDeclaration>;
+    style?: { [key: string]: string };
     textContent?: string | null;
     onclick?: () => void;
     for?: string;
@@ -20,6 +23,18 @@ type ElementProps = {
     onchange?: (v: any) => void
     innerHTML?: string
     href?: string
+    download?: string | null
+    min?: string
+    max?: string
+    value?: any
+    checked?: boolean
+    rel?: string
+    onload?: (value: any) => void
+    onerror?: (reason?: any) => void
+    oninput?: (i: InputEvent & {
+        target?: { value: any },
+        srcElement?: { value: any }
+    }) => void
 };
 
 /** tag is an HTML Element Tag and optional classes e.g. div.class1.class2 */
@@ -80,16 +95,17 @@ export function $el(
     return element;
 }
 
-function dragElement(dragEl: HTMLElement, settings) {
+function dragElement(dragEl: HTMLElement, settings: ComfySettingsDialog) {
     var posDiffX = 0,
         posDiffY = 0,
         posStartX = 0,
         posStartY = 0,
         newPosX = 0,
         newPosY = 0;
+
     if (dragEl.getElementsByClassName('drag-handle')[0]) {
         // if present, the handle is where you move the DIV from:
-        dragEl.getElementsByClassName('drag-handle')[0].onmousedown = dragMouseDown;
+        (dragEl.getElementsByClassName('drag-handle')[0] as HTMLElement).onmousedown = dragMouseDown;
     } else {
         // otherwise, move the DIV from anywhere inside the DIV:
         dragEl.onmousedown = dragMouseDown;
@@ -161,7 +177,7 @@ function dragElement(dragEl: HTMLElement, settings) {
         },
     });
 
-    function dragMouseDown(e) {
+    function dragMouseDown(e: MouseEvent) {
         e = e || window.event;
         e.preventDefault();
         // get the mouse cursor position at startup:
@@ -172,7 +188,7 @@ function dragElement(dragEl: HTMLElement, settings) {
         document.onmousemove = elementDrag;
     }
 
-    function elementDrag(e) {
+    function elementDrag(e: MouseEvent) {
         e = e || window.event;
         e.preventDefault();
 
@@ -206,7 +222,7 @@ class ComfyList {
     #text;
     #reverse;
     element: HTMLElement;
-    private button: HTMLButtonElement | null;
+    button: HTMLButtonElement | null;
 
     constructor(text: string, type: string, reverse: boolean) {
         this.#text = text;
@@ -229,7 +245,7 @@ class ComfyList {
                     textContent: section,
                 }),
                 $el('div.comfy-list-items', [
-                    ...(this.#reverse ? items[section].reverse() : items[section]).map(item => {
+                    ...(this.#reverse ? (<ComfyItems[]>items[<keyof typeof items>section]).reverse() : items[<keyof typeof items>section]).map((item: any) => {
                         // Allow items to specify a custom remove action (e.g. for interrupt current prompt)
                         const removeAction = item.remove || {
                             name: 'Delete',
@@ -465,13 +481,19 @@ export class ComfyUI {
                     $el('input', {
                         type: 'checkbox',
                         onchange: i => {
-                            document.getElementById('extraOptions').style.display = i.srcElement.checked
-                                ? 'block'
-                                : 'none';
-                            this.batchCount = i.srcElement.checked
-                                ? document.getElementById('batchCountInputRange')?.value
-                                : 1;
-                            document.getElementById('autoQueueCheckbox')?.checked = false;
+                            let extraOptions = document.getElementById('extraOptions');
+                            if (extraOptions) {
+                                extraOptions.style.display = i.srcElement.checked ? 'block' : 'none';
+                            }
+
+                            let batchCountInputRange = document.getElementById('batchCountInputRange') as HTMLInputElement;
+                            this.batchCount = i.srcElement.checked ? Number(batchCountInputRange.value) : 1;
+
+                            let autoQueueCheckbox = document.getElementById('autoQueueCheckbox') as HTMLInputElement;
+                            if (autoQueueCheckbox) {
+                                autoQueueCheckbox.checked = false;
+                            }
+
                             this.autoQueueEnabled = false;
                         },
                     }),
@@ -486,9 +508,12 @@ export class ComfyUI {
                         value: this.batchCount,
                         min: '1',
                         style: { width: '35%', 'margin-left': '0.4em' },
-                        oninput: i => {
-                            this.batchCount = i.target.value;
-                            document.getElementById('batchCountInputRange').value = this.batchCount;
+                        oninput: (i: InputEvent & { target: { value: any } }) => {
+                            this.batchCount = i.target?.value;
+                            let batchCountInputRange = <HTMLInputElement | null>document.getElementById('batchCountInputRange')
+                            if (batchCountInputRange) {
+                                batchCountInputRange.value = this.batchCount.toString();
+                            }
                         },
                     }),
                     $el('input', {
@@ -497,9 +522,12 @@ export class ComfyUI {
                         min: '1',
                         max: '100',
                         value: this.batchCount,
-                        oninput: i => {
-                            this.batchCount = i.srcElement.value;
-                            document.getElementById('batchCountInputNumber').value = i.srcElement.value;
+                        oninput: (i: InputEvent & { srcElement: { value: any } }) => {
+                            this.batchCount = i.srcElement?.value;
+                            let batchCountInputNumber = <HTMLInputElement | null>document.getElementById('batchCountInputNumber')
+                            if (batchCountInputNumber) {
+                                batchCountInputNumber.value = i.srcElement?.value;
+                            }
                         },
                     }),
                 ]),
@@ -515,7 +543,7 @@ export class ComfyUI {
                         type: 'checkbox',
                         checked: false,
                         title: 'Automatically queue prompt when the queue size hits 0',
-                        onchange: (e: Event) => {
+                        onchange: (e: Event & { target: { checked: boolean } }) => {
                             this.autoQueueEnabled = e.target?.checked;
                             autoQueueModeEl.style.display = this.autoQueueEnabled ? '' : 'none';
                         },
@@ -554,7 +582,7 @@ export class ComfyUI {
                 id: 'comfy-save-button',
                 textContent: 'Save',
                 onclick: () => {
-                    let filename = 'workflow.json';
+                    let filename: string | null = 'workflow.json';
                     if (promptFilename.value) {
                         filename = prompt('Save workflow as:', filename);
                         if (!filename) return;
@@ -585,7 +613,7 @@ export class ComfyUI {
                 textContent: 'Save (API Format)',
                 style: { width: '100%', display: 'none' },
                 onclick: () => {
-                    let filename = 'workflow_api.json';
+                    let filename: string | null = 'workflow_api.json';
                     if (promptFilename.value) {
                         filename = prompt('Save workflow (API) as:', filename);
                         if (!filename) return;
@@ -602,7 +630,7 @@ export class ComfyUI {
                             download: filename,
                             style: { display: 'none' },
                             parent: document.body,
-                        });
+                        }) as HTMLAnchorElement;
                         a.click();
                         setTimeout(function () {
                             a.remove();
@@ -620,7 +648,7 @@ export class ComfyUI {
             $el('button', {
                 id: 'comfy-clipspace-button',
                 textContent: 'Clipspace',
-                onclick: () => app.openClipspace(),
+                onclick: () => app.openClipspace?.(),
             }),
             $el('button', {
                 id: 'comfy-clear-button',
@@ -628,7 +656,7 @@ export class ComfyUI {
                 onclick: () => {
                     if (!confirmClear.value || confirm('Clear workflow?')) {
                         app.clean();
-                        app.graph.clear();
+                        app.graph?.clear();
                     }
                 },
             }),
@@ -641,15 +669,18 @@ export class ComfyUI {
                     }
                 },
             }),
-        ]);
+        ]) as HTMLElement;
 
         const devMode = this.settings.addSetting({
             id: 'Comfy.DevMode',
             name: 'Enable Dev mode Options',
             type: 'boolean',
             defaultValue: false,
-            onChange: function (value) {
-                document.getElementById('comfy-dev-save-api-button').style.display = value ? 'block' : 'none';
+            onChange: function (value: string) {
+                const devSaveApiButton = document.getElementById('comfy-dev-save-api-button');
+                if (devSaveApiButton) {
+                    devSaveApiButton.style.display = value ? 'block' : 'none';
+                }
             },
         });
 
@@ -658,7 +689,7 @@ export class ComfyUI {
         this.setStatus({ exec_info: { queue_remaining: 'X' } });
     }
 
-    setStatus(status) {
+    setStatus(status: ComfyPromptStatus) {
         if (this.queueSize) {
             this.queueSize.textContent = 'Queue size: ' + (status ? status.exec_info.queue_remaining : 'ERR');
             if (status) {

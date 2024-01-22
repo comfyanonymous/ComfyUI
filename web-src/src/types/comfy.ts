@@ -98,7 +98,7 @@ export interface AddDOMWidgetOptions {
     hideOnZoom?: boolean;
     selectOn?: string[];
     getValue?: () => string | undefined;
-    setValue?: (value: any) => string | undefined;
+    setValue?: (value: any) => string | undefined | void;
     beforeResize?: (node: ComfyNode) => void;
     afterResize?: (node: ComfyNode) => void;
 }
@@ -112,4 +112,11 @@ export interface ComfyNodeConfig {
             defaultInput?: string;
         };
     };
+}
+
+export interface ComfyPromptStatus {
+    queue_remaining?: number,
+    exec_info: {
+        [key: string]: any
+    },
 }

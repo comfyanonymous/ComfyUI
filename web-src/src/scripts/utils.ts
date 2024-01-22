@@ -17,11 +17,12 @@ const format =
 function formatDate(text: string, date: Date) {
     return text.replace(new RegExp(format, 'g'), function (text) {
         if (text === 'yy') return (date.getFullYear() + '').substring(2);
-        if (text === 'yyyy') return date.getFullYear();
+        if (text === 'yyyy') return date.getFullYear().toString();
         if (text[0] in parts) {
-            const p = parts[text[0]](date);
+            const p = parts[text[0] as keyof typeof parts](date);
             return (p + '').padStart(text.length, '0');
         }
+
         return text;
     });
 }
@@ -43,17 +44,17 @@ export function applyTextReplacements(app: ComfyApp, value: string) {
         }
 
         // Find node with matching S&R property name
-        let nodes = app.graph.nodes.filter(n => n.properties?.['Node name for S&R'] === split[0]);
+        let nodes = app.graph?.nodes.filter(n => n.properties?.['Node name for S&R'] === split[0]);
         // If we cant, see if there is a node with that title
-        if (!nodes.length) {
-            nodes = app.graph.nodes.filter(n => n.title === split[0]);
+        if (!nodes?.length) {
+            nodes = app.graph?.nodes.filter(n => n.title === split[0]);
         }
-        if (!nodes.length) {
+        if (!nodes?.length) {
             console.warn('Unable to find node', split[0]);
             return match;
         }
 
-        if (nodes.length > 1) {
+        if (nodes?.length > 1) {
             console.warn('Multiple nodes matched', split[0], 'using first match');
         }
 
@@ -69,7 +70,7 @@ export function applyTextReplacements(app: ComfyApp, value: string) {
     });
 }
 
-export async function addStylesheet(urlOrFile, relativeTo) {
+export async function addStylesheet(urlOrFile: string, relativeTo: string) {
     return new Promise((res, rej) => {
         let url;
         if (urlOrFile.endsWith('.js')) {

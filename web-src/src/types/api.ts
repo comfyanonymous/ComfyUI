@@ -17,7 +17,7 @@ export interface ViewMetadataResponse {
 }
 
 export interface GetPromptResponse {
-    queue_remaining: number,
+    queue_remaining?: number,
     exec_info: {
         [key: string]: any
     },

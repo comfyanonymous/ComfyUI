@@ -28,10 +28,17 @@ $el('style', {
 
 // Stringify function supporting max depth and removal of circular references
 // https://stackoverflow.com/a/57193345
-function stringify(val, depth, replacer, space, onGetObjID) {
+function stringify(
+    val: any,
+    depth: number,
+    replacer?: (k: any, v: any) => any | null,
+    space?: string,
+    onGetObjID?: (obj: any) => string | null
+) {
     depth = isNaN(+depth) ? 1 : depth;
     var recursMap = new WeakMap();
-    function _build(val, depth, o, a, r) {
+
+    function _build(val: any, depth: number, o?: any, a?: boolean, r?: boolean) {
         // (JSON.stringify() has it's own rules, which we respect here by using it for property iteration)
         return !val || typeof val != 'object'
             ? val
@@ -53,7 +60,7 @@ function stringify(val, depth, replacer, space, onGetObjID) {
     return JSON.stringify(_build(val, depth), null, space);
 }
 
-const jsonReplacer = (k, v, ui) => {
+const jsonReplacer = (k: any, v: any, ui?: any) => {
     if (v instanceof Array && v.length === 1) {
         v = v[0];
     }
@@ -81,10 +88,12 @@ const fileInput = $el('input', {
     accept: '.json',
     style: { display: 'none' },
     parent: document.body,
-});
+}) as HTMLInputElement;
 
 class ComfyLoggingDialog extends ComfyDialog {
-    constructor(logging) {
+    public logging: ComfyLogging;
+
+    constructor(logging: ComfyLogging) {
         super();
         this.logging = logging;
     }
@@ -104,7 +113,7 @@ class ComfyLoggingDialog extends ComfyDialog {
             download: `comfyui-logs-${Date.now()}.json`,
             style: { display: 'none' },
             parent: document.body,
-        });
+        }) as HTMLAnchorElement;
         a.click();
         setTimeout(function () {
             a.remove();
@@ -118,17 +127,19 @@ class ComfyLoggingDialog extends ComfyDialog {
             reader.onload = () => {
                 fileInput.remove();
                 try {
-                    const obj = JSON.parse(reader.result);
+                    const obj = JSON.parse(reader.result as string);
                     if (obj instanceof Array) {
                         this.show(obj);
                     } else {
                         throw new Error('Invalid file selected.');
                     }
                 } catch (error) {
-                    alert('Unable to load logs: ' + error.message);
+                    const err = error as Error
+                    alert('Unable to load logs: ' + err?.message);
                 }
             };
-            reader.readAsText(fileInput.files[0]);
+
+            reader.readAsText(fileInput.files?.[0]!);
         };
         fileInput.click();
     }
@@ -154,7 +165,7 @@ class ComfyLoggingDialog extends ComfyDialog {
         ];
     }
 
-    getTypeColor(type) {
+    getTypeColor(type: string) {
         switch (type) {
             case 'error':
                 return 'red';
@@ -165,9 +176,9 @@ class ComfyLoggingDialog extends ComfyDialog {
         }
     }
 
-    show(entries) {
+    show(entries?: any[]) {
         if (!entries) entries = this.logging.entries;
-        this.element.style.width = '100%';
+        (this.element as HTMLElement).style.width = '100%';
         const cols = {
             source: 'Source',
             type: 'Type',
@@ -180,11 +191,11 @@ class ComfyLoggingDialog extends ComfyDialog {
                 textContent: title,
             })
         );
-        const rows = entries.map((entry, i) => {
+        const rows = entries?.map((entry, i) => {
             return $el(
                 'div.comfy-logging-log',
                 {
-                    $: el => el.style.setProperty('--row-bg', `var(--tr-${i % 2 ? 'even' : 'odd'}-bg-color)`),
+                    $: el => (el as HTMLElement).style.setProperty('--row-bg', `var(--tr-${i % 2 ? 'even' : 'odd'}-bg-color)`),
                 },
                 keys.map(key => {
                     let v = entry[key];
@@ -201,7 +212,7 @@ class ComfyLoggingDialog extends ComfyDialog {
 
                     return $el('div', {
                         style: {
-                            color,
+                            color: color ?? 'inherit',
                         },
                         textContent: v,
                     });
@@ -216,7 +227,7 @@ class ComfyLoggingDialog extends ComfyDialog {
                     gridTemplateColumns: `repeat(${headers.length}, 1fr)`,
                 },
             },
-            [...headers, ...rows]
+            [...headers, ...(rows ?? [])]
         );
         const els = [grid];
         if (!this.logging.enabled) {
@@ -231,14 +242,24 @@ class ComfyLoggingDialog extends ComfyDialog {
     }
 }
 
+type LogType = 'log' | 'warn' | 'error' | 'debug'
+
 export class ComfyLogging {
+    app: ComfyApp
+    dialog: ComfyLoggingDialog
+
     /**
      * @type Array<{ source: string, type: string, timestamp: Date, message: any }>
      */
-    entries = [];
+    entries: {
+        source: string,
+        type: string,
+        timestamp: Date,
+        message: any
+    }[] = [];
 
     #enabled: boolean = false;
-    #console = {};
+    #console: Record<string, any> = {};
 
     get enabled() {
         return this.#enabled;
@@ -273,7 +294,7 @@ export class ComfyLogging {
             onChange: (value: any) => {
                 this.enabled = value;
             },
-            type: (name, setter, value) => {
+            type: (name: string, setter: (v: boolean) => void, value: boolean) => {
                 return $el('tr', [
                     $el('td', [
                         $el('label', {
@@ -293,6 +314,7 @@ export class ComfyLogging {
                         $el('button', {
                             textContent: 'View Logs',
                             onclick: () => {
+                                // @ts-expect-error
                                 this.app.ui.settings.element.close();
                                 this.dialog.show();
                             },
@@ -312,12 +334,12 @@ export class ComfyLogging {
     patchConsole() {
         // Capture common console outputs
         const self = this;
-        for (const type of ['log', 'warn', 'error', 'debug']) {
+        for (const type of ['log', 'warn', 'error', 'debug'] as const) {
             const orig = console[type];
             this.#console[type] = orig;
-            console[type] = function () {
-                orig.apply(console, arguments);
-                self.addEntry('console', type, ...arguments);
+            console[type] = function (...args: any[]) {
+                orig.apply(console, args);
+                self.addEntry('console', type, ...args);
             };
         }
     }
@@ -325,7 +347,7 @@ export class ComfyLogging {
     unpatchConsole() {
         // Restore original console functions
         for (const type of Object.keys(this.#console)) {
-            console[type] = this.#console[type];
+            console[type as LogType] = this.#console[type];
         }
         this.#console = {};
     }
@@ -346,7 +368,7 @@ export class ComfyLogging {
         this.entries = [];
     }
 
-    addEntry(source, type, ...args) {
+    addEntry(source: string, type: string, ...args: any[]) {
         if (this.enabled) {
             this.entries.push({
                 source,
@@ -357,7 +379,7 @@ export class ComfyLogging {
         }
     }
 
-    log(source, ...args) {
+    log(source: string, ...args: any[]) {
         this.addEntry(source, 'log', ...args);
     }
 

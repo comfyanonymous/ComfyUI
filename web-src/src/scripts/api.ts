@@ -452,41 +452,6 @@ export class ComfyApi extends EventTarget {
             throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
         }
     }
-
-    async uploadFile(file: File, updateNode: boolean, pasted = false) {
-        try {
-            // Wrap file in formdata so it includes filename
-            const body = new FormData();
-            body.append('image', file);
-            if (pasted) body.append('subfolder', 'pasted');
-            const resp = await this.fetchApi('/upload/image', {
-                method: 'POST',
-                body,
-            });
-
-            if (resp.status === 200) {
-                const data = await resp.json();
-                // Add the file to the dropdown list and update the widget value
-                let path = data.name;
-                if (data.subfolder) {
-                    path = data.subfolder + '/' + path;
-                }
-
-                if (!imageWidget.options.values.includes(path)) {
-                    imageWidget.options.values.push(path);
-                }
-
-                if (updateNode) {
-                    showImage(path);
-                    imageWidget.value = path;
-                }
-            } else {
-                alert(resp.status + ' - ' + resp.statusText);
-            }
-        } catch (error) {
-            alert(error);
-        }
-    }
 }
 
 // Again, all custom-nodes are written with the assumption that `api` is a singleton

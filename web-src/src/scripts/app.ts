@@ -98,6 +98,8 @@ export class ComfyApp {
     private abortController: AbortController = new AbortController();
 
     dragOverNode?: ComfyNode | null;
+    
+    openClipspace?: () => void
 
     widgets: WidgetFactory | null = null;
 

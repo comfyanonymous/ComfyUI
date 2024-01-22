@@ -91,7 +91,7 @@ export class ComfySettingsDialog extends ComfyDialog {
 		});
 	}
 
-	addSetting({ id, name, type, defaultValue, onChange, attrs = {}, tooltip = "", options = undefined }) {
+	addSetting({id, name, type, defaultValue, onChange, attrs = {}, tooltip = "", options = []}) {
 		if (!id) {
 			throw new Error("Settings must have an ID");
 		}

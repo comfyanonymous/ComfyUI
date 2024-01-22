@@ -44,6 +44,8 @@ export class ComfyNode extends LGraphNode {
 
     onResize?: (size: number[]) => void;
 
+    callback?: (args: any) => void;
+
     inputHeight: number | null;
     freeWidgetSpace: number | null;
     imageRects: [number, number, number, number][] | null;
@@ -667,7 +669,7 @@ export class ComfyNode extends LGraphNode {
             }
         }
 
-        this.addCustomWidget(widget);
+        this.addCustomWidget<ComfyWidget>(widget);
         app.elementWidgets.add(this);
 
         const collapse = this.collapse;
