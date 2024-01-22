@@ -1,4 +1,3 @@
-import enum
 import torch
 import math
 import comfy.utils
