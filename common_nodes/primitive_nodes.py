@@ -2,6 +2,39 @@
 
 
 
+# ====================================================================
+# String
+# ====================================================================
+
+class ConcatenateString:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { 
+            "text0": ("STRING", {"forceInput": True}),
+            "text1": ("STRING", {"default": "", "multiline": True}),
+            "concatenate_by": ("STRING", {"default": ","})
+                }}
+    
+    RETURN_TYPES = ("STRING", )
+    FUNCTION = "execute"
+
+    CATEGORY = "aiyoh"
+
+    def execute(self, text0, text1, concatenate_by):
+        cur_str = text0 if text0 is not None else ''
+        concate = concatenate_by if concatenate_by is not None else ''
+        if text1 is not None and text1 != '':
+            cur_str = f"{cur_str}{concate}{text1}"
+        
+        return (cur_str, )
+        
+
+
+# ====================================================================
+# List
+# ====================================================================
+
+
 class ListNode:
     
     @classmethod
@@ -66,6 +99,9 @@ class SetListItem:
         return (list, )
     
     
+# ==========================================================
+# Dict
+# ==========================================================
     
 class DictNode:
     
@@ -188,6 +224,7 @@ class GraphOutputs:
     
     
 NODE_CLASS_MAPPINGS = {
+    "ConcatenateString": ConcatenateString,
     
     "ListNode": ListNode,
     "SetListItem": SetListItem,
@@ -202,6 +239,8 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "ConcatenateString": "Concatenate String",
+    
     "ListNode": "List",
     "SetListItem": "Set List Item",
     "GetListItem": "Get List Item",

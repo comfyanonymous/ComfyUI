@@ -280,7 +280,8 @@ class ImageExpandBy:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_NAMES = ("IMAGE", "MASK", "width", "height", "left", "top", "right", "bottom")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "INT", "INT", "INT", "INT")
     FUNCTION = "expand_image"
 
     CATEGORY = "aiyoh"
@@ -325,7 +326,7 @@ class ImageExpandBy:
         AppLog.info(f"[ImageExpandBy] left:{_left}, top: {_top}, right:{_right}, bottom:{_bottom}, feathering:{_feathering}")
         new_img, new_mask = ImagePadForOutpaintAdvance().expand_image(image, _left, _top, _right, _bottom, _feathering, padding_mode)
         
-        return (new_img, new_mask)
+        return (new_img, new_mask, imgw2, imgh2, _left, _top, _right, _bottom)
     
     
     

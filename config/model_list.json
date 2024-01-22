@@ -26,7 +26,15 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/revAnimated_v122EOL.safetensors", 
                 "description": "二次元风格",
                 "reference": ""
+            },
+
+            "AnythingV5Ink":{
+                "path": "sd15/AnythingV5Ink_v3RE.ckpt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/AnythingV5Ink_v3RE.ckpt", 
+                "description": "偏二次元风的底模，sd15",
+                "reference": "https://civitai.com/models/9409/anything-or"
             }
+
         },
 
         "clip": {},
@@ -122,6 +130,20 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/blindbox_v1_mix.safetensors", 
                 "description": "盲盒风格， SD1.5",
                 "reference": ""
+            }, 
+
+            "god_of_wealth_sd15":{
+                "path": "sd15/god_of_wealth_sd15.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/god_of_wealth_sd15.safetensors", 
+                "description": "卡通财神lora， SD1.5",
+                "reference": "https://civitai.com/models/245200?modelVersionId=276614"
+            },
+
+            "colorized_sd15":{
+                "path": "sd15/colorize_sd15.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/colorize_sd15.safetensors", 
+                "description": "颜色修复lora，可以修复褪色的图片 SD1.5",
+                "reference": "https://civitai.com/models/153676/colorize-slider-lora"
             }
         },
 
