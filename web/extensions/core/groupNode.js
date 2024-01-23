@@ -979,7 +979,7 @@ export class GroupNodeHandler {
 
 					widget.options.values = input[0];
 
-					if (widget.name !== "image" && !widget.options.values.includes(widget.value)) {
+					if (old.inputName !== "image" && !widget.options.values.includes(widget.value)) {
 						widget.value = widget.options.values[0];
 						widget.callback(widget.value);
 					}
