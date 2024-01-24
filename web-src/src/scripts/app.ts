@@ -21,24 +21,9 @@ import {
 } from '../types/many';
 import { ComfyExtension, ComfyObjectInfo } from '../types/comfy';
 import { ComfyWidget } from './comfyWidget';
+import { sanitizeNodeName } from './utils';
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
-
-function sanitizeNodeName(string: string) {
-    let entityMap = {
-        '&': '',
-        '<': '',
-        '>': '',
-        '"': '',
-        "'": '',
-        '`': '',
-        '=': '',
-    };
-
-    return String(string).replace(/[&<>"'`=]/g, function fromEntityMap(s) {
-        return entityMap[s as keyof typeof entityMap];
-    });
-}
 
 export class ComfyApp {
     /**
@@ -98,8 +83,8 @@ export class ComfyApp {
     private abortController: AbortController = new AbortController();
 
     dragOverNode?: ComfyNode | null;
-    
-    openClipspace?: () => void
+
+    openClipspace?: () => void;
 
     widgets: WidgetFactory | null = null;
 

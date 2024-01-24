@@ -10,7 +10,7 @@ RUN yarn install
 RUN yarn build || true
 
 # Stage 2: Production stage
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 as runtime
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 as runtime
 
 # Configure shell
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

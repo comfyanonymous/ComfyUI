@@ -88,3 +88,19 @@ export async function addStylesheet(urlOrFile: string, relativeTo: string) {
         });
     });
 }
+
+export function sanitizeNodeName(string: string) {
+    let entityMap = {
+        '&': '',
+        '<': '',
+        '>': '',
+        '"': '',
+        "'": '',
+        '`': '',
+        '=': '',
+    };
+
+    return String(string).replace(/[&<>"'`=]/g, function fromEntityMap(s) {
+        return entityMap[s as keyof typeof entityMap];
+    });
+}

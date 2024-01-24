@@ -1,4 +1,3 @@
-// @ts-check
 /*
 	Original implementation:
     https://github.com/TahaSh/drag-to-reorder
@@ -25,9 +24,9 @@
     SOFTWARE.
 */
 
-import { $el } from "../ui.js";
+import { $el } from '../ui.js';
 
-$el("style", {
+$el('style', {
     parent: document.head,
     textContent: `
         .draggable-item {
@@ -41,247 +40,251 @@ $el("style", {
         .draggable-item.is-draggable {
             z-index: 10;
         }
-    `
+    `,
 });
 
 export class DraggableList extends EventTarget {
-	listContainer;
-	draggableItem;
-	pointerStartX;
-	pointerStartY;
-	scrollYMax;
-	itemsGap = 0;
-	items = [];
-	itemSelector;
-	handleClass = "drag-handle";
-	off = [];
-	offDrag = [];
+    listContainer;
+    draggableItem;
+    pointerStartX;
+    pointerStartY;
+    scrollYMax;
+    itemsGap = 0;
+    items = [];
+    itemSelector;
+    handleClass = 'drag-handle';
+    off = [];
+    offDrag = [];
 
-	constructor(element, itemSelector) {
+    constructor(element, itemSelector) {
         super();
-		this.listContainer = element;
+        this.listContainer = element;
         this.itemSelector = itemSelector;
 
-		if (!this.listContainer) return;
+        if (!this.listContainer) return;
 
-		this.off.push(this.on(this.listContainer, "mousedown", this.dragStart));
-		this.off.push(this.on(this.listContainer, "touchstart", this.dragStart));
-		this.off.push(this.on(document, "mouseup", this.dragEnd));
-		this.off.push(this.on(document, "touchend", this.dragEnd));
-	}
+        this.off.push(this.on(this.listContainer, 'mousedown', this.dragStart));
+        this.off.push(this.on(this.listContainer, 'touchstart', this.dragStart));
+        this.off.push(this.on(document, 'mouseup', this.dragEnd));
+        this.off.push(this.on(document, 'touchend', this.dragEnd));
+    }
 
-	getAllItems() {
-		if (!this.items?.length) {
-			this.items = Array.from(this.listContainer.querySelectorAll(this.itemSelector));
-			this.items.forEach((element) => {
-				element.classList.add("is-idle");
-			});
-		}
-		return this.items;
-	}
+    getAllItems() {
+        if (!this.items?.length) {
+            this.items = Array.from(this.listContainer.querySelectorAll(this.itemSelector));
+            this.items.forEach(element => {
+                element.classList.add('is-idle');
+            });
+        }
+        return this.items;
+    }
 
-	getIdleItems() {
-		return this.getAllItems().filter((item) => item.classList.contains("is-idle"));
-	}
+    getIdleItems() {
+        return this.getAllItems().filter(item => item.classList.contains('is-idle'));
+    }
 
-	isItemAbove(item) {
-		return item.hasAttribute("data-is-above");
-	}
+    isItemAbove(item) {
+        return item.hasAttribute('data-is-above');
+    }
 
-	isItemToggled(item) {
-		return item.hasAttribute("data-is-toggled");
-	}
+    isItemToggled(item) {
+        return item.hasAttribute('data-is-toggled');
+    }
 
-	on(source, event, listener, options) {
-		listener = listener.bind(this);
-		source.addEventListener(event, listener, options);
-		return () => source.removeEventListener(event, listener);
-	}
+    on(source, event, listener, options) {
+        listener = listener.bind(this);
+        source.addEventListener(event, listener, options);
+        return () => source.removeEventListener(event, listener);
+    }
 
-	dragStart(e) {
-		if (e.target.classList.contains(this.handleClass)) {
-			this.draggableItem = e.target.closest(this.itemSelector);
-		}
+    dragStart(e) {
+        if (e.target.classList.contains(this.handleClass)) {
+            this.draggableItem = e.target.closest(this.itemSelector);
+        }
 
-		if (!this.draggableItem) return;
+        if (!this.draggableItem) return;
 
-		this.pointerStartX = e.clientX || e.touches[0].clientX;
-		this.pointerStartY = e.clientY || e.touches[0].clientY;
-		this.scrollYMax = this.listContainer.scrollHeight - this.listContainer.clientHeight;
+        this.pointerStartX = e.clientX || e.touches[0].clientX;
+        this.pointerStartY = e.clientY || e.touches[0].clientY;
+        this.scrollYMax = this.listContainer.scrollHeight - this.listContainer.clientHeight;
 
-		this.setItemsGap();
-		this.initDraggableItem();
-		this.initItemsState();
+        this.setItemsGap();
+        this.initDraggableItem();
+        this.initItemsState();
 
-		this.offDrag.push(this.on(document, "mousemove", this.drag));
-		this.offDrag.push(this.on(document, "touchmove", this.drag, { passive: false }));
+        this.offDrag.push(this.on(document, 'mousemove', this.drag));
+        this.offDrag.push(this.on(document, 'touchmove', this.drag, { passive: false }));
 
-		this.dispatchEvent(
-			new CustomEvent("dragstart", {
-				detail: { element: this.draggableItem, position: this.getAllItems().indexOf(this.draggableItem) },
-			})
-		);
-	}
+        this.dispatchEvent(
+            new CustomEvent('dragstart', {
+                detail: { element: this.draggableItem, position: this.getAllItems().indexOf(this.draggableItem) },
+            })
+        );
+    }
 
-	setItemsGap() {
-		if (this.getIdleItems().length <= 1) {
-			this.itemsGap = 0;
-			return;
-		}
+    setItemsGap() {
+        if (this.getIdleItems().length <= 1) {
+            this.itemsGap = 0;
+            return;
+        }
 
-		const item1 = this.getIdleItems()[0];
-		const item2 = this.getIdleItems()[1];
+        const item1 = this.getIdleItems()[0];
+        const item2 = this.getIdleItems()[1];
 
-		const item1Rect = item1.getBoundingClientRect();
-		const item2Rect = item2.getBoundingClientRect();
+        const item1Rect = item1.getBoundingClientRect();
+        const item2Rect = item2.getBoundingClientRect();
 
-		this.itemsGap = Math.abs(item1Rect.bottom - item2Rect.top);
-	}
+        this.itemsGap = Math.abs(item1Rect.bottom - item2Rect.top);
+    }
 
-	initItemsState() {
-		this.getIdleItems().forEach((item, i) => {
-			if (this.getAllItems().indexOf(this.draggableItem) > i) {
-				item.dataset.isAbove = "";
-			}
-		});
-	}
+    initItemsState() {
+        this.getIdleItems().forEach((item, i) => {
+            if (this.getAllItems().indexOf(this.draggableItem) > i) {
+                item.dataset.isAbove = '';
+            }
+        });
+    }
 
-	initDraggableItem() {
-		this.draggableItem.classList.remove("is-idle");
-		this.draggableItem.classList.add("is-draggable");
-	}
+    initDraggableItem() {
+        this.draggableItem.classList.remove('is-idle');
+        this.draggableItem.classList.add('is-draggable');
+    }
 
-	drag(e) {
-		if (!this.draggableItem) return;
+    drag(e) {
+        if (!this.draggableItem) return;
 
-		e.preventDefault();
+        e.preventDefault();
 
-		const clientX = e.clientX || e.touches[0].clientX;
-		const clientY = e.clientY || e.touches[0].clientY;
+        const clientX = e.clientX || e.touches[0].clientX;
+        const clientY = e.clientY || e.touches[0].clientY;
 
-		const listRect = this.listContainer.getBoundingClientRect();
+        const listRect = this.listContainer.getBoundingClientRect();
 
-		if (clientY > listRect.bottom) {
-			if (this.listContainer.scrollTop < this.scrollYMax) {
-				this.listContainer.scrollBy(0, 10);
-				this.pointerStartY -= 10;
-			}
-		} else if (clientY < listRect.top && this.listContainer.scrollTop > 0) {
-			this.pointerStartY += 10;
-			this.listContainer.scrollBy(0, -10);
-		}
+        if (clientY > listRect.bottom) {
+            if (this.listContainer.scrollTop < this.scrollYMax) {
+                this.listContainer.scrollBy(0, 10);
+                this.pointerStartY -= 10;
+            }
+        } else if (clientY < listRect.top && this.listContainer.scrollTop > 0) {
+            this.pointerStartY += 10;
+            this.listContainer.scrollBy(0, -10);
+        }
 
-		const pointerOffsetX = clientX - this.pointerStartX;
-		const pointerOffsetY = clientY - this.pointerStartY;
+        const pointerOffsetX = clientX - this.pointerStartX;
+        const pointerOffsetY = clientY - this.pointerStartY;
 
-		this.updateIdleItemsStateAndPosition();
-		this.draggableItem.style.transform = `translate(${pointerOffsetX}px, ${pointerOffsetY}px)`;
-	}
+        this.updateIdleItemsStateAndPosition();
+        this.draggableItem.style.transform = `translate(${pointerOffsetX}px, ${pointerOffsetY}px)`;
+    }
 
-	updateIdleItemsStateAndPosition() {
-		const draggableItemRect = this.draggableItem.getBoundingClientRect();
-		const draggableItemY = draggableItemRect.top + draggableItemRect.height / 2;
+    updateIdleItemsStateAndPosition() {
+        const draggableItemRect = this.draggableItem.getBoundingClientRect();
+        const draggableItemY = draggableItemRect.top + draggableItemRect.height / 2;
 
-		// Update state
-		this.getIdleItems().forEach((item) => {
-			const itemRect = item.getBoundingClientRect();
-			const itemY = itemRect.top + itemRect.height / 2;
-			if (this.isItemAbove(item)) {
-				if (draggableItemY <= itemY) {
-					item.dataset.isToggled = "";
-				} else {
-					delete item.dataset.isToggled;
-				}
-			} else {
-				if (draggableItemY >= itemY) {
-					item.dataset.isToggled = "";
-				} else {
-					delete item.dataset.isToggled;
-				}
-			}
-		});
+        // Update state
+        this.getIdleItems().forEach(item => {
+            const itemRect = item.getBoundingClientRect();
+            const itemY = itemRect.top + itemRect.height / 2;
+            if (this.isItemAbove(item)) {
+                if (draggableItemY <= itemY) {
+                    item.dataset.isToggled = '';
+                } else {
+                    delete item.dataset.isToggled;
+                }
+            } else {
+                if (draggableItemY >= itemY) {
+                    item.dataset.isToggled = '';
+                } else {
+                    delete item.dataset.isToggled;
+                }
+            }
+        });
 
-		// Update position
-		this.getIdleItems().forEach((item) => {
-			if (this.isItemToggled(item)) {
-				const direction = this.isItemAbove(item) ? 1 : -1;
-				item.style.transform = `translateY(${direction * (draggableItemRect.height + this.itemsGap)}px)`;
-			} else {
-				item.style.transform = "";
-			}
-		});
-	}
+        // Update position
+        this.getIdleItems().forEach(item => {
+            if (this.isItemToggled(item)) {
+                const direction = this.isItemAbove(item) ? 1 : -1;
+                item.style.transform = `translateY(${direction * (draggableItemRect.height + this.itemsGap)}px)`;
+            } else {
+                item.style.transform = '';
+            }
+        });
+    }
 
-	dragEnd() {
-		if (!this.draggableItem) return;
+    dragEnd() {
+        if (!this.draggableItem) return;
 
-		this.applyNewItemsOrder();
-		this.cleanup();
-	}
+        this.applyNewItemsOrder();
+        this.cleanup();
+    }
 
-	applyNewItemsOrder() {
-		const reorderedItems = [];
+    applyNewItemsOrder() {
+        const reorderedItems = [];
 
-		let oldPosition = -1;
-		this.getAllItems().forEach((item, index) => {
-			if (item === this.draggableItem) {
-				oldPosition = index;
-				return;
-			}
-			if (!this.isItemToggled(item)) {
-				reorderedItems[index] = item;
-				return;
-			}
-			const newIndex = this.isItemAbove(item) ? index + 1 : index - 1;
-			reorderedItems[newIndex] = item;
-		});
+        let oldPosition = -1;
+        this.getAllItems().forEach((item, index) => {
+            if (item === this.draggableItem) {
+                oldPosition = index;
+                return;
+            }
+            if (!this.isItemToggled(item)) {
+                reorderedItems[index] = item;
+                return;
+            }
+            const newIndex = this.isItemAbove(item) ? index + 1 : index - 1;
+            reorderedItems[newIndex] = item;
+        });
 
-		for (let index = 0; index < this.getAllItems().length; index++) {
-			const item = reorderedItems[index];
-			if (typeof item === "undefined") {
-				reorderedItems[index] = this.draggableItem;
-			}
-		}
+        for (let index = 0; index < this.getAllItems().length; index++) {
+            const item = reorderedItems[index];
+            if (typeof item === 'undefined') {
+                reorderedItems[index] = this.draggableItem;
+            }
+        }
 
-		reorderedItems.forEach((item) => {
-			this.listContainer.appendChild(item);
-		});
+        reorderedItems.forEach(item => {
+            this.listContainer.appendChild(item);
+        });
 
-		this.items = reorderedItems;
+        this.items = reorderedItems;
 
-		this.dispatchEvent(
-			new CustomEvent("dragend", {
-				detail: { element: this.draggableItem, oldPosition, newPosition: reorderedItems.indexOf(this.draggableItem) },
-			})
-		);
-	}
+        this.dispatchEvent(
+            new CustomEvent('dragend', {
+                detail: {
+                    element: this.draggableItem,
+                    oldPosition,
+                    newPosition: reorderedItems.indexOf(this.draggableItem),
+                },
+            })
+        );
+    }
 
-	cleanup() {
-		this.itemsGap = 0;
-		this.items = [];
-		this.unsetDraggableItem();
-		this.unsetItemState();
+    cleanup() {
+        this.itemsGap = 0;
+        this.items = [];
+        this.unsetDraggableItem();
+        this.unsetItemState();
 
-		this.offDrag.forEach((f) => f());
-		this.offDrag = [];
-	}
+        this.offDrag.forEach(f => f());
+        this.offDrag = [];
+    }
 
-	unsetDraggableItem() {
-		this.draggableItem.style = null;
-		this.draggableItem.classList.remove("is-draggable");
-		this.draggableItem.classList.add("is-idle");
-		this.draggableItem = null;
-	}
+    unsetDraggableItem() {
+        this.draggableItem.style = null;
+        this.draggableItem.classList.remove('is-draggable');
+        this.draggableItem.classList.add('is-idle');
+        this.draggableItem = null;
+    }
 
-	unsetItemState() {
-		this.getIdleItems().forEach((item, i) => {
-			delete item.dataset.isAbove;
-			delete item.dataset.isToggled;
-			item.style.transform = "";
-		});
-	}
+    unsetItemState() {
+        this.getIdleItems().forEach((item, i) => {
+            delete item.dataset.isAbove;
+            delete item.dataset.isToggled;
+            item.style.transform = '';
+        });
+    }
 
-	dispose() {
-		this.off.forEach((f) => f());
-	}
+    dispose() {
+        this.off.forEach(f => f());
+    }
 }

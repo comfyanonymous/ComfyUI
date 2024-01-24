@@ -23,6 +23,7 @@ const ext: ComfyExtension = {
         // Return custom widget types
         // See ComfyWidgets for widget examples
         console.log('[logging]', 'provide custom widgets');
+        return {};
     },
     async beforeRegisterNodeDef(nodeType, nodeData: any, app: ComfyApp) {
         // Run custom logic before a node definition is registered with the graph
@@ -35,7 +36,7 @@ const ext: ComfyExtension = {
         // Register any custom node implementations here allowing for more flexability than a custom node def
         console.log('[logging]', 'register custom nodes');
     },
-    loadedGraphNode(node, app) {
+    async loadedGraphNode(node, app) {
         // Fires for each node when loading/dragging/etc a workflow json or png
         // If you break something in the backend and want to patch workflows in the frontend
         // This is the place to do this
@@ -44,7 +45,7 @@ const ext: ComfyExtension = {
         // This fires for every node on each load so only log once
         delete ext.loadedGraphNode;
     },
-    nodeCreated(node, app) {
+    async nodeCreated(node, app) {
         // Fires every time a node is constructed
         // You can modify widgets/add handlers/etc here
         console.log('[logging]', 'node created: ', node);
