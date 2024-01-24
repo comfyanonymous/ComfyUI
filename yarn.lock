@@ -850,7 +850,7 @@ kind-of@^6.0.0, kind-of@^6.0.2:
 
 "litegraph.js@github:void-tech-art/litegraph.js#master":
   version "0.7.14"
-  resolved "https://codeload.github.com/void-tech-art/litegraph.js/tar.gz/4119bd262507ed2cac4eaf6847686de4f6495817"
+  resolved "https://codeload.github.com/void-tech-art/litegraph.js/tar.gz/64551e347d851b92b6df69fef93ec496ff07dafa"
 
 "lru-cache@^9.1.1 || ^10.0.0":
   version "10.1.0"

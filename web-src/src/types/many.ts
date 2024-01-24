@@ -1,30 +1,83 @@
+import { IWidget, widgetTypes } from 'litegraph.js';
+import { ComfyNode } from '../scripts/comfyNode';
+import { ComfyWidget } from '../scripts/comfyWidget';
+import {QueueData} from "./api";
+
 declare global {
     interface Window {
-        clipboardData: DataTransfer
+        clipboardData: DataTransfer;
+    }
+
+    interface Event {
+        detail: any;
     }
 
     interface UIEvent {
-        canvasX: number
-        canvasY: number
+        canvasX: number;
+        canvasY: number;
     }
 
     interface EventTarget {
-        type: string
-        localName: string
-        className: string
+        type: string;
+        localName: string;
+        className: string;
     }
 }
 
-export interface ComfyError {
-    node_id: number;
-    message: string;
-    extra_info: {
+export interface ComfyError extends Error {
+    details: string;
+    fileName?: string;
+    node_id?: number;
+    node_type?: string;
+    class_type?: string;
+    traceback?: string[];
+    errors?: ComfyError[];
+    exception_message?: string;
+    dependent_outputs?: WorkflowStep[];
+    extra_info?: {
         [x: string]: any;
-    }
+    };
+}
+
+export interface ComfyPromptError extends Error {
+    error: ComfyError;
+    response: {
+        // This could also be ComfyNodeError[] as an array, rather than a dict,
+        // which is potentially an error in ComfyUI's server.py
+        node_errors: Record<string, ComfyError>;
+        error: ComfyError;
+    };
+}
+
+// This is also defined in our protofiles
+export interface WorkflowStep {
+    class_type: string;
+    inputs: { [key: string]: any } | undefined;
+    _meta?: { title: string };
 }
 
 export interface ComfyNodeError {
-    errors: ComfyError[]
+    class_type: string;
+    dependent_outputs: WorkflowStep[];
+    errors: ComfyError[];
+}
+
+export interface TemplateData {
+    templates?: {
+        data: string;
+    }[];
+}
+
+export interface PngInfo {
+    parameters: string;
+    Workflow: string;
+    workflow: string;
+    prompt: string;
+}
+
+export interface LatentInfo {
+    workflow: string;
+    prompt: string;
 }
 
 export interface ComfyProgress {
@@ -69,8 +122,6 @@ export interface ComfyTextWidget {
     callback: (value: any) => void;
 }
 
-export type ComfyWidget = ComfyImageWidget | ComfyButtonWidget | ComfyFileWidget | ComfyTextWidget;
-
 export interface ComfyFile {
     type: string;
     filename: string;
@@ -88,6 +139,25 @@ export interface SerializedNodeObject {
     widgets?: ComfyWidget[] | null;
 }
 
-export type ClassMethod<T> = {
-    [K in keyof T]: T[K] extends (...args: any[]) => any ? T[K] : never;
-};
+export interface ComfyQueueItem {
+    Running: {
+        prompt: QueueData,
+        remove: {
+            name: string,
+            cb: () => Promise<void>
+        }
+    }[],
+    Pending: {
+        prompt: QueueData[]
+    }
+}
+
+export interface ComfyHistoryItem {
+    History: {
+        prompt: {},
+        outputs: {},
+        status: string
+    }[]
+}
+
+export type ComfyItems = ComfyQueueItem | ComfyHistoryItem
