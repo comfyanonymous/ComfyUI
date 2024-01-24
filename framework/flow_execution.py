@@ -204,7 +204,7 @@ class ExecuteContextStorage:
         self.extra_data = extra_data
         
         self.outputs = {}
-        self.is_changed = {}
+        self.is_changed = {node_id:True for node_id in self.prompt}         # FIX: some nodes will not be execute and we need to mark it as changed, otherwise those nodes depends on their output will get error output.
         self.outputs_ui = {}
         self.executed = set()
         
