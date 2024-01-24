@@ -105,9 +105,8 @@ class SDTurboScheduler:
     def get_sigmas(self, model, steps, denoise):
         start_step = 10 - int(10 * denoise)
         timesteps = torch.flip(torch.arange(1, 11) * 100 - 1, (0,))[start_step:start_step + steps]
-        inner_model = model.patch_model(patch_weights=False)
-        sigmas = inner_model.model_sampling.sigma(timesteps)
-        model.unpatch_model()
+        comfy.model_management.load_models_gpu([model])
+        sigmas = model.model.model_sampling.sigma(timesteps)
         sigmas = torch.cat([sigmas, sigmas.new_zeros([1])])
         return (sigmas, )
 

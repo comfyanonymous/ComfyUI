@@ -751,7 +751,7 @@ class PromptQueue:
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
                 self.history.pop(next(iter(self.history)))
 
-            status_dict: dict|None = None
+            status_dict: Optional[dict] = None
             if status is not None:
                 status_dict = copy.deepcopy(status._asdict())
 

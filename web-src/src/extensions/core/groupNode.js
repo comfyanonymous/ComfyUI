@@ -966,6 +966,26 @@ export class GroupNodeHandler {
 			api.removeEventListener("executing", executing);
 			api.removeEventListener("executed", executed);
 		};
+
+		this.node.refreshComboInNode = (defs) => {
+			// Update combo widget options
+			for (const widgetName in this.groupData.newToOldWidgetMap) {
+				const widget = this.node.widgets.find((w) => w.name === widgetName);
+				if (widget?.type === "combo") {
+					const old = this.groupData.newToOldWidgetMap[widgetName];
+					const def = defs[old.node.type];
+					const input = def?.input?.required?.[old.inputName] ?? def?.input?.optional?.[old.inputName];
+					if (!input) continue;
+
+					widget.options.values = input[0];
+
+					if (old.inputName !== "image" && !widget.options.values.includes(widget.value)) {
+						widget.value = widget.options.values[0];
+						widget.callback(widget.value);
+					}
+				}
+			}
+		};
 	}
 
 	updateInnerWidgets() {
@@ -1245,6 +1265,14 @@ const ext = {
 			node[GROUP] = new GroupNodeHandler(node);
 		}
 	},
+	async refreshComboInNodes(defs) {
+		// Re-register group nodes so new ones are created with the correct options
+		Object.assign(globalDefs, defs);
+		const nodes = app.graph.extra?.groupNodes;
+		if (nodes) {
+			await GroupNodeConfig.registerFromWorkflow(nodes, {});
+		}
+	}
 };
 
 app.registerExtension(ext);
