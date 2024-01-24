@@ -11496,7 +11496,7 @@ LGraphNode.prototype.executeAction = function(action)
                 }
                 timeout_close = setTimeout(function() {
                     dialog.close();
-                }, 500);
+                }, typeof options.hide_on_mouse_leave === "number" ? options.hide_on_mouse_leave : 500);
             });
             // if filtering, check focus changed to comboboxes and prevent closing
             if (options.do_type_filter){
