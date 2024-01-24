@@ -1,5 +1,6 @@
 
 
+from framework.app_log import AppLog
 
 
 # ====================================================================
@@ -97,6 +98,32 @@ class SetListItem:
         list[index] = element
         print(f"Set list time: {list}")
         return (list, )
+    
+    
+    
+    
+# ========================================================
+# Iterable
+# =======================================================
+class GetIterableItem:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "iterable": ("ANY_DATA",), "index": ("INT", {"default": 0})
+                }}
+    
+    RETURN_TYPES = ("ANY_DATA", )
+    FUNCTION = "execute"
+
+    CATEGORY = "aiyoh"
+    
+    
+    def execute(self, iterable, index):
+        AppLog.info(f"[GetIterableTime] index: {index}, iterable: {iterable}")
+        return (iterable[index], )
+    
+    
     
     
 # ==========================================================
@@ -235,7 +262,9 @@ NODE_CLASS_MAPPINGS = {
     "GetDictItem": GetDictItem,
     
     "GraphInputs": GraphInputs,
-    "GraphOutputs": GraphOutputs
+    "GraphOutputs": GraphOutputs,
+    
+    "GetIterableItem": GetIterableItem,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -250,5 +279,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GetDictItem": "Get Dict Item",
     
     "GraphInputs": "Graph Inputs",
-    "GraphOutputs": "Graph Outputs"
+    "GraphOutputs": "Graph Outputs",
+    
+    "GetIterableItem": "Get Iterable Item"
 } 

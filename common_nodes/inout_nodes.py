@@ -240,6 +240,48 @@ class ImageOutput:
 
 
 
+
+
+class FileOutput:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+        self.compress_level = 4
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "name": ("STRING", {"default": ""}),
+            "filepath": ("STRING", {"default": ""}),
+            # "filename_prefix": ("STRING", {"default": "ComfyUI"})},
+            # "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
+            },
+        }
+
+    RETURN_NAMES = ("filepath", )
+    RETURN_TYPES = ("STRING", )
+    FUNCTION = "output_file"
+
+    OUTPUT_NODE = True
+    OUTPUT_NODE_TYPE = "FILE"
+
+    CATEGORY = "aiyoh"
+
+    def output_file(self, name, filepath):
+        AppLog.info(f"[FileOutput] output name: {name}, filepath: {filepath}")
+        AppLog.info(f"[FileOutput] res_mgr: {ResourceMgr.instance}")
+        
+        final_path = ResourceMgr.instance.after_save_image_to_local(filepath)
+
+        return (final_path,)
+
+
+
+
+
+
+
 NODE_CLASS_MAPPINGS = {
     
     "IntInput": IntInput,
@@ -247,7 +289,8 @@ NODE_CLASS_MAPPINGS = {
     "StringInput": StringInput,
     "BoolInput": BoolInput,
     "ImageInput": ImageInput,
-    "ImageOutput": ImageOutput
+    "ImageOutput": ImageOutput,
+    "FileOutput": FileOutput,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -256,5 +299,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StringInput": "String Input",
     "BoolInput": "Bool Input",
     "ImageInput": "Image Input",
-    "ImageOutput": "Image Output"
+    "ImageOutput": "Image Output", 
+    "FileOutput": "File Output",
 } 
