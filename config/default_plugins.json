@@ -164,6 +164,18 @@
       "install_type": "git-clone",
       "commit": "c37485514b9b88934078b372ebcd62c7480c41d8",
       "description": "ComfyUI reference implementation for IPAdapter models. The code is mostly taken from the original IPAdapter repository and laksjdjf's implementation, all credit goes to them. I just made the extension closer to ComfyUI philosophy."
+    },
+
+
+    {
+      "author": "cubiq",
+      "title": "ComfyUI Essentials",
+      "reference": "https://github.com/cubiq/ComfyUI_essentials",
+      "files": [
+          "https://github.com/cubiq/ComfyUI_essentials"
+      ],
+      "install_type": "git-clone",
+      "description": "Essential nodes that are weirdly missing from ComfyUI core. With few exceptions they are new features and not commodities. I hope this will be just a temporary repository until the nodes get included into ComfyUI."
     }
   ]
 }
