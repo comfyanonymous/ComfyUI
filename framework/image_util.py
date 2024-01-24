@@ -3,6 +3,10 @@ import io, os
 
 import base64
 from PIL import Image, ImageDraw, ImageFont, PngImagePlugin
+import textwrap
+
+import torch
+import numpy as np
 
 
 """
@@ -73,7 +77,7 @@ class ImageUtil:
 
 
     @staticmethod
-    def draw_text_on_image(image, text, font_path, font_size, color, center_pos):
+    def draw_text_on_image(image, text, font_path, font_size, color, center_pos, width = None):
         """
         Draw text on the given Image object.
 
@@ -88,6 +92,16 @@ class ImageUtil:
         Returns:
         PIL.Image
         """
+        
+        if width is not None:
+            lines = text.split('\n')
+            new_lines = []
+            for line in lines:            
+                wrapper = textwrap.TextWrapper(width=width,replace_whitespace=False,fix_sentence_endings=True)
+                text_wrap = wrapper.wrap(line)
+                new_lines.extend(text_wrap)
+            text = '\n'.join(line.center(width) for line in new_lines)
+
         # create a drawable object
         draw = ImageDraw.Draw(image)
 
@@ -101,7 +115,7 @@ class ImageUtil:
 
         # draw the text
         draw.text((pos_x, pos_y), text, font=font, fill=color)
-
+        
         return image
     
 
@@ -169,3 +183,46 @@ class ImageUtil:
         return res
         
 
+
+    @staticmethod
+    def tensor_to_image(tensor):
+        # _tensor = tensor * 255
+        # img = Image.fromarray(_tensor.astype('uint8'), 'RGB')
+        # return img
+        
+        tensor = tensor * 255
+    
+        # 将类型转换为uint8，再转换为numpy数组
+        np_img = tensor.to(torch.uint8).cpu().numpy()
+        # np_img = np.transpose(np_img, (1, 2, 0))
+        
+        # 转换为PIL.Image对象
+        return Image.fromarray(np_img)
+    
+    
+    @staticmethod
+    def image_to_tensor(image):
+        img = np.array(image)  # shape为(height, width, 3)
+        tensor_img = torch.from_numpy(img.astype(np.float32) / 255.)  # 将数值范围转换为[0, 1]
+        return tensor_img
+    
+    
+    @staticmethod
+    def hex_to_rgb(hex_color):
+        hex_color = hex_color.lstrip('#')  # Remove the '#' character, if present
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return (r, g, b)
+    
+    @staticmethod
+    def get_color_values(color, color_hex, color_mapping):
+    
+        #Get RGB values for the text and background colors.
+
+        if color == "custom":
+            color_rgb = ImageUtil.hex_to_rgb(color_hex)
+        else:
+            color_rgb = color_mapping.get(color, (0, 0, 0))  # Default to black if the color is not found
+
+        return color_rgb 
