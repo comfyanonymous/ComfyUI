@@ -1891,22 +1891,27 @@ def load_custom_node(module_path, ignore=set()):
         print(f"Cannot import {module_path} module for custom nodes:", e)
         return False
 
-def load_custom_nodes():
+def load_custom_nodes(public_mark: str = '_public/'):
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
-    for custom_node_path in node_paths:
+    to_install_possible_modules = {}
+
+    for custom_node_path in sorted(node_paths, key=lambda x: public_mark in x, reverse=True):
         possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
 
         for possible_module in possible_modules:
-            module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-            if module_path.endswith(".disabled"): continue
-            time_before = time.perf_counter()
-            success = load_custom_node(module_path, base_node_names)
-            node_import_times.append((time.perf_counter() - time_before, module_path, success))
+            to_install_possible_modules[possible_module] = (custom_node_path, possible_module)
+
+    for custom_node_path, possible_module in to_install_possible_modules.values():
+        module_path = os.path.join(custom_node_path, possible_module)
+        if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
+        if module_path.endswith(".disabled"): continue
+        time_before = time.perf_counter()
+        success = load_custom_node(module_path, base_node_names)
+        node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")
