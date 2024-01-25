@@ -1,8 +1,7 @@
 {
     "name": "@void-tech/comfy-ts",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "main": "./dist/app.js",
-    "license": "MIT",
     "type": "module",
     "scripts": {
         "vite:dev": "vite",
