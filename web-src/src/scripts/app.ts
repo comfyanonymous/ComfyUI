@@ -23,6 +23,9 @@ import { ComfyExtension, ComfyObjectInfo } from '../types/comfy';
 import { ComfyWidget } from './comfyWidget';
 import { sanitizeNodeName } from './utils';
 
+// Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object
+(window as Window & typeof globalThis & { LiteGraph: typeof LiteGraph }).LiteGraph = LiteGraph;
+
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
 export class ComfyApp {

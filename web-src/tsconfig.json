@@ -1,0 +1,33 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "useDefineForClassFields": true,
+        "module": "ESNext",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "skipLibCheck": true,
+        "allowJs": true,
+        "checkJs": false,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+
+        /* Bundler mode */
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+
+        /* Linting */
+        "strict": true,
+        // "noUnusedLocals": true,
+        // "noUnusedParameters": true,
+        "noFallthroughCasesInSwitch": true,
+
+        /* file paths */
+        "baseUrl": "./src", // base for non-relative imports, i.e. import { foo } from 'src/foo'
+        "rootDir": "./src", // mirrors this folder's directory structure in dist
+        "typeRoots": ["./node_modules/@types", "./src/types/"],
+        "outDir": "./dist"
+    },
+    "include": ["./src/**/*"]
+}

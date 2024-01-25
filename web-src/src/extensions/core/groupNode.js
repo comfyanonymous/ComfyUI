@@ -1,7 +1,7 @@
-import { app } from "../../scripts/app.js";
-import { api } from "../../scripts/api.js";
-import { mergeIfValid } from "./widgetInputs.js";
-import { ManageGroupDialog } from "./groupNodeManage.js";
+import { app } from "../../scripts/app";
+import { api } from "../../scripts/api";
+import { mergeIfValid } from "./widgetInputs";
+import { ManageGroupDialog } from "./groupNodeManage";
 
 const GROUP = Symbol();
 

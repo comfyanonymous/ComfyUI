@@ -1,4 +1,4 @@
-import { $el } from "../ui.js";
+import { $el } from '../ui';
 
 /**
  * @typedef { { text: string, value?: string, tooltip?: string } } ToggleSwitchItem
@@ -11,50 +11,50 @@ import { $el } from "../ui.js";
  * @param { (e: { item: ToggleSwitchItem, prev?: ToggleSwitchItem }) => void } [opts.onChange]
  */
 export function toggleSwitch(name, items, { onChange } = {}) {
-	let selectedIndex;
-	let elements;
-	
-	function updateSelected(index) {
-		if (selectedIndex != null) {
-			elements[selectedIndex].classList.remove("comfy-toggle-selected");
-		}
-		onChange?.({ item: items[index], prev: selectedIndex == null ? undefined : items[selectedIndex] });
-		selectedIndex = index;
-		elements[selectedIndex].classList.add("comfy-toggle-selected");
-	}
+    let selectedIndex;
+    let elements;
 
-	elements = items.map((item, i) => {
-		if (typeof item === "string") item = { text: item };
-		if (!item.value) item.value = item.text;
+    function updateSelected(index) {
+        if (selectedIndex != null) {
+            elements[selectedIndex].classList.remove('comfy-toggle-selected');
+        }
+        onChange?.({ item: items[index], prev: selectedIndex == null ? undefined : items[selectedIndex] });
+        selectedIndex = index;
+        elements[selectedIndex].classList.add('comfy-toggle-selected');
+    }
 
-		const toggle = $el(
-			"label",
-			{
-				textContent: item.text,
-				title: item.tooltip ?? "",
-			},
-			$el("input", {
-				name,
-				type: "radio",
-				value: item.value ?? item.text,
-				checked: item.selected,
-				onchange: () => {
-					updateSelected(i);
-				},
-			})
-		);
-		if (item.selected) {
-			updateSelected(i);
-		}
-		return toggle;
-	});
+    elements = items.map((item, i) => {
+        if (typeof item === 'string') item = { text: item };
+        if (!item.value) item.value = item.text;
 
-	const container = $el("div.comfy-toggle-switch", elements);
+        const toggle = $el(
+            'label',
+            {
+                textContent: item.text,
+                title: item.tooltip ?? '',
+            },
+            $el('input', {
+                name,
+                type: 'radio',
+                value: item.value ?? item.text,
+                checked: item.selected,
+                onchange: () => {
+                    updateSelected(i);
+                },
+            })
+        );
+        if (item.selected) {
+            updateSelected(i);
+        }
+        return toggle;
+    });
 
-	if (selectedIndex == null) {
-		elements[0].children[0].checked = true;
-		updateSelected(0);
-	}
+    const container = $el('div.comfy-toggle-switch', elements);
 
-	return container;
+    if (selectedIndex == null) {
+        elements[0].children[0].checked = true;
+        updateSelected(0);
+    }
+
+    return container;
 }
