@@ -8,6 +8,7 @@
         "vite:dev": "vite",
         "vite:build": "tsc && vite build",
         "vite:preview": "vite preview",
+        "dependency-test": "npx madge --circular ./src/scripts/app.ts",
         "build": "yarn clean && tsc && yarn copy-js && yarn copy-public",
         "copy-js": "cpx \"web-src/src/**/*.{js,example,css}\" web/ --preserve",
         "copy-public": "cpx \"web-src/public/**/*.*\" web/",
