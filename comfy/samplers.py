@@ -1,13 +1,9 @@
 from .k_diffusion import sampling as k_diffusion_sampling
 from .extra_samplers import uni_pc
 import torch
-import enum
 import collections
 from comfy import model_management
 import math
-from comfy import model_base
-import comfy.utils
-import comfy.conds
 
 def get_area_and_mult(conds, x_in, timestep_in):
     area = (x_in.shape[2], x_in.shape[3], 0, 0)
