@@ -3,6 +3,7 @@ import comfy.model_management
 import comfy.samplers
 import comfy.conds
 import comfy.utils
+import random
 import math
 import numpy as np
 
@@ -24,7 +25,7 @@ def prepare_noise(latent_image, seeds, batch_behavior = "randomize"):
         if i < len(seeds):  # Use the provided seeds if available then follow behavior
             seed = seeds[i]
         elif batch_behavior == "randomize" :
-            seed = torch.randint(0, 2 ** 32, (1,)).item()
+            seed = int(random.random() * 99999999999999)
         elif batch_behavior == "fixed":
             seed = seeds[-1]
         elif batch_behavior == "increment":
