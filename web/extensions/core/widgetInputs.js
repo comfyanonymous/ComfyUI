@@ -1,10 +1,16 @@
 import { ComfyWidgets, addValueControlWidgets } from "../../scripts/widgets.js";
 import { app } from "../../scripts/app.js";
+import { applyTextReplacements } from "../../scripts/utils.js";
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
 const CONFIG = Symbol();
 const GET_CONFIG = Symbol();
+const TARGET = Symbol(); // Used for reroutes to specify the real target widget
+
+export function getWidgetConfig(slot) {
+	return slot.widget[CONFIG] ?? slot.widget[GET_CONFIG]();
+}
 
 function getConfig(widgetName) {
 	const { nodeData } = this.constructor;
@@ -100,7 +106,6 @@ function getWidgetType(config) {
 	return { type };
 }
 
-
 function isValidCombo(combo, obj) {
 	// New input isnt a combo
 	if (!(obj instanceof Array)) {
@@ -119,6 +124,31 @@ function isValidCombo(combo, obj) {
 	}
 
 	return true;
+}
+
+export function setWidgetConfig(slot, config, target) {
+	if (!slot.widget) return;
+	if (config) {
+		slot.widget[GET_CONFIG] = () => config;
+		slot.widget[TARGET] = target;
+	} else {
+		delete slot.widget;
+	}
+
+	if (slot.link) {
+		const link = app.graph.links[slot.link];
+		if (link) {
+			const originNode = app.graph.getNodeById(link.origin_id);
+			if (originNode.type === "PrimitiveNode") {
+				if (config) {
+					originNode.recreateWidget();
+				} else if(!app.configuringGraph) {
+					originNode.disconnectOutput(0);
+					originNode.onLastDisconnect();
+				}
+			}
+		}
+	}
 }
 
 export function mergeIfValid(output, config2, forceUpdate, recreateWidget, config1) {
@@ -150,7 +180,7 @@ export function mergeIfValid(output, config2, forceUpdate, recreateWidget, confi
 
 	const isNumber = config1[0] === "INT" || config1[0] === "FLOAT";
 	for (const k of keys.values()) {
-		if (k !== "default" && k !== "forceInput" && k !== "defaultInput") {
+		if (k !== "default" && k !== "forceInput" && k !== "defaultInput" && k !== "control_after_generate" && k !== "multiline") {
 			let v1 = config1[1][k];
 			let v2 = config2[1]?.[k];
 
@@ -405,11 +435,16 @@ app.registerExtension({
 		};
 	},
 	registerCustomNodes() {
+		const replacePropertyName = "Run widget replace on values";
 		class PrimitiveNode {
 			constructor() {
 				this.addOutput("connect to widget input", "*");
 				this.serialize_widgets = true;
 				this.isVirtualNode = true;
+
+				if (!this.properties || !(replacePropertyName in this.properties)) {
+					this.addProperty(replacePropertyName, false, "boolean");
+				}
 			}
 
 			applyToGraph(extraLinks = []) {
@@ -430,18 +465,29 @@ app.registerExtension({
 				}
 
 				let links = [...get_links(this).map((l) => app.graph.links[l]), ...extraLinks];
+				let v = this.widgets?.[0].value;
+				if(v && this.properties[replacePropertyName]) {
+					v = applyTextReplacements(app, v);
+				}
+
 				// For each output link copy our value over the original widget value
 				for (const linkInfo of links) {
 					const node = this.graph.getNodeById(linkInfo.target_id);
 					const input = node.inputs[linkInfo.target_slot];
-					const widgetName = input.widget.name;
-					if (widgetName) {
-						const widget = node.widgets.find((w) => w.name === widgetName);
-						if (widget) {
-							widget.value = this.widgets[0].value;
-							if (widget.callback) {
-								widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
-							}
+					let widget;
+					if (input.widget[TARGET]) {
+						widget = input.widget[TARGET];
+					} else {
+						const widgetName = input.widget.name;
+						if (widgetName) {
+							widget = node.widgets.find((w) => w.name === widgetName);
+						}
+					}
+
+					if (widget) {
+						widget.value = v;
+						if (widget.callback) {
+							widget.callback(widget.value, app.canvas, node, app.canvas.graph_mouse, {});
 						}
 					}
 				}
@@ -494,14 +540,13 @@ app.registerExtension({
 					this.#mergeWidgetConfig();
 
 					if (!links?.length) {
-						this.#onLastDisconnect();
+						this.onLastDisconnect();
 					}
 				}
 			}
 
 			onConnectOutput(slot, type, input, target_node, target_slot) {
 				// Fires before the link is made allowing us to reject it if it isn't valid
-
 				// No widget, we cant connect
 				if (!input.widget) {
 					if (!(input.type in ComfyWidgets)) return false;
@@ -519,6 +564,10 @@ app.registerExtension({
 
 			#onFirstConnection(recreating) {
 				// First connection can fire before the graph is ready on initial load so random things can be missing
+				if (!this.outputs[0].links) {
+					this.onLastDisconnect();
+					return;
+				}
 				const linkId = this.outputs[0].links[0];
 				const link = this.graph.links[linkId];
 				if (!link) return;
@@ -546,10 +595,10 @@ app.registerExtension({
 				this.outputs[0].name = type;
 				this.outputs[0].widget = widget;
 
-				this.#createWidget(widget[CONFIG] ?? config, theirNode, widget.name, recreating);
+				this.#createWidget(widget[CONFIG] ?? config, theirNode, widget.name, recreating, widget[TARGET]);
 			}
 
-			#createWidget(inputData, node, widgetName, recreating) {
+			#createWidget(inputData, node, widgetName, recreating, targetWidget) {
 				let type = inputData[0];
 
 				if (type instanceof Array) {
@@ -563,7 +612,9 @@ app.registerExtension({
 					widget = this.addWidget(type, "value", null, () => {}, {});
 				}
 
-				if (node?.widgets && widget) {
+				if (targetWidget) {
+					widget.value = targetWidget.value;
+				} else if (node?.widgets && widget) {
 					const theirWidget = node.widgets.find((w) => w.name === widgetName);
 					if (theirWidget) {
 						widget.value = theirWidget.value;
@@ -577,8 +628,16 @@ app.registerExtension({
 					}
 					addValueControlWidgets(this, widget, control_value, undefined, inputData);
 					let filter = this.widgets_values?.[2];
-					if(filter && this.widgets.length === 3) {
+					if (filter && this.widgets.length === 3) {
 						this.widgets[2].value = filter;
+					}
+				}
+
+				// Restore any saved control values
+				const controlValues = this.controlValues;
+				if(this.lastType === this.widgets[0].type && controlValues?.length === this.widgets.length - 1) {
+					for(let i = 0; i < controlValues.length; i++) {
+						this.widgets[i + 1].value = controlValues[i];
 					}
 				}
 
@@ -610,12 +669,14 @@ app.registerExtension({
 				}
 			}
 
-			#recreateWidget() {
-				const values = this.widgets.map((w) => w.value);
+			recreateWidget() {
+				const values = this.widgets?.map((w) => w.value);
 				this.#removeWidgets();
 				this.#onFirstConnection(true);
-				for (let i = 0; i < this.widgets?.length; i++) this.widgets[i].value = values[i];
-				return this.widgets[0];
+				if (values?.length) {
+					for (let i = 0; i < this.widgets?.length; i++) this.widgets[i].value = values[i];
+				}
+				return this.widgets?.[0];
 			}
 
 			#mergeWidgetConfig() {
@@ -631,7 +692,7 @@ app.registerExtension({
 				if (links?.length < 2 && hasConfig) {
 					// Copy the widget options from the source
 					if (links.length) {
-						this.#recreateWidget();
+						this.recreateWidget();
 					}
 
 					return;
@@ -657,7 +718,7 @@ app.registerExtension({
 				// Only allow connections where the configs match
 				const output = this.outputs[0];
 				const config2 = input.widget[GET_CONFIG]();
-				return !!mergeIfValid.call(this, output, config2, forceUpdate, this.#recreateWidget);
+				return !!mergeIfValid.call(this, output, config2, forceUpdate, this.recreateWidget);
 			}
 
 			#removeWidgets() {
@@ -668,11 +729,20 @@ app.registerExtension({
 							w.onRemove();
 						}
 					}
+
+					// Temporarily store the current values in case the node is being recreated
+					// e.g. by group node conversion
+					this.controlValues = [];
+					this.lastType = this.widgets[0]?.type;
+					for(let i = 1; i < this.widgets.length; i++) {
+						this.controlValues.push(this.widgets[i].value);
+					}
+					setTimeout(() => { delete this.lastType; delete this.controlValues }, 15);
 					this.widgets.length = 0;
 				}
 			}
 
-			#onLastDisconnect() {
+			onLastDisconnect() {
 				// We cant remove + re-add the output here as if you drag a link over the same link
 				// it removes, then re-adds, causing it to break
 				this.outputs[0].type = "*";

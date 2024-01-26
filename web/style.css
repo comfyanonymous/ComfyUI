@@ -121,6 +121,8 @@ body {
 	width: 100%;
 }
 
+.comfy-toggle-switch,
+.comfy-btn,
 .comfy-menu > button,
 .comfy-menu-btns button,
 .comfy-menu .comfy-list button,
@@ -133,6 +135,7 @@ body {
 	margin-top: 2px;
 }
 
+.comfy-btn:hover:not(:disabled),
 .comfy-menu > button:hover,
 .comfy-menu-btns button:hover,
 .comfy-menu .comfy-list button:hover,
@@ -143,6 +146,12 @@ body {
 }
 
 .comfy-menu span.drag-handle {
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+span.drag-handle {
 	width: 10px;
 	height: 20px;
 	display: inline-block;
@@ -158,12 +167,9 @@ body {
 	letter-spacing: 2px;
 	color: var(--drag-text);
 	text-shadow: 1px 0 1px black;
-	position: absolute;
-	top: 0;
-	left: 0;
 }
 
-.comfy-menu span.drag-handle::after {
+span.drag-handle::after {
 	content: '.. .. ..';
 }
 
@@ -427,6 +433,43 @@ dialog::backdrop {
 .comfy-missing-nodes li button {
 	font-size: 12px;
 	margin-left: 5px;
+}
+
+.comfy-toggle-switch {
+	border-width: 2px;
+	display: flex;
+	background-color: var(--comfy-input-bg);
+	margin: 2px 0;
+	white-space: nowrap;
+}
+
+.comfy-toggle-switch label {
+	padding: 2px 0px 3px 6px;
+	flex: auto;
+	border-radius: 8px;
+    align-items: center;
+    display: flex;
+    justify-content: center;
+}
+
+.comfy-toggle-switch label:first-child {
+	border-top-left-radius: 8px;
+	border-bottom-left-radius: 8px;
+}
+.comfy-toggle-switch label:last-child {
+	border-top-right-radius: 8px;
+	border-bottom-right-radius: 8px;
+}
+
+.comfy-toggle-switch .comfy-toggle-selected {
+	background-color: var(--comfy-menu-bg);
+}
+
+#extraOptions {
+	padding: 4px;
+	background-color: var(--bg-color);
+	margin-bottom: 4px;
+	border-radius: 4px;
 }
 
 /* Search box */

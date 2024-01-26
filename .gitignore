@@ -15,3 +15,4 @@ venv/
 !/web/extensions/logging.js.example
 !/web/extensions/core/
 /tests-ui/data/object_info.json
+/user/
