@@ -350,7 +350,6 @@ export class ComfyCanvas extends LGraphCanvas {
         // this.background_image = image;
 
         this.clear_background = true;
-        // @ts-expect-error
         this.clear_background_color = clearBackgroundColor;
         // this._pattern = null;
     }
