@@ -1334,7 +1334,6 @@ class KSampler:
         return {"required":
                     {"model": ("MODEL",),
                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                    "batch_behavior": (["randomize", "fixed", "increment", "decrement"],),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
@@ -1343,6 +1342,7 @@ class KSampler:
                     "negative": ("CONDITIONING", ),
                     "latent_image": ("LATENT", ),
                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    "batch_behavior": (["randomize", "fixed", "increment", "decrement"],),
                      }
                 }
 
@@ -1361,7 +1361,6 @@ class KSamplerAdvanced:
                     {"model": ("MODEL",),
                     "add_noise": (["enable", "disable"], ),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                    "batch_behavior": (["randomize", "fixed", "increment", "decrement"],),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
@@ -1372,6 +1371,7 @@ class KSamplerAdvanced:
                     "start_at_step": ("INT", {"default": 0, "min": 0, "max": 10000}),
                     "end_at_step": ("INT", {"default": 10000, "min": 0, "max": 10000}),
                     "return_with_leftover_noise": (["disable", "enable"], ),
+                    "batch_behavior": (["randomize", "fixed", "increment", "decrement"],),
                      }
                 }
 
