@@ -2,8 +2,6 @@ import { ComfyApp, app } from './app.js';
 import { LiteGraph } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 
-const SIZE = Symbol();
-
 interface Point {
     x: number;
     y: number;

@@ -1,6 +1,6 @@
-import { LGraphNode, IWidget, widgetTypes } from 'litegraph.js';
-import { ComfyApp } from '../scripts/app';
-import { ComfyNode } from '../scripts/comfyNode';
+import {LGraphNode, IWidget} from 'litegraph.js';
+import {ComfyApp} from "./exp.ts"
+import {ComfyNode} from "../scripts/comfyNode.ts";
 
 export interface ComfyExtension {
     /**

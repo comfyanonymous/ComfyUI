@@ -1,4 +1,4 @@
-import { ComfyApp } from './app.js';
+import type {ComfyApp} from './app.js';
 import { $el } from './ui.js';
 
 // Simple date formatter

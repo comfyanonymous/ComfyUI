@@ -409,7 +409,9 @@ export class ComfyApp {
                         if (!imageNode) {
                             const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
                             if (this.canvas) {
+                                // @ts-expect-error
                                 if (this.canvas.graph_mouse) {
+                                    // @ts-expect-error
                                     newNode.pos = [...this.canvas.graph_mouse];
                                 }
                             }
@@ -418,6 +420,7 @@ export class ComfyApp {
                             if (!imageNode) {
                                 const newNode = <ComfyNode>LiteGraph.createNode('LoadImage');
                                 if (this.canvas) {
+                                    // @ts-expect-error
                                     newNode.pos = [...this.canvas.graph_mouse];
                                 }
 
@@ -870,6 +873,7 @@ export class ComfyApp {
             }
 
             if (this.canvas && typeof maxY === 'number') {
+                // @ts-expect-error
                 this.canvas.graph_mouse[1] = maxY + 50;
             }
         }

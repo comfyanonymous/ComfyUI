@@ -1,12 +1,14 @@
 import { LGraph } from 'litegraph.js';
-import { ComfyApp } from './app';
-import { ComfyNode } from './comfyNode';
+import type {ComfyApp} from './app';
+import type {ComfyNode} from './comfyNode';
 
 export class ComfyGraph extends LGraph {
     app: ComfyApp;
 
     // Overwrite _nodes as ComfyNode[] rather than LGraphNode[]
+    // @ts-expect-error
     get nodes(): ComfyNode[] {
+        // @ts-expect-error
         return super.nodes as ComfyNode[];
     }
 

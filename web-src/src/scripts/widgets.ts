@@ -1,8 +1,8 @@
 import { api } from './api.js';
 import './domWidget.js';
-import {ComfyWidget, comfyWidgetTypes} from './comfyWidget';
-import { ComfyNode } from './comfyNode.js';
-import { ComfyApp } from './app.js';
+import type {ComfyWidget, comfyWidgetTypes} from './comfyWidget';
+import type {ComfyNode} from './comfyNode.js';
+import type {ComfyApp} from './app.js';
 import {ComfyFile} from "../types/many";
 
 interface WidgetReturnType {

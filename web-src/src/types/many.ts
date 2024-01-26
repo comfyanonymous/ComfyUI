@@ -1,7 +1,4 @@
-import { IWidget, widgetTypes } from 'litegraph.js';
-import { ComfyNode } from '../scripts/comfyNode';
 import { ComfyWidget } from '../scripts/comfyWidget';
-import {QueueData} from "./api";
 
 declare global {
     interface Window {
@@ -138,26 +135,3 @@ export interface SerializedNodeObject {
     original_imgs?: ComfyImages;
     widgets?: ComfyWidget[] | null;
 }
-
-export interface ComfyQueueItem {
-    Running: {
-        prompt: QueueData,
-        remove: {
-            name: string,
-            cb: () => Promise<void>
-        }
-    }[],
-    Pending: {
-        prompt: QueueData[]
-    }
-}
-
-export interface ComfyHistoryItem {
-    History: {
-        prompt: {},
-        outputs: {},
-        status: string
-    }[]
-}
-
-export type ComfyItems = ComfyQueueItem | ComfyHistoryItem

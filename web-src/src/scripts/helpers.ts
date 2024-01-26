@@ -1,6 +1,6 @@
 import { LiteGraph } from 'litegraph.js';
-import { ComfyNode } from './comfyNode';
-import { ComfyWidget } from './comfyWidget';
+import type {ComfyNode} from './comfyNode';
+import type {ComfyWidget} from './comfyWidget';
 
 // ========= Helper functions for onDrawbackground =========
 

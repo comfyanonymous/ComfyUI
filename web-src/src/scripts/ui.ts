@@ -4,7 +4,7 @@ import { ComfySettingsDialog } from './ui/settings.js';
 import {app, ComfyApp} from './app.js';
 import {toggleSwitch} from "./ui/toggleSwitch";
 import {ComfyPromptStatus} from "../types/comfy";
-import {ComfyHistoryItem, ComfyItems, ComfyQueueItem} from "../types/many";
+import {ComfyItems} from "../types/api.ts";
 
 export const ComfyDialog = _ComfyDialog;
 

@@ -1,4 +1,4 @@
-import { ANIM_PREVIEW_WIDGET, app, ComfyApp } from './app';
+import {ANIM_PREVIEW_WIDGET, ComfyApp} from './app';
 import { LiteGraph, LGraphNode, Vector2 } from 'litegraph.js';
 import { ComfyObjectInfo } from '../types/comfy';
 import { api } from './api';
@@ -6,7 +6,7 @@ import { $el } from './ui';
 import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from './helpers';
 import { calculateImageGrid, createImageHost } from './ui/imagePreview';
 import { AddDOMWidgetOptions, ComfyNodeConfig } from '../types/comfy';
-import { ComfyWidget, comfyWidgetTypes } from './comfyWidget';
+import type {ComfyWidget, comfyWidgetTypes} from './comfyWidget';
 import { getClipPath } from './domWidget';
 
 const SIZE = Symbol();
@@ -285,7 +285,9 @@ export class ComfyNode extends LGraphNode {
                 }
 
                 const canvas = app.graph?.list_of_graphcanvas[0];
+                // @ts-expect-error
                 const mouse = canvas?.graph_mouse;
+                // @ts-expect-error
                 if (mouse && !canvas.pointer_is_down && this.pointerDown) {
                     if (mouse[0] === this.pointerDown.pos[0] && mouse[1] === this.pointerDown.pos[1]) {
                         this.imageIndex = this.pointerDown.index;
@@ -351,8 +353,10 @@ export class ComfyNode extends LGraphNode {
                                 if (canvas) {
                                     this.overIndex = i;
                                     let value = 110;
+                                    // @ts-expect-error
                                     if (canvas.pointer_is_down) {
                                         if (!this.pointerDown || this.pointerDown.index !== i) {
+                                            // @ts-expect-error
                                             this.pointerDown = { index: i, pos: [...mouse] };
                                         }
                                         value = 125;
@@ -431,6 +435,7 @@ export class ComfyNode extends LGraphNode {
                         if (hovered) {
                             if (canvas) {
                                 canvas.canvas.style.cursor = 'pointer';
+                                // @ts-expect-error
                                 if (canvas.pointer_is_down) {
                                     fill = '#1e90ff';
                                     isClicking = true;
@@ -462,6 +467,7 @@ export class ComfyNode extends LGraphNode {
                                 // if (!this.pointerDown || !this.pointerDown.index === i) {
                                 if (!this.pointerDown || !(this.pointerDown.index === i)) {
                                     if (mouse) {
+                                        // @ts-expect-error
                                         this.pointerDown = { index: i, pos: [...mouse] };
                                     }
                                 }
@@ -472,6 +478,7 @@ export class ComfyNode extends LGraphNode {
                             // if (!this.pointerDown || !this.pointerDown.index === null)) {
                             if (!this.pointerDown || !(this.pointerDown.index === null)) {
                                 if (mouse) {
+                                    // @ts-expect-error
                                     this.pointerDown = { index: null, pos: [...mouse] };
                                 }
                             }
@@ -594,6 +601,8 @@ export class ComfyNode extends LGraphNode {
             };
             document.addEventListener('mousedown', mouseDownHandler);
         }
+
+        const {app} = this;
 
         const widget: ComfyWidget = {
             name,

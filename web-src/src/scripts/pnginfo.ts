@@ -1,8 +1,8 @@
 import { api } from './api.js';
 import { LiteGraph } from 'litegraph.js';
 import {LatentInfo, PngInfo} from "../types/many";
-import {ComfyGraph} from "./comfyGraph";
-import {ComfyNode} from "./comfyNode";
+import type {ComfyGraph} from "./comfyGraph";
+import type {ComfyNode} from "./comfyNode";
 
 export function getPngMetadata(file: File) {
     return new Promise<PngInfo | Record<string, string> | void>(r => {

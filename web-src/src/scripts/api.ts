@@ -1,4 +1,4 @@
-import { app } from './app';
+
 import { ComfyObjectInfo } from '../types/comfy';
 import {
     EmbeddingsResponse,
@@ -456,4 +456,6 @@ export class ComfyApi extends EventTarget {
 
 // Again, all custom-nodes are written with the assumption that `api` is a singleton
 // object already instantiated.
-export const api = app.api;
+// export const api = app.api;
+
+export const api = new ComfyApi()

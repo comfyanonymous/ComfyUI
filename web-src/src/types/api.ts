@@ -4,8 +4,6 @@ export type ExtensionsResponse = string[];
 
 export type EmbeddingsResponse = string[];
 
-export type ViewFileResponse = ArrayBuffer | string;
-
 export interface UploadFileResponse {
     name: string,
     type: string,
@@ -97,3 +95,27 @@ interface NodeInfo {
     category: string
     output_node: boolean
 }
+
+
+export interface ComfyQueueItem {
+    Running: {
+        prompt: QueueData,
+        remove: {
+            name: string,
+            cb: () => Promise<void>
+        }
+    }[],
+    Pending: {
+        prompt: QueueData[]
+    }
+}
+
+export interface ComfyHistoryItem {
+    History: {
+        prompt: {},
+        outputs: {},
+        status: string
+    }[]
+}
+
+export type ComfyItems = ComfyQueueItem | ComfyHistoryItem

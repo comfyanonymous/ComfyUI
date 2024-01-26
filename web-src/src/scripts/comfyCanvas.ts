@@ -3,9 +3,9 @@
 // Instead, in ComfyTS we use class-inheritance to extend the functionality of Litegraph's
 // original base classes. This is simpler and more maintanable.
 import { LiteGraph, LGraphCanvas, Vector2 } from 'litegraph.js';
-import { ComfyNode } from './comfyNode';
-import { ComfyApp } from './app';
-import { ComfyGraph } from './comfyGraph';
+import type {ComfyNode} from './comfyNode';
+import type {ComfyApp} from './app';
+import type {ComfyGraph} from './comfyGraph';
 
 // TO DO: list all hot keys this class has and what they do
 
@@ -350,6 +350,7 @@ export class ComfyCanvas extends LGraphCanvas {
         // this.background_image = image;
 
         this.clear_background = true;
+        // @ts-expect-error
         this.clear_background_color = clearBackgroundColor;
         // this._pattern = null;
     }

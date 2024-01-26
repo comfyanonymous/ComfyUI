@@ -1,4 +1,4 @@
-import { ComfyNode } from './comfyNode';
+import type {ComfyNode} from './comfyNode';
 import { widgetTypes, IWidget } from 'litegraph.js';
 
 export type comfyWidgetTypes = widgetTypes & ("string" | 'converted-widget' | 'hidden');
