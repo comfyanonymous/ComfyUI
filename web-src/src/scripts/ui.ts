@@ -1,10 +1,10 @@
 import { api } from './api.js';
 import { ComfyDialog as _ComfyDialog } from './ui/dialog.js';
 import { ComfySettingsDialog } from './ui/settings.js';
-import {app, ComfyApp} from './app.js';
-import {toggleSwitch} from "./ui/toggleSwitch";
-import {ComfyPromptStatus} from "../types/comfy";
-import {ComfyItems} from "../types/api.ts";
+import { ComfyApp } from './app.js';
+import { toggleSwitch } from './ui/toggleSwitch';
+import { ComfyPromptStatus } from '../types/comfy';
+import { ComfyItems } from '../types/api.ts';
 
 export const ComfyDialog = _ComfyDialog;
 
@@ -20,21 +20,23 @@ type ElementProps = {
     onclick?: () => void;
     for?: string;
     accept?: string;
-    onchange?: (v: any) => void
-    innerHTML?: string
-    href?: string
-    download?: string | null
-    min?: string
-    max?: string
-    value?: any
-    checked?: boolean
-    rel?: string
-    onload?: (value: any) => void
-    onerror?: (reason?: any) => void
-    oninput?: (i: InputEvent & {
-        target?: { value: any },
-        srcElement?: { value: any }
-    }) => void
+    onchange?: (v: any) => void;
+    innerHTML?: string;
+    href?: string;
+    download?: string | null;
+    min?: string;
+    max?: string;
+    value?: any;
+    checked?: boolean;
+    rel?: string;
+    onload?: (value: any) => void;
+    onerror?: (reason?: any) => void;
+    oninput?: (
+        i: InputEvent & {
+            target?: { value: any };
+            srcElement?: { value: any };
+        }
+    ) => void;
 };
 
 /** tag is an HTML Element Tag and optional classes e.g. div.class1.class2 */
@@ -59,7 +61,7 @@ export function $el(
             element.append(...propsOrChildren);
         } else {
             if (propsOrChildren) {
-                const {parent, $: cb, dataset, style} = propsOrChildren as ElementProps;
+                const { parent, $: cb, dataset, style } = propsOrChildren as ElementProps;
                 delete (propsOrChildren as ElementProps).parent;
                 delete (propsOrChildren as ElementProps).$;
                 delete (propsOrChildren as ElementProps).dataset;
@@ -218,13 +220,15 @@ function dragElement(dragEl: HTMLElement, settings: ComfySettingsDialog) {
 }
 
 class ComfyList {
+    app: ComfyApp; // reference to parent app
     #type;
     #text;
     #reverse;
     element: HTMLElement;
     button: HTMLButtonElement | null;
 
-    constructor(text: string, type: string, reverse: boolean) {
+    constructor(app: ComfyApp, text: string, type: string, reverse: boolean) {
+        this.app = app;
         this.#text = text;
         this.#type = type || text.toLowerCase();
         this.#reverse = reverse || false;
@@ -245,7 +249,10 @@ class ComfyList {
                     textContent: section,
                 }),
                 $el('div.comfy-list-items', [
-                    ...(this.#reverse ? (<ComfyItems[]>items[<keyof typeof items>section]).reverse() : items[<keyof typeof items>section]).map((item: any) => {
+                    ...(this.#reverse
+                        ? (<ComfyItems[]>items[<keyof typeof items>section]).reverse()
+                        : items[<keyof typeof items>section]
+                    ).map((item: any) => {
                         // Allow items to specify a custom remove action (e.g. for interrupt current prompt)
                         const removeAction = item.remove || {
                             name: 'Delete',
@@ -255,9 +262,9 @@ class ComfyList {
                             $el('button', {
                                 textContent: 'Load',
                                 onclick: async () => {
-                                    await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+                                    await this.app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
                                     if (item.outputs) {
-                                        app.nodeOutputs = item.outputs;
+                                        this.app.nodeOutputs = item.outputs;
                                     }
                                 },
                             }),
@@ -319,7 +326,7 @@ class ComfyList {
 }
 
 export class ComfyUI {
-    app: ComfyApp;
+    app: ComfyApp; // reference to its parent app
     dialog: _ComfyDialog;
     settings: ComfySettingsDialog;
     batchCount: number;
@@ -328,7 +335,7 @@ export class ComfyUI {
     history: ComfyList;
     menuContainer: HTMLElement;
     queueSize: HTMLElement | null;
-    autoQueueMode?: { text: string, value?: string, tooltip?: string } | string | null;
+    autoQueueMode?: { text: string; value?: string; tooltip?: string } | string | null;
     graphHasChanged: boolean = false;
     autoQueueEnabled: boolean = false;
 
@@ -339,10 +346,10 @@ export class ComfyUI {
 
         this.batchCount = 1;
         this.lastQueueSize = 0;
-        this.queue = new ComfyList('Queue', 'queue', true);
-        this.history = new ComfyList('History', 'history', true);
-        this.autoQueueMode = null
-        this.queueSize = null
+        this.queue = new ComfyList(app, 'Queue', 'queue', true);
+        this.history = new ComfyList(app, 'History', 'history', true);
+        this.autoQueueMode = null;
+        this.queueSize = null;
 
         api.addEventListener('status', () => {
             this.queue.update();
@@ -354,7 +361,7 @@ export class ComfyUI {
             name: 'Require confirmation when clearing workflow',
             type: 'boolean',
             defaultValue: true,
-            onChange: () => undefined
+            onChange: () => undefined,
         });
 
         const promptFilename = this.settings.addSetting({
@@ -362,7 +369,7 @@ export class ComfyUI {
             name: 'Prompt for filename when saving workflow',
             type: 'boolean',
             defaultValue: true,
-            onChange: () => undefined
+            onChange: () => undefined,
         });
 
         /**
@@ -381,7 +388,7 @@ export class ComfyUI {
             name: 'When displaying a preview in the image widget, convert it to a lightweight image, e.g. webp, jpeg, webp;50, etc.',
             type: 'text',
             defaultValue: '',
-            onChange: () => undefined
+            onChange: () => undefined,
         });
 
         this.settings.addSetting({
@@ -389,7 +396,7 @@ export class ComfyUI {
             name: 'Disable sliders.',
             type: 'boolean',
             defaultValue: false,
-            onChange: () => undefined
+            onChange: () => undefined,
         });
 
         this.settings.addSetting({
@@ -397,7 +404,7 @@ export class ComfyUI {
             name: 'Disable rounding floats (requires page reload).',
             type: 'boolean',
             defaultValue: false,
-            onChange: () => undefined
+            onChange: () => undefined,
         });
 
         this.settings.addSetting({
@@ -410,7 +417,7 @@ export class ComfyUI {
                 step: 1,
             },
             defaultValue: 0,
-            onChange: () => undefined
+            onChange: () => undefined,
         });
 
         const fileInput = $el('input', {
@@ -467,7 +474,7 @@ export class ComfyUI {
                 },
                 [
                     $el('span.drag-handle'),
-                    $el('span', {$: q => (this.queueSize = q as HTMLElement)}),
+                    $el('span', { $: q => (this.queueSize = q as HTMLElement) }),
                     $el('button.comfy-settings-btn', { textContent: '⚙️', onclick: () => this.settings.show() }),
                 ]
             ),
@@ -486,7 +493,9 @@ export class ComfyUI {
                                 extraOptions.style.display = i.srcElement.checked ? 'block' : 'none';
                             }
 
-                            let batchCountInputRange = document.getElementById('batchCountInputRange') as HTMLInputElement;
+                            let batchCountInputRange = document.getElementById(
+                                'batchCountInputRange'
+                            ) as HTMLInputElement;
                             this.batchCount = i.srcElement.checked ? Number(batchCountInputRange.value) : 1;
 
                             let autoQueueCheckbox = document.getElementById('autoQueueCheckbox') as HTMLInputElement;
@@ -510,7 +519,9 @@ export class ComfyUI {
                         style: { width: '35%', 'margin-left': '0.4em' },
                         oninput: (i: InputEvent & { target: { value: any } }) => {
                             this.batchCount = i.target?.value;
-                            let batchCountInputRange = <HTMLInputElement | null>document.getElementById('batchCountInputRange')
+                            let batchCountInputRange = <HTMLInputElement | null>(
+                                document.getElementById('batchCountInputRange')
+                            );
                             if (batchCountInputRange) {
                                 batchCountInputRange.value = this.batchCount.toString();
                             }
@@ -524,7 +535,9 @@ export class ComfyUI {
                         value: this.batchCount,
                         oninput: (i: InputEvent & { srcElement: { value: any } }) => {
                             this.batchCount = i.srcElement?.value;
-                            let batchCountInputNumber = <HTMLInputElement | null>document.getElementById('batchCountInputNumber')
+                            let batchCountInputNumber = <HTMLInputElement | null>(
+                                document.getElementById('batchCountInputNumber')
+                            );
                             if (batchCountInputNumber) {
                                 batchCountInputNumber.value = i.srcElement?.value;
                             }
@@ -698,9 +711,9 @@ export class ComfyUI {
                     status.exec_info.queue_remaining == 0 &&
                     this.autoQueueEnabled &&
                     (this.autoQueueMode === 'instant' || this.graphHasChanged) &&
-                    !app.lastExecutionError
+                    !this.app.lastExecutionError
                 ) {
-                    app.queuePrompt(0, this.batchCount);
+                    this.app.queuePrompt(0, this.batchCount);
                     status.exec_info.queue_remaining += this.batchCount;
                     this.graphHasChanged = false;
                 }

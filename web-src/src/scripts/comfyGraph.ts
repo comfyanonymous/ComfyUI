@@ -1,6 +1,6 @@
 import { LGraph } from 'litegraph.js';
-import type {ComfyApp} from './app';
-import type {ComfyNode} from './comfyNode';
+import type { ComfyApp } from './app';
+import type { ComfyNode } from './comfyNode';
 
 export class ComfyGraph extends LGraph {
     app: ComfyApp;

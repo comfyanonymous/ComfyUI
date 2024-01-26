@@ -1,3 +1,8 @@
+// Right now, ComfyApp uses a service-oriented paradigm for extensions, rather
+// than an event-driven paradigm. This means ComfyApp records all of the
+// extensions in a list, and invokes them in order. In the future, we may switch
+// from service-oriented to event-driven, which would be simpler.
+
 import { ComfyLogging } from './logging';
 import { WidgetFactory } from './widgets';
 import { ComfyUI, $el } from './ui';
@@ -5,7 +10,7 @@ import { ComfyApi } from './api';
 import { defaultGraph } from './defaultGraph';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo';
 import { addDomClippingSetting } from './domWidget';
-import { LiteGraph } from 'litegraph.js';
+import { LiteGraph, LGraphNode, IWidget } from 'litegraph.js';
 import { ComfyCanvas } from './comfyCanvas';
 import { ComfyGraph } from './comfyGraph';
 import { ComfyNode } from './comfyNode';
@@ -19,7 +24,7 @@ import {
     TemplateData,
     WorkflowStep,
 } from '../types/many';
-import { ComfyExtension, ComfyObjectInfo } from '../types/comfy';
+import { ComfyObjectInfo } from '../types/comfy';
 import { ComfyWidget } from './comfyWidget';
 import { sanitizeNodeName } from './utils';
 
@@ -28,33 +33,95 @@ import { sanitizeNodeName } from './utils';
 
 export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
-export class ComfyApp {
+export interface ComfyExtension {
     /**
-     * List of entries to queue
+     * The name of the extension
      */
+    name: string;
+    /**
+     * Allows any initialisation, e.g. loading resources. Called after the canvas is created but before nodes are added
+     * @param app The ComfyUI app instance
+     */
+    init?(app: ComfyApp): Promise<void>;
+    /**
+     * Allows any additonal setup, called after the application is fully set up and running
+     * @param app The ComfyUI app instance
+     */
+    setup?(app: ComfyApp): Promise<void>;
+    /**
+     * Called before nodes are registered with the graph
+     * @param defs The collection of node definitions, add custom ones or edit existing ones
+     * @param app The ComfyUI app instance
+     */
+    addCustomNodeDefs?(defs: Record<string, ComfyObjectInfo>, app: ComfyApp): Promise<void>;
+    /**
+     * Allows the extension to add custom widgets
+     * @param app The ComfyUI app instance
+     * @returns An array of {[widget name]: widget data}
+     */
+    getCustomWidgets?(
+        app: ComfyApp
+    ): Promise<
+        Record<
+            string,
+            (
+                node: ComfyNode,
+                inputName: string,
+                inputData: any,
+                app: ComfyApp
+            ) => { widget?: IWidget; minWidth?: number; minHeight?: number }
+        >
+    >;
+    /**
+     * Allows the extension to add additional handling to the node before it is registered with LGraph
+     * @param nodeType The node class (not an instance)
+     * @param nodeData The original node object info config object
+     * @param app The ComfyUI app instance
+     */
+    beforeRegisterNodeDef?(nodeType: typeof ComfyNode, nodeData: ComfyObjectInfo, app: ComfyApp): Promise<void>;
+    /**
+     * Allows the extension to register additional nodes with LGraph after standard nodes are added
+     * @param app The ComfyUI app instance
+     */
+    registerCustomNodes?(app: ComfyApp): Promise<void>;
+    /**
+     * Allows the extension to modify a node that has been reloaded onto the graph.
+     * If you break something in the backend and want to patch workflows in the frontend
+     * This is the place to do this
+     * @param node The node that has been loaded
+     * @param app The ComfyUI app instance
+     */
+    loadedGraphNode?(node: ComfyNode, app: ComfyApp): Promise<void>;
+    /**
+     * Allows the extension to run code after the constructor of the node
+     * @param node The node that has been created
+     * @param app The ComfyUI app instance
+     */
+    nodeCreated?(node: LGraphNode, app: ComfyApp): Promise<void>;
+}
+
+export class ComfyApp {
+    /** List of entries to queue */
     #queueItems: QueueItem[] = [];
 
-    /**
-     * If the queue is currently being processed
-     */
+    /** If the queue is currently being processed */
     #processingQueue: boolean = false;
 
-    /**
-     * Content Clipboard
-     */
-    static clipspace: SerializedNodeObject | null = null;
-    static clipspace_invalidate_handler: (() => void) | null = null;
-    static open_maskeditor: (() => void) | null = null;
-    static clipspace_return_node: ComfyNode | null = null;
+    /** Content Clipboard */
+    clipspace: SerializedNodeObject | null = null;
+    clipspace_invalidate_handler: (() => void) | null = null;
+    open_maskeditor: (() => void) | null = null;
+    clipspace_return_node: ComfyNode | null = null;
+    openClipspace?: () => void;
 
     /** The UI manager for the app */
     ui: ComfyUI;
 
     /** The logging manager for the app */
-    logging: ComfyLogging;
+    static logging = new ComfyLogging();
 
     /** List of extensions that are registered with the app */
-    extensions: ComfyExtension[] = [];
+    static extensions: ComfyExtension[] = [];
 
     /**
      * Stores the execution output data for each node
@@ -66,28 +133,22 @@ export class ComfyApp {
      */
     nodePreviewImages: Record<string, HTMLImageElement | string | string[]> = {};
 
-    /**
-     * Indicates if the shift key on the keyboard is pressed
-     */
+    /** Indicates if the shift key on the keyboard is pressed */
     shiftDown: boolean = false;
 
     api: ComfyApi;
 
-    /**
-     * The canvas element associated with the app, if any
-     */
+    /** The canvas element associated with the app, if any */
     canvasEl: (HTMLCanvasElement & { id: string }) | null = null;
     canvas: ComfyCanvas | null = null;
     graph: ComfyGraph | null = null;
     ctx: CanvasRenderingContext2D | null = null;
     saveInterval: NodeJS.Timeout | null = null;
 
-    // This makes it possible to cleanup a ComfyApp instance's listeners
+    /** Used to cleanup ComfyApp's listeners when the component unmounts */
     private abortController: AbortController = new AbortController();
 
     dragOverNode?: ComfyNode | null;
-
-    openClipspace?: () => void;
 
     widgets: WidgetFactory | null = null;
 
@@ -104,7 +165,10 @@ export class ComfyApp {
     constructor() {
         this.api = new ComfyApi();
         this.ui = new ComfyUI(this);
-        this.logging = new ComfyLogging(this);
+    }
+
+    static isImageNode(node: ComfyNode) {
+        return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
     }
 
     getPreviewFormatParam() {
@@ -117,21 +181,17 @@ export class ComfyApp {
         return '&rand=' + Math.random();
     }
 
-    static isImageNode(node: ComfyNode) {
-        return node.imgs || (node && node.widgets && node.widgets.findIndex(obj => obj.name === 'image') >= 0);
-    }
-
     onClipspaceEditorSave() {
-        if (ComfyApp.clipspace_return_node) {
-            ComfyApp.pasteFromClipspace(ComfyApp.clipspace_return_node);
+        if (this.clipspace_return_node) {
+            this.pasteFromClipspace(this.clipspace_return_node);
         }
     }
 
-    static onClipspaceEditorClosed() {
-        ComfyApp.clipspace_return_node = null;
+    onClipspaceEditorClosed() {
+        this.clipspace_return_node = null;
     }
 
-    static copyToClipspace(node: ComfyNode) {
+    copyToClipspace(node: ComfyNode) {
         let widgets = null;
         if (node.widgets) {
             widgets = node.widgets.map(({ type, name, value }) => ({
@@ -159,52 +219,48 @@ export class ComfyApp {
             selectedIndex = node.imageIndex;
         }
 
-        ComfyApp.clipspace = {
+        this.clipspace = {
             widgets: widgets,
             imgs: imgs,
             original_imgs: orig_imgs,
             images: node.images,
             selectedIndex: selectedIndex,
-            img_paste_mode: 'selected', // reset to default im_paste_mode state on copy action
+            img_paste_mode: 'selected', // reset to default imf_paste_mode state on copy action
         };
 
-        ComfyApp.clipspace_return_node = null;
+        this.clipspace_return_node = null;
 
-        if (ComfyApp.clipspace_invalidate_handler) {
-            ComfyApp.clipspace_invalidate_handler();
+        if (this.clipspace_invalidate_handler) {
+            this.clipspace_invalidate_handler();
         }
     }
 
-    static pasteFromClipspace(node: ComfyNode) {
-        if (ComfyApp.clipspace) {
+    pasteFromClipspace(node: ComfyNode) {
+        if (this.clipspace) {
             // image paste
-            if (ComfyApp.clipspace.imgs && node.imgs) {
-                if (node.images && ComfyApp.clipspace.images) {
-                    if (ComfyApp.clipspace['img_paste_mode'] == 'selected') {
-                        node.images = [
-                            ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] as HTMLImageElement,
-                        ];
+            if (this.clipspace.imgs && node.imgs) {
+                if (node.images && this.clipspace.images) {
+                    if (this.clipspace['img_paste_mode'] == 'selected') {
+                        node.images = [this.clipspace.images[this.clipspace['selectedIndex']] as HTMLImageElement];
                     } else {
-                        node.images = ComfyApp.clipspace.images;
+                        node.images = this.clipspace.images;
                     }
 
-                    if (app.nodeOutputs[node.id + '']) app.nodeOutputs[node.id + ''].images = node.images;
+                    if (this.nodeOutputs[node.id + '']) this.nodeOutputs[node.id + ''].images = node.images;
                 }
 
-                if (ComfyApp.clipspace.imgs) {
+                if (this.clipspace.imgs) {
                     // deep-copy to cut link with clipspace
-                    if (ComfyApp.clipspace['img_paste_mode'] == 'selected') {
+                    if (this.clipspace['img_paste_mode'] == 'selected') {
                         const img = new Image();
-                        img.src = (
-                            ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']] as HTMLImageElement
-                        ).src;
+                        img.src = (this.clipspace.imgs[this.clipspace['selectedIndex']] as HTMLImageElement).src;
                         node.imgs = [img];
                         node.imageIndex = 0;
                     } else {
                         const imgs = [];
-                        for (let i = 0; i < ComfyApp.clipspace.imgs.length; i++) {
+                        for (let i = 0; i < this.clipspace.imgs.length; i++) {
                             imgs[i] = new Image();
-                            imgs[i].src = (ComfyApp.clipspace.imgs[i] as HTMLImageElement).src;
+                            imgs[i].src = (this.clipspace.imgs[i] as HTMLImageElement).src;
                             node.imgs = imgs;
                         }
                     }
@@ -212,8 +268,8 @@ export class ComfyApp {
             }
 
             if (node.widgets) {
-                if (ComfyApp.clipspace.images) {
-                    const clip_image = ComfyApp.clipspace.images[ComfyApp.clipspace['selectedIndex']] as ComfyFile;
+                if (this.clipspace.images) {
+                    const clip_image = this.clipspace.images[this.clipspace['selectedIndex']] as ComfyFile;
                     const index = node.widgets.findIndex(obj => obj.name === 'image');
                     if (index >= 0) {
                         if (
@@ -230,8 +286,8 @@ export class ComfyApp {
                         }
                     }
                 }
-                if (ComfyApp.clipspace.widgets) {
-                    ComfyApp.clipspace.widgets.forEach(({ type, name, value }) => {
+                if (this.clipspace.widgets) {
+                    this.clipspace.widgets.forEach(({ type, name, value }) => {
                         const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
                         if (prop && prop.type != 'button') {
                             value = value as ComfyFile;
@@ -249,7 +305,7 @@ export class ComfyApp {
                 }
             }
 
-            app.graph?.setDirtyCanvas(true, true);
+            this.graph?.setDirtyCanvas(true, true);
         }
     }
 
@@ -261,7 +317,7 @@ export class ComfyApp {
      */
     #invokeExtensions(method: keyof ComfyExtension, ...args: any[]) {
         let results = [];
-        for (const ext of this.extensions) {
+        for (const ext of ComfyApp.extensions) {
             if (method in ext) {
                 try {
                     results.push((ext[method] as Function)(...args, this));
@@ -287,7 +343,7 @@ export class ComfyApp {
      */
     async invokeExtensionsAsync(method: keyof ComfyExtension | string, ...args: any[]) {
         return await Promise.all(
-            this.extensions.map(async ext => {
+            ComfyApp.extensions.map(async ext => {
                 if (method in ext) {
                     try {
                         return await (ext[method as keyof ComfyExtension] as Function)(...args, this);
@@ -611,16 +667,13 @@ export class ComfyApp {
         );
     }
 
-    /**
-     * Loads all extensions from the API into the window in parallel
-     */
-    async #loadExtensions() {
-        const extensions = <string[]>await this.api.getExtensions();
-        this.logging.addEntry('Comfy.App', 'debug', { Extensions: extensions });
+    /** Loads all specified .js-files into the window in parallel */
+    static async loadExtensions(extensionUrls: string[]) {
+        ComfyApp.logging.addEntry('Comfy.App', 'debug', { Extensions: extensionUrls });
 
-        const extensionPromises = extensions.map(async ext => {
+        const extensionPromises = extensionUrls.map(async ext => {
             try {
-                await import(this.api.apiURL(ext));
+                await import(ext);
             } catch (error) {
                 console.error('Error loading extension', ext, error);
             }
@@ -684,7 +737,6 @@ export class ComfyApp {
             id: 'Comfy.SwitchUser',
             name: 'Switch User',
             defaultValue: 'any',
-            onChange: 'any',
             type: (name: string) => {
                 let currentUser = localStorage['Comfy.userName'];
                 if (currentUser) {
@@ -712,12 +764,14 @@ export class ComfyApp {
     }
 
     /**
-     * Set up the app on the page
+     * Set up the app on the page.
+     * This has to be separate from the constructor because it is an async function.
      */
-    async setup(mainCanvas: HTMLCanvasElement) {
+    async setup(mainCanvas: HTMLCanvasElement, api: ComfyApi) {
         await this.#setUser();
         await this.ui.settings.load();
-        await this.#loadExtensions();
+
+        this.api = api;
 
         // Mount the LiteGraph in the DOM
         mainCanvas.style.touchAction = 'none';
@@ -924,7 +978,7 @@ export class ComfyApp {
                     : []),
             ])
         );
-        this.logging.addEntry('Comfy.App', 'warn', {
+        ComfyApp.logging.addEntry('Comfy.App', 'warn', {
             MissingNodes: missingNodeTypes,
         });
     }
@@ -1419,14 +1473,14 @@ export class ComfyApp {
      * Registers a Comfy web extension with the app
      * @param {ComfyExtension} extension
      */
-    registerExtension(extension: ComfyExtension) {
+    static registerExtension(extension: ComfyExtension) {
         if (!extension.name) {
             throw new Error("Extensions must have a 'name' property.");
         }
-        if (this.extensions.find(ext => ext.name === extension.name)) {
+        if (ComfyApp.extensions.find(ext => ext.name === extension.name)) {
             throw new Error(`Extension named '${extension.name}' already registered.`);
         }
-        this.extensions.push(extension);
+        ComfyApp.extensions.push(extension);
     }
 
     /**
@@ -1532,6 +1586,6 @@ export class ComfyApp {
     }
 }
 
-// Every custom-node is built with the assumption that ComfyApp is a singleton
-// class that is already instantiated and can be imported here.
-export const app = new ComfyApp();
+// This is to support legacy custom-web nodes (js), which used an instance rather
+// than a class to register extensions
+export { ComfyApp as app }

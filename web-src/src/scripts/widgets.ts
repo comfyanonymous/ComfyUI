@@ -1,9 +1,9 @@
 import { api } from './api.js';
 import './domWidget.js';
-import type {ComfyWidget, comfyWidgetTypes} from './comfyWidget';
-import type {ComfyNode} from './comfyNode.js';
-import type {ComfyApp} from './app.js';
-import {ComfyFile} from "../types/many";
+import type { ComfyWidget, comfyWidgetTypes } from './comfyWidget';
+import type { ComfyNode } from './comfyNode.js';
+import type { ComfyApp } from './app.js';
+import { ComfyFile } from '../types/many';
 
 interface WidgetReturnType {
     minWidth?: number;
@@ -53,8 +53,13 @@ interface InputOptions {
     [key: string]: any;
 }
 
-function getNumberDefaults(inputData: InputData[], defaultStep: number, precision: number | undefined, enable_rounding: boolean) {
-    let defaultVal = inputData[1]["default"];
+function getNumberDefaults(
+    inputData: InputData[],
+    defaultStep: number,
+    precision: number | undefined,
+    enable_rounding: boolean
+) {
+    let defaultVal = inputData[1]['default'];
     let { min, max, step, round } = inputData[1];
 
     if (defaultVal == undefined) defaultVal = 0;
@@ -75,7 +80,14 @@ function getNumberDefaults(inputData: InputData[], defaultStep: number, precisio
     return { val: defaultVal, config: { min, max, step: 10.0 * step, round, precision } };
 }
 
-export function addValueControlWidget(node: ComfyNode, targetWidget: ComfyWidget, defaultValue = 'randomize', values?: any, widgetName?: string, inputData?: InputData[]) {
+export function addValueControlWidget(
+    node: ComfyNode,
+    targetWidget: ComfyWidget,
+    defaultValue = 'randomize',
+    values?: any,
+    widgetName?: string,
+    inputData?: InputData[]
+) {
     let name = inputData?.[1]?.control_after_generate;
     if (typeof name !== 'string') {
         name = widgetName;
@@ -93,7 +105,13 @@ export function addValueControlWidget(node: ComfyNode, targetWidget: ComfyWidget
     return widgets[0];
 }
 
-export function addValueControlWidgets(node: ComfyNode, targetWidget: ComfyWidget, defaultValue = 'randomize', options?: InputOptions, inputData?: InputData[]) {
+export function addValueControlWidgets(
+    node: ComfyNode,
+    targetWidget: ComfyWidget,
+    defaultValue = 'randomize',
+    options?: InputOptions,
+    inputData?: InputData[]
+) {
     if (!defaultValue) defaultValue = 'randomize';
     if (!options) options = {};
 
@@ -250,8 +268,14 @@ function seedWidget(node: ComfyNode, inputName: string, inputData: InputData[], 
     return seed;
 }
 
-function createIntWidget(node: ComfyNode, inputName: string, inputData: InputData[], app: ComfyApp, isSeedInput?: boolean): {
-    widget: ComfyWidget
+function createIntWidget(
+    node: ComfyNode,
+    inputName: string,
+    inputData: InputData[],
+    app: ComfyApp,
+    isSeedInput?: boolean
+): {
+    widget: ComfyWidget;
 } {
     const control: string | undefined = inputData[1]?.control_after_generate;
     if (!isSeedInput) {
@@ -318,7 +342,7 @@ export function initWidgets(app: ComfyApp) {
             'Controls when widget values are updated (randomize/increment/decrement), either before the prompt is queued or after.',
         onChange(value: string) {
             controlValueRunBefore = value === 'before';
-            for (const n of (app.graph?.nodes || [])) {
+            for (const n of app.graph?.nodes || []) {
                 if (!n.widgets) continue;
                 for (const w of n.widgets) {
                     if (w[IS_CONTROL_WIDGET]) {
@@ -341,7 +365,7 @@ export const WidgetFactory: WidgetFactory = {
     'INT:seed': seedWidget,
     'INT:noise_seed': seedWidget,
     FLOAT(node: ComfyNode, inputName: string, inputData: InputData[], app: ComfyApp): { widget: ComfyWidget } {
-        let widgetType = isSlider(inputData[1]['display'], app) as comfyWidgetTypes
+        let widgetType = isSlider(inputData[1]['display'], app) as comfyWidgetTypes;
         let precision = app.ui.settings.getSettingValue('Comfy.FloatRoundingPrecision');
         let disable_rounding = app.ui.settings.getSettingValue('Comfy.DisableFloatRounding');
         if (precision == 0) precision = undefined;
@@ -353,7 +377,6 @@ export const WidgetFactory: WidgetFactory = {
                 val,
                 function (v: number) {
                     if (config.round) {
-
                         this.value = Math.round(v / <number>config.round) * <number>config.round;
                     } else {
                         this.value = v;
@@ -375,14 +398,18 @@ export const WidgetFactory: WidgetFactory = {
             if (inputData[1].label_off) options['off'] = inputData[1].label_off;
         }
         return {
-            widget: node.addWidget<ComfyWidget>('toggle', inputName, defaultVal, () => {
-            }, options),
+            widget: node.addWidget<ComfyWidget>('toggle', inputName, defaultVal, () => {}, options),
         };
     },
-    STRING(node: ComfyNode, inputName: string, inputData: InputData[], app: ComfyApp): {
+    STRING(
+        node: ComfyNode,
+        inputName: string,
+        inputData: InputData[],
+        app: ComfyApp
+    ): {
         minWidth?: number;
         minHeight?: number;
-        widget?: ComfyWidget
+        widget?: ComfyWidget;
     } {
         const defaultVal = inputData[1].default || '';
         const multiline = !!inputData[1].multiline;
@@ -392,8 +419,7 @@ export const WidgetFactory: WidgetFactory = {
             res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
         } else {
             res = {
-                widget: node.addWidget<ComfyWidget>('text', inputName, defaultVal, () => {
-                }, {})
+                widget: node.addWidget<ComfyWidget>('text', inputName, defaultVal, () => {}, {}),
             };
         }
 
@@ -410,8 +436,7 @@ export const WidgetFactory: WidgetFactory = {
             defaultValue = inputData[1].default;
         }
         const res = {
-            widget: node.addWidget<ComfyWidget>('combo', inputName, defaultValue, () => {
-            }, {values: type})
+            widget: node.addWidget<ComfyWidget>('combo', inputName, defaultValue, () => {}, { values: type }),
         };
         if (inputData[1]?.control_after_generate) {
             res.widget.linkedWidgets = addValueControlWidgets(node, res.widget, undefined, undefined, inputData);
@@ -454,8 +479,7 @@ export const WidgetFactory: WidgetFactory = {
                     return default_value;
                 }
 
-
-                if (typeof value !== "string" && value.filename) {
+                if (typeof value !== 'string' && value.filename) {
                     let real_value = value;
                     value = '';
                     if (real_value.subfolder) {

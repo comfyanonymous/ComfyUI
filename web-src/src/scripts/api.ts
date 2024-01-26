@@ -1,14 +1,15 @@
-
 import { ComfyObjectInfo } from '../types/comfy';
 import {
     EmbeddingsResponse,
-    ExtensionsResponse,
-    HistoryResponse, ObjectInfoResponse,
+    HistoryResponse,
+    ObjectInfoResponse,
     QueuePromptResponse,
-    QueueResponse, SettingsResponse,
-    SystemStatsResponse, UserConfigResponse
-} from "../types/api";
-import {WorkflowStep} from "../types/many";
+    QueueResponse,
+    SettingsResponse,
+    SystemStatsResponse,
+    UserConfigResponse,
+} from '../types/api';
+import { WorkflowStep } from '../types/many';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
@@ -191,9 +192,9 @@ export class ComfyApi extends EventTarget {
      * Gets a list of extension urls
      * @returns An array of script urls to import
      */
-    async getExtensions() {
+    async getExtensions(): Promise<string[]> {
         const resp = await this.fetchApi('/extensions', { cache: 'no-store' });
-        return <ExtensionsResponse>await resp.json();
+        return (await resp.json()).map((route: string) => this.apiURL(route));
     }
 
     /**
@@ -218,7 +219,7 @@ export class ComfyApi extends EventTarget {
      * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
      * @param {object} prompt The prompt data to queue
      */
-    async queuePrompt(number: number, {output, workflow}: { output: Record<string, WorkflowStep>, workflow: any }) {
+    async queuePrompt(number: number, { output, workflow }: { output: Record<string, WorkflowStep>; workflow: any }) {
         const body = {
             client_id: this.clientId,
             prompt: output,
@@ -290,7 +291,7 @@ export class ComfyApi extends EventTarget {
             }
 
             const history = <HistoryResponse>await res.json();
-            return {History: Object.values(history)};
+            return { History: Object.values(history) };
         } catch (error) {
             console.error(error);
             return { History: [] };
@@ -358,7 +359,7 @@ export class ComfyApi extends EventTarget {
      * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> }
      */
     async getUserConfig() {
-        const response = await this.fetchApi('/users')
+        const response = await this.fetchApi('/users');
         return <UserConfigResponse>await response.json();
     }
 
@@ -392,7 +393,7 @@ export class ComfyApi extends EventTarget {
      * @returns { Promise<unknown> } The setting value
      */
     async getSetting(id: string) {
-        const response = await this.fetchApi(`/settings/${encodeURIComponent(id)}`)
+        const response = await this.fetchApi(`/settings/${encodeURIComponent(id)}`);
         return await response.json();
     }
 
@@ -458,4 +459,4 @@ export class ComfyApi extends EventTarget {
 // object already instantiated.
 // export const api = app.api;
 
-export const api = new ComfyApi()
+export const api = new ComfyApi();

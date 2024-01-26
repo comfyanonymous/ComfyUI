@@ -1,6 +1,5 @@
 import { $el, ComfyDialog } from './ui.js';
 import { api } from './api.js';
-import type {ComfyApp} from './app.js';
 
 $el('style', {
     textContent: `
@@ -134,7 +133,7 @@ class ComfyLoggingDialog extends ComfyDialog {
                         throw new Error('Invalid file selected.');
                     }
                 } catch (error) {
-                    const err = error as Error
+                    const err = error as Error;
                     alert('Unable to load logs: ' + err?.message);
                 }
             };
@@ -195,7 +194,11 @@ class ComfyLoggingDialog extends ComfyDialog {
             return $el(
                 'div.comfy-logging-log',
                 {
-                    $: el => (el as HTMLElement).style.setProperty('--row-bg', `var(--tr-${i % 2 ? 'even' : 'odd'}-bg-color)`),
+                    $: el =>
+                        (el as HTMLElement).style.setProperty(
+                            '--row-bg',
+                            `var(--tr-${i % 2 ? 'even' : 'odd'}-bg-color)`
+                        ),
                 },
                 keys.map(key => {
                     let v = entry[key];
@@ -242,20 +245,19 @@ class ComfyLoggingDialog extends ComfyDialog {
     }
 }
 
-type LogType = 'log' | 'warn' | 'error' | 'debug'
+type LogType = 'log' | 'warn' | 'error' | 'debug';
 
 export class ComfyLogging {
-    app: ComfyApp
-    dialog: ComfyLoggingDialog
+    dialog: ComfyLoggingDialog;
 
     /**
      * @type Array<{ source: string, type: string, timestamp: Date, message: any }>
      */
     entries: {
-        source: string,
-        type: string,
-        timestamp: Date,
-        message: any
+        source: string;
+        type: string;
+        timestamp: Date;
+        message: any;
     }[] = [];
 
     #enabled: boolean = false;
@@ -275,61 +277,57 @@ export class ComfyLogging {
         this.#enabled = value;
     }
 
-    constructor(app: ComfyApp) {
-        this.app = app;
-
+    constructor() {
         this.dialog = new ComfyLoggingDialog(this);
-        this.addSetting();
+        // this.addSetting();
         this.catchUnhandled();
         this.addInitData();
     }
 
-    addSetting() {
-        const settingId = 'Comfy.Logging.Enabled';
-        const htmlSettingId = settingId.replaceAll('.', '-');
-        const setting = this.app.ui.settings.addSetting({
-            id: settingId,
-            name: settingId,
-            defaultValue: true,
-            onChange: (value: any) => {
-                this.enabled = value;
-            },
-            type: (name: string, setter: (v: boolean) => void, value: boolean) => {
-                return $el('tr', [
-                    $el('td', [
-                        $el('label', {
-                            textContent: 'Logging',
-                            for: htmlSettingId,
-                        }),
-                    ]),
-                    $el('td', [
-                        $el('input', {
-                            id: htmlSettingId,
-                            type: 'checkbox',
-                            checked: value,
-                            onchange: event => {
-                                setter(event.target.checked);
-                            },
-                        }),
-                        $el('button', {
-                            textContent: 'View Logs',
-                            onclick: () => {
-                                // @ts-expect-error
-                                this.app.ui.settings.element.close();
-                                this.dialog.show();
-                            },
-                            style: {
-                                fontSize: '14px',
-                                display: 'block',
-                                marginTop: '5px',
-                            },
-                        }),
-                    ]),
-                ]);
-            },
-        });
-        this.enabled = setting.value;
-    }
+    // addSetting() {
+    //     const settingId = 'Comfy.Logging.Enabled';
+    //     const htmlSettingId = settingId.replaceAll('.', '-');
+    //     this.enabled = this.app.ui.settings.addSetting({
+    //         id: settingId,
+    //         name: settingId,
+    //         defaultValue: true,
+    //         onChange: (value: boolean) => {
+    //             this.enabled = value;
+    //         },
+    //         type: (name: string, setter: (v: boolean) => void, value: boolean) => {
+    //             return $el('tr', [
+    //                 $el('td', [
+    //                     $el('label', {
+    //                         textContent: 'Logging',
+    //                         for: htmlSettingId,
+    //                     }),
+    //                 ]),
+    //                 $el('td', [
+    //                     $el('input', {
+    //                         id: htmlSettingId,
+    //                         type: 'checkbox',
+    //                         checked: value,
+    //                         onchange: event => {
+    //                             setter(event.target.checked);
+    //                         },
+    //                     }),
+    //                     $el('button', {
+    //                         textContent: 'View Logs',
+    //                         onclick: () => {
+    //                             this.app.ui.settings.element.close();
+    //                             this.dialog.show();
+    //                         },
+    //                         style: {
+    //                             fontSize: '14px',
+    //                             display: 'block',
+    //                             marginTop: '5px',
+    //                         },
+    //                     }),
+    //                 ]),
+    //             ]);
+    //         },
+    //     });
+    // }
 
     patchConsole() {
         // Capture common console outputs

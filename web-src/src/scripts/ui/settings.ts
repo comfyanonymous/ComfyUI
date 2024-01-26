@@ -1,9 +1,26 @@
 import { $el } from '../ui';
 import { api } from '../api';
 import { ComfyDialog } from './dialog';
+import { ComfyApp } from '../app';
+
+interface IAddSetting {
+    id: string;
+    name: string;
+    type: any;
+    defaultValue: any;
+    onChange?: Function;
+    attrs?: Object;
+    tooltip?: string;
+    options?: any[] | Function;
+}
 
 export class ComfySettingsDialog extends ComfyDialog {
-    constructor(app) {
+    app: ComfyApp;
+    settingsValues: Record<string, any>;
+    settingsLookup: Record<string, any>;
+    element: HTMLDialogElement;
+
+    constructor(app: ComfyApp) {
         super();
         this.app = app;
         this.settingsValues = {};
@@ -30,7 +47,7 @@ export class ComfySettingsDialog extends ComfyDialog {
                     }),
                 ]),
             ]
-        );
+        ) as HTMLDialogElement;
     }
 
     get settings() {
@@ -50,14 +67,14 @@ export class ComfySettingsDialog extends ComfyDialog {
         }
     }
 
-    getId(id) {
+    getId(id: string) {
         if (this.app.storageLocation === 'browser') {
             id = 'Comfy.Settings.' + id;
         }
         return id;
     }
 
-    getSettingValue(id, defaultValue) {
+    getSettingValue(id: string, defaultValue?: any) {
         let value = this.settingsValues[this.getId(id)];
         if (value != null) {
             if (this.app.storageLocation === 'browser') {
@@ -69,7 +86,7 @@ export class ComfySettingsDialog extends ComfyDialog {
         return value ?? defaultValue;
     }
 
-    async setSettingValueAsync(id, value) {
+    async setSettingValueAsync(id: string, value: any) {
         const json = JSON.stringify(value);
         localStorage['Comfy.Settings.' + id] = json; // backwards compatibility for extensions keep setting in storage
 
@@ -83,14 +100,14 @@ export class ComfySettingsDialog extends ComfyDialog {
         await api.storeSetting(id, value);
     }
 
-    setSettingValue(id, value) {
+    setSettingValue(id: string, value: any) {
         this.setSettingValueAsync(id, value).catch(err => {
             alert(`Error saving setting '${id}'`);
             console.error(err);
         });
     }
 
-    addSetting({ id, name, type, defaultValue, onChange, attrs = {}, tooltip = '', options = [] }) {
+    addSetting({ id, name, type, defaultValue, onChange, attrs = {}, tooltip = '', options = [] }: IAddSetting) {
         if (!id) {
             throw new Error('Settings must have an ID');
         }
@@ -125,7 +142,7 @@ export class ComfySettingsDialog extends ComfyDialog {
             onChange,
             name,
             render: () => {
-                const setter = v => {
+                const setter = (v: any) => {
                     if (onChange) {
                         onChange(v, value);
                     }
@@ -141,7 +158,7 @@ export class ComfySettingsDialog extends ComfyDialog {
                 const labelCell = $el('td', [
                     $el('label', {
                         for: htmlID,
-                        classList: [tooltip !== '' ? 'comfy-tooltip-indicator' : ''],
+                        className: tooltip !== '' ? 'comfy-tooltip-indicator' : '',
                         textContent: name,
                     }),
                 ]);
@@ -203,8 +220,11 @@ export class ComfySettingsDialog extends ComfyDialog {
                                                 value,
                                                 type: 'range',
                                                 oninput: e => {
-                                                    setter(e.target.value);
-                                                    e.target.nextElementSibling.value = e.target.value;
+                                                    const target = e.target as HTMLInputElement;
+                                                    setter(target.value);
+                                                    if (target.nextElementSibling instanceof HTMLInputElement) {
+                                                        target.nextElementSibling.value = target.value;
+                                                    }
                                                 },
                                             }),
                                             $el('input', {
@@ -214,8 +234,11 @@ export class ComfySettingsDialog extends ComfyDialog {
                                                 type: 'number',
                                                 style: { maxWidth: '4rem' },
                                                 oninput: e => {
-                                                    setter(e.target.value);
-                                                    e.target.previousElementSibling.value = e.target.value;
+                                                    const target = e.target as HTMLInputElement;
+                                                    setter(target.value);
+                                                    if (target.previousElementSibling instanceof HTMLInputElement) {
+                                                        target.previousElementSibling.value = target.value;
+                                                    }
                                                 },
                                             }),
                                         ]
@@ -234,17 +257,20 @@ export class ComfySettingsDialog extends ComfyDialog {
                                                 setter(e.target.value);
                                             },
                                         },
-                                        (typeof options === 'function' ? options(value) : options || []).map(opt => {
-                                            if (typeof opt === 'string') {
-                                                opt = { text: opt };
+                                        (typeof options === 'function' ? options(value) : options || []).map(
+                                            (opt: any) => {
+                                                if (typeof opt === 'string') {
+                                                    opt = { text: opt };
+                                                }
+                                                const v = opt.value ?? opt.text;
+                                                return $el('option', {
+                                                    value: v,
+                                                    textContent: opt.text,
+                                                    // @ts-ignore
+                                                    selected: value + '' === v + '',
+                                                }) as HTMLOptionElement;
                                             }
-                                            const v = opt.value ?? opt.text;
-                                            return $el('option', {
-                                                value: v,
-                                                textContent: opt.text,
-                                                selected: value + '' === v + '',
-                                            });
-                                        })
+                                        )
                                     ),
                                 ]),
                             ]);

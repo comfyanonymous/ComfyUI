@@ -1,4 +1,4 @@
-import {ANIM_PREVIEW_WIDGET, ComfyApp} from './app';
+import { ANIM_PREVIEW_WIDGET, ComfyApp } from './app';
 import { LiteGraph, LGraphNode, Vector2 } from 'litegraph.js';
 import { ComfyObjectInfo } from '../types/comfy';
 import { api } from './api';
@@ -6,7 +6,7 @@ import { $el } from './ui';
 import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from './helpers';
 import { calculateImageGrid, createImageHost } from './ui/imagePreview';
 import { AddDOMWidgetOptions, ComfyNodeConfig } from '../types/comfy';
-import type {ComfyWidget, comfyWidgetTypes} from './comfyWidget';
+import type { ComfyWidget, comfyWidgetTypes } from './comfyWidget';
 import { getClipPath } from './domWidget';
 
 const SIZE = Symbol();
@@ -595,7 +595,7 @@ export class ComfyNode extends LGraphNode {
             document.addEventListener('mousedown', mouseDownHandler);
         }
 
-        const {app} = this;
+        const { app } = this;
 
         const widget: ComfyWidget = {
             name,
