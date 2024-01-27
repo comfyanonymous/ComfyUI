@@ -4,34 +4,40 @@
 // from service-oriented to event-driven, which would be simpler.
 
 import { ComfyLogging } from './logging';
-import { WidgetFactory } from './widgets';
-import { ComfyUI, $el } from './ui';
+import { WidgetFactory } from './widgetFactory';
+import { $el } from './utils2';
 import { ComfyApi } from './api';
 import { defaultGraph } from './defaultGraph';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo';
-import { addDomClippingSetting } from './domWidget';
 import { LiteGraph, LGraphNode, IWidget } from 'litegraph.js';
 import { ComfyCanvas } from './comfyCanvas';
 import { ComfyGraph } from './comfyGraph';
-import { ComfyNode } from './comfyNode';
+import { ComfyNode, addDomClippingSetting } from './comfyNode';
 import {
     ComfyError,
     ComfyFile,
     ComfyProgress,
     ComfyPromptError,
     QueueItem,
-    SerializedNodeObject,
     TemplateData,
     WorkflowStep,
+    ComfyImages
 } from '../types/many';
 import { ComfyObjectInfo } from '../types/comfy';
 import { ComfyWidget } from './comfyWidget';
-import { sanitizeNodeName } from './utils';
+import { sanitizeNodeName } from './utils2';
 
 // Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object
 (window as Window & typeof globalThis & { LiteGraph: typeof LiteGraph }).LiteGraph = LiteGraph;
 
-export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
+export interface SerializedNodeObject {
+    imgs?: ComfyImages;
+    images?: ComfyImages;
+    selectedIndex: number;
+    img_paste_mode: string;
+    original_imgs?: ComfyImages;
+    widgets?: ComfyWidget[] | null;
+}
 
 export interface ComfyExtension {
     /**
@@ -114,9 +120,6 @@ export class ComfyApp {
     clipspace_return_node: ComfyNode | null = null;
     openClipspace?: () => void;
 
-    /** The UI manager for the app */
-    ui: ComfyUI;
-
     /** The logging manager for the app */
     static logging = new ComfyLogging();
 
@@ -164,7 +167,6 @@ export class ComfyApp {
 
     constructor() {
         this.api = new ComfyApi();
-        this.ui = new ComfyUI(this);
     }
 
     static isImageNode(node: ComfyNode) {
@@ -785,7 +787,7 @@ export class ComfyApp {
 
         this.graph = new ComfyGraph(this);
 
-        this.canvas = new ComfyCanvas(this, canvasEl, this.graph);
+        this.canvas = new ComfyCanvas(canvasEl, this.graph);
         this.ctx = canvasEl.getContext('2d');
 
         LiteGraph.release_link_on_empty_shows_menu = true;
@@ -824,6 +826,7 @@ export class ComfyApp {
         this.#addCopyHandler();
         this.#addPasteHandler();
         this.#addKeyboardHandler();
+        this.#addApiUpdateHandlers(api);
 
         await this.invokeExtensionsAsync('setup');
     }
@@ -1436,7 +1439,6 @@ export class ComfyApp {
             const node = LiteGraph.createNode<ComfyNode>(data.class_type);
 
             // ComfyUI is deliberating assigning node.id as a string, when Litegraph expects a number
-            // @ts-expect-error
             node.id = isNaN(+id) ? id : +id;
             this.graph?.add(node);
         }

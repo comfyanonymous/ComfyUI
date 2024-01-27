@@ -1,8 +1,8 @@
 import { api } from './api.js';
 import { LiteGraph } from 'litegraph.js';
-import {LatentInfo, PngInfo} from "../types/many";
-import type {ComfyGraph} from "./comfyGraph";
-import type {ComfyNode} from "./comfyNode";
+import { LatentInfo, PngInfo } from '../types/many';
+import { ComfyGraph } from './comfyGraph';
+import { ComfyNode } from './comfyNode';
 
 export function getPngMetadata(file: File) {
     return new Promise<PngInfo | Record<string, string> | void>(r => {
@@ -10,7 +10,9 @@ export function getPngMetadata(file: File) {
         reader.onload = event => {
             // Get the PNG data as a Uint8Array
             if (!event.target) return;
-            const pngData = new Uint8Array(typeof event.target.result === 'string' ? Buffer.from(event.target.result) : event.target.result!);
+            const pngData = new Uint8Array(
+                typeof event.target.result === 'string' ? Buffer.from(event.target.result) : event.target.result!
+            );
             const dataView = new DataView(pngData.buffer);
 
             // Check that the PNG signature is present
@@ -118,9 +120,10 @@ export function getWebpMetadata(file: File) {
     return new Promise<PngInfo | Record<string, string> | void>(r => {
         const reader = new FileReader();
         reader.onload = event => {
-            const encoded = typeof event.target?.result === 'string' ?
-                new TextEncoder().encode(event.target.result)
-                : event.target?.result!;
+            const encoded =
+                typeof event.target?.result === 'string'
+                    ? new TextEncoder().encode(event.target.result)
+                    : event.target?.result!;
 
             const webp = new Uint8Array(encoded);
             const dataView = new DataView(webp.buffer);
@@ -165,7 +168,8 @@ export function getLatentMetadata(file: File) {
     return new Promise<LatentInfo>(r => {
         const reader = new FileReader();
         reader.onload = event => {
-            const arrBuffer = typeof event.target?.result === 'string' ? Buffer.from(event.target.result) : event.target?.result!;
+            const arrBuffer =
+                typeof event.target?.result === 'string' ? Buffer.from(event.target.result) : event.target?.result!;
             const safetensorsData = new Uint8Array(arrBuffer);
             const dataView = new DataView(safetensorsData.buffer);
             let header_size = dataView.getUint32(0, true);
@@ -216,7 +220,7 @@ export async function importA1111(graph: ComfyGraph, parameters: string) {
 
             function setWidgetValue(node: ComfyNode, name: string, value: any, isOptionPrefix?: boolean) {
                 const w = getWidget(node, name);
-                if (!w) return
+                if (!w) return;
 
                 if (isOptionPrefix) {
                     const o = w.options.values.find((w: string) => w.startsWith(value));
@@ -232,7 +236,7 @@ export async function importA1111(graph: ComfyGraph, parameters: string) {
             }
 
             function createLoraNodes(clipNode: ComfyNode, text: string, prevClip: any, prevModel: any) {
-                const loras: { name: string, weight: number }[] = [];
+                const loras: { name: string; weight: number }[] = [];
                 text = text.replace(/<lora:([^:]+:[^>]+)>/g, function (m, c) {
                     const s = c.split(':');
                     const weight = parseFloat(s[1]);

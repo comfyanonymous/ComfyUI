@@ -1,18 +1,14 @@
 import { LGraph } from 'litegraph.js';
-import type { ComfyApp } from './app';
-import type { ComfyNode } from './comfyNode';
+import { ComfyNode } from './comfyNode';
 
 export class ComfyGraph extends LGraph {
-    app: ComfyApp;
-
     // Overwrite _nodes as ComfyNode[] rather than LGraphNode[]
     get nodes(): ComfyNode[] {
         return super.nodes as ComfyNode[];
     }
 
-    constructor(app: ComfyApp, ...args: ConstructorParameters<typeof LGraph>) {
+    constructor(...args: ConstructorParameters<typeof LGraph>) {
         super(...args);
-        this.app = app;
     }
 
     // I don't like this `configure` or `onConfigure` pattern; seeems really newbish

@@ -1,5 +1,5 @@
 import { app } from '../../scripts/app';
-import { $el } from '../../scripts/ui';
+import { $el } from '../../scripts/ui/ui';
 
 // Manage color palettes
 

@@ -1,7 +1,6 @@
-import { $el } from '../ui';
+import { $el } from '../utils2';
 import { api } from '../api';
-import { ComfyDialog } from './dialog';
-import { ComfyApp } from '../app';
+import { ComfyDialog } from './comfyDialog';
 
 interface IAddSetting {
     id: string;
@@ -15,14 +14,12 @@ interface IAddSetting {
 }
 
 export class ComfySettingsDialog extends ComfyDialog {
-    app: ComfyApp;
     settingsValues: Record<string, any>;
     settingsLookup: Record<string, any>;
     element: HTMLDialogElement;
 
-    constructor(app: ComfyApp) {
+    constructor() {
         super();
-        this.app = app;
         this.settingsValues = {};
         this.settingsLookup = {};
         this.element = $el(

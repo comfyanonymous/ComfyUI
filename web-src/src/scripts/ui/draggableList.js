@@ -24,7 +24,7 @@
     SOFTWARE.
 */
 
-import { $el } from '../ui.js';
+import { $el } from './ui.js';
 
 $el('style', {
     parent: document.head,

@@ -1,101 +1,10 @@
-import { api } from './api.js';
-import { ComfyDialog as _ComfyDialog } from './ui/dialog.js';
-import { ComfySettingsDialog } from './ui/settings.js';
-import { ComfyApp } from './app.js';
-import { toggleSwitch } from './ui/toggleSwitch';
-import { ComfyPromptStatus } from '../types/comfy';
-import { ComfyItems } from '../types/api.ts';
-
-export const ComfyDialog = _ComfyDialog;
-
-type ElementProps = {
-    width?: number;
-    height?: number;
-    parent?: Element;
-    $?: (el: Element) => void;
-    title?: string;
-    dataset?: DOMStringMap;
-    style?: { [key: string]: string };
-    textContent?: string | null;
-    onclick?: () => void;
-    for?: string;
-    accept?: string;
-    onchange?: (v: any) => void;
-    innerHTML?: string;
-    href?: string;
-    download?: string | null;
-    min?: string;
-    max?: string;
-    value?: any;
-    checked?: boolean;
-    rel?: string;
-    onload?: (value: any) => void;
-    onerror?: (reason?: any) => void;
-    oninput?: (
-        i: InputEvent & {
-            target?: { value: any };
-            srcElement?: { value: any };
-        }
-    ) => void;
-};
-
-/** tag is an HTML Element Tag and optional classes e.g. div.class1.class2 */
-export function $el(
-    tag: string,
-    propsOrChildren?: string | Element | Element[] | ElementProps,
-    children?: Element[]
-): Element {
-    const split = tag.split('.');
-    const element = document.createElement(split.shift()!);
-    if (split.length > 0) {
-        element.classList.add(...split);
-    }
-
-    if (propsOrChildren) {
-        if (typeof propsOrChildren === 'string') {
-            propsOrChildren = { textContent: propsOrChildren };
-        } else if (propsOrChildren instanceof Element) {
-            propsOrChildren = [propsOrChildren];
-        }
-        if (Array.isArray(propsOrChildren)) {
-            element.append(...propsOrChildren);
-        } else {
-            if (propsOrChildren) {
-                const { parent, $: cb, dataset, style } = propsOrChildren as ElementProps;
-                delete (propsOrChildren as ElementProps).parent;
-                delete (propsOrChildren as ElementProps).$;
-                delete (propsOrChildren as ElementProps).dataset;
-                delete (propsOrChildren as ElementProps).style;
-
-                if (Object.hasOwn(propsOrChildren as ElementProps, 'for')) {
-                    element.setAttribute('for', (propsOrChildren as ElementProps).for!);
-                }
-
-                if (style) {
-                    Object.assign(element.style, style);
-                }
-
-                if (dataset) {
-                    Object.assign(element.dataset, dataset);
-                }
-
-                Object.assign(element, propsOrChildren);
-                if (children) {
-                    element.append(...(children instanceof Array ? children : [children]));
-                }
-
-                if (parent) {
-                    parent.append(element);
-                }
-
-                if (cb) {
-                    cb(element);
-                }
-            }
-        }
-    }
-    return element;
-}
+import { api } from '../api.js';
+import { ComfyDialog } from './comfyDialog.js';
+import { ComfySettingsDialog } from './settings.js';
+import { toggleSwitch } from './toggleSwitch.js';
+import { ComfyPromptStatus } from '../../types/comfy.js';
+import { ComfyItems } from '../../types/api.js';
+import { $el } from '../utils2.js';
 
 function dragElement(dragEl: HTMLElement, settings: ComfySettingsDialog) {
     var posDiffX = 0,
@@ -220,15 +129,13 @@ function dragElement(dragEl: HTMLElement, settings: ComfySettingsDialog) {
 }
 
 class ComfyList {
-    app: ComfyApp; // reference to parent app
     #type;
     #text;
     #reverse;
     element: HTMLElement;
     button: HTMLButtonElement | null;
 
-    constructor(app: ComfyApp, text: string, type: string, reverse: boolean) {
-        this.app = app;
+    constructor(text: string, type: string, reverse: boolean) {
         this.#text = text;
         this.#type = type || text.toLowerCase();
         this.#reverse = reverse || false;
@@ -326,8 +233,7 @@ class ComfyList {
 }
 
 export class ComfyUI {
-    app: ComfyApp; // reference to its parent app
-    dialog: _ComfyDialog;
+    dialog: ComfyDialog;
     settings: ComfySettingsDialog;
     batchCount: number;
     lastQueueSize: number;
@@ -339,15 +245,14 @@ export class ComfyUI {
     graphHasChanged: boolean = false;
     autoQueueEnabled: boolean = false;
 
-    constructor(app: ComfyApp) {
-        this.app = app;
+    constructor() {
         this.dialog = new ComfyDialog();
-        this.settings = new ComfySettingsDialog(app);
+        this.settings = new ComfySettingsDialog();
 
         this.batchCount = 1;
         this.lastQueueSize = 0;
-        this.queue = new ComfyList(app, 'Queue', 'queue', true);
-        this.history = new ComfyList(app, 'History', 'history', true);
+        this.queue = new ComfyList('Queue', 'queue', true);
+        this.history = new ComfyList('History', 'history', true);
         this.autoQueueMode = null;
         this.queueSize = null;
 

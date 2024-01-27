@@ -3,26 +3,22 @@
 // Instead, in ComfyTS we use class-inheritance to extend the functionality of Litegraph's
 // original base classes. This is simpler and more maintanable.
 import { LiteGraph, LGraphCanvas, Vector2 } from 'litegraph.js';
-import type {ComfyNode} from './comfyNode';
-import type {ComfyApp} from './app';
-import type {ComfyGraph} from './comfyGraph';
+import {ComfyNode} from './comfyNode';
+import {ComfyGraph} from './comfyGraph';
 
 // TO DO: list all hot keys this class has and what they do
 
 export class ComfyCanvas extends LGraphCanvas {
-    app: ComfyApp; // reference to the app this canvas is inside of
     selected_group_moving: boolean = false;
 
     abortController = new AbortController();
 
     constructor(
-        app: ComfyApp,
         canvas: HTMLCanvasElement & { id: string },
         graph?: ComfyGraph,
         options?: { skip_render?: boolean; autoresize?: boolean }
     ) {
         super(canvas, graph, options);
-        this.app = app;
 
         // Add canvas-event listeners
         window.addEventListener('resize', this.resizeCanvas, { signal: this.abortController.signal });

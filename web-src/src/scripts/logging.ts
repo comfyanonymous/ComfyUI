@@ -1,4 +1,4 @@
-import { $el, ComfyDialog } from './ui.js';
+import { $el, ComfyDialog } from './ui/ui.js';
 import { api } from './api.js';
 
 $el('style', {

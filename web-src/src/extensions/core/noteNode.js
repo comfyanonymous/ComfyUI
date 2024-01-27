@@ -1,5 +1,5 @@
 import { app } from '../../scripts/app.js';
-import { ComfyWidgets } from '../../scripts/widgets.js';
+import { ComfyWidgets } from '../../scripts/widgetFactory.js';
 import { LiteGraph } from 'litegraph.js';
 // Node that add notes to your project
 

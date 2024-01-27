@@ -1,5 +1,3 @@
-import { ComfyNode } from '../scripts/comfyNode.ts';
-
 export type ComfyObjectInfo = {
     name: string;
     display_name?: string;
@@ -14,25 +12,6 @@ export type ComfyObjectInfo = {
 };
 
 export type ComfyObjectInfoConfig = [string | any[]] | [string | any[], any];
-
-interface ComfyOptionsHost {
-    el: Element;
-    updateImages: (imgs: (HTMLImageElement | string)[]) => void;
-    getHeight: () => void;
-    onDraw: () => void;
-}
-
-export interface AddDOMWidgetOptions {
-    host?: ComfyOptionsHost;
-    getHeight?: ComfyOptionsHost['getHeight'];
-    onDraw?: ComfyOptionsHost['onDraw'];
-    hideOnZoom?: boolean;
-    selectOn?: string[];
-    getValue?: () => string | undefined;
-    setValue?: (value: any) => string | undefined | void;
-    beforeResize?: (node: ComfyNode) => void;
-    afterResize?: (node: ComfyNode) => void;
-}
 
 export interface ComfyNodeConfig {
     minWidth: number;

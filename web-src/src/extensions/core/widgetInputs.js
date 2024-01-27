@@ -1,4 +1,4 @@
-import { ComfyWidgets, addValueControlWidgets } from '../../scripts/widgets.js';
+import { ComfyWidgets, addValueControlWidgets } from '../../scripts/widgetFactory.js';
 import { app } from '../../scripts/app.js';
 import { applyTextReplacements } from '../../scripts/utils.js';
 import { LiteGraph } from 'litegraph.js';

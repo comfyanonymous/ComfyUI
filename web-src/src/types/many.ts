@@ -1,5 +1,3 @@
-import { ComfyWidget } from '../scripts/comfyWidget';
-
 declare global {
     interface Window {
         clipboardData: DataTransfer;
@@ -126,12 +124,3 @@ export interface ComfyFile {
 }
 
 export type ComfyImages = HTMLImageElement[] | ComfyFile[];
-
-export interface SerializedNodeObject {
-    imgs?: ComfyImages;
-    images?: ComfyImages;
-    selectedIndex: number;
-    img_paste_mode: string;
-    original_imgs?: ComfyImages;
-    widgets?: ComfyWidget[] | null;
-}

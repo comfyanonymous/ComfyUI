@@ -1,4 +1,4 @@
-import { $el, ComfyDialog } from '../../scripts/ui';
+import { $el, ComfyDialog } from '../../scripts/ui/ui';
 import { DraggableList } from '../../scripts/ui/draggableList';
 import { addStylesheet } from '../../scripts/utils';
 import { GroupNodeConfig, GroupNodeHandler } from './groupNode';

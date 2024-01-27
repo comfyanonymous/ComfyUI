@@ -1,7 +1,6 @@
-import type {ComfyNode} from './comfyNode';
 import { widgetTypes, IWidget } from 'litegraph.js';
 
-export type comfyWidgetTypes = widgetTypes & ("string" | 'converted-widget' | 'hidden');
+export type comfyWidgetTypes = widgetTypes & ('string' | 'converted-widget' | 'hidden');
 
 // TO DO: I think this should be a class, rather than an interface?
 // Also what are the generics for?

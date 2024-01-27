@@ -1,9 +1,8 @@
 import { api } from './api.js';
 import './domWidget.js';
-import type { ComfyWidget, comfyWidgetTypes } from './comfyWidget';
-import type { ComfyNode } from './comfyNode.js';
-import type { ComfyApp } from './app.js';
-import { ComfyFile } from '../types/many';
+import { ComfyWidget, comfyWidgetTypes } from './comfyWidget.js';
+import { ComfyNode } from './comfyNode.js';
+import { ComfyFile } from '../types/many.js';
 
 interface WidgetReturnType {
     minWidth?: number;
@@ -13,8 +12,8 @@ interface WidgetReturnType {
 
 // Define the type for the widget creation functions
 type WidgetCreationFunction =
-    | ((node: ComfyNode, inputName: string, inputData: any, app: ComfyApp) => WidgetReturnType)
-    | ((node: ComfyNode, inputName: string, inputData: any, app: ComfyApp, widgetName: string) => WidgetReturnType);
+    | ((node: ComfyNode, inputName: string, inputData: any) => WidgetReturnType)
+    | ((node: ComfyNode, inputName: string, inputData: any, widgetName: string) => WidgetReturnType);
 
 // Define the structure of the widgets collection
 export interface WidgetFactory {
@@ -260,8 +259,8 @@ export function addValueControlWidgets(
     return widgets;
 }
 
-function seedWidget(node: ComfyNode, inputName: string, inputData: InputData[], app: ComfyApp, widgetName?: string) {
-    const seed = createIntWidget(node, inputName, inputData, app, true);
+function seedWidget(node: ComfyNode, inputName: string, inputData: InputData[], widgetName?: string) {
+    const seed = createIntWidget(node, inputName, inputData, true);
     const seedControl = addValueControlWidget(node, seed.widget, 'randomize', undefined, widgetName, inputData);
 
     seed.widget.linkedWidgets = [seedControl];
@@ -272,17 +271,16 @@ function createIntWidget(
     node: ComfyNode,
     inputName: string,
     inputData: InputData[],
-    app: ComfyApp,
     isSeedInput?: boolean
 ): {
     widget: ComfyWidget;
 } {
     const control: string | undefined = inputData[1]?.control_after_generate;
     if (!isSeedInput) {
-        return seedWidget(node, inputName, inputData, app, typeof control === 'string' ? control : undefined);
+        return seedWidget(node, inputName, inputData, typeof control === 'string' ? control : undefined);
     }
 
-    let widgetType = isSlider(inputData[1]['display'], app) as comfyWidgetTypes;
+    let widgetType = isSlider(inputData[1]['display']) as comfyWidgetTypes;
     const { val, config } = getNumberDefaults(inputData, 1, 0, true);
     Object.assign(config, { precision: 0 });
     return {
@@ -299,7 +297,7 @@ function createIntWidget(
     };
 }
 
-function addMultilineWidget(node: ComfyNode, name: string, opts: InputOptions, _app: ComfyApp) {
+function addMultilineWidget(node: ComfyNode, name: string, opts: InputOptions) {
     const inputEl = document.createElement('textarea');
     inputEl.className = 'comfy-multiline-input';
     inputEl.value = opts.defaultVal;
@@ -323,7 +321,7 @@ function addMultilineWidget(node: ComfyNode, name: string, opts: InputOptions, _
     return { minWidth: 400, minHeight: 200, widget };
 }
 
-function isSlider(display: string, app: ComfyApp) {
+function isSlider(display: string) {
     if (app.ui.settings.getSettingValue('Comfy.DisableSliders')) {
         return 'number';
     }
@@ -404,8 +402,7 @@ export const WidgetFactory: WidgetFactory = {
     STRING(
         node: ComfyNode,
         inputName: string,
-        inputData: InputData[],
-        app: ComfyApp
+        inputData: InputData[]
     ): {
         minWidth?: number;
         minHeight?: number;
@@ -416,7 +413,7 @@ export const WidgetFactory: WidgetFactory = {
 
         let res;
         if (multiline) {
-            res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
+            res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] });
         } else {
             res = {
                 widget: node.addWidget<ComfyWidget>('text', inputName, defaultVal, () => {}, {}),
