@@ -1,6 +1,6 @@
 import { app } from '../../scripts/app.js';
 import { api } from '../../scripts/api.js';
-import { ComfyDialog, $el } from '../../scripts/ui/ui.js';
+import { ComfyDialog, $el } from '../../scripts/ui.js';
 import { GroupNodeConfig, GroupNodeHandler } from './groupNode.js';
 import { LiteGraph } from 'litegraph.js';
 

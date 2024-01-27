@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import './domWidget.js';
-import { ComfyWidget, comfyWidgetTypes } from './comfyWidget.js';
+import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.js';
 import { ComfyNode } from './comfyNode.js';
 import { ComfyFile } from '../types/many.js';
 

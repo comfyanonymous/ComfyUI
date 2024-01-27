@@ -1,11 +1,5 @@
-// Right now, ComfyApp uses a service-oriented paradigm for extensions, rather
-// than an event-driven paradigm. This means ComfyApp records all of the
-// extensions in a list, and invokes them in order. In the future, we may switch
-// from service-oriented to event-driven, which would be simpler.
-
-import { ComfyLogging } from './logging';
 import { WidgetFactory } from './widgetFactory';
-import { $el } from './utils2';
+import { $el } from './utils';
 import { ComfyApi } from './api';
 import { defaultGraph } from './defaultGraph';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo';
@@ -21,92 +15,20 @@ import {
     QueueItem,
     TemplateData,
     WorkflowStep,
-    ComfyImages
 } from '../types/many';
 import { ComfyObjectInfo } from '../types/comfy';
-import { ComfyWidget } from './comfyWidget';
-import { sanitizeNodeName } from './utils2';
+import { ComfyWidget } from '../types/comfyWidget';
+import { sanitizeNodeName } from './utils';
+import { IComfyApp, ComfyExtension, SerializedNodeObject } from '../types/interfaces';
+import { extensionManager } from './extensionManager';
+import { logging } from './logging';
 
 // Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object
 (window as Window & typeof globalThis & { LiteGraph: typeof LiteGraph }).LiteGraph = LiteGraph;
 
-export interface SerializedNodeObject {
-    imgs?: ComfyImages;
-    images?: ComfyImages;
-    selectedIndex: number;
-    img_paste_mode: string;
-    original_imgs?: ComfyImages;
-    widgets?: ComfyWidget[] | null;
-}
+export class ComfyApp implements IComfyApp {
+    private static instance: ComfyApp;
 
-export interface ComfyExtension {
-    /**
-     * The name of the extension
-     */
-    name: string;
-    /**
-     * Allows any initialisation, e.g. loading resources. Called after the canvas is created but before nodes are added
-     * @param app The ComfyUI app instance
-     */
-    init?(app: ComfyApp): Promise<void>;
-    /**
-     * Allows any additonal setup, called after the application is fully set up and running
-     * @param app The ComfyUI app instance
-     */
-    setup?(app: ComfyApp): Promise<void>;
-    /**
-     * Called before nodes are registered with the graph
-     * @param defs The collection of node definitions, add custom ones or edit existing ones
-     * @param app The ComfyUI app instance
-     */
-    addCustomNodeDefs?(defs: Record<string, ComfyObjectInfo>, app: ComfyApp): Promise<void>;
-    /**
-     * Allows the extension to add custom widgets
-     * @param app The ComfyUI app instance
-     * @returns An array of {[widget name]: widget data}
-     */
-    getCustomWidgets?(
-        app: ComfyApp
-    ): Promise<
-        Record<
-            string,
-            (
-                node: ComfyNode,
-                inputName: string,
-                inputData: any,
-                app: ComfyApp
-            ) => { widget?: IWidget; minWidth?: number; minHeight?: number }
-        >
-    >;
-    /**
-     * Allows the extension to add additional handling to the node before it is registered with LGraph
-     * @param nodeType The node class (not an instance)
-     * @param nodeData The original node object info config object
-     * @param app The ComfyUI app instance
-     */
-    beforeRegisterNodeDef?(nodeType: typeof ComfyNode, nodeData: ComfyObjectInfo, app: ComfyApp): Promise<void>;
-    /**
-     * Allows the extension to register additional nodes with LGraph after standard nodes are added
-     * @param app The ComfyUI app instance
-     */
-    registerCustomNodes?(app: ComfyApp): Promise<void>;
-    /**
-     * Allows the extension to modify a node that has been reloaded onto the graph.
-     * If you break something in the backend and want to patch workflows in the frontend
-     * This is the place to do this
-     * @param node The node that has been loaded
-     * @param app The ComfyUI app instance
-     */
-    loadedGraphNode?(node: ComfyNode, app: ComfyApp): Promise<void>;
-    /**
-     * Allows the extension to run code after the constructor of the node
-     * @param node The node that has been created
-     * @param app The ComfyUI app instance
-     */
-    nodeCreated?(node: LGraphNode, app: ComfyApp): Promise<void>;
-}
-
-export class ComfyApp {
     /** List of entries to queue */
     #queueItems: QueueItem[] = [];
 
@@ -116,15 +38,10 @@ export class ComfyApp {
     /** Content Clipboard */
     clipspace: SerializedNodeObject | null = null;
     clipspace_invalidate_handler: (() => void) | null = null;
-    open_maskeditor: (() => void) | null = null;
     clipspace_return_node: ComfyNode | null = null;
     openClipspace?: () => void;
 
-    /** The logging manager for the app */
-    static logging = new ComfyLogging();
-
-    /** List of extensions that are registered with the app */
-    static extensions: ComfyExtension[] = [];
+    open_maskeditor: (() => void) | null = null;
 
     /**
      * Stores the execution output data for each node
@@ -165,8 +82,15 @@ export class ComfyApp {
     multiUserServer: boolean = false;
     elementWidgets: Set<ComfyNode> = new Set();
 
-    constructor() {
+    private constructor() {
         this.api = new ComfyApi();
+    }
+
+    static getInstance() {
+        if (!ComfyApp.instance) {
+            ComfyApp.instance = new ComfyApp();
+        }
+        return ComfyApp.instance;
     }
 
     static isImageNode(node: ComfyNode) {
@@ -309,57 +233,6 @@ export class ComfyApp {
 
             this.graph?.setDirtyCanvas(true, true);
         }
-    }
-
-    /**
-     * Invoke an extension callback
-     * @param {keyof ComfyExtension} method The extension callback to execute
-     * @param  {any[]} args Any arguments to pass to the callback
-     * @returns
-     */
-    #invokeExtensions(method: keyof ComfyExtension, ...args: any[]) {
-        let results = [];
-        for (const ext of ComfyApp.extensions) {
-            if (method in ext) {
-                try {
-                    results.push((ext[method] as Function)(...args, this));
-                } catch (error) {
-                    console.error(
-                        `Error calling extension '${ext.name}' method '${method}'`,
-                        { error },
-                        { extension: ext },
-                        { args }
-                    );
-                }
-            }
-        }
-        return results;
-    }
-
-    /**
-     * Invoke an async extension callback
-     * Each callback will be invoked concurrently
-     * @param {string} method The extension callback to execute
-     * @param  {...any} args Any arguments to pass to the callback
-     * @returns
-     */
-    async invokeExtensionsAsync(method: keyof ComfyExtension | string, ...args: any[]) {
-        return await Promise.all(
-            ComfyApp.extensions.map(async ext => {
-                if (method in ext) {
-                    try {
-                        return await (ext[method as keyof ComfyExtension] as Function)(...args, this);
-                    } catch (error) {
-                        console.error(
-                            `Error calling extension '${ext.name}' method '${method}'`,
-                            { error },
-                            { extension: ext },
-                            { args }
-                        );
-                    }
-                }
-            })
-        );
     }
 
     /**
@@ -669,21 +542,6 @@ export class ComfyApp {
         );
     }
 
-    /** Loads all specified .js-files into the window in parallel */
-    static async loadExtensions(extensionUrls: string[]) {
-        ComfyApp.logging.addEntry('Comfy.App', 'debug', { Extensions: extensionUrls });
-
-        const extensionPromises = extensionUrls.map(async ext => {
-            try {
-                await import(ext);
-            } catch (error) {
-                console.error('Error loading extension', ext, error);
-            }
-        });
-
-        await Promise.all(extensionPromises);
-    }
-
     async #migrateSettings() {
         this.isNewUserSession = true;
         // Store all current settings
@@ -795,7 +653,7 @@ export class ComfyApp {
 
         this.graph.start();
 
-        await this.invokeExtensionsAsync('init');
+        await extensionManager.invokeExtensionsAsync('init');
         await this.registerNodes();
 
         // Load previous workflow
@@ -828,7 +686,7 @@ export class ComfyApp {
         this.#addKeyboardHandler();
         this.#addApiUpdateHandlers(api);
 
-        await this.invokeExtensionsAsync('setup');
+        await extensionManager.invokeExtensionsAsync('setup');
     }
 
     /** Registers nodes with the graph */
@@ -836,7 +694,7 @@ export class ComfyApp {
         // Load node definitions from the backend
         const defs = await this.api.getNodeDefs();
         await this.registerNodesFromDefs(defs);
-        await this.invokeExtensionsAsync('registerCustomNodes');
+        await extensionManager.invokeExtensionsAsync('registerCustomNodes');
     }
 
     getWidgetType(inputData: string | string[], inputName: string): string | null {
@@ -874,19 +732,19 @@ export class ComfyApp {
         comfyNodeConstructor.comfyClass = nodeData.name;
         comfyNodeConstructor.nodeData = nodeData;
 
-        await this.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
+        await extensionManager.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
 
         LiteGraph.registerNodeType(nodeId, comfyNodeConstructor);
     }
 
     async registerNodesFromDefs(defs: Record<string, ComfyObjectInfo>) {
-        await this.invokeExtensionsAsync('addCustomNodeDefs', defs);
+        await extensionManager.invokeExtensionsAsync('addCustomNodeDefs', defs);
 
         // Generate list of known widgets
         this.widgets = Object.assign(
             {},
             WidgetFactory,
-            ...(await this.invokeExtensionsAsync('getCustomWidgets')).filter(Boolean)
+            ...(await extensionManager.invokeExtensionsAsync('getCustomWidgets')).filter(Boolean)
         );
 
         // Register a node for each definition
@@ -981,7 +839,8 @@ export class ComfyApp {
                     : []),
             ])
         );
-        ComfyApp.logging.addEntry('Comfy.App', 'warn', {
+
+        logging.addEntry('Comfy.App', 'warn', {
             MissingNodes: missingNodeTypes,
         });
     }
@@ -1009,7 +868,7 @@ export class ComfyApp {
         }
 
         const missingNodeTypes: string[] = [];
-        await this.invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
+        await extensionManager.invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
         for (let n of graphData.nodes) {
             // Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
             if (n.type == 'T2IAdapterLoader') n.type = 'ControlNetLoader';
@@ -1111,13 +970,15 @@ export class ComfyApp {
                 }
             }
 
-            this.#invokeExtensions('loadedGraphNode', node);
+            // TO DO: check if this behavior changed at all; we went from
+            // invokeExtensions to invokeExtensionsAsync here
+            extensionManager.invokeExtensionsAsync('loadedGraphNode', node);
         }
 
         if (missingNodeTypes.length) {
             this.showMissingNodesError(missingNodeTypes);
         }
-        await this.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
+        await extensionManager.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
     }
 
     /**
@@ -1472,17 +1333,11 @@ export class ComfyApp {
     }
 
     /**
-     * Registers a Comfy web extension with the app
+     * Kept here for legacy-support of the old API, used by custom nodes
      * @param {ComfyExtension} extension
      */
-    static registerExtension(extension: ComfyExtension) {
-        if (!extension.name) {
-            throw new Error("Extensions must have a 'name' property.");
-        }
-        if (ComfyApp.extensions.find(ext => ext.name === extension.name)) {
-            throw new Error(`Extension named '${extension.name}' already registered.`);
-        }
-        ComfyApp.extensions.push(extension);
+    registerExtension(extension: ComfyExtension) {
+        extensionManager.registerExtension(extension);
     }
 
     /**
@@ -1575,7 +1430,7 @@ export class ComfyApp {
         this.nodePreviewImages = {};
 
         // Invoke any necessary cleanup methods for extensions
-        this.invokeExtensionsAsync('cleanup');
+        extensionManager.invokeExtensionsAsync('cleanup');
 
         // If there are any other properties or resources that were set up
         // and need to be cleaned up, do so here.
@@ -1588,6 +1443,5 @@ export class ComfyApp {
     }
 }
 
-// This is to support legacy custom-web nodes (js), which used an instance rather
-// than a class to register extensions
-export { ComfyApp as app }
+// app is a singleton class
+export const app = ComfyApp.getInstance();

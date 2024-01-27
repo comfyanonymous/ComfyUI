@@ -1,4 +1,5 @@
 import { widgetTypes, IWidget } from 'litegraph.js';
+import { IComfyNode } from './interfaces';
 
 export type comfyWidgetTypes = widgetTypes & ('string' | 'converted-widget' | 'hidden');
 
@@ -18,7 +19,7 @@ export interface ComfyWidget<TValue = any, TOption = any> extends IWidget<TValue
     dynamicPrompts?: boolean;
     linkedWidgets?: ComfyWidget[];
     inputEl?: HTMLInputElement | HTMLTextAreaElement;
-    draw?(ctx: CanvasRenderingContext2D, node: ComfyNode, width: number, posY: number, height: number): void;
+    draw?(ctx: CanvasRenderingContext2D, node: IComfyNode, width: number, posY: number, height: number): void;
 
     [key: symbol]: boolean;
 }

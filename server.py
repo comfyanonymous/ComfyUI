@@ -131,7 +131,8 @@ class PromptServer():
         def get_embeddings(self):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
-
+        
+        # Returns relative paths where extensions (as static files) can be loaded from
         @routes.get("/extensions")
         async def get_extensions(request):
             files = glob.glob(os.path.join(

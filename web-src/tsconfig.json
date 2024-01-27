@@ -25,9 +25,9 @@
 
         /* file paths */
         "baseUrl": "./src", // base for non-relative imports, i.e. import { foo } from 'src/foo'
-        "rootDir": "./src", // mirrors this folder's directory structure in dist
+        "rootDir": "./", // mirrors this folder's directory structure in dist
         "typeRoots": ["./node_modules/@types", "./src/types/"],
-        "outDir": "./dist"
+        "outDir": "./dist",
     },
-    "include": ["./src/**/*"]
+    "include": ["./src/**/*"],
 }

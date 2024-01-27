@@ -90,3 +90,7 @@ If you'd be interested in licensing this commercially, message me at paul@fidika
 ### List of Changes
 
 - (everything changed from ComfyUI...)
+
+### To Fix
+
+- For now, I had to comment-out the the logging settings option

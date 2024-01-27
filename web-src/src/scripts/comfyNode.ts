@@ -1,11 +1,12 @@
 import { LiteGraph, LGraphNode, Vector2 } from 'litegraph.js';
 import { ComfyObjectInfo } from '../types/comfy';
 import { api } from './api';
-import { $el } from './utils2';
+import { $el } from './utils';
 import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from './helpers';
 import { calculateImageGrid, createImageHost } from './ui/imagePreview';
 import { ComfyNodeConfig } from '../types/comfy';
-import { ComfyWidget, comfyWidgetTypes } from './comfyWidget';
+import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget';
+import { AddDOMWidgetOptions } from '../types/interfaces';
 
 interface Point {
     x: number;
@@ -76,28 +77,8 @@ export const ANIM_PREVIEW_WIDGET = '$$comfy_animation_preview';
 
 const SIZE = Symbol();
 
-interface ComfyOptionsHost {
-    el: Element;
-    updateImages: (imgs: (HTMLImageElement | string)[]) => void;
-    getHeight: () => void;
-    onDraw: () => void;
-}
-
-interface AddDOMWidgetOptions {
-    host?: ComfyOptionsHost;
-    getHeight?: ComfyOptionsHost['getHeight'];
-    onDraw?: ComfyOptionsHost['onDraw'];
-    hideOnZoom?: boolean;
-    selectOn?: string[];
-    getValue?: () => string | undefined;
-    setValue?: (value: any) => string | undefined | void;
-    beforeResize?: (node: ComfyNode) => void;
-    afterResize?: (node: ComfyNode) => void;
-}
-
 // TO DO: replace 'any' types with actually useful types
 export class ComfyNode extends LGraphNode {
-    app: ComfyApp; // reference to the app this node is attached to
     // title: string;
     category: any;
     // comfyClass: string;
@@ -139,9 +120,8 @@ export class ComfyNode extends LGraphNode {
 
     [SIZE]: boolean | null;
 
-    constructor(nodeData: any, app: ComfyApp) {
+    constructor(nodeData: any) {
         super();
-        this.app = app;
         // this.title = nodeData.display_name || nodeData.name;
         this.category = nodeData.category;
         // this.comfyClass = nodeData.name;

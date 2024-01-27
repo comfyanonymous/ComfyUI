@@ -1,4 +1,6 @@
 import { ComfyError } from './many';
+import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
+import { ComfyObjectInfo } from './comfy';
 
 export type EmbeddingsResponse = string[];
 
@@ -115,3 +117,46 @@ export interface ComfyHistoryItem {
 }
 
 export type ComfyItems = ComfyQueueItem | ComfyHistoryItem;
+
+export interface IComfyApi {
+    socket: WebSocket | null;
+    api_host: string;
+    api_base: string;
+    user: string | undefined;
+    clientId: string | undefined;
+
+    apiURL(route: string): string;
+    fetchApi(route: string, options?: RequestInit): Promise<Response>;
+    addEventListener(
+        type: string,
+        callback: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions
+    ): void;
+    init(): void;
+    getExtensions(): Promise<string[]>;
+    getEmbeddings(): Promise<EmbeddingsResponse>;
+    getNodeDefs(): Promise<Record<string, ComfyObjectInfo>>;
+    queuePrompt(
+        number: number,
+        prompt: { output: Record<string, WorkflowStep>; workflow: any }
+    ): Promise<QueuePromptResponse>;
+    getItems(type: string): Promise<any>; // Replace 'any' with the actual return type if known
+    getQueue(): Promise<QueueResponse>;
+    getHistory(max_items?: number): Promise<HistoryResponse>;
+    getSystemStats(): Promise<SystemStatsResponse>;
+    deleteItem(type: string, id: number): Promise<void>;
+    clearItems(type: string): Promise<void>;
+    interrupt(): Promise<void>;
+    getUserConfig(): Promise<UserConfigResponse>;
+    createUser(username: string): Promise<Response>;
+    getSettings(): Promise<SettingsResponse>;
+    getSetting(id: string): Promise<unknown>; // Replace 'unknown' with the actual return type if known
+    storeSettings(settings: Record<string, unknown>): Promise<void>;
+    storeSetting(id: string, value: Record<string, any>): Promise<void>;
+    getUserData(file: string, options?: RequestInit): Promise<unknown>; // Replace 'unknown' with the actual return type if known
+    storeUserData(
+        file: string,
+        data: BodyInit,
+        options?: { stringify?: boolean; throwOnError?: boolean }
+    ): Promise<void>;
+}

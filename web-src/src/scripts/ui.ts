@@ -1,10 +1,10 @@
-import { api } from '../api.js';
-import { ComfyDialog } from './comfyDialog.js';
-import { ComfySettingsDialog } from './settings.js';
-import { toggleSwitch } from './toggleSwitch.js';
-import { ComfyPromptStatus } from '../../types/comfy.js';
-import { ComfyItems } from '../../types/api.js';
-import { $el } from '../utils2.js';
+import { api } from './api.js';
+import { ComfyDialog } from './ui/comfyDialog.js';
+import { ComfySettingsDialog } from './ui/settings.js';
+import { toggleSwitch } from './ui/toggleSwitch.js';
+import { ComfyPromptStatus } from '../types/comfy.js';
+import { ComfyItems } from '../types/api.js';
+import { $el } from './utils.js';
 
 function dragElement(dragEl: HTMLElement, settings: ComfySettingsDialog) {
     var posDiffX = 0,

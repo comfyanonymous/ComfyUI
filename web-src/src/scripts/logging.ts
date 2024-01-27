@@ -1,4 +1,4 @@
-import { $el, ComfyDialog } from './ui/ui.js';
+import { $el, ComfyDialog } from './utils.js';
 import { api } from './api.js';
 
 $el('style', {
@@ -247,8 +247,11 @@ class ComfyLoggingDialog extends ComfyDialog {
 
 type LogType = 'log' | 'warn' | 'error' | 'debug';
 
-export class ComfyLogging {
-    dialog: ComfyLoggingDialog;
+// Singleton pattern
+let logging: ComfyLogging;
+
+class ComfyLogging {
+    dialog!: ComfyLoggingDialog;
 
     /**
      * @type Array<{ source: string, type: string, timestamp: Date, message: any }>
@@ -278,56 +281,60 @@ export class ComfyLogging {
     }
 
     constructor() {
-        this.dialog = new ComfyLoggingDialog(this);
-        // this.addSetting();
-        this.catchUnhandled();
-        this.addInitData();
+        if (!logging) {
+            this.dialog = new ComfyLoggingDialog(this);
+            // this.addSetting();
+            this.catchUnhandled();
+            this.addInitData();
+            logging = this;
+        }
+        return logging;
     }
 
-    // addSetting() {
-    //     const settingId = 'Comfy.Logging.Enabled';
-    //     const htmlSettingId = settingId.replaceAll('.', '-');
-    //     this.enabled = this.app.ui.settings.addSetting({
-    //         id: settingId,
-    //         name: settingId,
-    //         defaultValue: true,
-    //         onChange: (value: boolean) => {
-    //             this.enabled = value;
-    //         },
-    //         type: (name: string, setter: (v: boolean) => void, value: boolean) => {
-    //             return $el('tr', [
-    //                 $el('td', [
-    //                     $el('label', {
-    //                         textContent: 'Logging',
-    //                         for: htmlSettingId,
-    //                     }),
-    //                 ]),
-    //                 $el('td', [
-    //                     $el('input', {
-    //                         id: htmlSettingId,
-    //                         type: 'checkbox',
-    //                         checked: value,
-    //                         onchange: event => {
-    //                             setter(event.target.checked);
-    //                         },
-    //                     }),
-    //                     $el('button', {
-    //                         textContent: 'View Logs',
-    //                         onclick: () => {
-    //                             this.app.ui.settings.element.close();
-    //                             this.dialog.show();
-    //                         },
-    //                         style: {
-    //                             fontSize: '14px',
-    //                             display: 'block',
-    //                             marginTop: '5px',
-    //                         },
-    //                     }),
-    //                 ]),
-    //             ]);
-    //         },
-    //     });
-    // }
+    addSetting() {
+        const settingId = 'Comfy.Logging.Enabled';
+        const htmlSettingId = settingId.replaceAll('.', '-');
+        this.enabled = this.app.ui.settings.addSetting({
+            id: settingId,
+            name: settingId,
+            defaultValue: true,
+            onChange: (value: boolean) => {
+                this.enabled = value;
+            },
+            type: (name: string, setter: (v: boolean) => void, value: boolean) => {
+                return $el('tr', [
+                    $el('td', [
+                        $el('label', {
+                            textContent: 'Logging',
+                            for: htmlSettingId,
+                        }),
+                    ]),
+                    $el('td', [
+                        $el('input', {
+                            id: htmlSettingId,
+                            type: 'checkbox',
+                            checked: value,
+                            onchange: event => {
+                                setter(event.target.checked);
+                            },
+                        }),
+                        $el('button', {
+                            textContent: 'View Logs',
+                            onclick: () => {
+                                this.app.ui.settings.element.close();
+                                this.dialog.show();
+                            },
+                            style: {
+                                fontSize: '14px',
+                                display: 'block',
+                                marginTop: '5px',
+                            },
+                        }),
+                    ]),
+                ]);
+            },
+        });
+    }
 
     patchConsole() {
         // Capture common console outputs
@@ -389,3 +396,7 @@ export class ComfyLogging {
         this.addEntry(source, 'debug', systemStats);
     }
 }
+
+// Logging is a singleton class throughout the app
+logging = new ComfyLogging();
+export { logging };

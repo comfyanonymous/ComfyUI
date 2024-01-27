@@ -1,6 +1,3 @@
-import {ComfyApp} from './app.js';
-import { $el } from './ui/ui.js';
-
 // Simple date formatter
 const parts = {
     d: (d: Date) => d.getDate(),
@@ -14,7 +11,7 @@ const format =
         .map(k => k + k + '?')
         .join('|') + '|yyy?y?';
 
-function formatDate(text: string, date: Date) {
+export function formatDate(text: string, date: Date) {
     return text.replace(new RegExp(format, 'g'), function (text) {
         if (text === 'yy') return (date.getFullYear() + '').substring(2);
         if (text === 'yyyy') return date.getFullYear().toString();
@@ -24,49 +21,6 @@ function formatDate(text: string, date: Date) {
         }
 
         return text;
-    });
-}
-
-export function applyTextReplacements(app: ComfyApp, value: string) {
-    return value.replace(/%([^%]+)%/g, function (match, text) {
-        const split = text.split('.');
-        if (split.length !== 2) {
-            // Special handling for dates
-            if (split[0].startsWith('date:')) {
-                return formatDate(split[0].substring(5), new Date());
-            }
-
-            if (text !== 'width' && text !== 'height') {
-                // Dont warn on standard replacements
-                console.warn('Invalid replacement pattern', text);
-            }
-            return match;
-        }
-
-        // Find node with matching S&R property name
-        let nodes = app.graph?.nodes.filter(n => n.properties?.['Node name for S&R'] === split[0]);
-        // If we cant, see if there is a node with that title
-        if (!nodes?.length) {
-            nodes = app.graph?.nodes.filter(n => n.title === split[0]);
-        }
-        if (!nodes?.length) {
-            console.warn('Unable to find node', split[0]);
-            return match;
-        }
-
-        if (nodes?.length > 1) {
-            console.warn('Multiple nodes matched', split[0], 'using first match');
-        }
-
-        const node = nodes[0];
-
-        const widget = node.widgets?.find(w => w.name === split[1]);
-        if (!widget) {
-            console.warn('Unable to find widget', split[1], 'on node', split[0], node);
-            return match;
-        }
-
-        return ((widget.value ?? '') + '').replaceAll(/\/|\\/g, '_');
     });
 }
 
@@ -89,4 +43,107 @@ export async function addStylesheet(urlOrFile: string, relativeTo: string) {
     });
 }
 
+export function sanitizeNodeName(string: string) {
+    let entityMap = {
+        '&': '',
+        '<': '',
+        '>': '',
+        '"': '',
+        "'": '',
+        '`': '',
+        '=': '',
+    };
 
+    return String(string).replace(/[&<>"'`=]/g, function fromEntityMap(s) {
+        return entityMap[s as keyof typeof entityMap];
+    });
+}
+
+type ElementProps = {
+    width?: number;
+    height?: number;
+    parent?: Element;
+    $?: (el: Element) => void;
+    title?: string;
+    dataset?: DOMStringMap;
+    style?: { [key: string]: string };
+    textContent?: string | null;
+    onclick?: () => void;
+    for?: string;
+    accept?: string;
+    onchange?: (v: any) => void;
+    innerHTML?: string;
+    href?: string;
+    download?: string | null;
+    min?: string;
+    max?: string;
+    value?: any;
+    checked?: boolean;
+    rel?: string;
+    onload?: (value: any) => void;
+    onerror?: (reason?: any) => void;
+    oninput?: (
+        i: InputEvent & {
+            target?: { value: any };
+            srcElement?: { value: any };
+        }
+    ) => void;
+};
+
+/** tag is an HTML Element Tag and optional classes e.g. div.class1.class2 */
+export function $el(
+    tag: string,
+    propsOrChildren?: string | Element | Element[] | ElementProps,
+    children?: Element[]
+): Element {
+    const split = tag.split('.');
+    const element = document.createElement(split.shift()!);
+    if (split.length > 0) {
+        element.classList.add(...split);
+    }
+
+    if (propsOrChildren) {
+        if (typeof propsOrChildren === 'string') {
+            propsOrChildren = { textContent: propsOrChildren };
+        } else if (propsOrChildren instanceof Element) {
+            propsOrChildren = [propsOrChildren];
+        }
+        if (Array.isArray(propsOrChildren)) {
+            element.append(...propsOrChildren);
+        } else {
+            if (propsOrChildren) {
+                const { parent, $: cb, dataset, style } = propsOrChildren as ElementProps;
+                delete (propsOrChildren as ElementProps).parent;
+                delete (propsOrChildren as ElementProps).$;
+                delete (propsOrChildren as ElementProps).dataset;
+                delete (propsOrChildren as ElementProps).style;
+
+                if (Object.hasOwn(propsOrChildren as ElementProps, 'for')) {
+                    element.setAttribute('for', (propsOrChildren as ElementProps).for!);
+                }
+
+                if (style) {
+                    Object.assign(element.style, style);
+                }
+
+                if (dataset) {
+                    Object.assign(element.dataset, dataset);
+                }
+
+                Object.assign(element, propsOrChildren);
+                if (children) {
+                    element.append(...(children instanceof Array ? children : [children]));
+                }
+
+                if (parent) {
+                    parent.append(element);
+                }
+
+                if (cb) {
+                    cb(element);
+                }
+            }
+        }
+    }
+    return element;
+}
