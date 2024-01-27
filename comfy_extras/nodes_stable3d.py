@@ -46,7 +46,7 @@ class StableZero123_Conditioning:
         encode_pixels = pixels[:,:,:,:3]
         t = vae.encode(encode_pixels)
         cam_embeds = camera_embeddings(elevation, azimuth)
-        cond = torch.cat([pooled, cam_embeds.repeat((pooled.shape[0], 1, 1))], dim=-1)
+        cond = torch.cat([pooled, cam_embeds.to(pooled.device).repeat((pooled.shape[0], 1, 1))], dim=-1)
 
         positive = [[cond, {"concat_latent_image": t}]]
         negative = [[torch.zeros_like(pooled), {"concat_latent_image": torch.zeros_like(t)}]]
