@@ -1,7 +1,7 @@
 import { logging } from './logging';
 
 /** Loads all specified .js-files into the window in parallel */
-export async function loadCustomNodes(jsModuleUrls: string[]) {
+export async function loadWebExtensions(jsModuleUrls: string[]) {
     logging.addEntry('Comfy.App', 'debug', { Extensions: jsModuleUrls });
 
     const extensionPromises = jsModuleUrls.map(async ext => {

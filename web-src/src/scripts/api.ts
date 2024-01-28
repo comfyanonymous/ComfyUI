@@ -1,5 +1,6 @@
 import { ComfyObjectInfo } from '../types/comfy';
 import {
+    IComfyApi,
     EmbeddingsResponse,
     HistoryResponse,
     ObjectInfoResponse,
@@ -13,7 +14,7 @@ import { WorkflowStep } from '../types/many';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
-export class ComfyApi extends EventTarget {
+export class ComfyApi extends EventTarget implements IComfyApi {
     socket: WebSocket | null = null;
     api_host: string;
     api_base: string;
@@ -76,7 +77,7 @@ export class ComfyApi extends EventTarget {
      * Creates and connects a WebSocket for realtime updates
      * @param {boolean} isReconnect If the socket is connection is a reconnect attempt
      */
-    #createSocket(isReconnect: boolean = false) {
+    #createSocket(isReconnect = false) {
         if (this.socket) {
             return;
         }
@@ -87,7 +88,9 @@ export class ComfyApi extends EventTarget {
             existingSession = '?clientId=' + existingSession;
         }
         this.socket = new WebSocket(
-            `ws${window.location.protocol === 'https:' ? 's' : ''}://${this.api_host}${this.api_base}/ws${existingSession}`
+            `ws${window.location.protocol === 'https:' ? 's' : ''}://${this.api_host}${
+                this.api_base
+            }/ws${existingSession}`
         );
         this.socket.binaryType = 'arraybuffer';
 

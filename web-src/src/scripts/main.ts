@@ -10,11 +10,11 @@
 
 import { app } from './app';
 import { api } from './api';
-import { loadCustomNodes } from './loadCustomNodes';
+import { loadWebExtensions } from './loadWebExtensions';
 
-// Ask the api-server what custom-nodes to load, if any, and then load them
-const jsModuleUrls = await api.getExtensions();
-await loadCustomNodes(jsModuleUrls);
+// Ask the api-server what front-end extensions to load, if any, and then load them
+const webModuleUrls = await api.getExtensions();
+await loadWebExtensions(webModuleUrls);
 
 // Every custom-node is built with the assumption that ComfyApp is a singleton
 // class that is already instantiated and can be imported here.

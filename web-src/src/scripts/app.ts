@@ -3,29 +3,26 @@ import { $el } from './utils';
 import { ComfyApi } from './api';
 import { defaultGraph } from './defaultGraph';
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo';
-import { LiteGraph, LGraphNode, IWidget } from 'litegraph.js';
+import { LiteGraph } from 'litegraph.js';
 import { ComfyCanvas } from './comfyCanvas';
 import { ComfyGraph } from './comfyGraph';
 import { ComfyNode, addDomClippingSetting } from './comfyNode';
-import { ComfyError, ComfyFile, ComfyProgress, ComfyPromptError, QueueItem, TemplateData } from '../types/many';
+import { ComfyError, ComfyFile, ComfyProgress, ComfyPromptError, TemplateData } from '../types/many';
+import { IComfyApp, IComfyCanvas, IComfyGraph } from '../types/interfaces';
+import { IComfyApi } from '../types/api';
 import { ComfyObjectInfo } from '../types/comfy';
 import { ComfyWidget } from '../types/comfyWidget';
 import { sanitizeNodeName } from './utils';
-import { IComfyApp, ComfyExtension, SerializedNodeObject } from '../types/interfaces';
+import { ComfyExtension, SerializedNodeObject } from '../types/interfaces';
 import { extensionManager } from './extensionManager';
 import { logging } from './logging';
+import { registerNodeDef } from './registerNodes';
 
 // Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object
 (window as Window & typeof globalThis & { LiteGraph: typeof LiteGraph }).LiteGraph = LiteGraph;
 
 export class ComfyApp implements IComfyApp {
     private static instance: ComfyApp;
-
-    /** List of entries to queue */
-    #queueItems: QueueItem[] = [];
-
-    /** If the queue is currently being processed */
-    #processingQueue: boolean = false;
 
     /** Content Clipboard */
     clipspace: SerializedNodeObject | null = null;
@@ -48,12 +45,12 @@ export class ComfyApp implements IComfyApp {
     /** Indicates if the shift key on the keyboard is pressed */
     shiftDown: boolean = false;
 
-    api: ComfyApi;
+    api: IComfyApi;
 
     /** The canvas element associated with the app, if any */
     canvasEl: (HTMLCanvasElement & { id: string }) | null = null;
-    canvas: ComfyCanvas | null = null;
-    graph: ComfyGraph | null = null;
+    canvas: IComfyCanvas | null = null;
+    graph: IComfyGraph | null = null;
     ctx: CanvasRenderingContext2D | null = null;
     saveInterval: NodeJS.Timeout | null = null;
 
@@ -61,8 +58,6 @@ export class ComfyApp implements IComfyApp {
     private abortController: AbortController = new AbortController();
 
     dragOverNode?: ComfyNode | null;
-
-    widgets: WidgetFactory | null = null;
 
     progress: ComfyProgress | null = null;
     runningNodeId: number | null = null;
@@ -89,9 +84,10 @@ export class ComfyApp implements IComfyApp {
     }
 
     getPreviewFormatParam() {
-        let preview_format = this.ui.settings.getSettingValue('Comfy.PreviewFormat');
-        if (preview_format) return `&preview=${preview_format}`;
-        else return '';
+        // let preview_format = this.ui.settings.getSettingValue('Comfy.PreviewFormat');
+        // if (preview_format) return `&preview=${preview_format}`;
+        // else return '';
+        return '';
     }
 
     getRandParam() {
@@ -421,19 +417,19 @@ export class ComfyApp implements IComfyApp {
             [
                 'status',
                 ({ detail }) => {
-                    this.ui.setStatus(detail);
+                    // this.ui.setStatus(detail);
                 },
             ],
             [
                 'reconnecting',
                 () => {
-                    this.ui.dialog.show('Reconnecting...');
+                    // this.ui.dialog.show('Reconnecting...');
                 },
             ],
             [
                 'reconnected',
                 () => {
-                    this.ui.dialog.close();
+                    // this.ui.dialog.close();
                 },
             ],
             [
@@ -491,7 +487,7 @@ export class ComfyApp implements IComfyApp {
                 ({ detail }) => {
                     this.lastExecutionError = detail;
                     const formattedError = this.#formatExecutionError(detail);
-                    this.ui.dialog.show(formattedError);
+                    // this.ui.dialog.show(formattedError);
                     this.canvas?.draw(true, true);
                 },
             ],
@@ -535,83 +531,78 @@ export class ComfyApp implements IComfyApp {
 
     async #migrateSettings() {
         this.isNewUserSession = true;
-        // Store all current settings
-        const settings = Object.keys(this.ui.settings).reduce((p: { [x: string]: any }, n) => {
-            const v = localStorage[`Comfy.Settings.${n}`];
-            if (v) {
-                try {
-                    p[n] = JSON.parse(v);
-                } catch (error) {}
-            }
-            return p;
-        }, {});
 
-        await this.api.storeSettings(settings);
+        // Store all current settings
+        // const settings = Object.keys(this.ui.settings).reduce((p: { [x: string]: any }, n) => {
+        //     const v = localStorage[`Comfy.Settings.${n}`];
+        //     if (v) {
+        //         try {
+        //             p[n] = JSON.parse(v);
+        //         } catch (error) {}
+        //     }
+        //     return p;
+        // }, {});
+
+        // await this.api.storeSettings(settings);
     }
 
     async #setUser() {
-        const userConfig = await this.api.getUserConfig();
-        this.storageLocation = userConfig.storage;
-        if (typeof userConfig.migrated == 'boolean') {
-            // Single user mode migrated true/false for if the default user is created
-            if (!userConfig.migrated && this.storageLocation === 'server') {
-                // Default user not created yet
-                await this.#migrateSettings();
-            }
-            return;
-        }
-
-        this.multiUserServer = true;
-        let user = localStorage['Comfy.userId'];
-        const users = userConfig.users ?? {};
-        if (!user || !users[user]) {
-            // This will rarely be hit so move the loading to on demand
-            const { UserSelectionScreen } = await import('./ui/userSelection');
-
-            this.ui.menuContainer.style.display = 'none';
-            const { userId, username, created } = await new UserSelectionScreen().show(users, user);
-            this.ui.menuContainer.style.display = '';
-
-            user = userId;
-            localStorage['Comfy.userName'] = username;
-            localStorage['Comfy.userId'] = user;
-
-            if (created) {
-                this.api.user = user;
-                await this.#migrateSettings();
-            }
-        }
-
-        this.api.user = user;
-
-        this.ui.settings.addSetting({
-            id: 'Comfy.SwitchUser',
-            name: 'Switch User',
-            defaultValue: 'any',
-            type: (name: string) => {
-                let currentUser = localStorage['Comfy.userName'];
-                if (currentUser) {
-                    currentUser = ` (${currentUser})`;
-                }
-                return $el('tr', [
-                    $el('td', [
-                        $el('label', {
-                            textContent: name,
-                        }),
-                    ]),
-                    $el('td', [
-                        $el('button', {
-                            textContent: name + (currentUser ?? ''),
-                            onclick: () => {
-                                delete localStorage['Comfy.userId'];
-                                delete localStorage['Comfy.userName'];
-                                window.location.reload();
-                            },
-                        }),
-                    ]),
-                ]);
-            },
-        });
+        // const userConfig = await this.api.getUserConfig();
+        // this.storageLocation = userConfig.storage;
+        // if (typeof userConfig.migrated == 'boolean') {
+        //     // Single user mode migrated true/false for if the default user is created
+        //     if (!userConfig.migrated && this.storageLocation === 'server') {
+        //         // Default user not created yet
+        //         await this.#migrateSettings();
+        //     }
+        //     return;
+        // }
+        // this.multiUserServer = true;
+        // let user = localStorage['Comfy.userId'];
+        // const users = userConfig.users ?? {};
+        // if (!user || !users[user]) {
+        //     // This will rarely be hit so move the loading to on demand
+        //     const { UserSelectionScreen } = await import('./ui/userSelection');
+        //     this.ui.menuContainer.style.display = 'none';
+        //     const { userId, username, created } = await new UserSelectionScreen().show(users, user);
+        //     this.ui.menuContainer.style.display = '';
+        //     user = userId;
+        //     localStorage['Comfy.userName'] = username;
+        //     localStorage['Comfy.userId'] = user;
+        //     if (created) {
+        //         this.api.user = user;
+        //         await this.#migrateSettings();
+        //     }
+        // }
+        // this.api.user = user;
+        // this.ui.settings.addSetting({
+        //     id: 'Comfy.SwitchUser',
+        //     name: 'Switch User',
+        //     defaultValue: 'any',
+        //     type: (name: string) => {
+        //         let currentUser = localStorage['Comfy.userName'];
+        //         if (currentUser) {
+        //             currentUser = ` (${currentUser})`;
+        //         }
+        //         return $el('tr', [
+        //             $el('td', [
+        //                 $el('label', {
+        //                     textContent: name,
+        //                 }),
+        //             ]),
+        //             $el('td', [
+        //                 $el('button', {
+        //                     textContent: name + (currentUser ?? ''),
+        //                     onclick: () => {
+        //                         delete localStorage['Comfy.userId'];
+        //                         delete localStorage['Comfy.userName'];
+        //                         window.location.reload();
+        //                     },
+        //                 }),
+        //             ]),
+        //         ]);
+        //     },
+        // });
     }
 
     /**
@@ -620,7 +611,7 @@ export class ComfyApp implements IComfyApp {
      */
     async setup(mainCanvas: HTMLCanvasElement, api: ComfyApi) {
         await this.#setUser();
-        await this.ui.settings.load();
+        // await this.ui.settings.load();
 
         this.api = api;
 
@@ -634,8 +625,7 @@ export class ComfyApp implements IComfyApp {
 
         addDomClippingSetting(this);
 
-        this.graph = new ComfyGraph(this);
-
+        this.graph = new ComfyGraph();
         this.canvas = new ComfyCanvas(canvasEl, this.graph);
         this.ctx = canvasEl.getContext('2d');
 
@@ -678,70 +668,6 @@ export class ComfyApp implements IComfyApp {
         this.#addApiUpdateHandlers(api);
 
         await extensionManager.invokeExtensionsAsync('setup');
-    }
-
-    /** Registers nodes with the graph */
-    async registerNodes() {
-        // Load node definitions from the backend
-        const defs = await this.api.getNodeDefs();
-        await this.registerNodesFromDefs(defs);
-        await extensionManager.invokeExtensionsAsync('registerCustomNodes');
-    }
-
-    getWidgetType(inputData: string | string[], inputName: string): string | null {
-        const type = inputData[0];
-
-        if (Array.isArray(type)) {
-            return 'COMBO';
-        } else if (this.widgets && `${type}:${inputName}` in this.widgets) {
-            return `${type}:${inputName}`;
-        } else if (this.widgets && type in this.widgets) {
-            return type;
-        } else {
-            return null;
-        }
-    }
-
-    // Register a node class so it can be listed when we want to create a new one
-    async registerNodeDef(nodeId: string, nodeData: any) {
-        const app = this;
-
-        // Capture nodeData and app in a closure and return a new constructor function
-        const comfyNodeConstructor = class extends ComfyNode {
-            static title: string;
-            static comfyClass: string;
-            static nodeData: any;
-
-            constructor() {
-                super(nodeData, app);
-            }
-        };
-
-        // Add these properties in as well to maintain consistency for the extension-message broadcast
-        // we're about to do. Idk if any of the extensions actually use this info though.
-        comfyNodeConstructor.title = nodeData.display_name || nodeData.name;
-        comfyNodeConstructor.comfyClass = nodeData.name;
-        comfyNodeConstructor.nodeData = nodeData;
-
-        await extensionManager.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
-
-        LiteGraph.registerNodeType(nodeId, comfyNodeConstructor);
-    }
-
-    async registerNodesFromDefs(defs: Record<string, ComfyObjectInfo>) {
-        await extensionManager.invokeExtensionsAsync('addCustomNodeDefs', defs);
-
-        // Generate list of known widgets
-        this.widgets = Object.assign(
-            {},
-            WidgetFactory,
-            ...(await extensionManager.invokeExtensionsAsync('getCustomWidgets')).filter(Boolean)
-        );
-
-        // Register a node for each definition
-        for (const nodeId in defs) {
-            this.registerNodeDef(nodeId, defs[nodeId]);
-        }
     }
 
     loadTemplateData(templateData?: TemplateData) {
@@ -1089,7 +1015,7 @@ export class ComfyApp implements IComfyApp {
                 } else if (pngInfo.prompt) {
                     this.loadApiJson(JSON.parse(pngInfo.prompt));
                 } else if (pngInfo.parameters) {
-                    importA1111(this.graph!, pngInfo.parameters);
+                    importA1111(this.graph, pngInfo.parameters);
                 }
             }
         } else if (file.type === 'image/webp') {
@@ -1194,7 +1120,7 @@ export class ComfyApp implements IComfyApp {
         const defs = await this.api.getNodeDefs();
 
         for (const nodeId in defs) {
-            this.registerNodeDef(nodeId, defs[nodeId]);
+            registerNodeDef(nodeId, defs[nodeId]);
         }
 
         // for (let nodeNum in this.graph._nodes) {

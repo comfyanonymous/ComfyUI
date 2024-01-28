@@ -7,6 +7,7 @@ import { ComfyWidget } from './comfyWidget';
 import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
 import { ComfyObjectInfo } from './comfy';
 import { IComfyApi } from './api';
+import { SerializedGraph } from './litegraph';
 
 interface ComfyOptionsHost {
     el: Element;
@@ -82,21 +83,24 @@ export interface SerializedNodeObject {
     widgets?: ComfyWidget[] | null;
 }
 
-export interface IComfyGraph extends LGraph {
-    // Overridden properties
-    nodes: IComfyNode[];
-
-    // Overridden methods
+export interface IComfyGraph extends LGraph<IComfyNode> {
     configure(data: object, keep_old?: boolean): boolean | undefined;
     onConfigure(data: object): void;
-    add(node: IComfyNode, skip_compute_order?: boolean): void;
-    onNodeAdded(node: IComfyNode): void;
-    remove(node: IComfyNode): void;
-    getNodeById(id: number): IComfyNode | undefined;
-    getAncestors(node: IComfyNode): IComfyNode[];
-    beforeChange(info?: IComfyNode): void;
-    afterChange(info?: IComfyNode): void;
-    connectionChange(node: IComfyNode): void;
+    graphToWorkflow(): Promise<{ serializedGraph: SerializedGraph; apiWorkflow: Record<string, WorkflowStep> }>;
+
+    // Overridden properties
+    // nodes: IComfyNode[];
+
+    // Overridden methods
+
+    // add(node: IComfyNode, skip_compute_order?: boolean): void;
+    // onNodeAdded(node: IComfyNode): void;
+    // remove(node: IComfyNode): void;
+    // getNodeById(id: number): IComfyNode | undefined;
+    // getAncestors(node: IComfyNode): IComfyNode[];
+    // beforeChange(info?: IComfyNode): void;
+    // afterChange(info?: IComfyNode): void;
+    // connectionChange(node: IComfyNode): void;
 
     // Uncomment and complete the following methods if they are public and should be included in the interface
     // findNodesByClass<T extends LGraphNode>(classObject: LGraphNodeConstructor<T>): T[];
@@ -106,26 +110,28 @@ export interface IComfyGraph extends LGraph {
     // getNodeOnPos<T extends IComfyNode = IComfyNode>(x: number, y: number, node_list?: IComfyNode[], margin?: number): T | null;
 }
 
-export interface IComfyCanvas extends LGraphCanvas {
+export interface IComfyCanvas extends LGraphCanvas<IComfyNode, IComfyGraph> {
     selected_group_moving: boolean;
     abortController: AbortController;
 
     // Methods
-    computeVisibleNodes(nodes: IComfyNode[]): IComfyNode[];
-    drawGroups(canvas: HTMLCanvasElement | string, ctx: CanvasRenderingContext2D): void;
-    drawNode(node: IComfyNode, ctx: CanvasRenderingContext2D): void;
-    drawNodeShape(
-        node: IComfyNode,
-        ctx: CanvasRenderingContext2D,
-        size: [number, number],
-        fgcolor: string,
-        bgcolor: string,
-        selected: boolean,
-        mouse_over: boolean
-    ): void;
-    processKey(e: KeyboardEvent): boolean | undefined;
-    processMouseDown(e: MouseEvent): boolean | undefined;
-    processMouseMove(e: MouseEvent): boolean | undefined;
+    // computeVisibleNodes(nodes: IComfyNode[]): IComfyNode[];
+    // drawGroups(canvas: HTMLCanvasElement | string, ctx: CanvasRenderingContext2D): void;
+    // drawNode(node: IComfyNode, ctx: CanvasRenderingContext2D): void;
+    // drawNodeShape(
+    //     node: IComfyNode,
+    //     ctx: CanvasRenderingContext2D,
+    //     size: [number, number],
+    //     fgcolor: string,
+    //     bgcolor: string,
+    //     selected: boolean,
+    //     mouse_over: boolean
+    // ): void;
+
+    // processKey(e: KeyboardEvent): boolean | undefined;
+    // processMouseDown(e: MouseEvent): boolean | undefined;
+    // processMouseMove(e: MouseEvent): boolean | undefined;
+
     resizeCanvas(): void;
     updateBackground(image: string, clearBackgroundColor: string): void;
     cleanup(): void;
@@ -177,9 +183,19 @@ export interface IComfyApp {
     cleanup(): void;
 }
 
+export type GetCustomWidgetResponse = Record<
+    string,
+    (
+        node: IComfyNode,
+        inputName: string,
+        inputData: any
+        // app: IComfyApp
+    ) => { widget?: IWidget; minWidth?: number; minHeight?: number }
+>;
+
 /** Interface custom-node extensions should conform to */
 export interface ComfyExtension {
-    /** The name of the extension */
+    // /** The name of the extension */
     name: string;
 
     /**
@@ -206,17 +222,7 @@ export interface ComfyExtension {
      * Allows the extension to add custom widgets
      * @returns An array of {[widget name]: widget data}
      */
-    getCustomWidgets?(): Promise<
-        Record<
-            string,
-            (
-                node: IComfyNode,
-                inputName: string,
-                inputData: any,
-                app: IComfyApp
-            ) => { widget?: IWidget; minWidth?: number; minHeight?: number }
-        >
-    >;
+    getCustomWidgets?(): Promise<GetCustomWidgetResponse>;
 
     /**
      * Allows the extension to add additional handling to the node before it is registered with LGraph

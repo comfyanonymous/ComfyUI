@@ -95,7 +95,7 @@ interface NodeInfo {
     output_node: boolean;
 }
 
-export interface ComfyQueueItem {
+export interface ComfyQueueItems {
     Running: {
         prompt: QueueData;
         remove: {
@@ -104,11 +104,11 @@ export interface ComfyQueueItem {
         };
     }[];
     Pending: {
-        prompt: QueueData[];
-    };
+        prompt: QueueData;
+    }[];
 }
 
-export interface ComfyHistoryItem {
+export interface ComfyHistoryItems {
     History: {
         prompt: {};
         outputs: {};
@@ -116,7 +116,7 @@ export interface ComfyHistoryItem {
     }[];
 }
 
-export type ComfyItems = ComfyQueueItem | ComfyHistoryItem;
+export type ComfyItems = ComfyQueueItems | ComfyHistoryItems;
 
 export interface IComfyApi {
     socket: WebSocket | null;
@@ -141,8 +141,8 @@ export interface IComfyApi {
         prompt: { output: Record<string, WorkflowStep>; workflow: any }
     ): Promise<QueuePromptResponse>;
     getItems(type: string): Promise<any>; // Replace 'any' with the actual return type if known
-    getQueue(): Promise<QueueResponse>;
-    getHistory(max_items?: number): Promise<HistoryResponse>;
+    getQueue(): Promise<ComfyQueueItems>;
+    getHistory(max_items?: number): Promise<ComfyHistoryItems>;
     getSystemStats(): Promise<SystemStatsResponse>;
     deleteItem(type: string, id: number): Promise<void>;
     clearItems(type: string): Promise<void>;
@@ -151,8 +151,8 @@ export interface IComfyApi {
     createUser(username: string): Promise<Response>;
     getSettings(): Promise<SettingsResponse>;
     getSetting(id: string): Promise<unknown>; // Replace 'unknown' with the actual return type if known
-    storeSettings(settings: Record<string, unknown>): Promise<void>;
-    storeSetting(id: string, value: Record<string, any>): Promise<void>;
+    storeSettings(settings: Record<string, unknown>): Promise<Response>;
+    storeSetting(id: string, value: Record<string, any>): Promise<Response>;
     getUserData(file: string, options?: RequestInit): Promise<unknown>; // Replace 'unknown' with the actual return type if known
     storeUserData(
         file: string,

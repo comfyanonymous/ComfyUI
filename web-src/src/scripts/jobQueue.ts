@@ -1,6 +1,5 @@
 // This class tracks state of the job-queue, and provides methods to add or remove jobs from it
 
-import { api } from './api';
 import { ComfyCanvas } from './comfyCanvas';
 
 export type QueueItem = {

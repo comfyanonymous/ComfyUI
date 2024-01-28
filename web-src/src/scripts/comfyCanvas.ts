@@ -6,10 +6,11 @@ import { LiteGraph, LGraphCanvas, Vector2 } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyGraph } from './comfyGraph';
 import { ComfyError } from '../types/many';
+import { IComfyCanvas } from '../types/interfaces';
 
 // TO DO: list all hot keys this class has and what they do
 
-export class ComfyCanvas extends LGraphCanvas<ComfyGraph> {
+export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements IComfyCanvas {
     static instance: ComfyCanvas | null = null;
 
     lastNodeErrors: Record<string, ComfyError> | null = null;
@@ -18,7 +19,7 @@ export class ComfyCanvas extends LGraphCanvas<ComfyGraph> {
 
     constructor(
         canvas: HTMLCanvasElement & { id: string },
-        graph: ComfyGraph,
+        graph?: ComfyGraph,
         options?: { skip_render?: boolean; autoresize?: boolean }
     ) {
         super(canvas, graph, options);
@@ -32,20 +33,20 @@ export class ComfyCanvas extends LGraphCanvas<ComfyGraph> {
     computeVisibleNodes(nodes: ComfyNode[]) {
         const visibleNodes = super.computeVisibleNodes(nodes);
 
-        if (this.graph.nodes) {
+        if (this.graph?.nodes) {
             for (const node of this.graph.nodes) {
-                if (this.app.elementWidgets.has(node)) {
-                    const hidden = visibleNodes.indexOf(node) === -1;
-                    for (const w of node.widgets) {
-                        if (w.element) {
-                            w.element.hidden = hidden;
-                            w.element.style.display = hidden ? 'none' : '';
-                            if (hidden) {
-                                w.options.onHide?.(w);
-                            }
-                        }
-                    }
-                }
+                // if (this.app.elementWidgets.has(node)) {
+                //     const hidden = visibleNodes.indexOf(node) === -1;
+                //     for (const w of node.widgets) {
+                //         if (w.element) {
+                //             w.element.hidden = hidden;
+                //             w.element.style.display = hidden ? 'none' : '';
+                //             if (hidden) {
+                //                 w.options.onHide?.(w);
+                //             }
+                //         }
+                //     }
+                // }
             }
         }
 
@@ -125,85 +126,85 @@ export class ComfyCanvas extends LGraphCanvas<ComfyGraph> {
         mouse_over: boolean
     ): void {
         const res = super.drawNodeShape(node, ctx, size, fgcolor, bgcolor, selected, mouse_over);
-        const self = this.app;
+        // const self = this.app;
 
-        const nodeErrors = self.lastNodeErrors?.[node.id];
+        // const nodeErrors = self.lastNodeErrors?.[node.id];
 
-        let color = null;
-        let lineWidth = 1;
-        if (node.id === +(self.runningNodeId ?? 0)) {
-            color = '#0f0';
-        } else if (self.dragOverNode && node.id === self.dragOverNode.id) {
-            color = 'dodgerblue';
-        } else if (nodeErrors?.errors) {
-            color = 'red';
-            lineWidth = 2;
-        } else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
-            color = '#f0f';
-            lineWidth = 2;
-        }
+        // let color = null;
+        // let lineWidth = 1;
+        // if (node.id === +(self.runningNodeId ?? 0)) {
+        //     color = '#0f0';
+        // } else if (self.dragOverNode && node.id === self.dragOverNode.id) {
+        //     color = 'dodgerblue';
+        // } else if (nodeErrors?.errors) {
+        //     color = 'red';
+        //     lineWidth = 2;
+        // } else if (self.lastExecutionError && +self.lastExecutionError.node_id === node.id) {
+        //     color = '#f0f';
+        //     lineWidth = 2;
+        // }
 
-        if (color) {
-            // const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
-            const shape = node.shape || LiteGraph.ROUND_SHAPE;
-            ctx.lineWidth = lineWidth;
-            ctx.globalAlpha = 0.8;
-            ctx.beginPath();
-            if (shape == LiteGraph.BOX_SHAPE)
-                ctx.rect(
-                    -6,
-                    -6 - LiteGraph.NODE_TITLE_HEIGHT,
-                    12 + size[0] + 1,
-                    12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT
-                );
-            else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
-                ctx.roundRect(
-                    -6,
-                    -6 - LiteGraph.NODE_TITLE_HEIGHT,
-                    12 + size[0] + 1,
-                    12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
-                    this.round_radius * 2
-                );
-            else if (shape == LiteGraph.CARD_SHAPE)
-                ctx.roundRect(
-                    -6,
-                    -6 - LiteGraph.NODE_TITLE_HEIGHT,
-                    12 + size[0] + 1,
-                    12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
-                    [this.round_radius * 2, this.round_radius * 2, 2, 2]
-                );
-            else if (shape == LiteGraph.CIRCLE_SHAPE)
-                ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
-            ctx.strokeStyle = color;
-            ctx.stroke();
-            ctx.strokeStyle = fgcolor;
-            ctx.globalAlpha = 1;
-        }
+        // if (color) {
+        //     // const shape = node._shape || node.constructor.shape || LiteGraph.ROUND_SHAPE;
+        //     const shape = node.shape || LiteGraph.ROUND_SHAPE;
+        //     ctx.lineWidth = lineWidth;
+        //     ctx.globalAlpha = 0.8;
+        //     ctx.beginPath();
+        //     if (shape == LiteGraph.BOX_SHAPE)
+        //         ctx.rect(
+        //             -6,
+        //             -6 - LiteGraph.NODE_TITLE_HEIGHT,
+        //             12 + size[0] + 1,
+        //             12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT
+        //         );
+        //     else if (shape == LiteGraph.ROUND_SHAPE || (shape == LiteGraph.CARD_SHAPE && node.flags.collapsed))
+        //         ctx.roundRect(
+        //             -6,
+        //             -6 - LiteGraph.NODE_TITLE_HEIGHT,
+        //             12 + size[0] + 1,
+        //             12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
+        //             this.round_radius * 2
+        //         );
+        //     else if (shape == LiteGraph.CARD_SHAPE)
+        //         ctx.roundRect(
+        //             -6,
+        //             -6 - LiteGraph.NODE_TITLE_HEIGHT,
+        //             12 + size[0] + 1,
+        //             12 + size[1] + LiteGraph.NODE_TITLE_HEIGHT,
+        //             [this.round_radius * 2, this.round_radius * 2, 2, 2]
+        //         );
+        //     else if (shape == LiteGraph.CIRCLE_SHAPE)
+        //         ctx.arc(size[0] * 0.5, size[1] * 0.5, size[0] * 0.5 + 6, 0, Math.PI * 2);
+        //     ctx.strokeStyle = color;
+        //     ctx.stroke();
+        //     ctx.strokeStyle = fgcolor;
+        //     ctx.globalAlpha = 1;
+        // }
 
-        if (self.progress && node.id === +(self.runningNodeId ?? 0)) {
-            ctx.fillStyle = 'green';
-            ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
-            ctx.fillStyle = bgcolor;
-        }
+        // if (self.progress && node.id === +(self.runningNodeId ?? 0)) {
+        //     ctx.fillStyle = 'green';
+        //     ctx.fillRect(0, 0, size[0] * (self.progress.value / self.progress.max), 6);
+        //     ctx.fillStyle = bgcolor;
+        // }
 
-        // Highlight inputs that failed validation
-        if (nodeErrors) {
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = 'red';
-            if (nodeErrors.errors) {
-                for (const error of nodeErrors.errors) {
-                    if (error.extra_info && error.extra_info.input_name) {
-                        const inputIndex = node.findInputSlot(error.extra_info.input_name);
-                        if (inputIndex !== -1) {
-                            let pos = node.getConnectionPos(true, inputIndex);
-                            ctx.beginPath();
-                            ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 12, 0, 2 * Math.PI, false);
-                            ctx.stroke();
-                        }
-                    }
-                }
-            }
-        }
+        // // Highlight inputs that failed validation
+        // if (nodeErrors) {
+        //     ctx.lineWidth = 2;
+        //     ctx.strokeStyle = 'red';
+        //     if (nodeErrors.errors) {
+        //         for (const error of nodeErrors.errors) {
+        //             if (error.extra_info && error.extra_info.input_name) {
+        //                 const inputIndex = node.findInputSlot(error.extra_info.input_name);
+        //                 if (inputIndex !== -1) {
+        //                     let pos = node.getConnectionPos(true, inputIndex);
+        //                     ctx.beginPath();
+        //                     ctx.arc(pos[0] - node.pos[0], pos[1] - node.pos[1], 12, 0, 2 * Math.PI, false);
+        //                     ctx.stroke();
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
 
         return res;
     }

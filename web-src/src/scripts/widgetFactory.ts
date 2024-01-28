@@ -1,8 +1,13 @@
+// "Widgets" are input-fields that can exist inside of nodes. This module allows the creation of
+// new widget-types, and manages their state.
+
 import { api } from './api.js';
 import './domWidget.js';
 import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.js';
 import { ComfyNode } from './comfyNode.js';
 import { ComfyFile } from '../types/many.js';
+import { extensionManager } from './extensionManager.js';
+import { GetCustomWidgetResponse } from '../types/interfaces.js';
 
 interface WidgetReturnType {
     minWidth?: number;
@@ -16,7 +21,7 @@ type WidgetCreationFunction =
     | ((node: ComfyNode, inputName: string, inputData: any, widgetName: string) => WidgetReturnType);
 
 // Define the structure of the widgets collection
-export interface WidgetFactory {
+export interface IWidgetFactory {
     [key: string]: WidgetCreationFunction;
 }
 
@@ -359,7 +364,7 @@ export function initWidgets(app: ComfyApp) {
 }
 
 /** Collection of factory-functions that add widgets to nodes */
-export const WidgetFactory: WidgetFactory = {
+export const WidgetFactory: IWidgetFactory = {
     'INT:seed': seedWidget,
     'INT:noise_seed': seedWidget,
     FLOAT(node: ComfyNode, inputName: string, inputData: InputData[], app: ComfyApp): { widget: ComfyWidget } {
@@ -457,7 +462,9 @@ export const WidgetFactory: WidgetFactory = {
                 name = name.substring(folder_separator + 1);
             }
             img.src = api.apiURL(
-                `/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}${app.getRandParam()}`
+                `/view?filename=${encodeURIComponent(
+                    name
+                )}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}${app.getRandParam()}`
             );
             node.setSizeForImage?.();
         }
@@ -604,6 +611,51 @@ export const WidgetFactory: WidgetFactory = {
         return { widget: uploadWidget };
     },
 };
+
+/** Utility Function */
+export function getWidgetType(inputData: string | string[], inputName: string): string | null {
+    const type = inputData[0];
+
+    if (Array.isArray(type)) {
+        return 'COMBO';
+    } else if (widgetState.widgets && `${type}:${inputName}` in widgetState.widgets) {
+        return `${type}:${inputName}`;
+    } else if (widgetState.widgets && type in widgetState.widgets) {
+        return type;
+    } else {
+        return null;
+    }
+}
+
+/** Singleton state holder; holds the complete list of available widgets */
+export class WidgetState {
+    private static instance: WidgetState;
+    widgets: IWidgetFactory = WidgetFactory;
+
+    private constructor() {}
+    static getInstance() {
+        if (!WidgetState.instance) {
+            WidgetState.instance = new WidgetState();
+            WidgetState.instance.refresh(); // TO DO: not awaiting
+        }
+        return WidgetState.instance;
+    }
+
+    // TO DO: we should make this synchronous by forcing invokeExtensions to be a synchronous function instead
+    async refresh() {
+        const customWidgetsResponses = await extensionManager.invokeExtensionsAsync('getCustomWidgets');
+        const customWidgetsMerged = customWidgetsResponses.reduce((acc, widgetResponse) => {
+            return Object.assign(acc, widgetResponse);
+        }, {} as GetCustomWidgetResponse);
+
+        this.widgets = {
+            ...WidgetFactory,
+            ...customWidgetsMerged,
+        };
+    }
+}
+
+export const widgetState = WidgetState.getInstance();
 
 /** Legacy name, for backwards compatability */
 export { WidgetFactory as ComfyWidgets };
