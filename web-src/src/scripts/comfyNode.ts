@@ -120,6 +120,16 @@ export class ComfyNode extends LGraphNode {
 
     [SIZE]: boolean | null;
 
+    /** Added by the group-node extension */
+    getInnerNodes?: () => ComfyNode[];
+
+    /** Added by various core-extensions */
+    isVirtualNode: boolean = false;
+
+    /** Added by the widget-inputs extension */
+    applyToGraph?: (outputs?: { target_id: string; target_slot: number }[]) => void;
+
+    // TO DO: find a better type than this
     constructor(nodeData: any) {
         super();
         // this.title = nodeData.display_name || nodeData.name;

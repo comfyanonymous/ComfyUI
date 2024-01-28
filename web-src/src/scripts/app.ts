@@ -7,15 +7,7 @@ import { LiteGraph, LGraphNode, IWidget } from 'litegraph.js';
 import { ComfyCanvas } from './comfyCanvas';
 import { ComfyGraph } from './comfyGraph';
 import { ComfyNode, addDomClippingSetting } from './comfyNode';
-import {
-    ComfyError,
-    ComfyFile,
-    ComfyProgress,
-    ComfyPromptError,
-    QueueItem,
-    TemplateData,
-    WorkflowStep,
-} from '../types/many';
+import { ComfyError, ComfyFile, ComfyProgress, ComfyPromptError, QueueItem, TemplateData } from '../types/many';
 import { ComfyObjectInfo } from '../types/comfy';
 import { ComfyWidget } from '../types/comfyWidget';
 import { sanitizeNodeName } from './utils';
@@ -75,8 +67,7 @@ export class ComfyApp implements IComfyApp {
     progress: ComfyProgress | null = null;
     runningNodeId: number | null = null;
     lastExecutionError: { node_id: number; message: string } | null = null;
-    lastNodeErrors: Record<string, ComfyError> | null = null;
-    configuringGraph: boolean = false;
+
     isNewUserSession: boolean = false;
     storageLocation: string | null = null;
     multiUserServer: boolean = false;
@@ -981,150 +972,6 @@ export class ComfyApp implements IComfyApp {
         await extensionManager.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
     }
 
-    /**
-     * Converts the current graph workflow for sending to the API
-     * @returns The workflow and node links
-     */
-    async graphToPrompt() {
-        // for (const outerNode of this.graph.computeExecutionOrder(false)) {
-        for (const outerNode of this.graph?.computeExecutionOrder(false, false)) {
-            if (outerNode.widgets) {
-                for (const widget of outerNode.widgets) {
-                    // Allow widgets to run callbacks before a prompt has been queued
-                    // e.g. random seed before every gen
-                    widget.beforeQueued?.();
-                }
-            }
-
-            const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
-            for (const node of innerNodes) {
-                if (node.isVirtualNode) {
-                    // Don't serialize frontend only nodes but let them make changes
-                    if (node.applyToGraph) {
-                        node.applyToGraph();
-                    }
-                }
-            }
-        }
-
-        const workflow = this.graph?.serialize();
-        const output: Record<string, WorkflowStep> = {};
-        // Process nodes in order of execution
-        // for (const outerNode of this.graph.computeExecutionOrder(false)) {
-        for (const outerNode of this.graph?.computeExecutionOrder(false, false)) {
-            const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
-            const innerNodes = !skipNode && outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
-            for (const node of innerNodes) {
-                if (node.isVirtualNode) {
-                    continue;
-                }
-
-                if (node.mode === 2 || node.mode === 4) {
-                    // Don't serialize muted nodes
-                    continue;
-                }
-
-                const inputs: Record<string, any> = {};
-                const widgets = node.widgets;
-
-                // Store all widget values
-                if (widgets) {
-                    for (const i in widgets) {
-                        const widget = widgets[i];
-                        if (!widget.options || widget.options.serialize !== false) {
-                            inputs[widget.name] = widget.serializeValue
-                                ? await widget.serializeValue(node, i)
-                                : widget.value;
-                        }
-                    }
-                }
-
-                // Store all node links
-                for (let i in node.inputs) {
-                    let parent = node.getInputNode(i);
-                    if (parent) {
-                        let link = node.getInputLink(i);
-                        while (parent.mode === 4 || parent.isVirtualNode) {
-                            let found = false;
-                            if (parent.isVirtualNode) {
-                                link = parent.getInputLink(link.origin_slot);
-                                if (link) {
-                                    parent = parent.getInputNode(link.target_slot);
-                                    if (parent) {
-                                        found = true;
-                                    }
-                                }
-                            } else if (link && parent.mode === 4) {
-                                let all_inputs = [link.origin_slot];
-                                if (parent.inputs) {
-                                    all_inputs = all_inputs.concat(Object.keys(parent.inputs));
-                                    for (let parent_input in all_inputs) {
-                                        parent_input = all_inputs[parent_input];
-                                        if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
-                                            link = parent.getInputLink(parent_input);
-                                            if (link) {
-                                                parent = parent.getInputNode(parent_input);
-                                            }
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (!found) {
-                                break;
-                            }
-                        }
-
-                        if (link) {
-                            if (parent?.updateLink) {
-                                link = parent.updateLink(link);
-                            }
-                            if (link) {
-                                inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
-                            }
-                        }
-                    }
-                }
-
-                let node_data: WorkflowStep = {
-                    class_type: node.comfyClass,
-                    inputs,
-                };
-
-                if (this.ui.settings.getSettingValue('Comfy.DevMode')) {
-                    // Ignored by the backend.
-                    node_data['_meta'] = {
-                        title: node.title,
-                    };
-                }
-
-                output[String(node.id)] = node_data;
-            }
-        }
-
-        // Remove inputs connected to removed nodes
-        // TO DO: we need to console log this to figure out wtf is happening
-        for (const o in output) {
-            for (const i in output[o].inputs) {
-                if (
-                    // @ts-expect-error
-                    Array.isArray(output[o].inputs[i]) &&
-                    // @ts-expect-error
-                    output[o].inputs[i].length === 2 &&
-                    // @ts-expect-error
-                    !output[output[o].inputs[i][0]]
-                ) {
-                    // @ts-expect-error
-                    delete output[o].inputs[i];
-                }
-            }
-        }
-
-        return { workflow, output };
-    }
-
     #formatPromptError(error: ComfyPromptError | string | null) {
         if (error == null) {
             return '(unknown error)';
@@ -1171,7 +1018,7 @@ export class ComfyApp implements IComfyApp {
         this.lastNodeErrors = null;
 
         try {
-            while (this.#queueItems.length) {
+            while (this.#queueItems.length > 0) {
                 const queueItem = this.#queueItems.pop();
                 if (queueItem) {
                     ({ number, batchCount } = queueItem);

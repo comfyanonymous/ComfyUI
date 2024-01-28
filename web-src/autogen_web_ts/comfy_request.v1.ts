@@ -10,23 +10,9 @@ export const protobufPackage = "comfy_request.v1";
 
 /** Message definition for WorkflowStep */
 export interface WorkflowStep {
-  classType: string;
-  /** Inputs are too idiosyncratic to define ahead of time */
+  class_type: string;
+  /** Inputs are too idiosyncratic to be typed specifically */
   inputs: { [key: string]: any } | undefined;
-}
-
-/**
- * keys are node_ids
- * Unfortunately 'steps' is necessary because we cannot have a protobuf definition like
- * repeated map<A, B>, so we have to wrap it this message
- */
-export interface Workflow {
-  steps: { [key: string]: WorkflowStep };
-}
-
-export interface Workflow_StepsEntry {
-  key: string;
-  value: WorkflowStep | undefined;
 }
 
 /**
@@ -40,9 +26,9 @@ export interface Workflow_StepsEntry {
  */
 export interface WorkflowFile {
   /** unique identifier for the file */
-  fileHash: string;
+  file_hash: string;
   /** ComfyUI terminology: key 'format' */
-  mimeType: string;
+  mime_type: string;
   reference?: WorkflowFile_FileReference | undefined;
   data?: Uint8Array | undefined;
 }
@@ -51,7 +37,7 @@ export interface WorkflowFile_FileReference {
   /** string must be a valid url */
   url: string;
   /** Comfy UI terminology: key 'type', values 'temp' | 'output' */
-  isTemp: boolean;
+  is_temp: boolean;
 }
 
 /**
@@ -71,21 +57,27 @@ export interface WorkflowFile_FileReference {
  * and then returning urls)
  */
 export interface OutputConfig {
-  saveOutputs: boolean;
-  sendLatentPreviews: boolean;
+  save_outputs: boolean;
+  send_latent_previews: boolean;
 }
 
 /** client -> server message */
 export interface ComfyRequest {
-  userUid: string;
-  workflows: Workflow[];
-  inputFiles: WorkflowFile[];
-  outputConfig: OutputConfig | undefined;
-  workerWaitDuration?:
+  user_uid: string;
+  /** keys are node_ids */
+  workflow: { [key: string]: WorkflowStep };
+  input_files: WorkflowFile[];
+  output_config: OutputConfig | undefined;
+  worker_wait_duration?:
     | number
     | undefined;
   /** redis channel name to publish results to */
-  sessionId?: string | undefined;
+  session_id?: string | undefined;
+}
+
+export interface ComfyRequest_WorkflowEntry {
+  key: string;
+  value: WorkflowStep | undefined;
 }
 
 /**
@@ -93,43 +85,43 @@ export interface ComfyRequest {
  * (stop currently running process) commands. We roll them all into a single endpoint here.
  */
 export interface CancelJob {
-  jobId: string;
+  job_id: string;
 }
 
 /** ComfyUI calls this 'clear' (remove all queued items owned by the user) */
 export interface PurgeRoomQueue {
-  sessionId: string;
+  session_id: string;
 }
 
 export interface JobCreated {
   /** created by the server; id of the job in the queue */
-  jobId: string;
+  job_id: string;
   /** redis channel to subscribe to for updates */
-  sessionId: string;
-  queueSeconds: number;
-  executionSeconds: number;
+  session_id: string;
+  queue_seconds: number;
+  execution_seconds: number;
 }
 
 /** Temp-files and latent-previews are not included */
 export interface JobOutput {
-  jobId: string;
-  sessionId: string;
+  job_id: string;
+  session_id: string;
   files: WorkflowFile[];
 }
 
 /** It's assumed that the consumer knows what session_id it's watching */
 export interface ComfyMessage {
-  jobId: string;
-  userId: string;
-  queueStatus?: ComfyMessage_QueueStatus | undefined;
-  executionStart?: ComfyMessage_ExecutionStart | undefined;
+  job_id: string;
+  user_id: string;
+  queue_status?: ComfyMessage_QueueStatus | undefined;
+  execution_start?: ComfyMessage_ExecutionStart | undefined;
   executing?: ComfyMessage_Executing | undefined;
   progress?: ComfyMessage_Progress | undefined;
-  executionError?: ComfyMessage_ExecutionError | undefined;
-  executionInterrupted?: ComfyMessage_ExecutionInterrupted | undefined;
-  executionCached?: ComfyMessage_ExecutionCached | undefined;
+  execution_error?: ComfyMessage_ExecutionError | undefined;
+  execution_interrupted?: ComfyMessage_ExecutionInterrupted | undefined;
+  execution_cached?: ComfyMessage_ExecutionCached | undefined;
   output?: ComfyMessage_Output | undefined;
-  customMessage?: ComfyMessage_CustomMessage | undefined;
+  custom_message?: ComfyMessage_CustomMessage | undefined;
 }
 
 /**
@@ -139,7 +131,7 @@ export interface ComfyMessage {
 export interface ComfyMessage_QueueStatus {
   /** looks like: "99506f0d89b64dbdb09ae567274fb078" */
   sid?: string | undefined;
-  queueRemaining: number;
+  queue_remaining: number;
 }
 
 /** job-started */
@@ -152,7 +144,7 @@ export interface ComfyMessage_ExecutionStart {
  * end of a job; we ignore these
  */
 export interface ComfyMessage_Executing {
-  nodeId: string;
+  node_id: string;
 }
 
 /** Updates a node's progress bar; like (value / max) = percent-complete */
@@ -165,26 +157,26 @@ export interface ComfyMessage_Progress {
 export interface ComfyMessage_ExecutionError {
   currentInputs: { [key: string]: any } | undefined;
   currentOutputs: { [key: string]: any } | undefined;
-  executionMessage: string;
-  exceptionType: string;
+  execution_message: string;
+  exception_type: string;
   /** list of nodes executed */
   executed: string[];
   /** node id that threw the error */
-  nodeId: string;
-  nodeType: string;
+  node_id: string;
+  node_type: string;
   traceback: string[];
 }
 
 export interface ComfyMessage_ExecutionInterrupted {
   /** node-ids that already finished */
   executed: string[];
-  nodeId: string;
-  nodeType: string;
+  node_id: string;
+  node_type: string;
 }
 
 /** This specifies nodes that were skipped due to their output being cached */
 export interface ComfyMessage_ExecutionCached {
-  nodeIds: string[];
+  node_ids: string[];
 }
 
 /**
@@ -195,7 +187,7 @@ export interface ComfyMessage_ExecutionCached {
  * ComfyUI terinology; this is called 'Executed', which was confusing
  */
 export interface ComfyMessage_Output {
-  nodeId: string;
+  node_id: string;
   /** Note; in the future, we may need an 'event-type' as well */
   files: WorkflowFile[];
 }
@@ -213,30 +205,30 @@ export interface ComfyMessage_CustomMessage {
  * not included, but if you want them, set those flags to true.
  */
 export interface MessageFilter {
-  outputsOnly: boolean;
-  includeTempFiles?: boolean | undefined;
-  includeLatentPreviews?: boolean | undefined;
+  outputs_only: boolean;
+  include_temp_files?: boolean | undefined;
+  include_latent_previews?: boolean | undefined;
 }
 
 /** By default, all message-types will be returned, unless a filter is applied */
 export interface RoomStreamRequest {
-  sessionId: string;
+  session_id: string;
   filter?: MessageFilter | undefined;
 }
 
 export interface JobStreamRequest {
-  jobId: string;
+  job_id: string;
   filter?: MessageFilter | undefined;
 }
 
 function createBaseWorkflowStep(): WorkflowStep {
-  return { classType: "", inputs: undefined };
+  return { class_type: "", inputs: undefined };
 }
 
 export const WorkflowStep = {
   encode(message: WorkflowStep, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.classType !== "") {
-      writer.uint32(10).string(message.classType);
+    if (message.class_type !== "") {
+      writer.uint32(10).string(message.class_type);
     }
     if (message.inputs !== undefined) {
       Struct.encode(Struct.wrap(message.inputs), writer.uint32(18).fork()).ldelim();
@@ -256,7 +248,7 @@ export const WorkflowStep = {
             break;
           }
 
-          message.classType = reader.string();
+          message.class_type = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
@@ -279,134 +271,23 @@ export const WorkflowStep = {
   },
   fromPartial(object: DeepPartial<WorkflowStep>): WorkflowStep {
     const message = createBaseWorkflowStep();
-    message.classType = object.classType ?? "";
+    message.class_type = object.class_type ?? "";
     message.inputs = object.inputs ?? undefined;
     return message;
   },
 };
 
-function createBaseWorkflow(): Workflow {
-  return { steps: {} };
-}
-
-export const Workflow = {
-  encode(message: Workflow, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    Object.entries(message.steps).forEach(([key, value]) => {
-      Workflow_StepsEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).ldelim();
-    });
-    return writer;
-  },
-
-  decode(input: _m0.Reader | Uint8Array, length?: number): Workflow {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseWorkflow();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          if (tag !== 10) {
-            break;
-          }
-
-          const entry1 = Workflow_StepsEntry.decode(reader, reader.uint32());
-          if (entry1.value !== undefined) {
-            message.steps[entry1.key] = entry1.value;
-          }
-          continue;
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<Workflow>): Workflow {
-    return Workflow.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<Workflow>): Workflow {
-    const message = createBaseWorkflow();
-    message.steps = Object.entries(object.steps ?? {}).reduce<{ [key: string]: WorkflowStep }>((acc, [key, value]) => {
-      if (value !== undefined) {
-        acc[key] = WorkflowStep.fromPartial(value);
-      }
-      return acc;
-    }, {});
-    return message;
-  },
-};
-
-function createBaseWorkflow_StepsEntry(): Workflow_StepsEntry {
-  return { key: "", value: undefined };
-}
-
-export const Workflow_StepsEntry = {
-  encode(message: Workflow_StepsEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
-      writer.uint32(10).string(message.key);
-    }
-    if (message.value !== undefined) {
-      WorkflowStep.encode(message.value, writer.uint32(18).fork()).ldelim();
-    }
-    return writer;
-  },
-
-  decode(input: _m0.Reader | Uint8Array, length?: number): Workflow_StepsEntry {
-    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
-    let end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseWorkflow_StepsEntry();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1:
-          if (tag !== 10) {
-            break;
-          }
-
-          message.key = reader.string();
-          continue;
-        case 2:
-          if (tag !== 18) {
-            break;
-          }
-
-          message.value = WorkflowStep.decode(reader, reader.uint32());
-          continue;
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skipType(tag & 7);
-    }
-    return message;
-  },
-
-  create(base?: DeepPartial<Workflow_StepsEntry>): Workflow_StepsEntry {
-    return Workflow_StepsEntry.fromPartial(base ?? {});
-  },
-  fromPartial(object: DeepPartial<Workflow_StepsEntry>): Workflow_StepsEntry {
-    const message = createBaseWorkflow_StepsEntry();
-    message.key = object.key ?? "";
-    message.value = (object.value !== undefined && object.value !== null)
-      ? WorkflowStep.fromPartial(object.value)
-      : undefined;
-    return message;
-  },
-};
-
 function createBaseWorkflowFile(): WorkflowFile {
-  return { fileHash: "", mimeType: "", reference: undefined, data: undefined };
+  return { file_hash: "", mime_type: "", reference: undefined, data: undefined };
 }
 
 export const WorkflowFile = {
   encode(message: WorkflowFile, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.fileHash !== "") {
-      writer.uint32(10).string(message.fileHash);
+    if (message.file_hash !== "") {
+      writer.uint32(10).string(message.file_hash);
     }
-    if (message.mimeType !== "") {
-      writer.uint32(18).string(message.mimeType);
+    if (message.mime_type !== "") {
+      writer.uint32(18).string(message.mime_type);
     }
     if (message.reference !== undefined) {
       WorkflowFile_FileReference.encode(message.reference, writer.uint32(26).fork()).ldelim();
@@ -429,14 +310,14 @@ export const WorkflowFile = {
             break;
           }
 
-          message.fileHash = reader.string();
+          message.file_hash = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.mimeType = reader.string();
+          message.mime_type = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
@@ -466,8 +347,8 @@ export const WorkflowFile = {
   },
   fromPartial(object: DeepPartial<WorkflowFile>): WorkflowFile {
     const message = createBaseWorkflowFile();
-    message.fileHash = object.fileHash ?? "";
-    message.mimeType = object.mimeType ?? "";
+    message.file_hash = object.file_hash ?? "";
+    message.mime_type = object.mime_type ?? "";
     message.reference = (object.reference !== undefined && object.reference !== null)
       ? WorkflowFile_FileReference.fromPartial(object.reference)
       : undefined;
@@ -477,7 +358,7 @@ export const WorkflowFile = {
 };
 
 function createBaseWorkflowFile_FileReference(): WorkflowFile_FileReference {
-  return { url: "", isTemp: false };
+  return { url: "", is_temp: false };
 }
 
 export const WorkflowFile_FileReference = {
@@ -485,8 +366,8 @@ export const WorkflowFile_FileReference = {
     if (message.url !== "") {
       writer.uint32(10).string(message.url);
     }
-    if (message.isTemp === true) {
-      writer.uint32(16).bool(message.isTemp);
+    if (message.is_temp === true) {
+      writer.uint32(16).bool(message.is_temp);
     }
     return writer;
   },
@@ -510,7 +391,7 @@ export const WorkflowFile_FileReference = {
             break;
           }
 
-          message.isTemp = reader.bool();
+          message.is_temp = reader.bool();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -527,22 +408,22 @@ export const WorkflowFile_FileReference = {
   fromPartial(object: DeepPartial<WorkflowFile_FileReference>): WorkflowFile_FileReference {
     const message = createBaseWorkflowFile_FileReference();
     message.url = object.url ?? "";
-    message.isTemp = object.isTemp ?? false;
+    message.is_temp = object.is_temp ?? false;
     return message;
   },
 };
 
 function createBaseOutputConfig(): OutputConfig {
-  return { saveOutputs: false, sendLatentPreviews: false };
+  return { save_outputs: false, send_latent_previews: false };
 }
 
 export const OutputConfig = {
   encode(message: OutputConfig, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.saveOutputs === true) {
-      writer.uint32(8).bool(message.saveOutputs);
+    if (message.save_outputs === true) {
+      writer.uint32(8).bool(message.save_outputs);
     }
-    if (message.sendLatentPreviews === true) {
-      writer.uint32(16).bool(message.sendLatentPreviews);
+    if (message.send_latent_previews === true) {
+      writer.uint32(16).bool(message.send_latent_previews);
     }
     return writer;
   },
@@ -559,14 +440,14 @@ export const OutputConfig = {
             break;
           }
 
-          message.saveOutputs = reader.bool();
+          message.save_outputs = reader.bool();
           continue;
         case 2:
           if (tag !== 16) {
             break;
           }
 
-          message.sendLatentPreviews = reader.bool();
+          message.send_latent_previews = reader.bool();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -582,42 +463,42 @@ export const OutputConfig = {
   },
   fromPartial(object: DeepPartial<OutputConfig>): OutputConfig {
     const message = createBaseOutputConfig();
-    message.saveOutputs = object.saveOutputs ?? false;
-    message.sendLatentPreviews = object.sendLatentPreviews ?? false;
+    message.save_outputs = object.save_outputs ?? false;
+    message.send_latent_previews = object.send_latent_previews ?? false;
     return message;
   },
 };
 
 function createBaseComfyRequest(): ComfyRequest {
   return {
-    userUid: "",
-    workflows: [],
-    inputFiles: [],
-    outputConfig: undefined,
-    workerWaitDuration: undefined,
-    sessionId: undefined,
+    user_uid: "",
+    workflow: {},
+    input_files: [],
+    output_config: undefined,
+    worker_wait_duration: undefined,
+    session_id: undefined,
   };
 }
 
 export const ComfyRequest = {
   encode(message: ComfyRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.userUid !== "") {
-      writer.uint32(10).string(message.userUid);
+    if (message.user_uid !== "") {
+      writer.uint32(10).string(message.user_uid);
     }
-    for (const v of message.workflows) {
-      Workflow.encode(v!, writer.uint32(18).fork()).ldelim();
-    }
-    for (const v of message.inputFiles) {
+    Object.entries(message.workflow).forEach(([key, value]) => {
+      ComfyRequest_WorkflowEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).ldelim();
+    });
+    for (const v of message.input_files) {
       WorkflowFile.encode(v!, writer.uint32(26).fork()).ldelim();
     }
-    if (message.outputConfig !== undefined) {
-      OutputConfig.encode(message.outputConfig, writer.uint32(34).fork()).ldelim();
+    if (message.output_config !== undefined) {
+      OutputConfig.encode(message.output_config, writer.uint32(34).fork()).ldelim();
     }
-    if (message.workerWaitDuration !== undefined) {
-      writer.uint32(40).uint32(message.workerWaitDuration);
+    if (message.worker_wait_duration !== undefined) {
+      writer.uint32(40).uint32(message.worker_wait_duration);
     }
-    if (message.sessionId !== undefined) {
-      writer.uint32(50).string(message.sessionId);
+    if (message.session_id !== undefined) {
+      writer.uint32(50).string(message.session_id);
     }
     return writer;
   },
@@ -634,42 +515,45 @@ export const ComfyRequest = {
             break;
           }
 
-          message.userUid = reader.string();
+          message.user_uid = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.workflows.push(Workflow.decode(reader, reader.uint32()));
+          const entry2 = ComfyRequest_WorkflowEntry.decode(reader, reader.uint32());
+          if (entry2.value !== undefined) {
+            message.workflow[entry2.key] = entry2.value;
+          }
           continue;
         case 3:
           if (tag !== 26) {
             break;
           }
 
-          message.inputFiles.push(WorkflowFile.decode(reader, reader.uint32()));
+          message.input_files.push(WorkflowFile.decode(reader, reader.uint32()));
           continue;
         case 4:
           if (tag !== 34) {
             break;
           }
 
-          message.outputConfig = OutputConfig.decode(reader, reader.uint32());
+          message.output_config = OutputConfig.decode(reader, reader.uint32());
           continue;
         case 5:
           if (tag !== 40) {
             break;
           }
 
-          message.workerWaitDuration = reader.uint32();
+          message.worker_wait_duration = reader.uint32();
           continue;
         case 6:
           if (tag !== 50) {
             break;
           }
 
-          message.sessionId = reader.string();
+          message.session_id = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -685,26 +569,92 @@ export const ComfyRequest = {
   },
   fromPartial(object: DeepPartial<ComfyRequest>): ComfyRequest {
     const message = createBaseComfyRequest();
-    message.userUid = object.userUid ?? "";
-    message.workflows = object.workflows?.map((e) => Workflow.fromPartial(e)) || [];
-    message.inputFiles = object.inputFiles?.map((e) => WorkflowFile.fromPartial(e)) || [];
-    message.outputConfig = (object.outputConfig !== undefined && object.outputConfig !== null)
-      ? OutputConfig.fromPartial(object.outputConfig)
+    message.user_uid = object.user_uid ?? "";
+    message.workflow = Object.entries(object.workflow ?? {}).reduce<{ [key: string]: WorkflowStep }>(
+      (acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = WorkflowStep.fromPartial(value);
+        }
+        return acc;
+      },
+      {},
+    );
+    message.input_files = object.input_files?.map((e) => WorkflowFile.fromPartial(e)) || [];
+    message.output_config = (object.output_config !== undefined && object.output_config !== null)
+      ? OutputConfig.fromPartial(object.output_config)
       : undefined;
-    message.workerWaitDuration = object.workerWaitDuration ?? undefined;
-    message.sessionId = object.sessionId ?? undefined;
+    message.worker_wait_duration = object.worker_wait_duration ?? undefined;
+    message.session_id = object.session_id ?? undefined;
+    return message;
+  },
+};
+
+function createBaseComfyRequest_WorkflowEntry(): ComfyRequest_WorkflowEntry {
+  return { key: "", value: undefined };
+}
+
+export const ComfyRequest_WorkflowEntry = {
+  encode(message: ComfyRequest_WorkflowEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      WorkflowStep.encode(message.value, writer.uint32(18).fork()).ldelim();
+    }
+    return writer;
+  },
+
+  decode(input: _m0.Reader | Uint8Array, length?: number): ComfyRequest_WorkflowEntry {
+    const reader = input instanceof _m0.Reader ? input : _m0.Reader.create(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseComfyRequest_WorkflowEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1:
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        case 2:
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = WorkflowStep.decode(reader, reader.uint32());
+          continue;
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skipType(tag & 7);
+    }
+    return message;
+  },
+
+  create(base?: DeepPartial<ComfyRequest_WorkflowEntry>): ComfyRequest_WorkflowEntry {
+    return ComfyRequest_WorkflowEntry.fromPartial(base ?? {});
+  },
+  fromPartial(object: DeepPartial<ComfyRequest_WorkflowEntry>): ComfyRequest_WorkflowEntry {
+    const message = createBaseComfyRequest_WorkflowEntry();
+    message.key = object.key ?? "";
+    message.value = (object.value !== undefined && object.value !== null)
+      ? WorkflowStep.fromPartial(object.value)
+      : undefined;
     return message;
   },
 };
 
 function createBaseCancelJob(): CancelJob {
-  return { jobId: "" };
+  return { job_id: "" };
 }
 
 export const CancelJob = {
   encode(message: CancelJob, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.jobId !== "") {
-      writer.uint32(10).string(message.jobId);
+    if (message.job_id !== "") {
+      writer.uint32(10).string(message.job_id);
     }
     return writer;
   },
@@ -721,7 +671,7 @@ export const CancelJob = {
             break;
           }
 
-          message.jobId = reader.string();
+          message.job_id = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -737,19 +687,19 @@ export const CancelJob = {
   },
   fromPartial(object: DeepPartial<CancelJob>): CancelJob {
     const message = createBaseCancelJob();
-    message.jobId = object.jobId ?? "";
+    message.job_id = object.job_id ?? "";
     return message;
   },
 };
 
 function createBasePurgeRoomQueue(): PurgeRoomQueue {
-  return { sessionId: "" };
+  return { session_id: "" };
 }
 
 export const PurgeRoomQueue = {
   encode(message: PurgeRoomQueue, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
+    if (message.session_id !== "") {
+      writer.uint32(10).string(message.session_id);
     }
     return writer;
   },
@@ -766,7 +716,7 @@ export const PurgeRoomQueue = {
             break;
           }
 
-          message.sessionId = reader.string();
+          message.session_id = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -782,28 +732,28 @@ export const PurgeRoomQueue = {
   },
   fromPartial(object: DeepPartial<PurgeRoomQueue>): PurgeRoomQueue {
     const message = createBasePurgeRoomQueue();
-    message.sessionId = object.sessionId ?? "";
+    message.session_id = object.session_id ?? "";
     return message;
   },
 };
 
 function createBaseJobCreated(): JobCreated {
-  return { jobId: "", sessionId: "", queueSeconds: 0, executionSeconds: 0 };
+  return { job_id: "", session_id: "", queue_seconds: 0, execution_seconds: 0 };
 }
 
 export const JobCreated = {
   encode(message: JobCreated, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.jobId !== "") {
-      writer.uint32(10).string(message.jobId);
+    if (message.job_id !== "") {
+      writer.uint32(10).string(message.job_id);
     }
-    if (message.sessionId !== "") {
-      writer.uint32(18).string(message.sessionId);
+    if (message.session_id !== "") {
+      writer.uint32(18).string(message.session_id);
     }
-    if (message.queueSeconds !== 0) {
-      writer.uint32(24).uint32(message.queueSeconds);
+    if (message.queue_seconds !== 0) {
+      writer.uint32(24).uint32(message.queue_seconds);
     }
-    if (message.executionSeconds !== 0) {
-      writer.uint32(32).uint32(message.executionSeconds);
+    if (message.execution_seconds !== 0) {
+      writer.uint32(32).uint32(message.execution_seconds);
     }
     return writer;
   },
@@ -820,28 +770,28 @@ export const JobCreated = {
             break;
           }
 
-          message.jobId = reader.string();
+          message.job_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.sessionId = reader.string();
+          message.session_id = reader.string();
           continue;
         case 3:
           if (tag !== 24) {
             break;
           }
 
-          message.queueSeconds = reader.uint32();
+          message.queue_seconds = reader.uint32();
           continue;
         case 4:
           if (tag !== 32) {
             break;
           }
 
-          message.executionSeconds = reader.uint32();
+          message.execution_seconds = reader.uint32();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -857,25 +807,25 @@ export const JobCreated = {
   },
   fromPartial(object: DeepPartial<JobCreated>): JobCreated {
     const message = createBaseJobCreated();
-    message.jobId = object.jobId ?? "";
-    message.sessionId = object.sessionId ?? "";
-    message.queueSeconds = object.queueSeconds ?? 0;
-    message.executionSeconds = object.executionSeconds ?? 0;
+    message.job_id = object.job_id ?? "";
+    message.session_id = object.session_id ?? "";
+    message.queue_seconds = object.queue_seconds ?? 0;
+    message.execution_seconds = object.execution_seconds ?? 0;
     return message;
   },
 };
 
 function createBaseJobOutput(): JobOutput {
-  return { jobId: "", sessionId: "", files: [] };
+  return { job_id: "", session_id: "", files: [] };
 }
 
 export const JobOutput = {
   encode(message: JobOutput, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.jobId !== "") {
-      writer.uint32(10).string(message.jobId);
+    if (message.job_id !== "") {
+      writer.uint32(10).string(message.job_id);
     }
-    if (message.sessionId !== "") {
-      writer.uint32(18).string(message.sessionId);
+    if (message.session_id !== "") {
+      writer.uint32(18).string(message.session_id);
     }
     for (const v of message.files) {
       WorkflowFile.encode(v!, writer.uint32(26).fork()).ldelim();
@@ -895,14 +845,14 @@ export const JobOutput = {
             break;
           }
 
-          message.jobId = reader.string();
+          message.job_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.sessionId = reader.string();
+          message.session_id = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
@@ -925,8 +875,8 @@ export const JobOutput = {
   },
   fromPartial(object: DeepPartial<JobOutput>): JobOutput {
     const message = createBaseJobOutput();
-    message.jobId = object.jobId ?? "";
-    message.sessionId = object.sessionId ?? "";
+    message.job_id = object.job_id ?? "";
+    message.session_id = object.session_id ?? "";
     message.files = object.files?.map((e) => WorkflowFile.fromPartial(e)) || [];
     return message;
   },
@@ -934,33 +884,33 @@ export const JobOutput = {
 
 function createBaseComfyMessage(): ComfyMessage {
   return {
-    jobId: "",
-    userId: "",
-    queueStatus: undefined,
-    executionStart: undefined,
+    job_id: "",
+    user_id: "",
+    queue_status: undefined,
+    execution_start: undefined,
     executing: undefined,
     progress: undefined,
-    executionError: undefined,
-    executionInterrupted: undefined,
-    executionCached: undefined,
+    execution_error: undefined,
+    execution_interrupted: undefined,
+    execution_cached: undefined,
     output: undefined,
-    customMessage: undefined,
+    custom_message: undefined,
   };
 }
 
 export const ComfyMessage = {
   encode(message: ComfyMessage, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.jobId !== "") {
-      writer.uint32(10).string(message.jobId);
+    if (message.job_id !== "") {
+      writer.uint32(10).string(message.job_id);
     }
-    if (message.userId !== "") {
-      writer.uint32(18).string(message.userId);
+    if (message.user_id !== "") {
+      writer.uint32(18).string(message.user_id);
     }
-    if (message.queueStatus !== undefined) {
-      ComfyMessage_QueueStatus.encode(message.queueStatus, writer.uint32(26).fork()).ldelim();
+    if (message.queue_status !== undefined) {
+      ComfyMessage_QueueStatus.encode(message.queue_status, writer.uint32(26).fork()).ldelim();
     }
-    if (message.executionStart !== undefined) {
-      ComfyMessage_ExecutionStart.encode(message.executionStart, writer.uint32(34).fork()).ldelim();
+    if (message.execution_start !== undefined) {
+      ComfyMessage_ExecutionStart.encode(message.execution_start, writer.uint32(34).fork()).ldelim();
     }
     if (message.executing !== undefined) {
       ComfyMessage_Executing.encode(message.executing, writer.uint32(42).fork()).ldelim();
@@ -968,20 +918,20 @@ export const ComfyMessage = {
     if (message.progress !== undefined) {
       ComfyMessage_Progress.encode(message.progress, writer.uint32(50).fork()).ldelim();
     }
-    if (message.executionError !== undefined) {
-      ComfyMessage_ExecutionError.encode(message.executionError, writer.uint32(58).fork()).ldelim();
+    if (message.execution_error !== undefined) {
+      ComfyMessage_ExecutionError.encode(message.execution_error, writer.uint32(58).fork()).ldelim();
     }
-    if (message.executionInterrupted !== undefined) {
-      ComfyMessage_ExecutionInterrupted.encode(message.executionInterrupted, writer.uint32(66).fork()).ldelim();
+    if (message.execution_interrupted !== undefined) {
+      ComfyMessage_ExecutionInterrupted.encode(message.execution_interrupted, writer.uint32(66).fork()).ldelim();
     }
-    if (message.executionCached !== undefined) {
-      ComfyMessage_ExecutionCached.encode(message.executionCached, writer.uint32(74).fork()).ldelim();
+    if (message.execution_cached !== undefined) {
+      ComfyMessage_ExecutionCached.encode(message.execution_cached, writer.uint32(74).fork()).ldelim();
     }
     if (message.output !== undefined) {
       ComfyMessage_Output.encode(message.output, writer.uint32(82).fork()).ldelim();
     }
-    if (message.customMessage !== undefined) {
-      ComfyMessage_CustomMessage.encode(message.customMessage, writer.uint32(90).fork()).ldelim();
+    if (message.custom_message !== undefined) {
+      ComfyMessage_CustomMessage.encode(message.custom_message, writer.uint32(90).fork()).ldelim();
     }
     return writer;
   },
@@ -998,28 +948,28 @@ export const ComfyMessage = {
             break;
           }
 
-          message.jobId = reader.string();
+          message.job_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          message.userId = reader.string();
+          message.user_id = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
             break;
           }
 
-          message.queueStatus = ComfyMessage_QueueStatus.decode(reader, reader.uint32());
+          message.queue_status = ComfyMessage_QueueStatus.decode(reader, reader.uint32());
           continue;
         case 4:
           if (tag !== 34) {
             break;
           }
 
-          message.executionStart = ComfyMessage_ExecutionStart.decode(reader, reader.uint32());
+          message.execution_start = ComfyMessage_ExecutionStart.decode(reader, reader.uint32());
           continue;
         case 5:
           if (tag !== 42) {
@@ -1040,21 +990,21 @@ export const ComfyMessage = {
             break;
           }
 
-          message.executionError = ComfyMessage_ExecutionError.decode(reader, reader.uint32());
+          message.execution_error = ComfyMessage_ExecutionError.decode(reader, reader.uint32());
           continue;
         case 8:
           if (tag !== 66) {
             break;
           }
 
-          message.executionInterrupted = ComfyMessage_ExecutionInterrupted.decode(reader, reader.uint32());
+          message.execution_interrupted = ComfyMessage_ExecutionInterrupted.decode(reader, reader.uint32());
           continue;
         case 9:
           if (tag !== 74) {
             break;
           }
 
-          message.executionCached = ComfyMessage_ExecutionCached.decode(reader, reader.uint32());
+          message.execution_cached = ComfyMessage_ExecutionCached.decode(reader, reader.uint32());
           continue;
         case 10:
           if (tag !== 82) {
@@ -1068,7 +1018,7 @@ export const ComfyMessage = {
             break;
           }
 
-          message.customMessage = ComfyMessage_CustomMessage.decode(reader, reader.uint32());
+          message.custom_message = ComfyMessage_CustomMessage.decode(reader, reader.uint32());
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1084,13 +1034,13 @@ export const ComfyMessage = {
   },
   fromPartial(object: DeepPartial<ComfyMessage>): ComfyMessage {
     const message = createBaseComfyMessage();
-    message.jobId = object.jobId ?? "";
-    message.userId = object.userId ?? "";
-    message.queueStatus = (object.queueStatus !== undefined && object.queueStatus !== null)
-      ? ComfyMessage_QueueStatus.fromPartial(object.queueStatus)
+    message.job_id = object.job_id ?? "";
+    message.user_id = object.user_id ?? "";
+    message.queue_status = (object.queue_status !== undefined && object.queue_status !== null)
+      ? ComfyMessage_QueueStatus.fromPartial(object.queue_status)
       : undefined;
-    message.executionStart = (object.executionStart !== undefined && object.executionStart !== null)
-      ? ComfyMessage_ExecutionStart.fromPartial(object.executionStart)
+    message.execution_start = (object.execution_start !== undefined && object.execution_start !== null)
+      ? ComfyMessage_ExecutionStart.fromPartial(object.execution_start)
       : undefined;
     message.executing = (object.executing !== undefined && object.executing !== null)
       ? ComfyMessage_Executing.fromPartial(object.executing)
@@ -1098,27 +1048,28 @@ export const ComfyMessage = {
     message.progress = (object.progress !== undefined && object.progress !== null)
       ? ComfyMessage_Progress.fromPartial(object.progress)
       : undefined;
-    message.executionError = (object.executionError !== undefined && object.executionError !== null)
-      ? ComfyMessage_ExecutionError.fromPartial(object.executionError)
+    message.execution_error = (object.execution_error !== undefined && object.execution_error !== null)
+      ? ComfyMessage_ExecutionError.fromPartial(object.execution_error)
       : undefined;
-    message.executionInterrupted = (object.executionInterrupted !== undefined && object.executionInterrupted !== null)
-      ? ComfyMessage_ExecutionInterrupted.fromPartial(object.executionInterrupted)
-      : undefined;
-    message.executionCached = (object.executionCached !== undefined && object.executionCached !== null)
-      ? ComfyMessage_ExecutionCached.fromPartial(object.executionCached)
+    message.execution_interrupted =
+      (object.execution_interrupted !== undefined && object.execution_interrupted !== null)
+        ? ComfyMessage_ExecutionInterrupted.fromPartial(object.execution_interrupted)
+        : undefined;
+    message.execution_cached = (object.execution_cached !== undefined && object.execution_cached !== null)
+      ? ComfyMessage_ExecutionCached.fromPartial(object.execution_cached)
       : undefined;
     message.output = (object.output !== undefined && object.output !== null)
       ? ComfyMessage_Output.fromPartial(object.output)
       : undefined;
-    message.customMessage = (object.customMessage !== undefined && object.customMessage !== null)
-      ? ComfyMessage_CustomMessage.fromPartial(object.customMessage)
+    message.custom_message = (object.custom_message !== undefined && object.custom_message !== null)
+      ? ComfyMessage_CustomMessage.fromPartial(object.custom_message)
       : undefined;
     return message;
   },
 };
 
 function createBaseComfyMessage_QueueStatus(): ComfyMessage_QueueStatus {
-  return { sid: undefined, queueRemaining: 0 };
+  return { sid: undefined, queue_remaining: 0 };
 }
 
 export const ComfyMessage_QueueStatus = {
@@ -1126,8 +1077,8 @@ export const ComfyMessage_QueueStatus = {
     if (message.sid !== undefined) {
       writer.uint32(10).string(message.sid);
     }
-    if (message.queueRemaining !== 0) {
-      writer.uint32(16).uint32(message.queueRemaining);
+    if (message.queue_remaining !== 0) {
+      writer.uint32(16).uint32(message.queue_remaining);
     }
     return writer;
   },
@@ -1151,7 +1102,7 @@ export const ComfyMessage_QueueStatus = {
             break;
           }
 
-          message.queueRemaining = reader.uint32();
+          message.queue_remaining = reader.uint32();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1168,7 +1119,7 @@ export const ComfyMessage_QueueStatus = {
   fromPartial(object: DeepPartial<ComfyMessage_QueueStatus>): ComfyMessage_QueueStatus {
     const message = createBaseComfyMessage_QueueStatus();
     message.sid = object.sid ?? undefined;
-    message.queueRemaining = object.queueRemaining ?? 0;
+    message.queue_remaining = object.queue_remaining ?? 0;
     return message;
   },
 };
@@ -1208,13 +1159,13 @@ export const ComfyMessage_ExecutionStart = {
 };
 
 function createBaseComfyMessage_Executing(): ComfyMessage_Executing {
-  return { nodeId: "" };
+  return { node_id: "" };
 }
 
 export const ComfyMessage_Executing = {
   encode(message: ComfyMessage_Executing, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.nodeId !== "") {
-      writer.uint32(10).string(message.nodeId);
+    if (message.node_id !== "") {
+      writer.uint32(10).string(message.node_id);
     }
     return writer;
   },
@@ -1231,7 +1182,7 @@ export const ComfyMessage_Executing = {
             break;
           }
 
-          message.nodeId = reader.string();
+          message.node_id = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1247,7 +1198,7 @@ export const ComfyMessage_Executing = {
   },
   fromPartial(object: DeepPartial<ComfyMessage_Executing>): ComfyMessage_Executing {
     const message = createBaseComfyMessage_Executing();
-    message.nodeId = object.nodeId ?? "";
+    message.node_id = object.node_id ?? "";
     return message;
   },
 };
@@ -1312,11 +1263,11 @@ function createBaseComfyMessage_ExecutionError(): ComfyMessage_ExecutionError {
   return {
     currentInputs: undefined,
     currentOutputs: undefined,
-    executionMessage: "",
-    exceptionType: "",
+    execution_message: "",
+    exception_type: "",
     executed: [],
-    nodeId: "",
-    nodeType: "",
+    node_id: "",
+    node_type: "",
     traceback: [],
   };
 }
@@ -1329,20 +1280,20 @@ export const ComfyMessage_ExecutionError = {
     if (message.currentOutputs !== undefined) {
       Struct.encode(Struct.wrap(message.currentOutputs), writer.uint32(18).fork()).ldelim();
     }
-    if (message.executionMessage !== "") {
-      writer.uint32(26).string(message.executionMessage);
+    if (message.execution_message !== "") {
+      writer.uint32(26).string(message.execution_message);
     }
-    if (message.exceptionType !== "") {
-      writer.uint32(34).string(message.exceptionType);
+    if (message.exception_type !== "") {
+      writer.uint32(34).string(message.exception_type);
     }
     for (const v of message.executed) {
       writer.uint32(42).string(v!);
     }
-    if (message.nodeId !== "") {
-      writer.uint32(50).string(message.nodeId);
+    if (message.node_id !== "") {
+      writer.uint32(50).string(message.node_id);
     }
-    if (message.nodeType !== "") {
-      writer.uint32(58).string(message.nodeType);
+    if (message.node_type !== "") {
+      writer.uint32(58).string(message.node_type);
     }
     for (const v of message.traceback) {
       writer.uint32(66).string(v!);
@@ -1376,14 +1327,14 @@ export const ComfyMessage_ExecutionError = {
             break;
           }
 
-          message.executionMessage = reader.string();
+          message.execution_message = reader.string();
           continue;
         case 4:
           if (tag !== 34) {
             break;
           }
 
-          message.exceptionType = reader.string();
+          message.exception_type = reader.string();
           continue;
         case 5:
           if (tag !== 42) {
@@ -1397,14 +1348,14 @@ export const ComfyMessage_ExecutionError = {
             break;
           }
 
-          message.nodeId = reader.string();
+          message.node_id = reader.string();
           continue;
         case 7:
           if (tag !== 58) {
             break;
           }
 
-          message.nodeType = reader.string();
+          message.node_type = reader.string();
           continue;
         case 8:
           if (tag !== 66) {
@@ -1429,18 +1380,18 @@ export const ComfyMessage_ExecutionError = {
     const message = createBaseComfyMessage_ExecutionError();
     message.currentInputs = object.currentInputs ?? undefined;
     message.currentOutputs = object.currentOutputs ?? undefined;
-    message.executionMessage = object.executionMessage ?? "";
-    message.exceptionType = object.exceptionType ?? "";
+    message.execution_message = object.execution_message ?? "";
+    message.exception_type = object.exception_type ?? "";
     message.executed = object.executed?.map((e) => e) || [];
-    message.nodeId = object.nodeId ?? "";
-    message.nodeType = object.nodeType ?? "";
+    message.node_id = object.node_id ?? "";
+    message.node_type = object.node_type ?? "";
     message.traceback = object.traceback?.map((e) => e) || [];
     return message;
   },
 };
 
 function createBaseComfyMessage_ExecutionInterrupted(): ComfyMessage_ExecutionInterrupted {
-  return { executed: [], nodeId: "", nodeType: "" };
+  return { executed: [], node_id: "", node_type: "" };
 }
 
 export const ComfyMessage_ExecutionInterrupted = {
@@ -1448,11 +1399,11 @@ export const ComfyMessage_ExecutionInterrupted = {
     for (const v of message.executed) {
       writer.uint32(10).string(v!);
     }
-    if (message.nodeId !== "") {
-      writer.uint32(18).string(message.nodeId);
+    if (message.node_id !== "") {
+      writer.uint32(18).string(message.node_id);
     }
-    if (message.nodeType !== "") {
-      writer.uint32(26).string(message.nodeType);
+    if (message.node_type !== "") {
+      writer.uint32(26).string(message.node_type);
     }
     return writer;
   },
@@ -1476,14 +1427,14 @@ export const ComfyMessage_ExecutionInterrupted = {
             break;
           }
 
-          message.nodeId = reader.string();
+          message.node_id = reader.string();
           continue;
         case 3:
           if (tag !== 26) {
             break;
           }
 
-          message.nodeType = reader.string();
+          message.node_type = reader.string();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1500,19 +1451,19 @@ export const ComfyMessage_ExecutionInterrupted = {
   fromPartial(object: DeepPartial<ComfyMessage_ExecutionInterrupted>): ComfyMessage_ExecutionInterrupted {
     const message = createBaseComfyMessage_ExecutionInterrupted();
     message.executed = object.executed?.map((e) => e) || [];
-    message.nodeId = object.nodeId ?? "";
-    message.nodeType = object.nodeType ?? "";
+    message.node_id = object.node_id ?? "";
+    message.node_type = object.node_type ?? "";
     return message;
   },
 };
 
 function createBaseComfyMessage_ExecutionCached(): ComfyMessage_ExecutionCached {
-  return { nodeIds: [] };
+  return { node_ids: [] };
 }
 
 export const ComfyMessage_ExecutionCached = {
   encode(message: ComfyMessage_ExecutionCached, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    for (const v of message.nodeIds) {
+    for (const v of message.node_ids) {
       writer.uint32(10).string(v!);
     }
     return writer;
@@ -1530,7 +1481,7 @@ export const ComfyMessage_ExecutionCached = {
             break;
           }
 
-          message.nodeIds.push(reader.string());
+          message.node_ids.push(reader.string());
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1546,19 +1497,19 @@ export const ComfyMessage_ExecutionCached = {
   },
   fromPartial(object: DeepPartial<ComfyMessage_ExecutionCached>): ComfyMessage_ExecutionCached {
     const message = createBaseComfyMessage_ExecutionCached();
-    message.nodeIds = object.nodeIds?.map((e) => e) || [];
+    message.node_ids = object.node_ids?.map((e) => e) || [];
     return message;
   },
 };
 
 function createBaseComfyMessage_Output(): ComfyMessage_Output {
-  return { nodeId: "", files: [] };
+  return { node_id: "", files: [] };
 }
 
 export const ComfyMessage_Output = {
   encode(message: ComfyMessage_Output, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.nodeId !== "") {
-      writer.uint32(10).string(message.nodeId);
+    if (message.node_id !== "") {
+      writer.uint32(10).string(message.node_id);
     }
     for (const v of message.files) {
       WorkflowFile.encode(v!, writer.uint32(18).fork()).ldelim();
@@ -1578,7 +1529,7 @@ export const ComfyMessage_Output = {
             break;
           }
 
-          message.nodeId = reader.string();
+          message.node_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
@@ -1601,7 +1552,7 @@ export const ComfyMessage_Output = {
   },
   fromPartial(object: DeepPartial<ComfyMessage_Output>): ComfyMessage_Output {
     const message = createBaseComfyMessage_Output();
-    message.nodeId = object.nodeId ?? "";
+    message.node_id = object.node_id ?? "";
     message.files = object.files?.map((e) => WorkflowFile.fromPartial(e)) || [];
     return message;
   },
@@ -1664,19 +1615,19 @@ export const ComfyMessage_CustomMessage = {
 };
 
 function createBaseMessageFilter(): MessageFilter {
-  return { outputsOnly: false, includeTempFiles: undefined, includeLatentPreviews: undefined };
+  return { outputs_only: false, include_temp_files: undefined, include_latent_previews: undefined };
 }
 
 export const MessageFilter = {
   encode(message: MessageFilter, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.outputsOnly === true) {
-      writer.uint32(8).bool(message.outputsOnly);
+    if (message.outputs_only === true) {
+      writer.uint32(8).bool(message.outputs_only);
     }
-    if (message.includeTempFiles !== undefined) {
-      writer.uint32(16).bool(message.includeTempFiles);
+    if (message.include_temp_files !== undefined) {
+      writer.uint32(16).bool(message.include_temp_files);
     }
-    if (message.includeLatentPreviews !== undefined) {
-      writer.uint32(24).bool(message.includeLatentPreviews);
+    if (message.include_latent_previews !== undefined) {
+      writer.uint32(24).bool(message.include_latent_previews);
     }
     return writer;
   },
@@ -1693,21 +1644,21 @@ export const MessageFilter = {
             break;
           }
 
-          message.outputsOnly = reader.bool();
+          message.outputs_only = reader.bool();
           continue;
         case 2:
           if (tag !== 16) {
             break;
           }
 
-          message.includeTempFiles = reader.bool();
+          message.include_temp_files = reader.bool();
           continue;
         case 3:
           if (tag !== 24) {
             break;
           }
 
-          message.includeLatentPreviews = reader.bool();
+          message.include_latent_previews = reader.bool();
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -1723,21 +1674,21 @@ export const MessageFilter = {
   },
   fromPartial(object: DeepPartial<MessageFilter>): MessageFilter {
     const message = createBaseMessageFilter();
-    message.outputsOnly = object.outputsOnly ?? false;
-    message.includeTempFiles = object.includeTempFiles ?? undefined;
-    message.includeLatentPreviews = object.includeLatentPreviews ?? undefined;
+    message.outputs_only = object.outputs_only ?? false;
+    message.include_temp_files = object.include_temp_files ?? undefined;
+    message.include_latent_previews = object.include_latent_previews ?? undefined;
     return message;
   },
 };
 
 function createBaseRoomStreamRequest(): RoomStreamRequest {
-  return { sessionId: "", filter: undefined };
+  return { session_id: "", filter: undefined };
 }
 
 export const RoomStreamRequest = {
   encode(message: RoomStreamRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.sessionId !== "") {
-      writer.uint32(10).string(message.sessionId);
+    if (message.session_id !== "") {
+      writer.uint32(10).string(message.session_id);
     }
     if (message.filter !== undefined) {
       MessageFilter.encode(message.filter, writer.uint32(18).fork()).ldelim();
@@ -1757,7 +1708,7 @@ export const RoomStreamRequest = {
             break;
           }
 
-          message.sessionId = reader.string();
+          message.session_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
@@ -1780,7 +1731,7 @@ export const RoomStreamRequest = {
   },
   fromPartial(object: DeepPartial<RoomStreamRequest>): RoomStreamRequest {
     const message = createBaseRoomStreamRequest();
-    message.sessionId = object.sessionId ?? "";
+    message.session_id = object.session_id ?? "";
     message.filter = (object.filter !== undefined && object.filter !== null)
       ? MessageFilter.fromPartial(object.filter)
       : undefined;
@@ -1789,13 +1740,13 @@ export const RoomStreamRequest = {
 };
 
 function createBaseJobStreamRequest(): JobStreamRequest {
-  return { jobId: "", filter: undefined };
+  return { job_id: "", filter: undefined };
 }
 
 export const JobStreamRequest = {
   encode(message: JobStreamRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.jobId !== "") {
-      writer.uint32(10).string(message.jobId);
+    if (message.job_id !== "") {
+      writer.uint32(10).string(message.job_id);
     }
     if (message.filter !== undefined) {
       MessageFilter.encode(message.filter, writer.uint32(18).fork()).ldelim();
@@ -1815,7 +1766,7 @@ export const JobStreamRequest = {
             break;
           }
 
-          message.jobId = reader.string();
+          message.job_id = reader.string();
           continue;
         case 2:
           if (tag !== 18) {
@@ -1838,7 +1789,7 @@ export const JobStreamRequest = {
   },
   fromPartial(object: DeepPartial<JobStreamRequest>): JobStreamRequest {
     const message = createBaseJobStreamRequest();
-    message.jobId = object.jobId ?? "";
+    message.job_id = object.job_id ?? "";
     message.filter = (object.filter !== undefined && object.filter !== null)
       ? MessageFilter.fromPartial(object.filter)
       : undefined;

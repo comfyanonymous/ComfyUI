@@ -81,11 +81,6 @@ export interface ComfyProgress {
     value: number;
 }
 
-export type QueueItem = {
-    number: number;
-    batchCount: number;
-};
-
 export interface ComfyButtonWidget {
     name: string;
     type: 'button';

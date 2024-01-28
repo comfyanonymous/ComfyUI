@@ -3,19 +3,22 @@
 // Instead, in ComfyTS we use class-inheritance to extend the functionality of Litegraph's
 // original base classes. This is simpler and more maintanable.
 import { LiteGraph, LGraphCanvas, Vector2 } from 'litegraph.js';
-import {ComfyNode} from './comfyNode';
-import {ComfyGraph} from './comfyGraph';
+import { ComfyNode } from './comfyNode';
+import { ComfyGraph } from './comfyGraph';
+import { ComfyError } from '../types/many';
 
 // TO DO: list all hot keys this class has and what they do
 
-export class ComfyCanvas extends LGraphCanvas {
-    selected_group_moving: boolean = false;
+export class ComfyCanvas extends LGraphCanvas<ComfyGraph> {
+    static instance: ComfyCanvas | null = null;
 
+    lastNodeErrors: Record<string, ComfyError> | null = null;
+    selected_group_moving: boolean = false;
     abortController = new AbortController();
 
     constructor(
         canvas: HTMLCanvasElement & { id: string },
-        graph?: ComfyGraph,
+        graph: ComfyGraph,
         options?: { skip_render?: boolean; autoresize?: boolean }
     ) {
         super(canvas, graph, options);
@@ -29,8 +32,8 @@ export class ComfyCanvas extends LGraphCanvas {
     computeVisibleNodes(nodes: ComfyNode[]) {
         const visibleNodes = super.computeVisibleNodes(nodes);
 
-        if (this.app?.graph?.nodes) {
-            for (const node of this.app?.graph?.nodes) {
+        if (this.graph.nodes) {
+            for (const node of this.graph.nodes) {
                 if (this.app.elementWidgets.has(node)) {
                     const hidden = visibleNodes.indexOf(node) === -1;
                     for (const w of node.widgets) {

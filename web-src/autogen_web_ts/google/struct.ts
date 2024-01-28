@@ -67,27 +67,27 @@ export interface Struct_FieldsEntry {
  */
 export interface Value {
   /** Represents a null value. */
-  nullValue?:
+  null_value?:
     | NullValue
     | undefined;
   /** Represents a double value. */
-  numberValue?:
+  number_value?:
     | number
     | undefined;
   /** Represents a string value. */
-  stringValue?:
+  string_value?:
     | string
     | undefined;
   /** Represents a boolean value. */
-  boolValue?:
+  bool_value?:
     | boolean
     | undefined;
   /** Represents a structured value. */
-  structValue?:
+  struct_value?:
     | { [key: string]: any }
     | undefined;
   /** Represents a repeated `Value`. */
-  listValue?: Array<any> | undefined;
+  list_value?: Array<any> | undefined;
 }
 
 /**
@@ -236,34 +236,34 @@ export const Struct_FieldsEntry = {
 
 function createBaseValue(): Value {
   return {
-    nullValue: undefined,
-    numberValue: undefined,
-    stringValue: undefined,
-    boolValue: undefined,
-    structValue: undefined,
-    listValue: undefined,
+    null_value: undefined,
+    number_value: undefined,
+    string_value: undefined,
+    bool_value: undefined,
+    struct_value: undefined,
+    list_value: undefined,
   };
 }
 
 export const Value = {
   encode(message: Value, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.nullValue !== undefined) {
-      writer.uint32(8).int32(nullValueToNumber(message.nullValue));
+    if (message.null_value !== undefined) {
+      writer.uint32(8).int32(nullValueToNumber(message.null_value));
     }
-    if (message.numberValue !== undefined) {
-      writer.uint32(17).double(message.numberValue);
+    if (message.number_value !== undefined) {
+      writer.uint32(17).double(message.number_value);
     }
-    if (message.stringValue !== undefined) {
-      writer.uint32(26).string(message.stringValue);
+    if (message.string_value !== undefined) {
+      writer.uint32(26).string(message.string_value);
     }
-    if (message.boolValue !== undefined) {
-      writer.uint32(32).bool(message.boolValue);
+    if (message.bool_value !== undefined) {
+      writer.uint32(32).bool(message.bool_value);
     }
-    if (message.structValue !== undefined) {
-      Struct.encode(Struct.wrap(message.structValue), writer.uint32(42).fork()).ldelim();
+    if (message.struct_value !== undefined) {
+      Struct.encode(Struct.wrap(message.struct_value), writer.uint32(42).fork()).ldelim();
     }
-    if (message.listValue !== undefined) {
-      ListValue.encode(ListValue.wrap(message.listValue), writer.uint32(50).fork()).ldelim();
+    if (message.list_value !== undefined) {
+      ListValue.encode(ListValue.wrap(message.list_value), writer.uint32(50).fork()).ldelim();
     }
     return writer;
   },
@@ -280,42 +280,42 @@ export const Value = {
             break;
           }
 
-          message.nullValue = nullValueFromJSON(reader.int32());
+          message.null_value = nullValueFromJSON(reader.int32());
           continue;
         case 2:
           if (tag !== 17) {
             break;
           }
 
-          message.numberValue = reader.double();
+          message.number_value = reader.double();
           continue;
         case 3:
           if (tag !== 26) {
             break;
           }
 
-          message.stringValue = reader.string();
+          message.string_value = reader.string();
           continue;
         case 4:
           if (tag !== 32) {
             break;
           }
 
-          message.boolValue = reader.bool();
+          message.bool_value = reader.bool();
           continue;
         case 5:
           if (tag !== 42) {
             break;
           }
 
-          message.structValue = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+          message.struct_value = Struct.unwrap(Struct.decode(reader, reader.uint32()));
           continue;
         case 6:
           if (tag !== 50) {
             break;
           }
 
-          message.listValue = ListValue.unwrap(ListValue.decode(reader, reader.uint32()));
+          message.list_value = ListValue.unwrap(ListValue.decode(reader, reader.uint32()));
           continue;
       }
       if ((tag & 7) === 4 || tag === 0) {
@@ -331,29 +331,29 @@ export const Value = {
   },
   fromPartial(object: DeepPartial<Value>): Value {
     const message = createBaseValue();
-    message.nullValue = object.nullValue ?? undefined;
-    message.numberValue = object.numberValue ?? undefined;
-    message.stringValue = object.stringValue ?? undefined;
-    message.boolValue = object.boolValue ?? undefined;
-    message.structValue = object.structValue ?? undefined;
-    message.listValue = object.listValue ?? undefined;
+    message.null_value = object.null_value ?? undefined;
+    message.number_value = object.number_value ?? undefined;
+    message.string_value = object.string_value ?? undefined;
+    message.bool_value = object.bool_value ?? undefined;
+    message.struct_value = object.struct_value ?? undefined;
+    message.list_value = object.list_value ?? undefined;
     return message;
   },
 
   wrap(value: any): Value {
     const result = createBaseValue();
     if (value === null) {
-      result.nullValue = NullValue.NULL_VALUE;
+      result.null_value = NullValue.NULL_VALUE;
     } else if (typeof value === "boolean") {
-      result.boolValue = value;
+      result.bool_value = value;
     } else if (typeof value === "number") {
-      result.numberValue = value;
+      result.number_value = value;
     } else if (typeof value === "string") {
-      result.stringValue = value;
+      result.string_value = value;
     } else if (globalThis.Array.isArray(value)) {
-      result.listValue = value;
+      result.list_value = value;
     } else if (typeof value === "object") {
-      result.structValue = value;
+      result.struct_value = value;
     } else if (typeof value !== "undefined") {
       throw new Error("Unsupported any value type: " + typeof value);
     }
@@ -361,17 +361,17 @@ export const Value = {
   },
 
   unwrap(message: any): string | number | boolean | Object | null | Array<any> | undefined {
-    if (message.stringValue !== undefined) {
-      return message.stringValue;
-    } else if (message?.numberValue !== undefined) {
-      return message.numberValue;
-    } else if (message?.boolValue !== undefined) {
-      return message.boolValue;
-    } else if (message?.structValue !== undefined) {
-      return message.structValue as any;
-    } else if (message?.listValue !== undefined) {
-      return message.listValue;
-    } else if (message?.nullValue !== undefined) {
+    if (message.string_value !== undefined) {
+      return message.string_value;
+    } else if (message?.number_value !== undefined) {
+      return message.number_value;
+    } else if (message?.bool_value !== undefined) {
+      return message.bool_value;
+    } else if (message?.struct_value !== undefined) {
+      return message.struct_value as any;
+    } else if (message?.list_value !== undefined) {
+      return message.list_value;
+    } else if (message?.null_value !== undefined) {
       return null;
     }
     return undefined;
