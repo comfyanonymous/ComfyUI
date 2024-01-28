@@ -4,6 +4,7 @@ import App from './App.tsx'
 import './index.css'
 import {ComfyApp} from "./scripts/app.ts";
 
+// We should probably have a ComfyAppContextProvider that wraps the entire app?
 const app = ComfyApp.getInstance();
 window.app = app;
 window.graph = app.graph;
