@@ -241,6 +241,30 @@ class ImageOutput:
 
 
 
+class FileInput:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "name": ("STRING", {"default": ""}),
+            "filepath": ("STRING", {"default": ""}),
+            },
+        }
+
+    RETURN_NAMES = ("filepath", )
+    RETURN_TYPES = ("STRING", )
+    FUNCTION = "input_file"
+
+    CATEGORY = "aiyoh"
+
+    def input_file(self, name, filepath):
+        AppLog.info(f"[FileInput] get file, file: {filepath}")
+        
+        local_path, _ = ResourceMgr.instance.get_image(filepath, open=False)
+        AppLog.info(f'[FileInput] get file, local path: {local_path}')
+        return (local_path, )
+
+
 
 class FileOutput:
     def __init__(self):
@@ -313,6 +337,7 @@ NODE_CLASS_MAPPINGS = {
     "BoolInput": BoolInput,
     "ImageInput": ImageInput,
     "ImageOutput": ImageOutput,
+    "FileInput": FileInput,
     "FileOutput": FileOutput,
     "AudioInput": AudioInput,
 }
@@ -324,6 +349,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BoolInput": "Bool Input",
     "ImageInput": "Image Input",
     "ImageOutput": "Image Output", 
+    "FileInput": "File Input",
     "FileOutput": "File Output",
     "AudioInput": "Audio Input",
 } 
