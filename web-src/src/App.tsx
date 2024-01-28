@@ -1,14 +1,11 @@
 import './App.css'
-import {Canvas} from "./components/Canvas.tsx";
+import {MainCanvas} from "./components/MainCanvas.tsx";
 import {ComfyApp} from "./scripts/app.ts";
 
-function App() {
-    const app = ComfyApp.getInstance();
-
-
+function App({app}: { app: ComfyApp }) {
     return (
         <>
-            <Canvas app={app}/>
+            <MainCanvas app={app}/>
         </>
     )
 }

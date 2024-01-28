@@ -1,5 +1,10 @@
+import {ComfyApp} from "../scripts/app.ts";
+import {ComfyGraph} from "../scripts/comfyGraph.ts";
+
 declare global {
     interface Window {
+        app: ComfyApp;
+        graph: ComfyGraph | null;
         clipboardData: DataTransfer;
     }
 
@@ -17,6 +22,8 @@ declare global {
         localName: string;
         className: string;
     }
+
+
 }
 
 export interface ComfyError extends Error {
