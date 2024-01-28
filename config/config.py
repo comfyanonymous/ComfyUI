@@ -1,7 +1,7 @@
 
 
 
-import sys
+import sys, os
 import json
 from comfy.cli_args import args
 
@@ -28,7 +28,9 @@ class ServiceConfig:
     
 
     def _load_config(self):
-        with open('config/config.json', 'r', encoding='utf-8') as config_file:
+        config_path = os.path.dirname(os.path.abspath(__file__))
+        config_path = f"{config_path}/config.json"
+        with open(config_path, 'r', encoding='utf-8') as config_file:
             self.all_configs = json.loads(config_file.read())
 
     def __getitem__(self, key):

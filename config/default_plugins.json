@@ -132,6 +132,16 @@
     },
 
     {
+      "author": "storyicon",
+      "title": "segment anything",
+      "reference": "https://github.com/storyicon/comfyui_segment_anything",
+      "files": [
+          "https://github.com/storyicon/comfyui_segment_anything"
+      ],
+      "install_type": "git-clone",
+      "description": "Based on GroundingDino and SAM, use semantic strings to segment any element in an image. The comfyui version of sd-webui-segment-anything."
+  },
+  {
       "author": "Kosinkadink",
       "title": "ComfyUI-Advanced-ControlNet",
       "reference": "https://github.com/Kosinkadink/ComfyUI-Advanced-ControlNet",

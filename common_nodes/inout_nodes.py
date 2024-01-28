@@ -178,33 +178,8 @@ class ImageInput:
             return "Invalid image file: {}".format(image)
 
         return True
-
-
-class AudioInput:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {
-            "audio_dir": ("STRING", {"default": "", "multiline": True})
-        }}
     
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("音频地址",)
-    INPUT_NODE_DATA = "audio_dir"
-    FUNCTION = "get_audio_path"
-
-    CATEGORY = "flow"
-
-    def get_audio_path(self, audio_dir):
-        return (audio_dir,)
-
-NODE_CLASS_MAPPINGS = {
-    "AudioInput": AudioInput
-}
-
-# A dictionary that contains the friendly/humanly readable titles for the nodes
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "AudioInput": "获取音频地址啊"
-}
+    
 
 
 
@@ -265,6 +240,71 @@ class ImageOutput:
 
 
 
+
+
+class FileOutput:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+        self.compress_level = 4
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "name": ("STRING", {"default": ""}),
+            "filepath": ("STRING", {"default": ""}),
+            # "filename_prefix": ("STRING", {"default": "ComfyUI"})},
+            # "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"
+            },
+        }
+
+    RETURN_NAMES = ("filepath", )
+    RETURN_TYPES = ("STRING", )
+    FUNCTION = "output_file"
+
+    OUTPUT_NODE = True
+    OUTPUT_NODE_TYPE = "FILE"
+
+    CATEGORY = "aiyoh"
+
+    def output_file(self, name, filepath):
+        AppLog.info(f"[FileOutput] output name: {name}, filepath: {filepath}")
+        AppLog.info(f"[FileOutput] res_mgr: {ResourceMgr.instance}")
+        
+        final_path = ResourceMgr.instance.after_save_image_to_local(filepath)
+
+        return (final_path,)
+
+
+class AudioInput:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "audio_dir": ("STRING", {"default": "", "multiline": True})
+        }}
+    
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("音频地址",)
+    INPUT_NODE_DATA = "audio_dir"
+    FUNCTION = "get_audio_path"
+
+    CATEGORY = "flow"
+
+    def get_audio_path(self, audio_dir):
+        return (audio_dir,)
+
+NODE_CLASS_MAPPINGS = {
+    "AudioInput": AudioInput
+}
+
+# A dictionary that contains the friendly/humanly readable titles for the nodes
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "AudioInput": "获取音频地址啊"
+}
+
+
+
 NODE_CLASS_MAPPINGS = {
     
     "IntInput": IntInput,
@@ -273,7 +313,8 @@ NODE_CLASS_MAPPINGS = {
     "BoolInput": BoolInput,
     "ImageInput": ImageInput,
     "ImageOutput": ImageOutput,
-    "AudioInput": AudioInput
+    "FileOutput": FileOutput,
+    "AudioInput": AudioInput,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -282,6 +323,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StringInput": "String Input",
     "BoolInput": "Bool Input",
     "ImageInput": "Image Input",
-    "ImageOutput": "Image Output",
-    "AudioInput": "Audio Input"
+    "ImageOutput": "Image Output", 
+    "FileOutput": "File Output",
+    "AudioInput": "Audio Input",
 } 

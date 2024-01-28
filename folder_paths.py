@@ -158,6 +158,7 @@ def filter_files_extensions(files, extensions):
 
 def get_full_path(folder_name, filename):
     global folder_names_and_paths
+    filename = filename.replace('\\', '/')          # otherwise, execute windows prompt file on ubuntu system will trigger some error 
     if folder_name not in folder_names_and_paths:
         return None
     folders = folder_names_and_paths[folder_name]

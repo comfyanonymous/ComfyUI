@@ -1,10 +1,13 @@
 
 
 import torch
+import numpy as np
 
 from nodes import MAX_RESOLUTION
 from nodes import ImageScale
 from framework.app_log import AppLog
+import folder_paths
+from framework.image_util import ImageUtil
 
 
 
@@ -280,7 +283,8 @@ class ImageExpandBy:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_NAMES = ("IMAGE", "MASK", "width", "height", "left", "top", "right", "bottom")
+    RETURN_TYPES = ("IMAGE", "MASK", "INT", "INT", "INT", "INT", "INT", "INT")
     FUNCTION = "expand_image"
 
     CATEGORY = "aiyoh"
@@ -325,7 +329,119 @@ class ImageExpandBy:
         AppLog.info(f"[ImageExpandBy] left:{_left}, top: {_top}, right:{_right}, bottom:{_bottom}, feathering:{_feathering}")
         new_img, new_mask = ImagePadForOutpaintAdvance().expand_image(image, _left, _top, _right, _bottom, _feathering, padding_mode)
         
-        return (new_img, new_mask)
+        return (new_img, new_mask, imgw2, imgh2, _left, _top, _right, _bottom)
+    
+    
+    
+    
+ay_color_mapping = {
+    "white": (255, 255, 255),
+    "black": (0, 0, 0),
+    "red": (255, 0, 0),
+    "green": (0, 255, 0),
+    "blue": (0, 0, 255),
+    "yellow": (255, 255, 0),
+    "cyan": (0, 255, 255),
+    "magenta": (255, 0, 255),
+    "orange": (255, 165, 0),
+    "purple": (128, 0, 128),
+    "pink": (255, 192, 203),
+    "brown": (160, 85, 15),
+    "gray": (128, 128, 128),
+    "lightgray": (211, 211, 211),
+    "darkgray": (102, 102, 102),
+    "olive": (128, 128, 0),
+    "lime": (0, 128, 0),
+    "teal": (0, 128, 128),
+    "navy": (0, 0, 128),
+    "maroon": (128, 0, 0),
+    "fuchsia": (255, 0, 128),
+    "aqua": (0, 255, 128),
+    "silver": (192, 192, 192),
+    "gold": (255, 215, 0),
+    "turquoise": (64, 224, 208),
+    "lavender": (230, 230, 250),
+    "violet": (238, 130, 238),
+    "coral": (255, 127, 80),
+    "indigo": (75, 0, 130),    
+}
+
+AY_COLORS = ["custom", "white", "black", "red", "green", "blue", "yellow",
+          "cyan", "magenta", "orange", "purple", "pink", "brown", "gray",
+          "lightgray", "darkgray", "olive", "lime", "teal", "navy", "maroon",
+          "fuchsia", "aqua", "silver", "gold", "turquoise", "lavender",
+          "violet", "coral", "indigo"]
+
+    
+class AY_Color:
+
+    @classmethod
+    def INPUT_TYPES(s):
+                    
+        return {"required": {
+                    "color": (AY_COLORS,),
+                },
+                "optional": {
+                    "color_hex": ("STRING", {"multiline": False, "default": "#000000"})                
+                }
+        }
+
+    RETURN_TYPES = ("COLOR", )
+    FUNCTION = "get_color"
+    CATEGORY = "aiyoh"
+    
+    def get_color(self, color, color_hex='#000000'):
+        
+        res_color = ImageUtil.get_color_values(color, color_hex, ay_color_mapping)
+        AppLog.info(f"[AY_Color] color is: {res_color}")
+
+        return (res_color, )
+    
+class DrawTextOnImage:
+    """
+    
+    """
+    
+    @classmethod
+    def INPUT_TYPES(s):
+        fonts = folder_paths.get_filename_list('aiyoh_font')
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "width": ("INT", {"default": 256, "min": 1, "max": 10240, "step": 8}),
+                "height": ("INT", {"default": 256, "min": 1, "max": 10240, "step": 8}),
+                "left": ("INT", {"default": 0, "min": 1, "max": 10240, "step": 8}),
+                "top": ("INT", {"default": 0, "min": 1, "max": 10240, "step": 8}),
+                
+                "font": (fonts, ),
+                "font_size": ("INT", {"default": 10 }), 
+                "cols": ("INT", {"default": 10}),
+                "text": ("STRING", {"multiline": True}),             
+                "color": (
+                    "COLOR",
+                    {"default": "black"}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "draw_text"
+
+    CATEGORY = "aiyoh"
+    
+    
+    def draw_text(self, image, width, height, left, top, font, font_size, text, cols, color):
+        font_path = folder_paths.get_full_path("aiyoh_font", font)
+        AppLog.info(f"[DrawTextOnImage] width: {width}, height: {height}, left:{left}, top:{top}, font:{font_path}, font_size:{font_size}")
+        AppLog.info(f"[DrawTextOnImage] text: {text}")
+        
+        center_x = int(left + width / 2)
+        center_y = int(top + height / 2)
+        ts_img = image.clone()
+        pil_img = ImageUtil.tensor_to_image(ts_img[0])
+        pil_img_2 = ImageUtil.draw_text_on_image(pil_img, text, font_path, font_size, color, (center_x, center_y), cols)
+        new_image = ImageUtil.image_to_tensor(pil_img_2)
+        ts_img[0] = new_image
+        return (ts_img, )
     
     
     
@@ -335,7 +451,10 @@ NODE_CLASS_MAPPINGS = {
     "ConstrainImageMinSize": ConstrainImageMinSize,
     "ImageExpand": ImageExpand,
     "ImageExpandBy": ImageExpandBy,
-    "ImagePadForOutpaintAdvance": ImagePadForOutpaintAdvance
+    "ImagePadForOutpaintAdvance": ImagePadForOutpaintAdvance,
+    
+    "DrawTextOnImage": DrawTextOnImage,
+    "AY_Color": AY_Color,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -343,5 +462,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ConstrainImageMinSize": "Constrain Image MinSize",
     "ImageExpand": "Image Expand", 
     "ImageExpandBy": "Image Expand By",
-    "ImagePadForOutpaintAdvance": "ImagePadForOutpaint Advance"
+    "ImagePadForOutpaintAdvance": "ImagePadForOutpaint Advance",
+    
+    "DrawTextOnImage": "Draw Text On Image",
+    "AY_Color": "AY Color"
 } 

@@ -1,5 +1,39 @@
 
 
+from framework.app_log import AppLog
+
+
+# ====================================================================
+# String
+# ====================================================================
+
+class ConcatenateString:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { 
+            "text0": ("STRING", {"forceInput": True}),
+            "text1": ("STRING", {"default": "", "multiline": True}),
+            "concatenate_by": ("STRING", {"default": ","})
+                }}
+    
+    RETURN_TYPES = ("STRING", )
+    FUNCTION = "execute"
+
+    CATEGORY = "aiyoh"
+
+    def execute(self, text0, text1, concatenate_by):
+        cur_str = text0 if text0 is not None else ''
+        concate = concatenate_by if concatenate_by is not None else ''
+        if text1 is not None and text1 != '':
+            cur_str = f"{cur_str}{concate}{text1}"
+        
+        return (cur_str, )
+        
+
+
+# ====================================================================
+# List
+# ====================================================================
 
 
 class ListNode:
@@ -66,6 +100,35 @@ class SetListItem:
         return (list, )
     
     
+    
+    
+# ========================================================
+# Iterable
+# =======================================================
+class GetIterableItem:
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+                    "iterable": ("ANY_DATA",), "index": ("INT", {"default": 0})
+                }}
+    
+    RETURN_TYPES = ("ANY_DATA", )
+    FUNCTION = "execute"
+
+    CATEGORY = "aiyoh"
+    
+    
+    def execute(self, iterable, index):
+        AppLog.info(f"[GetIterableTime] index: {index}, iterable: {iterable}")
+        return (iterable[index], )
+    
+    
+    
+    
+# ==========================================================
+# Dict
+# ==========================================================
     
 class DictNode:
     
@@ -188,6 +251,7 @@ class GraphOutputs:
     
     
 NODE_CLASS_MAPPINGS = {
+    "ConcatenateString": ConcatenateString,
     
     "ListNode": ListNode,
     "SetListItem": SetListItem,
@@ -198,10 +262,14 @@ NODE_CLASS_MAPPINGS = {
     "GetDictItem": GetDictItem,
     
     "GraphInputs": GraphInputs,
-    "GraphOutputs": GraphOutputs
+    "GraphOutputs": GraphOutputs,
+    
+    "GetIterableItem": GetIterableItem,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "ConcatenateString": "Concatenate String",
+    
     "ListNode": "List",
     "SetListItem": "Set List Item",
     "GetListItem": "Get List Item",
@@ -211,5 +279,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "GetDictItem": "Get Dict Item",
     
     "GraphInputs": "Graph Inputs",
-    "GraphOutputs": "Graph Outputs"
+    "GraphOutputs": "Graph Outputs",
+    
+    "GetIterableItem": "Get Iterable Item"
 } 

@@ -19,7 +19,22 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/disney_pixar_cartoon_typeA_fp16_v10.safetensors", 
                 "description": "3d卡通风格的底模",
                 "reference": "https://civitai.com/models/120635/disney-pixar-cartoon-type-a-fp16cleaned"
+            },
+
+            "revAnimated_v122EOL": {
+                "path": "sd15/revAnimated_v122EOL.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/revAnimated_v122EOL.safetensors", 
+                "description": "二次元风格",
+                "reference": ""
+            },
+
+            "AnythingV5Ink":{
+                "path": "sd15/AnythingV5Ink_v3RE.ckpt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/checkpoint/sd15/AnythingV5Ink_v3RE.ckpt", 
+                "description": "偏二次元风的底模，sd15",
+                "reference": "https://civitai.com/models/9409/anything-or"
             }
+
         },
 
         "clip": {},
@@ -108,6 +123,27 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/ipadapter/ip-adapter-faceid-plus_sd15_lora.safetensors", 
                 "description": "faceid plus 配合使用的lora， SD1.5",
                 "reference": "https://huggingface.co/h94/IP-Adapter-FaceID/tree/main"
+            },
+
+            "blind_box":{
+                "path": "sd15/blindbox_v1_mix.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/blindbox_v1_mix.safetensors", 
+                "description": "盲盒风格， SD1.5",
+                "reference": ""
+            }, 
+
+            "god_of_wealth_sd15":{
+                "path": "sd15/god_of_wealth_sd15.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/god_of_wealth_sd15.safetensors", 
+                "description": "卡通财神lora， SD1.5",
+                "reference": "https://civitai.com/models/245200?modelVersionId=276614"
+            },
+
+            "colorized_sd15":{
+                "path": "sd15/colorize_sd15.safetensors",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/lora/sd15/colorize_sd15.safetensors", 
+                "description": "颜色修复lora，可以修复褪色的图片 SD1.5",
+                "reference": "https://civitai.com/models/153676/colorize-slider-lora"
             }
         },
 
@@ -149,21 +185,67 @@
                 "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/ultralytics/face_yolov8m.pt",
                 "description": "人脸检测"
             }
+        },
+
+        "controlnet_aux": {
+            "dw-ll_ucoco_384_bs5":
+            {
+                "path": "hr16/DWPose-TorchScript-BatchSize5/dw-ll_ucoco_384_bs5.torchscript.pt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/hr16/DWPose-TorchScript-BatchSize5/dw-ll_ucoco_384_bs5.torchscript.pt",
+                "description": "人脸检测"
+            },
+            "dw-ll_ucoco":
+            {
+                "path": "hr16/UnJIT-DWPose/dw-ll_ucoco.onnx",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/hr16/UnJIT-DWPose/dw-ll_ucoco.onnx",
+                "description": "人脸检测"
+            },
+            "yolox_l":
+            {
+                "path": "hr16/yolox-onnx/yolox_l.torchscript.pt",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/hr16/yolox-onnx/yolox_l.torchscript.pt",
+                "description": "人脸检测"
+            },
+            "dw-ll_ucoco_384":
+            {
+                "path": "yzd-v/DWPose/dw-ll_ucoco_384.onnx",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/yzd-v/DWPose/dw-ll_ucoco_384.onnx",
+                "description": "人脸检测"
+            },
+            "yzd_yolox_l":
+            {
+                "path": "yzd-v/DWPose/yolox_l.onnx",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/controlnet_aux/yzd-v/DWPose/yolox_l.onnx",
+                "description": "人脸检测"
+            }
+        },
+
+        "grounding_dino": {
+            "groundingdino_swint_ogc": 
+            {
+                "path": "groundingdino_swint_ogc.pth",
+                "url": "https://aiyo-1319341997.cos.ap-nanjing.myqcloud.com/engine_models/grounding-dino/groundingdino_swint_ogc.pth",
+                "description": ""
+            }
         }
     },
 
     "model_paths":{
-        "checkpoints": "checkpoints",
-        "clip": "clip",
-        "clip_vision": "clip_vision",
-        "controlnet": "controlnet",
-        "ipadapter": "ipadapter",
-        "lora": "loras",
-        "style_models": "style_models",
-        "vae": "vae",
-        "upscale_models": "upscale_models",
+        "checkpoints": "models/checkpoints",
+        "clip": "models/clip",
+        "clip_vision": "models/clip_vision",
+        "controlnet": "models/controlnet",
+        "ipadapter": "models/ipadapter",
+        "lora": "models/loras",
+        "style_models": "models/style_models",
+        "vae": "models/vae",
+        "upscale_models": "models/upscale_models",
 
-        "ultralytics": "ultralytics"
+        "ultralytics": "models/ultralytics",
+        "grounding_dino": "models/grounding-dino",
+
+        "controlnet_aux": "custom_nodes/comfyui_controlnet_aux/ckpts"
+
     },
 
     "major_version": 0,

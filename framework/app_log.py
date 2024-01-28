@@ -2,7 +2,7 @@
 
 import logging
 import sentry_sdk
-
+from logging.handlers import TimedRotatingFileHandler
 from config.config import CONFIG
 
 
@@ -100,6 +100,12 @@ class AppLog:
                 level=AppLog._get_log_level(),  
                 format='%(asctime)s - %(name)s - %(levelname)s - %(message)s' 
             )
+            
+            logger = logging.getLogger(__name__)
+            handler = TimedRotatingFileHandler(CONFIG['log']['log_file'], when='D', interval=1, backupCount=30)
+            handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logger.addHandler(handler)
+            
 
         if 'sentry' in CONFIG:
             sentry_sdk.init(
