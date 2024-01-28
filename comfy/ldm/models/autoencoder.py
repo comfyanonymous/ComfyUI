@@ -2,67 +2,67 @@ import torch
 # import pytorch_lightning as pl
 import torch.nn.functional as F
 from contextlib import contextmanager
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from comfy.ldm.modules.diffusionmodules.model import Encoder, Decoder
 from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistribution
 
 from comfy.ldm.util import instantiate_from_config
 from comfy.ldm.modules.ema import LitEma
+import comfy.ops
 
-# class AutoencoderKL(pl.LightningModule):
-class AutoencoderKL(torch.nn.Module):
-    def __init__(self,
-                 ddconfig,
-                 lossconfig,
-                 embed_dim,
-                 ckpt_path=None,
-                 ignore_keys=[],
-                 image_key="image",
-                 colorize_nlabels=None,
-                 monitor=None,
-                 ema_decay=None,
-                 learn_logvar=False
-                 ):
+class DiagonalGaussianRegularizer(torch.nn.Module):
+    def __init__(self, sample: bool = True):
         super().__init__()
-        self.learn_logvar = learn_logvar
-        self.image_key = image_key
-        self.encoder = Encoder(**ddconfig)
-        self.decoder = Decoder(**ddconfig)
-        self.loss = instantiate_from_config(lossconfig)
-        assert ddconfig["double_z"]
-        self.quant_conv = torch.nn.Conv2d(2*ddconfig["z_channels"], 2*embed_dim, 1)
-        self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
-        self.embed_dim = embed_dim
-        if colorize_nlabels is not None:
-            assert type(colorize_nlabels)==int
-            self.register_buffer("colorize", torch.randn(3, colorize_nlabels, 1, 1))
+        self.sample = sample
+
+    def get_trainable_parameters(self) -> Any:
+        yield from ()
+
+    def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, dict]:
+        log = dict()
+        posterior = DiagonalGaussianDistribution(z)
+        if self.sample:
+            z = posterior.sample()
+        else:
+            z = posterior.mode()
+        kl_loss = posterior.kl()
+        kl_loss = torch.sum(kl_loss) / kl_loss.shape[0]
+        log["kl_loss"] = kl_loss
+        return z, log
+
+
+class AbstractAutoencoder(torch.nn.Module):
+    """
+    This is the base class for all autoencoders, including image autoencoders, image autoencoders with discriminators,
+    unCLIP models, etc. Hence, it is fairly general, and specific features
+    (e.g. discriminator training, encoding, decoding) must be implemented in subclasses.
+    """
+
+    def __init__(
+        self,
+        ema_decay: Union[None, float] = None,
+        monitor: Union[None, str] = None,
+        input_key: str = "jpg",
+        **kwargs,
+    ):
+        super().__init__()
+
+        self.input_key = input_key
+        self.use_ema = ema_decay is not None
         if monitor is not None:
             self.monitor = monitor
 
-        self.use_ema = ema_decay is not None
         if self.use_ema:
-            self.ema_decay = ema_decay
-            assert 0. < ema_decay < 1.
             self.model_ema = LitEma(self, decay=ema_decay)
-            print(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
+            logpy.info(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
 
-        if ckpt_path is not None:
-            self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
+    def get_input(self, batch) -> Any:
+        raise NotImplementedError()
 
-    def init_from_ckpt(self, path, ignore_keys=list()):
-        if path.lower().endswith(".safetensors"):
-            import safetensors.torch
-            sd = safetensors.torch.load_file(path, device="cpu")
-        else:
-            sd = torch.load(path, map_location="cpu")["state_dict"]
-        keys = list(sd.keys())
-        for k in keys:
-            for ik in ignore_keys:
-                if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
-                    del sd[k]
-        self.load_state_dict(sd, strict=False)
-        print(f"Restored from {path}")
+    def on_train_batch_end(self, *args, **kwargs):
+        # for EMA computation
+        if self.use_ema:
+            self.model_ema(self)
 
     @contextmanager
     def ema_scope(self, context=None):
@@ -70,154 +70,159 @@ class AutoencoderKL(torch.nn.Module):
             self.model_ema.store(self.parameters())
             self.model_ema.copy_to(self)
             if context is not None:
-                print(f"{context}: Switched to EMA weights")
+                logpy.info(f"{context}: Switched to EMA weights")
         try:
             yield None
         finally:
             if self.use_ema:
                 self.model_ema.restore(self.parameters())
                 if context is not None:
-                    print(f"{context}: Restored training weights")
+                    logpy.info(f"{context}: Restored training weights")
 
-    def on_train_batch_end(self, *args, **kwargs):
-        if self.use_ema:
-            self.model_ema(self)
+    def encode(self, *args, **kwargs) -> torch.Tensor:
+        raise NotImplementedError("encode()-method of abstract base class called")
 
-    def encode(self, x):
-        h = self.encoder(x)
-        moments = self.quant_conv(h)
-        posterior = DiagonalGaussianDistribution(moments)
-        return posterior
+    def decode(self, *args, **kwargs) -> torch.Tensor:
+        raise NotImplementedError("decode()-method of abstract base class called")
 
-    def decode(self, z):
-        z = self.post_quant_conv(z)
-        dec = self.decoder(z)
-        return dec
+    def instantiate_optimizer_from_config(self, params, lr, cfg):
+        logpy.info(f"loading >>> {cfg['target']} <<< optimizer from config")
+        return get_obj_from_str(cfg["target"])(
+            params, lr=lr, **cfg.get("params", dict())
+        )
 
-    def forward(self, input, sample_posterior=True):
-        posterior = self.encode(input)
-        if sample_posterior:
-            z = posterior.sample()
-        else:
-            z = posterior.mode()
-        dec = self.decode(z)
-        return dec, posterior
+    def configure_optimizers(self) -> Any:
+        raise NotImplementedError()
 
-    def get_input(self, batch, k):
-        x = batch[k]
-        if len(x.shape) == 3:
-            x = x[..., None]
-        x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
-        return x
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
-        inputs = self.get_input(batch, self.image_key)
-        reconstructions, posterior = self(inputs)
+class AutoencodingEngine(AbstractAutoencoder):
+    """
+    Base class for all image autoencoders that we train, like VQGAN or AutoencoderKL
+    (we also restore them explicitly as special cases for legacy reasons).
+    Regularizations such as KL or VQ are moved to the regularizer class.
+    """
 
-        if optimizer_idx == 0:
-            # train encoder+decoder+logvar
-            aeloss, log_dict_ae = self.loss(inputs, reconstructions, posterior, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train")
-            self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-            return aeloss
+    def __init__(
+        self,
+        *args,
+        encoder_config: Dict,
+        decoder_config: Dict,
+        regularizer_config: Dict,
+        **kwargs,
+    ):
+        super().__init__(*args, **kwargs)
 
-        if optimizer_idx == 1:
-            # train the discriminator
-            discloss, log_dict_disc = self.loss(inputs, reconstructions, posterior, optimizer_idx, self.global_step,
-                                                last_layer=self.get_last_layer(), split="train")
-
-            self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
-            return discloss
-
-    def validation_step(self, batch, batch_idx):
-        log_dict = self._validation_step(batch, batch_idx)
-        with self.ema_scope():
-            log_dict_ema = self._validation_step(batch, batch_idx, postfix="_ema")
-        return log_dict
-
-    def _validation_step(self, batch, batch_idx, postfix=""):
-        inputs = self.get_input(batch, self.image_key)
-        reconstructions, posterior = self(inputs)
-        aeloss, log_dict_ae = self.loss(inputs, reconstructions, posterior, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="val"+postfix)
-
-        discloss, log_dict_disc = self.loss(inputs, reconstructions, posterior, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val"+postfix)
-
-        self.log(f"val{postfix}/rec_loss", log_dict_ae[f"val{postfix}/rec_loss"])
-        self.log_dict(log_dict_ae)
-        self.log_dict(log_dict_disc)
-        return self.log_dict
-
-    def configure_optimizers(self):
-        lr = self.learning_rate
-        ae_params_list = list(self.encoder.parameters()) + list(self.decoder.parameters()) + list(
-            self.quant_conv.parameters()) + list(self.post_quant_conv.parameters())
-        if self.learn_logvar:
-            print(f"{self.__class__.__name__}: Learning logvar")
-            ae_params_list.append(self.loss.logvar)
-        opt_ae = torch.optim.Adam(ae_params_list,
-                                  lr=lr, betas=(0.5, 0.9))
-        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(),
-                                    lr=lr, betas=(0.5, 0.9))
-        return [opt_ae, opt_disc], []
+        self.encoder: torch.nn.Module = instantiate_from_config(encoder_config)
+        self.decoder: torch.nn.Module = instantiate_from_config(decoder_config)
+        self.regularization: AbstractRegularizer = instantiate_from_config(
+            regularizer_config
+        )
 
     def get_last_layer(self):
-        return self.decoder.conv_out.weight
+        return self.decoder.get_last_layer()
 
-    @torch.no_grad()
-    def log_images(self, batch, only_inputs=False, log_ema=False, **kwargs):
-        log = dict()
-        x = self.get_input(batch, self.image_key)
-        x = x.to(self.device)
-        if not only_inputs:
-            xrec, posterior = self(x)
-            if x.shape[1] > 3:
-                # colorize with random projection
-                assert xrec.shape[1] > 3
-                x = self.to_rgb(x)
-                xrec = self.to_rgb(xrec)
-            log["samples"] = self.decode(torch.randn_like(posterior.sample()))
-            log["reconstructions"] = xrec
-            if log_ema or self.use_ema:
-                with self.ema_scope():
-                    xrec_ema, posterior_ema = self(x)
-                    if x.shape[1] > 3:
-                        # colorize with random projection
-                        assert xrec_ema.shape[1] > 3
-                        xrec_ema = self.to_rgb(xrec_ema)
-                    log["samples_ema"] = self.decode(torch.randn_like(posterior_ema.sample()))
-                    log["reconstructions_ema"] = xrec_ema
-        log["inputs"] = x
-        return log
+    def encode(
+        self,
+        x: torch.Tensor,
+        return_reg_log: bool = False,
+        unregularized: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
+        z = self.encoder(x)
+        if unregularized:
+            return z, dict()
+        z, reg_log = self.regularization(z)
+        if return_reg_log:
+            return z, reg_log
+        return z
 
-    def to_rgb(self, x):
-        assert self.image_key == "segmentation"
-        if not hasattr(self, "colorize"):
-            self.register_buffer("colorize", torch.randn(3, x.shape[1], 1, 1).to(x))
-        x = F.conv2d(x, weight=self.colorize)
-        x = 2.*(x-x.min())/(x.max()-x.min()) - 1.
+    def decode(self, z: torch.Tensor, **kwargs) -> torch.Tensor:
+        x = self.decoder(z, **kwargs)
         return x
 
+    def forward(
+        self, x: torch.Tensor, **additional_decode_kwargs
+    ) -> Tuple[torch.Tensor, torch.Tensor, dict]:
+        z, reg_log = self.encode(x, return_reg_log=True)
+        dec = self.decode(z, **additional_decode_kwargs)
+        return z, dec, reg_log
 
-class IdentityFirstStage(torch.nn.Module):
-    def __init__(self, *args, vq_interface=False, **kwargs):
-        self.vq_interface = vq_interface
-        super().__init__()
 
-    def encode(self, x, *args, **kwargs):
-        return x
+class AutoencodingEngineLegacy(AutoencodingEngine):
+    def __init__(self, embed_dim: int, **kwargs):
+        self.max_batch_size = kwargs.pop("max_batch_size", None)
+        ddconfig = kwargs.pop("ddconfig")
+        super().__init__(
+            encoder_config={
+                "target": "comfy.ldm.modules.diffusionmodules.model.Encoder",
+                "params": ddconfig,
+            },
+            decoder_config={
+                "target": "comfy.ldm.modules.diffusionmodules.model.Decoder",
+                "params": ddconfig,
+            },
+            **kwargs,
+        )
+        self.quant_conv = comfy.ops.disable_weight_init.Conv2d(
+            (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
+            (1 + ddconfig["double_z"]) * embed_dim,
+            1,
+        )
+        self.post_quant_conv = comfy.ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+        self.embed_dim = embed_dim
 
-    def decode(self, x, *args, **kwargs):
-        return x
+    def get_autoencoder_params(self) -> list:
+        params = super().get_autoencoder_params()
+        return params
 
-    def quantize(self, x, *args, **kwargs):
-        if self.vq_interface:
-            return x, None, [None, None, None]
-        return x
+    def encode(
+        self, x: torch.Tensor, return_reg_log: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
+        if self.max_batch_size is None:
+            z = self.encoder(x)
+            z = self.quant_conv(z)
+        else:
+            N = x.shape[0]
+            bs = self.max_batch_size
+            n_batches = int(math.ceil(N / bs))
+            z = list()
+            for i_batch in range(n_batches):
+                z_batch = self.encoder(x[i_batch * bs : (i_batch + 1) * bs])
+                z_batch = self.quant_conv(z_batch)
+                z.append(z_batch)
+            z = torch.cat(z, 0)
 
-    def forward(self, x, *args, **kwargs):
-        return x
+        z, reg_log = self.regularization(z)
+        if return_reg_log:
+            return z, reg_log
+        return z
 
+    def decode(self, z: torch.Tensor, **decoder_kwargs) -> torch.Tensor:
+        if self.max_batch_size is None:
+            dec = self.post_quant_conv(z)
+            dec = self.decoder(dec, **decoder_kwargs)
+        else:
+            N = z.shape[0]
+            bs = self.max_batch_size
+            n_batches = int(math.ceil(N / bs))
+            dec = list()
+            for i_batch in range(n_batches):
+                dec_batch = self.post_quant_conv(z[i_batch * bs : (i_batch + 1) * bs])
+                dec_batch = self.decoder(dec_batch, **decoder_kwargs)
+                dec.append(dec_batch)
+            dec = torch.cat(dec, 0)
+
+        return dec
+
+
+class AutoencoderKL(AutoencodingEngineLegacy):
+    def __init__(self, **kwargs):
+        if "lossconfig" in kwargs:
+            kwargs["loss_config"] = kwargs.pop("lossconfig")
+        super().__init__(
+            regularizer_config={
+                "target": (
+                    "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"
+                )
+            },
+            **kwargs,
+        )

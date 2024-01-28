@@ -1,12 +1,12 @@
-import os
 import sys
 import copy
-import json
+import logging
 import threading
 import heapq
 import traceback
-import gc
 from enum import Enum
+import inspect
+from typing import List, Literal, NamedTuple, Optional
 
 import torch
 import nodes
@@ -362,7 +362,7 @@ def non_recursive_execute(server, dynprompt, caches, current_item, extra_data, e
             return (ExecutionResult.SLEEPING, None, None)
         caches.outputs.set(unique_id, output_data)
     except comfy.model_management.InterruptProcessingException as iex:
-        print("Processing interrupted")
+        logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs
         error_details = {
@@ -384,8 +384,8 @@ def non_recursive_execute(server, dynprompt, caches, current_item, extra_data, e
         # for node_id, node_outputs in outputs.items():
             # output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
-        print("!!! Exception during processing !!!")
-        print(traceback.format_exc())
+        logging.error("!!! Exception during processing !!!")
+        logging.error(traceback.format_exc())
 
         error_details = {
             "node_id": real_node_id,
@@ -407,10 +407,21 @@ def dump_cache_for_debug():
 
 class PromptExecutor:
     def __init__(self, server, lru_size=None):
-        self.caches = CacheSet(lru_size)
+        self.lru_size = lru_size
+        self.server = server
+        self.reset()
+
+    def reset(self):
+        self.caches = CacheSet(self.lru_size)
         global CACHE_FOR_DEBUG_DUMP
         CACHE_FOR_DEBUG_DUMP = self.caches
-        self.server = server
+        self.status_messages = []
+        self.success = True
+
+    def add_message(self, event, data, broadcast: bool):
+        self.status_messages.append((event, data))
+        if self.server.client_id is not None or broadcast:
+            self.server.send_sync(event, data, self.server.client_id)
 
     def handle_execution_error(self, prompt_id, prompt, current_outputs, executed, error, ex):
         node_id = error["node_id"]
@@ -425,23 +436,21 @@ class PromptExecutor:
                 "node_type": class_type,
                 "executed": list(executed),
             }
-            self.server.send_sync("execution_interrupted", mes, self.server.client_id)
+            self.add_message("execution_interrupted", mes, broadcast=True)
         else:
-            if self.server.client_id is not None:
-                mes = {
-                    "prompt_id": prompt_id,
-                    "node_id": node_id,
-                    "node_type": class_type,
-                    "executed": list(executed),
-
-                    "exception_message": error["exception_message"],
-                    "exception_type": error["exception_type"],
-                    "traceback": error["traceback"],
-                    "current_inputs": error["current_inputs"],
-                    "current_outputs": error["current_outputs"],
-                }
-                self.server.send_sync("execution_error", mes, self.server.client_id)
-
+            mes = {
+                "prompt_id": prompt_id,
+                "node_id": node_id,
+                "node_type": class_type,
+                "executed": list(executed),
+                "exception_message": error["exception_message"],
+                "exception_type": error["exception_type"],
+                "traceback": error["traceback"],
+                "current_inputs": error["current_inputs"],
+                "current_outputs": error["current_outputs"],
+            }
+            self.add_message("execution_error", mes, broadcast=False)
+        
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         nodes.interrupt_processing(False)
 
@@ -450,8 +459,8 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
-        if self.server.client_id is not None:
-            self.server.send_sync("execution_start", { "prompt_id": prompt_id}, self.server.client_id)
+        self.status_messages = []
+        self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
 
         with torch.inference_mode():
             dynamic_prompt = DynamicPrompt(prompt)
@@ -463,9 +472,9 @@ class PromptExecutor:
             current_outputs = self.caches.outputs.all_node_ids()
 
             comfy.model_management.cleanup_models()
-            if self.server.client_id is not None:
-                self.server.send_sync("execution_cached", { "nodes": list(current_outputs) , "prompt_id": prompt_id}, self.server.client_id)
-
+            self.add_message("execution_cached",
+                          { "nodes": list(current_outputs) , "prompt_id": prompt_id},
+                          broadcast=False)
             pending_subgraph_results = {}
             executed = set()
             execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
@@ -494,6 +503,8 @@ class PromptExecutor:
                 "meta": meta_outputs,
             }
             self.server.last_node_id = None
+            if comfy.model_management.DISABLE_SMART_MEMORY:
+                comfy.model_management.unload_all_models()
 
 
 
@@ -511,6 +522,10 @@ def validate_inputs(prompt, item, validated):
 
     errors = []
     valid = True
+
+    validate_function_inputs = []
+    if hasattr(obj_class, "VALIDATE_INPUTS"):
+        validate_function_inputs = inspect.getfullargspec(obj_class.VALIDATE_INPUTS).args
 
     for x in valid_inputs:
         type_input, input_category, extra_info = get_input_info(obj_class, x)
@@ -644,29 +659,7 @@ def validate_inputs(prompt, item, validated):
                 errors.append(error)
                 continue
 
-            if hasattr(obj_class, "VALIDATE_INPUTS"):
-                input_data_all = get_input_data(inputs, obj_class, unique_id)
-                #ret = obj_class.VALIDATE_INPUTS(**input_data_all)
-                ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
-                for i, r in enumerate(ret):
-                    if r is not True and not isinstance(r, ExecutionBlocker):
-                        details = f"{x}"
-                        if r is not False:
-                            details += f" - {str(r)}"
-
-                        error = {
-                            "type": "custom_validation_failed",
-                            "message": "Custom validation failed for node",
-                            "details": details,
-                            "extra_info": {
-                                "input_name": x,
-                                "input_config": info,
-                                "received_value": val,
-                            }
-                        }
-                        errors.append(error)
-                        continue
-            else:
+            if x not in validate_function_inputs:
                 if isinstance(type_input, list):
                     if val not in type_input:
                         input_config = info
@@ -692,6 +685,35 @@ def validate_inputs(prompt, item, validated):
                         }
                         errors.append(error)
                         continue
+
+    if len(validate_function_inputs) > 0:
+        input_data_all = get_input_data(inputs, obj_class, unique_id)
+        input_filtered = {}
+        for x in input_data_all:
+            if x in validate_function_inputs:
+                input_filtered[x] = input_data_all[x]
+
+        #ret = obj_class.VALIDATE_INPUTS(**input_filtered)
+        ret = map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS")
+        for x in input_filtered:
+            for i, r in enumerate(ret):
+                if r is not True and not isinstance(r, ExecutionBlocker):
+                    details = f"{x}"
+                    if r is not False:
+                        details += f" - {str(r)}"
+
+                    error = {
+                        "type": "custom_validation_failed",
+                        "message": "Custom validation failed for node",
+                        "details": details,
+                        "extra_info": {
+                            "input_name": x,
+                            "input_config": info,
+                            "received_value": val,
+                        }
+                    }
+                    errors.append(error)
+                    continue
 
     if len(errors) > 0 or valid is not True:
         ret = (False, errors, unique_id)
@@ -752,11 +774,11 @@ def validate_prompt(prompt):
         if valid is True:
             good_outputs.add(o)
         else:
-            print(f"Failed to validate prompt for output {o}:")
+            logging.error(f"Failed to validate prompt for output {o}:")
             if len(reasons) > 0:
-                print("* (prompt):")
+                logging.error("* (prompt):")
                 for reason in reasons:
-                    print(f"  - {reason['message']}: {reason['details']}")
+                    logging.error(f"  - {reason['message']}: {reason['details']}")
             errors += [(o, reasons)]
             for node_id, result in validated.items():
                 valid = result[0]
@@ -772,11 +794,11 @@ def validate_prompt(prompt):
                             "dependent_outputs": [],
                             "class_type": class_type
                         }
-                        print(f"* {class_type} {node_id}:")
+                        logging.error(f"* {class_type} {node_id}:")
                         for reason in reasons:
-                            print(f"  - {reason['message']}: {reason['details']}")
+                            logging.error(f"  - {reason['message']}: {reason['details']}")
                     node_errors[node_id]["dependent_outputs"].append(o)
-            print("Output will be ignored")
+            logging.error("Output will be ignored")
 
     if len(good_outputs) == 0:
         errors_list = []
@@ -796,6 +818,7 @@ def validate_prompt(prompt):
 
     return (True, None, list(good_outputs), node_errors)
 
+MAXIMUM_HISTORY_SIZE = 10000
 
 class PromptQueue:
     def __init__(self, server):
@@ -806,6 +829,7 @@ class PromptQueue:
         self.queue = []
         self.currently_running = {}
         self.history = {}
+        self.flags = {}
         server.prompt_queue = self
 
     def put(self, item):
@@ -814,10 +838,12 @@ class PromptQueue:
             self.server.queue_updated()
             self.not_empty.notify()
 
-    def get(self):
+    def get(self, timeout=None):
         with self.not_empty:
             while len(self.queue) == 0:
-                self.not_empty.wait()
+                self.not_empty.wait(timeout=timeout)
+                if timeout is not None and len(self.queue) == 0:
+                    return None
             item = heapq.heappop(self.queue)
             i = self.task_counter
             self.currently_running[i] = copy.deepcopy(item)
@@ -825,10 +851,27 @@ class PromptQueue:
             self.server.queue_updated()
             return (item, i)
 
-    def task_done(self, item_id, history_result):
+    class ExecutionStatus(NamedTuple):
+        status_str: Literal['success', 'error']
+        completed: bool
+        messages: List[str]
+
+    def task_done(self, item_id, history_result,
+                  status: Optional['PromptQueue.ExecutionStatus']):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
-            self.history[prompt[1]] = { "prompt": prompt, "outputs": {} }
+            if len(self.history) > MAXIMUM_HISTORY_SIZE:
+                self.history.pop(next(iter(self.history)))
+
+            status_dict: Optional[dict] = None
+            if status is not None:
+                status_dict = copy.deepcopy(status._asdict())
+
+            self.history[prompt[1]] = {
+                "prompt": prompt,
+                "outputs": {},
+                'status': status_dict,
+            }
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
 
@@ -861,10 +904,20 @@ class PromptQueue:
                     return True
         return False
 
-    def get_history(self, prompt_id=None):
+    def get_history(self, prompt_id=None, max_items=None, offset=-1):
         with self.mutex:
             if prompt_id is None:
-                return copy.deepcopy(self.history)
+                out = {}
+                i = 0
+                if offset < 0 and max_items is not None:
+                    offset = len(self.history) - max_items
+                for k in self.history:
+                    if i >= offset:
+                        out[k] = self.history[k]
+                        if max_items is not None and len(out) >= max_items:
+                            break
+                    i += 1
+                return out
             elif prompt_id in self.history:
                 return {prompt_id: copy.deepcopy(self.history[prompt_id])}
             else:
@@ -877,3 +930,17 @@ class PromptQueue:
     def delete_history_item(self, id_to_delete):
         with self.mutex:
             self.history.pop(id_to_delete, None)
+
+    def set_flag(self, name, data):
+        with self.mutex:
+            self.flags[name] = data
+            self.not_empty.notify()
+
+    def get_flags(self, reset=True):
+        with self.mutex:
+            if reset:
+                ret = self.flags
+                self.flags = {}
+                return ret
+            else:
+                return self.flags.copy()

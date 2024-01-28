@@ -1,6 +1,7 @@
 import comfy.sd
 import comfy.utils
 import comfy.model_base
+import comfy.model_management
 
 import folder_paths
 import json
@@ -118,6 +119,48 @@ class ModelMergeBlocks:
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
         return (m, )
 
+def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefix=None, output_dir=None, prompt=None, extra_pnginfo=None):
+    full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir)
+    prompt_info = ""
+    if prompt is not None:
+        prompt_info = json.dumps(prompt)
+
+    metadata = {}
+
+    enable_modelspec = True
+    if isinstance(model.model, comfy.model_base.SDXL):
+        metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
+    elif isinstance(model.model, comfy.model_base.SDXLRefiner):
+        metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
+    else:
+        enable_modelspec = False
+
+    if enable_modelspec:
+        metadata["modelspec.sai_model_spec"] = "1.0.0"
+        metadata["modelspec.implementation"] = "sgm"
+        metadata["modelspec.title"] = "{} {}".format(filename, counter)
+
+    #TODO:
+    # "stable-diffusion-v1", "stable-diffusion-v1-inpainting", "stable-diffusion-v2-512",
+    # "stable-diffusion-v2-768-v", "stable-diffusion-v2-unclip-l", "stable-diffusion-v2-unclip-h",
+    # "v2-inpainting"
+
+    if model.model.model_type == comfy.model_base.ModelType.EPS:
+        metadata["modelspec.predict_key"] = "epsilon"
+    elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
+        metadata["modelspec.predict_key"] = "v"
+
+    if not args.disable_metadata:
+        metadata["prompt"] = prompt_info
+        if extra_pnginfo is not None:
+            for x in extra_pnginfo:
+                metadata[x] = json.dumps(extra_pnginfo[x])
+
+    output_checkpoint = f"{filename}_{counter:05}_.safetensors"
+    output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
+
+    comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata)
+
 class CheckpointSave:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -136,36 +179,87 @@ class CheckpointSave:
     CATEGORY = "advanced/model_merging"
 
     def save(self, model, clip, vae, filename_prefix, prompt=None, extra_pnginfo=None):
+        save_checkpoint(model, clip=clip, vae=vae, filename_prefix=filename_prefix, output_dir=self.output_dir, prompt=prompt, extra_pnginfo=extra_pnginfo)
+        return {}
+
+class CLIPSave:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip": ("CLIP",),
+                              "filename_prefix": ("STRING", {"default": "clip/ComfyUI"}),},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
+    RETURN_TYPES = ()
+    FUNCTION = "save"
+    OUTPUT_NODE = True
+
+    CATEGORY = "advanced/model_merging"
+
+    def save(self, clip, filename_prefix, prompt=None, extra_pnginfo=None):
+        prompt_info = ""
+        if prompt is not None:
+            prompt_info = json.dumps(prompt)
+
+        metadata = {}
+        if not args.disable_metadata:
+            metadata["prompt"] = prompt_info
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata[x] = json.dumps(extra_pnginfo[x])
+
+        comfy.model_management.load_models_gpu([clip.load_model()])
+        clip_sd = clip.get_sd()
+
+        for prefix in ["clip_l.", "clip_g.", ""]:
+            k = list(filter(lambda a: a.startswith(prefix), clip_sd.keys()))
+            current_clip_sd = {}
+            for x in k:
+                current_clip_sd[x] = clip_sd.pop(x)
+            if len(current_clip_sd) == 0:
+                continue
+
+            p = prefix[:-1]
+            replace_prefix = {}
+            filename_prefix_ = filename_prefix
+            if len(p) > 0:
+                filename_prefix_ = "{}_{}".format(filename_prefix_, p)
+                replace_prefix[prefix] = ""
+            replace_prefix["transformer."] = ""
+
+            full_output_folder, filename, counter, subfolder, filename_prefix_ = folder_paths.get_save_image_path(filename_prefix_, self.output_dir)
+
+            output_checkpoint = f"{filename}_{counter:05}_.safetensors"
+            output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
+
+            current_clip_sd = comfy.utils.state_dict_prefix_replace(current_clip_sd, replace_prefix)
+
+            comfy.utils.save_torch_file(current_clip_sd, output_checkpoint, metadata=metadata)
+        return {}
+
+class VAESave:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "vae": ("VAE",),
+                              "filename_prefix": ("STRING", {"default": "vae/ComfyUI_vae"}),},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},}
+    RETURN_TYPES = ()
+    FUNCTION = "save"
+    OUTPUT_NODE = True
+
+    CATEGORY = "advanced/model_merging"
+
+    def save(self, vae, filename_prefix, prompt=None, extra_pnginfo=None):
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         prompt_info = ""
         if prompt is not None:
             prompt_info = json.dumps(prompt)
 
         metadata = {}
-
-        enable_modelspec = True
-        if isinstance(model.model, comfy.model_base.SDXL):
-            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
-        elif isinstance(model.model, comfy.model_base.SDXLRefiner):
-            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
-        else:
-            enable_modelspec = False
-
-        if enable_modelspec:
-            metadata["modelspec.sai_model_spec"] = "1.0.0"
-            metadata["modelspec.implementation"] = "sgm"
-            metadata["modelspec.title"] = "{} {}".format(filename, counter)
-
-        #TODO:
-        # "stable-diffusion-v1", "stable-diffusion-v1-inpainting", "stable-diffusion-v2-512",
-        # "stable-diffusion-v2-768-v", "stable-diffusion-v2-unclip-l", "stable-diffusion-v2-unclip-h",
-        # "v2-inpainting"
-
-        if model.model.model_type == comfy.model_base.ModelType.EPS:
-            metadata["modelspec.predict_key"] = "epsilon"
-        elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
-            metadata["modelspec.predict_key"] = "v"
-
         if not args.disable_metadata:
             metadata["prompt"] = prompt_info
             if extra_pnginfo is not None:
@@ -175,9 +269,8 @@ class CheckpointSave:
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
-        comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, metadata=metadata)
+        comfy.utils.save_torch_file(vae.get_sd(), output_checkpoint, metadata=metadata)
         return {}
-
 
 NODE_CLASS_MAPPINGS = {
     "ModelMergeSimple": ModelMergeSimple,
@@ -186,4 +279,6 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeAdd": ModelAdd,
     "CheckpointSave": CheckpointSave,
     "CLIPMergeSimple": CLIPMergeSimple,
+    "CLIPSave": CLIPSave,
+    "VAESave": VAESave,
 }

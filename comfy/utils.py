@@ -47,12 +47,17 @@ def state_dict_key_replace(state_dict, keys_to_replace):
             state_dict[keys_to_replace[x]] = state_dict.pop(x)
     return state_dict
 
-def state_dict_prefix_replace(state_dict, replace_prefix):
+def state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=False):
+    if filter_keys:
+        out = {}
+    else:
+        out = state_dict
     for rp in replace_prefix:
         replace = list(map(lambda a: (a, "{}{}".format(replace_prefix[rp], a[len(rp):])), filter(lambda a: a.startswith(rp), state_dict.keys())))
         for x in replace:
-            state_dict[x[1]] = state_dict.pop(x[0])
-    return state_dict
+            w = state_dict.pop(x[0])
+            out[x[1]] = w
+    return out
 
 
 def transformers_convert(sd, prefix_from, prefix_to, number):
@@ -165,25 +170,12 @@ UNET_MAP_BASIC = {
 
 def unet_to_diffusers(unet_config):
     num_res_blocks = unet_config["num_res_blocks"]
-    attention_resolutions = unet_config["attention_resolutions"]
     channel_mult = unet_config["channel_mult"]
-    transformer_depth = unet_config["transformer_depth"]
+    transformer_depth = unet_config["transformer_depth"][:]
+    transformer_depth_output = unet_config["transformer_depth_output"][:]
     num_blocks = len(channel_mult)
-    if isinstance(num_res_blocks, int):
-        num_res_blocks = [num_res_blocks] * num_blocks
-    if isinstance(transformer_depth, int):
-        transformer_depth = [transformer_depth] * num_blocks
 
-    transformers_per_layer = []
-    res = 1
-    for i in range(num_blocks):
-        transformers = 0
-        if res in attention_resolutions:
-            transformers = transformer_depth[i]
-        transformers_per_layer.append(transformers)
-        res *= 2
-
-    transformers_mid = unet_config.get("transformer_depth_middle", transformer_depth[-1])
+    transformers_mid = unet_config.get("transformer_depth_middle", None)
 
     diffusers_unet_map = {}
     for x in range(num_blocks):
@@ -191,10 +183,11 @@ def unet_to_diffusers(unet_config):
         for i in range(num_res_blocks[x]):
             for b in UNET_MAP_RESNET:
                 diffusers_unet_map["down_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "input_blocks.{}.0.{}".format(n, b)
-            if transformers_per_layer[x] > 0:
+            num_transformers = transformer_depth.pop(0)
+            if num_transformers > 0:
                 for b in UNET_MAP_ATTENTIONS:
                     diffusers_unet_map["down_blocks.{}.attentions.{}.{}".format(x, i, b)] = "input_blocks.{}.1.{}".format(n, b)
-                for t in range(transformers_per_layer[x]):
+                for t in range(num_transformers):
                     for b in TRANSFORMER_BLOCKS:
                         diffusers_unet_map["down_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "input_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
             n += 1
@@ -213,7 +206,6 @@ def unet_to_diffusers(unet_config):
             diffusers_unet_map["mid_block.resnets.{}.{}".format(i, UNET_MAP_RESNET[b])] = "middle_block.{}.{}".format(n, b)
 
     num_res_blocks = list(reversed(num_res_blocks))
-    transformers_per_layer = list(reversed(transformers_per_layer))
     for x in range(num_blocks):
         n = (num_res_blocks[x] + 1) * x
         l = num_res_blocks[x] + 1
@@ -222,11 +214,12 @@ def unet_to_diffusers(unet_config):
             for b in UNET_MAP_RESNET:
                 diffusers_unet_map["up_blocks.{}.resnets.{}.{}".format(x, i, UNET_MAP_RESNET[b])] = "output_blocks.{}.0.{}".format(n, b)
             c += 1
-            if transformers_per_layer[x] > 0:
+            num_transformers = transformer_depth_output.pop()
+            if num_transformers > 0:
                 c += 1
                 for b in UNET_MAP_ATTENTIONS:
                     diffusers_unet_map["up_blocks.{}.attentions.{}.{}".format(x, i, b)] = "output_blocks.{}.1.{}".format(n, b)
-                for t in range(transformers_per_layer[x]):
+                for t in range(num_transformers):
                     for b in TRANSFORMER_BLOCKS:
                         diffusers_unet_map["up_blocks.{}.attentions.{}.transformer_blocks.{}.{}".format(x, i, t, b)] = "output_blocks.{}.1.transformer_blocks.{}.{}".format(n, t, b)
             if i == l - 1:
@@ -245,6 +238,26 @@ def repeat_to_batch_size(tensor, batch_size):
     elif tensor.shape[0] < batch_size:
         return tensor.repeat([math.ceil(batch_size / tensor.shape[0])] + [1] * (len(tensor.shape) - 1))[:batch_size]
     return tensor
+
+def resize_to_batch_size(tensor, batch_size):
+    in_batch_size = tensor.shape[0]
+    if in_batch_size == batch_size:
+        return tensor
+
+    if batch_size <= 1:
+        return tensor[:batch_size]
+
+    output = torch.empty([batch_size] + list(tensor.shape)[1:], dtype=tensor.dtype, device=tensor.device)
+    if batch_size < in_batch_size:
+        scale = (in_batch_size - 1) / (batch_size - 1)
+        for i in range(batch_size):
+            output[i] = tensor[min(round(i * scale), in_batch_size - 1)]
+    else:
+        scale = in_batch_size / batch_size
+        for i in range(batch_size):
+            output[i] = tensor[min(math.floor((i + 0.5) * scale), in_batch_size - 1)]
+
+    return output
 
 def convert_sd_to(state_dict, dtype):
     keys = list(state_dict.keys())
@@ -265,8 +278,16 @@ def set_attr(obj, attr, value):
     for name in attrs[:-1]:
         obj = getattr(obj, name)
     prev = getattr(obj, attrs[-1])
-    setattr(obj, attrs[-1], torch.nn.Parameter(value))
+    setattr(obj, attrs[-1], torch.nn.Parameter(value, requires_grad=False))
     del prev
+
+def copy_to_param(obj, attr, value):
+    # inplace update tensor instead of replacing it
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    prev = getattr(obj, attrs[-1])
+    prev.data.copy_(value)
 
 def get_attr(obj, attr):
     attrs = attr.split(".")
@@ -306,23 +327,25 @@ def bislerp(samples, width, height):
         res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
         return res
     
-    def generate_bilinear_data(length_old, length_new):
-        coords_1 = torch.arange(length_old).reshape((1,1,1,-1)).to(torch.float32)
+    def generate_bilinear_data(length_old, length_new, device):
+        coords_1 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1))
         coords_1 = torch.nn.functional.interpolate(coords_1, size=(1, length_new), mode="bilinear")
         ratios = coords_1 - coords_1.floor()
         coords_1 = coords_1.to(torch.int64)
         
-        coords_2 = torch.arange(length_old).reshape((1,1,1,-1)).to(torch.float32) + 1
+        coords_2 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1)) + 1
         coords_2[:,:,:,-1] -= 1
         coords_2 = torch.nn.functional.interpolate(coords_2, size=(1, length_new), mode="bilinear")
         coords_2 = coords_2.to(torch.int64)
         return ratios, coords_1, coords_2
-    
+
+    orig_dtype = samples.dtype
+    samples = samples.float()
     n,c,h,w = samples.shape
     h_new, w_new = (height, width)
     
     #linear w
-    ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new)
+    ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new, samples.device)
     coords_1 = coords_1.expand((n, c, h, -1))
     coords_2 = coords_2.expand((n, c, h, -1))
     ratios = ratios.expand((n, 1, h, -1))
@@ -335,7 +358,7 @@ def bislerp(samples, width, height):
     result = result.reshape(n, h, w_new, c).movedim(-1, 1)
 
     #linear h
-    ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new)
+    ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new, samples.device)
     coords_1 = coords_1.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
     coords_2 = coords_2.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
     ratios = ratios.reshape((1,1,-1,1)).expand((n, 1, -1, w_new))
@@ -346,14 +369,14 @@ def bislerp(samples, width, height):
 
     result = slerp(pass_1, pass_2, ratios)
     result = result.reshape(n, h_new, w_new, c).movedim(-1, 1)
-    return result
+    return result.to(orig_dtype)
 
 def lanczos(samples, width, height):
     images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
     images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
     images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
     result = torch.stack(images)
-    return result
+    return result.to(samples.device, samples.dtype)
 
 def common_upscale(samples, width, height, upscale_method, crop):
         if crop == "center":
@@ -382,17 +405,17 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return math.ceil((height / (tile_y - overlap))) * math.ceil((width / (tile_x - overlap)))
 
 @torch.inference_mode()
-def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, pbar = None):
-    output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device="cpu")
+def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+    output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device=output_device)
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
-        out = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device="cpu")
-        out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device="cpu")
+        out = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
+        out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
         for y in range(0, s.shape[2], tile_y - overlap):
             for x in range(0, s.shape[3], tile_x - overlap):
                 s_in = s[:,:,y:y+tile_y,x:x+tile_x]
 
-                ps = function(s_in).cpu()
+                ps = function(s_in).to(output_device)
                 mask = torch.ones_like(ps)
                 feather = round(overlap * upscale_amount)
                 for t in range(feather):
@@ -408,6 +431,10 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
         output[b:b+1] = out/out_div
     return output
 
+PROGRESS_BAR_ENABLED = True
+def set_progress_bar_enabled(enabled):
+    global PROGRESS_BAR_ENABLED
+    PROGRESS_BAR_ENABLED = enabled
 
 PROGRESS_BAR_HOOK = None
 def set_progress_bar_global_hook(function):

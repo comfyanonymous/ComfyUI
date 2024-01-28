@@ -30,6 +30,7 @@ from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
 
+from app.user_manager import UserManager
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -72,6 +73,7 @@ class PromptServer():
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
+        self.user_manager = UserManager()
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
@@ -82,7 +84,8 @@ class PromptServer():
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
-        self.app = web.Application(client_max_size=104857600, middlewares=middlewares)
+        max_upload_size = round(args.max_upload_size * 1024 * 1024)
+        self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
@@ -414,7 +417,11 @@ class PromptServer():
         async def get_object_info(request):
             out = {}
             for x in nodes.NODE_CLASS_MAPPINGS:
-                out[x] = node_info(x)
+                try:
+                    out[x] = node_info(x)
+                except Exception as e:
+                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
+                    traceback.print_exc()
             return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
@@ -427,7 +434,10 @@ class PromptServer():
 
         @routes.get("/history")
         async def get_history(request):
-            return web.json_response(self.prompt_queue.get_history())
+            max_items = request.rel_url.query.get("max_items", None)
+            if max_items is not None:
+                max_items = int(max_items)
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
         async def get_history(request):
@@ -516,6 +526,17 @@ class PromptServer():
             nodes.interrupt_processing()
             return web.Response(status=200)
 
+        @routes.post("/free")
+        async def post_free(request):
+            json_data = await request.json()
+            unload_models = json_data.get("unload_models", False)
+            free_memory = json_data.get("free_memory", False)
+            if unload_models:
+                self.prompt_queue.set_flag("unload_models", unload_models)
+            if free_memory:
+                self.prompt_queue.set_flag("free_memory", free_memory)
+            return web.Response(status=200)
+
         @routes.post("/history")
         async def post_history(request):
             json_data =  await request.json()
@@ -530,6 +551,7 @@ class PromptServer():
             return web.Response(status=200)
         
     def add_routes(self):
+        self.user_manager.add_routes(self.routes)
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
@@ -585,7 +607,7 @@ class PromptServer():
         bytesIO = BytesIO()
         header = struct.pack(">I", type_num)
         bytesIO.write(header)
-        image.save(bytesIO, format=image_type, quality=95, compress_level=4)
+        image.save(bytesIO, format=image_type, quality=95, compress_level=1)
         preview_bytes = bytesIO.getvalue()
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
@@ -593,7 +615,8 @@ class PromptServer():
         message = self.encode_bytes(event, data)
 
         if sid is None:
-            for ws in self.sockets.values():
+            sockets = list(self.sockets.values())
+            for ws in sockets:
                 await send_socket_catch_exception(ws.send_bytes, message)
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
@@ -602,7 +625,8 @@ class PromptServer():
         message = {"type": event, "data": data}
 
         if sid is None:
-            for ws in self.sockets.values():
+            sockets = list(self.sockets.values())
+            for ws in sockets:
                 await send_socket_catch_exception(ws.send_json, message)
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_json, message)

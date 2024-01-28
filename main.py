@@ -64,6 +64,10 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         print("Set cuda device to:", args.cuda_device)
 
+    if args.deterministic:
+        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
+            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
     import cuda_malloc
 
 import comfy.utils
@@ -88,18 +92,57 @@ def cuda_malloc_warning():
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server, lru_size=args.cache_lru)
-    while True:
-        item, item_id = q.get()
-        execution_start_time = time.perf_counter()
-        prompt_id = item[1]
-        e.execute(item[2], prompt_id, item[3], item[4])
-        q.task_done(item_id, e.history_result)
-        if server.client_id is not None:
-            server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
+    last_gc_collect = 0
+    need_gc = False
+    gc_collect_interval = 10.0
 
-        print("Prompt executed in {:.2f} seconds".format(time.perf_counter() - execution_start_time))
-        gc.collect()
-        comfy.model_management.soft_empty_cache()
+    while True:
+        timeout = 1000.0
+        if need_gc:
+            timeout = max(gc_collect_interval - (current_time - last_gc_collect), 0.0)
+
+        queue_item = q.get(timeout=timeout)
+        if queue_item is not None:
+            item, item_id = queue_item
+            execution_start_time = time.perf_counter()
+            prompt_id = item[1]
+            server.last_prompt_id = prompt_id
+
+            e.execute(item[2], prompt_id, item[3], item[4])
+            need_gc = True
+            q.task_done(item_id,
+                        e.history_result,
+                        status=execution.PromptQueue.ExecutionStatus(
+                            status_str='success' if e.success else 'error',
+                            completed=e.success,
+                            messages=e.status_messages))
+            if server.client_id is not None:
+                server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, server.client_id)
+
+            current_time = time.perf_counter()
+            execution_time = current_time - execution_start_time
+            print("Prompt executed in {:.2f} seconds".format(execution_time))
+
+        flags = q.get_flags()
+        free_memory = flags.get("free_memory", False)
+
+        if flags.get("unload_models", free_memory):
+            comfy.model_management.unload_all_models()
+            need_gc = True
+            last_gc_collect = 0
+
+        if free_memory:
+            e.reset()
+            need_gc = True
+            last_gc_collect = 0
+
+        if need_gc:
+            current_time = time.perf_counter()
+            if (current_time - last_gc_collect) > gc_collect_interval:
+                gc.collect()
+                comfy.model_management.soft_empty_cache()
+                last_gc_collect = current_time
+                need_gc = False
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
@@ -108,7 +151,9 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 def hijack_progress(server):
     def hook(value, total, preview_image):
         comfy.model_management.throw_exception_if_processing_interrupted()
-        server.send_sync("progress", {"value": value, "max": total}, server.client_id)
+        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+
+        server.send_sync("progress", progress, server.client_id)
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
     comfy.utils.set_progress_bar_global_hook(hook)
@@ -174,6 +219,16 @@ if __name__ == "__main__":
         output_dir = os.path.abspath(args.output_directory)
         print(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
+
+    #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
+    folder_paths.add_model_folder_path("checkpoints", os.path.join(folder_paths.get_output_directory(), "checkpoints"))
+    folder_paths.add_model_folder_path("clip", os.path.join(folder_paths.get_output_directory(), "clip"))
+    folder_paths.add_model_folder_path("vae", os.path.join(folder_paths.get_output_directory(), "vae"))
+
+    if args.input_directory:
+        input_dir = os.path.abspath(args.input_directory)
+        print(f"Setting input directory to: {input_dir}")
+        folder_paths.set_input_directory(input_dir)
 
     if args.quick_test_for_ci:
         exit(0)
