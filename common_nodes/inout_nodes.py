@@ -178,8 +178,33 @@ class ImageInput:
             return "Invalid image file: {}".format(image)
 
         return True
+
+
+class AudioInput:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "audio_dir": ("STRING", {"default": "", "multiline": True})
+        }}
     
-    
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("音频地址",)
+    INPUT_NODE_DATA = "audio_dir"
+    FUNCTION = "get_audio_path"
+
+    CATEGORY = "flow"
+
+    def get_audio_path(self, audio_dir):
+        return (audio_dir,)
+
+NODE_CLASS_MAPPINGS = {
+    "AudioInput": AudioInput
+}
+
+# A dictionary that contains the friendly/humanly readable titles for the nodes
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "AudioInput": "获取音频地址啊"
+}
 
 
 
@@ -247,7 +272,8 @@ NODE_CLASS_MAPPINGS = {
     "StringInput": StringInput,
     "BoolInput": BoolInput,
     "ImageInput": ImageInput,
-    "ImageOutput": ImageOutput
+    "ImageOutput": ImageOutput,
+    "AudioInput": AudioInput
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -256,5 +282,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StringInput": "String Input",
     "BoolInput": "Bool Input",
     "ImageInput": "Image Input",
-    "ImageOutput": "Image Output"
+    "ImageOutput": "Image Output",
+    "AudioInput": "Audio Input"
 } 
