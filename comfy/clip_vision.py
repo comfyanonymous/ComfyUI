@@ -1,4 +1,4 @@
-from .utils import load_torch_file, transformers_convert
+from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
 import os
 import torch
 import json
@@ -43,6 +43,9 @@ class ClipVisionModel():
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=False)
 
+    def get_sd(self):
+        return self.model.state_dict()
+
     def encode_image(self, image):
         model_management.load_model_gpu(self.patcher)
         pixel_values = clip_preprocess(image.to(self.load_device)).float()
@@ -75,6 +78,9 @@ def convert_to_transformers(sd, prefix):
             sd['visual_projection.weight'] = sd.pop("{}proj".format(prefix)).transpose(0, 1)
 
         sd = transformers_convert(sd, prefix, "vision_model.", 48)
+    else:
+        replace_prefix = {prefix: ""}
+        sd = state_dict_prefix_replace(sd, replace_prefix)
     return sd
 
 def load_clipvision_from_sd(sd, prefix="", convert_keys=False):

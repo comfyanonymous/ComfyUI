@@ -173,3 +173,4 @@ cython_debug/
 .openapi-generator/
 
 /tests-ui/data/object_info.json
+/user/

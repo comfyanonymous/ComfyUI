@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import copy
 import datetime
 import heapq
@@ -15,6 +16,7 @@ from typing import Tuple
 import sys
 import gc
 import inspect
+from typing import List, Literal, NamedTuple, Optional
 
 import torch
 
@@ -325,11 +327,22 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
 
 class PromptExecutor:
     def __init__(self, server):
+        self.success = None
+        self.server = server
+        self.reset()
+
+    def reset(self):
         self.outputs = {}
         self.object_storage = {}
         self.outputs_ui = {}
+        self.status_messages = []
+        self.success = True
         self.old_prompt = {}
-        self.server = server
+
+    def add_message(self, event, data, broadcast: bool):
+        self.status_messages.append((event, data))
+        if self.server.client_id is not None or broadcast:
+            self.server.send_sync(event, data, self.server.client_id)
 
     def handle_execution_error(self, prompt_id, prompt, current_outputs, executed, error, ex):
         node_id = error["node_id"]
@@ -344,23 +357,22 @@ class PromptExecutor:
                 "node_type": class_type,
                 "executed": list(executed),
             }
-            self.server.send_sync("execution_interrupted", mes, self.server.client_id)
+            self.add_message("execution_interrupted", mes, broadcast=True)
         else:
-            if self.server.client_id is not None:
-                mes = {
-                    "prompt_id": prompt_id,
-                    "node_id": node_id,
-                    "node_type": class_type,
-                    "executed": list(executed),
+            mes = {
+                "prompt_id": prompt_id,
+                "node_id": node_id,
+                "node_type": class_type,
+                "executed": list(executed),
 
-                    "exception_message": error["exception_message"],
-                    "exception_type": error["exception_type"],
-                    "traceback": error["traceback"],
-                    "current_inputs": error["current_inputs"],
-                    "current_outputs": error["current_outputs"],
-                }
-                self.server.send_sync("execution_error", mes, self.server.client_id)
-
+                "exception_message": error["exception_message"],
+                "exception_type": error["exception_type"],
+                "traceback": error["traceback"],
+                "current_inputs": error["current_inputs"],
+                "current_outputs": error["current_outputs"],
+            }
+            self.add_message("execution_error", mes, broadcast=False)
+        
         # Next, remove the subsequent outputs since they will not be executed
         to_delete = []
         for o in self.outputs:
@@ -381,8 +393,8 @@ class PromptExecutor:
         else:
             self.server.client_id = None
 
-        if self.server.client_id is not None:
-            self.server.send_sync("execution_start", {"prompt_id": prompt_id}, self.server.client_id)
+        self.status_messages = []
+        self.add_message("execution_start", {"prompt_id": prompt_id}, broadcast=False)
 
         with torch.inference_mode():
             # delete cached outputs if nodes don't exist for them
@@ -415,9 +427,9 @@ class PromptExecutor:
                     del d
 
             model_management.cleanup_models()
-            if self.server.client_id is not None:
-                self.server.send_sync("execution_cached", {"nodes": list(current_outputs), "prompt_id": prompt_id},
-                                      self.server.client_id)
+            self.add_message("execution_cached",
+                          {"nodes": list(current_outputs), "prompt_id": prompt_id},
+                                      broadcast=False)
             executed = set()
             output_node_id = None
             to_execute = []
@@ -434,11 +446,9 @@ class PromptExecutor:
                 # This call shouldn't raise anything if there's an error deep in
                 # the actual SD code, instead it will report the node where the
                 # error was raised
-                success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id,
-                                      self.outputs_ui, self.object_storage)
-                if success is not True:
-                    self.handle_execution_error( prompt_id,
-                                              prompt, current_outputs, executed, error, ex)
+                self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.object_storage)
+                if self.success is not True:
+                    self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
 
             for x in executed:
@@ -779,6 +789,7 @@ class PromptQueue:
         self.queue = []
         self.currently_running = {}
         self.history = {}
+        self.flags = {}
         server.prompt_queue = self
 
     def size(self) -> int:
@@ -803,15 +814,28 @@ class PromptQueue:
             self.server.queue_updated()
             return copy.deepcopy(item_with_future.queue_tuple), task_id
 
-    def task_done(self, item_id, outputs: dict):
+    class ExecutionStatus(NamedTuple):
+        status_str: Literal['success', 'error']
+        completed: bool
+        messages: List[str]
+
+    def task_done(self, item_id, outputs: dict,
+                  status: Optional['PromptQueue.ExecutionStatus']):
         with self.mutex:
             queue_item = self.currently_running.pop(item_id)
             prompt = queue_item.queue_tuple
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
                 self.history.pop(next(iter(self.history)))
-            self.history[prompt[1]] = {"prompt": prompt, "outputs": {}, "timestamp": time.time()}
-            for o in outputs:
-                self.history[prompt[1]]["outputs"][o] = outputs[o]
+
+            status_dict: Optional[dict] = None
+            if status is not None:
+                status_dict = copy.deepcopy(status._asdict())
+
+            self.history[prompt[1]] = {
+                "prompt": prompt,
+                "outputs": copy.deepcopy(outputs),
+                'status': status_dict,
+            }
             self.server.queue_updated()
             if queue_item.completed:
                 queue_item.completed.set_result(outputs)
@@ -880,3 +904,17 @@ class PromptQueue:
     def delete_history_item(self, id_to_delete: int):
         with self.mutex:
             self.history.pop(id_to_delete, None)
+
+    def set_flag(self, name, data):
+        with self.mutex:
+            self.flags[name] = data
+            self.not_empty.notify()
+
+    def get_flags(self, reset=True):
+        with self.mutex:
+            if reset:
+                ret = self.flags
+                self.flags = {}
+                return ret
+            else:
+                return self.flags.copy()

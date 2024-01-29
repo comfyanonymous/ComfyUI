@@ -1,5 +1,5 @@
 import torch
-import comfy.utils
+from comfy import utils
 
 class PatchModelAddDownscale:
     upscale_methods = ["bicubic", "nearest-exact", "bilinear", "area", "bislerp"]
@@ -27,12 +27,12 @@ class PatchModelAddDownscale:
             if transformer_options["block"][1] == block_number:
                 sigma = transformer_options["sigmas"][0].item()
                 if sigma <= sigma_start and sigma >= sigma_end:
-                    h = comfy.utils.common_upscale(h, round(h.shape[-1] * (1.0 / downscale_factor)), round(h.shape[-2] * (1.0 / downscale_factor)), downscale_method, "disabled")
+                    h = utils.common_upscale(h, round(h.shape[-1] * (1.0 / downscale_factor)), round(h.shape[-2] * (1.0 / downscale_factor)), downscale_method, "disabled")
             return h
 
         def output_block_patch(h, hsp, transformer_options):
             if h.shape[2] != hsp.shape[2]:
-                h = comfy.utils.common_upscale(h, hsp.shape[-1], hsp.shape[-2], upscale_method, "disabled")
+                h = utils.common_upscale(h, hsp.shape[-1], hsp.shape[-2], upscale_method, "disabled")
             return h, hsp
 
         m = model.clone()

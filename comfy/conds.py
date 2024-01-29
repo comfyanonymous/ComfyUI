@@ -1,4 +1,3 @@
-import enum
 import torch
 import math
 from . import utils

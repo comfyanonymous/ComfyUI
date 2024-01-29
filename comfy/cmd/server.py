@@ -35,6 +35,7 @@ from ..vendor.appdirs import user_data_dir
 
 nodes = import_all_nodes_in_workspace()
 
+from ..app.user_manager import UserManager
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -91,6 +92,7 @@ class PromptServer():
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
+        self.user_manager = UserManager()
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
@@ -532,6 +534,17 @@ class PromptServer():
             model_management.interrupt_current_processing()
             return web.Response(status=200)
 
+        @routes.post("/free")
+        async def post_free(request):
+            json_data = await request.json()
+            unload_models = json_data.get("unload_models", False)
+            free_memory = json_data.get("free_memory", False)
+            if unload_models:
+                self.prompt_queue.set_flag("unload_models", unload_models)
+            if free_memory:
+                self.prompt_queue.set_flag("free_memory", free_memory)
+            return web.Response(status=200)
+
         @routes.post("/history")
         async def post_history(request):
             json_data = await request.json()
@@ -671,6 +684,7 @@ class PromptServer():
             return web.json_response(prompt, status=200)
 
     def add_routes(self):
+        self.user_manager.add_routes(self.routes)
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
@@ -768,14 +782,9 @@ class PromptServer():
         site = web.TCPSite(runner, address, port)
         await site.start()
 
-        address_to_print = 'localhost'
-        if address == '' or address == '0.0.0.0':
-            address = '0.0.0.0'
-        else:
-            address_to_print = address
         if verbose:
             print("Starting server\n")
-            print("To see the GUI go to: http://{}:{}".format(address_to_print, port))
+            print("To see the GUI go to: http://{}:{}".format(address, port))
         if call_on_start is not None:
             call_on_start(address, port)
 

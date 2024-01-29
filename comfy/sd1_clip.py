@@ -7,7 +7,6 @@ import traceback
 import zipfile
 from . import model_management
 from pkg_resources import resource_filename
-import contextlib
 from . import clip_model
 import json
 

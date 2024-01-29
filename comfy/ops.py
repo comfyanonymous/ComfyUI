@@ -1,10 +1,9 @@
 import torch
-from contextlib import contextmanager
-import comfy.model_management
+from . import model_management
 
 def cast_bias_weight(s, input):
     bias = None
-    non_blocking = comfy.model_management.device_supports_non_blocking(input.device)
+    non_blocking = model_management.device_supports_non_blocking(input.device)
     if s.bias is not None:
         bias = s.bias.to(device=input.device, dtype=input.dtype, non_blocking=non_blocking)
     weight = s.weight.to(device=input.device, dtype=input.dtype, non_blocking=non_blocking)
