@@ -649,10 +649,9 @@ class PromptServer():
         site = web.TCPSite(runner, address, port)
         await site.start()
 
-        if address == '':
-            address = '0.0.0.0'
         self.address = address
         self.port = port
+
         if verbose:
             print("Starting server\n")
             print("To see the GUI go to: http://{}:{}".format(address, port))
