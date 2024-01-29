@@ -1,15 +1,26 @@
 import {$el} from "./utils.ts";
 import {IComfyUserSettings} from "../types/interfaces.ts";
+import {api} from "./api.ts";
 
 export class ComfyUserSettings implements IComfyUserSettings {
+    private static instance: ComfyUserSettings;
+
     isNewUserSession: boolean | null;
     storageLocation: string | null;
     multiUserServer: boolean | null;
 
-    constructor() {
+    private constructor() {
         this.storageLocation = null;
         this.multiUserServer = null;
         this.isNewUserSession = null;
+    }
+
+    static getInstance() {
+        if (!ComfyUserSettings.instance) {
+            ComfyUserSettings.instance = new ComfyUserSettings()
+        }
+
+        return ComfyUserSettings.instance
     }
 
     async #migrateSettings() {
@@ -27,11 +38,11 @@ export class ComfyUserSettings implements IComfyUserSettings {
             return p;
         }, {});
 
-        await this.api.storeSettings(settings);
+        await api.storeSettings(settings);
     }
 
-    async setUser() {
-        const userConfig = await this.api.getUserConfig();
+    async setUser(settings) {
+        const userConfig = await api.getUserConfig();
         this.storageLocation = userConfig.storage;
         if (typeof userConfig.migrated == 'boolean') {
             // Single user mode migrated true/false for if the default user is created
@@ -54,11 +65,12 @@ export class ComfyUserSettings implements IComfyUserSettings {
             localStorage['Comfy.userName'] = username;
             localStorage['Comfy.userId'] = user;
             if (created) {
-                this.api.user = user;
+                api.user = user;
                 await this.#migrateSettings();
             }
         }
-        this.api.user = user;
+
+        api.user = user;
         this.ui.settings.addSetting({
             id: 'Comfy.SwitchUser',
             name: 'Switch User',
@@ -89,3 +101,5 @@ export class ComfyUserSettings implements IComfyUserSettings {
         });
     }
 }
+
+export const userSettings = ComfyUserSettings.getInstance()

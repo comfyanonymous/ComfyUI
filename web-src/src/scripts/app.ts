@@ -12,6 +12,7 @@ import {IComfyApi} from '../types/api';
 import {extensionManager} from './extensionManager';
 import {logging} from './logging';
 import {registerNodeDef} from './registerNodes';
+import {userSettings} from "./userSettings.ts";
 
 // Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object
 (window as Window & typeof globalThis & { LiteGraph: typeof LiteGraph }).LiteGraph = LiteGraph;
@@ -52,9 +53,6 @@ export class ComfyApp implements IComfyApp {
     runningNodeId: number | null = null;
     lastExecutionError: { node_id: number; message: string } | null = null;
 
-    isNewUserSession: boolean = false;
-    storageLocation: string | null = null;
-    multiUserServer: boolean = false;
     elementWidgets: Set<ComfyNode> = new Set();
 
     private constructor() {
@@ -391,88 +389,12 @@ export class ComfyApp implements IComfyApp {
         );
     }
 
-    async #migrateSettings() {
-        this.isNewUserSession = true;
-
-        // Store all current settings
-        // const settings = Object.keys(this.ui.settings).reduce((p: { [x: string]: any }, n) => {
-        //     const v = localStorage[`Comfy.Settings.${n}`];
-        //     if (v) {
-        //         try {
-        //             p[n] = JSON.parse(v);
-        //         } catch (error) {}
-        //     }
-        //     return p;
-        // }, {});
-
-        // await this.api.storeSettings(settings);
-    }
-
-    async #setUser() {
-        // const userConfig = await this.api.getUserConfig();
-        // this.storageLocation = userConfig.storage;
-        // if (typeof userConfig.migrated == 'boolean') {
-        //     // Single user mode migrated true/false for if the default user is created
-        //     if (!userConfig.migrated && this.storageLocation === 'server') {
-        //         // Default user not created yet
-        //         await this.#migrateSettings();
-        //     }
-        //     return;
-        // }
-        // this.multiUserServer = true;
-        // let user = localStorage['Comfy.userId'];
-        // const users = userConfig.users ?? {};
-        // if (!user || !users[user]) {
-        //     // This will rarely be hit so move the loading to on demand
-        //     const { UserSelectionScreen } = await import('./ui/userSelection');
-        //     this.ui.menuContainer.style.display = 'none';
-        //     const { userId, username, created } = await new UserSelectionScreen().show(users, user);
-        //     this.ui.menuContainer.style.display = '';
-        //     user = userId;
-        //     localStorage['Comfy.userName'] = username;
-        //     localStorage['Comfy.userId'] = user;
-        //     if (created) {
-        //         this.api.user = user;
-        //         await this.#migrateSettings();
-        //     }
-        // }
-        // this.api.user = user;
-        // this.ui.settings.addSetting({
-        //     id: 'Comfy.SwitchUser',
-        //     name: 'Switch User',
-        //     defaultValue: 'any',
-        //     type: (name: string) => {
-        //         let currentUser = localStorage['Comfy.userName'];
-        //         if (currentUser) {
-        //             currentUser = ` (${currentUser})`;
-        //         }
-        //         return $el('tr', [
-        //             $el('td', [
-        //                 $el('label', {
-        //                     textContent: name,
-        //                 }),
-        //             ]),
-        //             $el('td', [
-        //                 $el('button', {
-        //                     textContent: name + (currentUser ?? ''),
-        //                     onclick: () => {
-        //                         delete localStorage['Comfy.userId'];
-        //                         delete localStorage['Comfy.userName'];
-        //                         window.location.reload();
-        //                     },
-        //                 }),
-        //             ]),
-        //         ]);
-        //     },
-        // });
-    }
-
     /**
      * Set up the app on the page.
      * This has to be separate from the constructor because it is an async function.
      */
     async setup(mainCanvas: HTMLCanvasElement, api: ComfyApi) {
-        await this.#setUser();
+        await userSettings.setUser();
         // await this.ui.settings.load();
 
         this.api = api;
