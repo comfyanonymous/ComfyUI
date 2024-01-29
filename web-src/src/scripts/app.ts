@@ -1,34 +1,23 @@
-import { WidgetFactory } from './widgetFactory';
-import { $el } from './utils';
-import { ComfyApi } from './api';
-import { defaultGraph } from './defaultGraph';
-import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from './pnginfo';
-import { LiteGraph } from 'litegraph.js';
-import { ComfyCanvas } from './comfyCanvas';
-import { ComfyGraph } from './comfyGraph';
-import { ComfyNode, addDomClippingSetting } from './comfyNode';
-import { ComfyError, ComfyFile, ComfyProgress, ComfyPromptError, TemplateData } from '../types/many';
-import { IComfyApp, IComfyCanvas, IComfyGraph } from '../types/interfaces';
-import { IComfyApi } from '../types/api';
-import { ComfyObjectInfo } from '../types/comfy';
-import { ComfyWidget } from '../types/comfyWidget';
-import { sanitizeNodeName } from './utils';
-import { ComfyExtension, SerializedNodeObject } from '../types/interfaces';
-import { extensionManager } from './extensionManager';
-import { logging } from './logging';
-import { registerNodeDef } from './registerNodes';
+import {$el, sanitizeNodeName} from './utils';
+import {ComfyApi} from './api';
+import {defaultGraph} from './defaultGraph';
+import {getLatentMetadata, getPngMetadata, getWebpMetadata, importA1111} from './pnginfo';
+import {LiteGraph} from 'litegraph.js';
+import {ComfyCanvas} from './comfyCanvas';
+import {ComfyGraph} from './comfyGraph';
+import {addDomClippingSetting, ComfyNode} from './comfyNode';
+import {ComfyError, ComfyProgress, ComfyPromptError, TemplateData} from '../types/many';
+import {ComfyExtension, IComfyApp, IComfyCanvas, IComfyGraph} from '../types/interfaces';
+import {IComfyApi} from '../types/api';
+import {extensionManager} from './extensionManager';
+import {logging} from './logging';
+import {registerNodeDef} from './registerNodes';
 
 // Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object
 (window as Window & typeof globalThis & { LiteGraph: typeof LiteGraph }).LiteGraph = LiteGraph;
 
 export class ComfyApp implements IComfyApp {
     private static instance: ComfyApp;
-
-    /** Content Clipboard */
-    clipspace: SerializedNodeObject | null = null;
-    clipspace_invalidate_handler: (() => void) | null = null;
-    clipspace_return_node: ComfyNode | null = null;
-    openClipspace?: () => void;
 
     open_maskeditor: (() => void) | null = null;
 
@@ -94,133 +83,6 @@ export class ComfyApp implements IComfyApp {
         return '&rand=' + Math.random();
     }
 
-    onClipspaceEditorSave() {
-        if (this.clipspace_return_node) {
-            this.pasteFromClipspace(this.clipspace_return_node);
-        }
-    }
-
-    onClipspaceEditorClosed() {
-        this.clipspace_return_node = null;
-    }
-
-    copyToClipspace(node: ComfyNode) {
-        let widgets = null;
-        if (node.widgets) {
-            widgets = node.widgets.map(({ type, name, value }) => ({
-                type,
-                name,
-                value,
-            })) as ComfyWidget[];
-        }
-
-        let imgs = undefined;
-        let orig_imgs = undefined;
-        if (node.imgs != undefined) {
-            imgs = [];
-            orig_imgs = [];
-
-            for (let i = 0; i < node.imgs.length; i++) {
-                imgs[i] = new Image();
-                imgs[i].src = (node.imgs[i] as HTMLImageElement).src;
-                orig_imgs[i] = imgs[i];
-            }
-        }
-
-        let selectedIndex = 0;
-        if (node.imageIndex) {
-            selectedIndex = node.imageIndex;
-        }
-
-        this.clipspace = {
-            widgets: widgets,
-            imgs: imgs,
-            original_imgs: orig_imgs,
-            images: node.images,
-            selectedIndex: selectedIndex,
-            img_paste_mode: 'selected', // reset to default imf_paste_mode state on copy action
-        };
-
-        this.clipspace_return_node = null;
-
-        if (this.clipspace_invalidate_handler) {
-            this.clipspace_invalidate_handler();
-        }
-    }
-
-    pasteFromClipspace(node: ComfyNode) {
-        if (this.clipspace) {
-            // image paste
-            if (this.clipspace.imgs && node.imgs) {
-                if (node.images && this.clipspace.images) {
-                    if (this.clipspace['img_paste_mode'] == 'selected') {
-                        node.images = [this.clipspace.images[this.clipspace['selectedIndex']] as HTMLImageElement];
-                    } else {
-                        node.images = this.clipspace.images;
-                    }
-
-                    if (this.nodeOutputs[node.id + '']) this.nodeOutputs[node.id + ''].images = node.images;
-                }
-
-                if (this.clipspace.imgs) {
-                    // deep-copy to cut link with clipspace
-                    if (this.clipspace['img_paste_mode'] == 'selected') {
-                        const img = new Image();
-                        img.src = (this.clipspace.imgs[this.clipspace['selectedIndex']] as HTMLImageElement).src;
-                        node.imgs = [img];
-                        node.imageIndex = 0;
-                    } else {
-                        const imgs = [];
-                        for (let i = 0; i < this.clipspace.imgs.length; i++) {
-                            imgs[i] = new Image();
-                            imgs[i].src = (this.clipspace.imgs[i] as HTMLImageElement).src;
-                            node.imgs = imgs;
-                        }
-                    }
-                }
-            }
-
-            if (node.widgets) {
-                if (this.clipspace.images) {
-                    const clip_image = this.clipspace.images[this.clipspace['selectedIndex']] as ComfyFile;
-                    const index = node.widgets.findIndex(obj => obj.name === 'image');
-                    if (index >= 0) {
-                        if (
-                            node.widgets[index].type != 'image' &&
-                            typeof node.widgets[index].value == 'string' &&
-                            clip_image.filename
-                        ) {
-                            node.widgets[index].value =
-                                (clip_image.subfolder ? clip_image.subfolder + '/' : '') +
-                                clip_image.filename +
-                                (clip_image.type ? ` [${clip_image.type}]` : '');
-                        } else {
-                            node.widgets[index].value = clip_image;
-                        }
-                    }
-                }
-                if (this.clipspace.widgets) {
-                    this.clipspace.widgets.forEach(({ type, name, value }) => {
-                        const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
-                        if (prop && prop.type != 'button') {
-                            value = value as ComfyFile;
-                            if (prop.type != 'image' && typeof prop.value == 'string' && value.filename) {
-                                prop.value =
-                                    (value.subfolder ? value.subfolder + '/' : '') +
-                                    value.filename +
-                                    (value.type ? ` [${value.type}]` : '');
-                            } else {
-                                prop.value = value;
-                                prop.callback?.(value);
-                            }
-                        }
-                    });
-                }
-            }
-
-            this.graph?.setDirtyCanvas(true, true);
-        }
-    }
 
     /**
      * Adds a handler allowing drag+drop of files onto the window to load workflows

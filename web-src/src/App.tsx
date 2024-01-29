@@ -1,9 +1,8 @@
 import './App.css';
-import { useEffect, useRef } from 'react';
-import { app } from './scripts/app';
-import { api } from './scripts/api';
+import {useEffect, useRef} from 'react';
+import {app} from './scripts/app';
+import {api} from './scripts/api';
 
-// We should probably have a ComfyAppContextProvider that wraps the entire app?
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
