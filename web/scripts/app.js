@@ -1499,12 +1499,17 @@ export class ComfyApp {
 		// Load previous workflow
 		let restored = false;
 		try {
-			const json = localStorage.getItem("workflow");
-			if (json) {
-				const workflow = JSON.parse(json);
-				await this.loadGraphData(workflow);
-				restored = true;
-			}
+			const loadWorkflow = async (json) => {
+				if (json) {
+					const workflow = JSON.parse(json);
+					await this.loadGraphData(workflow);
+					return true;
+				}
+			};
+			const clientId = api.initialClientId ?? api.clientId;
+			restored =
+				(clientId && (await loadWorkflow(sessionStorage.getItem(`workflow:${clientId}`)))) ||
+				(await loadWorkflow(localStorage.getItem("workflow")));
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
 		}
@@ -1515,7 +1520,13 @@ export class ComfyApp {
 		}
 
 		// Save current workflow automatically
-		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
+		setInterval(() => {
+			const workflow = JSON.stringify(this.graph.serialize());
+			localStorage.setItem("workflow", workflow);
+			if (api.clientId) {
+				sessionStorage.setItem(`workflow:${api.clientId}`, workflow);
+			}
+		}, 1000);
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
