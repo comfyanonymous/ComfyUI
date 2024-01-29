@@ -1486,10 +1486,13 @@ export class ComfyApp {
    * Loads all extensions from the API into the window in parallel
    */
   async #loadExtensions() {
-    const extensions = await api.getExtensions();
-    this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
-
-    const extensionPromises = extensions.map(async (ext) => {
+    // const extensions = await api.getExtensions();
+    // this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
+    const allowedExtensions = [
+      '/extensions/core/colorPalette.js',
+      '/extensions/nodesViewer.js',
+    ]
+    const extensionPromises = allowedExtensions.map(async (ext) => {
       try {
         await import(api.apiURL(ext));
       } catch (error) {
@@ -1587,7 +1590,7 @@ export class ComfyApp {
   async setup() {
     // await this.#setUser();
     // await this.ui.settings.load();
-    // await this.#loadExtensions();
+    await this.#loadExtensions();
 
     // Create and mount the LiteGraph in the DOM
     const mainCanvas = document.createElement("canvas");
