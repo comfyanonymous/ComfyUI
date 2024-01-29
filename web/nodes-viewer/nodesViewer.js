@@ -11,6 +11,14 @@ const ext = {
 			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );
 			console.log("clicked node", node.type);
 		});
+		app.canvasEl.addEventListener("mousemove", (e)=> {
+			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );		
+			if(node) {
+				app.canvasEl.style.cursor = "pointer";
+			} else {
+				app.canvasEl.style.cursor = "default";
+			}
+		});
 
 	},
 };
