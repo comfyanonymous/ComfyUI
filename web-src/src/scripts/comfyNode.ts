@@ -1,13 +1,14 @@
-import { LiteGraph, LGraphNode, Vector2 } from 'litegraph.js';
-import { ComfyObjectInfo } from '../types/comfy';
-import { api } from './api';
-import { $el } from './utils';
-import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from './helpers';
-import { calculateImageGrid, createImageHost } from './ui/imagePreview';
-import { ComfyNodeConfig } from '../types/comfy';
-import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget';
-import { AddDOMWidgetOptions } from '../types/interfaces';
-import { IComfyNode, IComfyApp } from '../types/interfaces';
+import {LGraphNode, LiteGraph, Vector2} from 'litegraph.js';
+import {ComfyNodeConfig, ComfyObjectInfo} from '../types/comfy';
+import {api} from './api';
+import {$el} from './utils';
+import {calculateGrid, getImageTop, is_all_same_aspect_ratio} from './helpers';
+import {calculateImageGrid, createImageHost} from './ui/imagePreview';
+import {ComfyWidget, comfyWidgetTypes} from '../types/comfyWidget';
+import {AddDOMWidgetOptions, IComfyApp, IComfyNode} from '../types/interfaces';
+import {clipspace} from "./clipspace.ts";
+import {app, ComfyApp} from "./app.ts";
+import {extensionManager} from "./extensionManager.ts";
 
 interface Point {
     x: number;
@@ -203,7 +204,7 @@ export class ComfyNode extends LGraphNode implements IComfyNode {
         this.size = [Math.max(config.minWidth, s[0] * 1.5), Math.max(config.minHeight, s[1])];
         this.serialize_widgets = true;
 
-        app.invokeExtensionsAsync('nodeCreated', this);
+        extensionManager.invokeExtensionsAsync('nodeCreated', this);
     }
 
     getWidgetType(inputData: any, inputName: string, app: IComfyApp): string | null {
@@ -268,7 +269,6 @@ export class ComfyNode extends LGraphNode implements IComfyNode {
      * e.g. Draws images and handles thumbnail navigation on nodes that output images
      */
     onDrawBackground(ctx: any) {
-        const app = this.app;
         if (!this.flags.collapsed) {
             let imgURLs: (HTMLImageElement | string | string[])[] = [];
             let imagesChanged = false;
@@ -616,31 +616,31 @@ export class ComfyNode extends LGraphNode implements IComfyNode {
         });
 
         // prevent conflict of clipspace content
-        if (!this.app.clipspace_return_node) {
+        if (!clipspace.clipspace_return_node) {
             options.push({
                 content: 'Copy (Clipspace)',
                 callback: () => {
-                    this.app.copyToClipspace(this);
+                    clipspace.copyToClipspace(this);
                 },
             });
 
-            if (this.app.clipspace != null) {
+            if (clipspace.clipspace != null) {
                 options.push({
                     content: 'Paste (Clipspace)',
                     callback: () => {
-                        this.app.pasteFromClipspace(this);
+                        clipspace.pasteFromClipspace(this);
                     },
                 });
             }
 
-            if (IComfyApp.isImageNode(this)) {
+            if (ComfyApp.isImageNode(this)) {
                 options.push({
                     content: 'Open in MaskEditor',
                     callback: () => {
-                        this.app.copyToClipspace(this);
-                        this.app.clipspace_return_node = this;
-                        if (this.app.open_maskeditor) {
-                            this.app.open_maskeditor();
+                        clipspace.copyToClipspace(this);
+                        clipspace.clipspace_return_node = this;
+                        if (app.open_maskeditor) {
+                            app.open_maskeditor();
                         }
                     },
                 });
@@ -669,8 +669,6 @@ export class ComfyNode extends LGraphNode implements IComfyNode {
             };
             document.addEventListener('mousedown', mouseDownHandler);
         }
-
-        const { app } = this;
 
         const widget: ComfyWidget = {
             name,
@@ -740,8 +738,8 @@ export class ComfyNode extends LGraphNode implements IComfyNode {
         if (options.selectOn) {
             for (const evt of options.selectOn) {
                 element.addEventListener(evt, () => {
-                    this.app.canvas?.selectNode(this);
-                    this.app.canvas?.bringToFront(this);
+                    app.canvas?.selectNode(this);
+                    app.canvas?.bringToFront(this);
                 });
             }
         }

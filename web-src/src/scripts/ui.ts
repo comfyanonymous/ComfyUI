@@ -1,10 +1,12 @@
-import { api } from './api.js';
-import { ComfyDialog } from './ui/comfyDialog.js';
-import { ComfySettingsDialog } from './ui/settings.js';
-import { toggleSwitch } from './ui/toggleSwitch.js';
-import { ComfyPromptStatus } from '../types/comfy.js';
-import { ComfyItems } from '../types/api.js';
-import { $el } from './utils.js';
+import {api} from './api.js';
+import {ComfyDialog} from './ui/comfyDialog.js';
+import {ComfySettingsDialog} from './ui/settings.js';
+import {toggleSwitch} from './ui/toggleSwitch.js';
+import {ComfyPromptStatus} from '../types/comfy.js';
+import {ComfyItems} from '../types/api.js';
+import {$el} from './utils.js';
+import {app} from "./app.ts";
+import {clipspace} from "./clipspace.ts";
 
 function dragElement(dragEl: HTMLElement, settings: ComfySettingsDialog) {
     var posDiffX = 0,
@@ -169,9 +171,9 @@ class ComfyList {
                             $el('button', {
                                 textContent: 'Load',
                                 onclick: async () => {
-                                    await this.app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+                                    await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
                                     if (item.outputs) {
-                                        this.app.nodeOutputs = item.outputs;
+                                        app.nodeOutputs = item.outputs;
                                     }
                                 },
                             }),
@@ -566,7 +568,7 @@ export class ComfyUI {
             $el('button', {
                 id: 'comfy-clipspace-button',
                 textContent: 'Clipspace',
-                onclick: () => app.openClipspace?.(),
+                onclick: () => clipspace.openClipspace?.(),
             }),
             $el('button', {
                 id: 'comfy-clear-button',
@@ -616,9 +618,9 @@ export class ComfyUI {
                     status.exec_info.queue_remaining == 0 &&
                     this.autoQueueEnabled &&
                     (this.autoQueueMode === 'instant' || this.graphHasChanged) &&
-                    !this.app.lastExecutionError
+                    !app.lastExecutionError
                 ) {
-                    this.app.queuePrompt(0, this.batchCount);
+                    app.queuePrompt(0, this.batchCount);
                     status.exec_info.queue_remaining += this.batchCount;
                     this.graphHasChanged = false;
                 }

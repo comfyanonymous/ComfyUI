@@ -1,10 +1,12 @@
 import {IComfyClipspace, SerializedNodeObject} from "../types/interfaces.ts";
-import {ComfyNode} from "./comfyNode.ts";
-import {ComfyWidget} from "../types/comfyWidget.ts";
+import type {ComfyWidget} from "../types/comfyWidget.ts";
+import type {ComfyGraph} from "./comfyGraph.ts";
+import type {ComfyNode} from "./comfyNode.ts";
 import {ComfyFile} from "../types/many.ts";
-import {ComfyGraph} from "./comfyGraph.ts";
 
 export class ComfyClipspace implements IComfyClipspace {
+    private static _instance: ComfyClipspace;
+
     graph: ComfyGraph | null;
 
     clipspace: SerializedNodeObject | null;
@@ -14,11 +16,19 @@ export class ComfyClipspace implements IComfyClipspace {
     openClipspace?: () => void;
 
 
-    constructor() {
+    private constructor() {
         this.graph = null;
         this.clipspace = null;
         this.clipspace_invalidate_handler = null;
         this.clipspace_return_node = null;
+    }
+
+    static getInstance() {
+        if (!ComfyClipspace._instance) {
+            ComfyClipspace._instance = new ComfyClipspace();
+        }
+
+        return ComfyClipspace._instance;
     }
 
     onClipspaceEditorSave() {
@@ -150,4 +160,4 @@ export class ComfyClipspace implements IComfyClipspace {
     }
 }
 
-
+export const clipspace = ComfyClipspace.getInstance();
