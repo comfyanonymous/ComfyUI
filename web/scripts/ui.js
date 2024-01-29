@@ -294,7 +294,7 @@ export class ComfyUI {
 		this.lastQueueSize = 0;
 		this.queue = new ComfyList("Queue");
 		this.history = new ComfyList("History", "history", true);
-
+		return;
 		api.addEventListener("status", () => {
 			this.queue.update();
 			this.history.update();
