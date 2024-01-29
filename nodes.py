@@ -184,26 +184,6 @@ class ConditioningSetAreaPercentage:
             c.append(n)
         return (c, )
 
-class ConditioningSetAreaStrength:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"conditioning": ("CONDITIONING", ),
-                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             }}
-    RETURN_TYPES = ("CONDITIONING",)
-    FUNCTION = "append"
-
-    CATEGORY = "conditioning"
-
-    def append(self, conditioning, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['strength'] = strength
-            c.append(n)
-        return (c, )
-
-
 class ConditioningSetMask:
     @classmethod
     def INPUT_TYPES(s):
@@ -1774,7 +1754,6 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetAreaPercentage": ConditioningSetAreaPercentage,
-    "ConditioningSetAreaStrength": ConditioningSetAreaStrength,
     "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
@@ -1912,6 +1891,27 @@ def load_custom_node(module_path, ignore=set()):
         print(f"Cannot import {module_path} module for custom nodes:", e)
         return False
 
+# copied from server.py
+def node_info(node_class):
+    obj_class = NODE_CLASS_MAPPINGS[node_class]
+    info = {}
+    info['input'] = obj_class.INPUT_TYPES()
+    info['output'] = obj_class.RETURN_TYPES
+    info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
+    info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
+    info['name'] = node_class
+    info['display_name'] = NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
+    info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
+    info['category'] = 'sd'
+    if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
+        info['output_node'] = True
+    else:
+        info['output_node'] = False
+
+    if hasattr(obj_class, 'CATEGORY'):
+        info['category'] = obj_class.CATEGORY
+    return info
+
 def load_custom_nodes():
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -1926,7 +1926,20 @@ def load_custom_nodes():
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
             time_before = time.perf_counter()
+            prev_nodes = set(NODE_CLASS_MAPPINGS.keys())
             success = load_custom_node(module_path, base_node_names)
+            with open('communication_file.txt', 'a') as file:
+                nodes_count = len(NODE_CLASS_MAPPINGS) - len(prev_nodes)
+                json_string = json.dumps({"import_success": success,"nodes_count":nodes_count, "import_time": time.perf_counter() - time_before})
+                file.write(json_string + '\n')  # Adding newline character for each JSON string
+                for name in NODE_CLASS_MAPPINGS:
+                    if name not in prev_nodes:
+                        print("✅imported node:",name, "from:", possible_module)
+                        node_def = node_info(name)
+                        data = {"node_type": name, "node_def": node_def}
+                        # Writing JSON string to a file
+                        json_string = json.dumps(data)
+                        file.write(json_string + '\n')  # Adding newline character for each JSON string
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
@@ -1936,6 +1949,7 @@ def load_custom_nodes():
                 import_message = ""
             else:
                 import_message = " (IMPORT FAILED)"
+                print("__workspace_scanner__","🔴Import failed for node:",node_import_times[1])
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 
