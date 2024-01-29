@@ -262,3 +262,9 @@ export interface IComfyClipspace {
     clipspace_invalidate_handler: (() => void) | null;
     openClipspace?: () => void;
 }
+
+export interface IComfyUserSettings {
+    storageLocation: string | null;
+    multiUserServer: boolean | null;
+    isNewUserSession: boolean | null;
+}
