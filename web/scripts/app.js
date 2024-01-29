@@ -1490,7 +1490,7 @@ export class ComfyApp {
     // this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
     const allowedExtensions = [
       '/extensions/core/colorPalette.js',
-      '/extensions/nodesViewer.js',
+      '/nodes-viewer/nodesViewer.js',
     ]
     const extensionPromises = allowedExtensions.map(async (ext) => {
       try {
