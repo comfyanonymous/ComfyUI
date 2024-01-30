@@ -206,9 +206,9 @@ export class ComfyApi extends EventTarget implements IComfyApi {
      * Gets a list of embedding names
      * @returns An array of script urls to import
      */
-    async getEmbeddings() {
+    async getEmbeddings(): Promise<EmbeddingsResponse> {
         const resp = await this.fetchApi('/embeddings', { cache: 'no-store' });
-        return <EmbeddingsResponse>await resp.json();
+        return await resp.json();
     }
 
     /**
@@ -217,14 +217,14 @@ export class ComfyApi extends EventTarget implements IComfyApi {
      */
     async getNodeDefs(): Promise<Record<string, ComfyObjectInfo>> {
         const resp = await this.fetchApi('/object_info', { cache: 'no-store' });
-        return <ObjectInfoResponse>await resp.json();
+        return await resp.json();
     }
 
     /**
      * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
      * @param {object} prompt The prompt data to queue
      */
-    async queuePrompt(number: number, { output, workflow }: { output: Record<string, WorkflowStep>; workflow: any }) {
+    async queuePrompt(number: number, { output, workflow }: { output: Record<string, WorkflowStep>; workflow: any }): Promise<QueuePromptResponse> {
         const body = {
             client_id: this.clientId,
             prompt: output,
@@ -247,7 +247,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
             };
         }
 
-        return <QueuePromptResponse>await res.json();
+        return await res.json();
     }
 
     /**
@@ -269,7 +269,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
     async getQueue() {
         try {
             const res = await this.fetchApi('/queue');
-            const data = <QueueResponse>await res.json();
+            const data = await res.json() as QueueResponse;
             return {
                 // Running action uses a different endpoint for cancelling
                 Running: data.queue_running.map(prompt => ({
@@ -295,7 +295,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
                 throw new Error(`Error fetching history: ${res.status} ${res.statusText}`);
             }
 
-            const history = <HistoryResponse>await res.json();
+            const history = await res.json() as HistoryResponse;
             return { History: Object.values(history) };
         } catch (error) {
             console.error(error);
@@ -307,13 +307,13 @@ export class ComfyApi extends EventTarget implements IComfyApi {
      * Gets system & device stats
      * @returns System stats such as python version, OS, per device info
      */
-    async getSystemStats() {
+    async getSystemStats():Promise<SystemStatsResponse> {
         const res = await this.fetchApi('/system_stats');
         if (!res.ok) {
             throw new Error(`Error fetching system stats: ${res.status} ${res.statusText}`);
         }
 
-        return <SystemStatsResponse>await res.json();
+        return await res.json();
     }
 
     /**
@@ -363,9 +363,9 @@ export class ComfyApi extends EventTarget implements IComfyApi {
      * Gets user configuration data and where data should be stored
      * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> }
      */
-    async getUserConfig() {
+    async getUserConfig(): Promise<UserConfigResponse> {
         const response = await this.fetchApi('/users');
-        return <UserConfigResponse>await response.json();
+        return await response.json();
     }
 
     /**
@@ -387,9 +387,9 @@ export class ComfyApi extends EventTarget implements IComfyApi {
      * Gets all setting values for the current user
      * @returns { Promise<string, unknown> } A dictionary of id -> value
      */
-    async getSettings() {
+    async getSettings(): Promise<SettingsResponse> {
         const response = await this.fetchApi('/settings');
-        return <SettingsResponse>await response.json();
+        return await response.json();
     }
 
     /**

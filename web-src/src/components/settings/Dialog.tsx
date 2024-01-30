@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
-import {api} from "../scripts/api.ts";
 import {app} from "../../scripts/app.ts";
+import {api} from "../../context/api.tsx";
 
 interface IAddSetting {
     id: string;
@@ -13,6 +13,11 @@ interface IAddSetting {
     options?: any[] | Function;
 }
 
+enum StorageLocation {
+    Browser = 'browser',
+    Server = 'server'
+}
+
 export function ComfySettingsDialog() {
     const [settingsValues, setSettingsValues] = useState<Record<string, any>>({});
     const [settingsLookup, setSettingsLookup] = useState<Record<string, any>>({});
@@ -21,11 +26,9 @@ export function ComfySettingsDialog() {
     useEffect(() => {
         const load = async () => {
             let values;
-            if (localStorage.getItem('Comfy.Settings')) {
-                const comfySettings = localStorage.getItem('Comfy.Settings');
-                if (comfySettings) {
-                    values = JSON.parse(comfySettings);
-                }
+            const comfySettings = localStorage.getItem('Comfy.Settings');
+            if (comfySettings) {
+                values = JSON.parse(comfySettings);
             } else {
                 values = await api.getSettings();
             }
@@ -51,22 +54,25 @@ export function ComfySettingsDialog() {
     };
 
     const getId = (id: string) => {
-        if (app.storageLocation === 'browser') {
+        if (app.storageLocation === StorageLocation.Browser) {
             id = 'Comfy.Settings.' + id;
         }
+
         return id;
     }
 
     const getSettingValue = (id: string, defaultValue?: any) => {
         let value = settingsValues[getId(id)];
-        if (value != null) {
-            if (app.storageLocation === 'browser') {
+        if (!!value) {
+            if (app.storageLocation === StorageLocation.Browser) {
                 try {
                     value = JSON.parse(value);
                 } catch (error) {
+                    console.log("An error occurred while parsing the setting value", {error});
                 }
             }
         }
+
         return value ?? defaultValue;
     }
 
@@ -88,7 +94,7 @@ export function ComfySettingsDialog() {
 
         onChange?.(value, undefined);
 
-        setSettingsLookup({
+        setSettingsLookup(() => ({
             ...settingsLookup,
             [id]: {
                 id,
@@ -100,7 +106,7 @@ export function ComfySettingsDialog() {
                 tooltip,
                 options,
             },
-        });
+        }));
     };
 
     const show = () => {
@@ -148,19 +154,26 @@ export function ComfySettingsDialog() {
                             );
                             break;
                         case 'slider':
-                            (
-                                <input
-                                    {...attrs}
-                                    value={value}
-                                    type="range"
-                                    onChange={e => {
-                                        const newValue = e.target.value;
-                                        setter(newValue);
-                                        if (e.target.nextElementSibling) {
-                                            e.target.nextElementSibling.value = newValue;
-                                        }
-                                    }}
-                                />
+                            input = (
+                                <>
+                                    <input
+                                        {...attrs}
+                                        value={value}
+                                        type="range"
+                                        onChange={event => {
+                                            setSettingValue(id, event.target.value);
+                                        }}
+                                    />
+                                    <input  {...attrs}
+                                            value={value}
+                                            id={id}
+                                            type="number"
+                                            style={{maxWidth: '4rem'}}
+                                            onInput={(event) => {
+                                                setSettingValue(id, (event.target as HTMLInputElement).value)
+                                            }}
+                                    />
+                                </>
                             )
                             break;
                         case 'number':
