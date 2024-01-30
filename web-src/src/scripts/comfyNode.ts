@@ -1,14 +1,14 @@
-import {LGraphNode, LiteGraph, Vector2} from 'litegraph.js';
-import {ComfyNodeConfig, ComfyObjectInfo} from '../types/comfy';
-import {api} from './api';
-import {$el} from './utils';
-import {calculateGrid, getImageTop, is_all_same_aspect_ratio} from './helpers';
-import {calculateImageGrid, createImageHost} from './ui/imagePreview';
-import {ComfyWidget, comfyWidgetTypes} from '../types/comfyWidget';
-import {AddDOMWidgetOptions, IComfyApp, IComfyNode} from '../types/interfaces';
-import {clipspace} from "./clipspace.ts";
-import {app, ComfyApp} from "./app.ts";
-import {extensionManager} from "./extensionManager.ts";
+import { LGraphNode, LiteGraph, Vector2 } from 'litegraph.js';
+import { ComfyNodeConfig, ComfyObjectInfo } from '../types/comfy';
+import { api } from '../context/api.tsx';
+import { $el } from './utils';
+import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from './helpers';
+import { calculateImageGrid, createImageHost } from './ui/imagePreview';
+import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget';
+import { AddDOMWidgetOptions, IComfyApp, IComfyNode } from '../types/interfaces';
+import { clipspace } from './clipspace.ts';
+import { app, ComfyApp } from './app.ts';
+import { extensionManager } from './extensionManager.ts';
 
 interface Point {
     x: number;
@@ -65,8 +65,8 @@ export function getClipPath(node: ComfyNode, element: Element, elRect: Point) {
     return '';
 }
 
-export function addDomClippingSetting(app: IComfyApp) {
-    app.ui.settings.addSetting({
+export function addDomClippingSetting() {
+    ui.settings.addSetting({
         id: 'Comfy.DOMClippingEnabled',
         name: 'Enable DOM element clipping (enabling may reduce performance)',
         type: 'boolean',

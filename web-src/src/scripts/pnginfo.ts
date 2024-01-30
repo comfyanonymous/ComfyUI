@@ -1,4 +1,4 @@
-import { api } from './api.js';
+import { api } from '../context/api.js';
 import { LiteGraph } from 'litegraph.js';
 import { LatentInfo, PngInfo } from '../types/many';
 import { ComfyGraph } from './comfyGraph';

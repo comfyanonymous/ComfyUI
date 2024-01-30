@@ -1,3 +1,6 @@
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import WebSocketR from 'reconnecting-websocket';
+import { useAuthContext } from './auth';
 import { ComfyObjectInfo } from '../types/comfy';
 import {
     IComfyApi,
@@ -14,6 +17,97 @@ import { WorkflowStep } from '../types/many';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
+interface ApiContextType {
+  comfyClient: ComfyClient;
+  metadata: { [key: string]: string };
+}
+
+const ApiContext = createContext<ApiContextType | undefined>(undefined);
+
+export const useApiContext = () => {
+  const context = useContext(ApiContext);
+
+  if (!context) {
+    throw new Error('useGrpcContext must be used within a GrpcContextProvider');
+  }
+
+  return context;
+};
+
+let connectedBefore = false;
+
+export const ApiContextProvider = ({ children }: { children: ReactNode }) => {
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [socket, setSocket] = useState<WebSocket | null>();
+    const [api_host, setApiHost] = useState<string>(location.host);
+    const [api_base, setApiBase] = useState<string>(location.pathname.split('/').slice(0, -1).join('/'));
+    const [apiEventEmitter, setApiEventEmitter] = useState<EventTarget>(new EventTarget());
+
+    // Use polling as a backup strategy incase the websocket fails to connect
+    const pollQueue = () => {
+        const intervalId = setInterval(async () => {
+            try {
+                const resp = await api.fetchApi("/prompt");
+                const status = await resp.json();
+                apiEventEmitter.dispatchEvent(new CustomEvent("status", { detail: status }));
+            } catch (error) {
+                apiEventEmitter.dispatchEvent(new CustomEvent("status", { detail: null }));
+            }
+        }, 1000);
+        // Return cleanup function
+        return () => clearInterval(intervalId);
+    }
+
+  useEffect(() => {
+    let suffix = '';
+		if (sessionId) {
+			suffix = "?clientId=" + existingSession;
+		}
+    const socket = new WebSocketR(
+			`ws${window.location.protocol === "https:" ? "s" : ""}://${api_host}${api_base}/ws${suffix}`
+		);
+        socket.binaryType = "arraybuffer";
+
+        socket.addEventListener("open", () => {
+			if (!connectedBefore) {
+				apiEventEmitter.dispatchEvent(new CustomEvent("reconnected"));
+			}
+            connectedBefore = true;
+		});
+
+        let cleanup = () => {};
+		socket.addEventListener("error", () => {
+			if (!(socket.readyState == socket.OPEN)) {
+                socket.close()
+				cleanup = pollQueue();
+			}
+		});
+
+		socket.addEventListener("close", () => {
+			setTimeout(() => {
+
+			}, 300);
+			if (connectedBefore) {
+				dispatchEvent(new CustomEvent("status", { detail: null }));
+				dispatchEvent(new CustomEvent("reconnecting"));
+			}
+		});
+
+        setSocket(socket);
+
+    return () => {
+      socket.close();
+      cleanup();
+    };
+  }, []);
+
+  return (
+    <ApiContext.Provider value={{ apiEventEmitter, sessionId }}>
+      {children}
+    </ApiContext.Provider>
+  );
+};
+
 export class ComfyApi extends EventTarget implements IComfyApi {
     socket: WebSocket | null = null;
     api_host: string;
@@ -29,6 +123,11 @@ export class ComfyApi extends EventTarget implements IComfyApi {
         this.#registered = new Set();
         this.api_host = location.host;
         this.api_base = location.pathname.split('/').slice(0, -1).join('/');
+    }
+
+    /** Initialises sockets for realtime updates */
+    init() {
+        this.#connectToServer();
     }
 
     apiURL(route: string) {
@@ -74,10 +173,11 @@ export class ComfyApi extends EventTarget implements IComfyApi {
     }
 
     /**
-     * Creates and connects a WebSocket for realtime updates
+     * ComfyUI name: `#createSocket`
+     * Connects to the server for realtime updates
      * @param {boolean} isReconnect If the socket is connection is a reconnect attempt
      */
-    #createSocket(isReconnect = false) {
+    #connectToServer(isReconnect = false) {
         if (this.socket) {
             return;
         }
@@ -111,7 +211,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
         this.socket.addEventListener('close', () => {
             setTimeout(() => {
                 this.socket = null;
-                this.#createSocket(true);
+                this.#connectToServer(true);
             }, 300);
             if (opened) {
                 this.dispatchEvent(new CustomEvent('status', { detail: null }));
@@ -184,11 +284,6 @@ export class ComfyApi extends EventTarget implements IComfyApi {
                 console.warn('Unhandled message:', event.data, error);
             }
         });
-    }
-
-    /** Initialises sockets for realtime updates */
-    init() {
-        this.#createSocket();
     }
 
     /**
@@ -456,6 +551,69 @@ export class ComfyApi extends EventTarget implements IComfyApi {
             throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
         }
     }
+}
+
+/** This will create and submit a workflow. ComfyUI Terminology: `queuePrompt` */
+export function submitCurrentWorkflow() {
+            try {
+            while (this.#queueItems.length > 0) {
+                const queueItem = this.#queueItems.pop();
+                if (queueItem) {
+                    ({ number, batchCount } = queueItem);
+
+                    for (let i = 0; i < batchCount; i++) {
+                        const p = await this.canvas.graph.graphToWorkflow();
+
+                        try {
+                            const res = await this.api.queuePrompt(number, p);
+                            this.lastNodeErrors = res.node_errors;
+
+                            if (this.lastNodeErrors) {
+                                let errors = Array.isArray(this.lastNodeErrors)
+                                    ? this.lastNodeErrors
+                                    : Object.keys(this.lastNodeErrors);
+                                if (errors.length > 0) {
+                                    this.canvas?.draw(true, true);
+                                }
+                            }
+                        } catch (error: unknown) {
+                            const err = error as ComfyPromptError;
+
+                            const formattedError = this.#formatPromptError(err);
+                            this.ui.dialog.show(formattedError);
+                            if (err.response) {
+                                this.lastNodeErrors = err.response.node_errors;
+                                this.canvas?.draw(true, true);
+                            }
+                            break;
+                        }
+
+                        if (p.workflow) {
+                            for (const n of p.workflow.nodes) {
+                                const node = this.graph?.getNodeById(n.id);
+                                if (node?.widgets) {
+                                    for (const widget of node.widgets) {
+                                        // Allow widgets to run callbacks after a prompt has been queued
+                                        // e.g. random seed after every gen
+                                        if (widget.afterQueued) {
+                                            widget.afterQueued();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        this.canvas?.draw(true, true);
+                        await this.ui.queue.update();
+                    }
+                }
+            }
+        } finally {
+            this.#processingQueue = false;
+        }
+        this.api.dispatchEvent(new CustomEvent('promptQueued', { detail: { number, batchCount } }));
+    }
+
 }
 
 // Again, all custom-nodes are written with the assumption that `api` is a singleton

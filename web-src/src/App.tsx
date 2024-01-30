@@ -1,7 +1,7 @@
 import './App.css';
-import {useEffect, useRef} from 'react';
-import {app} from './scripts/app';
-import {api} from './scripts/api';
+import { useEffect, useRef } from 'react';
+import { app } from './scripts/app';
+import { api } from './context/api';
 
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);

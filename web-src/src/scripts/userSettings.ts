@@ -1,6 +1,6 @@
-import {$el} from "./utils.ts";
-import {IComfyUserSettings} from "../types/interfaces.ts";
-import {api} from "./api.ts";
+import { $el } from './utils.ts';
+import { IComfyUserSettings } from '../types/interfaces.ts';
+import { api } from '../context/api.tsx';
 
 export class ComfyUserSettings implements IComfyUserSettings {
     private static instance: ComfyUserSettings;
@@ -17,10 +17,10 @@ export class ComfyUserSettings implements IComfyUserSettings {
 
     static getInstance() {
         if (!ComfyUserSettings.instance) {
-            ComfyUserSettings.instance = new ComfyUserSettings()
+            ComfyUserSettings.instance = new ComfyUserSettings();
         }
 
-        return ComfyUserSettings.instance
+        return ComfyUserSettings.instance;
     }
 
     async #migrateSettings() {
@@ -32,8 +32,7 @@ export class ComfyUserSettings implements IComfyUserSettings {
             if (v) {
                 try {
                     p[n] = JSON.parse(v);
-                } catch (error) {
-                }
+                } catch (error) {}
             }
             return p;
         }, {});
@@ -41,7 +40,7 @@ export class ComfyUserSettings implements IComfyUserSettings {
         await api.storeSettings(settings);
     }
 
-    async setUser(settings) {
+    async setUser(settings?: { [x: string]: any }) {
         const userConfig = await api.getUserConfig();
         this.storageLocation = userConfig.storage;
         if (typeof userConfig.migrated == 'boolean') {
@@ -57,9 +56,9 @@ export class ComfyUserSettings implements IComfyUserSettings {
         const users = userConfig.users ?? {};
         if (!user || !users[user]) {
             // This will rarely be hit so move the loading to on demand
-            const {UserSelectionScreen} = await import('./ui/userSelection');
+            const { UserSelectionScreen } = await import('./ui/userSelection');
             this.ui.menuContainer.style.display = 'none';
-            const {userId, username, created} = await new UserSelectionScreen().show(users, user);
+            const { userId, username, created } = await new UserSelectionScreen().show(users, user);
             this.ui.menuContainer.style.display = '';
             user = userId;
             localStorage['Comfy.userName'] = username;
@@ -102,4 +101,4 @@ export class ComfyUserSettings implements IComfyUserSettings {
     }
 }
 
-export const userSettings = ComfyUserSettings.getInstance()
+export const userSettings = ComfyUserSettings.getInstance();

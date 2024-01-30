@@ -1,4 +1,4 @@
-import { api } from '../api';
+import { api } from '../../context/api';
 import { $el } from '../ui';
 import { addStylesheet } from '../utils';
 import { createSpinner } from './spinner';

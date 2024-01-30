@@ -1,6 +1,7 @@
 // This class tracks state of the job-queue, and provides methods to add or remove jobs from it
 
-import { ComfyCanvas } from './comfyCanvas';
+import { useEffect, useState, ReactNode } from 'react';
+import { ComfyCanvas } from '../scripts/comfyCanvas';
 
 export type QueueItem = {
     number: number;
@@ -99,4 +100,55 @@ export class JobQueue {
         }
         this.api.dispatchEvent(new CustomEvent('promptQueued', { detail: { number, batchCount } }));
     }
+}
+
+// This is a component that lists all jobs in the queue
+export function JobQueueList(): ReactNode {
+    const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+    const [processingQueue, setProcessingQueue] = useState<boolean>(false);
+    const [lastNodeErrors, setLastNodeErrors] = useState<Record<string, string[]> | null>(queue.lastNodeErrors);
+
+    useEffect(() => {
+        const update = () => {
+            setQueueItems(queue.queueItems);
+            setProcessingQueue(queue.processingQueue);
+            setLastNodeErrors(queue.lastNodeErrors);
+        };
+        queue.api.addEventListener('promptQueued', update);
+        queue.api.addEventListener('promptQueueUpdated', update);
+        return () => {
+            queue.api.removeEventListener('promptQueued', update);
+            queue.api.removeEventListener('promptQueueUpdated', update);
+        };
+    }, [queue]);
+
+    return (
+        <div className="job-queue">
+            <div className="job-queue-header">
+                <span className="job-queue-header-title">Job Queue</span>
+                <span className="job-queue-header-status">{processingQueue ? 'Processing...' : 'Idle'}</span>
+            </div>
+            <div className="job-queue-items">
+                {queueItems.map(item => (
+                    <div className="job-queue-item" key={item.number}>
+                        <span className="job-queue-item-number">{item.number}</span>
+                        <span className="job-queue-item-count">{item.batchCount}</span>
+                    </div>
+                ))}
+            </div>
+            {lastNodeErrors && (
+                <div className="job-queue-errors">
+                    <span className="job-queue-errors-title">Errors</span>
+                    <div className="job-queue-errors-items">
+                        {Object.keys(lastNodeErrors).map(key => (
+                            <div className="job-queue-errors-item" key={key}>
+                                <span className="job-queue-errors-item-node">{key}</span>
+                                <span className="job-queue-errors-item-error">{lastNodeErrors[key].join(', ')}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }

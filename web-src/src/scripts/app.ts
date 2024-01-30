@@ -1,18 +1,18 @@
-import {$el, sanitizeNodeName} from './utils';
-import {ComfyApi} from './api';
-import {defaultGraph} from './defaultGraph';
-import {getLatentMetadata, getPngMetadata, getWebpMetadata, importA1111} from './pnginfo';
-import {LiteGraph} from 'litegraph.js';
-import {ComfyCanvas} from './comfyCanvas';
-import {ComfyGraph} from './comfyGraph';
-import {addDomClippingSetting, ComfyNode} from './comfyNode';
-import {ComfyError, ComfyProgress, ComfyPromptError, TemplateData} from '../types/many';
-import {ComfyExtension, IComfyApp, IComfyCanvas, IComfyGraph} from '../types/interfaces';
-import {IComfyApi} from '../types/api';
-import {extensionManager} from './extensionManager';
-import {logging} from './logging';
-import {registerNodeDef} from './registerNodes';
-import {userSettings} from "./userSettings.ts";
+import { $el, sanitizeNodeName } from './utils';
+import { ComfyApi } from '../context/api.tsx';
+import { defaultGraph } from './defaultGraph';
+import { getLatentMetadata, getPngMetadata, getWebpMetadata, importA1111 } from './pnginfo';
+import { LiteGraph } from 'litegraph.js';
+import { ComfyCanvas } from './comfyCanvas';
+import { ComfyGraph } from './comfyGraph';
+import { addDomClippingSetting, ComfyNode } from './comfyNode';
+import { ComfyError, ComfyProgress, ComfyPromptError, TemplateData } from '../types/many';
+import { ComfyExtension, IComfyApp, IComfyCanvas, IComfyGraph } from '../types/interfaces';
+import { IComfyApi } from '../types/api';
+import { extensionManager } from './extensionManager';
+import { logging } from './logging';
+import { registerNodeDef } from './registerNodes';
+import { userSettings } from './userSettings.ts';
 
 // Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object
 (window as Window & typeof globalThis & { LiteGraph: typeof LiteGraph }).LiteGraph = LiteGraph;
@@ -80,7 +80,6 @@ export class ComfyApp implements IComfyApp {
     getRandParam() {
         return '&rand=' + Math.random();
     }
-
 
     /**
      * Adds a handler allowing drag+drop of files onto the window to load workflows
@@ -407,7 +406,7 @@ export class ComfyApp implements IComfyApp {
         canvasEl.tabIndex = 1;
         document.body.prepend(canvasEl);
 
-        addDomClippingSetting(this);
+        addDomClippingSetting();
 
         this.graph = new ComfyGraph();
         this.canvas = new ComfyCanvas(canvasEl, this.graph);

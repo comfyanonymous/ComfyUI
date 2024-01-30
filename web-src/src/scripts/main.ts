@@ -9,7 +9,7 @@
 //
 
 import { app } from './app';
-import { api } from './api';
+import { api } from '../context/api';
 import { loadWebExtensions } from './loadWebExtensions';
 
 // Ask the api-server what front-end extensions to load, if any, and then load them

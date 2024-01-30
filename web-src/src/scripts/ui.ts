@@ -1,12 +1,12 @@
-import {api} from './api.js';
-import {ComfyDialog} from './ui/comfyDialog.js';
-import {ComfySettingsDialog} from './ui/settings.js';
-import {toggleSwitch} from './ui/toggleSwitch.js';
-import {ComfyPromptStatus} from '../types/comfy.js';
-import {ComfyItems} from '../types/api.js';
-import {$el} from './utils.js';
-import {app} from "./app.ts";
-import {clipspace} from "./clipspace.ts";
+import { api } from '../context/api.js';
+import { ComfyDialog } from './ui/comfyDialog.js';
+import { ComfySettingsDialog } from './ui/settings.js';
+import { toggleSwitch } from './ui/toggleSwitch.js';
+import { ComfyPromptStatus } from '../types/comfy.js';
+import { ComfyItems } from '../types/api.js';
+import { $el } from './utils.js';
+import { app } from './app.ts';
+import { clipspace } from './clipspace.ts';
 
 function dragElement(dragEl: HTMLElement, settings: ComfySettingsDialog) {
     var posDiffX = 0,
@@ -358,7 +358,7 @@ export class ComfyUI {
         autoQueueModeEl.style.display = 'none';
 
         api.addEventListener('graphChanged', () => {
-            if (this.autoQueueMode && this.autoQueueMode === 'change') {
+            if (this.autoQueueMode === 'change' && this.autoQueueEnabled === true) {
                 if (this.lastQueueSize === 0) {
                     this.graphHasChanged = false;
                     app.queuePrompt(0, this.batchCount);

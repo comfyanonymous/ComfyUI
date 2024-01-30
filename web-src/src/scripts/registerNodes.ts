@@ -5,7 +5,7 @@ import { extensionManager } from './extensionManager';
 import { ComfyNode } from './comfyNode';
 import { widgetState } from './widgetFactory';
 import { ComfyObjectInfo } from '../types/comfy';
-import { api } from './api';
+import { api } from '../context/api';
 
 /** Registers nodes with the graph */
 export async function registerNodes() {
