@@ -29,3 +29,4 @@ tqdm
 protobuf==3.20.3
 psutil
 mypy>=1.6.0
+ConfigArgParse

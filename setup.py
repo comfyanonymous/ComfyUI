@@ -151,7 +151,7 @@ def dependencies() -> List[str]:
 package_data = ['sd1_tokenizer/*', '**/*.json', '**/*.yaml']
 if not is_editable:
     package_data.append('comfy/web/**/*')
-test_dependencies = open(os.path.join(os.path.dirname(__file__), "requirements-tests.txt")).readlines()
+dev_dependencies = open(os.path.join(os.path.dirname(__file__), "requirements-dev.txt")).readlines()
 setup(
     name=package_name,
     description="",
@@ -173,8 +173,8 @@ setup(
     package_data={
         'comfy': package_data
     },
-    tests_require=test_dependencies,
+    tests_require=dev_dependencies,
     extras_require={
-        'test': test_dependencies
+        'dev': dev_dependencies
     },
 )

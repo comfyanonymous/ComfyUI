@@ -4,7 +4,7 @@
 
 Additional requirements for running tests:
 ```
-pip install .[test]
+pip install .[dev]
 ```
 Run inference tests:
 ```

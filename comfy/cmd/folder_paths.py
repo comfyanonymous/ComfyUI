@@ -2,12 +2,21 @@ import os
 import sys
 import time
 
+from ..cli_args import args
+
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
 
 folder_names_and_paths = {}
 
 if 'main.py' in sys.argv:
     base_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../.."))
+elif args.cwd:
+    if not os.path.exists(args.cwd):
+        try:
+            os.makedirs(args.cwd)
+        except:
+            print("Failed to create custom working directory")
+    base_path = args.cwd
 else:
     base_path = os.getcwd()
 models_dir = os.path.join(base_path, "models")
@@ -21,24 +30,18 @@ folder_names_and_paths["style_models"] = ([os.path.join(models_dir, "style_model
 folder_names_and_paths["embeddings"] = ([os.path.join(models_dir, "embeddings")], supported_pt_extensions)
 folder_names_and_paths["diffusers"] = ([os.path.join(models_dir, "diffusers")], ["folder"])
 folder_names_and_paths["vae_approx"] = ([os.path.join(models_dir, "vae_approx")], supported_pt_extensions)
-
 folder_names_and_paths["controlnet"] = ([os.path.join(models_dir, "controlnet"), os.path.join(models_dir, "t2i_adapter")], supported_pt_extensions)
 folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], supported_pt_extensions)
-
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
-
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
-
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
-
 folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
-
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
 output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
-user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
+user_directory = os.path.join(base_path, "user")
 
 filename_list_cache = {}
 
@@ -250,7 +253,7 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
         err = "**** ERROR: Saving image outside the output folder is not allowed." + \
               "\n full_output_folder: " + os.path.abspath(full_output_folder) + \
               "\n         output_dir: " + output_dir + \
-              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) 
+              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))
         print(err)
         raise Exception(err)
 

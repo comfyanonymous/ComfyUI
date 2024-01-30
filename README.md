@@ -181,7 +181,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
 
  5. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
     ```shell
-    pip install -e .[test]
+    pip install -e .[dev]
     ```
  6. To run the web server:
     ```shell
