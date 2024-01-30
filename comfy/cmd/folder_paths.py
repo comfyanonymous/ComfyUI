@@ -21,6 +21,8 @@ else:
     base_path = os.getcwd()
 models_dir = os.path.join(base_path, "models")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
+folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
+
 folder_names_and_paths["loras"] = ([os.path.join(models_dir, "loras")], supported_pt_extensions)
 folder_names_and_paths["vae"] = ([os.path.join(models_dir, "vae")], supported_pt_extensions)
 folder_names_and_paths["clip"] = ([os.path.join(models_dir, "clip")], supported_pt_extensions)
