@@ -910,6 +910,9 @@ export class GroupNodeHandler {
 		const self = this;
 		const onNodeCreated = this.node.onNodeCreated;
 		this.node.onNodeCreated = function () {
+			if (!this.widgets) {
+				return;
+			}
 			const config = self.groupData.nodeData.config;
 			if (config) {
 				for (const n in config) {
