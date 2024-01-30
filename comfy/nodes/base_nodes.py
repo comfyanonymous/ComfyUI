@@ -8,6 +8,7 @@ import random
 
 from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
+from pkg_resources import resource_filename
 import numpy as np
 import safetensors.torch
 
