@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import WebSocketR from 'reconnecting-websocket';
-import { useAuthContext } from './auth';
+import ReconnectingWebSocket from 'reconnecting-websocket';
 import { ComfyObjectInfo } from '../types/comfy';
 import {
     IComfyApi,
@@ -14,99 +13,7 @@ import {
     UserConfigResponse,
 } from '../types/api';
 import { WorkflowStep } from '../types/many';
-
-type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
-
-interface ApiContextType {
-  comfyClient: ComfyClient;
-  metadata: { [key: string]: string };
-}
-
-const ApiContext = createContext<ApiContextType | undefined>(undefined);
-
-export const useApiContext = () => {
-  const context = useContext(ApiContext);
-
-  if (!context) {
-    throw new Error('useGrpcContext must be used within a GrpcContextProvider');
-  }
-
-  return context;
-};
-
-let connectedBefore = false;
-
-export const ApiContextProvider = ({ children }: { children: ReactNode }) => {
-    const [sessionId, setSessionId] = useState<string | null>(null);
-    const [socket, setSocket] = useState<WebSocket | null>();
-    const [api_host, setApiHost] = useState<string>(location.host);
-    const [api_base, setApiBase] = useState<string>(location.pathname.split('/').slice(0, -1).join('/'));
-    const [apiEventEmitter, setApiEventEmitter] = useState<EventTarget>(new EventTarget());
-
-    // Use polling as a backup strategy incase the websocket fails to connect
-    const pollQueue = () => {
-        const intervalId = setInterval(async () => {
-            try {
-                const resp = await api.fetchApi("/prompt");
-                const status = await resp.json();
-                apiEventEmitter.dispatchEvent(new CustomEvent("status", { detail: status }));
-            } catch (error) {
-                apiEventEmitter.dispatchEvent(new CustomEvent("status", { detail: null }));
-            }
-        }, 1000);
-        // Return cleanup function
-        return () => clearInterval(intervalId);
-    }
-
-  useEffect(() => {
-    let suffix = '';
-		if (sessionId) {
-			suffix = "?clientId=" + existingSession;
-		}
-    const socket = new WebSocketR(
-			`ws${window.location.protocol === "https:" ? "s" : ""}://${api_host}${api_base}/ws${suffix}`
-		);
-        socket.binaryType = "arraybuffer";
-
-        socket.addEventListener("open", () => {
-			if (!connectedBefore) {
-				apiEventEmitter.dispatchEvent(new CustomEvent("reconnected"));
-			}
-            connectedBefore = true;
-		});
-
-        let cleanup = () => {};
-		socket.addEventListener("error", () => {
-			if (!(socket.readyState == socket.OPEN)) {
-                socket.close()
-				cleanup = pollQueue();
-			}
-		});
-
-		socket.addEventListener("close", () => {
-			setTimeout(() => {
-
-			}, 300);
-			if (connectedBefore) {
-				dispatchEvent(new CustomEvent("status", { detail: null }));
-				dispatchEvent(new CustomEvent("reconnecting"));
-			}
-		});
-
-        setSocket(socket);
-
-    return () => {
-      socket.close();
-      cleanup();
-    };
-  }, []);
-
-  return (
-    <ApiContext.Provider value={{ apiEventEmitter, sessionId }}>
-      {children}
-    </ApiContext.Provider>
-  );
-};
+import { api } from './api';
 
 export class ComfyApi extends EventTarget implements IComfyApi {
     socket: WebSocket | null = null;
