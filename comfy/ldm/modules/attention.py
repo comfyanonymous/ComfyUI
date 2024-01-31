@@ -1,12 +1,9 @@
-from inspect import isfunction
 import math
 import torch
 import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange, repeat
 from typing import Optional, Any
-from functools import partial
-
 
 from .diffusionmodules.util import checkpoint, AlphaBlender, timestep_embedding
 from .sub_quadratic_attention import efficient_dot_product_attention

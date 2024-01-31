@@ -110,6 +110,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 	createButton(name, callback) {
 		var button = document.createElement("button");
+		button.style.pointerEvents = "auto";
 		button.innerText = name;
 		button.addEventListener("click", callback);
 		return button;
@@ -146,6 +147,7 @@ class MaskEditorDialog extends ComfyDialog {
 		divElement.style.display = "flex";
 		divElement.style.position = "relative";
 		divElement.style.top = "2px";
+		divElement.style.pointerEvents = "auto";
 		self.brush_slider_input = document.createElement('input');
 		self.brush_slider_input.setAttribute('type', 'range');
 		self.brush_slider_input.setAttribute('min', '1');
@@ -173,6 +175,7 @@ class MaskEditorDialog extends ComfyDialog {
 		bottom_panel.style.left = "20px";
 		bottom_panel.style.right = "20px";
 		bottom_panel.style.height = "50px";
+		bottom_panel.style.pointerEvents = "none";
 
 		var brush = document.createElement("div");
 		brush.id = "brush";
