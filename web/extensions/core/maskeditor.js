@@ -521,6 +521,19 @@ class MaskEditorDialog extends ComfyDialog {
 			event.preventDefault();
 			self.pan_move(self, event);
 		}
+
+		let left_button_down = window.TouchEvent && event instanceof TouchEvent || event.buttons == 1;
+
+		if(event.shiftKey && left_button_down) {
+			self.drawing_mode = false;
+
+			const y = event.clientY;
+			let delta = (self.zoom_lasty - y)*0.005;
+			self.zoom_ratio = Math.max(Math.min(10.0, self.last_zoom_ratio - delta), 0.2);
+
+			this.invalidatePanZoom();
+			return;
+		}
 	}
 
 	pan_move(self, event) {
@@ -538,7 +551,7 @@ class MaskEditorDialog extends ComfyDialog {
 	}
 
 	draw_move(self, event) {
-		if(event.ctrlKey) {
+		if(event.ctrlKey || event.shiftKey) {
 			return;
 		}
 
@@ -549,7 +562,10 @@ class MaskEditorDialog extends ComfyDialog {
 
 		self.updateBrushPreview(self);
 
-		if (window.TouchEvent && event instanceof TouchEvent || event.buttons == 1) {
+		let left_button_down = window.TouchEvent && event instanceof TouchEvent || event.buttons == 1;
+		let right_button_down = [2, 5, 32].includes(event.buttons);
+
+		if (!event.altKey && left_button_down) {
 			var diff = performance.now() - self.lasttime;
 
 			const maskRect = self.maskCanvas.getBoundingClientRect();
@@ -616,7 +632,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 			self.lasttime = performance.now();
 		}
-		else if(event.buttons == 2 || event.buttons == 5 || event.buttons == 32) {
+		else if((event.altKey && left_button_down) || right_button_down) {
 			const maskRect = self.maskCanvas.getBoundingClientRect();
 			const x = (event.offsetX || event.targetTouches[0].clientX - maskRect.left) / self.zoom_ratio;
 			const y = (event.offsetY || event.targetTouches[0].clientY - maskRect.top) / self.zoom_ratio;
@@ -690,12 +706,19 @@ class MaskEditorDialog extends ComfyDialog {
 			self.drawing_mode = true;
 
 			event.preventDefault();
+
+			if(event.shiftKey) {
+				self.zoom_lasty = event.clientY;
+				self.last_zoom_ratio = self.zoom_ratio;
+				return;
+			}
+
 			const maskRect = self.maskCanvas.getBoundingClientRect();
 			const x = (event.offsetX || event.targetTouches[0].clientX - maskRect.left) / self.zoom_ratio;
 			const y = (event.offsetY || event.targetTouches[0].clientY - maskRect.top) / self.zoom_ratio;
 
 			self.maskCtx.beginPath();
-			if (event.button == 0) {
+			if (!event.altKey && event.button == 0) {
 				self.maskCtx.fillStyle = "rgb(0,0,0)";
 				self.maskCtx.globalCompositeOperation = "source-over";
 			} else {
