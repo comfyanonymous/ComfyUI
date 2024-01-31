@@ -1912,7 +1912,10 @@ def node_info(node_class):
         info['category'] = obj_class.CATEGORY
     return info
 
+from  scanner.analyze_node_input import analyze_class
+
 def load_custom_nodes():
+    print('🤔 load cusotm nodes')
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -1935,8 +1938,9 @@ def load_custom_nodes():
                 for name in NODE_CLASS_MAPPINGS:
                     if name not in prev_nodes:
                         print("✅imported node:",name, "from:", possible_module)
+                        paths = analyze_class(NODE_CLASS_MAPPINGS[name])
                         node_def = node_info(name)
-                        data = {"node_type": name, "node_def": node_def}
+                        data = {"node_type": name, "node_def": node_def, "folder_paths": paths}
                         # Writing JSON string to a file
                         json_string = json.dumps(data)
                         file.write(json_string + '\n')  # Adding newline character for each JSON string
