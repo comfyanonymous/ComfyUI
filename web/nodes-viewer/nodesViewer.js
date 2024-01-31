@@ -10,6 +10,7 @@ const ext = {
 		app.canvasEl.addEventListener("click", (e)=> {
 			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );
 			console.log("clicked node", node.type);
+			window.parent.postMessage({ type: "onClickNodeEvent", nodeType: node.type }, window.location.origin);
 		});
 		app.canvasEl.addEventListener("mousemove", (e)=> {
 			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );		

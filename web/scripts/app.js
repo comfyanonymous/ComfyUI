@@ -1733,7 +1733,7 @@ export class ComfyApp {
 	const totalHeightRequired = currentPosition[1] + maxHeightInRow + rowGap; // Add one more rowGap for bottom padding
 	var message = { type: 'updateCanvasHeight', height: totalHeightRequired };
 	// Send the message to the parent window
-	window.parent.postMessage(message, window.location.origin);  // Replace '*' with the parent domain for security
+	window.parent.postMessage(message, window.location.origin); 
 	// Adjust canvas height to fit all nodes
 
 	// to disable mousewheel zooming but not working
