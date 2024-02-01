@@ -1,5 +1,5 @@
 import { ComfyApp } from '../scripts/app';
-import { ComfyNode } from '../scripts/comfyNode';
+import { ComfyNode } from '../litegraph/comfyNode';
 import { ComfyExtension } from '../types/comfy';
 
 const ext: ComfyExtension = {

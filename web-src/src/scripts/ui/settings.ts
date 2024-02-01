@@ -1,5 +1,5 @@
 import { $el } from '../utils2';
-import { api } from '../../context/api';
+import { api } from '../api';
 import { ComfyDialog } from './comfyDialog';
 
 interface IAddSetting {

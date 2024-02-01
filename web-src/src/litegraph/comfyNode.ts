@@ -1,14 +1,14 @@
 import { LGraphNode, LiteGraph, Vector2 } from 'litegraph.js';
-import { ComfyNodeConfig, ComfyObjectInfo } from '../types/comfy';
-import { api } from '../context/api.tsx';
-import { $el } from './utils';
-import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from './helpers';
-import { calculateImageGrid, createImageHost } from './ui/imagePreview';
-import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget';
-import { AddDOMWidgetOptions, IComfyApp, IComfyNode } from '../types/interfaces';
-import { clipspace } from './clipspace.ts';
-import { app, ComfyApp } from './app.ts';
-import { extensionManager } from './extensionManager.ts';
+import { ComfyNodeConfig, ComfyObjectInfo } from '../types/comfy.ts';
+import { api } from '../scripts/api.tsx';
+import { $el } from '../scripts/utils.ts';
+import { calculateGrid, getImageTop, is_all_same_aspect_ratio } from '../scripts/helpers.ts';
+import { calculateImageGrid, createImageHost } from '../scripts/ui/imagePreview.js';
+import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.ts';
+import { AddDOMWidgetOptions, IComfyApp, IComfyNode } from '../types/interfaces.ts';
+import { clipspace } from '../scripts/clipspace.ts';
+import { app, ComfyApp } from '../scripts/app.ts';
+import { extensionManager } from '../scripts/extensionManager2.ts';
 
 interface Point {
     x: number;

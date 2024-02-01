@@ -1,20 +1,20 @@
-import {useExtensionManager} from "../context/extensionManager.tsx";
-import {api} from "../context/api.tsx";
-import {ComfyNode} from "../scripts/comfyNode.ts";
-import {extensionManager} from "../scripts/extensionManager.ts";
-import {ComfyObjectInfo} from "../types/comfy.ts";
-import {widgetState} from "../scripts/widgetFactory.ts";
-import {LiteGraph} from 'litegraph.js';
+import { useExtensionManager } from '../context/extensionManager.tsx';
+import { api } from '../scripts/api.tsx';
+import { ComfyNode } from '../litegraph/comfyNode.ts';
+import { extensionManager } from '../scripts/extensionManager2.ts';
+import { ComfyObjectInfo } from '../types/comfy.ts';
+import { widgetState } from '../litegraph/widgetFactory.ts';
+import { LiteGraph } from 'litegraph.js';
 
 export function useRegisterNodes() {
-    const {invokeExtensionsAsync} = useExtensionManager()
+    const { invokeExtensionsAsync } = useExtensionManager();
 
     const registerNodes = async () => {
         // Load node definitions from the backend
         const defs = await api.getNodeDefs();
         await registerNodesFromDefs(defs);
         await invokeExtensionsAsync('registerCustomNodes');
-    }
+    };
 
     // Register a node class so it can be listed when we want to create a new one
     const registerNodeDef = async (nodeId: string, nodeData: any) => {
@@ -38,7 +38,7 @@ export function useRegisterNodes() {
         await extensionManager.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
 
         LiteGraph.registerNodeType(nodeId, comfyNodeConstructor);
-    }
+    };
 
     const registerNodesFromDefs = async (defs: Record<string, ComfyObjectInfo>) => {
         await extensionManager.invokeExtensionsAsync('addCustomNodeDefs', defs);
@@ -50,11 +50,11 @@ export function useRegisterNodes() {
         for (const nodeId in defs) {
             await registerNodeDef(nodeId, defs[nodeId]);
         }
-    }
+    };
 
     return {
         registerNodes,
         registerNodeDef,
-        registerNodesFromDefs
-    }
+        registerNodesFromDefs,
+    };
 }

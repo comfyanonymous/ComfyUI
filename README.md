@@ -94,3 +94,15 @@ If you'd be interested in licensing this commercially, message me at paul@fidika
 ### To Fix
 
 - For now, I had to comment-out the the logging settings option
+
+### Comfy Creator Extensions
+
+Comfy Creator is designed to be extensible; anyone can build and publish an extensions. Terminology:
+
+- Extension: a pip-package or git-repo that extends functionality
+
+- Custom Nodes: a new node-type registered with LiteGraph; either by defining it in the the server (python) or by the front-end (Tyepscript / JS).. After being registered, it can be instantiated as needed.
+
+- Custom Widgets: widgets are input boxes that exist inside of nodes; they are a concept handled by LiteGraph. You can register new widget-types with LiteGraph.
+
+- Plugin: custom code that runs in the front-end (client). Extensions can have many plugins.

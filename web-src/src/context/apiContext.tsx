@@ -1,26 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import ReconnectingWebSocket from 'reconnecting-websocket';
-import { api } from './api';
-
-type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
+import { api } from '../scripts/api';
+import { createUseContextHook } from './hookCreator';
 
 interface ApiContextType {
     ApiEventEmitter: EventTarget;
-    apiStatus: string | null;
+    apiStatus: string;
     sessionId: string | null;
 }
-
-const ApiContext = createContext<ApiContextType | undefined>(undefined);
-
-export const useApiContext = () => {
-    const context = useContext(ApiContext);
-
-    if (!context) {
-        throw new Error('useGrpcContext must be used within a GrpcContextProvider');
-    }
-
-    return context;
-};
 
 enum ApiStatus {
     CONNECTING = 'connecting',
@@ -29,6 +16,10 @@ enum ApiStatus {
     CLOSED = 'closed',
 }
 
+const ApiContext = createContext<ApiContextType | undefined>(undefined);
+export const useApiContext = createUseContextHook(ApiContext, 'useApiContext must be used within a ApiContextProvider');
+
+// Non-react component
 const ApiEventEmitter = new EventTarget();
 
 // Use polling as a backup strategy incase the websocket fails to connect
@@ -53,7 +44,7 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
     const [api_host, setApiHost] = useState<string>(location.host);
     const [api_base, setApiBase] = useState<string>(location.pathname.split('/').slice(0, -1).join('/'));
     // const [apiEventEmitter, _] = useState<EventTarget>(new EventTarget());
-    const [apiStatus, setApiStatus] = useState<string | null>(ApiStatus.CLOSED);
+    const [apiStatus, setApiStatus] = useState<string>(ApiStatus.CLOSED);
 
     useEffect(() => {
         let suffix = '';

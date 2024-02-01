@@ -1,9 +1,9 @@
-import {createContext, ReactNode, useContext, useState} from "react";
-import type {ComfyGraph} from "../scripts/comfyGraph.ts";
-import {SerializedNodeObject} from "../types/interfaces.ts";
-import type {ComfyNode} from "../scripts/comfyNode.ts";
-import {ComfyFile} from "../types/many.ts";
-import type {ComfyWidget} from "../types/comfyWidget.ts";
+import { createContext, ReactNode, useContext, useState } from 'react';
+import type { ComfyGraph } from '../litegraph/comfyGraph.ts';
+import { SerializedNodeObject } from '../types/interfaces.ts';
+import type { ComfyNode } from '../litegraph/comfyNode.ts';
+import { ComfyFile } from '../types/many.ts';
+import type { ComfyWidget } from '../types/comfyWidget.ts';
 
 interface ClipspaceContextType {
     graph: ComfyGraph | null;
@@ -14,37 +14,39 @@ interface ClipspaceContextType {
 
 type ClipspaceInvalidateHandler = () => void;
 
-const ClipspaceContext = createContext<ClipspaceContextType | null>(null)
+const ClipspaceContext = createContext<ClipspaceContextType | null>(null);
 
 export function useClipspace() {
     const context = useContext(ClipspaceContext);
     if (!context) {
-        throw new Error("useClipspace must be used within a ClipspaceProvider");
+        throw new Error('useClipspace must be used within a ClipspaceProvider');
     }
 
-    return context
+    return context;
 }
 
-export function ClipspaceProvider({children}: { children: ReactNode }) {
+export function ClipspaceProvider({ children }: { children: ReactNode }) {
     const [graph, setGraph] = useState<ComfyGraph | null>(null);
     const [clipspace, setClipspace] = useState<SerializedNodeObject | null>(null);
     const [clipspaceReturnNode, setClipspaceReturnNode] = useState<ComfyNode | null>(null);
-    const [clipspaceInvalidateHandler, setClipspaceInvalidateHandler] = useState<ClipspaceInvalidateHandler | null>(null);
+    const [clipspaceInvalidateHandler, setClipspaceInvalidateHandler] = useState<ClipspaceInvalidateHandler | null>(
+        null
+    );
 
     const onClipspaceEditorSave = () => {
         if (clipspaceReturnNode) {
             pasteFromClipspace(clipspaceReturnNode);
         }
-    }
+    };
 
     const onClipspaceEditorClosed = () => {
         setClipspaceReturnNode(null);
-    }
+    };
 
     const copyToClipspace = (node: ComfyNode) => {
         let widgets = null;
         if (node.widgets) {
-            widgets = node.widgets.map(({type, name, value}) => ({
+            widgets = node.widgets.map(({ type, name, value }) => ({
                 type,
                 name,
                 value,
@@ -78,16 +80,16 @@ export function ClipspaceProvider({children}: { children: ReactNode }) {
             img_paste_mode: 'selected', // reset to default imf_paste_mode state on copy action
         };
 
-        setClipspace((prev) => ({
+        setClipspace(prev => ({
             ...prev,
-            ...newClipspace
+            ...newClipspace,
         }));
-        setClipspaceReturnNode(null)
+        setClipspaceReturnNode(null);
 
         if (clipspaceInvalidateHandler) {
             clipspaceInvalidateHandler();
         }
-    }
+    };
 
     const pasteFromClipspace = (node: ComfyNode, outputs: Record<string, any> = {}) => {
         if (clipspace) {
@@ -141,7 +143,7 @@ export function ClipspaceProvider({children}: { children: ReactNode }) {
                     }
                 }
                 if (clipspace.widgets) {
-                    clipspace.widgets.forEach(({type, name, value}) => {
+                    clipspace.widgets.forEach(({ type, name, value }) => {
                         const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
                         if (prop && prop.type != 'button') {
                             value = value as ComfyFile;
@@ -161,7 +163,7 @@ export function ClipspaceProvider({children}: { children: ReactNode }) {
 
             graph?.setDirtyCanvas(true, true);
         }
-    }
+    };
 
     return (
         <ClipspaceContext.Provider
@@ -170,8 +172,9 @@ export function ClipspaceProvider({children}: { children: ReactNode }) {
                 clipspace,
                 clipspaceReturnNode,
                 setClipspaceInvalidateHandler,
-            }}>
+            }}
+        >
             {children}
         </ClipspaceContext.Provider>
-    )
+    );
 }

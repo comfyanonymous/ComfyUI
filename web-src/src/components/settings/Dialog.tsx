@@ -1,6 +1,6 @@
-import React, {useEffect, useState} from 'react';
-import {app} from "../../scripts/app.ts";
-import {api} from "../../context/api.tsx";
+import React, { useEffect, useState } from 'react';
+import { app } from '../../scripts/app.ts';
+import { api } from '../../scripts/api.tsx';
 
 interface IAddSetting {
     id: string;
@@ -15,7 +15,7 @@ interface IAddSetting {
 
 enum StorageLocation {
     Browser = 'browser',
-    Server = 'server'
+    Server = 'server',
 }
 
 export function ComfySettingsDialog() {
@@ -43,7 +43,7 @@ export function ComfySettingsDialog() {
     }, [settingsLookup]);
 
     const setSettingValue = async (id: string, value: any) => {
-        const values = {...settingsValues, [id]: value};
+        const values = { ...settingsValues, [id]: value };
         setSettingsValues(values);
 
         if (id in settingsLookup) {
@@ -59,7 +59,7 @@ export function ComfySettingsDialog() {
         }
 
         return id;
-    }
+    };
 
     const getSettingValue = (id: string, defaultValue?: any) => {
         let value = settingsValues[getId(id)];
@@ -68,25 +68,24 @@ export function ComfySettingsDialog() {
                 try {
                     value = JSON.parse(value);
                 } catch (error) {
-                    console.log("An error occurred while parsing the setting value", {error});
+                    console.log('An error occurred while parsing the setting value', { error });
                 }
             }
         }
 
         return value ?? defaultValue;
-    }
-
+    };
 
     const addSetting = ({
-                            id,
-                            name,
-                            type,
-                            defaultValue,
-                            onChange,
-                            attrs = {},
-                            tooltip = '',
-                            options = []
-                        }: IAddSetting) => {
+        id,
+        name,
+        type,
+        defaultValue,
+        onChange,
+        attrs = {},
+        tooltip = '',
+        options = [],
+    }: IAddSetting) => {
         let value = settingsValues[id];
         if (value == null) {
             value = defaultValue;
@@ -114,131 +113,140 @@ export function ComfySettingsDialog() {
     };
 
     return (
-        <dialog id={"comfy-settings-dialog"}>
-            <table className={"comfy-modal-content comfy-table"}>
+        <dialog id={'comfy-settings-dialog'}>
+            <table className={'comfy-modal-content comfy-table'}>
                 <caption>Settings</caption>
                 <tbody>
-                {Object.values(settingsLookup).map((setting: any) => {
-                    const {id, name, type, defaultValue, attrs, tooltip, options} = setting;
-                    const value = getSettingValue(id, defaultValue);
-                    let input;
-                    switch (type) {
-                        case 'boolean':
-                            input = (
-                                <input
-                                    type={"checkbox"}
-                                    checked={value}
-                                    onChange={(event) => {
-                                        setSettingValue(id, event.target.checked);
-                                    }}
-                                    {...attrs}/>
-                            );
-                            break;
-                        case 'select':
-                            input = (
-                                <select
-                                    value={value}
-                                    onChange={(event) => {
-                                        setSettingValue(id, event.target.value);
-                                    }}
-                                    {...attrs}>
-                                    {options.map((option: any) => {
-                                        const {value, label} = option;
-                                        return (
-                                            <option key={value} value={value}>
-                                                {label}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
-                            );
-                            break;
-                        case 'slider':
-                            input = (
-                                <>
+                    {Object.values(settingsLookup).map((setting: any) => {
+                        const { id, name, type, defaultValue, attrs, tooltip, options } = setting;
+                        const value = getSettingValue(id, defaultValue);
+                        let input;
+                        switch (type) {
+                            case 'boolean':
+                                input = (
                                     <input
+                                        type={'checkbox'}
+                                        checked={value}
+                                        onChange={event => {
+                                            setSettingValue(id, event.target.checked);
+                                        }}
                                         {...attrs}
+                                    />
+                                );
+                                break;
+                            case 'select':
+                                input = (
+                                    <select
                                         value={value}
-                                        type="range"
                                         onChange={event => {
                                             setSettingValue(id, event.target.value);
                                         }}
-                                    />
-                                    <input  {...attrs}
+                                        {...attrs}
+                                    >
+                                        {options.map((option: any) => {
+                                            const { value, label } = option;
+                                            return (
+                                                <option key={value} value={value}>
+                                                    {label}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                );
+                                break;
+                            case 'slider':
+                                input = (
+                                    <>
+                                        <input
+                                            {...attrs}
+                                            value={value}
+                                            type="range"
+                                            onChange={event => {
+                                                setSettingValue(id, event.target.value);
+                                            }}
+                                        />
+                                        <input
+                                            {...attrs}
                                             value={value}
                                             id={id}
                                             type="number"
-                                            style={{maxWidth: '4rem'}}
-                                            onInput={(event) => {
-                                                setSettingValue(id, (event.target as HTMLInputElement).value)
+                                            style={{ maxWidth: '4rem' }}
+                                            onInput={event => {
+                                                setSettingValue(id, (event.target as HTMLInputElement).value);
                                             }}
+                                        />
+                                    </>
+                                );
+                                break;
+                            case 'number':
+                                input = (
+                                    <input
+                                        type={'number'}
+                                        value={value}
+                                        onChange={event => {
+                                            setSettingValue(id, event.target.value);
+                                        }}
+                                        {...attrs}
                                     />
-                                </>
-                            )
-                            break;
-                        case 'number':
-                            input = (
-                                <input
-                                    type={"number"}
-                                    value={value}
-                                    onChange={(event) => {
-                                        setSettingValue(id, event.target.value);
-                                    }}
-                                    {...attrs}/>
-                            );
-                            break;
-                        case 'text':
-                            input = (
-                                <input
-                                    type={"text"}
-                                    value={value}
-                                    onChange={(event) => {
-                                        setSettingValue(id, event.target.value);
-                                    }}
-                                    {...attrs}/>
-                            );
-                            break;
-                        case 'textarea':
-                            input = (
-                                <textarea
-                                    value={value}
-                                    onChange={(event) => {
-                                        setSettingValue(id, event.target.value);
-                                    }}
-                                    {...attrs}/>
-                            );
-                            break;
-                        default:
-                            input = (
-                                <input
-                                    type={"text"}
-                                    value={value}
-                                    onChange={(event) => {
-                                        setSettingValue(id, event.target.value);
-                                    }}
-                                    {...attrs}/>
-                            );
-                            break;
-                    }
+                                );
+                                break;
+                            case 'text':
+                                input = (
+                                    <input
+                                        type={'text'}
+                                        value={value}
+                                        onChange={event => {
+                                            setSettingValue(id, event.target.value);
+                                        }}
+                                        {...attrs}
+                                    />
+                                );
+                                break;
+                            case 'textarea':
+                                input = (
+                                    <textarea
+                                        value={value}
+                                        onChange={event => {
+                                            setSettingValue(id, event.target.value);
+                                        }}
+                                        {...attrs}
+                                    />
+                                );
+                                break;
+                            default:
+                                input = (
+                                    <input
+                                        type={'text'}
+                                        value={value}
+                                        onChange={event => {
+                                            setSettingValue(id, event.target.value);
+                                        }}
+                                        {...attrs}
+                                    />
+                                );
+                                break;
+                        }
 
-                    return (
-                        <tr key={id}>
-                            <td>
-                                {name}
-                                {tooltip && (
-                                    <span className={"comfy-tooltip"}>
-                                        <span className={"comfy-tooltip-text"}>{tooltip}</span>
-                                    </span>
-                                )}
-                            </td>
-                            <td>{input}</td>
-                        </tr>
-                    );
-                })}
+                        return (
+                            <tr key={id}>
+                                <td>
+                                    {name}
+                                    {tooltip && (
+                                        <span className={'comfy-tooltip'}>
+                                            <span className={'comfy-tooltip-text'}>{tooltip}</span>
+                                        </span>
+                                    )}
+                                </td>
+                                <td>{input}</td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
 
-                <button type={"button"} style={{cursor: "pointer"}} onClick={() => setVisible(false)}>Close</button>
+                <button type={'button'} style={{ cursor: 'pointer' }} onClick={() => setVisible(false)}>
+                    Close
+                </button>
             </table>
         </dialog>
     );
-};
+}

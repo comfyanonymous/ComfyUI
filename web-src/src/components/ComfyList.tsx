@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../context/api.tsx';
+import { api } from '../scripts/api.tsx';
 
 const ComfyList = ({ text, type, reverse }) => {
     const [visible, setVisible] = useState(false);

@@ -1,4 +1,4 @@
-import { api } from '../context/api.js';
+import { api } from './api.js';
 import { ComfyDialog } from './ui/comfyDialog.js';
 import { ComfySettingsDialog } from './ui/settings.js';
 import { toggleSwitch } from './ui/toggleSwitch.js';

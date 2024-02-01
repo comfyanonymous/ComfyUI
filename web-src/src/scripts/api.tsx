@@ -15,6 +15,8 @@ import {
 import { WorkflowStep } from '../types/many';
 import { api } from './api';
 
+type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
+
 export class ComfyApi extends EventTarget implements IComfyApi {
     socket: WebSocket | null = null;
     api_host: string;

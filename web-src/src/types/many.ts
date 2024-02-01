@@ -1,5 +1,5 @@
-import {ComfyApp} from "../scripts/app.ts";
-import {ComfyGraph} from "../scripts/comfyGraph.ts";
+import { ComfyApp } from '../scripts/app.ts';
+import { ComfyGraph } from '../litegraph/comfyGraph.ts';
 
 declare global {
     interface Window {
@@ -22,8 +22,6 @@ declare global {
         localName: string;
         className: string;
     }
-
-
 }
 
 export interface ComfyError extends Error {

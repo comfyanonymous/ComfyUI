@@ -1,18 +1,30 @@
-// This module is used to register new custom-nodes to be used by LiteGraph.
+// In order to instantiate a node in LiteGraph, it must be defined (registered) with
+// LiteGraph first.
 
 import { LiteGraph } from 'litegraph.js';
-import { extensionManager } from './extensionManager';
+import { extensionManager } from '../scripts/extensionManager2';
 import { ComfyNode } from './comfyNode';
 import { widgetState } from './widgetFactory';
 import { ComfyObjectInfo } from '../types/comfy';
-import { api } from '../context/api';
+import { api } from '../scripts/api';
 
-/** Registers nodes with the graph */
+/** Load node-definitions from the server and register them */
 export async function registerNodes() {
-    // Load node definitions from the backend
     const defs = await api.getNodeDefs();
     await registerNodesFromDefs(defs);
     await extensionManager.invokeExtensionsAsync('registerCustomNodes');
+}
+
+export async function registerNodesFromDefs(defs: Record<string, ComfyObjectInfo>) {
+    await extensionManager.invokeExtensionsAsync('addCustomNodeDefs', defs);
+
+    // Refresh list of known widgets
+    await widgetState.refresh();
+
+    // Register a node for each definition
+    for (const nodeId in defs) {
+        registerNodeDef(nodeId, defs[nodeId]);
+    }
 }
 
 // Register a node class so it can be listed when we want to create a new one
@@ -37,16 +49,4 @@ export async function registerNodeDef(nodeId: string, nodeData: any) {
     await extensionManager.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
 
     LiteGraph.registerNodeType(nodeId, comfyNodeConstructor);
-}
-
-export async function registerNodesFromDefs(defs: Record<string, ComfyObjectInfo>) {
-    await extensionManager.invokeExtensionsAsync('addCustomNodeDefs', defs);
-
-    // Refresh list of known widgets
-    await widgetState.refresh();
-
-    // Register a node for each definition
-    for (const nodeId in defs) {
-        registerNodeDef(nodeId, defs[nodeId]);
-    }
 }

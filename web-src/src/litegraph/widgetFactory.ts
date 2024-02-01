@@ -1,12 +1,12 @@
 // "Widgets" are input-fields that can exist inside of nodes. This module allows the creation of
 // new widget-types, and manages their state.
 
-import { api } from '../context/api.js';
+import { api } from '../scripts/api.js';
 import './domWidget.js';
 import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.js';
 import { ComfyNode } from './comfyNode.js';
 import { ComfyFile } from '../types/many.js';
-import { extensionManager } from './extensionManager.js';
+import { extensionManager } from '../scripts/extensionManager2.js';
 import { GetCustomWidgetResponse } from '../types/interfaces.js';
 
 interface WidgetReturnType {

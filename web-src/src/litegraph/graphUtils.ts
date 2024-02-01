@@ -1,7 +1,7 @@
 // These are utils that operate on an `app instance`
 
 import { ComfyGraph } from './comfyGraph.js';
-import { formatDate } from './utils.js';
+import { formatDate } from '../scripts/utils.js';
 
 export function applyTextReplacements(graph: ComfyGraph, value: string) {
     return value.replace(/%([^%]+)%/g, function (match, text) {

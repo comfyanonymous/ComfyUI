@@ -1,8 +1,8 @@
-import {IComfyClipspace, SerializedNodeObject} from "../types/interfaces.ts";
-import type {ComfyWidget} from "../types/comfyWidget.ts";
-import type {ComfyGraph} from "./comfyGraph.ts";
-import type {ComfyNode} from "./comfyNode.ts";
-import {ComfyFile} from "../types/many.ts";
+import { IComfyClipspace, SerializedNodeObject } from '../types/interfaces.ts';
+import type { ComfyWidget } from '../types/comfyWidget.ts';
+import type { ComfyGraph } from '../litegraph/comfyGraph.ts';
+import type { ComfyNode } from '../litegraph/comfyNode.ts';
+import { ComfyFile } from '../types/many.ts';
 
 export class ComfyClipspace implements IComfyClipspace {
     private static _instance: ComfyClipspace;
@@ -14,7 +14,6 @@ export class ComfyClipspace implements IComfyClipspace {
 
     clipspace_invalidate_handler: (() => void) | null;
     openClipspace?: () => void;
-
 
     private constructor() {
         this.graph = null;
@@ -44,7 +43,7 @@ export class ComfyClipspace implements IComfyClipspace {
     copyToClipspace(node: ComfyNode) {
         let widgets = null;
         if (node.widgets) {
-            widgets = node.widgets.map(({type, name, value}) => ({
+            widgets = node.widgets.map(({ type, name, value }) => ({
                 type,
                 name,
                 value,
@@ -137,7 +136,7 @@ export class ComfyClipspace implements IComfyClipspace {
                     }
                 }
                 if (this.clipspace.widgets) {
-                    this.clipspace.widgets.forEach(({type, name, value}) => {
+                    this.clipspace.widgets.forEach(({ type, name, value }) => {
                         const prop = Object.values(node.widgets).find(obj => obj.type === type && obj.name === name);
                         if (prop && prop.type != 'button') {
                             value = value as ComfyFile;

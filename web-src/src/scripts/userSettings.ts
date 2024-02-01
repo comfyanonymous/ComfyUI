@@ -1,6 +1,6 @@
 import { $el } from './utils.ts';
 import { IComfyUserSettings } from '../types/interfaces.ts';
-import { api } from '../context/api.tsx';
+import { api } from './api.tsx';
 
 export class ComfyUserSettings implements IComfyUserSettings {
     private static instance: ComfyUserSettings;

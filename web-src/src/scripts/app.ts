@@ -1,17 +1,17 @@
 import { $el, sanitizeNodeName } from './utils';
-import { ComfyApi } from '../context/api.tsx';
+import { ComfyApi } from './api.tsx';
 import { defaultGraph } from './defaultGraph';
 import { getLatentMetadata, getPngMetadata, getWebpMetadata, importA1111 } from './pnginfo';
 import { LiteGraph } from 'litegraph.js';
-import { ComfyCanvas } from './comfyCanvas';
-import { ComfyGraph } from './comfyGraph';
-import { addDomClippingSetting, ComfyNode } from './comfyNode';
+import { ComfyCanvas } from '../litegraph/comfyCanvas.ts';
+import { ComfyGraph } from '../litegraph/comfyGraph.ts';
+import { addDomClippingSetting, ComfyNode } from '../litegraph/comfyNode.ts';
 import { ComfyError, ComfyProgress, ComfyPromptError, TemplateData } from '../types/many';
 import { ComfyExtension, IComfyApp, IComfyCanvas, IComfyGraph } from '../types/interfaces';
 import { IComfyApi } from '../types/api';
-import { extensionManager } from './extensionManager';
+import { extensionManager } from './extensionManager2.ts';
 import { logging } from './logging';
-import { registerNodeDef } from './registerNodes';
+import { registerNodeDef } from '../litegraph/registerNodes.ts';
 import { userSettings } from './userSettings.ts';
 
 // Make LiteGraph globally avaialble to legacy custom-nodes by attaching it to the window object

@@ -1,7 +1,7 @@
 // This class tracks state of the job-queue, and provides methods to add or remove jobs from it
 
 import { useEffect, useState, ReactNode } from 'react';
-import { ComfyCanvas } from '../scripts/comfyCanvas';
+import { ComfyCanvas } from '../litegraph/comfyCanvas';
 
 export type QueueItem = {
     number: number;
