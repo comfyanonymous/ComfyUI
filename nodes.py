@@ -1914,6 +1914,17 @@ def node_info(node_class):
 
 from  scanner.analyze_node_input import analyze_class
 
+
+def custom_serializer(obj):
+    """Convert non-serializable objects."""
+    if isinstance(obj, (list, tuple, set)):
+        return list(obj)  # Convert tuples and sets to lists
+    elif isinstance(obj, dict):
+        # Recursively apply to dictionary entries
+        return {str(key): custom_serializer(value) for key, value in obj.items()}
+    else:
+        return obj
+
 def load_custom_nodes():
     print('🤔 load cusotm nodes')
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
@@ -1936,14 +1947,20 @@ def load_custom_nodes():
                 json_string = json.dumps({"import_success": success,"nodes_count":nodes_count, "import_time": time.perf_counter() - time_before})
                 file.write(json_string + '\n')  # Adding newline character for each JSON string
                 for name in NODE_CLASS_MAPPINGS:
-                    if name not in prev_nodes:
-                        print("✅imported node:",name, "from:", possible_module)
-                        paths = analyze_class(NODE_CLASS_MAPPINGS[name])
-                        node_def = node_info(name)
-                        data = {"node_type": name, "node_def": node_def, "folder_paths": paths}
-                        # Writing JSON string to a file
-                        json_string = json.dumps(data)
-                        file.write(json_string + '\n')  # Adding newline character for each JSON string
+                    try:
+                        if name not in prev_nodes: 
+                            paths = analyze_class(NODE_CLASS_MAPPINGS[name])
+                            node_def = node_info(name)
+                            data = {"node_type": name, "node_def": node_def, "folder_paths": paths}
+                            print("✅imported node: data",data)
+                            # Writing JSON string to a file
+                            
+                            json_string = json.dumps(data, default=custom_serializer)
+                            print("✅imported node: json_string",json_string)
+                            file.write(json_string + '\n')  # Adding newline character for each JSON string
+                    except Exception as e:
+                        print("❌analyze imported node: error",e)
+                        
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
