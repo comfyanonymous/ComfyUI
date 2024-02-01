@@ -2,13 +2,14 @@ import './App.css';
 import { useEffect, useRef } from 'react';
 import { app } from './scripts/app';
 import { api } from './scripts/api';
+import { mountLiteGraph } from './scripts/main';
 
 function App() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
         if (canvasRef.current) {
-            app.setup(canvasRef.current, api);
+            mountLiteGraph(canvasRef.current);
         }
     }, []);
 
