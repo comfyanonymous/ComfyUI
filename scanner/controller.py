@@ -95,6 +95,7 @@ def run_main_py_and_wait(package_data:dict):
         # Create package and node in DynamoDB
         package = create_pacakge_ddb(package_data)
         print(f"📦package: {package['title']}")
+        totalCount = 0 
         with open(communication_file, 'r') as file:
              for line in file:
                 try:
@@ -108,6 +109,7 @@ def run_main_py_and_wait(package_data:dict):
                             'gitHtmlUrl': package_data['reference'],
                             'packageID': package['id']
                         })
+                        totalCount += 1
                 except json.JSONDecodeError as e:
                     print(f"Error decoding JSON: {e}")
         

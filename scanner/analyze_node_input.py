@@ -45,14 +45,25 @@ def analyze_class(cls):
                 stripped_param = param.strip("\"'")
                 abs_path  = folder_paths.folder_names_and_paths.get(stripped_param, None)
                 print('abs_path',abs_path)
+                relative_string = fix_paths(abs_path[0])
                 mo_paths[key_name] = {
-                    'abs_path':[abs_path[0],abs_path[1]],
+                    'abs_path':[relative_string, abs_path[1]],
                     'folder_name':stripped_param,
                 }
             except Exception as e:
                 return f"Error adding path: {e}"
         print('111111111paths',mo_paths)
         return custom_serializer(mo_paths)
+
+def fix_paths(paths):
+    fixed_paths = []
+    for path in paths:
+        # Split path and replace "comfyui-fork" with "comfyui"
+        split_string = path.split("comfyui-fork/")[-1]
+        # Form the new string with "comfyui/" prefix
+        new_string = f"comfyui/{split_string}"
+        fixed_paths.append(new_string)
+    return fixed_paths
 
 def custom_serializer(data):
     if isinstance(data, dict):
