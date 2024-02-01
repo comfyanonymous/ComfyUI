@@ -46,10 +46,24 @@ def analyze_class(cls):
                 abs_path  = folder_paths.folder_names_and_paths.get(stripped_param, None)
                 print('abs_path',abs_path)
                 mo_paths[key_name] = {
-                    'abs_path':abs_path,
+                    'abs_path':[abs_path[0],abs_path[1]],
                     'folder_name':stripped_param,
                 }
             except Exception as e:
                 return f"Error adding path: {e}"
         print('111111111paths',mo_paths)
-        return mo_paths
+        return custom_serializer(mo_paths)
+
+def custom_serializer(data):
+    if isinstance(data, dict):
+        # Recursively convert keys/values
+        return {custom_serializer(key): custom_serializer(value) for key, value in data.items()}
+    elif isinstance(data, tuple):
+        # Convert tuples to lists
+        return [custom_serializer(item) for item in data]
+    elif isinstance(data, list):
+        # Recursively apply to lists
+        return [custom_serializer(item) for item in data]
+    else:
+        # For everything else, return as is (assuming it's serializable)
+        return data

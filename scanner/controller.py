@@ -178,6 +178,7 @@ def get_node_ddb(id:str):
     except Exception as e:
         print("Error getting node item from DynamoDB:", e)
 def create_node_dydb(data):
+    print('!!!!create_node_dydb',data)
     try:
         node_type = data['nodeType']
         node_def = data['nodeDef']
@@ -199,7 +200,7 @@ def create_node_dydb(data):
             'gitHtmlUrl': repo_url,
         }
         response = ddb_node_table.put_item(Item=item)
-        # print("👌ddb node item added:", item)
+        print("👌ddb node item added:", item)
 
     except Exception as e:
         print("Error adding node item to DynamoDB:", e)
@@ -215,7 +216,7 @@ def process_json(file_path):
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
-            for index, node in enumerate(data["custom_nodes"][15:18]):
+            for index, node in enumerate(data["custom_nodes"][15:16]):
                 print(f"🗂️🗂️No.{index} files", node['files'])
                 repo = node['reference']
                 if 'github' not in repo:
