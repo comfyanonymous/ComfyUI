@@ -45,3 +45,18 @@ export function applyTextReplacements(graph: ComfyGraph, value: string) {
         return ((widget.value ?? '') + '').replaceAll(/\/|\\/g, '_');
     });
 }
+
+export const loadWorkflow = async (): Promise<boolean> => {
+    try {
+        const json = localStorage.getItem('workflow');
+        if (json) {
+            const workflow = JSON.parse(json);
+            await this.loadGraphData(workflow);
+            return true;
+        }
+    } catch (err) {
+        console.error('Error loading previous workflow', err);
+    }
+
+    return false;
+};

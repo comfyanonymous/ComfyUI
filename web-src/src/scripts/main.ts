@@ -19,20 +19,6 @@ const comfyPlugins = await loadWebExtensions(webModuleUrls);
 const extManager = ExtensionManager.getInstance();
 extManager.registerPlugins(comfyPlugins);
 
-export const loadWorkflow = async (): Promise<boolean> => {
-    let restored = false;
-    try {
-        const json = localStorage.getItem('workflow');
-        if (json) {
-            const workflow = JSON.parse(json);
-            await this.loadGraphData(workflow);
-            restored = true;
-        }
-    } catch (err) {
-        console.error('Error loading previous workflow', err);
-    }
-};
-
 export async function mountLiteGraph(mainCanvas: HTMLCanvasElement) {
     await userSettings.setUser();
     // await this.ui.settings.load();
