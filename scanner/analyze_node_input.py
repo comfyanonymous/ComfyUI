@@ -42,6 +42,7 @@ def analyze_class(cls):
         for key_name, param in calls:
             try:
                 print(f'{key_name} ==> {param}')
+                print('folder_paths.folder_names_and_paths',folder_paths.folder_names_and_paths)
                 abs_path  = folder_paths.folder_names_and_paths.get(param, None)
                 print('abs_path',abs_path)
                 mo_paths.append({'key':key_name,'path':param,})
