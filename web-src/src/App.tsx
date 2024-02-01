@@ -11,8 +11,7 @@ function App() {
             <ComfyAppContextProvider>
                 <ComfyDialogContextProvider>
                     <GraphContextProvider>
-                        <MainCanvas/>
-                        {/* Other UI componets will go here */}
+                        <InnerApp/>
                     </GraphContextProvider>
                 </ComfyDialogContextProvider>
             </ComfyAppContextProvider>
@@ -20,7 +19,7 @@ function App() {
     );
 }
 
-function MainCanvas() {
+function InnerApp() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const {mountLiteGraph, loadWorkflow} = useGraph()
     const {loadGraphData} = useLoadGraphData()
@@ -42,7 +41,10 @@ function MainCanvas() {
     });
 
     return (
+        <>
         <canvas ref={canvasRef} style={{width: '100%', height: '100%'}}/>
+            {/* Other UI componets will go here */}
+        </>
     );
 }
 export default App;

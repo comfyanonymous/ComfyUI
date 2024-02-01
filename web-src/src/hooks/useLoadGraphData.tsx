@@ -15,9 +15,9 @@ export function useLoadGraphData() {
     const {app} = useComfyApp();
     const {showDialog} = useComfyDialog();
     const {graphState} = useGraph();
-    const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
 
     const loadGraphData = async (graphData?: any, clean: boolean = true) => {
+        const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
         if (clean) {
             app?.clean();
         }
