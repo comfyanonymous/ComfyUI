@@ -1,4 +1,4 @@
-import {ComfyObjectInfo} from '../types/comfy';
+import { ComfyObjectInfo } from '../types/comfy';
 import {
     EmbeddingsResponse,
     HistoryResponse,
@@ -9,7 +9,7 @@ import {
     SystemStatsResponse,
     UserConfigResponse,
 } from '../types/api';
-import {WorkflowStep} from '../types/many';
+import { WorkflowStep } from '../types/many';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
@@ -222,7 +222,10 @@ export class ComfyApi extends EventTarget implements IComfyApi {
      * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
      * @param {object} prompt The prompt data to queue
      */
-    async queuePrompt(number: number, { output, workflow }: { output: Record<string, WorkflowStep>; workflow: any }): Promise<QueuePromptResponse> {
+    async queuePrompt(
+        number: number,
+        { output, workflow }: { output: Record<string, WorkflowStep>; workflow: any }
+    ): Promise<QueuePromptResponse> {
         const body = {
             client_id: this.clientId,
             prompt: output,
@@ -267,7 +270,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
     async getQueue() {
         try {
             const res = await this.fetchApi('/queue');
-            const data = await res.json() as QueueResponse;
+            const data = (await res.json()) as QueueResponse;
             return {
                 // Running action uses a different endpoint for cancelling
                 Running: data.queue_running.map(prompt => ({
@@ -293,7 +296,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
                 throw new Error(`Error fetching history: ${res.status} ${res.statusText}`);
             }
 
-            const history = await res.json() as HistoryResponse;
+            const history = (await res.json()) as HistoryResponse;
             return { History: Object.values(history) };
         } catch (error) {
             console.error(error);
@@ -305,7 +308,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
      * Gets system & device stats
      * @returns System stats such as python version, OS, per device info
      */
-    async getSystemStats():Promise<SystemStatsResponse> {
+    async getSystemStats(): Promise<SystemStatsResponse> {
         const res = await this.fetchApi('/system_stats');
         if (!res.ok) {
             throw new Error(`Error fetching system stats: ${res.status} ${res.statusText}`);
@@ -460,65 +463,64 @@ export class ComfyApi extends EventTarget implements IComfyApi {
 
 /** This will create and submit a workflow. ComfyUI Terminology: `queuePrompt` */
 export function submitCurrentWorkflow() {
-            try {
-            while (this.#queueItems.length > 0) {
-                const queueItem = this.#queueItems.pop();
-                if (queueItem) {
-                    ({ number, batchCount } = queueItem);
+    try {
+        while (this.#queueItems.length > 0) {
+            const queueItem = this.#queueItems.pop();
+            if (queueItem) {
+                ({ number, batchCount } = queueItem);
 
-                    for (let i = 0; i < batchCount; i++) {
-                        const p = await this.canvas.graph.graphToWorkflow();
+                for (let i = 0; i < batchCount; i++) {
+                    const p = await this.canvas.graph.serializeGraph();
 
-                        try {
-                            const res = await this.api.queuePrompt(number, p);
-                            this.lastNodeErrors = res.node_errors;
+                    try {
+                        const res = await this.api.queuePrompt(number, p);
+                        this.lastNodeErrors = res.node_errors;
 
-                            if (this.lastNodeErrors) {
-                                let errors = Array.isArray(this.lastNodeErrors)
-                                    ? this.lastNodeErrors
-                                    : Object.keys(this.lastNodeErrors);
-                                if (errors.length > 0) {
-                                    this.canvas?.draw(true, true);
-                                }
-                            }
-                        } catch (error: unknown) {
-                            const err = error as ComfyPromptError;
-
-                            const formattedError = this.#formatPromptError(err);
-                            this.ui.dialog.show(formattedError);
-                            if (err.response) {
-                                this.lastNodeErrors = err.response.node_errors;
+                        if (this.lastNodeErrors) {
+                            let errors = Array.isArray(this.lastNodeErrors)
+                                ? this.lastNodeErrors
+                                : Object.keys(this.lastNodeErrors);
+                            if (errors.length > 0) {
                                 this.canvas?.draw(true, true);
                             }
-                            break;
                         }
+                    } catch (error: unknown) {
+                        const err = error as ComfyPromptError;
 
-                        if (p.workflow) {
-                            for (const n of p.workflow.nodes) {
-                                const node = this.graph?.getNodeById(n.id);
-                                if (node?.widgets) {
-                                    for (const widget of node.widgets) {
-                                        // Allow widgets to run callbacks after a prompt has been queued
-                                        // e.g. random seed after every gen
-                                        if (widget.afterQueued) {
-                                            widget.afterQueued();
-                                        }
+                        const formattedError = this.#formatPromptError(err);
+                        this.ui.dialog.show(formattedError);
+                        if (err.response) {
+                            this.lastNodeErrors = err.response.node_errors;
+                            this.canvas?.draw(true, true);
+                        }
+                        break;
+                    }
+
+                    if (p.workflow) {
+                        for (const n of p.workflow.nodes) {
+                            const node = this.graph?.getNodeById(n.id);
+                            if (node?.widgets) {
+                                for (const widget of node.widgets) {
+                                    // Allow widgets to run callbacks after a prompt has been queued
+                                    // e.g. random seed after every gen
+                                    if (widget.afterQueued) {
+                                        widget.afterQueued();
                                     }
                                 }
                             }
                         }
-
-                        this.canvas?.draw(true, true);
-                        await this.ui.queue.update();
                     }
+
+                    this.canvas?.draw(true, true);
+                    await this.ui.queue.update();
                 }
             }
-        } finally {
-            this.#processingQueue = false;
         }
-        this.api.dispatchEvent(new CustomEvent('promptQueued', { detail: { number, batchCount } }));
+    } finally {
+        this.#processingQueue = false;
     }
-
+    this.api.dispatchEvent(new CustomEvent('promptQueued', { detail: { number, batchCount } }));
+}
 
 // Again, all custom-nodes are written with the assumption that `api` is a singleton
 // object already instantiated.

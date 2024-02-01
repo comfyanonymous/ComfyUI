@@ -1,20 +1,20 @@
-import React, {ReactNode, useState} from "react";
-import {defaultGraph} from "../scripts/defaultGraph.ts";
-import {sanitizeNodeName} from "../scripts/utils.ts";
-import {ComfyError} from "../types/many.ts";
-import {ErrorHint} from "../components/errors/ErrorHint.tsx";
-import {WorkflowLoadError} from "../components/errors/WorkflowLoadError.tsx";
-import {useComfyDialog} from "../context/comfyDialogContext.tsx";
-import {useComfyApp} from "../context/appContext.tsx";
-import {useGraph} from "../context/graphContext.tsx";
-import {MissingNodesError} from "../components/errors/MissingNodesError.tsx";
-import {LiteGraph} from "litegraph.js"
-import {logging} from "../scripts/logging.ts";
+import React, { ReactNode, useState } from 'react';
+import { defaultGraph } from '../scripts/defaultGraph.ts';
+import { sanitizeNodeName } from '../scripts/utils.ts';
+import { ComfyError } from '../types/many.ts';
+import { ErrorHint } from '../components/errors/ErrorHint.tsx';
+import { WorkflowLoadError } from '../components/errors/WorkflowLoadError.tsx';
+import { useComfyDialog } from '../context/comfyDialogContext.tsx';
+import { useComfyApp } from '../context/appContext.tsx';
+import { useGraph } from '../context/graphContext.tsx';
+import { MissingNodesError } from '../components/errors/MissingNodesError.tsx';
+import { LiteGraph } from 'litegraph.js';
+import { logging } from '../scripts/logging.ts';
 
 export function useLoadGraphData() {
-    const {app} = useComfyApp();
-    const {showDialog} = useComfyDialog();
-    const {graphState} = useGraph();
+    const { app } = useComfyApp();
+    const { showDialog } = useComfyDialog();
+    const { graphState } = useGraph();
 
     const loadGraphData = async (graphData?: any, clean: boolean = true) => {
         const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
@@ -57,14 +57,11 @@ export function useLoadGraphData() {
             const filename = err.fileName || (err.stack || '').match(/(\/extensions\/.*\.js)/)?.[1];
             const pos = (filename || '').indexOf('/extensions/');
             if (pos > -1) {
-                setErrorHint((prevHints) => [
-                    ...prevHints,
-                    <ErrorHint script={filename?.substring(pos) ?? ""}/>
-                ]);
+                setErrorHint(prevHints => [...prevHints, <ErrorHint script={filename?.substring(pos) ?? ''} />]);
             }
 
             // Show dialog to let the user know something went wrong loading the data
-            showDialog(<WorkflowLoadError err={err} errorHint={errorHint}/>);
+            showDialog(<WorkflowLoadError err={err} errorHint={errorHint} />);
             return;
         }
 
@@ -110,16 +107,16 @@ export function useLoadGraphData() {
         }
 
         if (missingNodeTypes.length) {
-            showDialog(<MissingNodesError nodeTypes={missingNodeTypes}/>);
+            showDialog(<MissingNodesError nodeTypes={missingNodeTypes} />);
             logging.addEntry('Comfy.App', 'warn', {
                 MissingNodes: missingNodeTypes,
             });
         }
 
         await extensionManager.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
-    }
+    };
 
     return {
-        loadGraphData
+        loadGraphData,
     };
 }

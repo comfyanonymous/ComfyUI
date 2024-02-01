@@ -20,12 +20,13 @@
         "@types/node": "^16.11.16",
         "@types/react": "^17.0.38",
         "@types/react-dom": "^18.2.18",
-        "@typescript-eslint/eslint-plugin": "^5.9.1",
-        "@typescript-eslint/parser": "^5.9.1",
+        "@typescript-eslint/eslint-plugin": "^6.20.0",
+        "@typescript-eslint/parser": "^6.20.0",
         "@vitejs/plugin-react": "^4.2.1",
         "cpx": "^1.5.0",
-        "eslint": "^8.5.0",
-        "eslint-plugin-react-hooks": "^4.3.0",
+        "eslint": "^8.56.0",
+        "eslint-plugin-react": "^7.33.2",
+        "eslint-plugin-react-hooks": "^4.6.0",
         "eslint-plugin-react-refresh": "^0.4.5",
         "http-server": "^13.0.1",
         "madge": "^4.0.1",
@@ -34,11 +35,12 @@
         "vite": "^5.0.12"
     },
     "dependencies": {
+        "inversify": "^6.0.2",
         "nice-grpc-common": "^2.0.2",
         "protobufjs": "^7.2.6",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
-        "reconnecting-websocket": "^4.4.0"
-    },
-    "license": "MIT"
+        "reconnecting-websocket": "^4.4.0",
+        "reflect-metadata": "^0.2.1"
+    }
 }

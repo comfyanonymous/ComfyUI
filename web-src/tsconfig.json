@@ -16,9 +16,14 @@
 
         /* Linting */
         "strict": true,
+        "noImplicitAny": true,
         // "noUnusedLocals": true,
         // "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
+
+        /* InversifyJS */
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
 
         "paths": { "react": ["./node_modules/@types/react"] }
     },

@@ -49,7 +49,7 @@ export class JobQueue {
                     ({ number, batchCount } = queueItem);
 
                     for (let i = 0; i < batchCount; i++) {
-                        const p = await this.canvas.graph.graphToWorkflow();
+                        const p = await this.canvas.graph.serializeGraph();
 
                         try {
                             const res = await this.api.queuePrompt(number, p);

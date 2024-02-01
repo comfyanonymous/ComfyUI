@@ -1,49 +1,14 @@
 import { LGraph } from 'litegraph.js';
+import { injectable, inject } from 'inversify';
 import { ComfyNode } from './comfyNode';
 import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
-import { SerializedGraph } from '../types/litegraph';
-import { IComfyGraph } from '../types/interfaces';
+import type { SerializedGraph } from '../types/litegraph';
+import type { ISerializeGraph, IComfyGraph } from '../types/interfaces';
 
-export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
-    // Flag that the graph is configuring to prevent nodes from running checks while its still loading
-    configuringGraph = false;
-
-    /** optionally pass in a former graph-state to have it restored */
-    constructor(serializedGraph?: SerializedGraph) {
-        super(serializedGraph);
-    }
-
-    // TO DO: I don't like this `configure` or `onConfigure` pattern; seeems really newbish
-    // But I'm keeping it for now, because that's how ComfyUI did it
-    configure(data: object, keep_old?: boolean): boolean | undefined {
-        this.configuringGraph = true;
-        try {
-            return super.configure(data, keep_old);
-        } finally {
-            this.configuringGraph = false;
-        }
-    }
-
-    onConfigure(data: object): void {
-        // Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
-        for (const node of this.nodes) {
-            node.onGraphConfigured?.();
-        }
-
-        const r = super.onConfigure ? super.onConfigure(data) : undefined;
-
-        // Fire after onConfigure, used by primitves to generate widget using input nodes config
-        for (const node of this.nodes) {
-            node.onAfterGraphConfigured?.();
-        }
-
-        // Why does ComfyUI return anything here? This is always void from what I can tell
-        return r;
-    }
-
-    /** Converts the current graph serializedGraph for sending to the API */
-    async graphToWorkflow() {
-        for (const outerNode of this.computeExecutionOrder<ComfyNode[]>(false, false)) {
+/** Converts the current graph serializedGraph for sending to the API */
+export class SerializeGraph implements ISerializeGraph {
+    serializeGraph(graph: IComfyGraph) {
+        for (const outerNode of graph.computeExecutionOrder<ComfyNode[]>(false, false)) {
             if (outerNode.widgets) {
                 for (const widget of outerNode.widgets) {
                     // Allow widgets to run callbacks before a prompt has been queued
@@ -65,11 +30,11 @@ export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
 
         // serializedGraph is used for storing and reloading the full state of the graph
         // apiWorkflow is sent to the API for inference
-        const serializedGraph = this.serialize();
+        const serializedGraph = graph.serialize();
         const apiWorkflow: Record<string, WorkflowStep> = {};
 
         // Process nodes in order of execution
-        for (const outerNode of this.computeExecutionOrder(false, false)) {
+        for (const outerNode of graph.computeExecutionOrder(false, false)) {
             const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
             const innerNodes = !skipNode && outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
             for (const node of innerNodes) {
@@ -90,9 +55,7 @@ export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
                     for (const i in widgets) {
                         const widget = widgets[i];
                         if (!widget.options || widget.options.serialize !== false) {
-                            inputs[widget.name] = widget.serializeValue
-                                ? await widget.serializeValue(node, i)
-                                : widget.value;
+                            inputs[widget.name] = widget.serializeValue ? widget.serializeValue(node, i) : widget.value;
                         }
                     }
                 }
@@ -169,5 +132,51 @@ export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
         }
 
         return { serializedGraph, apiWorkflow };
+    }
+}
+
+@injectable()
+export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
+    // Flag that the graph is configuring to prevent nodes from running checks while its still loading
+    configuringGraph = false;
+
+    /** Optionally pass in a former graph-state to have it restored */
+    constructor(
+        @inject('ISerializeGraph') private serializeStrategy: ISerializeGraph,
+        serializedGraph?: SerializedGraph
+    ) {
+        super(serializedGraph);
+    }
+
+    // TO DO: I don't like this `configure` or `onConfigure` pattern; seeems really newbish
+    // But I'm keeping it for now, because that's how ComfyUI did it
+    configure(data: object, keep_old?: boolean): boolean | undefined {
+        this.configuringGraph = true;
+        try {
+            return super.configure(data, keep_old);
+        } finally {
+            this.configuringGraph = false;
+        }
+    }
+
+    onConfigure(data: object): void {
+        // Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
+        for (const node of this.nodes) {
+            node.onGraphConfigured?.();
+        }
+
+        const r = super.onConfigure ? super.onConfigure(data) : undefined;
+
+        // Fire after onConfigure, used by primitves to generate widget using input nodes config
+        for (const node of this.nodes) {
+            node.onAfterGraphConfigured?.();
+        }
+
+        // Why does ComfyUI return anything here? This is always void from what I can tell
+        return r;
+    }
+
+    serializeGraph(): ReturnType<ISerializeGraph['serializeGraph']> {
+        return this.serializeStrategy.serializeGraph(this);
     }
 }

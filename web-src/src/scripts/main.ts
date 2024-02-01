@@ -8,9 +8,9 @@
 //      2a. app creates a new ComfyGraph and ComfyCanvas
 //
 
-import {api} from './api';
-import {loadWebExtensions} from '../extension_manager/loadWebExtensions';
-import {ExtensionManager} from '../extension_manager/extensionManager';
+import { api } from './api';
+import { loadWebExtensions } from '../extension_manager/loadExtensions';
+import { ExtensionManager } from '../extension_manager/extensionManager';
 
 // Ask the api-server what front-end extensions to load, if any, and then load them
 const webModuleUrls = await api.getExtensions();
