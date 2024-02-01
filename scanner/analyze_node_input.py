@@ -1,6 +1,7 @@
 import ast
 import inspect
 import textwrap  # Ensure this line is added at the top of your script
+import folder_paths
 
 
 def analyze_class(cls):
@@ -36,8 +37,15 @@ def analyze_class(cls):
             extract_calls_from_dict(node)
         
         # Print the results
-        print(f'👍class {class_name}:')
-        folder_paths=[]
+        mo_paths=[]
+        print(f'👍class {class_name}')
         for key_name, param in calls:
-            print(f'{key_name} ==> {param}')
-            folder_paths.append({'key':key_name,'path':param})
+            try:
+                print(f'{key_name} ==> {param}')
+                abs_path  = folder_paths.folder_names_and_paths.get(param, None)
+                print('abs_path',abs_path)
+                mo_paths.append({'key':key_name,'path':param,})
+            except Exception as e:
+                return f"Error adding path: {e}"
+        print('111111111paths',mo_paths)
+        return mo_paths

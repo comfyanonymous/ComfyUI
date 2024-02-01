@@ -13,6 +13,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from boto3.dynamodb.conditions import Key
 from githubUtils import get_github_repo_stars
 
+
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
 comfy_path = os.path.join(root_path,'comfyui-fork')
@@ -43,6 +44,7 @@ ddb_node_table = dynamodb.Table(node_table_name)
 ddb_package_table = dynamodb.Table(package_table_name)
 
 def gitclone_install(repo_url: str, target_dir: str):
+    print('gitclone_install',repo_url, target_dir)
     # Save the current working directory
     # original_cwd = os.getcwd()
 
@@ -197,7 +199,7 @@ def create_node_dydb(data):
             'gitHtmlUrl': repo_url,
         }
         response = ddb_node_table.put_item(Item=item)
-        print("👌ddb node item added:", item)
+        # print("👌ddb node item added:", item)
 
     except Exception as e:
         print("Error adding node item to DynamoDB:", e)
@@ -213,7 +215,7 @@ def process_json(file_path):
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
-            for index, node in enumerate(data["custom_nodes"][9:20]):
+            for index, node in enumerate(data["custom_nodes"][15:18]):
                 print(f"🗂️🗂️No.{index} files", node['files'])
                 repo = node['reference']
                 if 'github' not in repo:
@@ -226,7 +228,7 @@ def process_json(file_path):
                 print('repo name',repo_name)
                 target_dir = os.path.join(custom_node_path, repo_name)
                 git_clone_url = repo + '.git' if not repo.endswith('.git') else repo
-                gitclone_install(git_clone_url, target_dir)
+                gitclone_install( git_clone_url, target_dir)
                 run_main_py_and_wait({
                     'reference': repo,
                     'title': node['title'],
