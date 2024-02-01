@@ -28,7 +28,6 @@ def prepare_noise(latent_image, seed, noise_inds=None):
 def prepare_mask(noise_mask, shape, device):
     """ensures noise mask is of proper dimensions"""
     noise_mask = torch.nn.functional.interpolate(noise_mask.reshape((-1, 1, noise_mask.shape[-2], noise_mask.shape[-1])), size=(shape[2], shape[3]), mode="bilinear")
-    noise_mask = noise_mask.round()
     noise_mask = torch.cat([noise_mask] * shape[1], dim=1)
     noise_mask = comfy.utils.repeat_to_batch_size(noise_mask, shape[0])
     noise_mask = noise_mask.to(device)
@@ -47,7 +46,8 @@ def convert_cond(cond):
         temp = c[1].copy()
         model_conds = temp.get("model_conds", {})
         if c[0] is not None:
-            model_conds["c_crossattn"] = comfy.conds.CONDCrossAttn(c[0])
+            model_conds["c_crossattn"] = comfy.conds.CONDCrossAttn(c[0]) #TODO: remove
+            temp["cross_attn"] = c[0]
         temp["model_conds"] = model_conds
         out.append(temp)
     return out

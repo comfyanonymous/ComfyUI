@@ -1,12 +1,9 @@
-from inspect import isfunction
 import math
 import torch
 import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange, repeat
 from typing import Optional, Any
-from functools import partial
-
 
 from .diffusionmodules.util import checkpoint, AlphaBlender, timestep_embedding
 from .sub_quadratic_attention import efficient_dot_product_attention
@@ -19,6 +16,7 @@ if model_management.xformers_enabled():
 
 from comfy.cli_args import args
 import comfy.ops
+ops = comfy.ops.disable_weight_init
 
 # CrossAttn precision handling
 if args.dont_upcast_attention:
@@ -55,7 +53,7 @@ def init_(tensor):
 
 # feedforward
 class GEGLU(nn.Module):
-    def __init__(self, dim_in, dim_out, dtype=None, device=None, operations=comfy.ops):
+    def __init__(self, dim_in, dim_out, dtype=None, device=None, operations=ops):
         super().__init__()
         self.proj = operations.Linear(dim_in, dim_out * 2, dtype=dtype, device=device)
 
@@ -65,7 +63,7 @@ class GEGLU(nn.Module):
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0., dtype=None, device=None, operations=comfy.ops):
+    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0., dtype=None, device=None, operations=ops):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
@@ -103,9 +101,7 @@ def attention_basic(q, k, v, heads, mask=None):
 
     # force cast to fp32 to avoid overflowing
     if _ATTN_PRECISION =="fp32":
-        with torch.autocast(enabled=False, device_type = 'cuda'):
-            q, k = q.float(), k.float()
-            sim = einsum('b i d, b j d -> b i j', q, k) * scale
+        sim = einsum('b i d, b j d -> b i j', q.float(), k.float()) * scale
     else:
         sim = einsum('b i d, b j d -> b i j', q, k) * scale
 
@@ -178,6 +174,7 @@ def attention_sub_quad(query, key, value, heads, mask=None):
         kv_chunk_size_min=kv_chunk_size_min,
         use_checkpoint=False,
         upcast_attention=upcast_attention,
+        mask=mask,
     )
 
     hidden_states = hidden_states.to(dtype)
@@ -240,6 +237,12 @@ def attention_split(q, k, v, heads, mask=None):
                 else:
                     s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k) * scale
 
+                if mask is not None:
+                    if len(mask.shape) == 2:
+                        s1 += mask[i:end]
+                    else:
+                        s1 += mask[:, i:end]
+
                 s2 = s1.softmax(dim=-1).to(v.dtype)
                 del s1
                 first_op_done = True
@@ -295,11 +298,14 @@ def attention_xformers(q, k, v, heads, mask=None):
         (q, k, v),
     )
 
-    # actually compute the attention, what we cannot get enough of
-    out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None)
+    if mask is not None:
+        pad = 8 - q.shape[1] % 8
+        mask_out = torch.empty([q.shape[0], q.shape[1], q.shape[1] + pad], dtype=q.dtype, device=q.device)
+        mask_out[:, :, :mask.shape[-1]] = mask
+        mask = mask_out[:, :, :mask.shape[-1]]
 
-    if exists(mask):
-        raise NotImplementedError
+    out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=mask)
+
     out = (
         out.unsqueeze(0)
         .reshape(b, heads, -1, dim_head)
@@ -324,7 +330,6 @@ def attention_pytorch(q, k, v, heads, mask=None):
 
 
 optimized_attention = attention_basic
-optimized_attention_masked = attention_basic
 
 if model_management.xformers_enabled():
     print("Using xformers cross attention")
@@ -340,15 +345,18 @@ else:
         print("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
-if model_management.pytorch_attention_enabled():
-    optimized_attention_masked = attention_pytorch
+optimized_attention_masked = optimized_attention
 
-def optimized_attention_for_device(device, mask=False):
-    if device == torch.device("cpu"): #TODO
+def optimized_attention_for_device(device, mask=False, small_input=False):
+    if small_input:
         if model_management.pytorch_attention_enabled():
-            return attention_pytorch
+            return attention_pytorch #TODO: need to confirm but this is probably slightly faster for small inputs in all cases
         else:
             return attention_basic
+
+    if device == torch.device("cpu"):
+        return attention_sub_quad
+
     if mask:
         return optimized_attention_masked
 
@@ -356,7 +364,7 @@ def optimized_attention_for_device(device, mask=False):
 
 
 class CrossAttention(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None, device=None, operations=comfy.ops):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None, device=None, operations=ops):
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
@@ -389,7 +397,7 @@ class CrossAttention(nn.Module):
 
 class BasicTransformerBlock(nn.Module):
     def __init__(self, dim, n_heads, d_head, dropout=0., context_dim=None, gated_ff=True, checkpoint=True, ff_in=False, inner_dim=None,
-                 disable_self_attn=False, disable_temporal_crossattention=False, switch_temporal_ca_to_sa=False, dtype=None, device=None, operations=comfy.ops):
+                 disable_self_attn=False, disable_temporal_crossattention=False, switch_temporal_ca_to_sa=False, dtype=None, device=None, operations=ops):
         super().__init__()
 
         self.ff_in = ff_in or inner_dim is not None
@@ -558,7 +566,7 @@ class SpatialTransformer(nn.Module):
     def __init__(self, in_channels, n_heads, d_head,
                  depth=1, dropout=0., context_dim=None,
                  disable_self_attn=False, use_linear=False,
-                 use_checkpoint=True, dtype=None, device=None, operations=comfy.ops):
+                 use_checkpoint=True, dtype=None, device=None, operations=ops):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
             context_dim = [context_dim] * depth
@@ -632,7 +640,7 @@ class SpatialVideoTransformer(SpatialTransformer):
         disable_self_attn=False,
         disable_temporal_crossattention=False,
         max_time_embed_period: int = 10000,
-        dtype=None, device=None, operations=comfy.ops
+        dtype=None, device=None, operations=ops
     ):
         super().__init__(
             in_channels,

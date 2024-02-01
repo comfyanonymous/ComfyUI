@@ -5,6 +5,7 @@ class ComfyApi extends EventTarget {
 		super();
 		this.api_host = location.host;
 		this.api_base = location.pathname.split('/').slice(0, -1).join('/');
+		this.initialClientId = sessionStorage.getItem("clientId");
 	}
 
 	apiURL(route) {
@@ -12,6 +13,13 @@ class ComfyApi extends EventTarget {
 	}
 
 	fetchApi(route, options) {
+		if (!options) {
+			options = {};
+		}
+		if (!options.headers) {
+			options.headers = {};
+		}
+		options.headers["Comfy-User"] = this.user;
 		return fetch(this.apiURL(route), options);
 	}
 
@@ -111,7 +119,8 @@ class ComfyApi extends EventTarget {
 					    case "status":
 						    if (msg.data.sid) {
 							    this.clientId = msg.data.sid;
-							    window.name = this.clientId;
+							    window.name = this.clientId; // use window name so it isnt reused when duplicating tabs
+								sessionStorage.setItem("clientId", this.clientId); // store in session storage so duplicate tab can load correct workflow
 						    }
 						    this.dispatchEvent(new CustomEvent("status", { detail: msg.data.status }));
 						    break;
@@ -314,6 +323,99 @@ class ComfyApi extends EventTarget {
 	 */
 	async interrupt() {
 		await this.#postItem("interrupt", null);
+	}
+
+	/**
+	 * Gets user configuration data and where data should be stored
+	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> } 
+	 */
+	async getUserConfig() {
+		return (await this.fetchApi("/users")).json();
+	}
+
+	/**
+	 * Creates a new user
+	 * @param { string } username 
+	 * @returns The fetch response
+	 */
+	createUser(username) {
+		return this.fetchApi("/users", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({ username }),
+		});
+	}
+
+	/**
+	 * Gets all setting values for the current user
+	 * @returns { Promise<string, unknown> } A dictionary of id -> value
+	 */
+	async getSettings() {
+		return (await this.fetchApi("/settings")).json();
+	}
+
+	/**
+	 * Gets a setting for the current user
+	 * @param { string } id The id of the setting to fetch
+	 * @returns { Promise<unknown> } The setting value
+	 */
+	async getSetting(id) {
+		return (await this.fetchApi(`/settings/${encodeURIComponent(id)}`)).json();
+	}
+
+	/**
+	 * Stores a dictionary of settings for the current user
+	 * @param { Record<string, unknown> } settings Dictionary of setting id -> value to save
+	 * @returns { Promise<void> }
+	 */
+	async storeSettings(settings) {
+		return this.fetchApi(`/settings`, {
+			method: "POST",
+			body: JSON.stringify(settings)
+		});
+	}
+
+	/**
+	 * Stores a setting for the current user
+	 * @param { string } id The id of the setting to update
+	 * @param { unknown } value The value of the setting
+	 * @returns { Promise<void> }
+	 */
+	async storeSetting(id, value) {
+		return this.fetchApi(`/settings/${encodeURIComponent(id)}`, {
+			method: "POST",
+			body: JSON.stringify(value)
+		});
+	}
+
+	/**
+	 * Gets a user data file for the current user
+	 * @param { string } file The name of the userdata file to load
+	 * @param { RequestInit } [options]
+	 * @returns { Promise<unknown> } The fetch response object
+	 */
+	async getUserData(file, options) {
+		return this.fetchApi(`/userdata/${encodeURIComponent(file)}`, options);
+	}
+
+	/**
+	 * Stores a user data file for the current user
+	 * @param { string } file The name of the userdata file to save
+	 * @param { unknown } data The data to save to the file
+	 * @param { RequestInit & { stringify?: boolean, throwOnError?: boolean } } [options]
+	 * @returns { Promise<void> }
+	 */
+	async storeUserData(file, data, options = { stringify: true, throwOnError: true }) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}`, {
+			method: "POST",
+			body: options?.stringify ? JSON.stringify(data) : data,
+			...options,
+		});	
+		if (resp.status !== 200) {
+			throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
+		}
 	}
 }
 

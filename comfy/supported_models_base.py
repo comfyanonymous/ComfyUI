@@ -21,6 +21,9 @@ class BASE:
     noise_aug_config = None
     sampling_settings = {}
     latent_format = latent_formats.LatentFormat
+    vae_key_prefix = ["first_stage_model."]
+
+    manual_cast_dtype = None
 
     @classmethod
     def matches(s, unet_config):
@@ -63,6 +66,12 @@ class BASE:
         replace_prefix = {"": "cond_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
+    def process_clip_vision_state_dict_for_saving(self, state_dict):
+        replace_prefix = {}
+        if self.clip_vision_prefix is not None:
+            replace_prefix[""] = self.clip_vision_prefix
+        return utils.state_dict_prefix_replace(state_dict, replace_prefix)
+
     def process_unet_state_dict_for_saving(self, state_dict):
         replace_prefix = {"": "model.diffusion_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
@@ -71,3 +80,5 @@ class BASE:
         replace_prefix = {"": "first_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
+    def set_manual_cast(self, manual_cast_dtype):
+        self.manual_cast_dtype = manual_cast_dtype

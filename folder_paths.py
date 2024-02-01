@@ -29,11 +29,14 @@ folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
+folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
+
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
 
 filename_list_cache = {}
 
@@ -137,15 +140,27 @@ def recursive_search(directory, excluded_dir_names=None):
         excluded_dir_names = []
 
     result = []
-    dirs = {directory: os.path.getmtime(directory)}
+    dirs = {}
+
+    # Attempt to add the initial directory to dirs with error handling
+    try:
+        dirs[directory] = os.path.getmtime(directory)
+    except FileNotFoundError:
+        print(f"Warning: Unable to access {directory}. Skipping this path.")
+        
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
         for file_name in filenames:
             relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
             result.append(relative_path)
+        
         for d in subdirs:
             path = os.path.join(dirpath, d)
-            dirs[path] = os.path.getmtime(path)
+            try:
+                dirs[path] = os.path.getmtime(path)
+            except FileNotFoundError:
+                print(f"Warning: Unable to access {path}. Skipping this path.")
+                continue
     return result, dirs
 
 def filter_files_extensions(files, extensions):
@@ -184,8 +199,7 @@ def cached_filename_list_(folder_name):
     if folder_name not in filename_list_cache:
         return None
     out = filename_list_cache[folder_name]
-    if time.perf_counter() < (out[2] + 0.5):
-        return out
+
     for x in out[1]:
         time_modified = out[1][x]
         folder = x
