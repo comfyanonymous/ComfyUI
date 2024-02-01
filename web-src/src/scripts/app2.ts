@@ -1,10 +1,13 @@
 // This class acts as a gateway for plugins
 
 import {IComfyApp} from '../types/interfaces';
+import {ComfyGraph} from "../litegraph/comfyGraph.ts";
 
 // Single class
 export class ComfyApp implements IComfyApp {
     private static instance: IComfyApp;
+
+    private saveInterval: NodeJS.Timeout | null = null;
 
     public static getInstance() {
         if (!ComfyApp.instance) {
@@ -13,6 +16,19 @@ export class ComfyApp implements IComfyApp {
         return ComfyApp.instance;
     }
 
+    public enableWorkflowAutoSave(graph: ComfyGraph) {
+        this.saveInterval = setInterval(
+            () => localStorage.setItem('workflow', JSON.stringify(graph.serialize())),
+            1000
+        );
+    }
+
+    public disableWorkflowAutoSave() {
+        if (!this.saveInterval) return;
+
+        clearInterval(this.saveInterval);
+        this.saveInterval = null;
+    }
 
     // LiteGraph
     // the api

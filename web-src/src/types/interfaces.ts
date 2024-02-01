@@ -163,6 +163,8 @@ export interface IComfyApp {
     elementWidgets: Set<IComfyNode>;
 
     // Public methods
+    disableWorkflowAutoSave: () => void
+    enableWorkflowAutoSave: (graph: ComfyGraph) => void
     open_maskeditor: (() => void) | null;
     isImageNode(node: IComfyNode): boolean;
     getPreviewFormatParam(): string;
@@ -179,7 +181,6 @@ export interface IComfyApp {
     clean(): void;
     cleanup(): void;
 }
-
 export type GetCustomWidgetResponse = Record<
     string,
     (

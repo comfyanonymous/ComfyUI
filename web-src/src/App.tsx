@@ -1,7 +1,7 @@
 import './App.css';
 import {useEffect, useRef} from 'react';
 import {GraphContextProvider, useGraph} from './context/graphContext';
-import {ComfyAppContextProvider} from "./context/appContext.tsx";
+import {ComfyAppContextProvider, useComfyApp} from "./context/appContext.tsx";
 import {ComfyDialogContextProvider} from "./context/comfyDialogContext.tsx";
 import {useLoadGraphData} from "./hooks/useLoadGraphData.tsx";
 
@@ -21,7 +21,8 @@ function App() {
 
 function InnerApp() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const {mountLiteGraph, loadWorkflow} = useGraph()
+    const {mountLiteGraph, loadWorkflow, graphState} = useGraph()
+    const {app} = useComfyApp()
     const {loadGraphData} = useLoadGraphData()
 
     useEffect(() => {
@@ -31,6 +32,10 @@ function InnerApp() {
             // We failed to restore a workflow so load the default
             if (!restored) {
                 await loadGraphData();
+            }
+
+            if (graphState && graphState.graph) {
+                app.enableWorkflowAutoSave(graphState.graph);
             }
         }
 

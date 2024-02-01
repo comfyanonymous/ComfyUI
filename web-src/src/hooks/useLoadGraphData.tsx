@@ -19,7 +19,7 @@ export function useLoadGraphData() {
     const loadGraphData = async (graphData?: any, clean: boolean = true) => {
         const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
         if (clean) {
-            app?.clean();
+            app.clean();
         }
 
         let reset_invalid_values = false;
