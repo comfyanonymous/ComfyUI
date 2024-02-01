@@ -37,15 +37,18 @@ def analyze_class(cls):
             extract_calls_from_dict(node)
         
         # Print the results
-        mo_paths=[]
+        mo_paths={}
         print(f'👍class {class_name}')
         for key_name, param in calls:
             try:
                 print(f'{key_name} ==> {param}')
-                print('folder_paths.folder_names_and_paths',folder_paths.folder_names_and_paths)
-                abs_path  = folder_paths.folder_names_and_paths.get(param, None)
+                stripped_param = param.strip("\"'")
+                abs_path  = folder_paths.folder_names_and_paths.get(stripped_param, None)
                 print('abs_path',abs_path)
-                mo_paths.append({'key':key_name,'path':param,})
+                mo_paths[key_name] = {
+                    'abs_path':abs_path,
+                    'folder_name':stripped_param,
+                }
             except Exception as e:
                 return f"Error adding path: {e}"
         print('111111111paths',mo_paths)
