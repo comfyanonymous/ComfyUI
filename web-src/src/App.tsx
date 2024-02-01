@@ -25,7 +25,7 @@ function InnerApp() {
     const {loadGraphData} = useLoadGraphData()
 
     useEffect(() => {
-        const loadData = async () => {
+        const loadAppData = async () => {
             const restored = await loadWorkflow();
 
             // We failed to restore a workflow so load the default
@@ -36,13 +36,13 @@ function InnerApp() {
 
         if (canvasRef.current) {
             mountLiteGraph(canvasRef.current);
-            loadData();
+            loadAppData();
         }
     });
 
     return (
         <>
-        <canvas ref={canvasRef} style={{width: '100%', height: '100%'}}/>
+            <canvas ref={canvasRef} style={{width: '100%', height: '100%'}}/>
             {/* Other UI componets will go here */}
         </>
     );
