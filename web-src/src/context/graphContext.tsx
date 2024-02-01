@@ -1,8 +1,7 @@
-import React, { useState, useEffect, ReactNode } from 'react';
-import { createUseContextHook } from './hookCreator';
-import { loadWorkflow } from '../litegraph/graphUtils';
-import { ComfyGraph } from '../litegraph/comfyGraph';
-import { ComfyCanvas } from '../litegraph/comfyCanvas';
+import React, {ReactNode, useState} from 'react';
+import {createUseContextHook} from './hookCreator';
+import {ComfyGraph} from '../litegraph/comfyGraph';
+import {ComfyCanvas} from '../litegraph/comfyCanvas';
 
 interface GraphContextType {
     graphState: {
@@ -37,5 +36,14 @@ export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
         setGraphState({ graph, canvas, ctx });
     };
 
-    return <GraphContext.Provider value={(graphState, mountLiteGraph)}>{children}</GraphContext.Provider>;
+    return (
+        <GraphContext.Provider
+            value={{
+                graphState,
+                mountLiteGraph
+            }}
+        >
+            {children}
+        </GraphContext.Provider>
+    );
 };

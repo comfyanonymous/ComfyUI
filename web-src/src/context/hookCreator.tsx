@@ -1,6 +1,6 @@
-import { Context, useContext } from 'react';
+import {Context, useContext} from 'react';
 
-export const createUseContextHook = (context: Context<any>, error: string) => {
+export const createUseContextHook = <T extends any>(context: Context<T>, error: string) => {
     return () => {
         const contextValue = useContext(context);
 

@@ -1,27 +1,33 @@
 import './App.css';
-import { useEffect, useRef } from 'react';
-import { app } from './scripts/app';
-import { api } from './scripts/api';
-import { mountLiteGraph } from './scripts/main';
-import { GraphContextProvider } from './context/graphContext';
+import {useEffect, useRef} from 'react';
+import {GraphContextProvider, useGraph} from './context/graphContext';
+import {ComfyAppContextProvider} from "./context/appContext.tsx";
 
 function App() {
+    return (
+        <div className="App">
+            <ComfyAppContextProvider>
+                <GraphContextProvider>
+                    <MainCanvas/>
+                    {/* Other UI componets will go here */}
+                </GraphContextProvider>
+            </ComfyAppContextProvider>
+        </div>
+    );
+}
+
+function MainCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const {mountLiteGraph} = useGraph()
 
     useEffect(() => {
         if (canvasRef.current) {
             mountLiteGraph(canvasRef.current);
         }
-    }, []);
+    });
 
     return (
-        <div className="App">
-            <GraphContextProvider>
-                <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
-                {/* Other UI componets will go here */}
-            </GraphContextProvider>
-        </div>
+        <canvas ref={canvasRef} style={{width: '100%', height: '100%'}}/>
     );
 }
-
 export default App;

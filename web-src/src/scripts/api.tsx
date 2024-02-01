@@ -1,19 +1,15 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import ReconnectingWebSocket from 'reconnecting-websocket';
-import { ComfyObjectInfo } from '../types/comfy';
+import {ComfyObjectInfo} from '../types/comfy';
 import {
-    IComfyApi,
     EmbeddingsResponse,
     HistoryResponse,
-    ObjectInfoResponse,
+    IComfyApi,
     QueuePromptResponse,
     QueueResponse,
     SettingsResponse,
     SystemStatsResponse,
     UserConfigResponse,
 } from '../types/api';
-import { WorkflowStep } from '../types/many';
-import { api } from './api';
+import {WorkflowStep} from '../types/many';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
@@ -523,7 +519,6 @@ export function submitCurrentWorkflow() {
         this.api.dispatchEvent(new CustomEvent('promptQueued', { detail: { number, batchCount } }));
     }
 
-}
 
 // Again, all custom-nodes are written with the assumption that `api` is a singleton
 // object already instantiated.

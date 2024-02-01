@@ -30,7 +30,7 @@
         "http-server": "^13.0.1",
         "madge": "^4.0.1",
         "rimraf": "^3.0.2",
-        "typescript": "^4.5.4",
+        "typescript": "^5.3.3",
         "vite": "^5.0.12"
     },
     "dependencies": {
