@@ -8,18 +8,18 @@ interface MissingNodesType {
 }
 
 interface MissingNodesProps {
-    hasAddedNodes: boolean;
-    missingNodeTypes: Set<string | MissingNodesType>;
+    hasAddedNodes?: boolean;
+    nodeTypes: Set<string | MissingNodesType> | string[];
 }
 
-export function MissingNodes({missingNodeTypes, hasAddedNodes}: MissingNodesProps) {
+export function MissingNodesError({nodeTypes, hasAddedNodes = false}: MissingNodesProps) {
     const seenTypes = new Set();
 
     return (
         <div className="comfy-missing-nodes">
             <span>When loading the graph, the following node types were not found:</span>
             <ul>
-                {Array.from(new Set(missingNodeTypes)).map(t => {
+                {Array.from(new Set(nodeTypes)).map(t => {
                     if (typeof t === 'object') {
                         if (seenTypes.has(t.type)) {
                             return null

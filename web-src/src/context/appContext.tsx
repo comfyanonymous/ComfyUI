@@ -8,7 +8,7 @@ interface ComfyAppContextType {
 }
 
 const ComfyAppContext = React.createContext<ComfyAppContextType | null>(null);
-export const useComfyApp = createUseContextHook(ComfyAppContext, 'ComfyAppContext not found');
+export const useComfyApp = createUseContextHook(ComfyAppContext, 'useComfyApp must be used within a ComfyAppContextProvider');
 
 export const ComfyAppContextProvider = ({children}: { children: ReactNode }) => {
     const [app, setApp] = useState<IComfyApp | null>(null);

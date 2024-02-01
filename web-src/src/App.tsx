@@ -2,15 +2,19 @@ import './App.css';
 import {useEffect, useRef} from 'react';
 import {GraphContextProvider, useGraph} from './context/graphContext';
 import {ComfyAppContextProvider} from "./context/appContext.tsx";
+import {ComfyDialogContextProvider} from "./context/comfyDialogContext.tsx";
+import {useLoadGraphData} from "./hooks/useLoadGraphData.tsx";
 
 function App() {
     return (
         <div className="App">
             <ComfyAppContextProvider>
-                <GraphContextProvider>
-                    <MainCanvas/>
-                    {/* Other UI componets will go here */}
-                </GraphContextProvider>
+                <ComfyDialogContextProvider>
+                    <GraphContextProvider>
+                        <MainCanvas/>
+                        {/* Other UI componets will go here */}
+                    </GraphContextProvider>
+                </ComfyDialogContextProvider>
             </ComfyAppContextProvider>
         </div>
     );
@@ -18,11 +22,22 @@ function App() {
 
 function MainCanvas() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const {mountLiteGraph} = useGraph()
+    const {mountLiteGraph, loadWorkflow} = useGraph()
+    const {loadGraphData} = useLoadGraphData()
 
     useEffect(() => {
+        const loadData = async () => {
+            const restored = await loadWorkflow();
+
+            // We failed to restore a workflow so load the default
+            if (!restored) {
+                await loadGraphData();
+            }
+        }
+
         if (canvasRef.current) {
             mountLiteGraph(canvasRef.current);
+            loadData();
         }
     });
 
