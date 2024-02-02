@@ -1,36 +1,31 @@
 // The container is used to provider dependency resolution for plugins
 
 import React, { useState, useEffect } from 'react';
-import { Container } from 'inversify';
 import { createUseContextHook } from './hookCreator';
-import { getLocalExtensions } from '../extension_manager/findLocalExtensions';
-import { loadExtensions } from '../extension_manager/loadExtensions';
-import { ExtensionManager } from '../extension_manager/extensionManager';
+import { getLocalExtensions } from '../pluginStore/utils/findLocalExtensions';
+import { loadExtensions } from '../pluginStore/utils/loadExtensions';
+import { defaultSerializeGraph } from '../litegraph/comfyGraph';
+import { usePluginStore } from '../pluginStore';
 
-interface IPluginContext {
-    container: Container;
-}
+interface IExtensionContext {}
 
-const PluginContext = React.createContext<IPluginContext | null>(null);
+const ExtensionContext = React.createContext<IExtensionContext | null>(null);
 
-export const PluginContextProvider: React.FC = ({ children }) => {
-    const [container, setContainer] = useState(new Container());
-    const [extensionManager, setExtensionManager] = useState(new ExtensionManager());
+export const ExtensionContextProvider: React.FC = ({ children }) => {
+    const pluginStore = usePluginStore();
+    const [serializeGraph, setSerializeGraph] = useState(() => defaultSerializeGraph);
 
     useEffect(() => {
         const loadPlugins = async () => {
             // const webModuleUrls = await api.getExtensions();
             const webModuleUrls = await getLocalExtensions();
             const comfyPlugins = await loadExtensions(webModuleUrls);
-            extensionManager.registerPlugins(comfyPlugins);
+            pluginStore.install(comfyPlugins);
         };
         loadPlugins().catch((err: unknown) => console.error(err));
-    }, [container, extensionManager]);
+    }, [pluginStore]);
 
-    // First, load dependencies
-    // then add them to the container
-
-    return <PluginContext.Provider value={{ container }}>{children}</PluginContext.Provider>;
+    return <ExtensionContext.Provider value={{}}>{children}</ExtensionContext.Provider>;
 };
 
-export const usePlugin = createUseContextHook(PluginContext, 'Plugin Context not found');
+export const usePlugin = createUseContextHook(ExtensionContext, 'Plugin Context not found');

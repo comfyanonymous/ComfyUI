@@ -1,4 +1,4 @@
-import { IComfyPlugin, Token } from '../types/interfaces';
+import type { IComfyPlugin, Token } from '../types/interfaces';
 
 // Used to instantiate registeredPlugins in the correct order
 export class DependencyGraph {
@@ -21,7 +21,7 @@ export class DependencyGraph {
                 if (depNode) {
                     node.addDependency(depNode);
                 } else {
-                    console.error(`Plugin dependency not found: ${depToken.name}`);
+                    console.error(`Plugin dependency not found: ${depToken.debugName}`);
                     return;
                 }
             });

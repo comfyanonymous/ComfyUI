@@ -35,12 +35,10 @@
         "vite": "^5.0.12"
     },
     "dependencies": {
-        "inversify": "^6.0.2",
         "nice-grpc-common": "^2.0.2",
         "protobufjs": "^7.2.6",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
-        "reconnecting-websocket": "^4.4.0",
-        "reflect-metadata": "^0.2.1"
+        "reconnecting-websocket": "^4.4.0"
     }
 }

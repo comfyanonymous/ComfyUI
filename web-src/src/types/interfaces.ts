@@ -9,6 +9,7 @@ import { ComfyObjectInfo } from './comfy';
 import { IComfyApi } from './api';
 import { SerializedGraph } from './litegraph';
 import { ComfyGraph } from '../litegraph/comfyGraph.ts';
+import { PluginStore } from '../pluginStore';
 
 interface ComfyOptionsHost {
     el: Element;
@@ -65,7 +66,7 @@ export interface IComfyNode extends LGraphNode {
     getWidgetType(inputData: any, inputName: string, app: IComfyApp): string | null;
     onKeyDown(e: KeyboardEvent): void;
     setSizeForImage(force?: boolean): void;
-    onDrawBackground(ctx: CanvasRenderingContext2D | any): void; // 'any' can be replaced with a more specific type if known
+    onDrawBackground(ctx: CanvasRenderingContext2D): void;
     getExtraMenuOptions(context: any, options: { content: string; callback: () => void }[]): void;
     addDOMWidget(
         name: string,
@@ -213,7 +214,7 @@ export interface ComfyExtension {
      */
     setup?(): Promise<void>;
 
-    beforeConfigureGraph?(graphData: Object, missingNodeTypes: string[]): Promise<void>;
+    beforeConfigureGraph?(graphData: object, missingNodeTypes: string[]): Promise<void>;
 
     afterConfigureGraph?(missingNodeTypes: string[]): Promise<void>;
 
@@ -277,11 +278,9 @@ export interface IComfyUserSettings {
     isNewUserSession: boolean | null;
 }
 
-// TO DO: fill this in later with an actual interfaace
-export interface Application {}
-
+// A token's name only exists for debug purposes, and an arbitrary
 export class Token<T> {
-    constructor(public name: string) {}
+    constructor(public debugName: string) {}
 }
 
 // `id` should be globally unique, like `core:my-extension`
@@ -291,10 +290,10 @@ export interface IComfyPlugin<T> {
     requires?: Token<any>[];
     optional?: Token<any>[];
     provides?: Token<T>;
-    activate: (app: Application, ...args: any[]) => T;
-    deactivate: (app: Application) => void;
+    activate: (...args: any[]) => T;
+    deactivate: () => void;
 }
 
-export interface ModuleWithPlugin<T> {
-    default: IComfyPlugin<T>;
+export interface ModuleWithPlugins<T> {
+    default: IComfyPlugin<T>[] | IComfyPlugin<T>;
 }
