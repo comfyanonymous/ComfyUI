@@ -221,11 +221,12 @@ def process_json(file_path):
     if (os.path.exists(file_path) == False):
         print("🔴file not found", file_path)
         gitclone_install("https://github.com/ltdrdata/ComfyUI-Manager", os.path.join(custom_node_path, "ComfyUI-Manager"))
+    START_FROM = 230
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
-            for index, node in enumerate(data["custom_nodes"][100:]):
-                print(f"🗂️🗂️No.{index} files", node['files'])
+            for index, node in enumerate(data["custom_nodes"][START_FROM:]):
+                print(f"🗂️🗂️No.{START_FROM + index} files", node['files'])
                 repo = node['reference']
                 if 'github' not in repo:
                     continue

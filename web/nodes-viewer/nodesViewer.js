@@ -9,7 +9,8 @@ const ext = {
 	async setup(app) {
 		app.canvasEl.addEventListener("click", (e)=> {
 			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );
-			console.log("clicked node", node.type);
+			console.log("clicked node", node);
+			console.log('app.graph', app.graph);
 			window.parent.postMessage({ type: "onClickNodeEvent", nodeType: node.type }, window.location.origin);
 		});
 		app.canvasEl.addEventListener("mousemove", (e)=> {
