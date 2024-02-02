@@ -186,20 +186,25 @@ def create_node_dydb(data):
         node_def = data['nodeDef']
         repo_url = data['gitHtmlUrl']
         package_id = data['packageID']
-        existing = get_node_ddb(node_type)
+        node_id = node_type.replace(' ', '_')
+        existing = get_node_ddb(node_id)
+        isDuplicateName = False
         if existing is not None and existing['packageID'] != package_id:
-            node_type = node_type + "_" + package_id
+            node_id = node_id + "_" + package_id
+            if node_type == existing['nodeType']:
+                isDuplicateName = True
     except Exception as e:
         print("Error getting node item from DynamoDB:", e)
     try:
         item = {
-            'id': node_type.replace(' ', '_'), 
+            'id': node_id, 
             "authorID": "admin",
             'nodeType': node_type,
             "nodeDef": json.dumps(node_def),
             "folderPaths": json.dumps(data['folderPaths']),
             "packageID": package_id,
             'gitHtmlUrl': repo_url,
+            "isDuplicateName": isDuplicateName,
             'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat()
         }
         response = ddb_node_table.put_item(Item=item)
