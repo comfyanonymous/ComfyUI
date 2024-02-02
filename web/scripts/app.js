@@ -2107,6 +2107,8 @@ export class ComfyApp {
 					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
 				} else if (pngInfo.prompt) {
 					this.loadApiJson(JSON.parse(pngInfo.prompt));
+				} else if (pngInfo.Prompt) {
+					this.loadApiJson(JSON.parse(pngInfo.Prompt)); // Support loading prompts from that webp custom node.
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
