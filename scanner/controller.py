@@ -224,7 +224,7 @@ def process_json(file_path):
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
-            for index, node in enumerate(data["custom_nodes"][2:]):
+            for index, node in enumerate(data["custom_nodes"][100:]):
                 print(f"🗂️🗂️No.{index} files", node['files'])
                 repo = node['reference']
                 if 'github' not in repo:
