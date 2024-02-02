@@ -156,7 +156,7 @@ def create_pacakge_ddb(pacakge_data:dict):
             'ownerGitAvatarUrl': owner_avatar_url,
             # 'imageUrl': image_url,
             'totalStars': star_count,
-            'createdAt': datetime.datetime.now().replace(microsecond=0).isoformat()
+            'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat()
         }
         print('ddb package item created','\n')
         response = ddb_package_table.put_item(Item=item)
@@ -200,6 +200,7 @@ def create_node_dydb(data):
             "folderPaths": json.dumps(data['folderPaths']),
             "packageID": package_id,
             'gitHtmlUrl': repo_url,
+            'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat()
         }
         response = ddb_node_table.put_item(Item=item)
         print("👌ddb node item added:", item)
@@ -218,7 +219,7 @@ def process_json(file_path):
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
-            for index, node in enumerate(data["custom_nodes"][4:]):
+            for index, node in enumerate(data["custom_nodes"][2:]):
                 print(f"🗂️🗂️No.{index} files", node['files'])
                 repo = node['reference']
                 if 'github' not in repo:
