@@ -5,18 +5,18 @@ import { GraphContextProvider, useGraph } from './context/graphContext';
 import { ComfyAppContextProvider, useComfyApp } from './context/appContext.tsx';
 import { ComfyDialogContextProvider } from './context/comfyDialogContext.tsx';
 import { useLoadGraphData } from './hooks/useLoadGraphData.tsx';
-import { mountLiteGraph, loadWorkflow, loadGraphData } from './litegraph/graphUtils.ts';
+import { loadWorkflow } from './litegraph/graphUtils.ts';
 import { PluginProvider, pluginStore } from './pluginStore';
 
 function RenderComponents() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { graphState } = useGraph();
+    const { graphState, initGraph } = useGraph();
     const { app } = useComfyApp();
     const { loadGraphData } = useLoadGraphData();
 
     useEffect(() => {
         if (canvasRef.current) {
-            mountLiteGraph(canvasRef.current);
+            initGraph(canvasRef.current);
         }
 
         const loadAppData = async () => {

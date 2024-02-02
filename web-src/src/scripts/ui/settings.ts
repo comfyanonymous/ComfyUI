@@ -1,4 +1,4 @@
-import { $el } from '../utils2';
+import { $el } from '../utils';
 import { api } from '../api';
 import { ComfyDialog } from './comfyDialog';
 

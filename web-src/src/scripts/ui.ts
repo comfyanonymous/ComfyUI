@@ -629,3 +629,5 @@ export class ComfyUI {
         }
     }
 }
+
+export { $el };

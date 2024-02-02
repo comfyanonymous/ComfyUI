@@ -1,5 +1,6 @@
-import { $el, ComfyDialog } from './utils.js';
+import { $el } from './utils.js';
 import { api } from './api.js';
+import { ComfyDialog } from './ui/comfyDialog.ts';
 
 $el('style', {
     textContent: `

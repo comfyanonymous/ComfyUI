@@ -184,6 +184,9 @@ export interface IComfyApp {
     refreshComboInNodes(): Promise<void>;
     clean(): void;
     cleanup(): void;
+
+    // TODO: New
+    getWidgetType(inputData: any, inputName: string): string | null;
 }
 export type GetCustomWidgetResponse = Record<
     string,

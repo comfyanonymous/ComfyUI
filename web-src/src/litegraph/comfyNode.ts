@@ -7,8 +7,10 @@ import { calculateImageGrid, createImageHost } from '../scripts/ui/imagePreview.
 import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.ts';
 import { AddDOMWidgetOptions, IComfyApp, IComfyNode } from '../types/interfaces.ts';
 import { clipspace } from '../scripts/clipspace.ts';
-import { app, ComfyApp } from '../scripts/app.ts';
+import { ComfyApp } from '../scripts/app2.ts';
 import { extensionManager } from '../scripts/extensionManager2.ts';
+
+const app = ComfyApp.getInstance();
 
 interface Point {
     x: number;
@@ -172,9 +174,9 @@ export class ComfyNode extends LGraphNode implements IComfyNode {
             const widgetType = this.getWidgetType(inputData, inputName, app);
             if (widgetType) {
                 if (widgetType === 'COMBO') {
-                    Object.assign(config, this.app.widgets?.COMBO(this, inputName, inputData, app, '') || {});
+                    Object.assign(config, app.widgets?.COMBO(this, inputName, inputData, app, '') || {});
                 } else {
-                    Object.assign(config, this.app.widgets?.[widgetType](this, inputName, inputData, app, '') || {});
+                    Object.assign(config, app.widgets?.[widgetType](this, inputName, inputData, app, '') || {});
                 }
             } else {
                 // Node connection inputs

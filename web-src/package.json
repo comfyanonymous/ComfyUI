@@ -30,15 +30,19 @@
         "eslint-plugin-react-refresh": "^0.4.5",
         "http-server": "^13.0.1",
         "madge": "^4.0.1",
+        "prettier": "^3.2.4",
         "rimraf": "^3.0.2",
         "typescript": "^5.3.3",
         "vite": "^5.0.12"
     },
     "dependencies": {
+        "inversify": "^6.0.2",
+        "litegraph.js": "^0.7.18",
         "nice-grpc-common": "^2.0.2",
         "protobufjs": "^7.2.6",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
-        "reconnecting-websocket": "^4.4.0"
+        "reconnecting-websocket": "^4.4.0",
+        "reflect-metadata": "^0.2.1"
     }
 }

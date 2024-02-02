@@ -1,5 +1,5 @@
 import React, { ReactNode, useState } from 'react';
-import { container } from '../extension_manager/inversify.config';
+import { container } from '../inversify.config';
 import { createUseContextHook } from './hookCreator';
 import { ComfyGraph } from '../litegraph/comfyGraph';
 import { ComfyCanvas } from '../litegraph/comfyCanvas';

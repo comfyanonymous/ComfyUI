@@ -18,7 +18,7 @@ export class ComfyApp implements IComfyApp {
 
     public enableWorkflowAutoSave(graph: ComfyGraph) {
         this.saveInterval = setInterval(
-            () => localStorage.setItem('workflow', JSON.stringify(graph.serialize())),
+            () => localStorage.setItem('workflow', JSON.stringify(graph.serializeGraph())),
             1000
         );
     }
