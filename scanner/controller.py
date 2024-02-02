@@ -11,7 +11,7 @@ import os
 import uuid
 from botocore.exceptions import BotoCoreError, ClientError
 from boto3.dynamodb.conditions import Key
-from githubUtils import get_github_repo_stars
+from githubUtils import clear_except_allowed_folder, get_github_repo_stars
 from manager_copy import gitclone_install
 
 scanner_path = os.path.dirname(__file__)
@@ -218,7 +218,7 @@ def process_json(file_path):
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
-            for index, node in enumerate(data["custom_nodes"][15:16]):
+            for index, node in enumerate(data["custom_nodes"][4:]):
                 print(f"🗂️🗂️No.{index} files", node['files'])
                 repo = node['reference']
                 if 'github' not in repo:
@@ -232,6 +232,7 @@ def process_json(file_path):
                 target_dir = os.path.join(custom_node_path, repo_name)
                 git_clone_url = repo + '.git' if not repo.endswith('.git') else repo
                 # gitclone_install( git_clone_url, target_dir)
+                clear_except_allowed_folder(custom_node_path, 'ComfyUI-Manager')
                 gitclone_install([git_clone_url])
                 run_main_py_and_wait({
                     'reference': repo,
@@ -239,7 +240,6 @@ def process_json(file_path):
                     'description': node['description'],
                     'author': node['author'],
                 })
-                delete_installed_node(target_dir)
     except Exception as e:
         return f"An error occurred: {e}"
 
