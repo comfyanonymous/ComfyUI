@@ -258,6 +258,79 @@ function isSlider(display, app) {
 	return (display==="slider") ? "slider" : "number"
 }
 
+// 通用的图像上传函数
+function createImageUploadWidget(node, inputName, inputData, imageType, app) {
+	const imageWidget = node.widgets.find((w) => w.name === (inputData[1]?.widget ?? "image"));
+	let AuploadWidget;
+
+	function showImage(name, type) {
+		const img = new Image();
+		img.onload = () => {
+			node.imgs = [img];
+			app.graph.setDirtyCanvas(true);
+		};
+		let folder_separator = name.lastIndexOf("/");
+		let subfolder = "";
+		if (folder_separator > -1) {
+			subfolder = name.substring(0, folder_separator);
+			name = name.substring(folder_separator + 1);
+		}
+		img.src = api.apiURL(`/view?filename=${encodeURIComponent(name)}&type=${type}&subfolder=${subfolder}${app.getPreviewFormatParam()}${app.getRandParam()}`);
+		node.setSizeForImage?.();
+	}
+
+	var default_value = imageWidget.value;
+	Object.defineProperty(imageWidget, "value", {
+		set: function (value) {
+			this._real_value = value;
+		},
+
+		get: function () {
+			let value = "";
+			if (this._real_value) {
+				value = this._real_value;
+			} else {
+				return default_value;
+			}
+
+			if (value.filename) {
+				let real_value = value;
+				value = "";
+				if (real_value.subfolder) {
+					value = real_value.subfolder + "/";
+				}
+
+				value += real_value.filename;
+
+				if (real_value.type && real_value.type !== "input")
+					value += ` [${real_value.type}]`;
+			}
+			return value;
+		}
+	});
+
+	// 添加回调函数以在更改图像时渲染图像
+	const cb = node.callback;
+	imageWidget.callback = function () {
+		showImage(imageWidget.value, imageType);
+		if (cb) {
+			return cb.apply(this, arguments);
+		}
+	};
+
+	// 在加载时，如果有值，则渲染图像
+	// 值不会立即设置，因此我们需要等待一会儿
+	// 初始设置值时不会触发更改回调
+	requestAnimationFrame(() => {
+		if (imageWidget.value) {
+			showImage(imageWidget.value, imageType);
+		}
+	});
+
+	return { widget: AuploadWidget };
+
+}
+
 export function initWidgets(app) {
 	app.ui.settings.addSetting({
 		id: "Comfy.WidgetControlMode",
@@ -512,5 +585,21 @@ export const ComfyWidgets = {
 		}
 
 		return { widget: uploadWidget };
+	},
+	ARTISTS_IMAGEUPLOAD(node, inputName, inputData, app) {
+		return createImageUploadWidget(node, inputName, inputData, 'artists', app);
+	},
+	CAMERAS_IMAGEUPLOAD(node, inputName, inputData, app) {
+		return createImageUploadWidget(node, inputName, inputData, 'cameras', app);
+	},
+	FILMS_IMAGEUPLOAD(node, inputName, inputData, app) {
+		return createImageUploadWidget(node, inputName, inputData, 'films', app);
+	},
+	MOVEMENTS_IMAGEUPLOAD(node, inputName, inputData, app) {
+		return createImageUploadWidget(node, inputName, inputData, 'movements', app);
+	},
+	STYLES_IMAGEUPLOAD(node, inputName, inputData, app) {
+		return createImageUploadWidget(node, inputName, inputData, 'styles', app);
+
 	},
 };

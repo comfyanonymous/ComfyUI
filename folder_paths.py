@@ -33,6 +33,22 @@ folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")]
 
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
+supported_artist_extensions = [".jpg", ".png", ".jpeg"]
+artists_dir = os.path.join(base_path, "custom_nodes", "ComfyUI-ArtGallery", "img_lists", "artists")
+folder_names_and_paths["artists"] = ([artists_dir], supported_artist_extensions)
+
+cameras_dir = os.path.join(base_path, "custom_nodes", "ComfyUI-ArtGallery", "img_lists", "cameras")
+folder_names_and_paths["cameras"] = ([cameras_dir], supported_artist_extensions)
+
+films_dir = os.path.join(base_path, "custom_nodes", "ComfyUI-ArtGallery", "img_lists", "films")
+folder_names_and_paths["films"] = ([films_dir], supported_artist_extensions)
+
+movements_dir = os.path.join(base_path, "custom_nodes", "ComfyUI-ArtGallery", "img_lists", "movements")
+folder_names_and_paths["movements"] = ([movements_dir], supported_artist_extensions)
+
+styles_dir = os.path.join(base_path, "custom_nodes", "ComfyUI-ArtGallery", "img_lists", "styles")
+folder_names_and_paths["styles"] = ([styles_dir], supported_artist_extensions)
+
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
@@ -79,6 +95,16 @@ def get_directory_by_type(type_name):
         return get_temp_directory()
     if type_name == "input":
         return get_input_directory()
+    if type_name == "artists":
+        return folder_names_and_paths["artists"][0][0]
+    if type_name == "cameras":
+        return folder_names_and_paths["cameras"][0][0]
+    if type_name == "films":
+        return folder_names_and_paths["films"][0][0]
+    if type_name == "movements":
+        return folder_names_and_paths["movements"][0][0]
+    if type_name == "styles":
+        return folder_names_and_paths["styles"][0][0]
     return None
 
 
