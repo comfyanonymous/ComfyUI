@@ -1695,8 +1695,8 @@ export class ComfyApp {
         // For example, this could involve altering the display style of certain elements
       }
     });
-	
-    let currentPosition = [0, 50]; // Start at the top-left corner of the canvas.
+	  const LEFT_PADDING = 20;
+    let currentPosition = [LEFT_PADDING, 50]; // Start at the top-left corner of the canvas.
     const canvasWidth = app.canvasEl.offsetWidth; // Dynamically get canvas width.
     const rowGap = 60; // Vertical gap between rows.
     const gap = 20;
@@ -1713,7 +1713,7 @@ export class ComfyApp {
     
       // Preemptively move to the next row if the current node would exceed the canvas width
       if (currentPosition[0] + nodeWidth + gap > canvasWidth) {
-        currentPosition[0] = 0; // Reset X position to start of the next row
+        currentPosition[0] = LEFT_PADDING; // Reset X position to start of the next row
         currentPosition[1] += maxHeightInRow + rowGap; // Move Y position down
         maxHeightInRow = nodeHeight; // Start tracking the new row's maxHeight with the current node
       } else {
