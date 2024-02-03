@@ -11549,7 +11549,10 @@ LGraphNode.prototype.executeAction = function(action)
                     dialog.close();
                 } else if (e.keyCode == 13) {
                     if (selected) {
-                        select(selected.innerHTML);
+                        if (selected.hasAttribute("data-type") && selected.getAttribute("data-type") != '')
+                            select(selected.getAttribute("data-type"))
+                        else
+                            select(selected.innerHTML)
                     } else if (first) {
                         select(first);
                     } else {
