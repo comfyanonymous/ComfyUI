@@ -1926,7 +1926,7 @@ def custom_serializer(obj):
         return obj
 
 def load_custom_nodes():
-    print('🤔 load cusotm nodes')
+    print('🤔🤔🤔 load cusotm nodes')
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -1942,6 +1942,7 @@ def load_custom_nodes():
             time_before = time.perf_counter()
             prev_nodes = set(NODE_CLASS_MAPPINGS.keys())
             success = load_custom_node(module_path, base_node_names)
+            print("imported nodes: success",success)
             with open('communication_file.txt', 'a') as file:
                 nodes_count = len(NODE_CLASS_MAPPINGS) - len(prev_nodes)
                 json_string = json.dumps({"import_success": success,"nodes_count":nodes_count, "import_time": time.perf_counter() - time_before})
