@@ -2516,9 +2516,7 @@ export class ComfyViewNodeApp extends ComfyApp {
       // const defs = await api.getNodeDefs();
       const queryParams = new URLSearchParams(window.location.search);
     const nodeDefs = queryParams.get('nodeDefs');
-      console.log('registerNodes nodeDefs', nodeDefs);
       const defs = JSON.parse(nodeDefs);
-      console.log('registerNodes nodeDefs parsed', defs);
 
       await this.registerNodesFromDefs(defs);
       await this.#invokeExtensionsAsync("registerCustomNodes");
@@ -2602,12 +2600,11 @@ async function loadModuleBasedOnPath() {
     
     console.log('Loading viewNodeApp for node:', nodeId);
     // const {ComfyViewNodeApp} = await import("/web/scripts/comfyspace_viewNodeApp.js");
-    console.log('ComfyViewNodeApp:', ComfyViewNodeApp);
+    
     app = new ComfyViewNodeApp();
     
-    console.log('app:', app);
   } else {
-    console.log('Loading app.js');
+    
     // For any other path, import app.js and perform setup
     app = new ComfyApp()
     
