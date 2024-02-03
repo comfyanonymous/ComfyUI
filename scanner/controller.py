@@ -12,7 +12,7 @@ import uuid
 from botocore.exceptions import BotoCoreError, ClientError
 from boto3.dynamodb.conditions import Key
 from githubUtils import clear_except_allowed_folder, get_github_repo_stars
-from manager_copy import gitclone_install
+from manager_copy import gitclone_install, run_script
 
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
@@ -72,30 +72,29 @@ def gitclone_install2222(repo_url: str, target_dir: str):
         # Change back to the original directory
         # os.chdir(original_cwd)
 
-def run_main_py_and_wait(package_data:dict):
+def run_main_py_and_wait(package_data:dict,index: int = 0):
     if os.path.exists(communication_file):
         print("Removing communication file")
         os.remove(communication_file)
     os.chdir(comfy_path)
-    process = subprocess.Popen(['python', 'main.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
+    # process = subprocess.Popen(['python', 'main.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        while True:
-            output = process.stdout.readline()
-            if output == '' and process.poll() is not None:
-                break
-            if output.startswith("__workspace_scanner__"):
-                print(f"\033[93m{output}\033[0m", end='')  # end='' to avoid double newline
-            else:
-                print(output, end='')
+        cmd = ['python', 'main.py']  # Use 'python3' instead of 'python' if your system requires it
+
+        # Call the run_script function with the command
+        # You can specify the current working directory (cwd) if needed, or use '.' for the current directory
+        run_script(cmd, cwd='.')
+    
     finally:
-        process.terminate()
-        process.wait()
+        # process.terminate()
+        # process.wait()
         print(f"\033[93m Done importing:{package_data['reference']}\033[0m", end='')  
         # Create package and node in DynamoDB
         package = create_pacakge_ddb(package_data)
-        print(f"📦package: {package['title']}")
+        print(f"📦created pacakge ddb: {package['title']}, index: {index}")
         totalCount = 0 
+        if not os.path.exists(communication_file):
+            print("🔴communication_file not found")
         with open(communication_file, 'r') as file:
              for line in file:
                 try:
@@ -221,7 +220,7 @@ def process_json(file_path):
     if (os.path.exists(file_path) == False):
         print("🔴file not found", file_path)
         gitclone_install("https://github.com/ltdrdata/ComfyUI-Manager", os.path.join(custom_node_path, "ComfyUI-Manager"))
-    START_FROM = 230
+    START_FROM = 3
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
@@ -246,7 +245,7 @@ def process_json(file_path):
                     'title': node['title'],
                     'description': node['description'],
                     'author': node['author'],
-                })
+                },START_FROM + index)
     except Exception as e:
         return f"An error occurred: {e}"
 
