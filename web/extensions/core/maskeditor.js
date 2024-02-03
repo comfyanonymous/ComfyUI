@@ -62,7 +62,7 @@ async function uploadMask(filepath, formData) {
 	ClipspaceDialog.invalidatePreview();
 }
 
-function prepare_mask(image, maskCanvas, maskCtx) {
+function prepare_mask(image, maskCanvas, maskCtx, maskColor) {
 	// paste mask data into alpha channel
 	maskCtx.drawImage(image, 0, 0, maskCanvas.width, maskCanvas.height);
 	const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
@@ -74,9 +74,9 @@ function prepare_mask(image, maskCanvas, maskCtx) {
 		else
 			maskData.data[i+3] = 255;
 
-		maskData.data[i] = 0;
-		maskData.data[i+1] = 0;
-		maskData.data[i+2] = 0;
+		maskData.data[i] = maskColor.r;
+		maskData.data[i+1] = maskColor.g;
+		maskData.data[i+2] = maskColor.b;
 	}
 
 	maskCtx.globalCompositeOperation = 'source-over';
@@ -194,14 +194,29 @@ class MaskEditorDialog extends ComfyDialog {
 		this.element.appendChild(bottom_panel);
 		document.body.appendChild(brush);
 
+		var clearButton = this.createLeftButton("Clear", () => {
+			self.maskCtx.clearRect(0, 0, self.maskCanvas.width, self.maskCanvas.height);
+		});
+		
 		this.brush_size_slider = this.createLeftSlider(self, "Thickness", (event) => {
 			self.brush_size = event.target.value;
 			self.updateBrushPreview(self, null, null);
 		});
-		var clearButton = this.createLeftButton("Clear",
-			() => {
-				self.maskCtx.clearRect(0, 0, self.maskCanvas.width, self.maskCanvas.height);
-			});
+
+		this.colorButton = this.createLeftButton(this.getColorButtonText(), () => {
+			if (self.brush_color_mode === "black") {
+				self.brush_color_mode = "white";
+			}
+			else if (self.brush_color_mode === "white") {
+				self.brush_color_mode = "negative";
+			}
+			else {
+				self.brush_color_mode = "black";
+			}
+
+			self.updateWhenBrushColorModeChanged();
+		});
+
 		var cancelButton = this.createRightButton("Cancel", () => {
 			document.removeEventListener("mouseup", MaskEditorDialog.handleMouseUp);
 			document.removeEventListener("keydown", MaskEditorDialog.handleKeyDown);
@@ -222,6 +237,7 @@ class MaskEditorDialog extends ComfyDialog {
 		bottom_panel.appendChild(this.saveButton);
 		bottom_panel.appendChild(cancelButton);
 		bottom_panel.appendChild(this.brush_size_slider);
+		bottom_panel.appendChild(this.colorButton);
 
 		imgCanvas.style.position = "absolute";
 		maskCanvas.style.position = "absolute";
@@ -231,6 +247,10 @@ class MaskEditorDialog extends ComfyDialog {
 
 		maskCanvas.style.top = imgCanvas.style.top;
 		maskCanvas.style.left = imgCanvas.style.left;
+
+		const maskCanvasStyle = this.getMaskCanvasStyle();
+		maskCanvas.style.mixBlendMode = maskCanvasStyle.mixBlendMode;
+		maskCanvas.style.opacity = maskCanvasStyle.opacity;
 	}
 
 	async show() {
@@ -316,7 +336,7 @@ class MaskEditorDialog extends ComfyDialog {
 		let maskCtx = this.maskCanvas.getContext('2d', {willReadFrequently: true });
 
 		imgCtx.drawImage(orig_image, 0, 0, orig_image.width, orig_image.height);
-		prepare_mask(mask_image, this.maskCanvas, maskCtx);
+		prepare_mask(mask_image, this.maskCanvas, maskCtx, this.getMaskColor());
 	}
 
 	async setImages(imgCanvas) {
@@ -442,7 +462,84 @@ class MaskEditorDialog extends ComfyDialog {
 		}
 	}
 
+	getMaskCanvasStyle() {
+		if (this.brush_color_mode === "negative") {
+			return {
+				mixBlendMode: "difference",
+				opacity: "1",
+			};
+		}
+		else {
+			return {
+				mixBlendMode: "initial",
+				opacity: "0.7",
+			};
+		}
+	}
+
+	getMaskColor() {
+		if (this.brush_color_mode === "black") {
+			return { r: 0, g: 0, b: 0 };
+		}
+		if (this.brush_color_mode === "white") {
+			return { r: 255, g: 255, b: 255 };
+		}
+		if (this.brush_color_mode === "negative") {
+			// negative effect only works with white color
+			return { r: 255, g: 255, b: 255 };
+		}
+
+		return { r: 0, g: 0, b: 0 };
+	}
+
+	getMaskFillStyle() {
+		const maskColor = this.getMaskColor();
+
+		return "rgb(" + maskColor.r + "," + maskColor.g + "," + maskColor.b + ")";
+	}
+
+	getColorButtonText() {
+		let colorCaption = "unknown";
+
+		if (this.brush_color_mode === "black") {
+			colorCaption = "black";
+		}
+		else if (this.brush_color_mode === "white") {
+			colorCaption = "white";
+		}
+		else if (this.brush_color_mode === "negative") {
+			colorCaption = "negative";
+		}
+
+		return "Color: " + colorCaption;
+	}
+
+	updateWhenBrushColorModeChanged() {
+		this.colorButton.innerText = this.getColorButtonText();
+
+		// update mask canvas css styles
+
+		const maskCanvasStyle = this.getMaskCanvasStyle();
+		this.maskCanvas.style.mixBlendMode = maskCanvasStyle.mixBlendMode;
+		this.maskCanvas.style.opacity = maskCanvasStyle.opacity;
+
+		// update mask canvas rgb colors
+
+		const maskColor = this.getMaskColor();
+
+		const maskData = this.maskCtx.getImageData(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+		
+		for (let i = 0; i < maskData.data.length; i += 4) {
+			maskData.data[i] = maskColor.r;
+			maskData.data[i+1] = maskColor.g;
+			maskData.data[i+2] = maskColor.b;
+		}
+	
+		this.maskCtx.putImageData(maskData, 0, 0);
+	}
+
 	brush_size = 10;
+	brush_color_mode = "black";
 	drawing_mode = false;
 	lastx = -1;
 	lasty = -1;
@@ -600,7 +697,7 @@ class MaskEditorDialog extends ComfyDialog {
 			if(diff > 20 && !this.drawing_mode)
 				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
-					self.maskCtx.fillStyle = "rgb(0,0,0)";
+					self.maskCtx.fillStyle = this.getMaskFillStyle();
 					self.maskCtx.globalCompositeOperation = "source-over";
 					self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
 					self.maskCtx.fill();
@@ -610,7 +707,7 @@ class MaskEditorDialog extends ComfyDialog {
 			else
 				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
-					self.maskCtx.fillStyle = "rgb(0,0,0)";
+					self.maskCtx.fillStyle = this.getMaskFillStyle();
 					self.maskCtx.globalCompositeOperation = "source-over";
 
 					var dx = x - self.lastx;
@@ -719,7 +816,7 @@ class MaskEditorDialog extends ComfyDialog {
 
 			self.maskCtx.beginPath();
 			if (!event.altKey && event.button == 0) {
-				self.maskCtx.fillStyle = "rgb(0,0,0)";
+				self.maskCtx.fillStyle = this.getMaskFillStyle();
 				self.maskCtx.globalCompositeOperation = "source-over";
 			} else {
 				self.maskCtx.globalCompositeOperation = "destination-out";
