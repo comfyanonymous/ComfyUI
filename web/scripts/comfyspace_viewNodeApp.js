@@ -1,4 +1,4 @@
-import { ComfyApp } from "/web/scripts/app.js";
+
 
 
 export class ComfyViewNodeApp extends ComfyApp {
@@ -83,4 +83,3 @@ export class ComfyViewNodeApp extends ComfyApp {
 
 }
 
-export const app = new ComfyViewNodeApp();
