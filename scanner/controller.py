@@ -220,7 +220,7 @@ def process_json(file_path):
     if (os.path.exists(file_path) == False):
         print("🔴file not found", file_path)
         gitclone_install("https://github.com/ltdrdata/ComfyUI-Manager", os.path.join(custom_node_path, "ComfyUI-Manager"))
-    START_FROM = 3
+    START_FROM = 365
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)

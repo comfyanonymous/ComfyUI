@@ -1601,7 +1601,7 @@ export class ComfyApp {
     canvasEl.tabIndex = "1";
     document.body.prepend(canvasEl);
 
-    addDomClippingSetting();
+    // addDomClippingSetting();
     this.#addProcessMouseHandler();
     this.#addProcessKeyHandler();
     this.#addConfigureHandler();

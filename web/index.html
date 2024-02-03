@@ -10,10 +10,37 @@
 		<script type="text/javascript" src="./lib/litegraph.core.js"></script>
 		<script type="text/javascript" src="./lib/litegraph.extensions.js" defer></script>
 		<script type="module">
-			import { app } from "./scripts/app.js";
-			await app.setup();
-			window.app = app;
-			window.graph = app.graph;
+			// import { app } from "./scripts/app.js";
+			// await app.setup();
+			// window.app = app;
+			// window.graph = app.graph;
+			
+			async function loadModuleBasedOnPath() {
+				const queryParams = new URLSearchParams(window.location.search);
+    			const nodeId = queryParams.get('nodeID');
+				
+				if (nodeId !== null) {
+					
+					console.log('Loading viewNodeApp for node:', nodeId);
+					const {app} = await import("./scripts/comfyspace_viewNodeApp.js");
+					await app.setup();
+
+					// Expose app and its graph to the window object
+					window.app = app;
+					window.graph = app.graph;
+				} else {
+					// For any other path, import app.js and perform setup
+					const { app } = await import("./scripts/app.js");
+					await app.setup();
+
+					// Expose app and its graph to the window object
+					window.app = app;
+					window.graph = app.graph;
+				}
+			}
+
+			// Call the function to load the module based on the current path
+			loadModuleBasedOnPath();
 		</script>
 	</head>
 	<body class="litegraph">
