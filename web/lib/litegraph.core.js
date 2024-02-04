@@ -7760,11 +7760,11 @@ LGraphNode.prototype.executeAction = function(action)
         this.frame += 1;
 
         if (this.ds.scale < 0.5) {
-            if ( this.fps < 30) {
-                this.low_quality_rendering_counter += 30 / this.fps;
-            } else {
-                this.low_quality_rendering_counter -= 30 / this.fps;
+            // count only slow frames with havy rendering
+            if (this.fps < 90) {
+                this.low_quality_rendering_counter += (60 - this.fps) / 60;
             }
+            
             this.low_quality_rendering_counter = Math.max(0, Math.min(this.low_quality_rendering_counter, 2 * this.low_quality_rendering_threshold));
         } else {
             this.low_quality_rendering_counter = 0;
