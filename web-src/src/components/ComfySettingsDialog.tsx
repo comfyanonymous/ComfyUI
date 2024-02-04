@@ -11,11 +11,11 @@ export function ComfySettingsDialog({ open, content }: ComfySettingsDialogProps)
             <table className="comfy-modal-content comfy-table">
                 <caption>Settings</caption>
                 <tbody>{content}</tbody>
-
-                <button type="button" style={{ cursor: 'pointer' }} onClick={() => {}}>
-                    Close
-                </button>
             </table>
+            
+            <button type="button" style={{ cursor: 'pointer' }} onClick={() => {}}>
+                Close
+            </button>
         </dialog>
     );
 }

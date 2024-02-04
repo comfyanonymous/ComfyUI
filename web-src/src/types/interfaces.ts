@@ -143,6 +143,7 @@ export interface IComfyCanvas extends LGraphCanvas<IComfyNode, IComfyGraph> {
 }
 
 export interface IComfyApp {
+    queuePrompt(arg0: number, batchCount: number): unknown;
     // Public properties
     extensions: ComfyExtension[];
     nodeOutputs: Record<string, any>;
@@ -188,6 +189,7 @@ export interface IComfyApp {
     // TODO: New
     getWidgetType(inputData: any, inputName: string): string | null;
 }
+
 export type GetCustomWidgetResponse = Record<
     string,
     (

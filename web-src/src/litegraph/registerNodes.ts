@@ -2,7 +2,6 @@
 // LiteGraph first.
 
 import { LiteGraph } from 'litegraph.js';
-import { extensionManager } from '../scripts/extensionManager2';
 import { ComfyNode } from './comfyNode';
 import { widgetState } from './widgetFactory';
 import { ComfyObjectInfo } from '../types/comfy';
@@ -12,11 +11,11 @@ import { api } from '../scripts/api';
 export async function registerNodes() {
     const defs = await api.getNodeDefs();
     await registerNodesFromDefs(defs);
-    await extensionManager.invokeExtensionsAsync('registerCustomNodes');
+    // await extensionManager.invokeExtensionsAsync('registerCustomNodes');
 }
 
 export async function registerNodesFromDefs(defs: Record<string, ComfyObjectInfo>) {
-    await extensionManager.invokeExtensionsAsync('addCustomNodeDefs', defs);
+    // await extensionManager.invokeExtensionsAsync('addCustomNodeDefs', defs);
 
     // Refresh list of known widgets
     await widgetState.refresh();
@@ -46,7 +45,7 @@ export async function registerNodeDef(nodeId: string, nodeData: any) {
     comfyNodeConstructor.comfyClass = nodeData.name;
     comfyNodeConstructor.nodeData = nodeData;
 
-    await extensionManager.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
+    // await extensionManager.invokeExtensionsAsync('beforeRegisterNodeDef', comfyNodeConstructor, nodeData);
 
     LiteGraph.registerNodeType(nodeId, comfyNodeConstructor);
 }

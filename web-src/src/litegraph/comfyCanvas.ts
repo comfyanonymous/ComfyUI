@@ -22,7 +22,8 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
         graph?: ComfyGraph,
         options?: { skip_render?: boolean; autoresize?: boolean }
     ) {
-        super(canvas, graph, options);
+        //TODO: add graph again
+        super(canvas, null, options);
 
         // Add canvas-event listeners
         window.addEventListener('resize', this.resizeCanvas, { signal: this.abortController.signal });

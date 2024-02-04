@@ -2,11 +2,9 @@
 // new widget-types, and manages their state.
 
 import { api } from '../scripts/api.js';
-import './domWidget.js';
 import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.js';
 import { ComfyNode } from './comfyNode.js';
 import { ComfyFile } from '../types/many.js';
-import { extensionManager } from '../scripts/extensionManager2.js';
 import { GetCustomWidgetResponse } from '../types/interfaces.js';
 
 interface WidgetReturnType {
@@ -643,15 +641,15 @@ export class WidgetState {
 
     // TO DO: we should make this synchronous by forcing invokeExtensions to be a synchronous function instead
     async refresh() {
-        const customWidgetsResponses = await extensionManager.invokeExtensionsAsync('getCustomWidgets');
-        const customWidgetsMerged = customWidgetsResponses.reduce((acc, widgetResponse) => {
-            return Object.assign(acc, widgetResponse);
-        }, {} as GetCustomWidgetResponse);
-
-        this.widgets = {
-            ...WidgetFactory,
-            ...customWidgetsMerged,
-        };
+        // const customWidgetsResponses = await extensionManager.invokeExtensionsAsync('getCustomWidgets');
+        // const customWidgetsMerged = customWidgetsResponses.reduce((acc, widgetResponse) => {
+        //     return Object.assign(acc, widgetResponse);
+        // }, {} as GetCustomWidgetResponse);
+        //
+        // this.widgets = {
+        //     ...WidgetFactory,
+        //     ...customWidgetsMerged,
+        // };
     }
 }
 

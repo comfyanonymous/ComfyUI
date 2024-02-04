@@ -1,4 +1,4 @@
-import { LGraph } from 'litegraph.js';
+import { LGraph, LGraphCanvas } from 'litegraph.js';
 import { injectable, inject } from 'inversify';
 import { ComfyNode } from './comfyNode';
 import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
@@ -133,17 +133,27 @@ export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGrap
     return { serializedGraph, apiWorkflow };
 };
 
+// @injectable()
 /** Converts the current graph serializedGraph for sending to the API */
-export class SerializeGraph implements ISerializeGraph {}
+export class SerializeGraph implements ISerializeGraph {
+    // serializeGraph(graph: IComfyGraph): {
+    //     serializedGraph: SerializedGraph;
+    //     apiWorkflow: Record<string, WorkflowStep>;
+    // } {
+    //     return {};
+    // }
+}
 
-@injectable()
-export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
+// @injectable()
+export class ComfyGraph extends LGraph implements IComfyGraph {
     // Flag that the graph is configuring to prevent nodes from running checks while its still loading
     configuringGraph = false;
 
+    nodes: { [key: string]: any } = {};
+
     /** Optionally pass in a former graph-state to have it restored */
     constructor(
-        @inject('ISerializeGraph') private serializeStrategy: ISerializeGraph,
+        // @inject('ISerializeGraph') private serializeStrategy: ISerializeGraph,
         serializedGraph?: SerializedGraph
     ) {
         super(serializedGraph);
@@ -162,14 +172,16 @@ export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
 
     onConfigure(data: object): void {
         // Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
-        for (const node of this.nodes) {
+        for (const key in this.nodes) {
+            const node = this.nodes[key];
             node.onGraphConfigured?.();
         }
 
         const r = super.onConfigure ? super.onConfigure(data) : undefined;
 
         // Fire after onConfigure, used by primitves to generate widget using input nodes config
-        for (const node of this.nodes) {
+        for (const key in this.nodes) {
+            const node = this.nodes[key];
             node.onAfterGraphConfigured?.();
         }
 
@@ -178,6 +190,6 @@ export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
     }
 
     serializeGraph(): ReturnType<ISerializeGraph['serializeGraph']> {
-        return this.serializeStrategy.serializeGraph(this);
+        return {};
     }
 }

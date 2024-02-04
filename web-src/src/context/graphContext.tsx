@@ -19,14 +19,13 @@ interface GraphContextType {
 const GraphContext = React.createContext<GraphContextType | null>(null);
 
 export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
-    const { loadGraphData } = useLoadGraphData();
     const [graphState, setGraphState] = useState<GraphState>(null);
 
     const initGraph = (mainCanvas: HTMLCanvasElement) => {
         const canvasEl = Object.assign(mainCanvas, { id: 'graph-canvas' });
         canvasEl.tabIndex = 1;
 
-        const graph = container.resolve(ComfyGraph);
+        const graph = new ComfyGraph();
         const canvas = new ComfyCanvas(canvasEl, graph);
         const ctx = canvasEl.getContext('2d');
 

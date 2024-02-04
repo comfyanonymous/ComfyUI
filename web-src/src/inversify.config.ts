@@ -1,8 +1,9 @@
 import 'reflect-metadata';
 import { Container } from 'inversify';
-import { ComfyGraph } from './litegraph/comfyGraph.ts';
+import { ComfyGraph, SerializeGraph } from './litegraph/comfyGraph.ts';
 
 const container = new Container();
-container.bind<ComfyGraph>(ComfyGraph).to(ComfyGraph);
+container.bind<ComfyGraph>('ComfyGraph').to(ComfyGraph);
+container.bind<SerializeGraph>('SerializeGraph').to(SerializeGraph);
 
 export { container };

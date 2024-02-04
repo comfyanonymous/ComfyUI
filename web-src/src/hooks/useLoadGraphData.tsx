@@ -9,15 +9,16 @@ import { useComfyApp } from '../context/appContext.tsx';
 import { useGraph } from '../context/graphContext.tsx';
 import { MissingNodesError } from '../components/errors/MissingNodesError.tsx';
 import { LiteGraph } from 'litegraph.js';
-import { logging } from '../scripts/logging.ts';
+
+// import { logging } from '../scripts/logging.ts';
 
 export function useLoadGraphData() {
     const { app } = useComfyApp();
     const { showDialog } = useComfyDialog();
     const { graphState } = useGraph();
+    const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
 
     const loadGraphData = async (graphData?: any, clean: boolean = true) => {
-        const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
         if (clean) {
             app.clean();
         }
@@ -35,8 +36,10 @@ export function useLoadGraphData() {
         }
 
         const missingNodeTypes: string[] = [];
-        await extensionManager.invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
-        for (let n of graphData.nodes) {
+        // await extensionManager.invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
+        for (let k in graphData.nodes) {
+            const n = graphData.nodes[k];
+
             // Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
             if (n.type == 'T2IAdapterLoader') n.type = 'ControlNetLoader';
             if (n.type == 'ConditioningAverage ') n.type = 'ConditioningAverage'; //typo fix
@@ -65,7 +68,8 @@ export function useLoadGraphData() {
             return;
         }
 
-        for (const node of graphState?.graph?.nodes || []) {
+        for (const key in graphState?.graph?.nodes || []) {
+            const node = graphState?.graph?.nodes[key];
             const size = node.computeSize();
             size[0] = Math.max(node.size[0], size[0]);
             size[1] = Math.max(node.size[1], size[1]);
@@ -103,20 +107,39 @@ export function useLoadGraphData() {
 
             // TO DO: check if this behavior changed at all; we went from
             // invokeExtensions to invokeExtensionsAsync here
-            extensionManager.invokeExtensionsAsync('loadedGraphNode', node);
+            // extensionManager.invokeExtensionsAsync('loadedGraphNode', node);
         }
 
         if (missingNodeTypes.length) {
             showDialog(<MissingNodesError nodeTypes={missingNodeTypes} />);
-            logging.addEntry('Comfy.App', 'warn', {
-                MissingNodes: missingNodeTypes,
-            });
+            // TODO: Add logging
+            // logging.addEntry('Comfy.App', 'warn', {
+            //     MissingNodes: missingNodeTypes,
+            // });
         }
 
-        await extensionManager.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
+        // await extensionManager.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
+    };
+
+    const loadWorkflow = async (): Promise<boolean> => {
+        try {
+            const json = localStorage.getItem('workflow');
+            const hasWorkflow = json !== '{}' && !!json;
+
+            if (hasWorkflow) {
+                const workflow = JSON.parse(json);
+                await loadGraphData(workflow);
+                return true;
+            }
+        } catch (err) {
+            console.error('Error loading previous workflow', err);
+        }
+
+        return false;
     };
 
     return {
         loadGraphData,
+        loadWorkflow
     };
 }

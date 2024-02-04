@@ -1,29 +1,34 @@
-import './App.css';
 import React from 'react';
 import { useEffect, useRef } from 'react';
 import { GraphContextProvider, useGraph } from './context/graphContext';
 import { ComfyAppContextProvider, useComfyApp } from './context/appContext.tsx';
 import { ComfyDialogContextProvider } from './context/comfyDialogContext.tsx';
 import { useLoadGraphData } from './hooks/useLoadGraphData.tsx';
-import { loadWorkflow } from './litegraph/graphUtils.ts';
 import { PluginProvider, pluginStore } from './pluginStore';
+import { SettingsContextProvider, useSettings } from './context/settingsContext.tsx';
+import { registerNodes } from './litegraph/registerNodes.ts';
 
 function RenderComponents() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const { graphState, initGraph } = useGraph();
     const { app } = useComfyApp();
-    const { loadGraphData } = useLoadGraphData();
+    const { load: loadSettings } = useSettings();
+    const { loadGraphData, loadWorkflow } = useLoadGraphData();
 
     useEffect(() => {
         if (canvasRef.current) {
             initGraph(canvasRef.current);
         }
 
+        registerNodes();
+        loadSettings();
+
         const loadAppData = async () => {
             const restored = await loadWorkflow();
 
             // We failed to restore a workflow so load the default
             if (!restored) {
+                console.log('sss');
                 await loadGraphData();
             }
 
@@ -52,7 +57,9 @@ function App() {
                 <ComfyAppContextProvider>
                     <ComfyDialogContextProvider>
                         <GraphContextProvider>
-                            <RenderComponents />
+                            <SettingsContextProvider>
+                                <RenderComponents />
+                            </SettingsContextProvider>
                         </GraphContextProvider>
                     </ComfyDialogContextProvider>
                 </ComfyAppContextProvider>

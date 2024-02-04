@@ -8,7 +8,6 @@ import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.ts';
 import { AddDOMWidgetOptions, IComfyApp, IComfyNode } from '../types/interfaces.ts';
 import { clipspace } from '../scripts/clipspace.ts';
 import { ComfyApp } from '../scripts/app2.ts';
-import { extensionManager } from '../scripts/extensionManager2.ts';
 
 const app = ComfyApp.getInstance();
 

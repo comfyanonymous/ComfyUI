@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { ComfyDialog } from './ui/comfyDialog.js';
+import { ComfyDialog0 } from './ui/comfyDialog0.ts';
 import { ComfySettingsDialog } from './ui/settings.js';
 import { toggleSwitch } from './ui/toggleSwitch.js';
 import { ComfyPromptStatus } from '../types/comfy.js';
@@ -235,7 +235,7 @@ class ComfyList {
 }
 
 export class ComfyUI {
-    dialog: ComfyDialog;
+    dialog: ComfyDialog0;
     settings: ComfySettingsDialog;
     batchCount: number;
     lastQueueSize: number;
@@ -248,7 +248,7 @@ export class ComfyUI {
     autoQueueEnabled: boolean = false;
 
     constructor() {
-        this.dialog = new ComfyDialog();
+        this.dialog = new ComfyDialog0();
         this.settings = new ComfySettingsDialog();
 
         this.batchCount = 1;

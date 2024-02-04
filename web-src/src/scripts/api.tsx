@@ -23,10 +23,10 @@ export class ComfyApi extends EventTarget implements IComfyApi {
     /** Set of custom message types */
     #registered: Set<string>;
 
-    constructor() {
+    constructor(host?: string) {
         super();
         this.#registered = new Set();
-        this.api_host = location.host;
+        this.api_host = host ?? location.host;
         this.api_base = location.pathname.split('/').slice(0, -1).join('/');
     }
 
@@ -36,7 +36,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
     }
 
     apiURL(route: string) {
-        return this.api_base + route;
+        return this.api_host + route;
     }
 
     fetchApi(route: string, options?: RequestInit) {
@@ -47,7 +47,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
             options.headers = {};
         }
         // Assuming `this.user` is of type `string | undefined`
-        (options.headers as Record<string, string>)['Comfy-User'] = this.user || '';
+        // (options.headers as Record<string, string>)['Comfy-User'] = this.user || '';
 
         // return fetch(this.apiURL(route), options) as Promise<T>;
         return fetch(this.apiURL(route), options);
@@ -528,4 +528,4 @@ export class ComfyApi extends EventTarget implements IComfyApi {
 // // object already instantiated.
 // // export const api = app.api;
 
-export const api = new ComfyApi();
+export const api = new ComfyApi('http://127.0.0.1:8188');

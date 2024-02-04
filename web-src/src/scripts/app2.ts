@@ -30,6 +30,9 @@ export class ComfyApp implements IComfyApp {
         this.saveInterval = null;
     }
 
+    // TODO: implement
+    clean() {}
+
     // LiteGraph
     // the api
     // ui components?

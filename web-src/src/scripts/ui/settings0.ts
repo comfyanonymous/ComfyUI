@@ -1,6 +1,6 @@
 import { $el } from '../utils';
 import { api } from '../api';
-import { ComfyDialog } from './comfyDialog';
+import { ComfyDialog0 } from './comfyDialog0.ts';
 
 interface IAddSetting {
     id: string;
@@ -13,7 +13,7 @@ interface IAddSetting {
     options?: any[] | Function;
 }
 
-export class ComfySettingsDialog extends ComfyDialog {
+export class ComfySettingsDialog extends ComfyDialog0 {
     settingsValues: Record<string, any>;
     settingsLookup: Record<string, any>;
     element: HTMLDialogElement;
