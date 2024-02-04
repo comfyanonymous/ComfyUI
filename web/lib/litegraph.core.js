@@ -6932,7 +6932,7 @@ LGraphNode.prototype.executeAction = function(action)
         } else if (delta < 0) {
             scale *= 1 / 1.1;
         }
-       
+
         //this.setZoom( scale, [ e.clientX, e.clientY ] );
         this.ds.changeScale(scale, [e.clientX, e.clientY]);
 
