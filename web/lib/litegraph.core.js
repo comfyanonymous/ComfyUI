@@ -5347,7 +5347,7 @@ LGraphNode.prototype.executeAction = function(action)
 
 		this.viewport = options.viewport || null; //to constraint render area to a portion of the canvas
 
-        this.low_quality_rendering_threshold = 3; //amount of slow fps to switch to low quality rendering
+        this.low_quality_rendering_threshold = 5; //amount of slow fps to switch to low quality rendering
 
         //link canvas and graph
         if (graph) {
@@ -7762,7 +7762,10 @@ LGraphNode.prototype.executeAction = function(action)
         if (this.ds.scale < 0.5) {
             if ( this.fps < 30) {
                 this.low_quality_rendering_counter += 30 / this.fps;
+            } else {
+                this.low_quality_rendering_counter -= 30 / this.fps;
             }
+            this.low_quality_rendering_counter = Math.max(0, Math.min(this.low_quality_rendering_counter, 2 * this.low_quality_rendering_threshold));
         } else {
             this.low_quality_rendering_counter = 0;
         }
