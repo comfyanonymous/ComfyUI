@@ -5347,6 +5347,8 @@ LGraphNode.prototype.executeAction = function(action)
 
 		this.viewport = options.viewport || null; //to constraint render area to a portion of the canvas
 
+        this.low_quality_rendering_threshold = 3; //amount of slow fps to switch to low quality rendering
+
         //link canvas and graph
         if (graph) {
             graph.attachCanvas(this);
@@ -5383,6 +5385,7 @@ LGraphNode.prototype.executeAction = function(action)
         this.last_draw_time = 0;
         this.render_time = 0;
         this.fps = 0;
+        this.low_quality_rendering_counter = 0;
 
         //this.scale = 1;
         //this.offset = [0,0];
@@ -5830,6 +5833,17 @@ LGraphNode.prototype.executeAction = function(action)
 		this.rendering_timer_id = null;
 	}
 	*/
+    };
+
+
+    /**
+     * returns if low qualty rendering requered at requested scale
+     * */
+    LGraphCanvas.prototype.lowQualityRenderingRequired = function(activation_scale) {
+        if ( this.ds.scale < activation_scale) {
+            return this.low_quality_rendering_counter > this.low_quality_rendering_threshold;
+        }
+        return false;
     };
 
     /* LiteGraphCanvas input */
@@ -6918,7 +6932,7 @@ LGraphNode.prototype.executeAction = function(action)
         } else if (delta < 0) {
             scale *= 1 / 1.1;
         }
-
+       
         //this.setZoom( scale, [ e.clientX, e.clientY ] );
         this.ds.changeScale(scale, [e.clientX, e.clientY]);
 
@@ -7744,6 +7758,14 @@ LGraphNode.prototype.executeAction = function(action)
 
         this.fps = this.render_time ? 1.0 / this.render_time : 0;
         this.frame += 1;
+
+        if (this.ds.scale < 0.5) {
+            if ( this.fps < 30) {
+                this.low_quality_rendering_counter += 30 / this.fps;
+            }
+        } else {
+            this.low_quality_rendering_counter = 0;
+        }
     };
 
     /**
@@ -8450,7 +8472,7 @@ LGraphNode.prototype.executeAction = function(action)
             glow = true;
         }
 
-        var low_quality = this.ds.scale < 0.6; //zoomed out
+        var low_quality = this.lowQualityRenderingRequired(0.6);
 
         //only render if it forces it to do it
         if (this.live_mode) {
@@ -8943,7 +8965,7 @@ LGraphNode.prototype.executeAction = function(action)
         ctx.fillStyle = bgcolor;
 
         var title_height = LiteGraph.NODE_TITLE_HEIGHT;
-        var low_quality = this.ds.scale < 0.5;
+        var low_quality = this.lowQualityRenderingRequired(0.5);
 
         //render node area depending on shape
         var shape =
@@ -9425,7 +9447,7 @@ LGraphNode.prototype.executeAction = function(action)
 
         var dist = distance(a, b);
 
-        if (this.render_connections_border && this.ds.scale > 0.6) {
+        if (this.render_connections_border && !this.lowQualityRenderingRequired(0.6)) {
             ctx.lineWidth = this.connections_width + 4;
         }
         ctx.lineJoin = "round";
@@ -9554,7 +9576,7 @@ LGraphNode.prototype.executeAction = function(action)
         //rendering the outline of the connection can be a little bit slow
         if (
             this.render_connections_border &&
-            this.ds.scale > 0.6 &&
+            !this.lowQualityRenderingRequired(0.6) &&
             !skip_border
         ) {
             ctx.strokeStyle = "rgba(0,0,0,0.5)";
@@ -9574,7 +9596,7 @@ LGraphNode.prototype.executeAction = function(action)
 
         //render arrow in the middle
         if (
-            this.ds.scale >= 0.6 &&
+            !this.lowQualityRenderingRequired(0.6) &&
             this.highquality_render &&
             end_dir != LiteGraph.CENTER
         ) {
@@ -9775,7 +9797,7 @@ LGraphNode.prototype.executeAction = function(action)
         var widgets = node.widgets;
         posY += 2;
         var H = LiteGraph.NODE_WIDGET_HEIGHT;
-        var show_text = this.ds.scale > 0.5;
+        var show_text = !this.lowQualityRenderingRequired(0.5);
         ctx.save();
         ctx.globalAlpha = this.editor_alpha;
         var outline_color = LiteGraph.WIDGET_OUTLINE_COLOR;
