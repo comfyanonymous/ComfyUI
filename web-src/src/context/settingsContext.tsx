@@ -5,6 +5,8 @@ import { createUseContextHook } from './hookCreator';
 import { ComfySettingsDialog } from '../components/ComfySettingsDialog.tsx';
 import { api } from '../scripts/api.tsx';
 import { useComfyApp } from './appContext.tsx';
+import { BooleanInput, ComboInput, NumberInput, SliderInput, TextInput } from '../components/SettingInputs.tsx';
+import { ComboOption } from '../types/many.ts';
 
 interface ISettingsContext {
     settings: any[];
@@ -17,14 +19,14 @@ interface ISettingsContext {
 }
 
 interface IAddSetting {
+    type: any;
     id: string;
     name: string;
-    type: any;
-    defaultValue: any;
-    onChange?: Function;
     attrs?: Object;
     tooltip?: string;
-    options?: any[] | Function;
+    defaultValue?: any;
+    onChange?: (...arg: any[]) => any;
+    options: ComboOption[] | ((value: string) => (ComboOption | string)[]);
 }
 
 const SettingsContext = React.createContext<ISettingsContext | null>(null);
@@ -163,123 +165,46 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
                 let element: ReactNode;
                 const htmlID = id.replaceAll('.', '-');
 
-                const labelCell = (
-                    <td>
-                        <label htmlFor={htmlID} className={tooltip !== '' ? 'comfy-tooltip-indicator' : ''}>
-                            {name}
-                        </label>
-                    </td>
-                );
+                function buildSettingInput(element: ReactNode) {
+                    return (
+                        <tr>
+                            <td>
+                                <label htmlFor={htmlID} className={tooltip !== '' ? 'comfy-tooltip-indicator' : ''}>
+                                    {name}
+                                </label>
+                            </td>
+                            
+                            <td>{element}</td>
+                        </tr>
+                    );
+                }
 
                 if (typeof type === 'function') {
                     element = type(name, setter, value, attrs);
                 } else {
                     switch (type) {
                         case 'boolean':
-                            element = (
-                                <tr>
-                                    {labelCell}
-                                    <td>
-                                        <input
-                                            id={htmlID}
-                                            type="checkbox"
-                                            checked={value}
-                                            onChange={event => {
-                                                const isChecked = event.target.checked;
-                                                if (onChange !== undefined) {
-                                                    onChange(isChecked);
-                                                }
-                                                setSettingValue(id, isChecked);
-                                            }}
-                                        />
-                                    </td>
-                                </tr>
+                            element = buildSettingInput(
+                                <BooleanInput
+                                    id={htmlID}
+                                    value={value}
+                                    onChange={onChange}
+                                    setSettingValue={setSettingValue}
+                                />
                             );
                             break;
                         case 'number':
-                            element = (
-                                <tr>
-                                    {labelCell}
-                                    <td>
-                                        <input
-                                            type={type}
-                                            value={value}
-                                            id={htmlID}
-                                            onInput={e => {
-                                                const target = e.target as HTMLInputElement;
-                                                setter(target.value);
-                                            }}
-                                            {...attrs}
-                                        />
-                                    </td>
-                                </tr>
+                            element = buildSettingInput(
+                                <NumberInput id={htmlID} value={value} setter={setter} attrs={attrs} />
                             );
                             break;
                         case 'slider':
-                            element = (
-                                <tr>
-                                    {labelCell}
-                                    <td>
-                                        <div style={{ display: 'grid', gridAutoFlow: 'column' }}>
-                                            <input
-                                                {...attrs}
-                                                value={value}
-                                                type="range"
-                                                onInput={e => {
-                                                    const target = e.target as HTMLInputElement;
-                                                    setter(target.value);
-                                                    if (target.nextElementSibling instanceof HTMLInputElement) {
-                                                        target.nextElementSibling.value = target.value;
-                                                    }
-                                                }}
-                                            />
-                                            <input
-                                                {...attrs}
-                                                value={value}
-                                                id={htmlID}
-                                                type="number"
-                                                style={{ maxWidth: '4rem' }}
-                                                onInput={e => {
-                                                    const target = e.target as HTMLInputElement;
-                                                    setter(target.value);
-                                                    if (target.previousElementSibling instanceof HTMLInputElement) {
-                                                        target.previousElementSibling.value = target.value;
-                                                    }
-                                                }}
-                                            />
-                                        </div>
-                                    </td>
-                                </tr>
+                            element = buildSettingInput(
+                                <SliderInput id={htmlID} value={value} setter={setter} attrs={attrs} />
                             );
                             break;
                         case 'combo':
-                            element = (
-                                <tr>
-                                    {labelCell}
-                                    <td>
-                                        <select
-                                            onInput={e => {
-                                                const target = e.target as HTMLSelectElement;
-                                                setter(target.value);
-                                            }}
-                                        >
-                                            {(typeof options === 'function' ? options(value) : options || []).map(
-                                                (opt: any) => {
-                                                    if (typeof opt === 'string') {
-                                                        opt = { text: opt };
-                                                    }
-                                                    const v = opt.value ?? opt.text;
-                                                    return (
-                                                        <option value={v} selected={value + '' === v + ''}>
-                                                            {opt.text}
-                                                        </option>
-                                                    );
-                                                }
-                                            )}
-                                        </select>
-                                    </td>
-                                </tr>
-                            );
+                            element = buildSettingInput(<ComboInput value={value} setter={setter} options={options} />);
                             break;
                         case 'text':
                         default:
@@ -287,21 +212,8 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
                                 console.warn(`Unsupported setting type '${type}, defaulting to text`);
                             }
 
-                            element = (
-                                <tr>
-                                    {labelCell}
-                                    <td>
-                                        <input
-                                            value={value}
-                                            id={htmlID}
-                                            onInput={e => {
-                                                const target = e.target as HTMLInputElement;
-                                                setter(target.value);
-                                            }}
-                                            {...attrs}
-                                        />
-                                    </td>
-                                </tr>
+                            element = buildSettingInput(
+                                <TextInput id={htmlID} value={value} setter={setter} attrs={attrs} />
                             );
                             break;
                     }

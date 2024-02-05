@@ -4,6 +4,7 @@ import { useSettings } from './settingsContext.tsx';
 import { api } from '../scripts/api.tsx';
 import { ComfyPromptStatus } from '../types/comfy.ts';
 import { useComfyApp } from './appContext.tsx';
+import { settings } from '../data/settings.ts';
 
 type AutoQueueMode =
     | {
@@ -60,68 +61,32 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
             // this.history.update();
         });
 
-        const confirmClear = addSetting({
-            id: 'Comfy.ConfirmClear',
-            name: 'Require confirmation when clearing workflow',
-            type: 'boolean',
-            defaultValue: true,
-            onChange: () => undefined,
-        });
-
-        const promptFilename = addSetting({
-            id: 'Comfy.PromptFilename',
-            name: 'Prompt for filename when saving workflow',
-            type: 'boolean',
-            defaultValue: true,
-            onChange: () => undefined,
-        });
-
-        /* file format for preview
-         *
-         * format;quality
-         *
-         * ex)
-         * webp;50 -> webp, quality 50
-         * jpeg;80 -> rgb, jpeg, quality 80
-         *
-         * @type {string}
-         */
-        const previewImage = addSetting({
-            id: 'Comfy.PreviewFormat',
-            name: 'When displaying a preview in the image widget, convert it to a lightweight image, e.g. webp, jpeg, webp;50, etc.',
-            type: 'text',
-            defaultValue: '',
-            onChange: () => undefined,
-        });
-
-        addSetting({
-            id: 'Comfy.DisableSliders',
-            name: 'Disable sliders.',
-            type: 'boolean',
-            defaultValue: false,
-            onChange: () => undefined,
-        });
-
-        addSetting({
-            id: 'Comfy.DisableFloatRounding',
-            name: 'Disable rounding floats (requires page reload).',
-            type: 'boolean',
-            defaultValue: false,
-            onChange: () => undefined,
-        });
-
-        addSetting({
-            id: 'Comfy.FloatRoundingPrecision',
-            name: 'Decimal places [0 = auto] (requires page reload).',
-            type: 'slider',
-            attrs: {
-                min: 0,
-                max: 6,
-                step: 1,
-            },
-            defaultValue: 0,
-            onChange: () => undefined,
-        });
+        type Setting = { value: any };
+        let confirmClear: Setting, promptFilename: Setting, previewImage: Setting;
+        for (const key in settings) {
+            const setting = addSetting(settings[key]);
+            switch (setting.id) {
+                case 'Comfy.ConfirmClear':
+                    confirmClear = setting;
+                    break;
+                case 'Comfy.PromptFilename':
+                    promptFilename = setting;
+                    break;
+                case 'Comfy.PreviewFormat':
+                    /* file format for preview
+                     *
+                     * format;quality
+                     *
+                     * ex)
+                     * webp;50 -> webp, quality 50
+                     * jpeg;80 -> rgb, jpeg, quality 80
+                     *
+                     * @type {string}
+                     */
+                    previewImage = setting;
+                    break;
+            }
+        }
 
         const fileInput = (
             <input
@@ -544,9 +509,8 @@ function dragElement(dragEl: HTMLDivElement, addSetting: any) {
     }
 
     // When the element resizes (e.g. view queue) ensure it is still in the windows bounds
-    const resizeObserver = new ResizeObserver(() => {
-        ensureInBounds();
-    }).observe(dragEl);
+    const resizeObserver = new ResizeObserver(() => ensureInBounds());
+    resizeObserver.observe(dragEl);
 
     function ensureInBounds() {
         if (dragEl.classList.contains('comfy-menu-manual-pos')) {

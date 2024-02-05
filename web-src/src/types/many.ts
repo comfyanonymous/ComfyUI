@@ -1,5 +1,6 @@
 import { ComfyApp } from '../scripts/app.ts';
 import { ComfyGraph } from '../litegraph/comfyGraph.ts';
+import { InputHTMLAttributes } from 'react';
 
 declare global {
     interface Window {
@@ -124,3 +125,37 @@ export interface ComfyFile {
 }
 
 export type ComfyImages = HTMLImageElement[] | ComfyFile[];
+
+export interface BooleanInputProps {
+    id: string;
+    value: boolean;
+    onChange?: (value: boolean) => void;
+    setSettingValue: (id: string, value: boolean) => void;
+}
+
+export interface NumberInputProps {
+    id: string;
+    value: number;
+    setter: (value: string) => void;
+    attrs: InputHTMLAttributes<HTMLInputElement>;
+}
+
+export interface SliderInputProps extends NumberInputProps {}
+
+export interface ComboOption {
+    text: string;
+    value?: string;
+}
+
+export interface ComboInputProps {
+    value: string;
+    setter: (value: string) => void;
+    options: ComboOption[] | ((value: string) => (ComboOption | string)[]);
+}
+
+export interface TextInputProps {
+    id: string;
+    value: string;
+    setter: (value: string) => void;
+    attrs: InputHTMLAttributes<HTMLInputElement>;
+}
