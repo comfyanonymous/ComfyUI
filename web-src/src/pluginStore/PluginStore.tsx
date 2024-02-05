@@ -10,11 +10,11 @@ export class PluginStore {
     // Holds the IComfyPlugin objects
     private installedPlugins: Map<string, IComfyPlugin<any>> = new Map();
 
-    // Tracks the desired activation state of each plugin (active == true)
-    private desiredPluginState: Map<string, boolean> = new Map();
+    // Tracks the desired activation state of each plugin (active == true). Key is plugin-id
+    private desiredActivationState: Map<string, boolean> = new Map();
 
-    // Holds instances of the objects provided by each plugin, to be used as dependencies
-    private instances: Map<Token<any>, any> = new Map();
+    // Holds services provided by each plugin, to be used as dependencies
+    private services: Map<Token<any>, any> = new Map();
 
     // Used so plugins can be de/activated in the order required by their dependencies
     private depGraph: DependencyGraph = new DependencyGraph();
@@ -31,7 +31,7 @@ export class PluginStore {
 
         // Determine which new plugins should be activated
         const autoStartPluginIds = newPlugins
-            .filter(plugin => this.desiredPluginState.get(plugin.id) ?? plugin.autoStart)
+            .filter(plugin => this.desiredActivationState.get(plugin.id) ?? plugin.autoStart)
             .map(plugin => plugin.id);
 
         this.activatePlugins(autoStartPluginIds);
@@ -49,19 +49,19 @@ export class PluginStore {
     private activatePlugin(pluginId: string): void {
         const plugin = this.installedPlugins.get(pluginId);
         if (!plugin) throw new Error(`Plugin not found: ${pluginId}`);
-        if (this.desiredPluginState.get(pluginId) == true) return;
+        if (this.desiredActivationState.get(pluginId) == true) return;
 
         const deps = (plugin.requires || []).map(token => {
-            const instance = this.instances.get(token);
+            const instance = this.services.get(token);
             if (!instance) throw new Error(`Missing required dependency: ${token.debugName}`);
             return instance;
         });
 
-        const optionalDeps = (plugin.optional || []).map(token => this.instances.get(token));
+        const optionalDeps = (plugin.optional || []).map(token => this.services.get(token));
 
         const instance = plugin.activate(this, ...deps, ...optionalDeps);
-        if (plugin.provides) this.instances.set(plugin.provides, instance);
-        this.desiredPluginState.set(pluginId, true);
+        if (plugin.provides) this.services.set(plugin.provides, instance);
+        this.desiredActivationState.set(pluginId, true);
     }
 
     // Deactivates the specified plugin-ids and their dependents in logical order
@@ -74,17 +74,17 @@ export class PluginStore {
     private deactivatePlugin(pluginId: string): void {
         const deactivationOrder = this.depGraph.getDeactivationOrder(pluginId);
         deactivationOrder.forEach(plugin => {
-            if (this.desiredPluginState.get(plugin.id) == true) {
+            if (this.desiredActivationState.get(plugin.id) == true) {
                 if (plugin.deactivate) {
                     plugin.deactivate();
                 }
 
-                // If the plugin provides a service, remove it from the instances map
+                // If the plugin provides a service, remove it from the services map
                 if (plugin.provides) {
-                    this.instances.delete(plugin.provides);
+                    this.services.delete(plugin.provides);
                 }
 
-                this.desiredPluginState.set(pluginId, false);
+                this.desiredActivationState.set(pluginId, false);
             }
         });
     }
@@ -119,7 +119,7 @@ export class PluginStore {
 
     isPluginActive(pluginId: string): boolean {
         if (!this.isPluginInstalled(pluginId)) return false;
-        return this.desiredPluginState.get(pluginId) ?? false;
+        return this.desiredActivationState.get(pluginId) ?? false;
     }
 
     // For UIs to display available and active registeredPlugins
@@ -154,6 +154,14 @@ export class PluginStore {
     }
     dispatchEvent<EventType extends Event = Event>(event: EventType) {
         this._eventCallableRegistry.dispatchEvent(event);
+    }
+
+    // Type-safe setters and getters
+    set<T>(token: Token<T>, instance: T): void {
+        this.services.set(token, instance);
+    }
+    get<T>(token: Token<T>): T | undefined {
+        return this.services.get(token) as T | undefined;
     }
 }
 

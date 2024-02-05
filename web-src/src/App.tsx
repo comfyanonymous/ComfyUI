@@ -4,9 +4,9 @@ import { GraphContextProvider, useGraph } from './context/graphContext';
 import { ComfyAppContextProvider, useComfyApp } from './context/appContext.tsx';
 import { ComfyDialogContextProvider } from './context/comfyDialogContext.tsx';
 import { useLoadGraphData } from './hooks/useLoadGraphData.tsx';
-import { PluginProvider, pluginStore } from './pluginStore';
 import { SettingsContextProvider, useSettings } from './context/settingsContext.tsx';
 import { registerNodes } from './litegraph/registerNodes.ts';
+import { PluginProvider } from './context/pluginContext';
 
 function RenderComponents() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,7 +53,7 @@ function RenderComponents() {
 function App() {
     return (
         <div className="App">
-            <PluginProvider pluginStore={pluginStore}>
+            <PluginProvider>
                 <ComfyAppContextProvider>
                     <ComfyDialogContextProvider>
                         <GraphContextProvider>

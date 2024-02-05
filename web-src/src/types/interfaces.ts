@@ -283,20 +283,18 @@ export interface IComfyUserSettings {
     isNewUserSession: boolean | null;
 }
 
-// A token's name only exists for debug purposes, and an arbitrary
-export class Token<T> {
-    constructor(public debugName: string) {}
-}
+// TO DO: make this useful in the future
+export interface Application {}
 
 // `id` should be globally unique, like `core:my-extension`
 export interface IComfyPlugin<T> {
     id: string;
     autoStart: boolean;
-    requires?: Token<any>[];
-    optional?: Token<any>[];
-    provides?: Token<T>;
-    activate: (...args: any[]) => T;
-    deactivate: () => void;
+    requires?: string[];
+    optional?: string[];
+    provides?: string;
+    activate: (app: Application, ...args: any[]) => Promise<T> | T;
+    deactivate: (app: Application) => Promise<void> | T;
 }
 
 export interface ModuleWithPlugins<T> {
