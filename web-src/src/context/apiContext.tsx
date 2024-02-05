@@ -92,6 +92,7 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
     return (
         <ApiContext.Provider
             value={{
+                // TODO: we shouldn't hardcode this
                 api: new ComfyApi('http://127.0.0.1:8188'),
                 ApiEventEmitter,
                 apiStatus,
