@@ -286,6 +286,9 @@ export class Token<T> {
     constructor(public debugName: string) {}
 }
 
+// TO DO: make this useful in the future
+export interface Application {}
+
 // `id` should be globally unique, like `core:my-extension`
 export interface IComfyPlugin<T> {
     id: string;
@@ -293,8 +296,8 @@ export interface IComfyPlugin<T> {
     requires?: Token<any>[];
     optional?: Token<any>[];
     provides?: Token<T>;
-    activate: (...args: any[]) => T;
-    deactivate: () => void;
+    activate: (app: Application, ...args: any[]) => Promise<T> | T;
+    deactivate: (app: Application) => Promise<void> | T;
 }
 
 export interface ModuleWithPlugins<T> {

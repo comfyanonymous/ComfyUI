@@ -6,5 +6,14 @@
 
 import { Token } from '../types/interfaces';
 
-import { ISerializeGraph } from '../types/interfaces';
+import type { ISerializeGraph } from '../types/interfaces';
 export const SerializeGraphToken = new Token<ISerializeGraph>('serialize-graph');
+
+import type { IComfyCanvas } from '../types/interfaces';
+export const CanvasToken = new Token<IComfyCanvas>('canvas');
+
+import type { IComfyGraph } from '../types/interfaces';
+export const GraphToken = new Token<IComfyGraph>('graph');
+
+import type { IComfyNode } from '../types/interfaces';
+export const NodeToken = new Token<IComfyNode>('node');
