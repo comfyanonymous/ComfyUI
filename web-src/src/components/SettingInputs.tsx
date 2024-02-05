@@ -1,4 +1,3 @@
-import React, { InputHTMLAttributes } from 'react';
 import {
     BooleanInputProps,
     ComboInputProps,

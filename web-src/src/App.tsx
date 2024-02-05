@@ -7,6 +7,7 @@ import { useLoadGraphData } from './hooks/useLoadGraphData.tsx';
 import { SettingsContextProvider, useSettings } from './context/settingsContext.tsx';
 import { registerNodes } from './litegraph/registerNodes.ts';
 import { PluginProvider } from './context/pluginContext';
+import { ApiContextProvider } from './context/apiContext.tsx';
 
 function RenderComponents() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -54,15 +55,17 @@ function App() {
     return (
         <div className="App">
             <PluginProvider>
-                <ComfyAppContextProvider>
-                    <ComfyDialogContextProvider>
-                        <GraphContextProvider>
-                            <SettingsContextProvider>
-                                <RenderComponents />
-                            </SettingsContextProvider>
-                        </GraphContextProvider>
-                    </ComfyDialogContextProvider>
-                </ComfyAppContextProvider>
+                <ApiContextProvider>
+                    <ComfyAppContextProvider>
+                        <ComfyDialogContextProvider>
+                            <GraphContextProvider>
+                                <SettingsContextProvider>
+                                    <RenderComponents />
+                                </SettingsContextProvider>
+                            </GraphContextProvider>
+                        </ComfyDialogContextProvider>
+                    </ComfyAppContextProvider>
+                </ApiContextProvider>
             </PluginProvider>
         </div>
     );
