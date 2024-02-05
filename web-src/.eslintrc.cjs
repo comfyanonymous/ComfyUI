@@ -29,6 +29,8 @@ module.exports = {
         '@typescript-eslint/no-unsafe-call': 'off',
         '@typescript-eslint/no-unsafe-member-access': 'off',
         '@typescript-eslint/no-redundant-type-constituents': 'off',
+        '@typescript-eslint/no-misused-promises': 'off',
+        'react/prop-types': 'off',
     },
     settings: {
         react: {

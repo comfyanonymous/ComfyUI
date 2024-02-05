@@ -1,3 +1,4 @@
+import React from 'react';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import ReconnectingWebSocket from 'reconnecting-websocket';
 import { api } from '../scripts/api';
@@ -72,8 +73,8 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
             setApiStatus(ApiStatus.CLOSED);
         });
 
-        // Will automatically try to reconnect
         socket.addEventListener('close', () => {
+            // Will automatically try to reconnect
             setApiStatus(ApiStatus.CONNECTING);
         });
 
@@ -84,7 +85,7 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
             socket.close();
             cleanupPolling();
         };
-    }, []);
+    }, [api_host, api_base, sessionId]);
 
     return <ApiContext.Provider value={{ ApiEventEmitter, apiStatus, sessionId }}>{children}</ApiContext.Provider>;
 };

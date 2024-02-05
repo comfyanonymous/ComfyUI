@@ -1,9 +1,13 @@
 {
-    "[python]": {
-        "editor.formatOnSave": true
-    },
-    "editor.formatOnSave": true,
-    "editor.formatOnPaste": true,
-    "notebook.formatOnCellExecution": true,
-    "notebook.formatOnSave.enabled": true
+  "[python]": {
+    "editor.formatOnSave": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "notebook.formatOnCellExecution": true,
+  "notebook.formatOnSave.enabled": true
 }
