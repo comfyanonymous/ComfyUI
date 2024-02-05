@@ -1,10 +1,12 @@
 import React from 'react';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import ReconnectingWebSocket from 'reconnecting-websocket';
-import { api } from '../scripts/api';
+import { api, ComfyApi } from '../scripts/api';
 import { createUseContextHook } from './hookCreator';
+import { IComfyApi } from '../types/api.ts';
 
 interface ApiContextType {
+    api: IComfyApi;
     ApiEventEmitter: EventTarget;
     apiStatus: string;
     sessionId: string | null;
@@ -87,5 +89,16 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
         };
     }, [api_host, api_base, sessionId]);
 
-    return <ApiContext.Provider value={{ ApiEventEmitter, apiStatus, sessionId }}>{children}</ApiContext.Provider>;
+    return (
+        <ApiContext.Provider
+            value={{
+                api: new ComfyApi('http://127.0.0.1:8188'),
+                ApiEventEmitter,
+                apiStatus,
+                sessionId,
+            }}
+        >
+            {children}
+        </ApiContext.Provider>
+    );
 };

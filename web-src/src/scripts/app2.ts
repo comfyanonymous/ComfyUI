@@ -33,6 +33,10 @@ export class ComfyApp implements IComfyApp {
     // TODO: implement
     clean() {}
 
+    getWidgetType(inputData: any, inputName: string): string | null {
+        return '';
+    }
+
     // LiteGraph
     // the api
     // ui components?

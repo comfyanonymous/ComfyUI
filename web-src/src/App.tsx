@@ -21,10 +21,10 @@ function RenderComponents() {
             initGraph(canvasRef.current);
         }
 
-        registerNodes();
-        loadSettings();
-
         const loadAppData = async () => {
+            await registerNodes();
+            loadSettings();
+
             const restored = await loadWorkflow();
 
             // We failed to restore a workflow so load the default

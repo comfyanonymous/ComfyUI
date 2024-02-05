@@ -205,7 +205,7 @@ export class ComfyNode extends LGraphNode implements IComfyNode {
         this.size = [Math.max(config.minWidth, s[0] * 1.5), Math.max(config.minHeight, s[1])];
         this.serialize_widgets = true;
 
-        extensionManager.invokeExtensionsAsync('nodeCreated', this);
+        // extensionManager.invokeExtensionsAsync('nodeCreated', this);
     }
 
     getWidgetType(inputData: any, inputName: string, app: IComfyApp): string | null {
