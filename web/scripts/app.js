@@ -2162,8 +2162,17 @@ export class ComfyApp {
 				if (value instanceof Array) {
 					const [fromId, fromSlot] = value;
 					const fromNode = app.graph.getNodeById(fromId);
-					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
-					if (toSlot !== -1) {
+					let toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+					if (toSlot == null || toSlot === -1) {
+						try {
+							// Target has no matching input, most likely a converted widget
+							const widget = node.widgets?.find((w) => w.name === input);
+							if (widget && node.convertWidgetToInput?.(widget)) {
+								toSlot = node.inputs?.length - 1;
+							}
+						} catch (error) {}
+					}
+					if (toSlot != null || toSlot !== -1) {
 						fromNode.connect(fromSlot, node, toSlot);
 					}
 				} else {

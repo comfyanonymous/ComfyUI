@@ -260,6 +260,12 @@ app.registerExtension({
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {
 		// Add menu options to conver to/from widgets
 		const origGetExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+		nodeType.prototype.convertWidgetToInput = function (widget) {
+			const config = getConfig.call(this, widget.name) ?? [widget.type, widget.options || {}];
+			if (!isConvertableWidget(widget, config)) return false;
+			convertToInput(this, widget, config);
+			return true;
+		};
 		nodeType.prototype.getExtraMenuOptions = function (_, options) {
 			const r = origGetExtraMenuOptions ? origGetExtraMenuOptions.apply(this, arguments) : undefined;
 
