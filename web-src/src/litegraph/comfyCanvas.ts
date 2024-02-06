@@ -23,7 +23,7 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
         options?: { skip_render?: boolean; autoresize?: boolean }
     ) {
         //TODO: add graph again
-        super(canvas, null, options);
+        super(canvas, graph, options);
 
         // Add canvas-event listeners
         window.addEventListener('resize', this.resizeCanvas, { signal: this.abortController.signal });
@@ -35,20 +35,20 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
         const visibleNodes = super.computeVisibleNodes(nodes);
 
         if (this.graph?.nodes) {
-            for (const node of this.graph.nodes) {
-                // if (this.app.elementWidgets.has(node)) {
-                //     const hidden = visibleNodes.indexOf(node) === -1;
-                //     for (const w of node.widgets) {
-                //         if (w.element) {
-                //             w.element.hidden = hidden;
-                //             w.element.style.display = hidden ? 'none' : '';
-                //             if (hidden) {
-                //                 w.options.onHide?.(w);
-                //             }
-                //         }
-                //     }
-                // }
-            }
+            // for (const node of this.graph.nodes) {
+            // if (this.app.elementWidgets.has(node)) {
+            //     const hidden = visibleNodes.indexOf(node) === -1;
+            //     for (const w of node.widgets) {
+            //         if (w.element) {
+            //             w.element.hidden = hidden;
+            //             w.element.style.display = hidden ? 'none' : '';
+            //             if (hidden) {
+            //                 w.options.onHide?.(w);
+            //             }
+            //         }
+            //     }
+            // }
+            // }
         }
 
         return visibleNodes;

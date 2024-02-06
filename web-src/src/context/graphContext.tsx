@@ -28,9 +28,13 @@ export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
         const graph = new ComfyGraph();
         const canvas = new ComfyCanvas(canvasEl, graph);
         const ctx = canvasEl.getContext('2d');
-
+        // graph.start();
         // Set the state with the new graph, canvas, and context
-        setGraphState({ graph, canvas, ctx });
+        setGraphState({
+            graph,
+            canvas,
+            ctx,
+        });
     };
 
     return <GraphContext.Provider value={{ graphState, initGraph }}>{children}</GraphContext.Provider>;
