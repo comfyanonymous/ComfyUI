@@ -5,16 +5,16 @@
     "type": "module",
     "scripts": {
         "vite:dev": "vite",
-        "vite:build": "tsc && vite build",
+        "build": "tsc && vite build",
         "vite:preview": "vite preview",
         "dependency-test": "madge --circular ./src/scripts/app.ts",
-        "build": "yarn clean && tsc && yarn copy-js && yarn copy-public",
         "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-        "copy-js": "cpx \"web-src/src/**/*.{js,example,css}\" web/ --preserve",
         "copy-public": "cpx \"web-src/public/**/*.*\" web/",
         "clean": "rimraf ./web/",
         "dev": "http-server ./web-src -c-1 -o",
-        "start": "http-server ./web -c-1 -o"
+        "start": "http-server ./web -c-1 -o",
+        "serve2": "serve -s dist -l 8188",
+        "start2": "yarn build && yarn serve2"
     },
     "devDependencies": {
         "@types/node": "^16.11.16",

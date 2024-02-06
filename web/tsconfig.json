@@ -25,8 +25,8 @@
         "experimentalDecorators": true,
         "emitDecoratorMetadata": true,
 
-        "paths": { "react": ["./node_modules/@types/react"] }
+        "paths": { "react": ["./node_modules/@types/react"] },
     },
-    "include": ["src"],
-    "references": [{ "path": "./tsconfig.node.json" }]
+    "include": ["src", "vite.config.ts"],
+    "references": [{ "path": "./tsconfig.node.json" }],
 }
