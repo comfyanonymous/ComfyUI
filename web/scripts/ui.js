@@ -8,14 +8,14 @@ export const ComfyDialog = _ComfyDialog;
 /**
  * 
  * @param { string } tag HTML Element Tag and optional classes e.g. div.class1.class2
- * @param { string | Element | Element[] | {
+ * @param { string | Element | Element[] | ({
  * 	 parent?: Element,
- *   $?: (el: Element) => void, 
+ *   $?: (el: HTMLElement) => void, 
  *   dataset?: DOMStringMap,
- *   style?: CSSStyleDeclaration,
+ *   style?: Partial<CSSStyleDeclaration>,
  * 	 for?: string
- * } | undefined } propsOrChildren 
- * @param { Element[] | undefined } [children]
+ * } & Omit<Partial<HTMLElement>, "style">) | undefined } [propsOrChildren]
+ * @param { string | Element | Element[] | undefined } [children]
  * @returns 
  */
 export function $el(tag, propsOrChildren, children) {

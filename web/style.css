@@ -99,6 +99,7 @@ body {
 	padding: 10px;
 	border-radius: 0 8px 8px 8px;
 	box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
+	display: none;
 }
 
 .comfy-menu button,

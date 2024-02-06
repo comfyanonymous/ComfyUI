@@ -6,7 +6,8 @@ import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
-
+import { Workflows }  from "./workflows.js"
+import "./ui/menu.js"
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
 function sanitizeNodeName(string) {
@@ -76,6 +77,8 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+
+		new Workflows();
 	}
 
 	getPreviewFormatParam() {
