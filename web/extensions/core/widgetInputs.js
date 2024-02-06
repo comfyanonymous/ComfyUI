@@ -22,10 +22,12 @@ function isConvertableWidget(widget, config) {
 }
 
 function hideWidget(node, widget, suffix = "") {
+	widget.origDisabled = widget.disabled;
 	widget.origType = widget.type;
 	widget.origComputeSize = widget.computeSize;
 	widget.origSerializeValue = widget.serializeValue;
 	widget.computeSize = () => [0, -4]; // -4 is due to the gap litegraph adds between widgets automatically
+	widget.disabled = true;
 	widget.type = CONVERTED_TYPE + suffix;
 	widget.serializeValue = () => {
 		// Prevent serializing the widget if we have no input linked
@@ -52,10 +54,12 @@ function showWidget(widget) {
 	widget.type = widget.origType;
 	widget.computeSize = widget.origComputeSize;
 	widget.serializeValue = widget.origSerializeValue;
+	widget.disabled = widget.origDisabled;
 
 	delete widget.origType;
 	delete widget.origComputeSize;
 	delete widget.origSerializeValue;
+	delete widget.origDisabled;
 
 	// Hide any linked widgets, e.g. seed+seedControl
 	if (widget.linkedWidgets) {

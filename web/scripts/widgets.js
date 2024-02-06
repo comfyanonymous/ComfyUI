@@ -100,6 +100,7 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 	}
 
 	const applyWidgetControl = () => {
+		if (valueControl.disabled) return;
 		var v = valueControl.value;
 
 		if (isCombo && v !== "fixed") {
