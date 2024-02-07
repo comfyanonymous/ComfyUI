@@ -168,8 +168,10 @@ class SolidMask:
     FUNCTION = "solid"
 
     def solid(self, value, width, height):
-        out = torch.full((1, height, width), value, dtype=torch.float32, device="cpu")
-        return (out,)
+        if isinstance(value, int):
+            value=[value]
+        out=tuple(torch.full((1, height, width), v, dtype=torch.float32, device="cpu") for v in value)
+        return (torch.concat(out,dim=0),)
 
 class InvertMask:
     @classmethod
