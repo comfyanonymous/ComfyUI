@@ -47,9 +47,10 @@ class EmbeddedComfyClient:
     ```
     """
 
-    def __init__(self, configuration: Optional[Configuration] = None, loop: Optional[AbstractEventLoop] = None):
+    def __init__(self, configuration: Optional[Configuration] = None, loop: Optional[AbstractEventLoop] = None,
+                 max_workers: int = 1):
         self._server_stub = ServerStub()
-        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._loop = loop or asyncio.get_event_loop()
         self._configuration = configuration
         # we don't want to import the executor yet
@@ -70,6 +71,10 @@ class EmbeddedComfyClient:
                 model_management.soft_empty_cache()
             except:
                 pass
+
+        # wait until the queue is done
+        while self._executor._work_queue.qsize() > 0:
+            await asyncio.sleep(0.1)
 
         await self._loop.run_in_executor(self._executor, cleanup)
 
@@ -105,6 +110,6 @@ class EmbeddedComfyClient:
             if self._prompt_executor.success:
                 return self._prompt_executor.outputs_ui
             else:
-                raise RuntimeError("\n".join(self._prompt_executor.status_messages))
+                raise RuntimeError("\n".join(event for (event, data) in self._prompt_executor.status_messages))
 
         return await self._loop.run_in_executor(self._executor, execute_prompt)

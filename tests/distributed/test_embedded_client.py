@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 import torch
 
@@ -31,3 +33,10 @@ async def test_embedded_comfy():
         prompt = sdxl_workflow_with_refiner("test")
         outputs = await client.queue_prompt(prompt)
         assert outputs["13"]["images"][0]["abs_path"] is not None
+
+@pytest.mark.asyncio
+async def test_multithreaded_comfy():
+    async with EmbeddedComfyClient(max_workers=2) as client:
+        prompt = sdxl_workflow_with_refiner("test")
+        outputs_iter = await asyncio.gather(*[client.queue_prompt(prompt) for _ in range(4)])
+        assert all(outputs["13"]["images"][0]["abs_path"] is not None for outputs in outputs_iter)
