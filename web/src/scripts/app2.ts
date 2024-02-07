@@ -30,8 +30,9 @@ export class ComfyApp implements IComfyApp {
         this.saveInterval = null;
     }
 
-    // TODO: implement
-    clean() {}
+    clean() {
+        this.disableWorkflowAutoSave();
+    }
 
     getWidgetType(inputData: any, inputName: string): string | null {
         return '';

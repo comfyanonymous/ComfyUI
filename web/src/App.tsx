@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import { useEffect, useRef } from 'react';
 import { GraphContextProvider, useGraph } from './context/graphContext';
 import { ComfyAppContextProvider, useComfyApp } from './context/appContext.tsx';
@@ -8,56 +7,22 @@ import { SettingsContextProvider, useSettings } from './context/settingsContext.
 import { registerNodes } from './litegraph/registerNodes.ts';
 import { PluginProvider } from './context/pluginContext';
 import { ApiContextProvider } from './context/apiContext.tsx';
-import { LiteGraph } from 'litegraph.js';
+import { ComfyUIContextProvider } from './context/uiContext.tsx';
 
 function RenderComponents() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { graphState, initGraph } = useGraph();
+    const { graphState, initGraph, resizeCanvas } = useGraph();
     const { app } = useComfyApp();
     const { load: loadSettings } = useSettings();
     const { loadGraphData, loadWorkflow } = useLoadGraphData();
 
-    // TODO: some stuff here don't actually belong here... we'd remove them later
-    // they're here currently for easier debugging and development
-    const [isPanning, setIsPanning] = useState(false);
-    const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
-
     useEffect(() => {
         if (canvasRef.current) {
-            // Set canvas size to window size
-            canvasRef.current.width = window.innerWidth;
-            canvasRef.current.height = window.innerHeight;
-
             // Initialize graph
             initGraph(canvasRef.current);
 
-            // Add event listener for zooming
-            canvasRef.current.addEventListener('wheel', event => {
-                const scale = event.deltaY < 0 ? 1.1 : 0.9; // Zoom in if scroll up, else zoom out
-                const center = [event.clientX, event.clientY]; // Center of zoom is mouse position
-                graphState?.graph?.zoom(scale, center);
-            });
-
-            // Add event listeners for panning
-            canvasRef.current.addEventListener('mousedown', event => {
-                setIsPanning(true);
-                setLastPos({ x: event.clientX, y: event.clientY });
-            });
-
-            canvasRef.current.addEventListener('mousemove', event => {
-                if (isPanning && graphState?.graph) {
-                    const dx = event.clientX - lastPos.x;
-                    const dy = event.clientY - lastPos.y;
-                    graphState.graph.offset[0] += dx;
-                    graphState.graph.offset[1] += dy;
-                    setLastPos({ x: event.clientX, y: event.clientY });
-                    graphState.graph.setDirtyCanvas(true, true);
-                }
-            });
-
-            canvasRef.current.addEventListener('mouseup', () => {
-                setIsPanning(false);
-            });
+            resizeCanvas(canvasRef.current);
+            window.addEventListener('resize', () => resizeCanvas(canvasRef.current!));
         }
 
         const loadAppData = async () => {
@@ -91,21 +56,21 @@ function RenderComponents() {
 
 function App() {
     return (
-        <div className="App">
-            <PluginProvider>
-                <ApiContextProvider>
-                    <ComfyAppContextProvider>
-                        <ComfyDialogContextProvider>
-                            <GraphContextProvider>
-                                <SettingsContextProvider>
+        <PluginProvider>
+            <ApiContextProvider>
+                <ComfyAppContextProvider>
+                    <ComfyDialogContextProvider>
+                        <GraphContextProvider>
+                            <SettingsContextProvider>
+                                <ComfyUIContextProvider>
                                     <RenderComponents />
-                                </SettingsContextProvider>
-                            </GraphContextProvider>
-                        </ComfyDialogContextProvider>
-                    </ComfyAppContextProvider>
-                </ApiContextProvider>
-            </PluginProvider>
-        </div>
+                                </ComfyUIContextProvider>
+                            </SettingsContextProvider>
+                        </GraphContextProvider>
+                    </ComfyDialogContextProvider>
+                </ComfyAppContextProvider>
+            </ApiContextProvider>
+        </PluginProvider>
     );
 }
 

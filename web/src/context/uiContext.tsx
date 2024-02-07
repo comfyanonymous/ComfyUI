@@ -27,7 +27,7 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
     const [lastQueueSize, setLastQueueSize] = useState(0);
     const [queue, setQueue] = useState<ReactNode>([]);
     const [history, setHistory] = useState<ReactNode>([]);
-    // const [menuContainer, setMenuContainer] = useState<ReactNode | null>(null);
+    const [menuContainer, setMenuContainer] = useState<ReactNode | null>(null);
     const [autoQueueMode, setAutoQueueMode] = useState<AutoQueueMode>(null);
     const [graphHasChanged, setGraphHasChanged] = useState(false);
     const [autoQueueEnabled, setAutoQueueEnabled] = useState(false);
@@ -55,7 +55,9 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
             }
         }
     };
+
     useEffect(() => {
+        console.log('skskshdn-fi');
         api.addEventListener('status', () => {
             // this.queue.update();
             // this.history.update();
@@ -390,7 +392,7 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
             </div>
         );
 
-        // setMenuContainer(menuContainer);
+        setMenuContainer(menuContainer);
 
         const devMode = addSetting({
             id: 'Comfy.DevMode',
@@ -412,7 +414,12 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
         setStatus({ exec_info: { queue_remaining: 'X' } });
     }, []);
 
-    return <ComfyUIContext.Provider value={{}}>{children}</ComfyUIContext.Provider>;
+    return (
+        <ComfyUIContext.Provider value={{}}>
+            {children}
+            {menuContainer}
+        </ComfyUIContext.Provider>
+    );
 };
 
 export const useComfyUI = createUseContextHook(ComfyUIContext, 'ComfyUIContext not found');
@@ -435,7 +442,7 @@ export function toggleSwitch(
     items: (RawInput | string)[],
     { onChange }: { onChange?: (value: any) => void } = {}
 ) {
-    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+    let selectedIndex: number | null = null;
 
     // TODO: if none is selected, select the first one
 
@@ -470,7 +477,8 @@ export function toggleSwitch(
             item: items[index],
             prev: selectedIndex == null ? undefined : items[selectedIndex],
         });
-        setSelectedIndex(index);
+
+        selectedIndex = index;
     };
 
     const elements = items.map((item, i) => {
@@ -482,7 +490,7 @@ export function toggleSwitch(
             item.value = item.text;
         }
 
-        return <RadioInput handleSelect={handleSelected} item={item} index={i} />;
+        return <RadioInput key={i} handleSelect={handleSelected} item={item} index={i} />;
     });
 
     return (

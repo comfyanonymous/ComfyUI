@@ -26,7 +26,7 @@ interface IAddSetting {
     tooltip?: string;
     defaultValue?: any;
     onChange?: (...arg: any[]) => any;
-    options: ComboOption[] | ((value: string) => (ComboOption | string)[]);
+    options?: ComboOption[] | ((value: string) => (ComboOption | string)[]);
 }
 
 const SettingsContext = React.createContext<ISettingsContext | null>(null);

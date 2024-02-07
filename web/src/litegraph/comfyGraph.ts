@@ -137,12 +137,12 @@ export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGrap
 // @injectable()
 /** Converts the current graph serializedGraph for sending to the API */
 export class SerializeGraph implements ISerializeGraph {
-    // serializeGraph(graph: IComfyGraph): {
-    //     serializedGraph: SerializedGraph;
-    //     apiWorkflow: Record<string, WorkflowStep>;
-    // } {
-    //     return {};
-    // }
+    serializeGraph(graph: IComfyGraph): {
+        serializedGraph: SerializedGraph;
+        apiWorkflow: Record<string, WorkflowStep>;
+    } {
+        return {};
+    }
 }
 
 // @injectable()
@@ -191,11 +191,14 @@ export class ComfyGraph extends LGraph implements IComfyGraph {
     }
 
     serializeGraph(): ReturnType<ISerializeGraph['serializeGraph']> {
-        return {};
+        return {
+            serializedGraph: super.serialize(),
+            apiWorkflow: {},
+        };
     }
 
     attachCanvas(graphCanvas: LGraphCanvas) {
-        // TODO: is this safe...?
+        // TODO: is this okay...?
         graphCanvas.constructor = LGraphCanvas;
         super.attachCanvas(graphCanvas);
     }
