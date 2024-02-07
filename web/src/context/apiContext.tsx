@@ -5,20 +5,22 @@ import { api, ComfyApi } from '../scripts/api';
 import { createUseContextHook } from './hookCreator';
 import { IComfyApi } from '../types/api.ts';
 import { createChannel, createClient } from 'nice-grpc';
-import { ComfyClient, ComfyDefinition } from '../../autogen_web_ts/comfy_request.v1.ts';
+import { ComfyClient, ComfyDefinition, ComfyMessage } from '../../autogen_web_ts/comfy_request.v1.ts';
 
 // This is injected into index.html by `start.py`
 declare global {
     interface Window {
         SERVER_URL: string;
+        SERVER_PROTOCOL: ProtocolType;
     }
 }
 
-interface ApiContextType {
-    api: IComfyApi;
-    ApiEventEmitter: EventTarget;
+type ProtocolType = 'grpc' | 'ws';
+
+interface IApiContext {
+    sessionId?: string;
     connectionStatus: string;
-    sessionId: string | null;
+    comfyClient: ComfyClient | null;
 }
 
 enum ApiStatus {
@@ -31,6 +33,11 @@ enum ApiStatus {
 // Non-react component
 const ApiEventEmitter = new EventTarget();
 
+// TO DO: implement this
+const handleComfyMessage = (message: ComfyMessage) => {
+    ApiEventEmitter.dispatchEvent(new CustomEvent('room', { detail: message }));
+};
+
 // Use polling as a backup strategy incase the websocket fails to connect
 const pollingFallback = () => {
     const intervalId = setInterval(async () => {
@@ -42,73 +49,105 @@ const pollingFallback = () => {
             ApiEventEmitter.dispatchEvent(new CustomEvent('status', { detail: null }));
         }
     }, 1000);
-    // Return cleanup function
+
+    // Cleanup function
     return () => clearInterval(intervalId);
 };
 
 export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // TO DO: add possible auth in here as well?
-    const [sessionId, setSessionId] = useState<string | null>(null);
-    const [socket, setSocket] = useState<ReconnectingWebSocket | null>(null);
+    const [sessionId, setSessionId] = useState<string | undefined>(undefined);
+    // const [socket, setSocket] = useState<ReconnectingWebSocket | null>(null);
     const [serverUrl, setServerUrl] = useState<string>(window.SERVER_URL);
-    const [connectionStatus, setApiStatus] = useState<string>(ApiStatus.CLOSED);
+    const [connectionStatus, setConnectionStatus] = useState<string>(ApiStatus.CLOSED);
+    const [serverProtocol, setServerProtocol] = useState<ProtocolType>(window.SERVER_PROTOCOL);
 
-    // websocket client
+    // Only used for when serverProtocol is grpc. Used to both send messages and stream results
+    const [comfyClient, setComfyClient] = useState<ComfyClient | null>(null);
+
+    // establish a connection to the server
     useEffect(() => {
-        let suffix = '';
-        if (sessionId) {
-            suffix = '?clientId=' + sessionId;
-        }
-        const socket = new ReconnectingWebSocket(serverUrl, undefined, { maxReconnectionDelay: 300 });
-        socket.binaryType = 'arraybuffer';
+        if (serverProtocol === 'grpc') {
+            const channel = createChannel(serverUrl);
+            const comfyClient: ComfyClient = createClient(ComfyDefinition, channel);
 
-        socket.addEventListener('open', () => {
-            setApiStatus(ApiStatus.OPEN);
-        });
+            setComfyClient(comfyClient);
 
-        let cleanupPolling = () => {};
-        socket.addEventListener('error', () => {
-            if (!(socket.readyState == socket.OPEN)) {
-                // The websocket failed to open; use a fallback insetad
+            // Cleanup connection
+            return () => channel.close();
+        } else {
+            // Assumed to be websocket protocol
+            const socket = new ReconnectingWebSocket(serverUrl, undefined, { maxReconnectionDelay: 300 });
+            socket.binaryType = 'arraybuffer';
+
+            socket.addEventListener('open', () => {
+                setConnectionStatus(ApiStatus.OPEN);
+            });
+
+            let cleanupPolling = () => {};
+            socket.addEventListener('error', () => {
+                if (!(socket.readyState == socket.OPEN)) {
+                    // The websocket failed to open; use a fallback instead
+                    socket.close();
+                    cleanupPolling = pollingFallback();
+                }
+                setConnectionStatus(ApiStatus.CLOSED);
+            });
+
+            socket.addEventListener('close', () => {
+                // Will automatically try to reconnect
+                setConnectionStatus(ApiStatus.CONNECTING);
+            });
+
+            setConnectionStatus(ApiStatus.CONNECTING);
+
+            return () => {
                 socket.close();
-                cleanupPolling = pollingFallback();
-            }
-            setApiStatus(ApiStatus.CLOSED);
-        });
+                cleanupPolling();
+            };
+        }
+    }, [serverUrl, serverProtocol]);
 
-        socket.addEventListener('close', () => {
-            // Will automatically try to reconnect
-            setApiStatus(ApiStatus.CONNECTING);
-        });
-
-        setSocket(socket);
-        setApiStatus(ApiStatus.CONNECTING);
-
-        return () => {
-            socket.close();
-            cleanupPolling();
-        };
-    }, [serverUrl, sessionId]);
-
-    // gRPC client
+    // If we are in a session-id, subscribe to the stream of results
     useEffect(() => {
-        const channel = createChannel('localhost:8080');
-        const client: ComfyClient = createClient(ComfyDefinition, channel);
+        if (comfyClient === null) return;
 
-        // Cleanup connection
+        const abortController = new AbortController();
+
+        const stream = comfyClient.streamRoom({ session_id: sessionId }, { signal: abortController.signal });
+
+        setConnectionStatus(ApiStatus.CONNECTING);
+
+        (async () => {
+            let first = true;
+            for await (const message of stream) {
+                if (first) {
+                    first = false;
+                    setConnectionStatus(ApiStatus.OPEN);
+                }
+                handleComfyMessage(message);
+            }
+        })()
+            .then(() => {
+                setConnectionStatus(ApiStatus.CLOSED);
+            })
+            .catch(error => {
+                setConnectionStatus(ApiStatus.CLOSED);
+                console.error(error);
+            });
+
+        // Cleanup stream
         return () => {
-            channel.close();
+            abortController.abort();
         };
-    }, [socket]);
+    }, [comfyClient, sessionId]);
 
     return (
         <ApiContext.Provider
             value={{
-                // TODO: we shouldn't hardcode this
-                api: new ComfyApi('http://127.0.0.1:8188'),
-                ApiEventEmitter,
-                connectionStatus,
                 sessionId,
+                connectionStatus,
+                comfyClient,
             }}
         >
             {children}
@@ -116,5 +155,5 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
     );
 };
 
-const ApiContext = createContext<ApiContextType | undefined>(undefined);
+const ApiContext = createContext<IApiContext | undefined>(undefined);
 export const useApiContext = createUseContextHook(ApiContext, 'useApiContext must be used within a ApiContextProvider');

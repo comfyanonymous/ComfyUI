@@ -129,7 +129,7 @@ async def main():
         # Start a simple server to serve the react-app
         api_key = await get_api_key()
         app = web.Application()
-        serve_react_app(app, BUILD_DIR, f"https://api.void.tech/{api_key}")
+        serve_react_app(app, BUILD_DIR, f"https://api.void.tech/{api_key}", 'grpc')
         
         runner = aiohttp.web.AppRunner(app)
         await runner.setup()

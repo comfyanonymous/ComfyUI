@@ -545,7 +545,7 @@ class PromptServer():
                 web.static('/extensions/' + urllib.parse.quote(name), dir, follow_symlinks=True),
             ])
             
-        serve_react_app(self.app, self.web_root, f"http://localhost:{args.port}")
+        serve_react_app(self.app, self.web_root, f"http://localhost:{args.port}", 'ws')
         # self.app.add_routes([
         #     web.static('/', self.web_root, follow_symlinks=True),
         # ])
