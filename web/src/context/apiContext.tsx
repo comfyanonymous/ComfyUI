@@ -4,11 +4,20 @@ import ReconnectingWebSocket from 'reconnecting-websocket';
 import { api, ComfyApi } from '../scripts/api';
 import { createUseContextHook } from './hookCreator';
 import { IComfyApi } from '../types/api.ts';
+import { createChannel, createClient } from 'nice-grpc';
+import { ComfyClient, ComfyDefinition } from '../../autogen_web_ts/comfy_request.v1.ts';
+
+// This is injected into index.html by `start.py`
+declare global {
+    interface Window {
+        SERVER_URL: string;
+    }
+}
 
 interface ApiContextType {
     api: IComfyApi;
     ApiEventEmitter: EventTarget;
-    apiStatus: string;
+    connectionStatus: string;
     sessionId: string | null;
 }
 
@@ -18,9 +27,6 @@ enum ApiStatus {
     CLOSING = 'closing',
     CLOSED = 'closed',
 }
-
-const ApiContext = createContext<ApiContextType | undefined>(undefined);
-export const useApiContext = createUseContextHook(ApiContext, 'useApiContext must be used within a ApiContextProvider');
 
 // Non-react component
 const ApiEventEmitter = new EventTarget();
@@ -44,21 +50,16 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
     // TO DO: add possible auth in here as well?
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [socket, setSocket] = useState<ReconnectingWebSocket | null>(null);
-    const [api_host, setApiHost] = useState<string>(location.host);
-    const [api_base, setApiBase] = useState<string>(location.pathname.split('/').slice(0, -1).join('/'));
-    // const [apiEventEmitter, _] = useState<EventTarget>(new EventTarget());
-    const [apiStatus, setApiStatus] = useState<string>(ApiStatus.CLOSED);
+    const [serverUrl, setServerUrl] = useState<string>(window.SERVER_URL);
+    const [connectionStatus, setApiStatus] = useState<string>(ApiStatus.CLOSED);
 
+    // websocket client
     useEffect(() => {
         let suffix = '';
         if (sessionId) {
             suffix = '?clientId=' + sessionId;
         }
-        const socket = new ReconnectingWebSocket(
-            `ws${window.location.protocol === 'https:' ? 's' : ''}://${api_host}${api_base}/ws${suffix}`,
-            undefined,
-            { maxReconnectionDelay: 300 }
-        );
+        const socket = new ReconnectingWebSocket(serverUrl, undefined, { maxReconnectionDelay: 300 });
         socket.binaryType = 'arraybuffer';
 
         socket.addEventListener('open', () => {
@@ -87,7 +88,18 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
             socket.close();
             cleanupPolling();
         };
-    }, [api_host, api_base, sessionId]);
+    }, [serverUrl, sessionId]);
+
+    // gRPC client
+    useEffect(() => {
+        const channel = createChannel('localhost:8080');
+        const client: ComfyClient = createClient(ComfyDefinition, channel);
+
+        // Cleanup connection
+        return () => {
+            channel.close();
+        };
+    }, [socket]);
 
     return (
         <ApiContext.Provider
@@ -95,7 +107,7 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
                 // TODO: we shouldn't hardcode this
                 api: new ComfyApi('http://127.0.0.1:8188'),
                 ApiEventEmitter,
-                apiStatus,
+                connectionStatus,
                 sessionId,
             }}
         >
@@ -103,3 +115,6 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
         </ApiContext.Provider>
     );
 };
+
+const ApiContext = createContext<ApiContextType | undefined>(undefined);
+export const useApiContext = createUseContextHook(ApiContext, 'useApiContext must be used within a ApiContextProvider');

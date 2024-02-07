@@ -38,6 +38,7 @@
     "dependencies": {
         "inversify": "^6.0.2",
         "litegraph.js": "^0.7.18",
+        "nice-grpc": "^2.1.7",
         "nice-grpc-common": "^2.0.2",
         "protobufjs": "^7.2.6",
         "react": "^18.2.0",

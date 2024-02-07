@@ -1,8 +1,4 @@
-## ComfyTS
-
-## The most powerful and modular stable diffusion GUI and backend.
-
-![ComfyUI Screenshot](comfyui_screenshot.png)
+### Comfy Engine
 
 ComfyTS ("Comfy-The-Sequel" / "Comfy-TypeScript") is a fork of ComfyUI. It serves as the backend for [void.tech](https://void.tech). Project goals:
 
@@ -10,28 +6,44 @@ ComfyTS ("Comfy-The-Sequel" / "Comfy-TypeScript") is a fork of ComfyUI. It serve
 - Adapt ComfyUI to work in a serverless, multi-user environment more easily
 - Maintain compatability with the existing ComfyUI ecosystem of custom-nodes and workflows
 
-### Docker Instructions:
+### Requirements
 
-<<<<<<< HEAD
+You need the following installed locally: 
+
+- Python
+- A javascript package manager: yarn, npm, or pnpm
+
+### How to Run
+
+First git-clone this repo, then run:
+
+`python start.py`
+
+After installing npm-dependencies and building the React app, you'll be given the option to select either a 'local' or 'remote' server.
+
+- Local: a local server will be started on port 8188 on your machine, utilizing your own GPU (or CPU if none is found) to run inference requests.
+- Rmote: you'll be prompted to login to void.tech to obtain an API-key. The React app will run inference requests on void.tech's remote GPUs.
+
+Either way, to view the React app open your browser at `localhost:8188`.
+
+### Running with Docker Instead:
+
+If you'd prefer to use Docker instead, you can.
 
 - Start your docker daemon, then in the root folder run the build command:
 
-  # `docker build -t voidtech0/comfy-ts:0.1.0 .`
+  `docker build -t voidtech0/comfy-ts:0.1.0 .`
 
 - Start your docker daemon, or install Docker if you don't already have it.
 - In the root of this repo, run the build command:
 
   `docker build -t voidtech0/comfy-ts:0.1.2 .`
 
-  > > > > > > > build-test
-
 Note that the docker-build does not copy any of the models into the docker-image, which would bloat the image-size. Instead, it expects to load the models from an external filesystem upon startup.
 
 - `docker run -it --name (???) --gpus all -p 8188:8188 -v "$(pwd)"/storage:(???)`
 
 ### Headless ComfyTS
-
-<<<<<<< HEAD
 
 - https://hub.docker.com/r/yanwk/comfyui-boot
 - https://hub.docker.com/r/universonic/stable-diffusion-webui
