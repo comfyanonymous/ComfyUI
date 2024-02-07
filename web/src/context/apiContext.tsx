@@ -4,12 +4,13 @@ import ReconnectingWebSocket from 'reconnecting-websocket';
 import { api, ComfyApi } from '../scripts/api';
 import { createUseContextHook } from './hookCreator';
 import { IComfyApi } from '../types/api.ts';
-import { createChannel, createClient } from 'nice-grpc';
+import { createChannel, createClient, Metadata } from 'nice-grpc';
 import { ComfyClient, ComfyDefinition, ComfyMessage } from '../../autogen_web_ts/comfy_request.v1.ts';
 
 // This is injected into index.html by `start.py`
 declare global {
     interface Window {
+        API_KEY?: string;
         SERVER_URL: string;
         SERVER_PROTOCOL: ProtocolType;
     }
@@ -21,6 +22,7 @@ interface IApiContext {
     sessionId?: string;
     connectionStatus: string;
     comfyClient: ComfyClient | null;
+    requestMetadata?: Metadata;
 }
 
 enum ApiStatus {
@@ -61,6 +63,7 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
     const [serverUrl, setServerUrl] = useState<string>(window.SERVER_URL);
     const [connectionStatus, setConnectionStatus] = useState<string>(ApiStatus.CLOSED);
     const [serverProtocol, setServerProtocol] = useState<ProtocolType>(window.SERVER_PROTOCOL);
+    const [requestMetadata, setRequestMetadata] = useState<Metadata | undefined>(undefined);
 
     // Only used for when serverProtocol is grpc. Used to both send messages and stream results
     const [comfyClient, setComfyClient] = useState<ComfyClient | null>(null);
@@ -142,12 +145,19 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
         };
     }, [comfyClient, sessionId]);
 
+    useEffect(() => {
+        const metadata = new Metadata();
+        if (window.API_KEY) metadata.set('api-key', window.API_KEY);
+        setRequestMetadata(metadata);
+    }, []);
+
     return (
         <ApiContext.Provider
             value={{
                 sessionId,
                 connectionStatus,
                 comfyClient,
+                requestMetadata,
             }}
         >
             {children}
