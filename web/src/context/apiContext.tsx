@@ -4,7 +4,7 @@ import ReconnectingWebSocket from 'reconnecting-websocket';
 import { api, ComfyApi } from '../scripts/api';
 import { createUseContextHook } from './hookCreator';
 import { IComfyApi } from '../types/api.ts';
-import { createChannel, createClient, Metadata } from 'nice-grpc';
+import { createChannel, createClient, Metadata } from 'nice-grpc-web';
 import { ComfyClient, ComfyDefinition, ComfyMessage } from '../../autogen_web_ts/comfy_request.v1.ts';
 
 // This is injected into index.html by `start.py`
@@ -77,7 +77,7 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
             setComfyClient(comfyClient);
 
             // Cleanup connection
-            return () => channel.close();
+            // return () => channel.close();
         } else {
             // Assumed to be websocket protocol
             const socket = new ReconnectingWebSocket(serverUrl, undefined, { maxReconnectionDelay: 300 });
