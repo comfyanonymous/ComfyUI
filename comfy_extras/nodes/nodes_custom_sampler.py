@@ -1,3 +1,4 @@
+import comfy.sampler_names
 from comfy import samplers
 from comfy import model_management
 from comfy import sample
@@ -12,7 +13,7 @@ class BasicScheduler:
     def INPUT_TYPES(s):
         return {"required":
                     {"model": ("MODEL",),
-                     "scheduler": (samplers.SCHEDULER_NAMES, ),
+                     "scheduler": (comfy.sampler_names.SCHEDULER_NAMES,),
                      "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                      "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                       }
@@ -170,7 +171,7 @@ class KSamplerSelect:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"sampler_name": (samplers.SAMPLER_NAMES, ),
+                    {"sampler_name": (comfy.sampler_names.SAMPLER_NAMES,),
                       }
                }
     RETURN_TYPES = ("SAMPLER",)

@@ -22,6 +22,7 @@ import aiofiles
 import aiohttp
 from aiohttp import web
 
+from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes
 from ..cmd import execution
 from ..cmd import folder_paths
 import mimetypes
@@ -30,16 +31,14 @@ from ..digest import digest
 from ..cli_args import args
 from .. import utils
 from .. import model_management
+from ..component_model.executor_types import ExecutorToClientProgress
+from ..component_model.file_output_path import file_output_path
 from ..nodes.package import import_all_nodes_in_workspace
 from ..vendor.appdirs import user_data_dir
 
 nodes = import_all_nodes_in_workspace()
 
 from ..app.user_manager import UserManager
-
-class BinaryEventTypes:
-    PREVIEW_IMAGE = 1
-    UNENCODED_PREVIEW_IMAGE = 2
 
 
 async def send_socket_catch_exception(function, message):
@@ -75,16 +74,8 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 
-class PromptServer():
-    prompt_queue: execution.PromptQueue | None
-    address: str
-    port: int
-    loop: AbstractEventLoop
-    messages: asyncio.Queue
-    number: int
-    supports: List[str]
-    app: web.Application
-    routes: web.RouteTableDef
+class PromptServer(ExecutorToClientProgress):
+    instance: 'PromptServer'
 
     def __init__(self, loop):
         PromptServer.instance = self
@@ -92,19 +83,22 @@ class PromptServer():
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
+        self.address: str = "0.0.0.0"
         self.user_manager = UserManager()
-        self.supports = ["custom_nodes_from_web"]
-        self.prompt_queue = None
-        self.loop = loop
-        self.messages = asyncio.Queue()
-        self.number = 0
+        # todo: this is probably read by custom nodes elsewhere
+        self.supports: List[str] = ["custom_nodes_from_web"]
+        self.prompt_queue: execution.AbstractPromptQueue | None = None
+        self.loop: AbstractEventLoop = loop
+        self.messages: asyncio.Queue = asyncio.Queue()
+        self.number: int = 0
+        self.port: int = 8188
 
         middlewares = [cache_control]
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
-        self.app = web.Application(client_max_size=max_upload_size, handler_args={'max_field_size': 16380},
+        self.app: web.Application = web.Application(client_max_size=max_upload_size, handler_args={'max_field_size': 16380},
                                    middlewares=middlewares)
         self.sockets = dict()
         web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../web")
@@ -112,7 +106,7 @@ class PromptServer():
             web_root_path = resource_filename('comfy', 'web/')
         self.web_root = web_root_path
         routes = web.RouteTableDef()
-        self.routes = routes
+        self.routes: web.RouteTableDef = routes
         self.last_node_id = None
         self.client_id = None
 
@@ -276,27 +270,15 @@ class PromptServer():
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
-                filename, output_dir = folder_paths.annotated_filepath(filename)
+                type = request.rel_url.query.get("type", "output")
+                subfolder = request.rel_url.query["subfolder"] if "subfolder" in request.rel_url.query else None
 
-                # validation for security: prevent accessing arbitrary path
-                if filename[0] == '/' or '..' in filename:
+                try:
+                    file = file_output_path(filename, type=type, subfolder=subfolder)
+                except PermissionError:
+                    return web.Response(status=403)
+                except ValueError:
                     return web.Response(status=400)
-
-                if output_dir is None:
-                    type = request.rel_url.query.get("type", "output")
-                    output_dir = folder_paths.get_directory_by_type(type)
-
-                if output_dir is None:
-                    return web.Response(status=400)
-
-                if "subfolder" in request.rel_url.query:
-                    full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-                        return web.Response(status=403)
-                    output_dir = full_output_dir
-
-                filename = os.path.basename(filename)
-                file = os.path.join(output_dir, filename)
 
                 if os.path.isfile(file):
                     if 'preview' in request.rel_url.query:
@@ -505,8 +487,8 @@ class PromptServer():
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put(
-                        execution.QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute),
-                                            completed=None))
+                        QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute),
+                                                                      completed=None))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
@@ -561,13 +543,14 @@ class PromptServer():
         @routes.get("/api/v1/images/{content_digest}")
         async def get_image(request: web.Request) -> web.FileResponse:
             digest_ = request.match_info['content_digest']
-            path = os.path.join(user_data_dir("comfyui", "comfyanonymous", roaming=False), digest_)
+            path = str(os.path.join(user_data_dir("comfyui", "comfyanonymous", roaming=False), digest_))
             return web.FileResponse(path,
                                     headers={"Content-Disposition": f"filename=\"{digest_}.png\""})
 
         @routes.post("/api/v1/prompts")
         async def post_prompt(request: web.Request) -> web.Response | web.FileResponse:
             # check if the queue is too long
+            accept = request.headers.get("accept", "application/json")
             queue_size = self.prompt_queue.size()
             queue_too_busy_size = PromptServer.get_too_busy_queue_size()
             if queue_size > queue_too_busy_size:
@@ -611,12 +594,22 @@ class PromptServer():
             cache_url = f"/api/v1/images/{content_digest}"
 
             if os.path.exists(cache_path):
-                return web.Response(status=200,
-                                    headers={
-                                        "Digest": f"SHA-256={content_digest}",
-                                        "Location": f"/api/v1/images/{content_digest}"
-                                    },
-                                    body=json.dumps({'urls': [cache_url]}))
+                filename__ = os.path.basename(cache_path)
+                digest_headers_ = {
+                    "Digest": f"SHA-256={content_digest}",
+                    "Location": f"/api/v1/images/{content_digest}"
+                }
+                if accept == "application/json":
+
+                    return web.Response(status=200,
+                                        headers=digest_headers_,
+                                        body=json.dumps({'urls': [cache_url]}))
+                elif accept == "image/png":
+                    return web.FileResponse(cache_path,
+                                            headers={"Content-Disposition": f"filename=\"{filename__}\"",
+                                                     **digest_headers_})
+                else:
+                    return web.json_response(status=400, reason=f"invalid accept header {accept}")
 
             # todo: check that the files specified in the InputFile nodes exist
 
@@ -625,8 +618,8 @@ class PromptServer():
             number = self.number
             self.number += 1
             self.prompt_queue.put(
-                execution.QueueItem(queue_tuple=(number, str(uuid.uuid4()), prompt_dict, {}, valid[2]),
-                                    completed=completed))
+                QueueItem(queue_tuple=(number, str(uuid.uuid4()), prompt_dict, {}, valid[2]),
+                                                              completed=completed))
 
             try:
                 await completed
@@ -641,8 +634,9 @@ class PromptServer():
                 images: List[dict] = []
                 if 'images' in node:
                     images = node['images']
-                elif isinstance(node, dict) and 'ui' in node and isinstance(node['ui'], dict) and 'images' in node[
-                    'ui']:
+                elif (isinstance(node, dict)
+                      and 'ui' in node and isinstance(node['ui'], dict)
+                      and 'images' in node['ui']):
                     images = node['ui']['images']
                 for image_tuple in images:
                     filename_ = image_tuple['abs_path']
@@ -658,12 +652,19 @@ class PromptServer():
                 shutil.copy(image_, cache_path)
                 filename = os.path.basename(image_)
                 comfyui_url = f"http://{self.address}:{self.port}/view?filename={filename}&type=output"
-                return web.Response(status=200,
-                                    headers={
-                                        "Digest": f"SHA-256={content_digest}",
-                                        "Location": f"/api/v1/images/{content_digest}",
-                                        "Content-Disposition": f"filename=\"{filename}\""},
-                                    body=json.dumps({'urls': [cache_url, comfyui_url]}))
+                digest_headers_ = {
+                    "Digest": f"SHA-256={content_digest}",
+                    "Location": f"/api/v1/images/{content_digest}",
+                    "Content-Disposition": f"filename=\"{filename}\""
+                }
+                if accept == "application/json":
+
+                    return web.Response(status=200,
+                                        headers=digest_headers_,
+                                        body=json.dumps({'urls': [cache_url, comfyui_url]}))
+                elif accept == "image/png":
+                    return web.FileResponse(image_,
+                                            headers=digest_headers_)
             else:
                 return web.Response(status=204)
 
@@ -674,12 +675,7 @@ class PromptServer():
             if len(history_items) == 0:
                 return web.Response(status=404)
 
-            # argmax
-            def _history_item_timestamp(i: int):
-                return history_items[i]['timestamp']
-
-            last_history_item: execution.HistoryEntry = history_items[
-                max(range(len(history_items)), key=_history_item_timestamp)]
+            last_history_item: HistoryEntry = history_items[-1]
             prompt = last_history_item['prompt'][2]
             return web.json_response(prompt, status=200)
 

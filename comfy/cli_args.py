@@ -1,6 +1,8 @@
 import configargparse as argparse
 import enum
 from . import options
+from .cli_args_types import LatentPreviewMethod, Configuration
+
 
 class EnumAction(argparse.Action):
     """
@@ -31,9 +33,11 @@ class EnumAction(argparse.Action):
         setattr(namespace, self.dest, value)
 
 
-parser = argparse.ArgumentParser(default_config_files=['config.yaml', 'config.json'], auto_env_var_prefix='COMFYUI_')
+parser = argparse.ArgumentParser(default_config_files=['config.yaml', 'config.json'], auto_env_var_prefix='COMFYUI_',
+                                 args_for_setting_config_path=["-c", "--config"],
+                                 add_env_var_help=True, add_config_file_help=True, add_help=True,
+                                 args_for_writing_out_config_file=["--write-out-config-file"])
 
-parser.add_argument('-c', '--config', required=False, default=None, is_config_file=True, help='Specify additional configuration files.')
 parser.add_argument('-w', "--cwd", type=str, default=None, help="Specify the working directory. If not set, this is the current working directory. models/, input/, output/ and other directories will be located here by default.")
 parser.add_argument('-H', "--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0", help="Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)")
 parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
@@ -75,16 +79,9 @@ fpte_group.add_argument("--fp8_e5m2-text-enc", action="store_true", help="Store 
 fpte_group.add_argument("--fp16-text-enc", action="store_true", help="Store text encoder weights in fp16.")
 fpte_group.add_argument("--fp32-text-enc", action="store_true", help="Store text encoder weights in fp32.")
 
-
 parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
 
 parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize when loading models with Intel GPUs.")
-
-class LatentPreviewMethod(enum.Enum):
-    NoPreviews = "none"
-    Auto = "auto"
-    Latent2RGB = "latent2rgb"
-    TAESD = "taesd"
 
 parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.NoPreviews, help="Default preview method for sampler nodes.", action=EnumAction)
 
@@ -115,13 +112,21 @@ parser.add_argument("--disable-metadata", action="store_true", help="Disable sav
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
+parser.add_argument("--plausible-analytics-base-url", required=False,
+                    help="Enables server-side analytics events sent to the provided URL.")
+parser.add_argument("--plausible-analytics-domain", required=False,
+                    help="Specifies the domain name for analytics events.")
+parser.add_argument("--analytics-use-identity-provider", action="store_true",
+                    help="Uses platform identifiers for unique visitor analytics.")
 if options.args_parsing:
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 else:
-    args = parser.parse_args([])
+    args, _ = parser.parse_known_args([])
 
 if args.windows_standalone_build:
     args.auto_launch = True
 
 if args.disable_auto_launch:
     args.auto_launch = False
+
+args = Configuration(**vars(args))

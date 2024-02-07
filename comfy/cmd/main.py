@@ -7,6 +7,7 @@ import importlib.util
 
 from ..cmd import cuda_malloc
 from ..cmd import folder_paths
+from ..analytics.analytics import initialize_event_tracking
 import time
 
 
@@ -78,11 +79,12 @@ import yaml
 
 from ..cmd import execution
 from ..cmd import server as server_module
-from .server import BinaryEventTypes
+from ..component_model.abstract_prompt_queue import AbstractPromptQueue
+from ..component_model.queue_types import BinaryEventTypes, ExecutionStatus
 from .. import model_management
 
 
-def prompt_worker(q, _server):
+def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
     e = execution.PromptExecutor(_server)
     last_gc_collect = 0
     need_gc = False
@@ -104,7 +106,7 @@ def prompt_worker(q, _server):
             need_gc = True
             q.task_done(item_id,
                         e.outputs_ui,
-                        status=execution.PromptQueue.ExecutionStatus(
+                        status=ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
                             messages=e.status_messages))
@@ -226,6 +228,9 @@ def main():
 
     threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
 
+    # server has been imported and things should be looking good
+    initialize_event_tracking(loop)
+
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         print(f"Setting output directory to: {output_dir}")
@@ -248,7 +253,7 @@ def main():
     if args.auto_launch:
         def startup_server(address, port):
             import webbrowser
-            if os.name == 'nt' and address == '0.0.0.0':
+            if os.name == 'nt' and address == '0.0.0.0' or address == '':
                 address = '127.0.0.1'
             webbrowser.open(f"http://{address}:{port}")
 

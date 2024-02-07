@@ -1,4 +1,4 @@
-openapi: 3.0.0
+openapi: 3.1.0
 info:
   title: comfyui
   version: 0.0.1
@@ -102,11 +102,32 @@ paths:
           name: subfolder
           schema:
             type: string
+        - in: query
+          name: channel
+          schema:
+            type: string
+            enum:
+              - 'rgba'
+              - 'rgb'
+              - 'a'
       responses:
         '200':
           description: Successful retrieval of file
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                pattern: '^filename=".+"'
           content:
             image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/webp:
               schema:
                 type: string
                 format: binary
@@ -143,10 +164,19 @@ paths:
               $ref: "#/components/schemas/PromptRequest"
       responses:
         '200':
-          description: The prompt was queued.
+          description: The prompt was queued and a prompt ID was returned.
           content:
+            application/json:
+              example:
+                prompt_id: "some-value"
+              schema:
+                type: object
+                properties:
+                  prompt_id:
+                    description: The ID of the prompt that was queued
+                    type: string
             text/plain:
-              example: ""
+              example: "some-value"
               schema:
                 type: string
         '400':
@@ -167,9 +197,7 @@ paths:
               schema:
                 type: object
                 additionalProperties:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/Node"
+                  $ref: "#/components/schemas/Node"
   /history:
     get:
       summary: (UI) Get history
@@ -184,13 +212,21 @@ paths:
                 additionalProperties:
                   type: object
                   properties:
-                    timestamp:
-                      type: number
                     prompt:
                       $ref: "#/components/schemas/QueueTuple"
-                    # todo: do the outputs format
                     outputs:
+                      $ref: "#/components/schemas/Outputs"
+                    status:
                       type: object
+                      properties:
+                        status_str:
+                          type: string
+                        completed:
+                          type: bool
+                        messages:
+                          type: array
+                          items:
+                            type: string
     post:
       summary: (UI) Post history
       operationId: post_history
@@ -254,6 +290,35 @@ paths:
       responses:
         '200':
           description: OK
+  /free:
+    # from 6d281b4ff4ad3918a4f3b4ca4a8b547a2ba3bf80
+    post:
+      summary: (UI) Unload models or free memory
+      operationId: free
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    unload_models:
+                      type: boolean
+                      enum: [ true ]
+                  required:
+                    - unload_models
+                  additionalProperties: false
+                - type: object
+                  properties:
+                    free_memory:
+                      type: boolean
+                      enum: [ true ]
+                  required:
+                    - free_memory
+                  additionalProperties: false
+              description: >-
+                A POST request to /free with: {"unload_models":true} will unload models from vram. 
+                A POST request to /free with: {"free_memory":true} will unload models and free all cached data from the last run workflow.
   /api/v1/images/{digest}:
     get:
       summary: (API) Get image
@@ -327,9 +392,16 @@ paths:
               example: filename=ComfyUI_00001.png
               schema:
                 type: string
+                pattern: '^filename=.+'
           description: |
             The content of the last SaveImage node.
           content:
+            image/png:
+              schema:
+                description: |
+                  Binary image data. This will be the first SaveImage node in the workflow.
+                type: string
+                format: binary
             application/json:
               schema:
                 description: |
@@ -419,6 +491,17 @@ paths:
             The server is too busy to process this request right now.
             
             This should only be returned by a load balancer. Standalone comfyui does not return this.
+      parameters:
+        - in: header
+          name: Accept
+          schema:
+            type: string
+            enum:
+              - "application/json"
+              - "image/png"
+          required: false
+          description: |
+            Specifies the media type the client is willing to receive.
       requestBody:
         content:
           application/json:
@@ -482,16 +565,25 @@ components:
           type: array
           items:
             type: string
+        output_is_list:
+          description: Indicates if the output of the corresponding index as the item in this array is a list output.
+          type: array
+          items:
+            type: boolean
         output_name:
           type: array
           items:
             type: string
         name:
           type: string
+        display_name:
+          type: string
         description:
           type: string
         category:
           type: string
+        output_node:
+          type: boolean
     ExtraData:
       type: object
       properties:
@@ -698,19 +790,25 @@ components:
             oneOf:
               - type: number
               - type: string
+              - type: boolean
               - type: array
                 description: |
                   When this is specified, it is a node connection, followed by an output.
                 items:
                   minItems: 2
                   maxItems: 2
-                  oneOf:
+                  prefixItems:
                     - type: string
                     - type: integer
           description: The inputs for the node, which can be scalar values or references to other nodes' outputs.
         is_changed:
-          type: string
-          description: A string representing whether the node has changed (optional).
+          oneOf:
+            - type: array
+              description: An array of hashes representing whether the node has changed (optional).
+              items:
+                type: string
+            - type: string
+              description: A string representing whether the node has changed (optional).
     Workflow:
       type: object
       properties:
@@ -814,14 +912,47 @@ components:
     QueueTuple:
       type: array
       description: |
-        The first item is the queue priority
-        The second item is the hash id of the prompt object
-        The third item is a Prompt
-        The fourth item is an ExtraData
-      items:
-        minItems: 4
-        maxItems: 4
-        oneOf:
-          - type: number
-          - $ref: "#/components/schemas/Prompt"
-          - $ref: "#/components/schemas/ExtraData"
+        An item that was added to the queue.
+      minItems: 3
+      maxItems: 5
+      prefixItems:
+        - type: number
+          description: Queue priority.
+        - type: string
+          description: The hash id of the prompt object. This should be the the prompt ID.
+        - $ref: "#/components/schemas/Prompt"
+        - $ref: "#/components/schemas/ExtraData"
+        - type: array
+          description: A list of "good output" node IDs in the prompt.
+          items:
+            type: string
+    Outputs:
+      description: |
+        The keys are node IDs, the values are output objects
+      type: object
+      additionalProperties:
+        $ref: "#/components/schemas/Output"
+    Output:
+      type: object
+      properties:
+        images:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileOutput"
+        latents:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileOutput"
+    FileOutput:
+      type: object
+      required:
+        - filename
+        - subfolder
+        - type
+      properties:
+        filename:
+          type: string
+        subfolder:
+          type: string
+        type:
+          type: string

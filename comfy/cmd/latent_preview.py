@@ -1,7 +1,8 @@
 import torch
 from PIL import Image
 import numpy as np
-from ..cli_args import args, LatentPreviewMethod
+from ..cli_args import args
+from ..cli_args_types import LatentPreviewMethod
 from ..taesd.taesd import TAESD
 from ..cmd import folder_paths
 from .. import utils

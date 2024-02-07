@@ -16,7 +16,7 @@ import uuid
 import urllib.request
 import urllib.parse
 
-from comfy.samplers import KSampler
+from comfy.sampler_names import SAMPLER_NAMES, SCHEDULER_NAMES
 
 """
 These tests generate and save images through a range of parameters
@@ -140,16 +140,9 @@ prompt_list = [
     'a painting of a cat',
 ]
 
-sampler_list = KSampler.SAMPLERS
-scheduler_list = KSampler.SCHEDULERS
+sampler_list = SAMPLER_NAMES[:]
+scheduler_list = SCHEDULER_NAMES[:]
 
-def run_server(args_pytest):
-    from comfy.cmd.main import main
-    from comfy.cli_args import args
-    args.output_directory = args_pytest["output_dir"]
-    args.listen = args_pytest["listen"]
-    args.port = args_pytest["port"]
-    main()
 
 @pytest.mark.inference
 @pytest.mark.parametrize("sampler", sampler_list)
@@ -159,21 +152,7 @@ class TestInference:
     #
     # Initialize server and client
     #
-    @fixture(scope="class", autouse=True)
-    def _server(self, args_pytest):
-        import multiprocessing
-        # Start server
 
-        pickled_args = {
-            "output_dir": args_pytest["output_dir"],
-            "listen": args_pytest["listen"],
-            "port": args_pytest["port"]
-        }
-        p = multiprocessing.Process(target=run_server, args=(pickled_args,))
-        p.start()
-        yield
-        p.kill()
-        torch.cuda.empty_cache()
 
     def start_client(self, listen: str, port: int):
         # Start client
@@ -196,8 +175,8 @@ class TestInference:
     #
     # Returns a "_client_graph", which is client-graph pair corresponding to an initialized server
     # The "graph" is the default graph
-    @fixture(scope="class", params=comfy_graph_list, ids=comfy_graph_ids, autouse=True)
-    def _client_graph(self, request, args_pytest, _server) -> (ComfyClient, ComfyGraph):
+    @fixture(scope="class", params=comfy_graph_list, ids=comfy_graph_ids, autouse=False)
+    def _client_graph(self, request, args_pytest, comfy_background_server) -> (ComfyClient, ComfyGraph):
         comfy_graph = request.param
 
         # Start client

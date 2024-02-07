@@ -8,8 +8,9 @@ from importlib_resources import files, as_file
 
 from ..vendor.appdirs import user_cache_dir
 
-_openapi_jar_basename = "openapi-generator-cli-6.6.0.jar"
-_openapi_jar_url = f"https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/6.6.0/{_openapi_jar_basename}"
+_version = "7.2.0"
+_openapi_jar_basename = f"openapi-generator-cli-{_version}.jar"
+_openapi_jar_url = f"https://repo1.maven.org/maven2/org/openapitools/openapi-generator-cli/{_version}/{_openapi_jar_basename}"
 
 
 def is_java_installed():
@@ -41,12 +42,13 @@ def main():
                 "--add-opens", "java.base/java.io=ALL-UNNAMED",
                 "--add-opens", "java.base/java.util=ALL-UNNAMED",
                 "--add-opens", "java.base/java.lang=ALL-UNNAMED",
-                "-jar", jar,
+                "-jar", str(jar),
                 "generate",
-                "--input-spec", openapi_schema,
+                "--input-spec", str(openapi_schema).replace('\\', '/'),
                 "--global-property", "models",
-                "--config", python_config
+                "--config", str(python_config).replace('\\', '/')
             ]
+            print(" ".join(cmds), file=sys.stderr)
             subprocess.check_output(cmds)
 
 

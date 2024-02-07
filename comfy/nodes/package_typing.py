@@ -4,6 +4,8 @@ import typing
 from typing import Protocol, ClassVar, Tuple, Dict
 from dataclasses import dataclass, field
 
+T = typing.TypeVar('T', bound='CustomNode')
+
 
 class CustomNode(Protocol):
     @classmethod
@@ -16,6 +18,9 @@ class CustomNode(Protocol):
     FUNCTION: ClassVar[str]
     CATEGORY: ClassVar[str]
     OUTPUT_NODE: typing.Optional[ClassVar[bool]]
+
+    def __call__(self) -> T:
+        ...
 
 
 @dataclass

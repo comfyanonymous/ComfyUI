@@ -9,7 +9,7 @@ def pytest_addoption(parser):
     parser.addoption('--img_output_dir', action="store", default='tests/compare/samples', help='Output directory for diff metric images')
 
 # This initializes args at the beginning of the test session
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session", autouse=False)
 def args_pytest(pytestconfig):
     args = {}
     args['baseline_dir'] = pytestconfig.getoption('baseline_dir')

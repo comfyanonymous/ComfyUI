@@ -36,7 +36,7 @@ class TestCompareImageMetrics:
         yield fnames
         del fnames
 
-    @fixture(scope="class", autouse=True)
+    @fixture(scope="class")
     def teardown(self, args_pytest):
         yield
         # Runs after all tests are complete
@@ -67,17 +67,17 @@ class TestCompareImageMetrics:
     
     # Tests run for each baseline file name
     @fixture()
-    def fname(self, baseline_fname):
+    def fname(self, baseline_fname, teardown):
         yield baseline_fname
         del baseline_fname
     
-    def test_directories_not_empty(self, args_pytest):
+    def test_directories_not_empty(self, args_pytest, teardown):
         baseline_dir = args_pytest['baseline_dir']
         test_dir = args_pytest['test_dir']
         assert len(os.listdir(baseline_dir)) != 0, f"Baseline directory {baseline_dir} is empty"
         assert len(os.listdir(test_dir)) != 0, f"Test directory {test_dir} is empty"
 
-    def test_dir_has_all_matching_metadata(self, fname, test_file_names, args_pytest):
+    def test_dir_has_all_matching_metadata(self, fname, test_file_names, args_pytest, teardown):
         # Check that all files in baseline_dir have a file in test_dir with matching metadata
         baseline_file_path = os.path.join(args_pytest['baseline_dir'], fname)
         file_paths = [os.path.join(args_pytest['test_dir'], f) for f in test_file_names]
@@ -93,6 +93,7 @@ class TestCompareImageMetrics:
         fname,
         test_file_names,
         metric,
+        teardown,
     ):
         baseline_dir = args_pytest['baseline_dir']
         test_dir = args_pytest['test_dir']

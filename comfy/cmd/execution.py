@@ -1,74 +1,33 @@
 from __future__ import annotations
 
-import asyncio
-import sys
 import copy
-import datetime
 import heapq
-import json
+import inspect
 import logging
+import sys
 import threading
-import time
 import traceback
 import typing
-from dataclasses import dataclass
-from typing import Tuple
-import sys
-import gc
-import inspect
-from typing import List, Literal, NamedTuple, Optional
+from typing import List, Optional, Tuple
 
 import torch
 
+from ..component_model.abstract_prompt_queue import AbstractPromptQueue
+from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
+from ..component_model.executor_types import ExecutorToClientProgress
 from ..nodes.package import import_all_nodes_in_workspace
+
 nodes = import_all_nodes_in_workspace()
 from .. import model_management  # type: ignore
 
-"""
-A queued item
-"""
-QueueTuple = Tuple[float, int | str, dict, dict, list]
 
-
-def get_queue_priority(t: QueueTuple):
-    return t[0]
-
-
-def get_prompt_id(t: QueueTuple):
-    return t[1]
-
-
-def get_prompt(t: QueueTuple):
-    return t[2]
-
-
-def get_extra_data(t: QueueTuple):
-    return t[3]
-
-
-def get_good_outputs(t: QueueTuple):
-    return t[4]
-
-
-class HistoryEntry(typing.TypedDict):
-    prompt: QueueTuple
-    outputs: dict
-    timestamp: int
-
-
-@dataclass
-class QueueItem:
-    """
-    An item awaiting processing in the queue
-    """
-    queue_tuple: QueueTuple
-    completed: asyncio.Future | None
-
-    def __lt__(self, other: QueueItem):
-        return get_queue_priority(self.queue_tuple) < get_queue_priority(other.queue_tuple)
-
-
-def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
+def get_input_data(inputs, class_def, unique_id, outputs=None, prompt=None, extra_data=None):
+    if extra_data is None:
+        extra_data = {}
+    if prompt is None:
+        prompt = {}
+    if outputs is None:
+        outputs = {}
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     for x in inputs:
@@ -109,6 +68,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         max_len_input = 0
     else:
         max_len_input = max([len(x) for x in input_data_all.values()])
+
     # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         d_new = dict()
@@ -175,7 +135,9 @@ def format_value(x):
     else:
         return str(x)
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
+
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui,
+                      object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -190,7 +152,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, object_storage)
+                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id,
+                                           outputs_ui, object_storage)
                 if result[0] is not True:
                     # Another node failed further upstream
                     return result
@@ -213,7 +176,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:
                 server.send_sync("executed", {"node": unique_id, "output": output_ui, "prompt_id": prompt_id},
-                             server.client_id)
+                                 server.client_id)
     except model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
 
@@ -252,6 +215,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     executed.add(unique_id)
 
     return (True, None, None)
+
 
 def recursive_will_execute(prompt, outputs, current_item):
     unique_id = current_item
@@ -326,7 +290,7 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
 
 
 class PromptExecutor:
-    def __init__(self, server):
+    def __init__(self, server: ExecutorToClientProgress):
         self.success = None
         self.server = server
         self.reset()
@@ -372,7 +336,7 @@ class PromptExecutor:
                 "current_outputs": error["current_outputs"],
             }
             self.add_message("execution_error", mes, broadcast=False)
-        
+
         # Next, remove the subsequent outputs since they will not be executed
         to_delete = []
         for o in self.outputs:
@@ -385,7 +349,11 @@ class PromptExecutor:
             d = self.outputs.pop(o)
             del d
 
-    def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
+    def execute(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
+        if execute_outputs is None:
+            execute_outputs = []
+        if extra_data is None:
+            extra_data = {}
         model_management.interrupt_current_processing(False)
 
         if "client_id" in extra_data:
@@ -428,8 +396,8 @@ class PromptExecutor:
 
             model_management.cleanup_models()
             self.add_message("execution_cached",
-                          {"nodes": list(current_outputs), "prompt_id": prompt_id},
-                                      broadcast=False)
+                             {"nodes": list(current_outputs), "prompt_id": prompt_id},
+                             broadcast=False)
             executed = set()
             output_node_id = None
             to_execute = []
@@ -440,13 +408,16 @@ class PromptExecutor:
             while len(to_execute) > 0:
                 # always execute the output that depends on the least amount of unexecuted nodes first
                 to_execute = sorted(list(
-                        map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
+                    map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
                 output_node_id = to_execute.pop(0)[-1]
 
                 # This call shouldn't raise anything if there's an error deep in
                 # the actual SD code, instead it will report the node where the
                 # error was raised
-                self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.object_storage)
+                # todo: if we're using a distributed queue, we must wrap the server instance to correctly communicate back to the client via the exchange
+                self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id,
+                                                            extra_data, executed, prompt_id, self.outputs_ui,
+                                                            self.object_storage)
                 if self.success is not True:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
@@ -456,7 +427,6 @@ class PromptExecutor:
             self.server.last_node_id = None
             if model_management.DISABLE_SMART_MEMORY:
                 model_management.unload_all_models()
-
 
 
 def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], typing.Any]:
@@ -647,7 +617,7 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
             if x in validate_function_inputs:
                 input_filtered[x] = input_data_all[x]
 
-        #ret = obj_class.VALIDATE_INPUTS(**input_filtered)
+        # ret = obj_class.VALIDATE_INPUTS(**input_filtered)
         ret = map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS")
         for x in input_filtered:
             for i, r in enumerate(ret):
@@ -684,7 +654,23 @@ def full_type_name(klass):
         return klass.__qualname__
     return module + '.' + klass.__qualname__
 
-def validate_prompt(prompt: dict) -> typing.Tuple[bool, dict | typing.List[dict] | None, typing.List[str], dict | list]:
+
+class ValidationErrorExtraInfoDict(typing.TypedDict):
+    exception_type: str
+    traceback: List[str]
+
+
+class ValidationErrorDict(typing.TypedDict):
+    type: str
+    message: str
+    details: str
+    extra_info: ValidationErrorExtraInfoDict | dict
+
+
+ValidationTuple = typing.Tuple[bool, ValidationErrorDict | None, typing.List[str], dict | list]
+
+
+def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
     outputs = set()
     for x in prompt:
         class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
@@ -698,7 +684,7 @@ def validate_prompt(prompt: dict) -> typing.Tuple[bool, dict | typing.List[dict]
             "details": "",
             "extra_info": {}
         }
-        return (False, error, [], [])
+        return False, error, [], []
 
     good_outputs = set()
     errors = []
@@ -769,26 +755,22 @@ def validate_prompt(prompt: dict) -> typing.Tuple[bool, dict | typing.List[dict]
             "extra_info": {}
         }
 
-        return (False, error, list(good_outputs), node_errors)
+        return False, error, list(good_outputs), node_errors
 
-    return (True, None, list(good_outputs), node_errors)
+    return True, None, list(good_outputs), node_errors
 
-MAXIMUM_HISTORY_SIZE = 10000
 
-class PromptQueue:
-    queue: typing.List[QueueItem]
-    currently_running: typing.Dict[int, QueueItem]
-    # history maps the second integer prompt id in the queue tuple to a dictionary with keys "prompt" and "outputs
-    history: typing.Dict[int, HistoryEntry]
-
-    def __init__(self, server):
+class PromptQueue(AbstractPromptQueue):
+    def __init__(self, server: ExecutorToClientProgress):
         self.server = server
         self.mutex = threading.RLock()
         self.not_empty = threading.Condition(self.mutex)
         self.next_task_id = 0
-        self.queue = []
-        self.currently_running = {}
-        self.history = {}
+        self.queue: typing.List[QueueItem] = []
+        self.currently_running: typing.Dict[int, QueueItem] = {}
+        # history maps the second integer prompt id in the queue tuple to a dictionary with keys "prompt" and "outputs
+        # todo: use the new History class for the sake of simplicity
+        self.history: typing.Dict[str, HistoryEntry] = {}
         self.flags = {}
         server.prompt_queue = self
 
@@ -814,13 +796,8 @@ class PromptQueue:
             self.server.queue_updated()
             return copy.deepcopy(item_with_future.queue_tuple), task_id
 
-    class ExecutionStatus(NamedTuple):
-        status_str: Literal['success', 'error']
-        completed: bool
-        messages: List[str]
-
     def task_done(self, item_id, outputs: dict,
-                  status: Optional['PromptQueue.ExecutionStatus']):
+                  status: Optional[ExecutionStatus]):
         with self.mutex:
             queue_item = self.currently_running.pop(item_id)
             prompt = queue_item.queue_tuple
@@ -841,10 +818,6 @@ class PromptQueue:
                 queue_item.completed.set_result(outputs)
 
     def get_current_queue(self) -> Tuple[typing.List[QueueTuple], typing.List[QueueTuple]]:
-        """
-        Gets the current state of the queue
-        :return: A tuple containing (the currently running items, the items awaiting execution)
-        """
         with self.mutex:
             out: typing.List[QueueTuple] = []
             for x in self.currently_running.values():
@@ -866,7 +839,7 @@ class PromptQueue:
     def delete_queue_item(self, function):
         with self.mutex:
             for x in range(len(self.queue)):
-                if function(self.queue[x]):
+                if function(self.queue[x].queue_tuple):
                     if len(self.queue) == 1:
                         self.wipe_queue()
                     else:
@@ -899,9 +872,9 @@ class PromptQueue:
 
     def wipe_history(self):
         with self.mutex:
-            self.history = {}
+            self.history.clear()
 
-    def delete_history_item(self, id_to_delete: int):
+    def delete_history_item(self, id_to_delete: str):
         with self.mutex:
             self.history.pop(id_to_delete, None)
 

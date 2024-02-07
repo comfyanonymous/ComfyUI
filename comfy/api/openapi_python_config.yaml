@@ -3,10 +3,10 @@ outputDir: ./
 generatorName: python
 globalProperties:
   supportingFiles:
-    - "__init__.py"
     - "schemas.py"
     - "exceptions.py"
     - "configuration.py"
+    - "api_response.py"
 additionalProperties:
   generateSourceCodeOnly: true
   packageName: comfy.api
