@@ -1,4 +1,5 @@
-# This sample shows how to execute a ComfyUI workflow, saving an image file to the location you specify.
+# This sample shows how to execute a ComfyUI workflow against a remote ComfyUI server or the server running on your
+# local machine. It will return the bytes of the image in the workflow.
 #
 # This script does not need to run within a ComfyUI directory. Instead, this can be used inside your own
 # Python application or located elsewhere. It should **not** be in the Git repository directory.
@@ -117,38 +118,17 @@ async def main():
     from comfy.api.components.schema.prompt import Prompt
     prompt = Prompt.validate(prompt_dict)
 
-    # Your prompt is ready to be processed.
-    # You should **not** be running the ComfyUI application (the thing you start with /main.py). You don't need it. You
-    # are not making any HTTP requests, you are not running a server, you are not connecting to anything, you are not
-    # executing the main.py from the ComfyUI git repository, you don't even need that Git repository located anywhere.
+    # Your prompt is ready to be processed. You should start your ComfyUI server; or, specify a remote URL for it.
+    # Let's create the client we will use to access it:
+    from comfy.client.aio_client import AsyncRemoteComfyClient
+    client = AsyncRemoteComfyClient(server_address="http://localhost:8188")
 
-    from comfy.cli_args_types import Configuration
+    # Now let's get the bytes of the PNG image saved by the SaveImage node:
+    png_image_bytes = await client.queue_prompt(prompt)
 
-    # Let's specify some settings. Suppose this is the structure of your directories:
-    #   C:/Users/comfyanonymous/Documents/models
-    #   C:/Users/comfyanonymous/Documents/models/checkpoints
-    #   C:/Users/comfyanonymous/Documents/models/loras
-    #   C:/Users/comfyanonymous/Documents/outputs
-    # Then your "current working directory" (`cwd`) should be set to "C:/Users/comfyanonymous/Documents":
-    #   configuration.cwd = "C:/Users/comfyanonymous/Documents/"
-    # Or, if your models directory is located in the same directory as this script:
-    #   configuration.cwd = os.path.dirname(__file__)
-    configuration = Configuration()
-
-    from comfy.client.embedded_comfy_client import EmbeddedComfyClient
-    async with EmbeddedComfyClient(configuration=configuration) as client:
-        # This will run your prompt
-        outputs = await client.queue_prompt(prompt)
-
-        # At this point, your prompt is finished and all the outputs, like saving images, have been completed.
-        # Now the outputs will contain the same thing that the Web UI expresses: a file path for each output.
-        # Let's find the node ID of the first SaveImage node. This will work when you change your workflow JSON from
-        # the example above.
-        save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
-
-        # Now let's print the absolute path to the image.
-        print(outputs[save_image_node_id]["images"][0]["abs_path"])
-    # At this point, all the models have been unloaded from VRAM, and everything has been cleaned up.
+    # You can save these bytes wherever you need!
+    with open("image.png", "rb") as f:
+        f.write(png_image_bytes)
 
 
 # Now let's make this script runnable:
