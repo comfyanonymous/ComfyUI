@@ -28,7 +28,7 @@ version = '0.0.1'
 """
 The package index to the torch built with AMD ROCm.
 """
-amd_torch_index = ("https://download.pytorch.org/whl/rocm5.6", "https://download.pytorch.org/whl/nightly/rocm5.7")
+amd_torch_index = ("https://download.pytorch.org/whl/rocm5.7", "https://download.pytorch.org/whl/nightly/rocm6.0")
 
 """
 The package index to torch built with CUDA.

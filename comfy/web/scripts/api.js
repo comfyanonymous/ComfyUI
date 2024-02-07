@@ -5,6 +5,7 @@ class ComfyApi extends EventTarget {
 		super();
 		this.api_host = location.host;
 		this.api_base = location.pathname.split('/').slice(0, -1).join('/');
+		this.initialClientId = sessionStorage.getItem("clientId");
 	}
 
 	apiURL(route) {
@@ -118,7 +119,8 @@ class ComfyApi extends EventTarget {
 					    case "status":
 						    if (msg.data.sid) {
 							    this.clientId = msg.data.sid;
-							    window.name = this.clientId;
+							    window.name = this.clientId; // use window name so it isnt reused when duplicating tabs
+								sessionStorage.setItem("clientId", this.clientId); // store in session storage so duplicate tab can load correct workflow
 						    }
 						    this.dispatchEvent(new CustomEvent("status", { detail: msg.data.status }));
 						    break;

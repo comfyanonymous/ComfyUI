@@ -159,7 +159,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     curl -L https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt -o ./models/checkpoints/v1-5-pruned-emaonly.ckpt
     ```
 
- 3. Put your VAE into the `models/vae` folder.
+ 3. (Optional) Put your VAE into the `models/vae` folder.
 
  4. (Optional) Create a virtual environment:
     1. Create an environment:
