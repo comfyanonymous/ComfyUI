@@ -3,6 +3,7 @@ import type { CallContext, CallOptions } from "nice-grpc-common";
 import * as _m0 from "protobufjs/minimal";
 import { Empty } from "./google/empty";
 import { Struct } from "./google/struct";
+import { SerializedGraph } from "./serialized_graph.v1";
 
 export const protobufPackage = "comfy_request.v1";
 
@@ -63,9 +64,9 @@ export interface OutputConfig {
 
 /** client -> server message */
 export interface ComfyRequest {
-  user_uid: string;
   /** keys are node_ids */
   workflow: { [key: string]: WorkflowStep };
+  serialized_graph?: SerializedGraph | undefined;
   input_files: WorkflowFile[];
   output_config: OutputConfig | undefined;
   worker_wait_duration?:
@@ -471,8 +472,8 @@ export const OutputConfig = {
 
 function createBaseComfyRequest(): ComfyRequest {
   return {
-    user_uid: "",
     workflow: {},
+    serialized_graph: undefined,
     input_files: [],
     output_config: undefined,
     worker_wait_duration: undefined,
@@ -482,12 +483,12 @@ function createBaseComfyRequest(): ComfyRequest {
 
 export const ComfyRequest = {
   encode(message: ComfyRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.user_uid !== "") {
-      writer.uint32(10).string(message.user_uid);
-    }
     Object.entries(message.workflow).forEach(([key, value]) => {
-      ComfyRequest_WorkflowEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).ldelim();
+      ComfyRequest_WorkflowEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).ldelim();
     });
+    if (message.serialized_graph !== undefined) {
+      SerializedGraph.encode(message.serialized_graph, writer.uint32(18).fork()).ldelim();
+    }
     for (const v of message.input_files) {
       WorkflowFile.encode(v!, writer.uint32(26).fork()).ldelim();
     }
@@ -515,17 +516,17 @@ export const ComfyRequest = {
             break;
           }
 
-          message.user_uid = reader.string();
+          const entry1 = ComfyRequest_WorkflowEntry.decode(reader, reader.uint32());
+          if (entry1.value !== undefined) {
+            message.workflow[entry1.key] = entry1.value;
+          }
           continue;
         case 2:
           if (tag !== 18) {
             break;
           }
 
-          const entry2 = ComfyRequest_WorkflowEntry.decode(reader, reader.uint32());
-          if (entry2.value !== undefined) {
-            message.workflow[entry2.key] = entry2.value;
-          }
+          message.serialized_graph = SerializedGraph.decode(reader, reader.uint32());
           continue;
         case 3:
           if (tag !== 26) {
@@ -569,7 +570,6 @@ export const ComfyRequest = {
   },
   fromPartial(object: DeepPartial<ComfyRequest>): ComfyRequest {
     const message = createBaseComfyRequest();
-    message.user_uid = object.user_uid ?? "";
     message.workflow = Object.entries(object.workflow ?? {}).reduce<{ [key: string]: WorkflowStep }>(
       (acc, [key, value]) => {
         if (value !== undefined) {
@@ -579,6 +579,9 @@ export const ComfyRequest = {
       },
       {},
     );
+    message.serialized_graph = (object.serialized_graph !== undefined && object.serialized_graph !== null)
+      ? SerializedGraph.fromPartial(object.serialized_graph)
+      : undefined;
     message.input_files = object.input_files?.map((e) => WorkflowFile.fromPartial(e)) || [];
     message.output_config = (object.output_config !== undefined && object.output_config !== null)
       ? OutputConfig.fromPartial(object.output_config)
@@ -1847,7 +1850,7 @@ export const ComfyDefinition = {
       responseStream: true,
       options: {},
     },
-    /** Server-side stream of a specific job */
+    /** Server-side stream of a specific job-id */
     streamJob: {
       name: "StreamJob",
       requestType: JobStreamRequest,
@@ -1873,7 +1876,7 @@ export interface ComfyServiceImplementation<CallContextExt = {}> {
     request: RoomStreamRequest,
     context: CallContext & CallContextExt,
   ): ServerStreamingMethodResult<DeepPartial<ComfyMessage>>;
-  /** Server-side stream of a specific job */
+  /** Server-side stream of a specific job-id */
   streamJob(
     request: JobStreamRequest,
     context: CallContext & CallContextExt,
@@ -1894,7 +1897,7 @@ export interface ComfyClient<CallOptionsExt = {}> {
     request: DeepPartial<RoomStreamRequest>,
     options?: CallOptions & CallOptionsExt,
   ): AsyncIterable<ComfyMessage>;
-  /** Server-side stream of a specific job */
+  /** Server-side stream of a specific job-id */
   streamJob(
     request: DeepPartial<JobStreamRequest>,
     options?: CallOptions & CallOptionsExt,
