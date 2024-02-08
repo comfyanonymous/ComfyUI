@@ -1,9 +1,7 @@
 import React, { ReactNode, useState } from 'react';
-import { container } from '../inversify.config';
 import { createUseContextHook } from './hookCreator';
 import { ComfyGraph } from '../litegraph/comfyGraph';
 import { ComfyCanvas } from '../litegraph/comfyCanvas';
-import { useLoadGraphData } from '../hooks/useLoadGraphData.tsx';
 
 interface GraphContextType {
     graph: ComfyGraph;
@@ -37,7 +35,8 @@ export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
         setCtx(ctx);
     };
 
-    const resizeCanvas = (canvasEl: HTMLCanvasElement) => {
+    const resizeCanvas = (canvasEl?: HTMLCanvasElement) => {
+        if (!canvasEl) return;
         // Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
         const scale = Math.max(window.devicePixelRatio, 1);
         const { width, height } = canvasEl.getBoundingClientRect();
@@ -48,6 +47,10 @@ export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
         }
 
         canvas.draw(true, true);
+        if (graphState?.canvas) {
+            // @ts-ignore
+            graphState.canvas.draw(true, true);
+        }
     };
 
     return (

@@ -420,7 +420,7 @@ dialog::backdrop {
 	overflow: hidden;
 	display: flex;
 	flex-wrap: wrap;
- 	align-content: flex-start;
+	align-content: flex-start;
 	justify-content: center;
 }
 
@@ -447,9 +447,9 @@ dialog::backdrop {
 	padding: 2px 0px 3px 6px;
 	flex: auto;
 	border-radius: 8px;
-    align-items: center;
-    display: flex;
-    justify-content: center;
+	align-items: center;
+	display: flex;
+	justify-content: center;
 }
 
 .comfy-toggle-switch label:first-child {

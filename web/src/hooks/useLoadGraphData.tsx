@@ -13,14 +13,14 @@ import { LiteGraph } from 'litegraph.js';
 // import { logging } from '../scripts/logging.ts';
 
 export function useLoadGraphData() {
-    const { app } = useComfyApp();
+    const { clean: cleanApp } = useComfyApp();
     const { showDialog } = useComfyDialog();
     const { graphState } = useGraph();
     const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
 
     const loadGraphData = async (graphData?: any, clean: boolean = true) => {
         if (clean) {
-            app.clean();
+            cleanApp();
         }
 
         let reset_invalid_values = false;

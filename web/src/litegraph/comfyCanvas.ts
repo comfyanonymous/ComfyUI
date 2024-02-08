@@ -2,7 +2,7 @@
 // which is a difficult-to-maintain pattern.
 // Instead, in ComfyTS we use class-inheritance to extend the functionality of Litegraph's
 // original base classes. This is simpler and more maintanable.
-import { LiteGraph, LGraphCanvas, Vector2 } from 'litegraph.js';
+import { LiteGraph, LGraphCanvas } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyGraph } from './comfyGraph';
 import { ComfyError } from '../types/many';
@@ -22,7 +22,6 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
         graph?: ComfyGraph,
         options?: { skip_render?: boolean; autoresize?: boolean }
     ) {
-        //TODO: add graph again
         super(canvas, graph, options);
 
         // Add canvas-event listeners

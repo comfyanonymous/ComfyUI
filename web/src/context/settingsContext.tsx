@@ -1,6 +1,6 @@
 // The container is used to provider dependency resolution for plugins
 
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import { createUseContextHook } from './hookCreator';
 import { ComfySettingsDialog } from '../components/ComfySettingsDialog.tsx';
 import { api } from '../scripts/api.tsx';
@@ -9,7 +9,6 @@ import { BooleanInput, ComboInput, NumberInput, SliderInput, TextInput } from '.
 import { ComboOption } from '../types/many.ts';
 
 interface ISettingsContext {
-    settings: any[];
     show: () => void;
     load: () => Promise<void>;
     getId: (id: string) => string;
@@ -35,14 +34,12 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
     const [settingsValues, setSettingsValues] = useState<Record<string, any>>({});
     const [settingsLookup, setSettingsLookup] = useState<Record<string, any>>({});
     const [content, setContent] = useState<ReactNode>([]);
-    const [openModal, setOpenModal] = useState<boolean>(false);
+    const [openDialog, setOpenDialog] = useState<boolean>(false);
 
-    const { app } = useComfyApp();
-
-    const settings = Object.values(settingsLookup);
+    const { storageLocation, isNewUserSession } = useComfyApp();
 
     const load = async () => {
-        const settingsVal = app.storageLocation === 'browser' ? localStorage : await api.getSettings();
+        const settingsVal = storageLocation === 'browser' ? localStorage : await api.getSettings();
         setSettingsValues(settingsVal);
 
         // Trigger onChange for any settings added before load
@@ -52,7 +49,7 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
     };
 
     const getId = (id: string) => {
-        if (app.storageLocation === 'browser') {
+        if (storageLocation === 'browser') {
             id = 'Comfy.Settings.' + id;
         }
 
@@ -61,8 +58,15 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
 
     const getSettingValue = (id: string, defaultValue?: any) => {
         let value = settingsValues[getId(id)];
-        if (value != null) {
-            if (app.storageLocation === 'browser') {
+        if (!value) {
+            setSettingsValues(prev => ({
+                ...prev,
+                [getId(id)]: defaultValue,
+            }));
+        }
+
+        if (value) {
+            if (storageLocation === 'browser') {
                 try {
                     value = JSON.parse(value);
                 } catch (error) {}
@@ -73,8 +77,7 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
     };
 
     const setSettingValueAsync = async (id: string, value: any) => {
-        const json = JSON.stringify(value);
-        localStorage['Comfy.Settings.' + id] = json; // backwards compatibility for extensions keep setting in storage
+        localStorage['Comfy.Settings.' + id] = JSON.stringify(value); // backwards compatibility for extensions keep setting in storage
 
         let oldValue = getSettingValue(id, undefined);
         setSettingsValues(prev => ({
@@ -97,15 +100,27 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
     };
 
     const show = () => {
-        setContent(() => [
-            <tr style={{ display: 'none' }}>
-                <th />
-                <th style={{ width: '33%' }} />
-            </tr>,
-            ...settings.sort((a, b) => a.name.localeCompare(b.name)).map(s => s.render()),
-        ]);
+        // TODO: 👇
+        // for some weird reasons, reading `settingsLookup` directly in the `show` function doesn't work,
+        // it keeps returning empty object, so I'm using this hack to get around it for now.
+        // We should properly look into this later
 
-        setOpenModal(true);
+        setSettingsLookup(settings => {
+            setContent(() => {
+                return [
+                    <tr key={0} style={{ display: 'nones' }}>
+                        <th />
+                        <th style={{ width: '33%' }} />
+                    </tr>,
+                    ...Object.values(settings)
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((s, i) => s.render(i + 1)),
+                ];
+            });
+
+            setOpenDialog(true);
+            return settings;
+        });
     };
 
     const addSetting = ({
@@ -118,6 +133,7 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
         tooltip = '',
         options = [],
     }: IAddSetting) => {
+        console.log('Adding settings...');
         if (!id) {
             throw new Error('Settings must have an ID');
         }
@@ -129,7 +145,7 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
         let skipOnChange = false;
         let value = getSettingValue(id);
         if (value == null) {
-            if (app.isNewUserSession) {
+            if (isNewUserSession) {
                 // Check if we have a localStorage value but not a setting value and we are a new user
                 const localValue = localStorage['Comfy.Settings.' + id];
                 if (localValue) {
@@ -151,7 +167,7 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
             id,
             onChange,
             name,
-            render: () => {
+            render: (i: any) => {
                 const setter = (v: any) => {
                     if (onChange) {
                         onChange(v, value);
@@ -167,13 +183,13 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
 
                 function buildSettingInput(element: ReactNode) {
                     return (
-                        <tr>
+                        <tr key={i}>
                             <td>
                                 <label htmlFor={htmlID} className={tooltip !== '' ? 'comfy-tooltip-indicator' : ''}>
                                     {name}
                                 </label>
                             </td>
-                            
+
                             <td>{element}</td>
                         </tr>
                     );
@@ -187,24 +203,36 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
                             element = buildSettingInput(
                                 <BooleanInput
                                     id={htmlID}
-                                    value={value}
                                     onChange={onChange}
                                     setSettingValue={setSettingValue}
+                                    value={getSettingValue(htmlID)}
                                 />
                             );
                             break;
                         case 'number':
                             element = buildSettingInput(
-                                <NumberInput id={htmlID} value={value} setter={setter} attrs={attrs} />
+                                <NumberInput
+                                    id={htmlID}
+                                    attrs={attrs}
+                                    setter={setter}
+                                    value={getSettingValue(htmlID)}
+                                />
                             );
                             break;
                         case 'slider':
                             element = buildSettingInput(
-                                <SliderInput id={htmlID} value={value} setter={setter} attrs={attrs} />
+                                <SliderInput
+                                    id={htmlID}
+                                    attrs={attrs}
+                                    setter={setter}
+                                    value={getSettingValue(htmlID)}
+                                />
                             );
                             break;
                         case 'combo':
-                            element = buildSettingInput(<ComboInput value={value} setter={setter} options={options} />);
+                            element = buildSettingInput(
+                                <ComboInput setter={setter} options={options} value={getSettingValue(htmlID)} />
+                            );
                             break;
                         case 'text':
                         default:
@@ -213,7 +241,7 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
                             }
 
                             element = buildSettingInput(
-                                <TextInput id={htmlID} value={value} setter={setter} attrs={attrs} />
+                                <TextInput id={htmlID} setter={setter} attrs={attrs} value={getSettingValue(htmlID)} />
                             );
                             break;
                     }
@@ -230,10 +258,17 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
             },
         };
 
-        setSettingsLookup(prev => ({
-            ...prev,
-            [id]: setting,
-        }));
+        setSettingsLookup(prev => {
+            const updated = {
+                ...prev,
+                [id]: setting,
+            };
+
+            console.log('Updated settingsLookup:', updated); // Log the updated settingsLookup
+            return updated;
+        });
+
+        console.log('Added settings...');
 
         return {
             get value() {
@@ -251,14 +286,13 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
                 load,
                 getId,
                 show,
-                settings,
                 addSetting,
                 setSettingValue,
                 getSettingValue,
             }}
         >
+            <ComfySettingsDialog closeDialog={() => setOpenDialog(false)} open={openDialog} content={content} />
             {children}
-            <ComfySettingsDialog open={openModal} content={content} />
         </SettingsContext.Provider>
     );
 };

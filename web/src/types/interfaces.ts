@@ -300,3 +300,8 @@ export interface IComfyPlugin<T> {
 export interface ModuleWithPlugins<T> {
     default: IComfyPlugin<T>[] | IComfyPlugin<T>;
 }
+
+export interface LastExecutionError {
+    node_id: number;
+    message: string;
+}

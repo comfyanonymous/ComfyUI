@@ -7,9 +7,7 @@ import { calculateImageGrid, createImageHost } from '../scripts/ui/imagePreview.
 import { ComfyWidget, comfyWidgetTypes } from '../types/comfyWidget.ts';
 import { AddDOMWidgetOptions, IComfyApp, IComfyNode } from '../types/interfaces.ts';
 import { clipspace } from '../scripts/clipspace.ts';
-import { ComfyApp } from '../scripts/app2.ts';
 
-const app = ComfyApp.getInstance();
 
 interface Point {
     x: number;

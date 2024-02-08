@@ -1,10 +1,8 @@
 import { LGraph, LGraphCanvas } from 'litegraph.js';
-import { injectable, inject } from 'inversify';
 import { ComfyNode } from './comfyNode';
 import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
 import type { SerializedGraph } from '../types/litegraph';
 import type { ISerializeGraph, IComfyGraph } from '../types/interfaces';
-import { ComfyCanvas } from './comfyCanvas.ts';
 
 /** Converts the current graph serializedGraph for sending to the API */
 export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGraph['serializeGraph']> => {

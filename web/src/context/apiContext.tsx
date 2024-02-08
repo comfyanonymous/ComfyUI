@@ -1,9 +1,8 @@
 import React from 'react';
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import ReconnectingWebSocket from 'reconnecting-websocket';
-import { api, ComfyApi } from '../scripts/api';
+import { api } from '../scripts/api';
 import { createUseContextHook } from './hookCreator';
-import { IComfyApi } from '../types/api.ts';
 import { createChannel, createClient, Metadata } from 'nice-grpc-web';
 import { ComfyClient, ComfyDefinition, ComfyMessage, JobCreated } from '../../autogen_web_ts/comfy_request.v1.ts';
 import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1.ts';

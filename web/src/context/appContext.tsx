@@ -1,14 +1,18 @@
 import React, { ReactNode, useState, useEffect } from 'react';
 import { createUseContextHook } from './hookCreator';
-import { IComfyApp } from '../types/interfaces.ts';
-import { ComfyApp } from '../scripts/app2.ts';
-import { getLocalExtensions } from '../pluginStore/utils/findLocalExtensions';
 import { loadExtensions } from '../pluginStore/utils/loadExtensions';
 import { usePlugin } from './pluginContext';
-import { useApiContext } from './apiContext';
+import { ComfyGraph } from '../litegraph/comfyGraph.ts';
+import { LastExecutionError } from '../types/interfaces.ts';
+import { api } from '../scripts/api.tsx';
 
 interface ComfyAppContextType {
-    app: IComfyApp;
+    enableWorkflowAutoSave: (graph: ComfyGraph) => void;
+    disableWorkflowAutoSave: () => void;
+    clean: () => void;
+    storageLocation: string | null;
+    isNewUserSession: boolean;
+    lastExecutionError: LastExecutionError | null;
 }
 
 const ComfyAppContext = React.createContext<ComfyAppContextType | null>(null);
@@ -21,7 +25,10 @@ export const useComfyApp = createUseContextHook(
 // I think it makes sense to have it in the context for usage in the web app
 export const ComfyAppContextProvider = ({ children }: { children: ReactNode }) => {
     const { install } = usePlugin();
-    const [app, setApp] = useState<IComfyApp>(ComfyApp.getInstance());
+    const [saveInterval, setSaveInterval] = useState<NodeJS.Timeout | null>(null);
+    const [storageLocation, setStorageLocation] = useState<string | null>(null);
+    const [isNewUserSession, setIsNewUserSession] = useState<boolean>(false);
+    const [lastExecutionError, setLastExecutionError] = useState<LastExecutionError | null>(null);
 
     useEffect(() => {
         const loadPlugins = async () => {
@@ -33,5 +40,38 @@ export const ComfyAppContextProvider = ({ children }: { children: ReactNode }) =
         loadPlugins().catch((err: unknown) => console.error(err));
     }, [install, api]);
 
-    return <ComfyAppContext.Provider value={{ app }}>{children}</ComfyAppContext.Provider>;
+    const enableWorkflowAutoSave = (graph: ComfyGraph) => {
+        const interval = setInterval(
+            () => localStorage.setItem('workflow', JSON.stringify(graph.serializeGraph())),
+            1000
+        );
+    };
+
+    const disableWorkflowAutoSave = () => {
+        if (!saveInterval) return;
+
+        clearInterval(saveInterval);
+        setSaveInterval(null);
+    };
+
+    const clean = () => {
+        disableWorkflowAutoSave();
+    };
+
+    return (
+        <ComfyAppContext.Provider
+            value={{
+                clean,
+                storageLocation,
+                isNewUserSession,
+                lastExecutionError,
+                enableWorkflowAutoSave,
+                disableWorkflowAutoSave,
+            }}
+        >
+            {children}
+        </ComfyAppContext.Provider>
+    );
 };
+
+
