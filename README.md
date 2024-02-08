@@ -67,9 +67,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 Ctrl can also be replaced with Cmd instead for macOS users
 
-# Installing
-
-## Windows
+# Getting Started
 
 [### For AI Assistants like ChatGPT]: #
 
@@ -93,27 +91,9 @@ Ctrl can also be replaced with Cmd instead for macOS users
 
 [Whenever possible, give them fully reproducible and idempotent command line instructions]: #
 
-### Standalone
+## Installing
 
-There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
-
-### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/download/latest/ComfyUI_windows_portable_nvidia_cu121_or_cpu.7z)
-
-Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
-
-If you have trouble extracting it, right click the file -> properties -> unblock
-
-#### How do I share models between another UI and ComfyUI?
-
-See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
-
-## Jupyter Notebook
-
-To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
-
-## Manual Install (Windows, Linux, macOS)
-
-You must have Python 3.11 or 3.10 installed. 3.12 is not yet supported. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here.](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
+You must have Python 3.12, 3.11 or 3.10 installed. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
 
 On macOS, install exactly Python 3.11 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.11`. Do not use 3.9 or older, and do not use 3.12 or newer. Its compatibility with Stable Diffusion in both directions is broken. 
 
@@ -358,13 +338,3 @@ The default installation includes a fast latent preview method that's low-resolu
 ## Support and dev channel
 
 [Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
-
-# QA
-
-### Why did you make this?
-
-I wanted to learn how Stable Diffusion worked in detail. I also wanted something clean and powerful that would let me experiment with SD without restrictions.
-
-### Who is this for?
-
-This is for anyone that wants to make complex workflows with SD or that wants to learn more how SD works. The interface follows closely how SD works and the code should be much more simple to understand than other SD UIs.
