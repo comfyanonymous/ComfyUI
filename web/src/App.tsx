@@ -12,10 +12,8 @@ import { JobQueueContextProvider } from './context/jobQueueContext.tsx';
 
 function RenderComponents() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { graphState, initGraph, resizeCanvas } = useGraph();
     const { enableWorkflowAutoSave } = useComfyApp();
     const { graph, initGraph, resizeCanvas } = useGraph();
-    const { app } = useComfyApp();
     const { load: loadSettings } = useSettings();
     const { loadGraphData, loadWorkflow } = useLoadGraphData();
 
@@ -39,9 +37,7 @@ function RenderComponents() {
                 await loadGraphData();
             }
 
-            if (graphState && graphState.graph) {
-                enableWorkflowAutoSave(graphState.graph);
-            }
+            enableWorkflowAutoSave(graph);
         };
 
         if (canvasRef.current) {

@@ -25,7 +25,7 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
     const { addSetting, show: showSettings } = useSettings();
     const { queuePrompt, graphToPrompt } = usePrompt();
     const { lastExecutionError, clean: cleanApp } = useComfyApp();
-    const { graphState } = useGraph();
+    const { graph } = useGraph();
     const { loadGraphData } = useLoadGraphData();
 
     const [batchCount, setBatchCount] = useState(1);
@@ -442,7 +442,7 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
                 onClick={() => {
                     if (!confirmClear.value || confirm('Clear workflow?')) {
                         cleanApp();
-                        graphState?.graph?.clear();
+                        graph.clear();
                     }
                 }}
             >

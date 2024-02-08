@@ -15,8 +15,7 @@ export interface IJobQueueContext {
 export const JobQueueContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [queue, setQueue] = useState<QueueItem[]>([]);
     const [lastNodeErrors, setLastNodeErrors] = useState<LastNodeErrors>({});
-    const { graphState } = useGraph();
-    const { graph, canvas } = graphState!;
+    const { graph, canvas } = useGraph();
     const { runWorkflow } = useApiContext();
 
     // Update the queue-state as messages come in from the API

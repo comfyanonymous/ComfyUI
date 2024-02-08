@@ -47,10 +47,6 @@ export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
         }
 
         canvas.draw(true, true);
-        if (graphState?.canvas) {
-            // @ts-ignore
-            graphState.canvas.draw(true, true);
-        }
     };
 
     return (
