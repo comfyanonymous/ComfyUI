@@ -2,7 +2,7 @@ import { LGraph, LGraphCanvas } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
 import type { SerializedGraph } from '../types/litegraph';
-import type { ISerializeGraph, IComfyGraph } from '../types/interfaces';
+import type { IComfyGraph, IComfyNode } from '../types/interfaces';
 
 /** Converts the current graph serializedGraph for sending to the API */
 export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGraph['serializeGraph']> => {
@@ -59,7 +59,7 @@ export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGrap
             }
 
             // Store all node links
-            for (let i in node.inputs) {
+            for (const i in node.inputs) {
                 let parent = node.getInputNode(i);
                 if (parent) {
                     let link = node.getInputLink(i);
@@ -77,7 +77,7 @@ export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGrap
                             let all_inputs = [link.origin_slot];
                             if (parent.inputs) {
                                 all_inputs = all_inputs.concat(Object.keys(parent.inputs));
-                                for (let parent_input in all_inputs) {
+                                for (let parent_input of all_inputs) {
                                     parent_input = all_inputs[parent_input];
                                     if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
                                         link = parent.getInputLink(parent_input);
@@ -107,7 +107,7 @@ export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGrap
                 }
             }
 
-            let node_data: WorkflowStep = {
+            const node_data: WorkflowStep = {
                 class_type: node.comfyClass,
                 inputs,
             };
@@ -134,21 +134,19 @@ export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGrap
 
 // @injectable()
 /** Converts the current graph serializedGraph for sending to the API */
-export class SerializeGraph implements ISerializeGraph {
-    serializeGraph(graph: IComfyGraph): {
-        serializedGraph: SerializedGraph;
-        apiWorkflow: Record<string, WorkflowStep>;
-    } {
-        return {};
-    }
-}
+// export class SerializeGraph implements ISerializeGraph {
+//     serializeGraph(graph: IComfyGraph): {
+//         serializedGraph: SerializedGraph;
+//         apiWorkflow: Record<string, WorkflowStep>;
+//     } {
+//         return {};
+//     }
+// }
 
 // @injectable()
-export class ComfyGraph extends LGraph implements IComfyGraph {
+export class ComfyGraph extends LGraph<IComfyNode> implements IComfyGraph {
     // Flag that the graph is configuring to prevent nodes from running checks while its still loading
     configuringGraph = false;
-
-    nodes: { [key: string]: any } = {};
 
     /** Optionally pass in a former graph-state to have it restored */
     constructor(
@@ -171,16 +169,14 @@ export class ComfyGraph extends LGraph implements IComfyGraph {
 
     onConfigure(data: object): void {
         // Fire callbacks before the onConfigure, this is used by widget inputs to setup the config
-        for (const key in this.nodes) {
-            const node = this.nodes[key];
+        for (const node of this.nodes) {
             node.onGraphConfigured?.();
         }
 
         const r = super.onConfigure ? super.onConfigure(data) : undefined;
 
         // Fire after onConfigure, used by primitves to generate widget using input nodes config
-        for (const key in this.nodes) {
-            const node = this.nodes[key];
+        for (const node of this.nodes) {
             node.onAfterGraphConfigured?.();
         }
 
@@ -188,7 +184,7 @@ export class ComfyGraph extends LGraph implements IComfyGraph {
         return r;
     }
 
-    serializeGraph(): ReturnType<ISerializeGraph['serializeGraph']> {
+    serializeGraph() {
         return {
             serializedGraph: super.serialize(),
             apiWorkflow: {},

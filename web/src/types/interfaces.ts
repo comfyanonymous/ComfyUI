@@ -85,13 +85,19 @@ export interface SerializedNodeObject {
     widgets?: ComfyWidget[] | null;
 }
 
-export interface ISerializeGraph {
-    serializeGraph(graph: IComfyGraph): { serializedGraph: SerializedGraph; apiWorkflow: Record<string, WorkflowStep> };
-}
+// The rough idea here, in the future, is that we can use functional composition for
+// plugins, i.e., IComfyGraph extends ISerializegraph, and a bunch of other methods
+// that are implemented on its class, for example.
+// TO DO: consider adding this in the future for a plugin-system
+// export interface ISerializeGraph {
+//     serializeGraph(graph: IComfyGraph): { serializedGraph: SerializedGraph; apiWorkflow: Record<string, WorkflowStep> };
+// }
 
-export interface IComfyGraph extends LGraph<IComfyNode>, ISerializeGraph {
+export interface IComfyGraph extends LGraph<IComfyNode> {
     configure(data: object, keep_old?: boolean): boolean | undefined;
     onConfigure(data: object): void;
+
+    serializeGraph(graph: IComfyGraph): { serializedGraph: SerializedGraph; apiWorkflow: Record<string, WorkflowStep> };
 
     // Overridden properties
     // nodes: IComfyNode[];
