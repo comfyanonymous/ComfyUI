@@ -80,28 +80,6 @@ export function ComfyMenu({
                 autoQueueModeEl={autoQueueModeEl}
             />
 
-            {/*
-
-            $el("button", {
-					$: (b) => (this.queue.button = b),
-					id: "comfy-view-queue-button",
-					textContent: "View Queue",
-					onclick: () => {
-						this.history.hide();
-						this.queue.toggle();
-					},
-				}),
-				$el("button", {
-					$: (b) => (this.history.button = b),
-					id: "comfy-view-history-button",
-					textContent: "View History",
-					onclick: () => {
-						this.queue.hide();
-						this.history.toggle();
-					},
-				}),
-            */}
-
             <div className="comfy-menu-btns">
                 <button id="queue-front-button" onClick={() => queuePrompt(-1)}>
                     Queue Front
