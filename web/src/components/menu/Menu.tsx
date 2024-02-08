@@ -20,6 +20,12 @@ interface MenuProps {
 
     menuContainerEl: RefObject<HTMLDivElement>;
     queueSizeEl: RefObject<HTMLSpanElement>;
+
+    queueButtonRef: RefObject<HTMLButtonElement>;
+    historyButtonRef: RefObject<HTMLButtonElement>;
+
+    setShowQueue: (i: boolean) => void;
+    setShowHistory: (i: boolean) => void;
 }
 
 export function ComfyMenu({
@@ -35,6 +41,10 @@ export function ComfyMenu({
     confirmClear,
     queue,
     history,
+    queueButtonRef,
+    historyButtonRef,
+    setShowQueue,
+    setShowHistory,
 }: MenuProps) {
     const { show: showSettings } = useSettings();
     const { queuePrompt, graphToPrompt } = usePrompt();
@@ -69,6 +79,54 @@ export function ComfyMenu({
                 autoQueueModeElRef={autoQueueModeElRef}
                 autoQueueModeEl={autoQueueModeEl}
             />
+
+            {/*
+
+            $el("button", {
+					$: (b) => (this.queue.button = b),
+					id: "comfy-view-queue-button",
+					textContent: "View Queue",
+					onclick: () => {
+						this.history.hide();
+						this.queue.toggle();
+					},
+				}),
+				$el("button", {
+					$: (b) => (this.history.button = b),
+					id: "comfy-view-history-button",
+					textContent: "View History",
+					onclick: () => {
+						this.queue.hide();
+						this.history.toggle();
+					},
+				}),
+            */}
+
+            <div className="comfy-menu-btns">
+                <button id="queue-front-button" onClick={() => queuePrompt(-1)}>
+                    Queue Front
+                </button>
+                <button
+                    id="comfy-view-queue-button"
+                    ref={queueButtonRef}
+                    onClick={() => {
+                        setShowHistory(false);
+                        setShowQueue(i => !i);
+                    }}
+                >
+                    View Queue
+                </button>
+                <button
+                    id="comfy-view-history-button"
+                    ref={historyButtonRef}
+                    onClick={() => {
+                        setShowQueue(false);
+                        setShowHistory(i => !i);
+                    }}
+                >
+                    View History
+                </button>
+            </div>
 
             {queue}
             {history}

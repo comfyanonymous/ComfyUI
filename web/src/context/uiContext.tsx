@@ -5,10 +5,9 @@ import { api } from '../scripts/api.tsx';
 import { ComfyPromptStatus } from '../types/comfy.ts';
 import { useComfyApp } from './appContext.tsx';
 import { usePrompt } from '../hooks/usePrompt.tsx';
-import { useGraph } from './graphContext.tsx';
-import { useLoadGraphData } from '../hooks/useLoadGraphData.tsx';
 import { dragElement, toggleSwitch } from '../utils/ui.tsx';
 import { ComfyMenu } from '../components/menu/Menu.tsx';
+import { ComfyList } from '../components/ComfyList.tsx';
 
 type AutoQueueMode =
     | {
@@ -24,11 +23,9 @@ interface ComfyUIContextType {}
 const ComfyUIContext = React.createContext<ComfyUIContextType | null>(null);
 
 export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) => {
-    const { addSetting, show: showSettings } = useSettings();
-    const { queuePrompt, graphToPrompt } = usePrompt();
-    const { lastExecutionError, clean: cleanApp } = useComfyApp();
-    const { graph } = useGraph();
-    const { loadGraphData } = useLoadGraphData();
+    const { addSetting } = useSettings();
+    const { queuePrompt } = usePrompt();
+    const { lastExecutionError } = useComfyApp();
 
     const [batchCount, setBatchCount] = useState(1);
     const [lastQueueSize, setLastQueueSize] = useState(0);
@@ -40,8 +37,13 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
     const [confirmClear, setConfirmClear] = useState<{ value: boolean }>({ value: false });
     const [promptFilename, setPromptFilename] = useState<{ value: boolean }>({ value: false });
 
+    const [showQueue, setShowQueue] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+
     const menuContainerEl = useRef<HTMLDivElement>(null);
-    const queueSizeEl = useRef<HTMLDivElement>(null);
+    const queueButtonRef = useRef<HTMLButtonElement>(null);
+    const historyButtonRef = useRef<HTMLButtonElement>(null);
+    const queueSizeEl = useRef<HTMLSpanElement>(null);
     const autoQueueModeElRef = useRef<HTMLDivElement>(null);
 
     const setStatus = (status: ComfyPromptStatus) => {
@@ -161,6 +163,11 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
         });
     }, []);
 
+    useEffect(() => {
+        setQueue(<ComfyList text="Queue" show={showQueue} buttonRef={queueButtonRef} />);
+        setHistory(<ComfyList text="History" show={showHistory} reverse={true} buttonRef={historyButtonRef} />);
+    }, [showQueue, showHistory]);
+
     const autoQueueModeEl = toggleSwitch(
         'autoQueueMode',
         [
@@ -196,7 +203,6 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
         />
     );
 
-
     useEffect(() => {
         setStatus({ exec_info: { queue_remaining: 'X' } });
     }, [queueSizeEl]);
@@ -222,8 +228,12 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
                 confirmClear={confirmClear}
                 menuContainerEl={menuContainerEl}
                 queueSizeEl={queueSizeEl}
+                queueButtonRef={queueButtonRef}
+                historyButtonRef={historyButtonRef}
+                setShowQueue={setShowQueue}
+                setShowHistory={setShowHistory}
             />
-            
+
             {children}
         </ComfyUIContext.Provider>
     );

@@ -1,20 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { RefObject, useEffect, useState } from 'react';
 import { api } from '../scripts/api.tsx';
 import { ComfyItems } from '../types/api.ts';
-import { useComfyApp } from '../context/appContext.tsx';
+import { useLoadGraphData } from '../hooks/useLoadGraphData.tsx';
 
 interface ComfyListProps {
     text: string;
-    type: string;
+    type?: string;
     reverse?: boolean;
+
+    show: boolean;
+    buttonRef: RefObject<HTMLButtonElement>;
 }
 
-export const ComfyList = ({ text, type, reverse = false }: ComfyListProps) => {
-    const [visible, setVisible] = useState(false);
+export const ComfyList = ({ show, buttonRef, text, type, reverse = false }: ComfyListProps) => {
     const [items, setItems] = useState({});
 
-    const button = useRef<HTMLButtonElement>(null);
-    const { app } = useComfyApp();
+    const { loadGraphData } = useLoadGraphData();
 
     const load = async () => {
         const items = await api.getItems(type || text.toLowerCase());
@@ -22,40 +23,23 @@ export const ComfyList = ({ text, type, reverse = false }: ComfyListProps) => {
     };
 
     useEffect(() => {
-        if (visible) {
+        console.log('sskksso040404');
+        if (show) {
+            if (buttonRef.current) {
+                buttonRef.current.textContent = 'Close';
+            }
+
             load();
-        }
-    }, [visible]);
-
-    const show = async () => {
-        setVisible(true);
-        if (button.current) {
-            button.current.textContent = 'Close';
-        }
-
-        await load();
-    };
-
-    const hide = () => {
-        setVisible(false);
-        if (button.current) {
-            button.current.textContent = 'View ' + text;
-        }
-    };
-
-    const toggle = () => {
-        if (visible) {
-            hide();
-            return false;
         } else {
-            show();
-            return true;
+            if (buttonRef.current) {
+                buttonRef.current.textContent = 'View ' + text;
+            }
         }
-    };
+    }, [show]);
 
     return (
-        <div className="comfy-list" style={{ display: 'none' }}>
-            <div style={{ display: visible ? 'block' : 'none' }}>
+        <div className="comfy-list" style={{ display: show ? 'block' : 'none' }}>
+            <div>
                 {Object.keys(items).flatMap(section => [
                     <h4 key={section}>{section}</h4>,
                     <div className="comfy-list-items" key={`${section}-items`}>
@@ -73,9 +57,9 @@ export const ComfyList = ({ text, type, reverse = false }: ComfyListProps) => {
                                     {item.prompt[0]}:
                                     <button
                                         onClick={async () => {
-                                            await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+                                            await loadGraphData(item.prompt[3].extra_pnginfo.workflow);
                                             if (item.outputs) {
-                                                app.nodeOutputs = item.outputs;
+                                                // app.nodeOutputs = item.outputs;
                                             }
                                         }}
                                     >
@@ -104,6 +88,7 @@ export const ComfyList = ({ text, type, reverse = false }: ComfyListProps) => {
                     >
                         Clear {text}
                     </button>
+
                     <button onClick={load}>Refresh</button>
                 </div>
             </div>

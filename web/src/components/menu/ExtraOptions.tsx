@@ -109,32 +109,6 @@ export function ExtraOptions({
                     {autoQueueModeEl}
                 </div>
             </div>
-
-            <div className="comfy-menu-btns">
-                <button id="queue-front-button" onClick={() => queuePrompt(-1)}>
-                    Queue Front
-                </button>
-                <button
-                    id="comfy-view-queue-button"
-                    // ref={this.queue.button = b as HTMLButtonElement}
-                    onClick={() => {
-                        // this.history.hide();
-                        // this.queue.toggle();
-                    }}
-                >
-                    View Queue
-                </button>
-                <button
-                    id="comfy-view-history-button"
-                    // ref={this.history.button = b as HTMLButtonElement}
-                    onClick={() => {
-                        // this.queue.hide();
-                        // this.history.toggle();
-                    }}
-                >
-                    View History
-                </button>
-            </div>
         </>
     );
 }
