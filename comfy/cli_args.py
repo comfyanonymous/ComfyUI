@@ -119,6 +119,17 @@ parser.add_argument("--plausible-analytics-domain", required=False,
                     help="Specifies the domain name for analytics events.")
 parser.add_argument("--analytics-use-identity-provider", action="store_true",
                     help="Uses platform identifiers for unique visitor analytics.")
+parser.add_argument("--distributed-queue-connection-uri", type=str, default=None,
+                    help="Servers and clients will connect to this AMPQ URL to form a distributed queue and exchange prompt execution requests and progress updates.")
+parser.add_argument(
+    '--distributed-queue-roles',
+    action='append',
+    choices=['worker', 'prompter'],
+    help='Specifies one or more roles for the distributed queue. Acceptable values are "worker" or "prompter", or both by writing the flag twice with each role. Prompters will start the web UI and connect to the provided AMPQ URL to submit prompts; workers will pull requests off the AMPQ URL.'
+)
+parser.add_argument("--distributed-queue-name", type=str, default="comfyui",
+                    help="This name will be used by the prompters and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
+
 
 if options.args_parsing:
     args, _ = parser.parse_known_args()

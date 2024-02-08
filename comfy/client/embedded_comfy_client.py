@@ -18,6 +18,7 @@ class ServerStub(ExecutorToClientProgress):
     """
     This class is a stub implementation of ExecutorToClientProgress. This will handle progress events.
     """
+
     def __init__(self):
         self.client_id = str(uuid.uuid4())
         self.last_node_id = None
@@ -69,18 +70,25 @@ class EmbeddedComfyClient:
     In order to use this in blocking methods, learn more about asyncio online.
     """
 
-    def __init__(self, configuration: Optional[Configuration] = None, loop: Optional[AbstractEventLoop] = None,
+    def __init__(self, configuration: Optional[Configuration] = None,
+                 progress_handler: Optional[ExecutorToClientProgress] = None,
+                 loop: Optional[AbstractEventLoop] = None,
                  max_workers: int = 1):
-        self._server_stub = ServerStub()
+        self._progress_handler = progress_handler or ServerStub()
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._loop = loop or asyncio.get_event_loop()
         self._configuration = configuration
         # we don't want to import the executor yet
         self._prompt_executor: Optional["comfy.cmd.execution.PromptExecutor"] = None
+        self._is_running = False
+
+    @property
+    def is_running(self) -> bool:
+        return self._is_running
 
     async def __aenter__(self):
-        # Perform asynchronous initialization here, if needed
         await self._initialize_prompt_executor()
+        self._is_running = True
         return self
 
     async def __aexit__(self, *args):
@@ -101,6 +109,7 @@ class EmbeddedComfyClient:
         await self._loop.run_in_executor(self._executor, cleanup)
 
         self._executor.shutdown(wait=True)
+        self._is_running = False
 
     async def _initialize_prompt_executor(self):
         # This method must be async since it's used in __aenter__
@@ -115,19 +124,23 @@ class EmbeddedComfyClient:
 
             from ..cmd.execution import PromptExecutor
 
-            self._prompt_executor = PromptExecutor(self._server_stub)
+            self._prompt_executor = PromptExecutor(self._progress_handler)
 
         await self._loop.run_in_executor(self._executor, create_executor_in_thread)
 
-    async def queue_prompt(self, prompt: PromptDict) -> dict:
-        prompt_id = str(uuid.uuid4())
+    async def queue_prompt(self,
+                           prompt: PromptDict | dict,
+                           prompt_id: Optional[str] = None,
+                           client_id: Optional[str] = None) -> dict:
+        prompt_id = prompt_id or str(uuid.uuid4())
+        client_id = client_id or self._progress_handler.client_id or None
 
         def execute_prompt() -> dict:
             from ..cmd.execution import validate_prompt
             prompt_mut = make_mutable(prompt)
             validation_tuple = validate_prompt(prompt_mut)
 
-            self._prompt_executor.execute(prompt_mut, prompt_id, {"client_id": self._server_stub.client_id},
+            self._prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
                                           execute_outputs=validation_tuple[2])
             if self._prompt_executor.success:
                 return self._prompt_executor.outputs_ui

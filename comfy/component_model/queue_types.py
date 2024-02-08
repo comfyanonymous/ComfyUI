@@ -40,21 +40,21 @@ class HistoryEntry(TypedDict):
     status: NotRequired[ExecutionStatusAsDict]
 
 
+class ExtraData(TypedDict):
+    client_id: NotRequired[str]
+    extra_pnginfo: NotRequired[str]
+    token: NotRequired[str]
+
+
 @dataclass
-class QueueItem:
+class NamedQueueTuple:
     """
-    An item awaiting processing in the queue
+    A wrapper class for a queue tuple, the object that is given to executors.
 
     Attributes:
         queue_tuple (QueueTuple): the corresponding queued workflow and other related data
-        completed (Optional[Future[TaskInvocation | dict]]): A future of a task invocation (the signature of the task_done method)
-            or a dictionary of outputs
     """
     queue_tuple: QueueTuple
-    completed: asyncio.Future[TaskInvocation | dict] | None
-
-    def __lt__(self, other: QueueItem):
-        return self.queue_tuple[0] < other.queue_tuple[0]
 
     @property
     def priority(self) -> float:
@@ -69,7 +69,7 @@ class QueueItem:
         return self.queue_tuple[2]
 
     @property
-    def extra_data(self) -> Optional[dict]:
+    def extra_data(self) -> Optional[ExtraData]:
         if len(self.queue_tuple) > 2:
             return self.queue_tuple[3]
         else:
@@ -81,6 +81,22 @@ class QueueItem:
             return self.queue_tuple[4]
         else:
             return None
+
+
+@dataclass
+class QueueItem(NamedQueueTuple):
+    """
+    An item awaiting processing in the queue: a NamedQueueTuple with a future that is completed when the item is done
+    processing.
+
+    Attributes:
+        completed (Optional[Future[TaskInvocation | dict]]): A future of a task invocation (the signature of the task_done method)
+            or a dictionary of outputs
+    """
+    completed: asyncio.Future[TaskInvocation | dict] | None
+
+    def __lt__(self, other: QueueItem):
+        return self.queue_tuple[0] < other.queue_tuple[0]
 
 
 class BinaryEventTypes(Enum):

@@ -29,3 +29,4 @@ protobuf==3.20.3
 psutil
 ConfigArgParse
 aio-pika
+pyjwt[crypto]

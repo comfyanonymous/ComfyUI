@@ -186,7 +186,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
  7. To create the standalone binary:
     ```shell
-    python -m pyinstaller --onefile --noupx -n ComfyUI --add-data="comfy/;comfy/" --paths $(pwd) --paths comfy/cmd main.py
+    python -m PyInstaller --onefile --noupx -n ComfyUI --add-data="comfy/;comfy/" --paths $(pwd) --paths comfy/cmd main.py
     ```
 
 ### Authoring Custom Nodes

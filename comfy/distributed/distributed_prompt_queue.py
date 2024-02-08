@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-from asyncio import AbstractEventLoop
+import uuid
+from asyncio import AbstractEventLoop, Queue
+from dataclasses import asdict
 from typing import Optional, Dict, List, Mapping, Tuple, Callable
 
+import jwt
 from aio_pika import connect_robust
 from aio_pika.abc import AbstractConnection, AbstractChannel
-from aio_pika.patterns import RPC
+from aio_pika.patterns import JsonRPC
 
+from .distributed_types import RpcRequest, RpcReply
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation
@@ -29,11 +33,30 @@ class DistributedPromptQueue(AbstractPromptQueue):
 
     async def put_async(self, queue_item: QueueItem):
         assert self.is_caller
+        if self._closing:
+            return
         self.caller_local_in_progress[queue_item.prompt_id] = queue_item
         if self.caller_server is not None:
             self.caller_server.queue_updated()
         try:
-            res: TaskInvocation = await self.rpc.call(self.queue_name, {"item": queue_item.queue_tuple})
+            if "token" in queue_item.extra_data:
+                user_token = queue_item.extra_data["token"]
+            else:
+                if "client_id" in queue_item.extra_data:
+                    client_id = queue_item.extra_data["client_id"]
+                elif self.caller_server.client_id is not None:
+                    client_id = self.caller_server.client_id
+                else:
+                    client_id = str(uuid.uuid4())
+                    # todo: should we really do this?
+                    self.caller_server.client_id = client_id
+
+                # create a stub token
+                user_token = jwt.encode({"sub": client_id}, key="", algorithm="none")
+            request = RpcRequest(prompt_id=queue_item.prompt_id, user_token=user_token, prompt=queue_item.prompt)
+            assert self.rpc is not None
+            res: TaskInvocation = RpcReply(
+                **(await self.rpc.call(self.queue_name, {"request": asdict(request)}))).as_task_invocation()
 
             self.caller_history.put(queue_item, res.outputs, res.status)
             if self.caller_server is not None:
@@ -63,12 +86,16 @@ class DistributedPromptQueue(AbstractPromptQueue):
     def put(self, item: QueueItem):
         # caller: execute on main thread
         assert self.is_caller
+        if self._closing:
+            return
         # this is called by the web server and its event loop is perfectly fine to use
         # the future is now ignored
         self.loop.call_soon_threadsafe(self.put_async, item)
 
-    async def _callee_do_work_item(self, item: QueueTuple) -> TaskInvocation:
+    async def _callee_do_work_item(self, request: dict) -> dict:
         assert self.is_callee
+        request_obj = RpcRequest.from_dict(request)
+        item = request_obj.as_queue_tuple().queue_tuple
         item_with_completer = QueueItem(item, self.loop.create_future())
         self.callee_local_in_progress[item_with_completer.prompt_id] = item_with_completer
         # todo: check if we have the local model content needed to execute this request and if not, reject it
@@ -80,9 +107,10 @@ class DistributedPromptQueue(AbstractPromptQueue):
         assert not item_with_completer.completed.done()
 
         # now we wait for the worker thread to complete the item
-        return await item_with_completer.completed
+        invocation = await item_with_completer.completed
+        return asdict(RpcReply.from_task_invocation(invocation, request_obj.user_token))
 
-    def get(self, timeout: float | None = None) -> Optional[Tuple[QueueTuple, int]]:
+    def get(self, timeout: float | None = None) -> Optional[Tuple[QueueTuple, str | int]]:
         # callee: executed on the worker thread
         assert self.is_callee
         try:
@@ -175,6 +203,7 @@ class DistributedPromptQueue(AbstractPromptQueue):
         self.channel: Optional[AbstractChannel] = None  # Channel will be set up asynchronously
         self.is_caller = is_caller
         self.is_callee = is_callee
+        self._closing = False
 
         # as rpc caller
         self.caller_server = server
@@ -182,9 +211,9 @@ class DistributedPromptQueue(AbstractPromptQueue):
         self.caller_history: History = History()
 
         # as rpc callee
-        self.callee_local_queue = asyncio.Queue()
+        self.callee_local_queue: Queue = Queue()
         self.callee_local_in_progress: Dict[int | str, QueueItem] = {}
-        self.rpc: Optional[RPC] = None
+        self.rpc: Optional[JsonRPC] = None
 
         # todo: the prompt queue really shouldn't do this
         if server is not None:
@@ -193,8 +222,14 @@ class DistributedPromptQueue(AbstractPromptQueue):
     async def init(self):
         self.connection = await connect_robust(self.connection_uri, loop=self.loop)
         self.channel = await self.connection.channel()
-        self.rpc = await RPC.create(channel=self.channel)
+        self.rpc = await JsonRPC.create(channel=self.channel)
         self.rpc.host_exceptions = True
         # this makes the queue available to complete work items
         if self.is_callee:
             await self.rpc.register(self.queue_name, self._callee_do_work_item)
+
+    async def close(self):
+        self._closing = True
+        await self.rpc.close()
+        await self.channel.close()
+        await self.connection.close()

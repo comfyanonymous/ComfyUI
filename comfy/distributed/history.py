@@ -15,7 +15,7 @@ class History:
     def put(self, queue_item: QueueItem, outputs: dict, status: ExecutionStatus):
         self.history[queue_item.prompt_id] = HistoryEntry(prompt=queue_item.queue_tuple,
                                                           outputs=outputs,
-                                                          status=status._asdict())
+                                                          status=ExecutionStatus(*status)._asdict())
 
     def copy(self, prompt_id: Optional[str | int] = None, max_items: int = MAXIMUM_HISTORY_SIZE,
              offset: int = 0) -> Dict[str, HistoryEntry]:

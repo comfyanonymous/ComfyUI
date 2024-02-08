@@ -807,7 +807,7 @@ class PromptQueue(AbstractPromptQueue):
 
             status_dict: Optional[dict] = None
             if status is not None:
-                status_dict = copy.deepcopy(status._asdict())
+                status_dict = copy.deepcopy(ExecutionStatus(*status)._asdict())
 
             self.history[prompt[1]] = {
                 "prompt": prompt,
