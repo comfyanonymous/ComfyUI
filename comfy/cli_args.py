@@ -119,6 +119,7 @@ parser.add_argument("--plausible-analytics-domain", required=False,
                     help="Specifies the domain name for analytics events.")
 parser.add_argument("--analytics-use-identity-provider", action="store_true",
                     help="Uses platform identifiers for unique visitor analytics.")
+
 if options.args_parsing:
     args, _ = parser.parse_known_args()
 else:

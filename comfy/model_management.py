@@ -37,7 +37,7 @@ if args.deterministic:
     torch.use_deterministic_algorithms(True, warn_only=True)
 
 directml_enabled = False
-if args.directml:
+if args.directml is not None:
     import torch_directml
     directml_enabled = True
     device_index = args.directml
