@@ -1,9 +1,9 @@
 import copy
-from typing import TypeAlias
+from typing import TypeAlias, Union
 
 from comfy.api.components.schema.prompt import PromptDict, Prompt
 
-JSON: TypeAlias = dict[str, "JSON"] | list["JSON"] | str | int | float | bool | None
+JSON: TypeAlias = Union[dict[str, "JSON"], list["JSON"], str, int, float, bool, None]
 _BASE_PROMPT: JSON = {
     "4": {
         "inputs": {

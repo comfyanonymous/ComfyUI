@@ -267,3 +267,11 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
+
+
+def create_directories():
+    for _, (paths, _) in folder_names_and_paths.items():
+        default_path = paths[0]
+        os.makedirs(default_path, exist_ok=True)
+    for path in (temp_directory, input_directory, output_directory, user_directory):
+        os.makedirs(path, exist_ok=True)

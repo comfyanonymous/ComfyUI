@@ -8,7 +8,8 @@ import sys
 import threading
 import traceback
 import typing
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
+from typing_extensions import TypedDict
 
 import torch
 
@@ -655,19 +656,19 @@ def full_type_name(klass):
     return module + '.' + klass.__qualname__
 
 
-class ValidationErrorExtraInfoDict(typing.TypedDict):
+class ValidationErrorExtraInfoDict(TypedDict):
     exception_type: str
     traceback: List[str]
 
 
-class ValidationErrorDict(typing.TypedDict):
+class ValidationErrorDict(TypedDict):
     type: str
     message: str
     details: str
     extra_info: ValidationErrorExtraInfoDict | dict
 
 
-ValidationTuple = typing.Tuple[bool, ValidationErrorDict | None, typing.List[str], dict | list]
+ValidationTuple = typing.Tuple[bool, Optional[ValidationErrorDict], typing.List[str], Union[dict, list]]
 
 
 def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:

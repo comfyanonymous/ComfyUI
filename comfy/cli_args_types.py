@@ -69,64 +69,64 @@ class Configuration(dict):
         plausible_analytics_domain (Optional[str]): Domain for analytics events.
         analytics_use_identity_provider (bool): Use platform identifiers for analytics.
         write_out_config_file (bool): Enable writing out the configuration file.
+        create_directories (bool): Creates the default models/, input/, output/ and temp/ directories, then exits.
     """
-
-    config: Optional[str]
-    cwd: Optional[str]
-    listen: str
-    port: int
-    enable_cors_header: Optional[str]
-    max_upload_size: float
-    extra_model_paths_config: Optional[List[str]]
-    output_directory: Optional[str]
-    temp_directory: Optional[str]
-    input_directory: Optional[str]
-    auto_launch: bool
-    disable_auto_launch: bool
-    cuda_device: Optional[int]
-    cuda_malloc: bool
-    disable_cuda_malloc: bool
-    dont_upcast_attention: bool
-    force_fp32: bool
-    force_fp16: bool
-    bf16_unet: bool
-    fp16_unet: bool
-    fp8_e4m3fn_unet: bool
-    fp8_e5m2_unet: bool
-    fp16_vae: bool
-    fp32_vae: bool
-    bf16_vae: bool
-    cpu_vae: bool
-    fp8_e4m3fn_text_enc: bool
-    fp8_e5m2_text_enc: bool
-    fp16_text_enc: bool
-    fp32_text_enc: bool
-    directml: Optional[int]
-    disable_ipex_optimize: bool
-    preview_method: LatentPreviewMethod
-    use_split_cross_attention: bool
-    use_quad_cross_attention: bool
-    use_pytorch_cross_attention: bool
-    disable_xformers: bool
-    gpu_only: bool
-    highvram: bool
-    normalvram: bool
-    lowvram: bool
-    novram: bool
-    cpu: bool
-    disable_smart_memory: bool
-    deterministic: bool
-    dont_print_server: bool
-    quick_test_for_ci: bool
-    windows_standalone_build: bool
-    disable_metadata: bool
-    multi_user: bool
-    plausible_analytics_base_url: Optional[str]
-    plausible_analytics_domain: Optional[str]
-    analytics_use_identity_provider: bool
-    write_out_config_file: bool
-
     def __init__(self, **kwargs):
+        super().__init__()
+        self.cwd: Optional[str] = None
+        self.listen: str = "127.0.0.1"
+        self.port: int = 8188
+        self.enable_cors_header: Optional[str] = None
+        self.max_upload_size: float = 100.0
+        self.extra_model_paths_config: Optional[List[str]] = []
+        self.output_directory: Optional[str] = None
+        self.temp_directory: Optional[str] = None
+        self.input_directory: Optional[str] = None
+        self.auto_launch: bool = False
+        self.disable_auto_launch: bool = False
+        self.cuda_device: Optional[int] = None
+        self.cuda_malloc: bool = True
+        self.disable_cuda_malloc: bool = False
+        self.dont_upcast_attention: bool = False
+        self.force_fp32: bool = False
+        self.force_fp16: bool = False
+        self.bf16_unet: bool = False
+        self.fp16_unet: bool = False
+        self.fp8_e4m3fn_unet: bool = False
+        self.fp8_e5m2_unet: bool = False
+        self.fp16_vae: bool = False
+        self.fp32_vae: bool = False
+        self.bf16_vae: bool = False
+        self.cpu_vae: bool = False
+        self.fp8_e4m3fn_text_enc: bool = False
+        self.fp8_e5m2_text_enc: bool = False
+        self.fp16_text_enc: bool = False
+        self.fp32_text_enc: bool = False
+        self.directml: Optional[int] = None
+        self.disable_ipex_optimize: bool = False
+        self.preview_method: str = "none"
+        self.use_split_cross_attention: bool = False
+        self.use_quad_cross_attention: bool = False
+        self.use_pytorch_cross_attention: bool = False
+        self.disable_xformers: bool = False
+        self.gpu_only: bool = False
+        self.highvram: bool = False
+        self.normalvram: bool = False
+        self.lowvram: bool = False
+        self.novram: bool = False
+        self.cpu: bool = False
+        self.disable_smart_memory: bool = False
+        self.deterministic: bool = False
+        self.dont_print_server: bool = False
+        self.quick_test_for_ci: bool = False
+        self.windows_standalone_build: bool = False
+        self.disable_metadata: bool = False
+        self.multi_user: bool = False
+        self.plausible_analytics_base_url: Optional[str] = None
+        self.plausible_analytics_domain: Optional[str] = None
+        self.analytics_use_identity_provider: bool = False
+        self.write_out_config_file: bool = False
+        self.create_directories: bool = False
         for key, value in kwargs.items():
             self[key] = value
 

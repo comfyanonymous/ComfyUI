@@ -576,8 +576,10 @@ class PromptServer(ExecutorToClientProgress):
                             upload_dir = PromptServer.get_upload_dir()
                             async with aiofiles.open(os.path.join(upload_dir, part.filename), mode='wb') as file:
                                 await file.write(file_data)
-                except IOError | MemoryError as ioError:
+                except IOError as ioError:
                     return web.Response(status=507, reason=str(ioError))
+                except MemoryError as memoryError:
+                    return web.Response(status=507, reason=str(memoryError))
                 except Exception as ex:
                     return web.Response(status=400, reason=str(ex))
 

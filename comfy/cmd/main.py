@@ -1,3 +1,5 @@
+import sys
+
 from .. import options
 
 options.enable_args_parsing()
@@ -205,6 +207,15 @@ def main():
         print(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
+
+    # create the default directories if we're instructed to, then exit
+    # or, if it's a windows standalone build, the single .exe file should have its side-by-side directories always created
+    if args.create_directories:
+        folder_paths.create_directories()
+        return
+
+    if args.windows_standalone_build:
+        folder_paths.create_directories()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

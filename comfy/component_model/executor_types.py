@@ -1,4 +1,7 @@
-from typing import Optional, Literal, Protocol, TypedDict, NotRequired
+from __future__ import annotations  # for Python 3.7-3.9
+
+from typing_extensions import NotRequired, TypedDict
+from typing import Optional, Literal, Protocol
 
 from comfy.component_model.queue_types import BinaryEventTypes
 

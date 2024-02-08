@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from enum import Enum
-from typing import NamedTuple, Optional, TypedDict, List, Literal, NotRequired
+from typing import NamedTuple, Optional, List, Literal
+from typing_extensions import NotRequired, TypedDict
 from dataclasses import dataclass
 from typing import Tuple
 

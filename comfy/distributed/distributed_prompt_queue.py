@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from asyncio import AbstractEventLoop
 from typing import Optional, Dict, List, Mapping, Tuple, Callable

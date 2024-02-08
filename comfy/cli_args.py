@@ -2,7 +2,7 @@ import configargparse as argparse
 import enum
 from . import options
 from .cli_args_types import LatentPreviewMethod, Configuration
-
+import sys
 
 class EnumAction(argparse.Action):
     """
@@ -106,11 +106,12 @@ parser.add_argument("--deterministic", action="store_true", help="Make pytorch u
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
-parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
+parser.add_argument("--windows-standalone-build", default=hasattr(sys, 'frozen') and getattr(sys, 'frozen'), action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
+parser.add_argument("--create-directories", action="store_true", help="Creates the default models/, input/, output/ and temp/ directories, then exits.")
 
 parser.add_argument("--plausible-analytics-base-url", required=False,
                     help="Enables server-side analytics events sent to the provided URL.")
