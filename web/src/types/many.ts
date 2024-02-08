@@ -159,3 +159,27 @@ export interface TextInputProps {
     setter: (value: string) => void;
     attrs: InputHTMLAttributes<HTMLInputElement>;
 }
+
+export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+export type QueueItem = {
+    jobId: string;
+    status: JobStatus;
+};
+
+export type NodeErrorDetail = {
+    message: string;
+    details: string;
+    extra_info?: {
+        input_name?: string;
+    };
+};
+
+export type NodeError = {
+    class_type: string;
+    errors: NodeErrorDetail[];
+};
+
+export type LastNodeErrors = {
+    [nodeId: string]: NodeError;
+};

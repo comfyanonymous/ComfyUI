@@ -3,13 +3,13 @@ import {
     EmbeddingsResponse,
     HistoryResponse,
     IComfyApi,
-    QueuePromptResponse,
     QueueResponse,
     SettingsResponse,
     SystemStatsResponse,
     UserConfigResponse,
 } from '../types/api';
 import { WorkflowStep } from '../types/many';
+import { SerializedGraph } from '../types/litegraph';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
@@ -218,20 +218,14 @@ export class ComfyApi extends EventTarget implements IComfyApi {
         return await resp.json();
     }
 
-    /**
-     * @param {number} number The index at which to queue the prompt, passing -1 will insert the prompt at the front of the queue
-     * @param {object} prompt The prompt data to queue
-     */
     async queuePrompt(
-        number: number,
-        { output, workflow }: { output: Record<string, WorkflowStep>; workflow: any }
+        apiWorkflow: Record<string, WorkflowStep>,
+        serializedGraph?: SerializedGraph
     ): Promise<QueuePromptResponse> {
         const body = {
             client_id: this.clientId,
-            prompt: output,
-            extra_data: { extra_pnginfo: { workflow } },
-            front: number === -1 ? true : undefined,
-            number: number > 0 ? number : undefined,
+            workflow: apiWorkflow,
+            extra_data: { extra_pnginfo: { serializedGraph } },
         };
 
         const res = await this.fetchApi('/prompt', {

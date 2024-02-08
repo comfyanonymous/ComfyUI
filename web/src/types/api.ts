@@ -1,5 +1,5 @@
 import { ComfyError } from './many';
-import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
+import { JobCreated, WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
 import { ComfyObjectInfo } from './comfy';
 
 export type EmbeddingsResponse = string[];
@@ -46,11 +46,11 @@ export interface QueueResponse {
     queue_pending: QueueData[];
 }
 
-export interface QueuePromptResponse {
-    prompt_id: string;
-    number: number;
-    node_errors: Record<string, ComfyError>;
-}
+// export interface QueuePromptResponse {
+//     job_id: string;
+//     number: number;
+//     node_errors: Record<string, ComfyError>;
+// }
 
 export interface SystemStatsResponse {
     system: {
@@ -110,8 +110,8 @@ export interface ComfyQueueItems {
 
 export interface ComfyHistoryItems {
     History: {
-        prompt: {};
-        outputs: {};
+        prompt: object;
+        outputs: object;
         status: string;
     }[];
 }
@@ -136,10 +136,7 @@ export interface IComfyApi {
     getExtensions(): Promise<string[]>;
     getEmbeddings(): Promise<EmbeddingsResponse>;
     getNodeDefs(): Promise<Record<string, ComfyObjectInfo>>;
-    queuePrompt(
-        number: number,
-        prompt: { output: Record<string, WorkflowStep>; workflow: any }
-    ): Promise<QueuePromptResponse>;
+    queuePrompt(number: number, prompt: { output: Record<string, WorkflowStep>; workflow: any }): Promise<JobCreated>;
     getItems(type: string): Promise<any>; // Replace 'any' with the actual return type if known
     getQueue(): Promise<ComfyQueueItems>;
     getHistory(max_items?: number): Promise<ComfyHistoryItems>;

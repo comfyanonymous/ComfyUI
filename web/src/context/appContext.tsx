@@ -21,7 +21,6 @@ export const useComfyApp = createUseContextHook(
 // I think it makes sense to have it in the context for usage in the web app
 export const ComfyAppContextProvider = ({ children }: { children: ReactNode }) => {
     const { install } = usePlugin();
-    const { api } = useApiContext();
     const [app, setApp] = useState<IComfyApp>(ComfyApp.getInstance());
 
     useEffect(() => {

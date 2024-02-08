@@ -1,11 +1,13 @@
 import React from 'react';
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import ReconnectingWebSocket from 'reconnecting-websocket';
 import { api, ComfyApi } from '../scripts/api';
 import { createUseContextHook } from './hookCreator';
 import { IComfyApi } from '../types/api.ts';
 import { createChannel, createClient, Metadata } from 'nice-grpc-web';
-import { ComfyClient, ComfyDefinition, ComfyMessage } from '../../autogen_web_ts/comfy_request.v1.ts';
+import { ComfyClient, ComfyDefinition, ComfyMessage, JobCreated } from '../../autogen_web_ts/comfy_request.v1.ts';
+import { WorkflowStep } from '../../autogen_web_ts/comfy_request.v1.ts';
+import { SerializedGraph } from '../types/litegraph';
 
 // This is injected into index.html by `start.py`
 declare global {
@@ -23,6 +25,7 @@ interface IApiContext {
     connectionStatus: string;
     comfyClient: ComfyClient | null;
     requestMetadata?: Metadata;
+    runWorkflow: (workflow: Record<string, WorkflowStep>, serializedGraph?: SerializedGraph) => Promise<JobCreated>;
 }
 
 enum ApiStatus {
@@ -33,7 +36,7 @@ enum ApiStatus {
 }
 
 // Non-react component
-const ApiEventEmitter = new EventTarget();
+export const ApiEventEmitter = new EventTarget();
 
 // TO DO: implement this
 const handleComfyMessage = (message: ComfyMessage) => {
@@ -66,30 +69,33 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
     const [requestMetadata, setRequestMetadata] = useState<Metadata | undefined>(undefined);
 
     // Only used for when serverProtocol is grpc. Used to both send messages and stream results
-    const [comfyClient, setComfyClient] = useState<ComfyClient | null>(null);
+    const [comfyClient, setComfyClient] = useState<ComfyClient>(
+        createClient(ComfyDefinition, createChannel(serverUrl))
+    );
 
-    // establish a connection to the server
+    // Recreate ComfyClient as needed
     useEffect(() => {
         if (serverProtocol === 'grpc') {
             const channel = createChannel(serverUrl);
-            const comfyClient: ComfyClient = createClient(ComfyDefinition, channel);
+            const newComfyClient = createClient(ComfyDefinition, channel);
+            setComfyClient(newComfyClient);
+            // No cleanup is explicitly required for gRPC client
+        }
+    }, [serverUrl, serverProtocol]);
 
-            setComfyClient(comfyClient);
-
-            // Cleanup connection
-            // return () => channel.close();
-        } else {
-            // Assumed to be websocket protocol
+    // Establish a connection to local-server if we're using websockets
+    useEffect(() => {
+        if (serverProtocol === 'ws') {
             const socket = new ReconnectingWebSocket(serverUrl, undefined, { maxReconnectionDelay: 300 });
             socket.binaryType = 'arraybuffer';
+            let cleanupPolling = () => {};
 
             socket.addEventListener('open', () => {
                 setConnectionStatus(ApiStatus.OPEN);
             });
 
-            let cleanupPolling = () => {};
             socket.addEventListener('error', () => {
-                if (!(socket.readyState == socket.OPEN)) {
+                if (!(socket.readyState === socket.OPEN)) {
                     // The websocket failed to open; use a fallback instead
                     socket.close();
                     cleanupPolling = pollingFallback();
@@ -98,7 +104,6 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
             });
 
             socket.addEventListener('close', () => {
-                // Will automatically try to reconnect
                 setConnectionStatus(ApiStatus.CONNECTING);
             });
 
@@ -111,9 +116,10 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
         }
     }, [serverUrl, serverProtocol]);
 
-    // If we are in a session-id, subscribe to the stream of results
+    // Once we have a session-id, subscribe to the stream of results using grpc
     useEffect(() => {
-        if (comfyClient === null) return;
+        if (sessionId === undefined) return;
+        if (serverProtocol !== 'grpc') return;
 
         const abortController = new AbortController();
 
@@ -143,13 +149,72 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
         return () => {
             abortController.abort();
         };
-    }, [comfyClient, sessionId]);
+    }, [comfyClient, sessionId, serverProtocol]);
 
+    // Update metadata based on api-key / login status
     useEffect(() => {
         const metadata = new Metadata();
         if (window.API_KEY) metadata.set('api-key', window.API_KEY);
         setRequestMetadata(metadata);
     }, []);
+
+    // This is the function used to submit jobs to the server
+    // ComfyUI terminology: 'queuePrompt'
+    const runWorkflow = useCallback(
+        async (workflow: Record<string, WorkflowStep>, serializedGraph?: SerializedGraph): Promise<JobCreated> => {
+            if (serverProtocol === 'grpc' && comfyClient) {
+                // Use gRPC server
+                const request = {
+                    workflow,
+                    serializedGraph,
+                    inputFiles: [],
+                    output_config: undefined,
+                    worker_wait_duration: undefined,
+                    session_id: sessionId,
+                };
+
+                const res = await comfyClient.runWorkflow(request, { metadata: requestMetadata });
+
+                // Update the assigned sessionId
+                if (res.session_id !== sessionId) {
+                    setSessionId(res.session_id);
+                }
+
+                return res;
+            } else {
+                // Use REST server
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+
+                // Convert Metadata to headers
+                if (requestMetadata) {
+                    for (const [key, values] of requestMetadata) {
+                        // Since values is an array, join them with a comma.
+                        headers[key] = values.join(', ');
+                    }
+                }
+
+                const res = await fetch(`${serverUrl}/prompt`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                        workflow,
+                        serializedGraph,
+                    }),
+                });
+
+                if (res.status !== 200) {
+                    throw {
+                        response: await res.json(),
+                    };
+                }
+
+                return await res.json();
+            }
+        },
+        [requestMetadata, serverUrl, serverProtocol, comfyClient, sessionId]
+    );
 
     return (
         <ApiContext.Provider
@@ -158,6 +223,7 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
                 connectionStatus,
                 comfyClient,
                 requestMetadata,
+                runWorkflow,
             }}
         >
             {children}
@@ -166,4 +232,5 @@ export const ApiContextProvider: React.FC<{ children: ReactNode }> = ({ children
 };
 
 const ApiContext = createContext<IApiContext | undefined>(undefined);
+
 export const useApiContext = createUseContextHook(ApiContext, 'useApiContext must be used within a ApiContextProvider');
