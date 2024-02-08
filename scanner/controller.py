@@ -25,8 +25,8 @@ load_dotenv(os.path.join(root_path, '.env.local'))
 aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 aws_region = os.getenv('AWS_REGION')
-node_table_name = os.getenv('DDB_TABLE_NODE')# DDB_TABLE_CUSTOM_NODE
-package_table_name = os.getenv('DDB_TABLE_PACKAGE')
+node_table_name = "Node" + os.getenv('DDB_TABLE_POSTFIX')# DDB_TABLE_CUSTOM_NODE
+package_table_name = "NodePackage" + os.getenv('DDB_TABLE_POSTFIX')
 log_file = os.path.join(root_path, 'log.txt')
 
 if not aws_access_key_id or not aws_secret_access_key:
@@ -220,7 +220,7 @@ def process_json(file_path):
     if (os.path.exists(file_path) == False):
         print("🔴file not found", file_path)
         gitclone_install("https://github.com/ltdrdata/ComfyUI-Manager", os.path.join(custom_node_path, "ComfyUI-Manager"))
-    START_FROM = 365
+    START_FROM = 102
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)

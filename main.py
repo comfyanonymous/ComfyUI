@@ -242,9 +242,9 @@ if __name__ == "__main__":
             webbrowser.open(f"http://{address}:{port}")
         call_on_start = startup_server
 
-    try:
-        loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
-    except KeyboardInterrupt:
-        print("\nStopped server")
+    # try:
+    #     loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
+    # except KeyboardInterrupt:
+    #     print("\nStopped server")
 
     cleanup_temp()
