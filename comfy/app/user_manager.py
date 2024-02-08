@@ -2,7 +2,6 @@ import json
 import os
 import re
 import uuid
-from typing import Optional
 
 from aiohttp import web
 from ..cli_args import args

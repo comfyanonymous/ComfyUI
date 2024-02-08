@@ -15,6 +15,9 @@ from ..component_model.executor_types import ExecutorToClientProgress, StatusMes
 
 
 class ServerStub(ExecutorToClientProgress):
+    """
+    This class is a stub implementation of ExecutorToClientProgress. This will handle progress events.
+    """
     def __init__(self):
         self.client_id = str(uuid.uuid4())
         self.last_node_id = None
@@ -41,12 +44,29 @@ class EmbeddedComfyClient:
 
     Asynchronous (non-blocking) usage with async-await:
     ```
-    prompt = dict() # ...
-    async with EmbeddedComfyClient() as client:
-        outputs = await client.queue_prompt(prompt)
+    # Write a workflow, or enable Dev Mode in the UI settings, then Save (API Format) to get the workflow in your
+    # workspace.
+    prompt_dict = {
+      "1": {"class_type": "KSamplerAdvanced", ...}
+      ...
+    }
 
-    print(outputs)
+    # Validate your workflow (the prompt)
+    from comfy.api.components.schema.prompt import Prompt
+    prompt = Prompt.validate(prompt_dict)
+    # Then use the client to run your workflow. This will start, then stop, a local ComfyUI workflow executor.
+    # It does not connect to a remote server.
+    async def main():
+        async with EmbeddedComfyClient() as client:
+            outputs = await client.queue_prompt(prompt)
+            print(outputs)
+        print("Now that we've exited the with statement, all your VRAM has been cleared from ComfyUI")
+
+    if __name__ == "__main__"
+        asyncio.run(main())
     ```
+
+    In order to use this in blocking methods, learn more about asyncio online.
     """
 
     def __init__(self, configuration: Optional[Configuration] = None, loop: Optional[AbstractEventLoop] = None,
