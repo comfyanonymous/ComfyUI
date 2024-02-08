@@ -4,6 +4,10 @@ import { ComfyObjectInfo } from './comfy';
 
 export type EmbeddingsResponse = string[];
 
+export type ComfyItemURLType = 'queue' | 'history' | 'interrupt';
+
+export type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
+
 export interface UploadFileResponse {
     name: string;
     type: string;
