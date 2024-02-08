@@ -160,7 +160,8 @@ def sdxl_workflow_with_refiner(prompt: str,
                                height=1024,
                                sampler="euler_ancestral",
                                scheduler="normal",
-                               filename_prefix="sdxl_") -> PromptDict:
+                               filename_prefix="sdxl_",
+                               seed=42) -> PromptDict:
     prompt_dict: JSON = copy.deepcopy(_BASE_PROMPT)
     prompt_dict["17"]["inputs"]["text"] = prompt
     prompt_dict["20"]["inputs"]["text"] = negative_prompt
@@ -171,6 +172,7 @@ def sdxl_workflow_with_refiner(prompt: str,
 
     # base
     prompt_dict["10"]["inputs"]["steps"] = inference_steps + refiner_steps
+    prompt_dict["10"]["inputs"]["seed"] = seed
     prompt_dict["10"]["inputs"]["start_at_step"] = 0
     prompt_dict["10"]["inputs"]["end_at_step"] = inference_steps
     prompt_dict["10"]["inputs"]["steps"] = inference_steps + refiner_steps
@@ -179,6 +181,7 @@ def sdxl_workflow_with_refiner(prompt: str,
 
     # refiner
     prompt_dict["14"]["inputs"]["steps"] = inference_steps + refiner_steps
+    prompt_dict["10"]["inputs"]["seed"] = seed
     prompt_dict["14"]["inputs"]["start_at_step"] = inference_steps
     prompt_dict["14"]["inputs"]["end_at_step"] = inference_steps + refiner_steps
     prompt_dict["14"]["inputs"]["sampler_name"] = sampler
