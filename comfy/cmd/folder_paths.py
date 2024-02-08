@@ -11,13 +11,14 @@ folder_names_and_paths = {}
 
 if 'main.py' in sys.argv:
     base_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../.."))
-elif args.cwd:
+elif args.cwd is not None:
     if not os.path.exists(args.cwd):
         try:
-            os.makedirs(args.cwd)
+            os.makedirs(args.cwd, exist_ok=True)
         except:
             print("Failed to create custom working directory")
-    base_path = args.cwd
+    # wrap the path to prevent slashedness from glitching out common path checks
+    base_path = os.path.realpath(args.cwd)
 else:
     base_path = os.getcwd()
 models_dir = os.path.join(base_path, "models")

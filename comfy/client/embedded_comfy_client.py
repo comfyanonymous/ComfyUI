@@ -45,7 +45,7 @@ class EmbeddedComfyClient:
     async with EmbeddedComfyClient() as client:
         outputs = await client.queue_prompt(prompt)
 
-    print(result)
+    print(outputs)
     ```
     """
 

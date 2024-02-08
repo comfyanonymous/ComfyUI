@@ -2,6 +2,8 @@ import json
 import os
 import re
 import uuid
+from typing import Optional
+
 from aiohttp import web
 from ..cli_args import args
 from ..cmd.folder_paths import user_directory
@@ -50,7 +52,7 @@ class UserManager():
 
         # prevent leaving /{type}
         if os.path.commonpath((root_dir, user_root)) != root_dir:
-            return None
+            raise PermissionError()
 
         parent = user_root
 
@@ -58,7 +60,7 @@ class UserManager():
             # prevent leaving /{type}/{user}
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
-                return None
+                raise PermissionError()
 
         if create_dir and not os.path.exists(parent):
             os.mkdir(parent)
