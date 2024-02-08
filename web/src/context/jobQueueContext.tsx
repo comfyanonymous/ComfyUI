@@ -5,6 +5,7 @@ import { LastNodeErrors, QueueItem } from '../types/many';
 import { ApiEventEmitter } from './apiContext';
 import { ComfyMessage, ComfyMessage_QueueStatus, WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
 import { useApiContext } from './apiContext';
+import { useGraph } from './graphContext';
 
 export interface IJobQueueContext {
     queue: QueueItem[];
@@ -14,7 +15,8 @@ export interface IJobQueueContext {
 export const JobQueueContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [queue, setQueue] = useState<QueueItem[]>([]);
     const [lastNodeErrors, setLastNodeErrors] = useState<LastNodeErrors>({});
-    const { canvas, graph, ui } = useGraph();
+    const { graphState } = useGraph();
+    const { graph, canvas } = graphState!;
     const { runWorkflow } = useApiContext();
 
     // Update the queue-state as messages come in from the API

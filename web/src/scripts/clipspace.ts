@@ -58,7 +58,7 @@ export class ComfyClipspace implements IComfyClipspace {
 
             for (let i = 0; i < node.imgs.length; i++) {
                 imgs[i] = new Image();
-                imgs[i].src = (node.imgs[i] as HTMLImageElement).src;
+                imgs[i].src = node.imgs[i].src;
                 orig_imgs[i] = imgs[i];
             }
         }

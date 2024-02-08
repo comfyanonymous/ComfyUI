@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { GraphContextProvider, useGraph } from './context/graphContext';
 import { ComfyAppContextProvider, useComfyApp } from './context/appContext.tsx';
 import { ComfyDialogContextProvider } from './context/comfyDialogContext.tsx';
@@ -8,10 +8,11 @@ import { registerNodes } from './litegraph/registerNodes.ts';
 import { PluginProvider } from './context/pluginContext';
 import { ApiContextProvider } from './context/apiContext.tsx';
 import { ComfyUIContextProvider } from './context/uiContext.tsx';
+import { JobQueueContextProvider } from './context/jobQueueContext.tsx';
 
 function RenderComponents() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const { graphState, initGraph, resizeCanvas } = useGraph();
+    const { graph, initGraph, resizeCanvas } = useGraph();
     const { app } = useComfyApp();
     const { load: loadSettings } = useSettings();
     const { loadGraphData, loadWorkflow } = useLoadGraphData();
@@ -36,13 +37,13 @@ function RenderComponents() {
                 await loadGraphData();
             }
 
-            if (graphState && graphState.graph) {
-                app.enableWorkflowAutoSave(graphState.graph);
-            }
+            app.enableWorkflowAutoSave(graph);
         };
 
         if (canvasRef.current) {
-            loadAppData();
+            loadAppData().catch((err: unknown) => {
+                console.error(err);
+            });
         }
     }, [canvasRef.current]);
 
@@ -61,11 +62,13 @@ function App() {
                 <ComfyAppContextProvider>
                     <ComfyDialogContextProvider>
                         <GraphContextProvider>
-                            <SettingsContextProvider>
-                                <ComfyUIContextProvider>
-                                    <RenderComponents />
-                                </ComfyUIContextProvider>
-                            </SettingsContextProvider>
+                            <JobQueueContextProvider>
+                                <SettingsContextProvider>
+                                    <ComfyUIContextProvider>
+                                        <RenderComponents />
+                                    </ComfyUIContextProvider>
+                                </SettingsContextProvider>
+                            </JobQueueContextProvider>
                         </GraphContextProvider>
                     </ComfyDialogContextProvider>
                 </ComfyAppContextProvider>

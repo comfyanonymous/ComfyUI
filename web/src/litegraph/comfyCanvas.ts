@@ -6,7 +6,7 @@ import { LiteGraph, LGraphCanvas, Vector2 } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyGraph } from './comfyGraph';
 import { ComfyError } from '../types/many';
-import { IComfyCanvas } from '../types/interfaces';
+import { IComfyCanvas, IComfyGraph } from '../types/interfaces';
 
 // TO DO: list all hot keys this class has and what they do
 
@@ -18,7 +18,7 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
     abortController = new AbortController();
 
     constructor(
-        canvas: HTMLCanvasElement & { id: string },
+        canvas?: HTMLCanvasElement & { id: string },
         graph?: ComfyGraph,
         options?: { skip_render?: boolean; autoresize?: boolean }
     ) {
@@ -92,8 +92,8 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
 
     /** Draws node highlights (executing, drag drop) and progress bar */
     drawNode(node: ComfyNode, ctx: CanvasRenderingContext2D): void {
-        var editor_alpha = this.editor_alpha;
-        var old_color = node.bgcolor;
+        const editor_alpha = this.editor_alpha;
+        const old_color = node.bgcolor;
 
         if (node.mode === 2) {
             // never
@@ -326,6 +326,9 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
     /** Ensures the canvas fills the window */
     resizeCanvas() {
         const canvasEl = this.canvas;
+        if (!canvasEl) {
+            return;
+        }
 
         // Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
         const scale = Math.max(window.devicePixelRatio, 1);

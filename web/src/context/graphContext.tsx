@@ -5,40 +5,36 @@ import { ComfyGraph } from '../litegraph/comfyGraph';
 import { ComfyCanvas } from '../litegraph/comfyCanvas';
 import { useLoadGraphData } from '../hooks/useLoadGraphData.tsx';
 
-type GraphState = {
+interface GraphContextType {
     graph: ComfyGraph;
     canvas: ComfyCanvas;
     ctx: CanvasRenderingContext2D | null;
-} | null;
-
-interface GraphContextType {
-    graphState: GraphState;
     initGraph: (mainCanvas: HTMLCanvasElement) => void;
     resizeCanvas: (canvasEl: HTMLCanvasElement) => void;
 }
 
 const GraphContext = React.createContext<GraphContextType | null>(null);
 
+// Initially we create a graph and canvas, but they're not attached to any canvas
+// element on the page. You must use initGraph to attach the ComfyCanvas to a
+// canvas-element.
 export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
-    const [graphState, setGraphState] = useState<GraphState>(null);
+    const [graph, setGraph] = useState<ComfyGraph>(new ComfyGraph());
+    const [canvas, setCanvas] = useState<ComfyCanvas>(new ComfyCanvas(undefined, graph));
+    const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
 
     const initGraph = (mainCanvas: HTMLCanvasElement) => {
         const canvasEl = Object.assign(mainCanvas, { id: 'graph-canvas' });
         canvasEl.tabIndex = 1;
         canvasEl.style.touchAction = 'none';
 
-        const graph = new ComfyGraph();
-        const canvas = new ComfyCanvas(canvasEl, graph);
+        canvas.setCanvas(canvasEl);
         const ctx = canvasEl.getContext('2d');
 
         graph.start();
 
         // Set the state with the new graph, canvas, and context
-        setGraphState({
-            graph,
-            canvas,
-            ctx,
-        });
+        setCtx(ctx);
     };
 
     const resizeCanvas = (canvasEl: HTMLCanvasElement) => {
@@ -47,16 +43,18 @@ export const GraphContextProvider = ({ children }: { children: ReactNode }) => {
         const { width, height } = canvasEl.getBoundingClientRect();
         canvasEl.width = Math.round(width * scale);
         canvasEl.height = Math.round(height * scale);
-        if (graphState?.ctx) {
-            graphState.ctx.scale(scale, scale);
+        if (ctx) {
+            ctx.scale(scale, scale);
         }
 
-        if (graphState?.canvas) {
-            graphState.canvas.draw(true, true);
-        }
+        canvas.draw(true, true);
     };
 
-    return <GraphContext.Provider value={{ graphState, initGraph, resizeCanvas }}>{children}</GraphContext.Provider>;
+    return (
+        <GraphContext.Provider value={{ graph, canvas, ctx, initGraph, resizeCanvas }}>
+            {children}
+        </GraphContext.Provider>
+    );
 };
 
 export const useGraph = createUseContextHook(GraphContext, 'GraphContext not found');
