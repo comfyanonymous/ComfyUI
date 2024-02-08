@@ -4,7 +4,7 @@ import os.path
 import platform
 import subprocess
 import sys
-from typing import List
+from typing import List, Literal, Union, Optional
 
 from pip._internal.index.collector import LinkCollector
 from pip._internal.index.package_finder import PackageFinder
@@ -44,11 +44,21 @@ cpu_torch_index = ("https://download.pytorch.org/whl/cpu", "https://download.pyt
 # xformers not required for new torch
 
 """
-Indicates if we're installing an editable (develop) mode package
+Indicates if this is installing an editable (develop) mode package
 """
 is_editable = '--editable' in sys.argv or '-e' in sys.argv or (
         'python' in sys.argv and 'setup.py' in sys.argv and 'develop' in sys.argv)
 
+# If we're installing with no build isolation, we can check if torch is already installed in the environment, and if so,
+# go ahead and use the version that is already installed.
+is_build_isolated_and_torch_version: Optional[str]
+try:
+    import torch
+    print(f"comfyui setup.py: torch version was {torch.__version__} and built without build isolation, using this torch instead of upgrading", file=sys.stderr)
+    is_build_isolated_and_torch_version = torch.__version__
+except Exception as e:
+    print(f"comfyui setup.py: torch could not be imported because running with build isolation or not installed ({e}), installing torch for your platform", file=sys.stderr)
+    is_build_isolated_and_torch_version = None
 
 def _is_nvidia() -> bool:
     system = platform.system().lower()
@@ -102,6 +112,15 @@ def _is_linux_arm64():
 
 def dependencies() -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
+    # torch is already installed, and we could have only known this if the user specifically requested a
+    # no-build-isolation build, so the user knows what is going on
+    if is_build_isolated_and_torch_version is not None:
+        for i, dep in enumerate(_dependencies):
+            stripped = dep.strip()
+            if stripped == "torch":
+                _dependencies[i] = f"{stripped}=={is_build_isolated_and_torch_version}"
+                break
+        return _dependencies
     _alternative_indices = [amd_torch_index, nvidia_torch_index]
     session = PipSession()
 
@@ -120,14 +139,14 @@ def dependencies() -> List[str]:
 
     if sys.version_info >= (3, 12):
         # use the nightlies
-        index_urls = [nightly for (_, nightly) in index_urls]
-        _alternative_indices = [nightly for (_, nightly) in _alternative_indices]
+        index_urls_selected = [nightly for (_, nightly) in index_urls]
+        _alternative_indices_selected = [nightly for (_, nightly) in _alternative_indices]
     else:
-        index_urls = [stable for (stable, _) in index_urls]
-        _alternative_indices = [stable for (stable, _) in _alternative_indices]
+        index_urls_selected = [stable for (stable, _) in index_urls]
+        _alternative_indices_selected = [stable for (stable, _) in _alternative_indices]
     try:
         # pip 23
-        finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls, no_index=False)),
+        finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls_selected, no_index=False)),
                                       SelectionPreferences(allow_yanked=False, prefer_binary=False,
                                                            allow_all_prereleases=True))
     except:
@@ -138,12 +157,12 @@ def dependencies() -> List[str]:
                                                                allow_all_prereleases=True)
                                           , use_deprecated_html5lib=False)
         except:
-            raise Exception("upgrade pip with\npip install -U pip")
+            raise Exception("upgrade pip with\npython -m pip install -U pip")
     for i, package in enumerate(_dependencies[:]):
         requirement = InstallRequirement(Requirement(package), comes_from=f"{package_name}=={version}")
         candidate = finder.find_best_candidate(requirement.name, requirement.specifier)
         if candidate.best_candidate is not None:
-            if any([url in candidate.best_candidate.link.url for url in _alternative_indices]):
+            if any([url in candidate.best_candidate.link.url for url in _alternative_indices_selected]):
                 _dependencies[i] = f"{requirement.name} @ {candidate.best_candidate.link.url}"
     return _dependencies
 

@@ -117,6 +117,12 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     ```shell
     pip install git+https://github.com/hiddenswitch/ComfyUI.git
     ```
+    **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you, disable build isolation, and the package will recognize your currently installed torch.
+    ```shell
+    # You will need wheel, which isn't included in Python 3.11 or later
+    pip install wheel
+    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
+    ```
 4. To run the web server:
     ```shell
     comfyui
