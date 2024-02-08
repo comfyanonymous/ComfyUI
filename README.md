@@ -141,10 +141,11 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     ```shell
     comfyui
     ```
-    To generate python OpenAPI models:
+    This will start ComfyUI in the current working directory of your terminal. This should have your `models/` directory. If your models are located somewhere else, such as `C:/some directory/models`, do:
     ```shell
-    comfyui-openapi-gen
+    comfyui --cwd="C:/some directory/"
     ```
+    You can see all the command line options with hints using `comfyui --help`.
 
 ## Manual Install (Windows, Linux, macOS) For Development
 
