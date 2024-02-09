@@ -28,7 +28,7 @@ import comfy.clip_vision
 
 import comfy.model_management
 from comfy.cli_args import args
-
+from einops import rearrange
 import importlib
 
 import folder_paths
@@ -1041,6 +1041,38 @@ class EmptyLatentImage:
         return ({"samples":latent}, )
 
 
+class GaussianLatentImage:
+    def __init__(self):
+        self.device = comfy.model_management.intermediate_device()
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
+                              "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                              "cov_factor": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.05})}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "generate"
+
+    CATEGORY = "latent"
+    def get_cov_mat(self, f, alpha=0.1):
+        var = [alpha ** idx for idx in range(f)]
+        m = torch.cat([torch.Tensor(var), torch.Tensor(var[1::][::-1])])
+        x, y = torch.ones(len(var), len(var)).nonzero().T
+        cov = m[y-x].reshape(len(var), len(var))    
+        return cov
+
+
+    def generate(self, width, height, batch_size=1, cov_factor=0.2):
+        dist = torch.distributions.multivariate_normal.MultivariateNormal(torch.zeros(batch_size), self.get_cov_mat(batch_size, alpha=cov_factor))
+        shape = (4, height // 8, width // 8)
+
+        cov_latent = dist.sample(shape)
+        cov_latent = rearrange(cov_latent, 'c h w f -> f c h w')
+
+        latent = cov_latent.to(self.device)
+        return ({"samples":latent}, )
+
+
 class LatentFromBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -1755,6 +1787,7 @@ NODE_CLASS_MAPPINGS = {
     "VAEEncodeForInpaint": VAEEncodeForInpaint,
     "VAELoader": VAELoader,
     "EmptyLatentImage": EmptyLatentImage,
+    "GaussianLatentImage": GaussianLatentImage,
     "LatentUpscale": LatentUpscale,
     "LatentUpscaleBy": LatentUpscaleBy,
     "LatentFromBatch": LatentFromBatch,
@@ -1851,6 +1884,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LatentFlip": "Flip Latent",
     "LatentCrop": "Crop Latent",
     "EmptyLatentImage": "Empty Latent Image",
+    "GaussianLatentImage": "Gaussian latent image",
     "LatentUpscale": "Upscale Latent",
     "LatentUpscaleBy": "Upscale Latent By",
     "LatentComposite": "Latent Composite",
