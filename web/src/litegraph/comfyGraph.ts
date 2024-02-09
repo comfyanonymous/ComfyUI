@@ -144,7 +144,7 @@ export const defaultSerializeGraph = (graph: IComfyGraph): ReturnType<IComfyGrap
 // }
 
 // @injectable()
-export class ComfyGraph extends LGraph<IComfyNode> implements IComfyGraph {
+export class ComfyGraph extends LGraph<ComfyNode> implements IComfyGraph {
     // Flag that the graph is configuring to prevent nodes from running checks while its still loading
     configuringGraph = false;
 

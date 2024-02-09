@@ -8,13 +8,21 @@
 //      2a. app creates a new ComfyGraph and ComfyCanvas
 //
 
+import React, { useEffect } from 'react';
 import { api } from './api';
-import { loadWebExtensions } from '../pluginManager/loadExtensions';
-import { ExtensionManager } from '../extension_manager/extensionManager';
+import { loadExtensions } from '../pluginSystem/loadExtensions';
+import { usePlugin } from '../pluginSystem/pluginContext';
 
 // Ask the api-server what front-end extensions to load, if any, and then load them
 const webModuleUrls = await api.getExtensions();
-const comfyPlugins = await loadWebExtensions(webModuleUrls);
+const comfyPlugins = await loadExtensions(webModuleUrls);
 
-const extManager = ExtensionManager.getInstance();
-extManager.registerPlugins(comfyPlugins);
+export const MainComponent = () => {
+    const { install } = usePlugin();
+
+    useEffect(() => {
+        install(comfyPlugins);
+    }, [install]);
+
+    return null;
+};

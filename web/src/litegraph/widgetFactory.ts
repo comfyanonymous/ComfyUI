@@ -634,7 +634,7 @@ export class WidgetState {
     static getInstance() {
         if (!WidgetState.instance) {
             WidgetState.instance = new WidgetState();
-            WidgetState.instance.refresh(); // TO DO: not awaiting
+            WidgetState.instance.refresh().catch(err => console.error); // TO DO: not awaiting
         }
         return WidgetState.instance;
     }

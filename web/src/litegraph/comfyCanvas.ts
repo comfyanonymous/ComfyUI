@@ -6,11 +6,11 @@ import { LiteGraph, LGraphCanvas } from 'litegraph.js';
 import { ComfyNode } from './comfyNode';
 import { ComfyGraph } from './comfyGraph';
 import { ComfyError } from '../types/many';
-import { IComfyCanvas, IComfyGraph } from '../types/interfaces';
+import { IComfyCanvas, IComfyGraph, IComfyNode } from '../types/interfaces';
 
 // TO DO: list all hot keys this class has and what they do
 
-export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements IComfyCanvas {
+export class ComfyCanvas extends LGraphCanvas<IComfyNode, IComfyGraph> implements IComfyCanvas {
     static instance: ComfyCanvas | null = null;
 
     lastNodeErrors: Record<string, ComfyError> | null = null;
@@ -25,7 +25,7 @@ export class ComfyCanvas extends LGraphCanvas<ComfyNode, ComfyGraph> implements 
         super(canvas, graph, options);
 
         // Add canvas-event listeners
-        window.addEventListener('resize', this.resizeCanvas, { signal: this.abortController.signal });
+        window.addEventListener('resize', () => this.resizeCanvas(), { signal: this.abortController.signal });
         this.resizeCanvas(); // call immediately
     }
 

@@ -1,4 +1,4 @@
-import { logging } from '../scripts/logging0';
+import { logging } from '../scripts/logging';
 import { IComfyPlugin, ModuleWithPlugins } from '../types/interfaces';
 
 // Loads all specified .js-files into the window in parallel

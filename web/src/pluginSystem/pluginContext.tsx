@@ -19,6 +19,8 @@ export const PluginProvider: React.FC = ({ children }) => {
     const [desiredActivationState, setDesiredActivationState] = useState<Map<string, boolean>>(new Map());
     const [installedPlugins, setInstalledPlugins] = useState<Map<string, IComfyPlugin<any>>>(new Map());
 
+    // TO DO: move these functions OUTSIDE of React scope, or at least useCallback them
+
     // function install(plugin: IComfyPlugin<any>): void;
     // function install(plugins: IComfyPlugin<any>[]): void;
     function install(plugins: IComfyPlugin<any> | IComfyPlugin<any>[]): void {
@@ -79,7 +81,10 @@ export const PluginProvider: React.FC = ({ children }) => {
             deactivationOrder.forEach(plugin => {
                 if (desiredActivationState.get(plugin.id) == true) {
                     if (plugin.deactivate) {
-                        plugin.deactivate({} as Application);
+                        // May or may not be asynchronous
+                        Promise.resolve(plugin.deactivate({} as Application)).catch((err: unknown) =>
+                            console.error(err)
+                        );
                     }
 
                     // If the plugin provides a service, remove it from the services map

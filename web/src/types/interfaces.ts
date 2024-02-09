@@ -297,7 +297,7 @@ export interface IComfyPlugin<T> {
     autoStart: boolean;
     requires?: string[];
     optional?: string[];
-    provides?: string; // unique identifier for the class, object, or string provided
+    provides?: string; // service identifier; services with the same name are treated as fungible
     activate: (app: Application, ...args: any[]) => Promise<T> | T;
     deactivate: (app: Application) => Promise<void> | void;
 }
