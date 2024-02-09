@@ -151,6 +151,11 @@ class BaseModel(torch.nn.Module):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = conds.CONDCrossAttn(cross_attn)
+
+        cross_attn_cnet = kwargs.get("cross_attn_controlnet", None)
+        if cross_attn_cnet is not None:
+            out['crossattn_controlnet'] = conds.CONDCrossAttn(cross_attn_cnet)
+
         return out
 
     def load_model_weights(self, sd, unet_prefix=""):
