@@ -255,11 +255,11 @@ async def main():
     hijack_progress(server)
     cuda_malloc_warning()
 
-    # in a distributed setting, the prompt worker will not be able to send execution events via the websocket
-    # the distributed prompt queue will be responsible for simulating those events until the broker is configured to
-    # pass those messages to the appropriate user
+    # in a distributed setting, the default prompt worker will not be able to send execution events via the websocket
     worker_thread_server = server if not distributed else ServerStub()
     if "worker" in args.distributed_queue_roles:
+        logging.warning(
+            f"Distributed workers started in the default thread loop cannot notify clients of progress updates. Instead of comfyui or main.py, use comfyui-worker.")
         threading.Thread(target=prompt_worker, daemon=True, args=(q, worker_thread_server,)).start()
 
     # server has been imported and things should be looking good
