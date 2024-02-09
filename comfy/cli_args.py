@@ -124,15 +124,13 @@ parser.add_argument("--distributed-queue-connection-uri", type=str, default=None
 parser.add_argument(
     '--distributed-queue-worker',
     required=False,
-    type=bool,
-    default=True,
+    action="store_true",
     help='Workers will pull requests off the AMQP URL.'
 )
 parser.add_argument(
     '--distributed-queue-frontend',
     required=False,
-    type=bool,
-    default=True,
+    action="store_true",
     help='Frontends will start the web UI and connect to the provided AMQP URL to submit prompts.'
 )
 parser.add_argument("--distributed-queue-name", type=str, default="comfyui",

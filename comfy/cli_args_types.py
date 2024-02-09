@@ -132,8 +132,8 @@ class Configuration(dict):
         self.write_out_config_file: bool = False
         self.create_directories: bool = False
         self.distributed_queue_connection_uri: Optional[str] = None
-        self.distributed_queue_worker: bool = True
-        self.distributed_queue_frontend: bool = True
+        self.distributed_queue_worker: bool = False
+        self.distributed_queue_frontend: bool = False
         self.distributed_queue_name: str = "comfyui"
         for key, value in kwargs.items():
             self[key] = value
