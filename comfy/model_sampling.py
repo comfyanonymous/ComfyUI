@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 import math
 
@@ -42,8 +41,7 @@ class ModelSamplingDiscrete(torch.nn.Module):
         else:
             betas = make_beta_schedule(beta_schedule, timesteps, linear_start=linear_start, linear_end=linear_end, cosine_s=cosine_s)
         alphas = 1. - betas
-        alphas_cumprod = torch.tensor(np.cumprod(alphas, axis=0), dtype=torch.float32)
-        # alphas_cumprod_prev = np.append(1., alphas_cumprod[:-1])
+        alphas_cumprod = torch.cumprod(alphas, dim=0)
 
         timesteps, = betas.shape
         self.num_timesteps = int(timesteps)
@@ -58,8 +56,8 @@ class ModelSamplingDiscrete(torch.nn.Module):
         self.set_sigmas(sigmas)
 
     def set_sigmas(self, sigmas):
-        self.register_buffer('sigmas', sigmas)
-        self.register_buffer('log_sigmas', sigmas.log())
+        self.register_buffer('sigmas', sigmas.float())
+        self.register_buffer('log_sigmas', sigmas.log().float())
 
     @property
     def sigma_min(self):

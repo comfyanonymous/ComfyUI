@@ -136,7 +136,7 @@ export function addValueControlWidgets(
         defaultValue,
         function () {},
         {
-            values: ['fixed', 'increment', 'decrement', 'randomize'],
+            values: ['fixed', 'increment', 'increment-wrap', 'decrement', 'randomize'],
             serialize: false, // Don't include this in prompt.
         }
     );
@@ -146,6 +146,9 @@ export function addValueControlWidgets(
 
     const isCombo = targetWidget.type === 'combo';
     let comboFilter: ComfyWidget;
+    if (isCombo) {
+        valueControl.options.values.push('increment-wrap');
+    }
     if (isCombo && options.addFilterList !== false) {
         comboFilter = node.addWidget<ComfyWidget>(
             'string' as comfyWidgetTypes,
@@ -192,6 +195,12 @@ export function addValueControlWidgets(
             switch (v) {
                 case 'increment':
                     current_index += 1;
+                    break;
+                case 'increment-wrap':
+                    current_index += 1;
+                    if (current_index >= current_length) {
+                        current_index = 0;
+                    }
                     break;
                 case 'decrement':
                     current_index -= 1;

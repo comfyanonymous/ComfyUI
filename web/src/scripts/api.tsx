@@ -29,6 +29,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
         this.#registered = new Set();
         this.api_host = host ?? location.host;
         this.api_base = location.pathname.split('/').slice(0, -1).join('/');
+        this.clientId = sessionStorage.getItem('clientId')!;
     }
 
     /** Initialises sockets for realtime updates */

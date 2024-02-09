@@ -52,10 +52,14 @@ Note that the docker-build does not copy any of the models into the docker-image
 - Run `docker build -f Dockerfile.headless -t voidtech0/comfy-ts:0.1.2-headless .` in order to build ComfyTS in headless mode; this will not build and copy over any UI-components, making for a smaller docker-image. This is useful when running ComfyTS purely as a backend API in a cloud-environment.
   > > > > > > > build-test
 
+<<<<<<< HEAD
 ### Other ComfyUI docker images
+=======
+>>>>>>> comfy_ui/master
 
 Check these out as alternative builds if you don't like ComfyTS' build:
 
+<<<<<<< HEAD
 - https://hub.docker.com/r/yanwk/comfyui-boot
 - https://hub.docker.com/r/universonic/stable-diffusion-webui
 - https://hub.docker.com/r/ashleykza/stable-diffusion-webui
@@ -68,6 +72,13 @@ Check these out as alternative builds if you don't like ComfyTS' build:
 - We probably won't need sym-links and extra-model paths anymore to be honest; we can build those into comfy-ts directly.
 - Stop custom nodes from downloading external files and doing pip-install at runtime (on startup). We should ensure that's all done at build-time.
 - NFS sym-links: all of ComfyUI's folders (/input, /output, /temp, /models) should be symlinked to an NFS drive, so that they can be shared amongst workers.
+=======
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.7```
+
+This is the command to install the nightly with ROCm 6.0 which might have some performance improvements:
+
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.0```
+>>>>>>> comfy_ui/master
 
 ### General To Do:
 
@@ -77,7 +88,11 @@ Check these out as alternative builds if you don't like ComfyTS' build:
 
 ### Future
 
+<<<<<<< HEAD
 - We'll need to update the ui-tests, so that they work with importing Litegraph as a library rather than assuming it exists already in its execution context.
+=======
+This is the command to install pytorch nightly instead which might have performance improvements:
+>>>>>>> comfy_ui/master
 
 ### Building the UI
 

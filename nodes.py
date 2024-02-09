@@ -184,6 +184,26 @@ class ConditioningSetAreaPercentage:
             c.append(n)
         return (c, )
 
+class ConditioningSetAreaStrength:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning, strength):
+        c = []
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            n[1]['strength'] = strength
+            c.append(n)
+        return (c, )
+
+
 class ConditioningSetMask:
     @classmethod
     def INPUT_TYPES(s):
@@ -1754,6 +1774,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetAreaPercentage": ConditioningSetAreaPercentage,
+    "ConditioningSetAreaStrength": ConditioningSetAreaStrength,
     "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
