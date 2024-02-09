@@ -227,7 +227,7 @@ async def main():
     if args.distributed_queue_connection_uri is not None:
         distributed = True
         q = DistributedPromptQueue(
-            caller_server=server if "worker" in args.distributed_queue_roles else None,
+            caller_server=server if "frontend" in args.distributed_queue_roles else None,
             connection_uri=args.distributed_queue_connection_uri,
             is_caller="frontend" in args.distributed_queue_roles,
             is_callee="worker" in args.distributed_queue_roles,

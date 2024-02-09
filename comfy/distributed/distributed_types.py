@@ -3,9 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple, Literal, List
 
-import jwt
-
 from ..api.components.schema.prompt import PromptDict, Prompt
+from ..auth.permissions import ComfyJwt, jwt_decode
 from ..component_model.queue_types import NamedQueueTuple, TaskInvocation, ExecutionStatus
 
 
@@ -19,10 +18,8 @@ class DistributedBase:
         return self.decoded_token["sub"]
 
     @property
-    def decoded_token(self) -> dict:
-        return jwt.decode(self.user_token, algorithms=['HS256', "none"],
-                          # todo: this should be configurable
-                          options={"verify_signature": False, 'verify_aud': False, 'verify_iss': False})
+    def decoded_token(self) -> ComfyJwt:
+        return jwt_decode(self.user_token)
 
 
 @dataclass

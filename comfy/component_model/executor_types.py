@@ -1,7 +1,7 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
 from typing_extensions import NotRequired, TypedDict
-from typing import Optional, Literal, Protocol
+from typing import Optional, Literal, Protocol, TypeAlias, Union
 
 from comfy.component_model.queue_types import BinaryEventTypes
 
@@ -32,6 +32,13 @@ class ProgressMessage(TypedDict):
     node: Optional[str]
 
 
+ExecutedMessage: TypeAlias = ExecutingMessage
+
+SendSyncEvent: TypeAlias = Union[Literal["status", "executing", "progress", "executed"], BinaryEventTypes, None]
+
+SendSyncData: TypeAlias = Union[StatusMessage, ExecutingMessage, ProgressMessage, bytes, bytearray, None]
+
+
 class ExecutorToClientProgress(Protocol):
     """
     Specifies the interface for the dependencies a prompt executor needs from a server.
@@ -47,8 +54,9 @@ class ExecutorToClientProgress(Protocol):
     last_prompt_id: Optional[str]
 
     def send_sync(self,
-                  event: Literal["status", "executing", "progress"] | BinaryEventTypes | str | None,
-                  data: StatusMessage | ExecutingMessage | ProgressMessage | bytes | bytearray | None, sid: str | None = None):
+                  event: SendSyncEvent,
+                  data: SendSyncData,
+                  sid: Optional[str] = None):
         """
         Sends feedback to the client with the specified ID about a specific node
 

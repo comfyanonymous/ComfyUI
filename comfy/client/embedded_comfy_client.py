@@ -13,6 +13,7 @@ from ..component_model.make_mutable import make_mutable
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..distributed.server_stub import ServerStub
 
+_server_stub_instance = ServerStub()
 
 class EmbeddedComfyClient:
     """
@@ -117,14 +118,21 @@ class EmbeddedComfyClient:
         client_id = client_id or self._progress_handler.client_id or None
 
         def execute_prompt() -> dict:
-            from ..cmd.execution import validate_prompt
+            from ..cmd.execution import PromptExecutor, validate_prompt
             prompt_mut = make_mutable(prompt)
             validation_tuple = validate_prompt(prompt_mut)
 
-            self._prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
-                                          execute_outputs=validation_tuple[2])
-            if self._prompt_executor.success:
-                return self._prompt_executor.outputs_ui
+            prompt_executor: PromptExecutor = self._prompt_executor
+
+            if client_id is None:
+                prompt_executor.server = _server_stub_instance
+            else:
+                prompt_executor.server = self._progress_handler
+
+            prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
+                                    execute_outputs=validation_tuple[2])
+            if prompt_executor.success:
+                return prompt_executor.outputs_ui
             else:
                 raise RuntimeError("\n".join(event for (event, data) in self._prompt_executor.status_messages))
 

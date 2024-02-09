@@ -10,6 +10,7 @@ from aio_pika import connect_robust
 from aio_pika.patterns import JsonRPC
 from aiormq import AMQPConnectionError
 
+from .distributed_progress import DistributedExecutorToClientProgress
 from .distributed_types import RpcRequest, RpcReply
 from ..client.embedded_comfy_client import EmbeddedComfyClient
 from ..component_model.queue_types import ExecutionStatus
@@ -24,11 +25,13 @@ class DistributedPromptWorker:
                  connection_uri: str = "amqp://localhost:5672/",
                  queue_name: str = "comfyui",
                  loop: Optional[AbstractEventLoop] = None):
+        self._rpc = None
+        self._channel = None
         self._exit_stack = AsyncExitStack()
         self._queue_name = queue_name
         self._connection_uri = connection_uri
         self._loop = loop or asyncio.get_event_loop()
-        self._embedded_comfy_client = embedded_comfy_client or EmbeddedComfyClient()
+        self._embedded_comfy_client = embedded_comfy_client
 
     async def _do_work_item(self, request: dict) -> dict:
         await self.on_will_complete_work_item(request)
@@ -55,9 +58,6 @@ class DistributedPromptWorker:
 
     async def init(self):
         await self._exit_stack.__aenter__()
-        if not self._embedded_comfy_client.is_running:
-            await self._exit_stack.enter_async_context(self._embedded_comfy_client)
-
         try:
             self._connection = await connect_robust(self._connection_uri, loop=self._loop)
         except AMQPConnectionError as connection_error:
@@ -66,6 +66,12 @@ class DistributedPromptWorker:
         self._channel = await self._connection.channel()
         self._rpc = await JsonRPC.create(channel=self._channel)
         self._rpc.host_exceptions = True
+
+        if self._embedded_comfy_client is None:
+            self._embedded_comfy_client = EmbeddedComfyClient(
+                progress_handler=DistributedExecutorToClientProgress(self._rpc, self._queue_name, self._loop))
+        if not self._embedded_comfy_client.is_running:
+            await self._exit_stack.enter_async_context(self._embedded_comfy_client)
 
         await self._rpc.register(self._queue_name, self._do_work_item)
 

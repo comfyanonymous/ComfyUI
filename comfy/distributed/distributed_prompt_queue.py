@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 import time
 import uuid
 from asyncio import AbstractEventLoop, Queue, QueueEmpty
 from dataclasses import asdict
-from functools import partial
 from time import sleep
 from typing import Optional, Dict, List, Mapping, Tuple, Callable
 
@@ -15,10 +13,12 @@ from aio_pika import connect_robust
 from aio_pika.abc import AbstractConnection, AbstractChannel
 from aio_pika.patterns import JsonRPC
 
+from .distributed_progress import ProgressHandlers
 from .distributed_types import RpcRequest, RpcReply
 from .server_stub import ServerStub
+from ..auth.permissions import jwt_decode
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
-from ..component_model.executor_types import ExecutorToClientProgress
+from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData
 from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation
 from .history import History
 from ..cmd.server import PromptServer
@@ -26,7 +26,7 @@ from ..cmd.server import PromptServer
 
 class DistributedPromptQueue(AbstractPromptQueue):
     """
-    A distributed prompt queue for
+    A distributed prompt queue for the ComfyUI web client and single-threaded worker.
     """
 
     def size(self) -> int:
@@ -36,8 +36,13 @@ class DistributedPromptQueue(AbstractPromptQueue):
         """
         return len(self._caller_local_in_progress)
 
+    async def progress(self, event: SendSyncEvent, data: SendSyncData, sid: Optional[str]) -> None:
+        self._caller_server.send_sync(event, data, sid=sid)
+
     async def put_async(self, queue_item: QueueItem):
         assert self._is_caller
+        assert self._rpc is not None
+
         if self._closing:
             return
         self._caller_local_in_progress[queue_item.prompt_id] = queue_item
@@ -46,23 +51,26 @@ class DistributedPromptQueue(AbstractPromptQueue):
         try:
             if "token" in queue_item.extra_data:
                 user_token = queue_item.extra_data["token"]
+                user_id = jwt_decode(user_token)["sub"]
             else:
                 if "client_id" in queue_item.extra_data:
-                    client_id = queue_item.extra_data["client_id"]
+                    user_id = queue_item.extra_data["client_id"]
                 elif self._caller_server.client_id is not None:
-                    client_id = self._caller_server.client_id
+                    user_id = self._caller_server.client_id
                 else:
-                    client_id = str(uuid.uuid4())
+                    user_id = str(uuid.uuid4())
                     # todo: should we really do this?
-                    self._caller_server.client_id = client_id
+                    self._caller_server.client_id = user_id
 
                 # create a stub token
-                user_token = jwt.encode({"sub": client_id}, key="", algorithm="none")
+                user_token = jwt.encode({"sub": user_id}, key="", algorithm="none")
+
+            # register callbacks for progress
+            assert self._caller_progress_handlers is not None
+            await self._caller_progress_handlers.register_progress(user_id)
             request = RpcRequest(prompt_id=queue_item.prompt_id, user_token=user_token, prompt=queue_item.prompt)
-            assert self._rpc is not None
             res: TaskInvocation = RpcReply(
                 **(await self._rpc.call(self._queue_name, {"request": asdict(request)}))).as_task_invocation()
-
             self._caller_history.put(queue_item, res.outputs, res.status)
             if self._caller_server is not None:
                 self._caller_server.queue_updated()
@@ -241,6 +249,7 @@ class DistributedPromptQueue(AbstractPromptQueue):
 
         # as rpc caller
         self._caller_server = caller_server or ServerStub()
+        self._caller_progress_handlers: Optional[ProgressHandlers] = None
         self._caller_local_in_progress: dict[str | int, QueueItem] = {}
         self._caller_history: History = History()
 
@@ -263,6 +272,8 @@ class DistributedPromptQueue(AbstractPromptQueue):
         self._channel = await self._connection.channel()
         self._rpc = await JsonRPC.create(channel=self._channel)
         self._rpc.host_exceptions = True
+        if self._is_caller:
+            self._caller_progress_handlers = ProgressHandlers(self._rpc, self._caller_server, self._queue_name)
         # this makes the queue available to complete work items
         if self._is_callee:
             await self._rpc.register(self._queue_name, self._callee_do_work_item)
@@ -273,6 +284,9 @@ class DistributedPromptQueue(AbstractPromptQueue):
             return
 
         self._closing = True
+        if self._is_caller:
+            await self._caller_progress_handlers.unregister_all()
+
         await self._rpc.close()
         await self._channel.close()
         await self._connection.close()
