@@ -4,6 +4,7 @@ from comfy.cli_args import args
 import comfy.utils
 import torch
 import sys
+import os.path
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -92,8 +93,13 @@ def get_total_memory(dev=None, torch_total_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = psutil.virtual_memory().total
-        mem_total_torch = mem_total
+        if os.path.isfile('/sys/fs/cgroup/memory/memory.limit_in_bytes'):
+            with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'r') as f:
+                mem_total = int(f.read())
+                mem_total_torch = mem_total
+        else:
+            mem_total = psutil.virtual_memory().total
+            mem_total_torch = mem_total
     else:
         if directml_enabled:
             mem_total = 1024 * 1024 * 1024 #TODO
@@ -650,8 +656,15 @@ def get_free_memory(dev=None, torch_free_too=False):
         dev = get_torch_device()
 
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_free_total = psutil.virtual_memory().available
-        mem_free_torch = mem_free_total
+        if os.path.isfile('/sys/fs/cgroup/memory/memory.limit_in_bytes'):
+            with open('/sys/fs/cgroup/memory/memory.limit_in_bytes', 'r') as f:
+                mem_used_total = psutil.virtual_memory().used
+                mem_total = int(f.read())
+                mem_free_total = mem_total - mem_used_total
+                mem_free_torch = mem_free_total
+        else:
+            mem_free_total = psutil.virtual_memory().available
+            mem_free_torch = mem_free_total
     else:
         if directml_enabled:
             mem_free_total = 1024 * 1024 * 1024 #TODO
