@@ -137,7 +137,7 @@ def format_value(x):
         return str(x)
 
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui,
+def recursive_execute(server: ExecutorToClientProgress, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui,
                       object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
@@ -766,14 +766,12 @@ class PromptQueue(AbstractPromptQueue):
         self.server = server
         self.mutex = threading.RLock()
         self.not_empty = threading.Condition(self.mutex)
-        self.next_task_id = 0
         self.queue: typing.List[QueueItem] = []
-        self.currently_running: typing.Dict[int, QueueItem] = {}
+        self.currently_running: typing.Dict[str, QueueItem] = {}
         # history maps the second integer prompt id in the queue tuple to a dictionary with keys "prompt" and "outputs
         # todo: use the new History class for the sake of simplicity
         self.history: typing.Dict[str, HistoryEntry] = {}
         self.flags = {}
-        server.prompt_queue = self
 
     def size(self) -> int:
         return len(self.queue)
@@ -784,20 +782,23 @@ class PromptQueue(AbstractPromptQueue):
             self.server.queue_updated()
             self.not_empty.notify()
 
-    def get(self, timeout=None) -> typing.Optional[typing.Tuple[QueueTuple, int]]:
+    def get(self, timeout=None) -> typing.Optional[typing.Tuple[QueueTuple, str]]:
         with self.not_empty:
             while len(self.queue) == 0:
                 self.not_empty.wait(timeout=timeout)
                 if timeout is not None and len(self.queue) == 0:
                     return None
             item_with_future: QueueItem = heapq.heappop(self.queue)
-            task_id = self.next_task_id
+            assert item_with_future.prompt_id is not None
+            assert item_with_future.prompt_id != ""
+            assert item_with_future.prompt_id not in self.currently_running
+            assert isinstance(item_with_future.prompt_id, str)
+            task_id = item_with_future.prompt_id
             self.currently_running[task_id] = item_with_future
-            self.next_task_id += 1
             self.server.queue_updated()
             return copy.deepcopy(item_with_future.queue_tuple), task_id
 
-    def task_done(self, item_id, outputs: dict,
+    def task_done(self, item_id: str, outputs: dict,
                   status: Optional[ExecutionStatus]):
         with self.mutex:
             queue_item = self.currently_running.pop(item_id)

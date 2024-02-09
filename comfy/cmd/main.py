@@ -1,3 +1,4 @@
+import signal
 import sys
 
 from .. import options
@@ -78,12 +79,16 @@ if args.deterministic:
 
 from .. import utils
 import yaml
+from contextlib import AsyncExitStack
 
 from ..cmd import execution
 from ..cmd import server as server_module
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.queue_types import BinaryEventTypes, ExecutionStatus
 from .. import model_management
+from ..distributed.distributed_prompt_queue import DistributedPromptQueue
+from ..component_model.executor_types import ExecutorToClientProgress
+from ..distributed.server_stub import ServerStub
 
 
 def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
@@ -145,8 +150,8 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
 
 
-def hijack_progress(server):
-    def hook(value, total, preview_image):
+def hijack_progress(server: ExecutorToClientProgress):
+    def hook(value: float, total: float, preview_image):
         model_management.throw_exception_if_processing_interrupted()
         progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
 
@@ -201,7 +206,7 @@ def cuda_malloc_warning():
                 "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-def main():
+async def main():
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
         print(f"Setting temp directory to: {temp_dir}")
@@ -217,10 +222,24 @@ def main():
     if args.windows_standalone_build:
         folder_paths.create_directories()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    loop = asyncio.get_event_loop()
     server = server_module.PromptServer(loop)
-    q = execution.PromptQueue(server)
+    if args.distributed_queue_connection_uri is not None:
+        distributed = True
+        q = DistributedPromptQueue(
+            caller_server=server if "worker" in args.distributed_queue_roles else None,
+            connection_uri=args.distributed_queue_connection_uri,
+            is_caller="frontend" in args.distributed_queue_roles,
+            is_callee="worker" in args.distributed_queue_roles,
+            loop=loop,
+            queue_name=args.distributed_queue_name
+        )
+        await q.init()
+        loop.add_signal_handler(signal.SIGINT, lambda *args, **kwargs: q.close())
+    else:
+        distributed = False
+        q = execution.PromptQueue(server)
+    server.prompt_queue = q
 
     try:
         extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
@@ -237,7 +256,11 @@ def main():
     hijack_progress(server)
     cuda_malloc_warning()
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, server,)).start()
+    # in a distributed setting, the prompt worker will not be able to send execution events via the websocket
+    # the distributed prompt queue will be responsible for simulating those events until the broker is configured to
+    # pass those messages to the appropriate user
+    worker_thread_server = server if not distributed else ServerStub()
+    threading.Thread(target=prompt_worker, daemon=True, args=(q, worker_thread_server,)).start()
 
     # server has been imported and things should be looking good
     initialize_event_tracking(loop)
@@ -273,13 +296,14 @@ def main():
     server.address = args.listen
     server.port = args.port
     try:
-        loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
-                                    call_on_start=call_on_start))
+        await run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
+                                    call_on_start=call_on_start)
     except KeyboardInterrupt:
+        await q.close()
         print("\nStopped server")
 
     cleanup_temp()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

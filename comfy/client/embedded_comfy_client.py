@@ -5,32 +5,13 @@ import gc
 import uuid
 from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
-from typing import Literal, Optional
+from typing import Optional
 
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
 from ..component_model.make_mutable import make_mutable
-from ..component_model.queue_types import BinaryEventTypes
-from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, ExecutingMessage
-
-
-class ServerStub(ExecutorToClientProgress):
-    """
-    This class is a stub implementation of ExecutorToClientProgress. This will handle progress events.
-    """
-
-    def __init__(self):
-        self.client_id = str(uuid.uuid4())
-        self.last_node_id = None
-        self.last_prompt_id = None
-
-    def send_sync(self,
-                  event: Literal["status", "executing"] | BinaryEventTypes | str | None,
-                  data: StatusMessage | ExecutingMessage | bytes | bytearray | None, sid: str | None = None):
-        pass
-
-    def queue_updated(self):
-        pass
+from ..component_model.executor_types import ExecutorToClientProgress
+from ..distributed.server_stub import ServerStub
 
 
 class EmbeddedComfyClient:

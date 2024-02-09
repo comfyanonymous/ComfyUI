@@ -124,11 +124,11 @@ parser.add_argument("--distributed-queue-connection-uri", type=str, default=None
 parser.add_argument(
     '--distributed-queue-roles',
     action='append',
-    choices=['worker', 'prompter'],
-    help='Specifies one or more roles for the distributed queue. Acceptable values are "worker" or "prompter", or both by writing the flag twice with each role. Prompters will start the web UI and connect to the provided AMPQ URL to submit prompts; workers will pull requests off the AMPQ URL.'
+    choices=['worker', 'frontend'],
+    help='Specifies one or more roles for the distributed queue. Acceptable values are "worker" or "frontend", or both by writing the flag twice with each role. Prompters will start the web UI and connect to the provided AMQP URL to submit prompts; workers will pull requests off the AMQP URL.'
 )
 parser.add_argument("--distributed-queue-name", type=str, default="comfyui",
-                    help="This name will be used by the prompters and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
+                    help="This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
 
 
 if options.args_parsing:

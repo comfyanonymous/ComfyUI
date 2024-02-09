@@ -14,6 +14,7 @@ class AbstractPromptQueue(metaclass=ABCMeta):
 
     get is intended to be used by a worker.
     """
+
     @abstractmethod
     def size(self) -> int:
         """
@@ -32,7 +33,7 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get(self, timeout: float | None = None) -> typing.Optional[typing.Tuple[QueueTuple, int]]:
+    def get(self, timeout: float | None = None) -> typing.Optional[typing.Tuple[QueueTuple, str]]:
         """
         Pops an item off the queue. Blocking. If a timeout is provided, this will return None after
         :param timeout: the number of seconds to time out for a blocking get
@@ -41,7 +42,7 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def task_done(self, item_id: int, outputs: dict,
+    def task_done(self, item_id: str, outputs: dict,
                   status: typing.Optional[ExecutionStatus]):
         """
         Signals to the user interface that the task with the specified id is completed
@@ -110,5 +111,10 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def get_flags(self, reset) -> Flags:
+    def get_flags(self, reset: bool = True) -> Flags:
+        """
+        Resets the flags for the next model unload or free memory request.
+        :param reset:
+        :return:
+        """
         pass

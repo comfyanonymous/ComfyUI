@@ -22,6 +22,14 @@ class StatusMessage(TypedDict):
 class ExecutingMessage(TypedDict):
     node: str | None
     prompt_id: NotRequired[str]
+    output: NotRequired[dict]
+
+
+class ProgressMessage(TypedDict):
+    value: float
+    max: float
+    prompt_id: Optional[str]
+    node: Optional[str]
 
 
 class ExecutorToClientProgress(Protocol):
@@ -39,8 +47,8 @@ class ExecutorToClientProgress(Protocol):
     last_prompt_id: Optional[str]
 
     def send_sync(self,
-                  event: Literal["status", "executing"] | BinaryEventTypes | str | None,
-                  data: StatusMessage | ExecutingMessage | bytes | bytearray | None, sid: str | None = None):
+                  event: Literal["status", "executing", "progress"] | BinaryEventTypes | str | None,
+                  data: StatusMessage | ExecutingMessage | ProgressMessage | bytes | bytearray | None, sid: str | None = None):
         """
         Sends feedback to the client with the specified ID about a specific node
 

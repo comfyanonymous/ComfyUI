@@ -71,8 +71,8 @@ class Configuration(dict):
         write_out_config_file (bool): Enable writing out the configuration file.
         create_directories (bool): Creates the default models/, input/, output/ and temp/ directories, then exits.
         distributed_queue_connection_uri (Optional[str]): Servers and clients will connect to this AMQP URL to form a distributed queue and exchange prompt execution requests and progress updates.
-        distributed_queue_roles (List[str]): Specifies one or more roles for the distributed queue. Acceptable values are "worker" or "prompter", or both by writing the flag twice with each role. Prompters will start the web UI and connect to the provided AMQP URL to submit prompts; workers will pull requests off the AMQP URL.
-        distributed_queue_name (str): This name will be used by the prompters and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID.
+        distributed_queue_roles (List[str]): Specifies one or more roles for the distributed queue. Acceptable values are "worker" or "frontend", or both by writing the flag twice with each role. Frontends will start the web UI and connect to the provided AMQP URL to submit prompts; workers will pull requests off the AMQP URL.
+        distributed_queue_name (str): This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID.
     """
     def __init__(self, **kwargs):
         super().__init__()
@@ -131,7 +131,7 @@ class Configuration(dict):
         self.write_out_config_file: bool = False
         self.create_directories: bool = False
         self.distributed_queue_connection_uri: Optional[str] = None
-        self.distributed_queue_roles: List[str] = []
+        self.distributed_queue_roles: List[str] = ["worker", "frontend"]
         self.distributed_queue_name: str = "comfyui"
         for key, value in kwargs.items():
             self[key] = value

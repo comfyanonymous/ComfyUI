@@ -446,10 +446,10 @@ def set_progress_bar_global_hook(function):
     PROGRESS_BAR_HOOK = function
 
 class ProgressBar:
-    def __init__(self, total):
+    def __init__(self, total: float):
         global PROGRESS_BAR_HOOK
-        self.total = total
-        self.current = 0
+        self.total: float = total
+        self.current: float = 0.0
         self.hook = PROGRESS_BAR_HOOK
 
     def update_absolute(self, value, total=None, preview=None):
