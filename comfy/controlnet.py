@@ -166,7 +166,7 @@ class ControlNet(ControlBase):
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
 
-        context = cond['c_crossattn']
+        context = cond.get('crossattn_controlnet', cond['c_crossattn'])
         y = cond.get('y', None)
         if y is not None:
             y = y.to(dtype)
