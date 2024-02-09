@@ -235,7 +235,6 @@ async def main():
             queue_name=args.distributed_queue_name
         )
         await q.init()
-        loop.add_signal_handler(signal.SIGINT, lambda *args, **kwargs: q.close())
     else:
         distributed = False
         q = execution.PromptQueue(server)
@@ -260,7 +259,8 @@ async def main():
     # the distributed prompt queue will be responsible for simulating those events until the broker is configured to
     # pass those messages to the appropriate user
     worker_thread_server = server if not distributed else ServerStub()
-    threading.Thread(target=prompt_worker, daemon=True, args=(q, worker_thread_server,)).start()
+    if "worker" in args.distributed_queue_roles:
+        threading.Thread(target=prompt_worker, daemon=True, args=(q, worker_thread_server,)).start()
 
     # server has been imported and things should be looking good
     initialize_event_tracking(loop)
@@ -305,5 +305,9 @@ async def main():
     cleanup_temp()
 
 
-if __name__ == "__main__":
+def entrypoint():
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    entrypoint()

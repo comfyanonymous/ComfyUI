@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import sys
 from asyncio import AbstractEventLoop
 from contextlib import AsyncExitStack
 from dataclasses import asdict
@@ -6,6 +8,7 @@ from typing import Optional
 
 from aio_pika import connect_robust
 from aio_pika.patterns import JsonRPC
+from aiormq import AMQPConnectionError
 
 from .distributed_types import RpcRequest, RpcReply
 from ..client.embedded_comfy_client import EmbeddedComfyClient
@@ -28,36 +31,63 @@ class DistributedPromptWorker:
         self._embedded_comfy_client = embedded_comfy_client or EmbeddedComfyClient()
 
     async def _do_work_item(self, request: dict) -> dict:
+        await self.on_will_complete_work_item(request)
         try:
             request_obj = RpcRequest.from_dict(request)
         except Exception as e:
             request_dict_prompt_id_recovered = request["prompt_id"] \
                 if request is not None and "prompt_id" in request else ""
             return asdict(RpcReply(request_dict_prompt_id_recovered, "", {},
-                            ExecutionStatus("error", False, [str(e)])))
+                                   ExecutionStatus("error", False, [str(e)])))
+        reply: RpcReply
         try:
             output_dict = await self._embedded_comfy_client.queue_prompt(request_obj.prompt,
                                                                          request_obj.prompt_id,
                                                                          client_id=request_obj.user_id)
-            return asdict(RpcReply(request_obj.prompt_id, request_obj.user_token, output_dict, ExecutionStatus("success", True, [])))
+            reply = RpcReply(request_obj.prompt_id, request_obj.user_token, output_dict,
+                             ExecutionStatus("success", True, []))
         except Exception as e:
-            return asdict(RpcReply(request_obj.prompt_id, request_obj.user_token, {}, ExecutionStatus("error", False, [str(e)])))
+            reply = RpcReply(request_obj.prompt_id, request_obj.user_token, {},
+                             ExecutionStatus("error", False, [str(e)]))
 
-    async def __aenter__(self) -> "DistributedPromptWorker":
+        await self.on_did_complete_work_item(request_obj, reply)
+        return asdict(reply)
+
+    async def init(self):
         await self._exit_stack.__aenter__()
         if not self._embedded_comfy_client.is_running:
             await self._exit_stack.enter_async_context(self._embedded_comfy_client)
 
-        self._connection = await connect_robust(self._connection_uri, loop=self._loop)
+        try:
+            self._connection = await connect_robust(self._connection_uri, loop=self._loop)
+        except AMQPConnectionError as connection_error:
+            logging.error(f"failed to connect to self._connection_uri={self._connection_uri}", connection_error)
+            raise connection_error
         self._channel = await self._connection.channel()
         self._rpc = await JsonRPC.create(channel=self._channel)
         self._rpc.host_exceptions = True
 
         await self._rpc.register(self._queue_name, self._do_work_item)
+
+    async def __aenter__(self) -> "DistributedPromptWorker":
+        await self.init()
         return self
 
-    async def __aexit__(self, *args):
+    async def _close(self):
         await self._rpc.close()
         await self._channel.close()
         await self._connection.close()
+
+    async def close(self):
+        await self._close()
+        await self._exit_stack.aclose()
+
+    async def __aexit__(self, *args):
+        await self._close()
         return await self._exit_stack.__aexit__(*args)
+
+    async def on_did_complete_work_item(self, request: RpcRequest, reply: RpcReply):
+        pass
+
+    async def on_will_complete_work_item(self, request: dict):
+        pass

@@ -120,7 +120,7 @@ parser.add_argument("--plausible-analytics-domain", required=False,
 parser.add_argument("--analytics-use-identity-provider", action="store_true",
                     help="Uses platform identifiers for unique visitor analytics.")
 parser.add_argument("--distributed-queue-connection-uri", type=str, default=None,
-                    help="Servers and clients will connect to this AMPQ URL to form a distributed queue and exchange prompt execution requests and progress updates.")
+                    help="EXAMPLE: \"amqp://guest:guest@127.0.0.1\" - Servers and clients will connect to this AMPQ URL to form a distributed queue and exchange prompt execution requests and progress updates.")
 parser.add_argument(
     '--distributed-queue-roles',
     action='append',

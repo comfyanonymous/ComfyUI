@@ -11,7 +11,9 @@ from ..api.components.schema.prompt import Prompt
 _event_tracker: MultiEventTracker
 
 
-def initialize_event_tracking(loop: asyncio.AbstractEventLoop):
+def initialize_event_tracking(loop: Optional[asyncio.AbstractEventLoop] = None):
+    loop = loop or asyncio.get_event_loop()
+    assert loop is not None
     _event_trackers = []
     # perform the imports at the time this is invoked to prevent side effects and ordering issues
     from ..cli_args import args

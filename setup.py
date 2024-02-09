@@ -57,7 +57,6 @@ try:
     print(f"comfyui setup.py: torch version was {torch.__version__} and built without build isolation, using this torch instead of upgrading", file=sys.stderr)
     is_build_isolated_and_torch_version = torch.__version__
 except Exception as e:
-    print(f"comfyui setup.py: torch could not be imported because running with build isolation or not installed ({e}), installing torch for your platform", file=sys.stderr)
     is_build_isolated_and_torch_version = None
 
 def _is_nvidia() -> bool:
@@ -186,7 +185,8 @@ setup(
     entry_points={
         'console_scripts': [
             'comfyui-openapi-gen = comfy.cmd.openapi_gen:main',
-            'comfyui = comfy.cmd.main:main'
+            'comfyui = comfy.cmd.main:entrypoint',
+            'comfyui-worker = comfy.cmd.worker:entrypoint'
         ],
     },
     package_data={
