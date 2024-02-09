@@ -6,8 +6,12 @@ import { ComfyPromptStatus } from '../types/comfy.ts';
 import { useComfyApp } from './appContext.tsx';
 import { usePrompt } from '../hooks/usePrompt.tsx';
 import { dragElement, toggleSwitch } from '../utils/ui.tsx';
-import { ComfyMenu } from '../components/menu/Menu.tsx';
 import { ComfyList } from '../components/ComfyList.tsx';
+import { ExtraOptions } from '../components/menu/ExtraOptions.tsx';
+import { DevSaveButton } from '../components/menu/DevSaveButton.tsx';
+import { SaveButton } from '../components/menu/SaveButton.tsx';
+import { ClearButton } from '../components/menu/ClearButton.tsx';
+import { LoadDefaultButton } from '../components/menu/LoadDefaultButton.tsx';
 
 type AutoQueueMode =
     | {
@@ -23,14 +27,14 @@ interface ComfyUIContextType {}
 const ComfyUIContext = React.createContext<ComfyUIContextType | null>(null);
 
 export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) => {
-    const { addSetting } = useSettings();
-    const { queuePrompt } = usePrompt();
+    const { addSetting, show: showSettings } = useSettings();
+    const { queuePrompt, graphToPrompt } = usePrompt();
     const { lastExecutionError } = useComfyApp();
 
     const [batchCount, setBatchCount] = useState(1);
     const [lastQueueSize, setLastQueueSize] = useState(0);
-    const [queue, setQueue] = useState<ReactNode>([]);
-    const [history, setHistory] = useState<ReactNode>([]);
+    const [queueList, setQueueList] = useState<ReactNode>([]);
+    const [historyList, setHistoryList] = useState<ReactNode>([]);
     const [autoQueueMode, setAutoQueueMode] = useState<AutoQueueMode>(null);
     const [graphHasChanged, setGraphHasChanged] = useState(false);
     const [autoQueueEnabled, setAutoQueueEnabled] = useState(false);
@@ -45,6 +49,7 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
     const historyButtonRef = useRef<HTMLButtonElement>(null);
     const queueSizeEl = useRef<HTMLSpanElement>(null);
     const autoQueueModeElRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const setStatus = (status: ComfyPromptStatus) => {
         if (!queueSizeEl.current) return;
@@ -67,11 +72,6 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
     };
 
     useEffect(() => {
-        api.addEventListener('status', () => {
-            // this.queue.update();
-            // this.history.update();
-        });
-
         const confirmClear = addSetting({
             id: 'Comfy.ConfirmClear',
             name: 'Require confirmation when clearing workflow',
@@ -164,8 +164,17 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
     }, []);
 
     useEffect(() => {
-        setQueue(<ComfyList text="Queue" show={showQueue} buttonRef={queueButtonRef} />);
-        setHistory(<ComfyList text="History" show={showHistory} reverse={true} buttonRef={historyButtonRef} />);
+        // TODO: is this still necessary?
+        api.addEventListener('status', () => {
+            // this.queue.update();
+            setShowQueue(showQueue);
+
+            // this.history.update();
+            setShowQueue(showHistory);
+        });
+
+        setQueueList(<ComfyList text="Queue" show={showQueue} buttonRef={queueButtonRef} />);
+        setHistoryList(<ComfyList text="History" show={showHistory} reverse={true} buttonRef={historyButtonRef} />);
     }, [showQueue, showHistory]);
 
     const autoQueueModeEl = toggleSwitch(
@@ -193,6 +202,7 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
         <input
             id="comfy-file-input"
             type="file"
+            ref={fileInputRef}
             accept=".json,image/png,.latent,.safetensors,image/webp"
             style={{ display: 'none' }}
             onChange={() => {
@@ -215,24 +225,87 @@ export const ComfyUIContextProvider = ({ children }: { children: ReactNode }) =>
 
     return (
         <ComfyUIContext.Provider value={{}}>
-            <ComfyMenu
-                queue={queue}
-                history={history}
-                setAutoQueueEnabled={setAutoQueueEnabled}
-                setBatchCount={setBatchCount}
-                batchCount={batchCount}
-                autoQueueEnabled={autoQueueEnabled}
-                autoQueueModeElRef={autoQueueModeElRef}
-                autoQueueModeEl={autoQueueModeEl}
-                promptFilename={promptFilename}
-                confirmClear={confirmClear}
-                menuContainerEl={menuContainerEl}
-                queueSizeEl={queueSizeEl}
-                queueButtonRef={queueButtonRef}
-                historyButtonRef={historyButtonRef}
-                setShowQueue={setShowQueue}
-                setShowHistory={setShowHistory}
-            />
+            <div className="comfy-menu" ref={menuContainerEl}>
+                {fileInput}
+                <div
+                    className="drag-handle"
+                    style={{
+                        overflow: 'hidden',
+                        position: 'relative',
+                        cursor: 'default',
+                        width: '100%',
+                    }}
+                >
+                    <span className="drag-handle" />
+                    <span ref={queueSizeEl} />
+                    <button className="comfy-settings-btn" onClick={showSettings}>
+                        ⚙️
+                    </button>
+                </div>
+
+                <button id="queue-button" className="comfy-queue-btn" onClick={() => queuePrompt(0)}>
+                    Queue Prompt
+                </button>
+
+                <ExtraOptions
+                    setAutoQueueEnabled={setAutoQueueEnabled}
+                    setBatchCount={setBatchCount}
+                    batchCount={batchCount}
+                    autoQueueEnabled={autoQueueEnabled}
+                    autoQueueModeElRef={autoQueueModeElRef}
+                    autoQueueModeEl={autoQueueModeEl}
+                />
+
+                <div className="comfy-menu-btns">
+                    <button id="queue-front-button" onClick={() => queuePrompt(-1)}>
+                        Queue Front
+                    </button>
+
+                    <button
+                        id="comfy-view-queue-button"
+                        ref={queueButtonRef}
+                        onClick={() => {
+                            setShowHistory(false);
+                            setShowQueue(i => !i);
+                        }}
+                    >
+                        View Queue
+                    </button>
+
+                    <button
+                        id="comfy-view-history-button"
+                        ref={historyButtonRef}
+                        onClick={() => {
+                            setShowQueue(false);
+                            setShowHistory(i => !i);
+                        }}
+                    >
+                        View History
+                    </button>
+                </div>
+
+                {queueList}
+                {historyList}
+
+                <button id="comfy-load-button" onClick={() => fileInputRef?.current?.click?.()}>
+                    Load
+                </button>
+
+                <SaveButton promptFilename={promptFilename} />
+                <DevSaveButton promptFilename={promptFilename} />
+
+                <button
+                    id="comfy-refresh-button"
+                    onClick={() => {
+                        /*app.refreshComboInNodes()*/
+                    }}
+                >
+                    Refresh
+                </button>
+
+                <ClearButton confirmClear={confirmClear} />
+                <LoadDefaultButton confirmClear={confirmClear} />
+            </div>
 
             {children}
         </ComfyUIContext.Provider>

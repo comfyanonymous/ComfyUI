@@ -27,6 +27,7 @@ export function JobQueueList(): ReactNode {
                     </div>
                 ))}
             </div>
+            
             {lastNodeErrors && (
                 <div className="job-queue-errors">
                     <span className="job-queue-errors-title">Errors</span>

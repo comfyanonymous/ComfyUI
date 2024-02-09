@@ -23,7 +23,6 @@ export const ComfyList = ({ show, buttonRef, text, type, reverse = false }: Comf
     };
 
     useEffect(() => {
-        console.log('sskksso040404');
         if (show) {
             if (buttonRef.current) {
                 buttonRef.current.textContent = 'Close';
@@ -39,60 +38,57 @@ export const ComfyList = ({ show, buttonRef, text, type, reverse = false }: Comf
 
     return (
         <div className="comfy-list" style={{ display: show ? 'block' : 'none' }}>
-            <div>
-                {Object.keys(items).flatMap(section => [
-                    <h4 key={section}>{section}</h4>,
-                    <div className="comfy-list-items" key={`${section}-items`}>
-                        {(reverse
-                            ? Object.values((items as ComfyItems[])[section as keyof typeof items]).reverse()
-                            : Object.values(items[section as keyof typeof items])
-                        ).map((item, index) => {
-                            const removeAction = item.remove || {
-                                name: 'Delete',
-                                cb: () => api.deleteItem(type || text.toLowerCase(), item.prompt[1]),
-                            };
+            {Object.keys(items).flatMap(section => [
+                <h4 key={section}>{section}</h4>,
+                <div className="comfy-list-items" key={`${section}-items`}>
+                    {(reverse
+                        ? Object.values((items as ComfyItems[])[section as keyof typeof items]).reverse()
+                        : Object.values(items[section as keyof typeof items])
+                    ).map((item, index) => {
+                        const removeAction = item.remove || {
+                            name: 'Delete',
+                            cb: () => api.deleteItem(type || text.toLowerCase(), item.prompt[1]),
+                        };
 
-                            return (
-                                <div key={index}>
-                                    {item.prompt[0]}:
-                                    <button
-                                        onClick={async () => {
-                                            await loadGraphData(item.prompt[3].extra_pnginfo.workflow);
-                                            if (item.outputs) {
-                                                // app.nodeOutputs = item.outputs;
-                                            }
-                                        }}
-                                    >
-                                        Load
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                            await removeAction.cb();
-                                            load();
-                                        }}
-                                    >
-                                        {removeAction.name}
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>,
-                ])}
+                        return (
+                            <div key={index}>
+                                {item.prompt[0]}:
+                                <button
+                                    onClick={async () => {
+                                        await loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+                                        if (item.outputs) {
+                                            // app.nodeOutputs = item.outputs;
+                                        }
+                                    }}
+                                >
+                                    Load
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        await removeAction.cb();
+                                        await load();
+                                    }}
+                                >
+                                    {removeAction.name}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>,
+            ])}
 
-                <div className="comfy-list-actions">
-                    <button
-                        onClick={async () => {
-                            await api.clearItems(type ?? text.toLowerCase());
-                            load();
-                        }}
-                    >
-                        Clear {text}
-                    </button>
+            <div className="comfy-list-actions">
+                <button
+                    onClick={async () => {
+                        await api.clearItems(type ?? text.toLowerCase());
+                        await load();
+                    }}
+                >
+                    Clear {text}
+                </button>
 
-                    <button onClick={load}>Refresh</button>
-                </div>
+                <button onClick={load}>Refresh</button>
             </div>
         </div>
     );
 };
-

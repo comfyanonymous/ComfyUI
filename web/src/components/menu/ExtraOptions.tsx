@@ -18,8 +18,6 @@ export function ExtraOptions({
     setAutoQueueEnabled,
     autoQueueModeElRef,
 }: ExtraOptionsProps) {
-    const { queuePrompt } = usePrompt();
-
     return (
         <>
             <div>

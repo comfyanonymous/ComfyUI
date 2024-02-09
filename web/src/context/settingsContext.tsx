@@ -133,7 +133,6 @@ export const SettingsContextProvider: React.FC = ({ children }) => {
         tooltip = '',
         options = [],
     }: IAddSetting) => {
-        console.log('Adding settings...');
         if (!id) {
             throw new Error('Settings must have an ID');
         }
