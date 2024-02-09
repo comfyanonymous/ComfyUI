@@ -97,11 +97,11 @@ You must have Python 3.10, 3.11 or 3.12 installed. On Windows, download the late
 
 On macOS, install exactly Python 3.11 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.11`. Do not use 3.9 or older, and do not use 3.12 or newer. Its compatibility with Stable Diffusion in both directions is broken. 
 
-1. Create a virtual environment:
+ 1. Create a virtual environment:
       ```shell
       python -m virtualenv venv
       ```
-2. Activate it on
+ 2. Activate it on
    **Windows (PowerShell):**
    ```pwsh
    Set-ExecutionPolicy Unrestricted -Scope Process
@@ -113,7 +113,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
    source ./venv/bin/activate
    ```
 
-3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
+ 3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
     ```shell
     pip install git+https://github.com/hiddenswitch/ComfyUI.git
     ```
@@ -123,11 +123,16 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     pip install wheel
     pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
     ```
-4. To run the web server:
+ 4. To run the web server:
     ```shell
     comfyui
     ```
-    This will start ComfyUI in the current working directory of your terminal. This should have your `models/` directory. If your models are located somewhere else, such as `C:/some directory/models`, do:
+    Create the directories you can fill with checkpoints:
+    ```shell
+    comfyui --create-directories
+    ```
+    Your current working directory is wherever you started running `comfyui`. You don't need to clone this repository, observe it is omitted from the instructions.
+    You can `cd` into a different directory containing `models/`, or if the models are located somehwere else, like `C:/some directory/models`, do:
     ```shell
     comfyui --cwd="C:/some directory/"
     ```
@@ -146,9 +151,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     curl -L https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt -o ./models/checkpoints/v1-5-pruned-emaonly.ckpt
     ```
 
- 3. (Optional) Put your VAE into the `models/vae` folder.
-
- 4. (Optional) Create a virtual environment:
+ 3. Create a virtual environment:
     1. Create an environment:
        ```shell
        python -m virtualenv venv
@@ -166,11 +169,11 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
        source ./venv/bin/activate
        ```
 
- 5. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
+ 4. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
     ```shell
     pip install -e .[dev]
     ```
- 6. To run the web server:
+ 5. To run the web server:
     ```shell
     comfyui
     ```
@@ -184,7 +187,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     (cd tests-ui && npm ci && npm run test:generate && npm test)
     ```
     You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
- 7. To create the standalone binary:
+ 6. To create the standalone binary:
     ```shell
     python -m PyInstaller --onefile --noupx -n ComfyUI --add-data="comfy/;comfy/" --paths $(pwd) --paths comfy/cmd main.py
     ```
