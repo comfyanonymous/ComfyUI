@@ -122,11 +122,18 @@ parser.add_argument("--analytics-use-identity-provider", action="store_true",
 parser.add_argument("--distributed-queue-connection-uri", type=str, default=None,
                     help="EXAMPLE: \"amqp://guest:guest@127.0.0.1\" - Servers and clients will connect to this AMPQ URL to form a distributed queue and exchange prompt execution requests and progress updates.")
 parser.add_argument(
-    '--distributed-queue-roles',
-    action='append',
-    choices=['worker', 'frontend'],
-    default=["worker", "frontend"],
-    help='Specifies one or more roles for the distributed queue. Acceptable values are "worker" or "frontend", or both by writing the flag twice with each role. Prompters will start the web UI and connect to the provided AMQP URL to submit prompts; workers will pull requests off the AMQP URL.'
+    '--distributed-queue-worker',
+    required=False,
+    type=bool,
+    default=True,
+    help='Workers will pull requests off the AMQP URL.'
+)
+parser.add_argument(
+    '--distributed-queue-frontend',
+    required=False,
+    type=bool,
+    default=True,
+    help='Frontends will start the web UI and connect to the provided AMQP URL to submit prompts.'
 )
 parser.add_argument("--distributed-queue-name", type=str, default="comfyui",
                     help="This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")

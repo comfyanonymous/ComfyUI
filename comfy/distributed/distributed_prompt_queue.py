@@ -131,7 +131,10 @@ class DistributedPromptQueue(AbstractPromptQueue):
         assert self._is_callee
         # the loop receiving messages must not be mounted on the worker thread
         # otherwise receiving messages will be blocked forever
-        worker_event_loop = asyncio.get_event_loop()
+        try:
+            worker_event_loop = asyncio.get_event_loop()
+        except RuntimeError:
+            worker_event_loop = None
         assert self._loop != worker_event_loop, "get only makes sense in the context of the legacy comfyui prompt worker"
         # spin wait
         timeout = timeout or 30.0

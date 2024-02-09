@@ -108,6 +108,7 @@ class PromptServer(ExecutorToClientProgress):
         routes = web.RouteTableDef()
         self.routes: web.RouteTableDef = routes
         self.last_node_id = None
+        self.last_prompt_id = None
         self.client_id = None
 
         self.on_prompt_handlers = []

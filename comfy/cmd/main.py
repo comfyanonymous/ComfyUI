@@ -227,10 +227,10 @@ async def main():
     if args.distributed_queue_connection_uri is not None:
         distributed = True
         q = DistributedPromptQueue(
-            caller_server=server if "frontend" in args.distributed_queue_roles else None,
+            caller_server=server if args.distributed_queue_frontend else None,
             connection_uri=args.distributed_queue_connection_uri,
-            is_caller="frontend" in args.distributed_queue_roles,
-            is_callee="worker" in args.distributed_queue_roles,
+            is_caller=args.distributed_queue_frontend,
+            is_callee=args.distributed_queue_worker,
             loop=loop,
             queue_name=args.distributed_queue_name
         )
@@ -257,7 +257,7 @@ async def main():
 
     # in a distributed setting, the default prompt worker will not be able to send execution events via the websocket
     worker_thread_server = server if not distributed else ServerStub()
-    if not distributed or "worker" in args.distributed_queue_roles:
+    if not distributed or args.distributed_queue_worker:
         if distributed:
             logging.warning(f"Distributed workers started in the default thread loop cannot notify clients of progress updates. Instead of comfyui or main.py, use comfyui-worker.")
         threading.Thread(target=prompt_worker, daemon=True, args=(q, worker_thread_server,)).start()
