@@ -9,7 +9,6 @@ import { ComfyObjectInfo } from './comfy';
 import { IComfyApi } from './api';
 import { SerializedGraph } from './litegraph';
 import { ComfyGraph } from '../litegraph/comfyGraph.ts';
-import { PluginStore } from '../pluginStore';
 
 interface ComfyOptionsHost {
     el: Element;
@@ -298,9 +297,9 @@ export interface IComfyPlugin<T> {
     autoStart: boolean;
     requires?: string[];
     optional?: string[];
-    provides?: string;
+    provides?: string; // unique identifier for the class, object, or string provided
     activate: (app: Application, ...args: any[]) => Promise<T> | T;
-    deactivate: (app: Application) => Promise<void> | T;
+    deactivate: (app: Application) => Promise<void> | void;
 }
 
 export interface ModuleWithPlugins<T> {

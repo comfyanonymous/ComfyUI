@@ -18,7 +18,7 @@ import {
     storeUserDataOptions,
     ComfyHistoryItems,
 } from '../types/api.ts';
-import API_URL from './apiURL.ts';
+import API_URL from './apiUrl';
 import { ComfyObjectInfo } from '../types/comfy';
 
 // This is injected into index.html by `start.py`

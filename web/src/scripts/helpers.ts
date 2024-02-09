@@ -1,4 +1,5 @@
 import { LiteGraph } from 'litegraph.js';
+import { ComfyNode } from '../litegraph/comfyNode';
 
 // ========= Helper functions for onDrawbackground =========
 
@@ -36,7 +37,7 @@ export function getImageTop(node: ComfyNode) {
         shiftY = node.imageOffset;
     } else {
         if (node.widgets?.length) {
-            const w = node.widgets[node.widgets.length - 1] as ComfyWidget;
+            const w = node.widgets[node.widgets.length - 1];
             if (!w.last_y) throw '';
 
             shiftY = w.last_y;
@@ -56,10 +57,10 @@ export function getImageTop(node: ComfyNode) {
 
 export function is_all_same_aspect_ratio(imgs: HTMLImageElement[]) {
     // assume: imgs.length >= 2
-    let ratio = imgs[0].naturalWidth / imgs[0].naturalHeight;
+    const ratio = imgs[0].naturalWidth / imgs[0].naturalHeight;
 
     for (let i = 1; i < imgs.length; i++) {
-        let this_ratio = imgs[i].naturalWidth / imgs[i].naturalHeight;
+        const this_ratio = imgs[i].naturalWidth / imgs[i].naturalHeight;
         if (ratio != this_ratio) return false;
     }
 

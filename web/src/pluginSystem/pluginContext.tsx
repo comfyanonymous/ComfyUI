@@ -1,9 +1,9 @@
 // TO DO: this context needs a lot of work to verify it's correct
 
 import React, { useState, useEffect } from 'react';
-import { createUseContextHook } from './hookCreator';
+import { createUseContextHook } from '../context/hookCreator';
 import { IComfyPlugin, Application } from '../types/interfaces';
-import { DependencyGraph } from '../pluginStore/DependencyGraph';
+import { DependencyGraph } from './DependencyGraph';
 
 // Jupyter Labs application:
 // commands, command palette, and context menu, key bindings

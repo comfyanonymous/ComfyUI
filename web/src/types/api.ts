@@ -1,6 +1,8 @@
 import { ComfyError } from './many';
 import { JobCreated, WorkflowStep } from '../../autogen_web_ts/comfy_request.v1';
 import { ComfyObjectInfo } from './comfy';
+// import { SerializedGraph } from '../../autogen_web_ts/serialized_graph.v1';
+import { SerializedGraph } from './litegraph';
 
 export type EmbeddingsResponse = string[];
 
@@ -140,7 +142,7 @@ export interface IComfyApi {
     getExtensions(): Promise<string[]>;
     getEmbeddings(): Promise<EmbeddingsResponse>;
     getNodeDefs(): Promise<Record<string, ComfyObjectInfo>>;
-    queuePrompt(number: number, prompt: { output: Record<string, WorkflowStep>; workflow: any }): Promise<JobCreated>;
+    queuePrompt(apiWorkflow: Record<string, WorkflowStep>, serializedGraph?: SerializedGraph): Promise<JobCreated>;
     getItems(type: string): Promise<any>; // Replace 'any' with the actual return type if known
     getQueue(): Promise<ComfyQueueItems>;
     getHistory(max_items?: number): Promise<ComfyHistoryItems>;

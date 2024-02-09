@@ -15,10 +15,10 @@ import { LiteGraph } from 'litegraph.js';
 export function useLoadGraphData() {
     const { clean: cleanApp } = useComfyApp();
     const { showDialog } = useComfyDialog();
-    const { graphState } = useGraph();
+    const { graph } = useGraph();
     const [errorHint, setErrorHint] = useState<ReactNode[]>([]);
 
-    const loadGraphData = async (graphData?: any, clean: boolean = true) => {
+    const loadGraphData = (graphData?: any, clean: boolean = true) => {
         if (clean) {
             cleanApp();
         }
@@ -37,7 +37,7 @@ export function useLoadGraphData() {
 
         const missingNodeTypes: string[] = [];
         // await extensionManager.invokeExtensionsAsync('beforeConfigureGraph', graphData, missingNodeTypes);
-        for (let k in graphData.nodes) {
+        for (const k in graphData.nodes) {
             const n = graphData.nodes[k];
 
             // Patch T2IAdapterLoader to ControlNetLoader since they are the same node now
@@ -53,14 +53,17 @@ export function useLoadGraphData() {
         }
 
         try {
-            graphState?.graph?.configure(graphData);
+            graph.configure(graphData);
         } catch (error) {
             const err = error as ComfyError;
             // Try extracting filename to see if it was caused by an extension script
             const filename = err.fileName || (err.stack || '').match(/(\/extensions\/.*\.js)/)?.[1];
             const pos = (filename || '').indexOf('/extensions/');
             if (pos > -1) {
-                setErrorHint(prevHints => [...prevHints, <ErrorHint script={filename?.substring(pos) ?? ''} />]);
+                setErrorHint(prevHints => [
+                    ...prevHints,
+                    <ErrorHint key={filename} script={filename?.substring(pos) ?? ''} />,
+                ]);
             }
 
             // Show dialog to let the user know something went wrong loading the data
@@ -68,8 +71,7 @@ export function useLoadGraphData() {
             return;
         }
 
-        for (const key in graphState?.graph?.nodes || []) {
-            const node = graphState?.graph?.nodes[key];
+        for (const node of graph?.nodes || []) {
             const size = node.computeSize();
             size[0] = Math.max(node.size[0], size[0]);
             size[1] = Math.max(node.size[1], size[1]);
@@ -78,7 +80,7 @@ export function useLoadGraphData() {
             if (node.widgets) {
                 // If you break something in the backend and want to patch workflows in the frontend
                 // This is the place to do this
-                for (let widget of node.widgets) {
+                for (const widget of node.widgets) {
                     if (node.type == 'KSampler' || node.type == 'KSamplerAdvanced') {
                         if (widget.name == 'sampler_name') {
                             if (widget.value.startsWith('sample_')) {
@@ -121,14 +123,14 @@ export function useLoadGraphData() {
         // await extensionManager.invokeExtensionsAsync('afterConfigureGraph', missingNodeTypes);
     };
 
-    const loadWorkflow = async (): Promise<boolean> => {
+    const loadWorkflow = (): boolean => {
         try {
             const json = localStorage.getItem('workflow');
             const hasWorkflow = json !== '{}' && !!json;
 
             if (hasWorkflow) {
                 const workflow = JSON.parse(json);
-                await loadGraphData(workflow);
+                loadGraphData(workflow);
                 return true;
             }
         } catch (err) {
@@ -140,6 +142,6 @@ export function useLoadGraphData() {
 
     return {
         loadGraphData,
-        loadWorkflow
+        loadWorkflow,
     };
 }

@@ -58,7 +58,8 @@ export const JobQueueContextProvider: React.FC<{ children: ReactNode }> = ({ chi
     // e.g. random seed after every gen
     function runNodeCallbacks(workflow: Record<string, WorkflowStep>) {
         for (const nodeId of Object.keys(workflow)) {
-            const node = graph.getNodeById(nodeId);
+            // TO DO: this assumes that nodeIds are always stringified numbers, which is the default for LiteGraph.js
+            const node = graph.getNodeById(Number(nodeId));
             if (node?.widgets) {
                 for (const widget of node.widgets) {
                     if (widget.afterQueued) {
@@ -81,7 +82,7 @@ export const JobQueueContextProvider: React.FC<{ children: ReactNode }> = ({ chi
                     const res = await runWorkflow(apiWorkflow, serializedGraph);
 
                     runNodeCallbacks(apiWorkflow);
-                    ui.queue.update();
+                    // ui.queue.update();
                 } catch (error: unknown) {
                     console.error(error);
                 }

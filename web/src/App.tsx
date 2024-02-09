@@ -5,7 +5,7 @@ import { ComfyDialogContextProvider } from './context/comfyDialogContext.tsx';
 import { useLoadGraphData } from './hooks/useLoadGraphData.tsx';
 import { SettingsContextProvider, useSettings } from './context/settingsContext.tsx';
 import { registerNodes } from './litegraph/registerNodes.ts';
-import { PluginProvider } from './context/pluginContext';
+import { PluginProvider } from './pluginSystem/pluginContext.tsx';
 import { ApiContextProvider } from './context/apiContext.tsx';
 import { ComfyUIContextProvider } from './context/uiContext.tsx';
 import { JobQueueContextProvider } from './context/jobQueueContext.tsx';

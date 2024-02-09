@@ -1,7 +1,7 @@
 import React, { ReactNode, useState, useEffect } from 'react';
 import { createUseContextHook } from './hookCreator';
-import { loadExtensions } from '../pluginStore/utils/loadExtensions';
-import { usePlugin } from './pluginContext';
+import { loadExtensions } from '../pluginSystem/loadExtensions.ts';
+import { usePlugin } from '../pluginSystem/pluginContext.tsx';
 import { ComfyGraph } from '../litegraph/comfyGraph.ts';
 import { LastExecutionError } from '../types/interfaces.ts';
 import { api } from '../scripts/api.tsx';
@@ -73,5 +73,3 @@ export const ComfyAppContextProvider = ({ children }: { children: ReactNode }) =
         </ComfyAppContext.Provider>
     );
 };
-
-

@@ -1,4 +1,4 @@
-import type { IComfyPlugin, Token } from '../types/interfaces';
+import type { IComfyPlugin } from '../types/interfaces';
 
 // Used to instantiate registeredPlugins in the correct order
 export class DependencyGraph {
@@ -16,12 +16,12 @@ export class DependencyGraph {
         // Second pass: Now that all nodes are added, establish dependencies
         plugins.forEach(plugin => {
             const node = this.nodes.get(plugin.id)!;
-            (plugin.requires || []).forEach(depToken => {
-                const depNode = this.findNodeByToken(depToken);
+            (plugin.requires || []).forEach(depId => {
+                const depNode = this.findNodeById(depId);
                 if (depNode) {
                     node.addDependency(depNode);
                 } else {
-                    console.error(`Plugin dependency not found: ${depToken.debugName}`);
+                    console.error(`Plugin dependency not found: ${depId}`);
                     return;
                 }
             });
@@ -86,8 +86,8 @@ export class DependencyGraph {
         return toDeactivate.reverse();
     }
 
-    private findNodeByToken(token: Token<any>): DependencyNode | undefined {
-        return Array.from(this.nodes.values()).find(node => node.plugin.provides === token);
+    private findNodeById(id: string): DependencyNode | undefined {
+        return Array.from(this.nodes.values()).find(node => node.plugin.provides === id);
     }
 }
 

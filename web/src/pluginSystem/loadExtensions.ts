@@ -1,5 +1,5 @@
-import { logging } from '../../scripts/logging0';
-import { IComfyPlugin, ModuleWithPlugins } from '../../types/interfaces';
+import { logging } from '../scripts/logging0';
+import { IComfyPlugin, ModuleWithPlugins } from '../types/interfaces';
 
 // Loads all specified .js-files into the window in parallel
 // extensionPaths can be either a URL or a local-filesystem path

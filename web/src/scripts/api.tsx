@@ -10,6 +10,7 @@ import {
 } from '../types/api';
 import { WorkflowStep } from '../types/many';
 import { SerializedGraph } from '../types/litegraph';
+import { JobCreated } from '../../autogen_web_ts/comfy_request.v1';
 
 type storeUserDataOptions = RequestInit & { stringify?: boolean; throwOnError?: boolean };
 
@@ -221,7 +222,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
     async queuePrompt(
         apiWorkflow: Record<string, WorkflowStep>,
         serializedGraph?: SerializedGraph
-    ): Promise<QueuePromptResponse> {
+    ): Promise<JobCreated> {
         const body = {
             client_id: this.clientId,
             workflow: apiWorkflow,
@@ -450,7 +451,7 @@ export class ComfyApi extends EventTarget implements IComfyApi {
             ...options,
         });
         if (resp.status !== 200) {
-            throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
+            throw new Error(`Error storing user data file '${file}': ${resp.status} ${resp.statusText}`);
         }
     }
 }
