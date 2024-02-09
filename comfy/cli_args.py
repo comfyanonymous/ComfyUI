@@ -125,6 +125,7 @@ parser.add_argument(
     '--distributed-queue-roles',
     action='append',
     choices=['worker', 'frontend'],
+    default=["worker", "frontend"],
     help='Specifies one or more roles for the distributed queue. Acceptable values are "worker" or "frontend", or both by writing the flag twice with each role. Prompters will start the web UI and connect to the provided AMQP URL to submit prompts; workers will pull requests off the AMQP URL.'
 )
 parser.add_argument("--distributed-queue-name", type=str, default="comfyui",
