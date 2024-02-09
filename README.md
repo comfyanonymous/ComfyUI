@@ -4,7 +4,8 @@ The most powerful and modular stable diffusion GUI and backend.
 -----------
 ![ComfyUI Screenshot](comfyui_screenshot.png)
 
-This ui will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
+This UI will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
+
 ### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
 
 ### [Installing ComfyUI](#installing)
@@ -38,34 +39,6 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
-
-## Shortcuts
-
-| Keybind                   | Explanation                                                                                                        |
-|---------------------------|--------------------------------------------------------------------------------------------------------------------|
-| Ctrl + Enter              | Queue up current graph for generation                                                                              |
-| Ctrl + Shift + Enter      | Queue up current graph as first for generation                                                                     |
-| Ctrl + Z/Ctrl + Y         | Undo/Redo                                                                                                          |
-| Ctrl + S                  | Save workflow                                                                                                      |
-| Ctrl + O                  | Load workflow                                                                                                      |
-| Ctrl + A                  | Select all nodes                                                                                                   |
-| Alt + C                   | Collapse/uncollapse selected nodes                                                                                 |
-| Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
-| Ctrl + B                  | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
-| Delete/Backspace          | Delete selected nodes                                                                                              |
-| Ctrl + Delete/Backspace   | Delete the current graph                                                                                           |
-| Space                     | Move the canvas around when held and moving the cursor                                                             |
-| Ctrl/Shift + Click        | Add clicked node to selection                                                                                      |
-| Ctrl + C/Ctrl + V         | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
-| Ctrl + C/Ctrl + Shift + V | Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
-| Shift + Drag              | Move multiple selected nodes at the same time                                                                      |
-| Ctrl + D                  | Load default graph                                                                                                 |
-| Q                         | Toggle visibility of the queue                                                                                     |
-| H                         | Toggle visibility of history                                                                                       |
-| R                         | Refresh graph                                                                                                      |
-| Double-Click LMB          | Open node quick search palette                                                                                     |
-
-Ctrl can also be replaced with Cmd instead for macOS users
 
 # Getting Started
 
@@ -192,7 +165,42 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     python -m PyInstaller --onefile --noupx -n ComfyUI --add-data="comfy/;comfy/" --paths $(pwd) --paths comfy/cmd main.py
     ```
 
-### Authoring Custom Nodes
+Because the package is installed "editably" with `pip install -e .`, any changes you make to the repository will affect the next launch of `comfy`. In IDEA based editors like PyCharm and IntelliJ, the Relodium plugin supports modifying your custom nodes or similar code while the server is running. 
+
+
+## Intel, DirectML and AMD Experimental Support
+
+<details>
+#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+
+#### DirectML (AMD Cards on Windows)
+
+Follow the manual installation steps. Then:
+
+```shell
+pip uninstall torch torchvision torchaudio
+pip install torch torchvision torchaudio
+pip install torch-directml
+```
+
+Then, launch ComfyUI with `comfyui --directml`.
+
+### For AMD cards not officially supported by ROCm
+
+Try running it with this command if you have issues:
+
+For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 comfyui```
+
+For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 comfyui```
+
+`
+</details>
+
+# Custom Nodes
+
+Custom Nodes can be added to ComfyUI by copying and pasting Python files into your `./custom_nodes` directory.
+
+## Authoring Custom Nodes
 
 Create a `requirements.txt`:
 ```
@@ -257,11 +265,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 ```
 These packages will be scanned recursively.
 
-Since you will be using `pip` to install custom nodes this way, you will get dependency resolution automatically, so you never have to `pip install -r requirements.txt` or similar garbage. this will deprecate / obsolete ComfyUI-Manager's functionality, you can use any pip package manager UI (mostly resolves https://github.com/comfyanonymous/ComfyUI/issues/1773). this also fixes issues like https://github.com/comfyanonymous/ComfyUI/issues/1678 https://github.com/comfyanonymous/ComfyUI/issues/1665 https://github.com/comfyanonymous/ComfyUI/issues/1596 https://github.com/comfyanonymous/ComfyUI/issues/1385 https://github.com/comfyanonymous/ComfyUI/issues/1373.
-
-You would also be able to add the `comfyui` git hash and custom nodes packages by git+commit or name in the metadata for maximum reproducibility.
-
-### Troubleshooting
+# Troubleshooting
 
 > I see a message like `RuntimeError: '"upsample_bilinear2d_channels_last" not implemented for 'Half''`
 
@@ -271,51 +275,9 @@ You must use Python 3.11 on macOS devices, and update to at least Ventura.
 
 Download your model file again.
 
-### Others:
+# Using the Editor
 
-#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
-
-> **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
-
-#### DirectML (AMD Cards on Windows)
-
-Follow the manual installation steps. Then:
-
-```shell
-pip uninstall torch torchvision torchaudio
-pip install torch torchvision torchaudio
-pip install torch-directml 
-```
-
-Launch ComfyUI with: ```comfyui --directml```
-
-### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
-
-You don't. If you have another UI installed and working with its own python venv you can use that venv to run ComfyUI. You can open up your favorite terminal and activate it:
-
-```source path_to_other_sd_gui/venv/bin/activate```
-
-or on Windows:
-
-With Powershell: ```"path_to_other_sd_gui\venv\Scripts\Activate.ps1"```
-
-With cmd.exe: ```"path_to_other_sd_gui\venv\Scripts\activate.bat"```
-
-And then you can use that terminal to run ComfyUI without installing any dependencies. Note that the venv folder might be called something else depending on the SD UI.
-
-# Running
-
-```comfyui```
-
-### For AMD cards not officially supported by ROCm
-
-Try running it with this command if you have issues:
-
-For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 comfyui```
-
-For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 comfyui```
-
-# Notes
+## Notes
 
 Only parts of the graph that have an output with all the correct inputs will be executed.
 
@@ -334,7 +296,7 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 ```embedding:embedding_filename.pt```
 
 
-## How to increase generation speed?
+##### How to increase generation speed?
 
 Make sure you use the regular loaders/Load Checkpoint node to load checkpoints. It will auto pick the right settings depending on your GPU.
 
@@ -342,12 +304,40 @@ You can set this command line setting to disable the upcasting to fp32 in some c
 
 ```--dont-upcast-attention```
 
-## How to show high-quality previews?
+##### How to show high-quality previews?
 
 Use ```--preview-method auto``` to enable previews.
 
 The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with [TAESD](https://github.com/madebyollin/taesd), download the [taesd_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesd_decoder.pth) (for SD1.x and SD2.x) and [taesdxl_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesdxl_decoder.pth) (for SDXL) models and place them in the `models/vae_approx` folder. Once they're installed, restart ComfyUI to enable high-quality previews.
 
-## Support and dev channel
+## Keyboard Shortcuts
 
-[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
+| Keybind                   | Explanation                                                                                                        |
+|---------------------------|--------------------------------------------------------------------------------------------------------------------|
+| Ctrl + Enter              | Queue up current graph for generation                                                                              |
+| Ctrl + Shift + Enter      | Queue up current graph as first for generation                                                                     |
+| Ctrl + Z/Ctrl + Y         | Undo/Redo                                                                                                          |
+| Ctrl + S                  | Save workflow                                                                                                      |
+| Ctrl + O                  | Load workflow                                                                                                      |
+| Ctrl + A                  | Select all nodes                                                                                                   |
+| Alt + C                   | Collapse/uncollapse selected nodes                                                                                 |
+| Ctrl + M                  | Mute/unmute selected nodes                                                                                         |
+| Ctrl + B                  | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
+| Delete/Backspace          | Delete selected nodes                                                                                              |
+| Ctrl + Delete/Backspace   | Delete the current graph                                                                                           |
+| Space                     | Move the canvas around when held and moving the cursor                                                             |
+| Ctrl/Shift + Click        | Add clicked node to selection                                                                                      |
+| Ctrl + C/Ctrl + V         | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
+| Ctrl + C/Ctrl + Shift + V | Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
+| Shift + Drag              | Move multiple selected nodes at the same time                                                                      |
+| Ctrl + D                  | Load default graph                                                                                                 |
+| Q                         | Toggle visibility of the queue                                                                                     |
+| H                         | Toggle visibility of history                                                                                       |
+| R                         | Refresh graph                                                                                                      |
+| Double-Click LMB          | Open node quick search palette                                                                                     |
+
+Ctrl can also be replaced with Cmd instead for macOS users
+
+## Community
+
+[Chat on Matrix: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org), an alternative to Discord.
