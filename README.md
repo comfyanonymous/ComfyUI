@@ -338,6 +338,214 @@ The default installation includes a fast latent preview method that's low-resolu
 
 Ctrl can also be replaced with Cmd instead for macOS users
 
+### Command Line Arguments
+
+<details>
+<pre>
+usage: comfyui.exe [-h] [-c CONFIG_FILE]
+                   [--write-out-config-file CONFIG_OUTPUT_PATH] [-w CWD]
+                   [-H [IP]] [--port PORT] [--enable-cors-header [ORIGIN]]
+                   [--max-upload-size MAX_UPLOAD_SIZE]
+                   [--extra-model-paths-config PATH [PATH ...]]
+                   [--output-directory OUTPUT_DIRECTORY]
+                   [--temp-directory TEMP_DIRECTORY]
+                   [--input-directory INPUT_DIRECTORY] [--auto-launch]
+                   [--disable-auto-launch] [--cuda-device DEVICE_ID]
+                   [--cuda-malloc | --disable-cuda-malloc]
+                   [--dont-upcast-attention] [--force-fp32 | --force-fp16]
+                   [--bf16-unet | --fp16-unet | --fp8_e4m3fn-unet | --fp8_e5m2-unet]
+                   [--fp16-vae | --fp32-vae | --bf16-vae] [--cpu-vae]
+                   [--fp8_e4m3fn-text-enc | --fp8_e5m2-text-enc | --fp16-text-enc | --fp32-text-enc]
+                   [--directml [DIRECTML_DEVICE]] [--disable-ipex-optimize]
+                   [--preview-method [none,auto,latent2rgb,taesd]]
+                   [--use-split-cross-attention | --use-quad-cross-attention | --use-pytorch-cross-attention]
+                   [--disable-xformers]
+                   [--gpu-only | --highvram | --normalvram | --lowvram | --novram | --cpu]
+                   [--disable-smart-memory] [--deterministic]
+                   [--dont-print-server] [--quick-test-for-ci]
+                   [--windows-standalone-build] [--disable-metadata]
+                   [--multi-user] [--create-directories]
+                   [--plausible-analytics-base-url PLAUSIBLE_ANALYTICS_BASE_URL]
+                   [--plausible-analytics-domain PLAUSIBLE_ANALYTICS_DOMAIN]
+                   [--analytics-use-identity-provider]
+                   [--distributed-queue-connection-uri DISTRIBUTED_QUEUE_CONNECTION_URI]
+                   [--distributed-queue-worker] [--distributed-queue-frontend]
+                   [--distributed-queue-name DISTRIBUTED_QUEUE_NAME]
+
+options:
+  -h, --help            show this help message and exit
+  -c CONFIG_FILE, --config CONFIG_FILE
+                        config file path
+  --write-out-config-file CONFIG_OUTPUT_PATH
+                        takes the current command line args and writes them
+                        out to a config file at the given path, then exits
+  -w CWD, --cwd CWD     Specify the working directory. If not set, this is the
+                        current working directory. models/, input/, output/
+                        and other directories will be located here by default.
+                        [env var: COMFYUI_CWD]
+  -H [IP], --listen [IP]
+                        Specify the IP address to listen on (default:
+                        127.0.0.1). If --listen is provided without an
+                        argument, it defaults to 0.0.0.0. (listens on all)
+                        [env var: COMFYUI_LISTEN]
+  --port PORT           Set the listen port. [env var: COMFYUI_PORT]
+  --enable-cors-header [ORIGIN]
+                        Enable CORS (Cross-Origin Resource Sharing) with
+                        optional origin or allow all with default '*'. [env
+                        var: COMFYUI_ENABLE_CORS_HEADER]
+  --max-upload-size MAX_UPLOAD_SIZE
+                        Set the maximum upload size in MB. [env var:
+                        COMFYUI_MAX_UPLOAD_SIZE]
+  --extra-model-paths-config PATH [PATH ...]
+                        Load one or more extra_model_paths.yaml files. [env
+                        var: COMFYUI_EXTRA_MODEL_PATHS_CONFIG]
+  --output-directory OUTPUT_DIRECTORY
+                        Set the ComfyUI output directory. [env var:
+                        COMFYUI_OUTPUT_DIRECTORY]
+  --temp-directory TEMP_DIRECTORY
+                        Set the ComfyUI temp directory (default is in the
+                        ComfyUI directory). [env var: COMFYUI_TEMP_DIRECTORY]
+  --input-directory INPUT_DIRECTORY
+                        Set the ComfyUI input directory. [env var:
+                        COMFYUI_INPUT_DIRECTORY]
+  --auto-launch         Automatically launch ComfyUI in the default browser.
+                        [env var: COMFYUI_AUTO_LAUNCH]
+  --disable-auto-launch
+                        Disable auto launching the browser. [env var:
+                        COMFYUI_DISABLE_AUTO_LAUNCH]
+  --cuda-device DEVICE_ID
+                        Set the id of the cuda device this instance will use.
+                        [env var: COMFYUI_CUDA_DEVICE]
+  --cuda-malloc         Enable cudaMallocAsync (enabled by default for torch
+                        2.0 and up). [env var: COMFYUI_CUDA_MALLOC]
+  --disable-cuda-malloc
+                        Disable cudaMallocAsync. [env var:
+                        COMFYUI_DISABLE_CUDA_MALLOC]
+  --dont-upcast-attention
+                        Disable upcasting of attention. Can boost speed but
+                        increase the chances of black images. [env var:
+                        COMFYUI_DONT_UPCAST_ATTENTION]
+  --force-fp32          Force fp32 (If this makes your GPU work better please
+                        report it). [env var: COMFYUI_FORCE_FP32]
+  --force-fp16          Force fp16. [env var: COMFYUI_FORCE_FP16]
+  --bf16-unet           Run the UNET in bf16. This should only be used for
+                        testing stuff. [env var: COMFYUI_BF16_UNET]
+  --fp16-unet           Store unet weights in fp16. [env var:
+                        COMFYUI_FP16_UNET]
+  --fp8_e4m3fn-unet     Store unet weights in fp8_e4m3fn. [env var:
+                        COMFYUI_FP8_E4M3FN_UNET]
+  --fp8_e5m2-unet       Store unet weights in fp8_e5m2. [env var:
+                        COMFYUI_FP8_E5M2_UNET]
+  --fp16-vae            Run the VAE in fp16, might cause black images. [env
+                        var: COMFYUI_FP16_VAE]
+  --fp32-vae            Run the VAE in full precision fp32. [env var:
+                        COMFYUI_FP32_VAE]
+  --bf16-vae            Run the VAE in bf16. [env var: COMFYUI_BF16_VAE]
+  --cpu-vae             Run the VAE on the CPU. [env var: COMFYUI_CPU_VAE]
+  --fp8_e4m3fn-text-enc
+                        Store text encoder weights in fp8 (e4m3fn variant).
+                        [env var: COMFYUI_FP8_E4M3FN_TEXT_ENC]
+  --fp8_e5m2-text-enc   Store text encoder weights in fp8 (e5m2 variant). [env
+                        var: COMFYUI_FP8_E5M2_TEXT_ENC]
+  --fp16-text-enc       Store text encoder weights in fp16. [env var:
+                        COMFYUI_FP16_TEXT_ENC]
+  --fp32-text-enc       Store text encoder weights in fp32. [env var:
+                        COMFYUI_FP32_TEXT_ENC]
+  --directml [DIRECTML_DEVICE]
+                        Use torch-directml. [env var: COMFYUI_DIRECTML]
+  --disable-ipex-optimize
+                        Disables ipex.optimize when loading models with Intel
+                        GPUs. [env var: COMFYUI_DISABLE_IPEX_OPTIMIZE]
+  --preview-method [none,auto,latent2rgb,taesd]
+                        Default preview method for sampler nodes. [env var:
+                        COMFYUI_PREVIEW_METHOD]
+  --use-split-cross-attention
+                        Use the split cross attention optimization. Ignored
+                        when xformers is used. [env var:
+                        COMFYUI_USE_SPLIT_CROSS_ATTENTION]
+  --use-quad-cross-attention
+                        Use the sub-quadratic cross attention optimization .
+                        Ignored when xformers is used. [env var:
+                        COMFYUI_USE_QUAD_CROSS_ATTENTION]
+  --use-pytorch-cross-attention
+                        Use the new pytorch 2.0 cross attention function. [env
+                        var: COMFYUI_USE_PYTORCH_CROSS_ATTENTION]
+  --disable-xformers    Disable xformers. [env var: COMFYUI_DISABLE_XFORMERS]
+  --gpu-only            Store and run everything (text encoders/CLIP models,
+                        etc... on the GPU). [env var: COMFYUI_GPU_ONLY]
+  --highvram            By default models will be unloaded to CPU memory after
+                        being used. This option keeps them in GPU memory. [env
+                        var: COMFYUI_HIGHVRAM]
+  --normalvram          Used to force normal vram use if lowvram gets
+                        automatically enabled. [env var: COMFYUI_NORMALVRAM]
+  --lowvram             Split the unet in parts to use less vram. [env var:
+                        COMFYUI_LOWVRAM]
+  --novram              When lowvram isn't enough. [env var: COMFYUI_NOVRAM]
+  --cpu                 To use the CPU for everything (slow). [env var:
+                        COMFYUI_CPU]
+  --disable-smart-memory
+                        Force ComfyUI to agressively offload to regular ram
+                        instead of keeping models in vram when it can. [env
+                        var: COMFYUI_DISABLE_SMART_MEMORY]
+  --deterministic       Make pytorch use slower deterministic algorithms when
+                        it can. Note that this might not make images
+                        deterministic in all cases. [env var:
+                        COMFYUI_DETERMINISTIC]
+  --dont-print-server   Don't print server output. [env var:
+                        COMFYUI_DONT_PRINT_SERVER]
+  --quick-test-for-ci   Quick test for CI. [env var:
+                        COMFYUI_QUICK_TEST_FOR_CI]
+  --windows-standalone-build
+                        Windows standalone build: Enable convenient things
+                        that most people using the standalone windows build
+                        will probably enjoy (like auto opening the page on
+                        startup). [env var: COMFYUI_WINDOWS_STANDALONE_BUILD]
+  --disable-metadata    Disable saving prompt metadata in files. [env var:
+                        COMFYUI_DISABLE_METADATA]
+  --multi-user          Enables per-user storage. [env var:
+                        COMFYUI_MULTI_USER]
+  --create-directories  Creates the default models/, input/, output/ and temp/
+                        directories, then exits. [env var:
+                        COMFYUI_CREATE_DIRECTORIES]
+  --plausible-analytics-base-url PLAUSIBLE_ANALYTICS_BASE_URL
+                        Enables server-side analytics events sent to the
+                        provided URL. [env var:
+                        COMFYUI_PLAUSIBLE_ANALYTICS_BASE_URL]
+  --plausible-analytics-domain PLAUSIBLE_ANALYTICS_DOMAIN
+                        Specifies the domain name for analytics events. [env
+                        var: COMFYUI_PLAUSIBLE_ANALYTICS_DOMAIN]
+  --analytics-use-identity-provider
+                        Uses platform identifiers for unique visitor
+                        analytics. [env var:
+                        COMFYUI_ANALYTICS_USE_IDENTITY_PROVIDER]
+  --distributed-queue-connection-uri DISTRIBUTED_QUEUE_CONNECTION_URI
+                        EXAMPLE: "amqp://guest:guest@127.0.0.1" - Servers and
+                        clients will connect to this AMPQ URL to form a
+                        distributed queue and exchange prompt execution
+                        requests and progress updates. [env var:
+                        COMFYUI_DISTRIBUTED_QUEUE_CONNECTION_URI]
+  --distributed-queue-worker
+                        Workers will pull requests off the AMQP URL. [env var:
+                        COMFYUI_DISTRIBUTED_QUEUE_WORKER]
+  --distributed-queue-frontend
+                        Frontends will start the web UI and connect to the
+                        provided AMQP URL to submit prompts. [env var:
+                        COMFYUI_DISTRIBUTED_QUEUE_FRONTEND]
+  --distributed-queue-name DISTRIBUTED_QUEUE_NAME
+                        This name will be used by the frontends and workers to
+                        exchange prompt requests and replies. Progress updates
+                        will be prefixed by the queue name, followed by a '.',
+                        then the user ID [env var:
+                        COMFYUI_DISTRIBUTED_QUEUE_NAME]
+
+Args that start with '--' can also be set in a config file (config.yaml or
+config.json or specified via -c). Config file syntax allows: key=value,
+flag=true, stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi).
+In general, command-line values override environment variables which override
+config file values which override defaults.
+</pre>
+</details>
+
 # Distributed, Multi-Process and Multi-GPU Comfy
 
 This package supports multi-processing across machines using RabbitMQ. This means you can launch multiple ComfyUI backend workers and queue prompts against them from multiple frontends.
