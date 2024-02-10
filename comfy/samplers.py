@@ -295,7 +295,7 @@ def simple_scheduler(model, steps):
 def ddim_scheduler(model, steps):
     s = model.model_sampling
     sigs = []
-    ss = len(s.sigmas) // steps
+    ss = max(len(s.sigmas) // steps, 1)
     x = 1
     while x < len(s.sigmas):
         sigs += [float(s.sigmas[x])]

@@ -2123,6 +2123,8 @@ export class ComfyApp {
 					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
 				} else if (pngInfo.prompt) {
 					this.loadApiJson(JSON.parse(pngInfo.prompt));
+				} else if (pngInfo.Prompt) {
+					this.loadApiJson(JSON.parse(pngInfo.Prompt)); // Support loading prompts from that webp custom node.
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
@@ -2176,8 +2178,17 @@ export class ComfyApp {
 				if (value instanceof Array) {
 					const [fromId, fromSlot] = value;
 					const fromNode = app.graph.getNodeById(fromId);
-					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
-					if (toSlot !== -1) {
+					let toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+					if (toSlot == null || toSlot === -1) {
+						try {
+							// Target has no matching input, most likely a converted widget
+							const widget = node.widgets?.find((w) => w.name === input);
+							if (widget && node.convertWidgetToInput?.(widget)) {
+								toSlot = node.inputs?.length - 1;
+							}
+						} catch (error) {}
+					}
+					if (toSlot != null || toSlot !== -1) {
 						fromNode.connect(fromSlot, node, toSlot);
 					}
 				} else {
