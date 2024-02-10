@@ -394,18 +394,42 @@ export class ComfyUI {
 			}
 		});
 
-		this.menuContainer = $el("div.comfy-menu", {parent: document.body}, [
-			$el("div.drag-handle", {
+		this.menuHamburger = $el(
+			"div.comfy-menu-hamburger",
+			{
+				parent: document.body,
+				onclick: () => {
+					this.menuContainer.style.display = "block";
+					this.menuHamburger.style.display = "none";
+				},
+			},
+			[$el("div"), $el("div"), $el("div")]
+		);
+
+		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
+			$el("div.drag-handle.comfy-menu-header", {
 				style: {
 					overflow: "hidden",
 					position: "relative",
 					width: "100%",
 					cursor: "default"
 				}
-			}, [
+			}, 	[
 				$el("span.drag-handle"),
-				$el("span", {$: (q) => (this.queueSize = q)}),
-				$el("button.comfy-settings-btn", {textContent: "⚙️", onclick: () => this.settings.show()}),
+				$el("span.comfy-menu-queue-size", { $: (q) => (this.queueSize = q) }),
+				$el("div.comfy-menu-actions", [
+					$el("button.comfy-settings-btn", {
+						textContent: "⚙️",
+						onclick: () => this.settings.show(),
+					}),
+					$el("button.comfy-close-menu-btn", {
+						textContent: "\u00d7",
+						onclick: () => {
+							this.menuContainer.style.display = "none";
+							this.menuHamburger.style.display = "flex";
+						},
+					}),
+				]),
 			]),
 			$el("button.comfy-queue-btn", {
 				id: "queue-button",
