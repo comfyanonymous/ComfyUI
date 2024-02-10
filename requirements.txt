@@ -10,4 +10,4 @@ Pillow
 scipy
 tqdm
 psutil
-spandrel==0.1.7
+spandrel_foss==0.2.2
