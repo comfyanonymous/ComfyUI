@@ -49,7 +49,7 @@ def get_images(ws, prompt):
                 for image in node_output['images']:
                     image_data = get_image(image['filename'], image['subfolder'], image['type'])
                     images_output.append(image_data)
-            output_images[node_id] = images_output
+                output_images[node_id] = images_output
 
     return output_images
 
