@@ -2,7 +2,7 @@ import { app } from "../../scripts/app.js";
 
 // Inverts the scrolling of context menus
 
-const id = "Comfy.InvertMenuScrolling";
+const id = "ccniy.InvertMenuScrolling";
 app.registerExtension({
 	name: id,
 	init() {

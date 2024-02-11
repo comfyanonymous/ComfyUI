@@ -1,9 +1,9 @@
 import { $el } from "../ui.js";
 
-export class ComfyDialog {
+export class ccniyDialog {
 	constructor() {
-		this.element = $el("div.comfy-modal", { parent: document.body }, [
-			$el("div.comfy-modal-content", [$el("p", { $: (p) => (this.textElement = p) }), ...this.createButtons()]),
+		this.element = $el("div.ccniy-modal", { parent: document.body }, [
+			$el("div.ccniy-modal-content", [$el("p", { $: (p) => (this.textElement = p) }), ...this.createButtons()]),
 		]);
 	}
 

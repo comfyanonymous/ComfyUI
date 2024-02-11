@@ -19,7 +19,7 @@ const ext = {
 	},
 	async getCustomWidgets(app) {
 		// Return custom widget types
-		// See ComfyWidgets for widget examples
+		// See ccniyWidgets for widget examples
 		console.log("[logging]", "provide custom widgets");
 	},
 	async beforeRegisterNodeDef(nodeType, nodeData, app) {

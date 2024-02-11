@@ -426,7 +426,7 @@ describe("widget inputs", () => {
 				},
 				6: { inputs: { samples: ["5", 0], vae: ["1", 2] }, class_type: "VAEDecode" },
 				7: {
-					inputs: { filename_prefix: values.filename_prefix ?? "ComfyUI", images: ["6", 0] },
+					inputs: { filename_prefix: values.filename_prefix ?? "ccniyUI", images: ["6", 0] },
 					class_type: "SaveImage",
 				},
 			});
@@ -488,8 +488,8 @@ describe("widget inputs", () => {
 			widthPrimitive.widgets.value.value = 1024;
 			expect(schedulerPrimitive.widgets.value.value).toBe("normal");
 			schedulerPrimitive.widgets.value.value = "simple";
-			expect(filePrimitive.widgets.value.value).toBe("ComfyUI");
-			filePrimitive.widgets.value.value = "ComfyTest";
+			expect(filePrimitive.widgets.value.value).toBe("ccniyUI");
+			filePrimitive.widgets.value.value = "ccniyTest";
 
 			await checkBeforeAndAfterReload(graph, async () => {
 				widthPrimitive = graph.find(widthPrimitive);
@@ -503,7 +503,7 @@ describe("widget inputs", () => {
 				await checkOutput(graph, {
 					width: 1024,
 					scheduler: "simple",
-					filename_prefix: "ComfyTest",
+					filename_prefix: "ccniyTest",
 				});
 			});
 		});

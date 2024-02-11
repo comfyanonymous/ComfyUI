@@ -57,8 +57,8 @@ describe("extensions", () => {
 			const nodeClass = mockExtension.beforeRegisterNodeDef.mock.calls[i][0];
 			const nodeDef = mockExtension.beforeRegisterNodeDef.mock.calls[i][1];
 
-			expect(nodeClass.name).toBe("ComfyNode");
-			expect(nodeClass.comfyClass).toBe(nodeNames[i]);
+			expect(nodeClass.name).toBe("ccniyNode");
+			expect(nodeClass.ccniyClass).toBe(nodeNames[i]);
 			expect(nodeDef.name).toBe(nodeNames[i]);
 			expect(nodeDef).toHaveProperty("input");
 			expect(nodeDef).toHaveProperty("output");
@@ -137,7 +137,7 @@ describe("extensions", () => {
 
 	it("allows custom nodeDefs and widgets to be registered", async () => {
 		const widgetMock = jest.fn((node, inputName, inputData, app) => {
-			expect(node.constructor.comfyClass).toBe("TestNode");
+			expect(node.constructor.ccniyClass).toBe("TestNode");
 			expect(inputName).toBe("test_input");
 			expect(inputData[0]).toBe("CUSTOMWIDGET");
 			expect(inputData[1]?.hello).toBe("world");

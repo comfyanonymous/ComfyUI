@@ -3,10 +3,10 @@ import { app } from "../../scripts/app.js";
 // Allows you to edit the attention weight by holding ctrl (or cmd) and using the up/down arrow keys
 
 app.registerExtension({
-    name: "Comfy.EditAttention",
+    name: "ccniy.EditAttention",
     init() {
         const editAttentionDelta = app.ui.settings.addSetting({
-            id: "Comfy.EditAttention.Delta",
+            id: "ccniy.EditAttention.Delta",
             name: "Ctrl+up/down precision",
             type: "slider",
             attrs: {

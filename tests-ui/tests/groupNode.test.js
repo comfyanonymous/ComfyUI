@@ -80,7 +80,7 @@ describe("group node", () => {
 				class_type: "KSampler",
 			},
 			6: { inputs: { samples: ["5", 0], vae: ["1", 2], ...valueMap?.[6] }, class_type: "VAEDecode" },
-			7: { inputs: { filename_prefix: "ComfyUI", images: ["6", 0], ...valueMap?.[7] }, class_type: "SaveImage" },
+			7: { inputs: { filename_prefix: "ccniyUI", images: ["6", 0], ...valueMap?.[7] }, class_type: "SaveImage" },
 		};
 
 		// Map old IDs to new at the top level

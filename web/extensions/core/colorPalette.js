@@ -47,11 +47,11 @@ const colorPalettes = {
 				"EVENT_LINK_COLOR": "#A86",
 				"CONNECTING_LINK_COLOR": "#AFA",
 			},
-			"comfy_base": {
+			"ccniy_base": {
 				"fg-color": "#fff",
 				"bg-color": "#202020",
-				"comfy-menu-bg": "#353535",
-				"comfy-input-bg": "#222",
+				"ccniy-menu-bg": "#353535",
+				"ccniy-input-bg": "#222",
 				"input-text": "#ddd",
 				"descrip-text": "#999",
 				"drag-text": "#ccc",
@@ -104,11 +104,11 @@ const colorPalettes = {
 				"EVENT_LINK_COLOR": "#FF9800",
 				"CONNECTING_LINK_COLOR": "#2196F3",
 			},
-			"comfy_base": {
+			"ccniy_base": {
 				"fg-color": "#222",
 				"bg-color": "#DDD",
-				"comfy-menu-bg": "#F5F5F5",
-				"comfy-input-bg": "#C9C9C9",
+				"ccniy-menu-bg": "#F5F5F5",
+				"ccniy-input-bg": "#C9C9C9",
 				"input-text": "#222",
 				"descrip-text": "#444",
 				"drag-text": "#555",
@@ -160,11 +160,11 @@ const colorPalettes = {
 				"EVENT_LINK_COLOR": "#268bd2", // Solarized Blue
 				"CONNECTING_LINK_COLOR": "#859900", // Solarized Green
 			},
-			"comfy_base": {
+			"ccniy_base": {
 				"fg-color": "#fdf6e3", // Base3
 				"bg-color": "#002b36", // Base03
-				"comfy-menu-bg": "#073642", // Base02
-				"comfy-input-bg": "#002b36", // Base03
+				"ccniy-menu-bg": "#073642", // Base02
+				"ccniy-input-bg": "#002b36", // Base03
 				"input-text": "#93a1a1", // Base1
 				"descrip-text": "#586e75", // Base01
 				"drag-text": "#839496", // Base0
@@ -229,11 +229,11 @@ const colorPalettes = {
 			  "EVENT_LINK_COLOR": "#A86",
 			  "CONNECTING_LINK_COLOR": "#AFA"
 			},
-			"comfy_base": {
+			"ccniy_base": {
 			  "fg-color": "#fff",
 			  "bg-color": "#2b2f38",
-			  "comfy-menu-bg": "#242730",
-			  "comfy-input-bg": "#2b2f38",
+			  "ccniy-menu-bg": "#242730",
+			  "ccniy-input-bg": "#2b2f38",
 			  "input-text": "#ddd",
 			  "descrip-text": "#b2b7bd",
 			  "drag-text": "#ccc",
@@ -298,11 +298,11 @@ const colorPalettes = {
 			  "EVENT_LINK_COLOR": "#A86",
 			  "CONNECTING_LINK_COLOR": "#AFA"
 			},
-			"comfy_base": {
+			"ccniy_base": {
 			  "fg-color": "#e5eaf0",
 			  "bg-color": "#2e3440",
-			  "comfy-menu-bg": "#161b22",
-			  "comfy-input-bg": "#2e3440",
+			  "ccniy-menu-bg": "#161b22",
+			  "ccniy-input-bg": "#2e3440",
 			  "input-text": "#bcc2c8",
 			  "descrip-text": "#999",
 			  "drag-text": "#ccc",
@@ -367,11 +367,11 @@ const colorPalettes = {
 			  "EVENT_LINK_COLOR": "#A86",
 			  "CONNECTING_LINK_COLOR": "#AFA"
 			},
-			"comfy_base": {
+			"ccniy_base": {
 			  "fg-color": "#e5eaf0",
 			  "bg-color": "#161b22",
-			  "comfy-menu-bg": "#13171d",
-			  "comfy-input-bg": "#161b22",
+			  "ccniy-menu-bg": "#13171d",
+			  "ccniy-input-bg": "#161b22",
 			  "input-text": "#bcc2c8",
 			  "descrip-text": "#999",
 			  "drag-text": "#ccc",
@@ -384,8 +384,8 @@ const colorPalettes = {
 	}
 };
 
-const id = "Comfy.ColorPalette";
-const idCustomColorPalettes = "Comfy.CustomColorPalettes";
+const id = "ccniy.ColorPalette";
+const idCustomColorPalettes = "ccniy.CustomColorPalettes";
 const defaultColorPaletteId = "dark";
 const els = {}
 // const ctxMenu = LiteGraph.ContextMenu;
@@ -450,7 +450,7 @@ app.registerExtension({
 				"colors": {
 					"node_slot": {},
 					"litegraph_base": {},
-					"comfy_base": {}
+					"ccniy_base": {}
 				}
 			};
 
@@ -461,9 +461,9 @@ app.registerExtension({
 					colorPalette.colors.litegraph_base[key] = "";
 				}
 			}
-			for (const key in defaultColorPalette.colors.comfy_base) {
-				if (!colorPalette.colors.comfy_base[key]) {
-					colorPalette.colors.comfy_base[key] = "";
+			for (const key in defaultColorPalette.colors.ccniy_base) {
+				if (!colorPalette.colors.ccniy_base[key]) {
+					colorPalette.colors.ccniy_base[key] = "";
 				}
 			}
 
@@ -563,11 +563,11 @@ app.registerExtension({
 						}
 					}
 				}
-				// Sets the color of ComfyUI elements
-				if (colorPalette.colors.comfy_base) {
+				// Sets the color of ccniyUI elements
+				if (colorPalette.colors.ccniy_base) {
 					const rootStyle = document.documentElement.style;
-					for (const key in colorPalette.colors.comfy_base) {
-						rootStyle.setProperty('--' + key, colorPalette.colors.comfy_base[key]);
+					for (const key in colorPalette.colors.ccniy_base) {
+						rootStyle.setProperty('--' + key, colorPalette.colors.ccniy_base[key]);
 					}
 				}
 				app.canvas.draw(true, true);

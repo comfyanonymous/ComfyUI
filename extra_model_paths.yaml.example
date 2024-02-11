@@ -1,4 +1,4 @@
-#Rename this to extra_model_paths.yaml and ComfyUI will load it
+#Rename this to extra_model_paths.yaml and ccniyUI will load it
 
 
 #config for a1111 ui
@@ -20,11 +20,11 @@ a111:
     hypernetworks: models/hypernetworks
     controlnet: models/ControlNet
 
-#config for comfyui
-#your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
+#config for ccniyui
+#your base path should be either an existing ccniy install or a central folder where you store all of your models, loras, etc.
 
-#comfyui:
-#     base_path: path/to/comfyui/
+#ccniyui:
+#     base_path: path/to/ccniyui/
 #     checkpoints: models/checkpoints/
 #     clip: models/clip/
 #     clip_vision: models/clip_vision/

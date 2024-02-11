@@ -14,9 +14,9 @@ describe("users", () => {
 
 	function expectNoUserScreen() {
 		// Ensure login isnt visible
-		const selection = document.querySelectorAll("#comfy-user-selection")?.[0];
+		const selection = document.querySelectorAll("#ccniy-user-selection")?.[0];
 		expect(selection["style"].display).toBe("none");
-		const menu = document.querySelectorAll(".comfy-menu")?.[0];
+		const menu = document.querySelectorAll(".ccniy-menu")?.[0];
 		expect(window.getComputedStyle(menu)?.display).not.toBe("none");
 	}
 
@@ -59,18 +59,18 @@ describe("users", () => {
 			});
 
 			// Ensure no current user
-			expect(localStorage["Comfy.userId"]).toBeFalsy();
-			expect(localStorage["Comfy.userName"]).toBeFalsy();
+			expect(localStorage["ccniy.userId"]).toBeFalsy();
+			expect(localStorage["ccniy.userName"]).toBeFalsy();
 
 			await waitForUserScreenShow();
 
-			const selection = document.querySelectorAll("#comfy-user-selection")?.[0];
+			const selection = document.querySelectorAll("#ccniy-user-selection")?.[0];
 			expect(selection).toBeTruthy();
 
 			// Ensure login is visible
 			expect(window.getComputedStyle(selection)?.display).not.toBe("none");
 			// Ensure menu is hidden
-			const menu = document.querySelectorAll(".comfy-menu")?.[0];
+			const menu = document.querySelectorAll(".ccniy-menu")?.[0];
 			expect(window.getComputedStyle(menu)?.display).toBe("none");
 
 			const isCreate = await onShown(selection);
@@ -83,7 +83,7 @@ describe("users", () => {
 			const s = await starting;
 
 			// Ensure login is removed
-			expect(document.querySelectorAll("#comfy-user-selection")).toHaveLength(0);
+			expect(document.querySelectorAll("#ccniy-user-selection")).toHaveLength(0);
 			expect(window.getComputedStyle(menu)?.display).not.toBe("none");
 
 			// Ensure settings + templates are saved
@@ -92,7 +92,7 @@ describe("users", () => {
 			expect(api.storeSettings).toHaveBeenCalledTimes(+isCreate);
 			expect(api.storeUserData).toHaveBeenCalledTimes(+isCreate);
 			if (isCreate) {
-				expect(api.storeUserData).toHaveBeenCalledWith("comfy.templates.json", null, { stringify: false });
+				expect(api.storeUserData).toHaveBeenCalledWith("ccniy.templates.json", null, { stringify: false });
 				expect(s.app.isNewUserSession).toBeTruthy();
 			} else {
 				expect(s.app.isNewUserSession).toBeFalsy();
@@ -118,8 +118,8 @@ describe("users", () => {
 				"Test User!": "Test User",
 			});
 
-			expect(localStorage["Comfy.userId"]).toBe("Test User!");
-			expect(localStorage["Comfy.userName"]).toBe("Test User");
+			expect(localStorage["ccniy.userId"]).toBe("Test User!");
+			expect(localStorage["ccniy.userName"]).toBe("Test User");
 		});
 		it("allows user creation if no current user but other users", async () => {
 			const users = {
@@ -141,8 +141,8 @@ describe("users", () => {
 				"Test User 3!": "Test User 3",
 			});
 
-			expect(localStorage["Comfy.userId"]).toBe("Test User 3!");
-			expect(localStorage["Comfy.userName"]).toBe("Test User 3");
+			expect(localStorage["ccniy.userId"]).toBe("Test User 3!");
+			expect(localStorage["ccniy.userName"]).toBe("Test User 3");
 		});
 		it("allows user selection if no current user but other users", async () => {
 			const users = {
@@ -175,8 +175,8 @@ describe("users", () => {
 
 			expect(users).toStrictEqual(users);
 
-			expect(localStorage["Comfy.userId"]).toBe("B!");
-			expect(localStorage["Comfy.userName"]).toBe("B");
+			expect(localStorage["ccniy.userId"]).toBe("B!");
+			expect(localStorage["ccniy.userName"]).toBe("B");
 		});
 		it("doesnt show user screen if current user", async () => {
 			const starting = start({
@@ -188,8 +188,8 @@ describe("users", () => {
 					},
 				},
 				localStorage: {
-					"Comfy.userId": "User!",
-					"Comfy.userName": "User",
+					"ccniy.userId": "User!",
+					"ccniy.userName": "User",
 				},
 			});
 			await new Promise(process.nextTick); // wait for promises to resolve
@@ -208,13 +208,13 @@ describe("users", () => {
 					},
 				},
 				localStorage: {
-					"Comfy.userId": "User!",
-					"Comfy.userName": "User",
+					"ccniy.userId": "User!",
+					"ccniy.userName": "User",
 				},
 			});
 
 			// cant actually test switching user easily but can check the setting is present
-			expect(app.ui.settings.settingsLookup["Comfy.SwitchUser"]).toBeTruthy();
+			expect(app.ui.settings.settingsLookup["ccniy.SwitchUser"]).toBeTruthy();
 		});
 	});
 	describe("single-user", () => {
@@ -229,7 +229,7 @@ describe("users", () => {
 			const { api } = require("../../web/scripts/api");
 			expect(api.storeSettings).toHaveBeenCalledTimes(1);
 			expect(api.storeUserData).toHaveBeenCalledTimes(1);
-			expect(api.storeUserData).toHaveBeenCalledWith("comfy.templates.json", null, { stringify: false });
+			expect(api.storeUserData).toHaveBeenCalledWith("ccniy.templates.json", null, { stringify: false });
 			expect(app.isNewUserSession).toBeTruthy();
 		});
 		it("doesnt show user creation if default user", async () => {
@@ -252,7 +252,7 @@ describe("users", () => {
 			});
 			expectNoUserScreen();
 
-			expect(app.ui.settings.settingsLookup["Comfy.SwitchUser"]).toBeFalsy();
+			expect(app.ui.settings.settingsLookup["ccniy.SwitchUser"]).toBeFalsy();
 		});
 	});
 	describe("browser-user", () => {
@@ -289,7 +289,7 @@ describe("users", () => {
 			});
 			expectNoUserScreen();
 
-			expect(app.ui.settings.settingsLookup["Comfy.SwitchUser"]).toBeFalsy();
+			expect(app.ui.settings.settingsLookup["ccniy.SwitchUser"]).toBeFalsy();
 		});
 	});
 });

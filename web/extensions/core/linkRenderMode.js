@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 
-const id = "Comfy.LinkRenderMode";
+const id = "ccniy.LinkRenderMode";
 const ext = {
 	name: id,
 	async setup(app) {

@@ -1,4 +1,4 @@
-class ComfyApi extends EventTarget {
+class ccniyApi extends EventTarget {
 	#registered = new Set();
 
 	constructor() {
@@ -19,7 +19,7 @@ class ComfyApi extends EventTarget {
 		if (!options.headers) {
 			options.headers = {};
 		}
-		options.headers["Comfy-User"] = this.user;
+		options.headers["ccniy-User"] = this.user;
 		return fetch(this.apiURL(route), options);
 	}
 
@@ -419,4 +419,4 @@ class ComfyApi extends EventTarget {
 	}
 }
 
-export const api = new ComfyApi();
+export const api = new ccniyApi();

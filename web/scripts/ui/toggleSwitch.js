@@ -16,11 +16,11 @@ export function toggleSwitch(name, items, { onChange } = {}) {
 	
 	function updateSelected(index) {
 		if (selectedIndex != null) {
-			elements[selectedIndex].classList.remove("comfy-toggle-selected");
+			elements[selectedIndex].classList.remove("ccniy-toggle-selected");
 		}
 		onChange?.({ item: items[index], prev: selectedIndex == null ? undefined : items[selectedIndex] });
 		selectedIndex = index;
-		elements[selectedIndex].classList.add("comfy-toggle-selected");
+		elements[selectedIndex].classList.add("ccniy-toggle-selected");
 	}
 
 	elements = items.map((item, i) => {
@@ -49,7 +49,7 @@ export function toggleSwitch(name, items, { onChange } = {}) {
 		return toggle;
 	});
 
-	const container = $el("div.comfy-toggle-switch", elements);
+	const container = $el("div.ccniy-toggle-switch", elements);
 
 	if (selectedIndex == null) {
 		elements[0].children[0].checked = true;

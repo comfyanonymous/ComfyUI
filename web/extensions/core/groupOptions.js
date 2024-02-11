@@ -61,7 +61,7 @@ function addNodesToGroup(group, nodes=[]) {
 }
 
 app.registerExtension({
-    name: "Comfy.GroupOptions",
+    name: "ccniy.GroupOptions",
     setup() {
         const orig = LGraphCanvas.prototype.getCanvasMenuOptions;
         // graph_mouse

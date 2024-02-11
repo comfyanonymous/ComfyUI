@@ -7,7 +7,7 @@ export class UserSelectionScreen {
 	async show(users, user) {
 		// This will rarely be hit so move the loading to on demand
 		await addStylesheet(import.meta.url);
-		const userSelection = document.getElementById("comfy-user-selection");
+		const userSelection = document.getElementById("ccniy-user-selection");
 		userSelection.style.display = "";
 		return new Promise((resolve) => {
 			const input = userSelection.getElementsByTagName("input")[0];
@@ -15,8 +15,8 @@ export class UserSelectionScreen {
 			const inputSection = input.closest("section");
 			const selectSection = select.closest("section");
 			const form = userSelection.getElementsByTagName("form")[0];
-			const error = userSelection.getElementsByClassName("comfy-user-error")[0];
-			const button = userSelection.getElementsByClassName("comfy-user-button-next")[0];
+			const error = userSelection.getElementsByClassName("ccniy-user-error")[0];
+			const button = userSelection.getElementsByClassName("ccniy-user-button-next")[0];
 
 			let inputActive = null;
 			input.addEventListener("focus", () => {
@@ -81,7 +81,7 @@ export class UserSelectionScreen {
 			});
 
 			if (user) {
-				const name = localStorage["Comfy.userName"];
+				const name = localStorage["ccniy.userName"];
 				if (name) {
 					input.value = name;
 				}

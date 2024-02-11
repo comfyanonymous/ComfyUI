@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { ComfyDialog, $el } from "../../scripts/ui.js";
+import { ccniyDialog, $el } from "../../scripts/ui.js";
 import { GroupNodeConfig, GroupNodeHandler } from "./groupNode.js";
 
 // Adds the ability to save and add multiple nodes as a template
@@ -20,17 +20,17 @@ import { GroupNodeConfig, GroupNodeHandler } from "./groupNode.js";
 // To rearrange:
 // Open the manage dialog and Drag and drop elements using the "Name:" label as handle
 
-const id = "Comfy.NodeTemplates";
-const file = "comfy.templates.json";
+const id = "ccniy.NodeTemplates";
+const file = "ccniy.templates.json";
 
-class ManageTemplates extends ComfyDialog {
+class ManageTemplates extends ccniyDialog {
 	constructor() {
 		super();
 		this.load().then((v) => {
 			this.templates = v;
 		});
 
-		this.element.classList.add("comfy-manage-templates");
+		this.element.classList.add("ccniy-manage-templates");
 		this.draggedEl = null;
 		this.saveVisualCue = null;
 		this.emptyImg = new Image();
@@ -183,7 +183,7 @@ class ManageTemplates extends ComfyDialog {
 									gridTemplateColumns: "1fr auto",
 									border: "1px dashed transparent",
 									gap: "5px",
-									backgroundColor: "var(--comfy-menu-bg)"
+									backgroundColor: "var(--ccniy-menu-bg)"
 								},
 								ondragstart: (e) => {
 									this.draggedEl = e.currentTarget;
@@ -253,14 +253,14 @@ class ManageTemplates extends ComfyDialog {
 												el.style.transitionDuration = '0s';
 												this.saveVisualCue = setTimeout(function () {
 													el.style.transitionDuration = '.7s';
-													el.style.backgroundColor = 'var(--comfy-input-bg)';
+													el.style.backgroundColor = 'var(--ccniy-input-bg)';
 												}, 15);
 											},
 											onkeypress: (e) => {
 												var el = e.target;
 												clearTimeout(this.saveVisualCue);
 												el.style.transitionDuration = '0s';
-												el.style.backgroundColor = 'var(--comfy-input-bg)';
+												el.style.backgroundColor = 'var(--ccniy-input-bg)';
 											},
 											$: (el) => (nameInput = el),
 										})

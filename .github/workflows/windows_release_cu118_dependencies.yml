@@ -33,7 +33,7 @@ jobs:
             python-version: '3.10.9'
 
         - if: steps.cache-cu118_python_stuff.outputs.cache-hit != 'true'
-          uses: comfyanonymous/cuda-toolkit@test
+          uses: ccniyanonymous/cuda-toolkit@test
           id: cuda-toolkit
           with:
             cuda: '11.8.0'

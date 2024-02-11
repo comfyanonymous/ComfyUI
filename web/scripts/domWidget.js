@@ -60,10 +60,10 @@ function computeSize(size) {
 		} else if (w.element) {
 			// Extract DOM widget size info
 			const styles = getComputedStyle(w.element);
-			let minHeight = w.options.getMinHeight?.() ?? parseInt(styles.getPropertyValue("--comfy-widget-min-height"));
-			let maxHeight = w.options.getMaxHeight?.() ?? parseInt(styles.getPropertyValue("--comfy-widget-max-height"));
+			let minHeight = w.options.getMinHeight?.() ?? parseInt(styles.getPropertyValue("--ccniy-widget-min-height"));
+			let maxHeight = w.options.getMaxHeight?.() ?? parseInt(styles.getPropertyValue("--ccniy-widget-max-height"));
 
-			let prefHeight = w.options.getHeight?.() ?? styles.getPropertyValue("--comfy-widget-height");
+			let prefHeight = w.options.getHeight?.() ?? styles.getPropertyValue("--ccniy-widget-height");
 			if (prefHeight.endsWith?.("%")) {
 				prefHeight = size[1] * (parseFloat(prefHeight.substring(0, prefHeight.length - 1)) / 100);
 			} else {
@@ -193,7 +193,7 @@ let enableDomClipping = true;
 
 export function addDomClippingSetting() {
 	app.ui.settings.addSetting({
-		id: "Comfy.DOMClippingEnabled",
+		id: "ccniy.DOMClippingEnabled",
 		name: "Enable DOM element clipping (enabling may reduce performance)",
 		type: "boolean",
 		defaultValue: enableDomClipping,

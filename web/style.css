@@ -1,8 +1,8 @@
 :root {
 	--fg-color: #000;
 	--bg-color: #fff;
-	--comfy-menu-bg: #353535;
-	--comfy-input-bg: #222;
+	--ccniy-menu-bg: #353535;
+	--ccniy-input-bg: #222;
 	--input-text: #ddd;
 	--descrip-text: #999;
 	--drag-text: #ccc;
@@ -33,8 +33,8 @@ body {
 	height: 100%;
 }
 
-.comfy-multiline-input {
-	background-color: var(--comfy-input-bg);
+.ccniy-multiline-input {
+	background-color: var(--ccniy-input-bg);
 	color: var(--input-text);
 	overflow: hidden;
 	overflow-y: auto;
@@ -45,12 +45,12 @@ body {
 	font-size: 10px;
 }
 
-.comfy-modal {
+.ccniy-modal {
 	display: none; /* Hidden by default */
 	position: fixed; /* Stay in place */
 	z-index: 100; /* Sit on top */
 	padding: 30px 30px 10px 30px;
-	background-color: var(--comfy-menu-bg); /* Modal background */
+	background-color: var(--ccniy-menu-bg); /* Modal background */
 	color: var(--error-text);
 	box-shadow: 0 0 20px #888888;
 	border-radius: 10px;
@@ -65,24 +65,24 @@ body {
 	font-size: 15px;
 }
 
-.comfy-modal-content {
+.ccniy-modal-content {
 	display: flex;
 	flex-direction: column;
 }
 
-.comfy-modal p {
+.ccniy-modal p {
 	overflow: auto;
 	white-space: pre-line; /* This will respect line breaks */
 	margin-bottom: 20px; /* Add some margin between the text and the close button*/
 }
 
-.comfy-modal select,
-.comfy-modal input[type=button],
-.comfy-modal input[type=checkbox] {
+.ccniy-modal select,
+.ccniy-modal input[type=button],
+.ccniy-modal input[type=checkbox] {
 	margin: 3px 3px 3px 4px;
 }
 
-.comfy-menu-hamburger {
+.ccniy-menu-hamburger {
 	position: fixed;
 	top: 10px;
 	z-index: 9999;
@@ -93,14 +93,14 @@ body {
 	flex-direction: column;
 	cursor: pointer;
 }
-.comfy-menu-hamburger div {
+.ccniy-menu-hamburger div {
 	height: 3px;
 	width: 100%;
 	border-radius: 20px;
 	background-color: white;
 }
 
-.comfy-menu {
+.ccniy-menu {
 	font-size: 15px;
 	position: absolute;
 	top: 50%;
@@ -112,18 +112,18 @@ body {
 	flex-direction: column;
 	align-items: center;
 	color: var(--descrip-text);
-	background-color: var(--comfy-menu-bg);
+	background-color: var(--ccniy-menu-bg);
 	font-family: sans-serif;
 	padding: 10px;
 	border-radius: 0 8px 8px 8px;
 	box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
 }
 
-.comfy-menu-header {
+.ccniy-menu-header {
 	display: flex;
 }
 
-.comfy-menu-actions {
+.ccniy-menu-actions {
 	display: flex;
 	gap: 3px;
 	align-items: center;
@@ -133,7 +133,7 @@ body {
 	font-size: 22px;
 }
 
-.comfy-menu .comfy-menu-actions button {
+.ccniy-menu .ccniy-menu-actions button {
 	background-color: rgba(0, 0, 0, 0);
 	padding: 0;
 	border: none;
@@ -141,11 +141,11 @@ body {
 	font-size: inherit;
 }
 
-.comfy-menu .comfy-menu-actions .comfy-settings-btn {
+.ccniy-menu .ccniy-menu-actions .ccniy-settings-btn {
 	font-size: 0.6em;
 }
 
-button.comfy-close-menu-btn {
+button.ccniy-close-menu-btn {
 	font-size: 1em;
 	line-height: 12px;
 	color: #ccc;
@@ -153,49 +153,49 @@ button.comfy-close-menu-btn {
 	top: -1px;
 }
 
-.comfy-menu-queue-size {
+.ccniy-menu-queue-size {
 	flex: auto;
 }
 
-.comfy-menu button,
-.comfy-modal button {
+.ccniy-menu button,
+.ccniy-modal button {
 	font-size: 20px;
 }
 
-.comfy-menu-btns {
+.ccniy-menu-btns {
 	margin-bottom: 10px;
 	width: 100%;
 }
 
-.comfy-menu-btns button {
+.ccniy-menu-btns button {
 	font-size: 10px;
 	width: 50%;
 	color: var(--descrip-text) !important;
 }
 
-.comfy-menu > button {
+.ccniy-menu > button {
 	width: 100%;
 }
 
-.comfy-btn,
-.comfy-menu > button,
-.comfy-menu-btns button,
-.comfy-menu .comfy-list button,
-.comfy-modal button {
+.ccniy-btn,
+.ccniy-menu > button,
+.ccniy-menu-btns button,
+.ccniy-menu .ccniy-list button,
+.ccniy-modal button {
 	color: var(--input-text);
-	background-color: var(--comfy-input-bg);
+	background-color: var(--ccniy-input-bg);
 	border-radius: 8px;
 	border-color: var(--border-color);
 	border-style: solid;
 	margin-top: 2px;
 }
 
-.comfy-btn:hover:not(:disabled),
-.comfy-menu > button:hover,
-.comfy-menu-btns button:hover,
-.comfy-menu .comfy-list button:hover,
-.comfy-modal button:hover,
-.comfy-menu-actions button:hover {
+.ccniy-btn:hover:not(:disabled),
+.ccniy-menu > button:hover,
+.ccniy-menu-btns button:hover,
+.ccniy-menu .ccniy-list button:hover,
+.ccniy-modal button:hover,
+.ccniy-menu-actions button:hover {
 	filter: brightness(1.2);
 	cursor: pointer;
 }
@@ -222,85 +222,85 @@ span.drag-handle::after {
 	content: '.. .. ..';
 }
 
-.comfy-queue-btn {
+.ccniy-queue-btn {
 	width: 100%;
 }
 
-.comfy-list {
+.ccniy-list {
 	color: var(--descrip-text);
-	background-color: var(--comfy-menu-bg);
+	background-color: var(--ccniy-menu-bg);
 	margin-bottom: 10px;
 	border-color: var(--border-color);
 	border-style: solid;
 }
 
-.comfy-list-items {
+.ccniy-list-items {
 	overflow-y: scroll;
 	max-height: 100px;
 	min-height: 25px;
-	background-color: var(--comfy-input-bg);
+	background-color: var(--ccniy-input-bg);
 	padding: 5px;
 }
 
-.comfy-list h4 {
+.ccniy-list h4 {
 	min-width: 160px;
 	margin: 0;
 	padding: 3px;
 	font-weight: normal;
 }
 
-.comfy-list-items button {
+.ccniy-list-items button {
 	font-size: 10px;
 }
 
-.comfy-list-actions {
+.ccniy-list-actions {
 	margin: 5px;
 	display: flex;
 	gap: 5px;
 	justify-content: center;
 }
 
-.comfy-list-actions button {
+.ccniy-list-actions button {
 	font-size: 12px;
 }
 
-button.comfy-queue-btn {
+button.ccniy-queue-btn {
 	margin: 6px 0 !important;
 }
 
-.comfy-modal.comfy-settings,
-.comfy-modal.comfy-manage-templates {
+.ccniy-modal.ccniy-settings,
+.ccniy-modal.ccniy-manage-templates {
 	text-align: center;
 	font-family: sans-serif;
 	color: var(--descrip-text);
 	z-index: 99;
 }
 
-.comfy-modal.comfy-settings input[type="range"] {
+.ccniy-modal.ccniy-settings input[type="range"] {
 	vertical-align: middle;
 }
 
-.comfy-modal.comfy-settings input[type="range"] + input[type="number"] {
+.ccniy-modal.ccniy-settings input[type="range"] + input[type="number"] {
 	width: 3.5em;
 }
 
-.comfy-modal input,
-.comfy-modal select {
+.ccniy-modal input,
+.ccniy-modal select {
 	color: var(--input-text);
-	background-color: var(--comfy-input-bg);
+	background-color: var(--ccniy-input-bg);
 	border-radius: 8px;
 	border-color: var(--border-color);
 	border-style: solid;
 	font-size: inherit;
 }
 
-.comfy-tooltip-indicator {
+.ccniy-tooltip-indicator {
 	text-decoration: underline;
 	text-decoration-style: dashed;
 }
 
 @media only screen and (max-height: 850px) {
-	.comfy-menu {
+	.ccniy-menu {
 		top: 0 !important;
 		bottom: 0 !important;
 		left: auto !important;
@@ -308,18 +308,18 @@ button.comfy-queue-btn {
 		border-radius: 0;
 	}
 
-	.comfy-menu span.drag-handle {
+	.ccniy-menu span.drag-handle {
 		display: none;
 	}
 	
-	.comfy-menu-queue-size {
+	.ccniy-menu-queue-size {
 		flex: unset;
 	}
 
-	.comfy-menu-header {
+	.ccniy-menu-header {
 		justify-content: space-between;
 	}
-	.comfy-menu-actions {
+	.ccniy-menu-actions {
 		gap: 10px;
 		font-size: 28px;
 	}
@@ -329,7 +329,7 @@ button.comfy-queue-btn {
 
 .graphdialog {
 	min-height: 1em;
-	background-color: var(--comfy-menu-bg);
+	background-color: var(--ccniy-menu-bg);
 }
 
 .graphdialog .name {
@@ -346,7 +346,7 @@ button.comfy-queue-btn {
 }
 
 .graphdialog input, .graphdialog textarea, .graphdialog select {
-	background-color: var(--comfy-input-bg);
+	background-color: var(--ccniy-input-bg);
 	border: 2px solid;
 	border-color: var(--border-color);
 	color: var(--input-text);
@@ -363,16 +363,16 @@ dialog::backdrop {
 	background: rgba(0, 0, 0, 0.5);
 }
 
-#comfy-settings-dialog {
+#ccniy-settings-dialog {
 	padding: 0;
 	width: 41rem;
 }
 
-#comfy-settings-dialog tr > td:first-child {
+#ccniy-settings-dialog tr > td:first-child {
 	text-align: right;
 }
 
-#comfy-settings-dialog tbody button, #comfy-settings-dialog table > button {
+#ccniy-settings-dialog tbody button, #ccniy-settings-dialog table > button {
 	background-color: var(--bg-color);
 	border: 1px var(--border-color) solid;
 	border-radius: 0;
@@ -381,20 +381,20 @@ dialog::backdrop {
 	padding: 0.5rem;
 }
 
-#comfy-settings-dialog button:hover {
+#ccniy-settings-dialog button:hover {
 	background-color: var(--tr-odd-bg-color);
 }
 
 /* General CSS for tables */
 
-.comfy-table {
+.ccniy-table {
 	border-collapse: collapse;
 	color: var(--input-text);
 	font-family: Arial, sans-serif;
 	width: 100%;
 }
 
-.comfy-table caption {
+.ccniy-table caption {
 	position: sticky;
 	top: 0;
 	background-color: var(--bg-color);
@@ -406,7 +406,7 @@ dialog::backdrop {
 	border-bottom: 1px solid var(--border-color);
 }
 
-.comfy-table caption .comfy-btn {
+.ccniy-table caption .ccniy-btn {
 	position: absolute;
 	top: -2px;
 	right: 0;
@@ -420,20 +420,20 @@ dialog::backdrop {
 	font-size: 20px;
 }
 
-.comfy-table caption .comfy-btn:focus {
+.ccniy-table caption .ccniy-btn:focus {
 	outline: none;
 }
 
-.comfy-table tr:nth-child(even) {
+.ccniy-table tr:nth-child(even) {
 	background-color: var(--tr-even-bg-color);
 }
 
-.comfy-table tr:nth-child(odd) {
+.ccniy-table tr:nth-child(odd) {
 	background-color: var(--tr-odd-bg-color);
 }
 
-.comfy-table td,
-.comfy-table th {
+.ccniy-table td,
+.ccniy-table th {
 	border: 1px solid var(--border-color);
 	padding: 8px;
 }
@@ -460,35 +460,35 @@ dialog::backdrop {
 .litegraph.litecontextmenu,
 .litegraph.litecontextmenu.dark {
 	z-index: 9999 !important;
-	background-color: var(--comfy-menu-bg) !important;
+	background-color: var(--ccniy-menu-bg) !important;
 	filter: brightness(95%);
 }
 
 .litegraph.litecontextmenu .litemenu-entry:hover:not(.disabled):not(.separator) {
-	background-color: var(--comfy-menu-bg) !important;
+	background-color: var(--ccniy-menu-bg) !important;
 	filter: brightness(155%);
 	color: var(--input-text);
 }
 
 .litegraph.litecontextmenu .litemenu-entry.submenu,
 .litegraph.litecontextmenu.dark .litemenu-entry.submenu {
-	background-color: var(--comfy-menu-bg) !important;
+	background-color: var(--ccniy-menu-bg) !important;
 	color: var(--input-text);
 }
 
 .litegraph.litecontextmenu input {
-	background-color: var(--comfy-input-bg) !important;
+	background-color: var(--ccniy-input-bg) !important;
 	color: var(--input-text) !important;
 }
 
-.comfy-context-menu-filter {
+.ccniy-context-menu-filter {
 	box-sizing: border-box;
 	border: 1px solid #999;
 	margin: 0 0 5px 5px;
 	width: calc(100% - 10px);
 }
 
-.comfy-img-preview {
+.ccniy-img-preview {
 	pointer-events: none;
 	overflow: hidden;
 	display: flex;
@@ -497,13 +497,13 @@ dialog::backdrop {
 	justify-content: center;
 }
 
-.comfy-img-preview img {
+.ccniy-img-preview img {
 	object-fit: contain;
-	width: var(--comfy-img-preview-width);
-	height: var(--comfy-img-preview-height);
+	width: var(--ccniy-img-preview-width);
+	height: var(--ccniy-img-preview-height);
 }
 
-.comfy-missing-nodes li button {
+.ccniy-missing-nodes li button {
 	font-size: 12px;
 	margin-left: 5px;
 }
@@ -512,20 +512,20 @@ dialog::backdrop {
 
 .litegraph.litesearchbox {
 	z-index: 9999 !important;
-	background-color: var(--comfy-menu-bg) !important;
+	background-color: var(--ccniy-menu-bg) !important;
 	overflow: hidden;
 	display: block;
 }
 
 .litegraph.litesearchbox input,
 .litegraph.litesearchbox select {
-	background-color: var(--comfy-input-bg) !important;
+	background-color: var(--ccniy-input-bg) !important;
 	color: var(--input-text);
 }
 
 .litegraph.lite-search-item {
 	color: var(--input-text);
-	background-color: var(--comfy-input-bg);
+	background-color: var(--ccniy-input-bg);
 	filter: brightness(80%);
 	padding-left: 0.2em;
 }
@@ -536,18 +536,18 @@ dialog::backdrop {
 }
 
 @media only screen and (max-width: 450px) {
-	#comfy-settings-dialog .comfy-table tbody {
+	#ccniy-settings-dialog .ccniy-table tbody {
 		display: grid;
 	}
-	#comfy-settings-dialog .comfy-table tr {
+	#ccniy-settings-dialog .ccniy-table tr {
 		display: grid;
 	}
-	#comfy-settings-dialog tr > td:first-child {
+	#ccniy-settings-dialog tr > td:first-child {
 		text-align: center;
 		border-bottom: none;
 		padding-bottom: 0;
 	}
-	#comfy-settings-dialog tr > td:not(:first-child) {
+	#ccniy-settings-dialog tr > td:not(:first-child) {
 		text-align: center;
 		border-top: none;
 	}

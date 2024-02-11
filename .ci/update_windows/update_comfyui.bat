@@ -1,2 +1,2 @@
-..\python_embeded\python.exe .\update.py ..\ComfyUI\
+..\python_embeded\python.exe .\update.py ..\ccniyUI\
 pause

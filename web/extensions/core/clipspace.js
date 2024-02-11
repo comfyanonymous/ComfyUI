@@ -1,8 +1,8 @@
 import { app } from "../../scripts/app.js";
-import { ComfyDialog, $el } from "../../scripts/ui.js";
-import { ComfyApp } from "../../scripts/app.js";
+import { ccniyDialog, $el } from "../../scripts/ui.js";
+import { ccniyApp } from "../../scripts/app.js";
 
-export class ClipspaceDialog extends ComfyDialog {
+export class ClipspaceDialog extends ccniyDialog {
 	static items = [];
 	static instance = null;
 
@@ -19,10 +19,10 @@ export class ClipspaceDialog extends ComfyDialog {
 	}
 
 	static invalidatePreview() {
-		if(ComfyApp.clipspace && ComfyApp.clipspace.imgs && ComfyApp.clipspace.imgs.length > 0) {
+		if(ccniyApp.clipspace && ccniyApp.clipspace.imgs && ccniyApp.clipspace.imgs.length > 0) {
 			const img_preview = document.getElementById("clipspace_preview");
 			if(img_preview) {
-				img_preview.src = ComfyApp.clipspace.imgs[ComfyApp.clipspace['selectedIndex']].src;
+				img_preview.src = ccniyApp.clipspace.imgs[ccniyApp.clipspace['selectedIndex']].src;
 				img_preview.style.maxHeight = "100%";
 				img_preview.style.maxWidth = "100%";
 			}
@@ -33,7 +33,7 @@ export class ClipspaceDialog extends ComfyDialog {
 		if(ClipspaceDialog.instance) {
 			const self = ClipspaceDialog.instance;
 			// allow reconstruct controls when copying from non-image to image content.
-			const children = $el("div.comfy-modal-content", [ self.createImgSettings(), ...self.createButtons() ]);
+			const children = $el("div.ccniy-modal-content", [ self.createImgSettings(), ...self.createButtons() ]);
 
 			if(self.element) {
 				// update
@@ -42,7 +42,7 @@ export class ClipspaceDialog extends ComfyDialog {
 			}
 			else {
 				// new
-				self.element = $el("div.comfy-modal", { parent: document.body }, [children,]);
+				self.element = $el("div.ccniy-modal", { parent: document.body }, [children,]);
 			}
 
 			if(self.element.children[0].children.length <= 1) {
@@ -78,9 +78,9 @@ export class ClipspaceDialog extends ComfyDialog {
 	}
 
 	createImgSettings() {
-		if(ComfyApp.clipspace.imgs) {
+		if(ccniyApp.clipspace.imgs) {
 			const combo_items = [];
-			const imgs = ComfyApp.clipspace.imgs;
+			const imgs = ccniyApp.clipspace.imgs;
 
 			for(let i=0; i < imgs.length; i++) {
 				combo_items.push($el("option", {value:i}, [`${i}`]));
@@ -88,7 +88,7 @@ export class ClipspaceDialog extends ComfyDialog {
 
 			const combo1 = $el("select",
 				{id:"clipspace_img_selector", onchange:(event) => {
-					ComfyApp.clipspace['selectedIndex'] = event.target.selectedIndex;
+					ccniyApp.clipspace['selectedIndex'] = event.target.selectedIndex;
 					ClipspaceDialog.invalidatePreview();
 				} }, combo_items);
 
@@ -102,13 +102,13 @@ export class ClipspaceDialog extends ComfyDialog {
 
 			const combo2 = $el("select",
 								{id:"clipspace_img_paste_mode", onchange:(event) => {
-									ComfyApp.clipspace['img_paste_mode'] = event.target.value;
+									ccniyApp.clipspace['img_paste_mode'] = event.target.value;
 								} },
 								[
 									$el("option", {value:'selected'}, 'selected'),
 									$el("option", {value:'all'}, 'all')
 								]);
-			combo2.value = ComfyApp.clipspace['img_paste_mode'];
+			combo2.value = ccniyApp.clipspace['img_paste_mode'];
 
 			const row2 =
 				$el("tr", {},
@@ -131,7 +131,7 @@ export class ClipspaceDialog extends ComfyDialog {
 	}
 
 	createImgPreview() {
-		if(ComfyApp.clipspace.imgs) {
+		if(ccniyApp.clipspace.imgs) {
 			return $el("img",{id:"clipspace_preview", ondragstart:() => false});
 		}
 		else
@@ -147,16 +147,16 @@ export class ClipspaceDialog extends ComfyDialog {
 }
 
 app.registerExtension({
-	name: "Comfy.Clipspace",
+	name: "ccniy.Clipspace",
 	init(app) {
 		app.openClipspace =
 			function () {
 				if(!ClipspaceDialog.instance) {
 					ClipspaceDialog.instance = new ClipspaceDialog(app);
-					ComfyApp.clipspace_invalidate_handler = ClipspaceDialog.invalidate;
+					ccniyApp.clipspace_invalidate_handler = ClipspaceDialog.invalidate;
 				}
 
-				if(ComfyApp.clipspace) {
+				if(ccniyApp.clipspace) {
 					ClipspaceDialog.instance.show();
 				}
 				else

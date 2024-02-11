@@ -1246,7 +1246,7 @@ function addConvertToGroupOptions() {
 	};
 }
 
-const id = "Comfy.GroupNode";
+const id = "ccniy.GroupNode";
 let globalDefs;
 const ext = {
 	name: id,

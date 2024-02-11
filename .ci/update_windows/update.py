@@ -43,7 +43,7 @@ def pull(repo, remote_name='origin', branch='master'):
 
 pygit2.option(pygit2.GIT_OPT_SET_OWNER_VALIDATION, 0)
 repo = pygit2.Repository(str(sys.argv[1]))
-ident = pygit2.Signature('comfyui', 'comfy@ui')
+ident = pygit2.Signature('ccniyui', 'ccniy@ui')
 try:
     print("stashing current changes")
     repo.stash(ident)

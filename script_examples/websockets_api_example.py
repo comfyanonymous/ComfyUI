@@ -132,7 +132,7 @@ prompt_text = """
     "9": {
         "class_type": "SaveImage",
         "inputs": {
-            "filename_prefix": "ComfyUI",
+            "filename_prefix": "ccniyUI",
             "images": [
                 "8",
                 0

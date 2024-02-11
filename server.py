@@ -26,9 +26,9 @@ except ImportError:
     sys.exit()
 
 import mimetypes
-from comfy.cli_args import args
-import comfy.utils
-import comfy.model_management
+from ccniy.cli_args import args
+import ccniy.utils
+import ccniy.model_management
 
 from app.user_manager import UserManager
 
@@ -354,7 +354,7 @@ class PromptServer():
             safetensors_path = folder_paths.get_full_path(folder_name, filename)
             if safetensors_path is None:
                 return web.Response(status=404)
-            out = comfy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
+            out = ccniy.utils.safetensors_header(safetensors_path, max_size=1024*1024)
             if out is None:
                 return web.Response(status=404)
             dt = json.loads(out)
@@ -364,10 +364,10 @@ class PromptServer():
 
         @routes.get("/system_stats")
         async def get_queue(request):
-            device = comfy.model_management.get_torch_device()
-            device_name = comfy.model_management.get_torch_device_name(device)
-            vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
-            vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            device = ccniy.model_management.get_torch_device()
+            device_name = ccniy.model_management.get_torch_device_name(device)
+            vram_total, torch_vram_total = ccniy.model_management.get_total_memory(device, torch_total_too=True)
+            vram_free, torch_vram_free = ccniy.model_management.get_free_memory(device, torch_free_too=True)
             system_stats = {
                 "system": {
                     "os": os.name,

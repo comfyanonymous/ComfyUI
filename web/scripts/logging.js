@@ -1,23 +1,23 @@
-import { $el, ComfyDialog } from "./ui.js";
+import { $el, ccniyDialog } from "./ui.js";
 import { api } from "./api.js";
 
 $el("style", {
 	textContent: `
-        .comfy-logging-logs {
+        .ccniy-logging-logs {
             display: grid;
             color: var(--fg-color);
             white-space: pre-wrap;
         }
-        .comfy-logging-log {
+        .ccniy-logging-log {
             display: contents;
         }
-        .comfy-logging-title {
+        .ccniy-logging-title {
             background: var(--tr-even-bg-color);
             font-weight: bold;
             margin-bottom: 5px;
             text-align: center;
         }
-        .comfy-logging-log div {
+        .ccniy-logging-log div {
             background: var(--row-bg);
             padding: 5px;
         }
@@ -82,7 +82,7 @@ const fileInput = $el("input", {
 	parent: document.body,
 });
 
-class ComfyLoggingDialog extends ComfyDialog {
+class ccniyLoggingDialog extends ccniyDialog {
 	constructor(logging) {
 		super();
 		this.logging = logging;
@@ -100,7 +100,7 @@ class ComfyLoggingDialog extends ComfyDialog {
 		const url = URL.createObjectURL(blob);
 		const a = $el("a", {
 			href: url,
-			download: `comfyui-logs-${Date.now()}.json`,
+			download: `ccniyui-logs-${Date.now()}.json`,
 			style: { display: "none" },
 			parent: document.body,
 		});
@@ -175,13 +175,13 @@ class ComfyLoggingDialog extends ComfyDialog {
 		};
 		const keys = Object.keys(cols);
 		const headers = Object.values(cols).map((title) =>
-			$el("div.comfy-logging-title", {
+			$el("div.ccniy-logging-title", {
 				textContent: title,
 			})
 		);
 		const rows = entries.map((entry, i) => {
 			return $el(
-				"div.comfy-logging-log",
+				"div.ccniy-logging-log",
 				{
 					$: (el) => el.style.setProperty("--row-bg", `var(--tr-${i % 2 ? "even" : "odd"}-bg-color)`),
 				},
@@ -209,7 +209,7 @@ class ComfyLoggingDialog extends ComfyDialog {
 		});
 
 		const grid = $el(
-			"div.comfy-logging-logs",
+			"div.ccniy-logging-logs",
 			{
 				style: {
 					gridTemplateColumns: `repeat(${headers.length}, 1fr)`,
@@ -230,7 +230,7 @@ class ComfyLoggingDialog extends ComfyDialog {
 	}
 }
 
-export class ComfyLogging {
+export class ccniyLogging {
 	/**
 	 * @type Array<{ source: string, type: string, timestamp: Date, message: any }>
 	 */
@@ -256,14 +256,14 @@ export class ComfyLogging {
 	constructor(app) {
 		this.app = app;
 
-		this.dialog = new ComfyLoggingDialog(this);
+		this.dialog = new ccniyLoggingDialog(this);
 		this.addSetting();
 		this.catchUnhandled();
 		this.addInitData();
 	}
 
 	addSetting() {
-		const settingId = "Comfy.Logging.Enabled";
+		const settingId = "ccniy.Logging.Enabled";
 		const htmlSettingId = settingId.replaceAll(".", "-");
 		const setting = this.app.ui.settings.addSetting({
 			id: settingId,
@@ -362,7 +362,7 @@ export class ComfyLogging {
 
 	async addInitData() {
 		if (!this.enabled) return;
-		const source = "ComfyUI.Logging";
+		const source = "ccniyUI.Logging";
 		this.addEntry(source, "debug", { UserAgent: navigator.userAgent });
 		const systemStats = await api.getSystemStats();
 		this.addEntry(source, "debug", systemStats);

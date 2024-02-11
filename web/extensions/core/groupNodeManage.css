@@ -1,4 +1,4 @@
-.comfy-group-manage {
+.ccniy-group-manage {
 	background: var(--bg-color);
 	color: var(--fg-color);
 	padding: 0;
@@ -7,143 +7,143 @@
 	margin: 20vh auto;
 	max-height: 60vh;
 }
-.comfy-group-manage-outer {
+.ccniy-group-manage-outer {
 	max-height: 60vh;
 	min-width: 500px;
 	display: flex;
 	flex-direction: column;
 }
-.comfy-group-manage-outer > header {
+.ccniy-group-manage-outer > header {
 	display: flex;
 	align-items: center;
 	gap: 10px;
 	justify-content: space-between;
-	background: var(--comfy-menu-bg);
+	background: var(--ccniy-menu-bg);
 	padding: 15px 20px;
 }
-.comfy-group-manage-outer > header select {
-	background: var(--comfy-input-bg);
+.ccniy-group-manage-outer > header select {
+	background: var(--ccniy-input-bg);
 	border: 1px solid var(--border-color);
 	color: var(--input-text);
 	padding: 5px 10px;
 	border-radius: 5px;
 }
-.comfy-group-manage h2 {
+.ccniy-group-manage h2 {
 	margin: 0;
 	font-weight: normal;
 }
-.comfy-group-manage main {
+.ccniy-group-manage main {
 	display: flex;
 	overflow: hidden;
 }
-.comfy-group-manage .drag-handle {
+.ccniy-group-manage .drag-handle {
 	font-weight: bold;
 }
-.comfy-group-manage-list {
-	border-right: 1px solid var(--comfy-menu-bg);
+.ccniy-group-manage-list {
+	border-right: 1px solid var(--ccniy-menu-bg);
 }
-.comfy-group-manage-list ul {
+.ccniy-group-manage-list ul {
 	margin: 40px 0 0;
 	padding: 0;
 	list-style: none;
 }
-.comfy-group-manage-list-items {
+.ccniy-group-manage-list-items {
 	max-height: calc(100% - 40px);
 	overflow-y: scroll;
 	overflow-x: hidden;
 }
-.comfy-group-manage-list li {
+.ccniy-group-manage-list li {
 	display: flex;
 	padding: 10px 20px 10px 10px;
 	cursor: pointer;
 	align-items: center;
 	gap: 5px;
 }
-.comfy-group-manage-list div {
+.ccniy-group-manage-list div {
 	display: flex;
 	flex-direction: column;
 }
-.comfy-group-manage-list li:not(.selected):hover div {
+.ccniy-group-manage-list li:not(.selected):hover div {
 	text-decoration: underline;
 }
-.comfy-group-manage-list li.selected {
+.ccniy-group-manage-list li.selected {
 	background: var(--border-color);
 }
-.comfy-group-manage-list li span {
+.ccniy-group-manage-list li span {
 	opacity: 0.7;
 	font-size: smaller;
 }
-.comfy-group-manage-node {
+.ccniy-group-manage-node {
 	flex: auto;
 	background: var(--border-color);
 	display: flex;
 	flex-direction: column;
 }
-.comfy-group-manage-node > div {
+.ccniy-group-manage-node > div {
 	overflow: auto;
 }
-.comfy-group-manage-node header {
+.ccniy-group-manage-node header {
 	display: flex;
 	background: var(--bg-color);
 	height: 40px;
 }
-.comfy-group-manage-node header a {
+.ccniy-group-manage-node header a {
 	text-align: center;
 	flex: auto;
-	border-right: 1px solid var(--comfy-menu-bg);
-	border-bottom: 1px solid var(--comfy-menu-bg);
+	border-right: 1px solid var(--ccniy-menu-bg);
+	border-bottom: 1px solid var(--ccniy-menu-bg);
 	padding: 10px;
 	cursor: pointer;
 	font-size: 15px;
 }
-.comfy-group-manage-node header a:last-child {
+.ccniy-group-manage-node header a:last-child {
     border-right: none;
 }
-.comfy-group-manage-node header a:not(.active):hover {
+.ccniy-group-manage-node header a:not(.active):hover {
 	text-decoration: underline;
 }
-.comfy-group-manage-node header a.active {
+.ccniy-group-manage-node header a.active {
 	background: var(--border-color);
 	border-bottom: none;
 }
-.comfy-group-manage-node-page {
+.ccniy-group-manage-node-page {
 	display: none;
 	overflow: auto;
 }
-.comfy-group-manage-node-page.active {
+.ccniy-group-manage-node-page.active {
 	display: block;
 }
-.comfy-group-manage-node-page div {
+.ccniy-group-manage-node-page div {
 	padding: 10px;
 	display: flex;
 	align-items: center;
 	gap: 10px;
 }
-.comfy-group-manage-node-page input {
+.ccniy-group-manage-node-page input {
 	border: none;
 	color: var(--input-text);
-	background: var(--comfy-input-bg);
+	background: var(--ccniy-input-bg);
 	padding: 5px 10px;
 }
-.comfy-group-manage-node-page input[type="text"] {
+.ccniy-group-manage-node-page input[type="text"] {
 	flex: auto;
 }
-.comfy-group-manage-node-page label {
+.ccniy-group-manage-node-page label {
 	display: flex;
 	gap: 5px;
 	align-items: center;
 }
-.comfy-group-manage footer {
-	border-top: 1px solid var(--comfy-menu-bg);
+.ccniy-group-manage footer {
+	border-top: 1px solid var(--ccniy-menu-bg);
 	padding: 10px;
 	display: flex;
 	gap: 10px;
 }
-.comfy-group-manage footer button {
+.ccniy-group-manage footer button {
 	font-size: 14px;
 	padding: 5px 10px;
 	border-radius: 0;
 }
-.comfy-group-manage footer button:first-child {
+.ccniy-group-manage footer button:first-child {
 	margin-right: auto;
 }

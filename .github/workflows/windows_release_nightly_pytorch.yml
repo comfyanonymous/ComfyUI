@@ -42,42 +42,42 @@ jobs:
         - shell: bash
           run: |
             cd ..
-            cp -r ComfyUI ComfyUI_copy
+            cp -r ccniyUI ccniyUI_copy
             curl https://www.python.org/ftp/python/3.${{ inputs.python_minor }}.${{ inputs.python_patch }}/python-3.${{ inputs.python_minor }}.${{ inputs.python_patch }}-embed-amd64.zip -o python_embeded.zip
             unzip python_embeded.zip -d python_embeded
             cd python_embeded
             echo 'import site' >> ./python3${{ inputs.python_minor }}._pth
             curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             ./python.exe get-pip.py
-            python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
+            python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ccniyUI/requirements.txt pygit2 -w ../temp_wheel_dir
             ls ../temp_wheel_dir
             ./python.exe -s -m pip install --pre ../temp_wheel_dir/*
-            sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
+            sed -i '1i../ccniyUI' ./python3${{ inputs.python_minor }}._pth
             cd ..
 
-            git clone https://github.com/comfyanonymous/taesd
-            cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
+            git clone https://github.com/ccniyanonymous/taesd
+            cp taesd/*.pth ./ccniyUI_copy/models/vae_approx/
 
-            mkdir ComfyUI_windows_portable_nightly_pytorch
-            mv python_embeded ComfyUI_windows_portable_nightly_pytorch
-            mv ComfyUI_copy ComfyUI_windows_portable_nightly_pytorch/ComfyUI
+            mkdir ccniyUI_windows_portable_nightly_pytorch
+            mv python_embeded ccniyUI_windows_portable_nightly_pytorch
+            mv ccniyUI_copy ccniyUI_windows_portable_nightly_pytorch/ccniyUI
 
-            cd ComfyUI_windows_portable_nightly_pytorch
+            cd ccniyUI_windows_portable_nightly_pytorch
 
             mkdir update
-            cp -r ComfyUI/.ci/update_windows/* ./update/
-            cp -r ComfyUI/.ci/windows_base_files/* ./
+            cp -r ccniyUI/.ci/update_windows/* ./update/
+            cp -r ccniyUI/.ci/windows_base_files/* ./
 
-            echo "..\python_embeded\python.exe .\update.py ..\ComfyUI\\
-            ..\python_embeded\python.exe -s -m pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
-            pause" > ./update/update_comfyui_and_python_dependencies.bat
+            echo "..\python_embeded\python.exe .\update.py ..\ccniyUI\\
+            ..\python_embeded\python.exe -s -m pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ccniyUI/requirements.txt pygit2
+            pause" > ./update/update_ccniyui_and_python_dependencies.bat
             cd ..
 
-            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI_windows_portable_nightly_pytorch
-            mv ComfyUI_windows_portable_nightly_pytorch.7z ComfyUI/ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
+            "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ccniyUI_windows_portable_nightly_pytorch.7z ccniyUI_windows_portable_nightly_pytorch
+            mv ccniyUI_windows_portable_nightly_pytorch.7z ccniyUI/ccniyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
 
-            cd ComfyUI_windows_portable_nightly_pytorch
-            python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
+            cd ccniyUI_windows_portable_nightly_pytorch
+            python_embeded/python.exe -s ccniyUI/main.py --quick-test-for-ci --cpu
 
             ls
 
@@ -85,6 +85,6 @@ jobs:
           uses: svenstaro/upload-release-action@v2
           with:
                 repo_token: ${{ secrets.GITHUB_TOKEN }}
-                file: ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
+                file: ccniyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
                 tag: "latest"
                 overwrite: true

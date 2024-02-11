@@ -9,18 +9,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/comfyanonymous/ComfyUI.git"
+    "url": "git+https://github.com/ccniyanonymous/ccniyUI.git"
   },
   "keywords": [
-    "comfyui",
+    "ccniyui",
     "test"
   ],
-  "author": "comfyanonymous",
+  "author": "ccniyanonymous",
   "license": "GPL-3.0",
   "bugs": {
-    "url": "https://github.com/comfyanonymous/ComfyUI/issues"
+    "url": "https://github.com/ccniyanonymous/ccniyUI/issues"
   },
-  "homepage": "https://github.com/comfyanonymous/ComfyUI#readme",
+  "homepage": "https://github.com/ccniyanonymous/ccniyUI#readme",
   "devDependencies": {
     "@babel/preset-env": "^7.22.20",
     "@types/jest": "^29.5.5",

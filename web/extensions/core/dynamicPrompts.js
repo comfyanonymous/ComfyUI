@@ -11,7 +11,7 @@ function stripComments(str) {
 }
 
 app.registerExtension({
-	name: "Comfy.DynamicPrompts",
+	name: "ccniy.DynamicPrompts",
 	nodeCreated(node) {
 		if (node.widgets) {
 			// Locate dynamic prompt text widgets

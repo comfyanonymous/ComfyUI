@@ -1,15 +1,15 @@
 import { app } from "../../scripts/app.js";
-import { ComfyWidgets } from "../../scripts/widgets.js";
+import { ccniyWidgets } from "../../scripts/widgets.js";
 // Adds defaults for quickly adding nodes with middle click on the input/output
 
 app.registerExtension({
-	name: "Comfy.SlotDefaults",
+	name: "ccniy.SlotDefaults",
 	suggestionsNumber: null,
 	init() {
 		LiteGraph.search_filter_enabled = true;
 		LiteGraph.middle_click_slot_add_default_node = true;
 		this.suggestionsNumber = app.ui.settings.addSetting({
-			id: "Comfy.NodeSuggestions.number",
+			id: "ccniy.NodeSuggestions.number",
 			name: "Number of nodes suggestions",
 			type: "slider",
 			attrs: {
@@ -34,7 +34,7 @@ app.registerExtension({
 			if (typeof input[0] !== "string") continue;
 
 			var type = input[0]
-			if (type in ComfyWidgets) {
+			if (type in ccniyWidgets) {
 				var customProperties = input[1]
 				if (!(customProperties?.forceInput)) continue; //ignore widgets that don't force input
 			}
@@ -51,7 +51,7 @@ app.registerExtension({
 			if (!(lowerType in LiteGraph.registered_slot_in_types)) {
 				LiteGraph.registered_slot_in_types[lowerType] = { nodes: [] };
 			}
-			LiteGraph.registered_slot_in_types[lowerType].nodes.push(nodeType.comfyClass);
+			LiteGraph.registered_slot_in_types[lowerType].nodes.push(nodeType.ccniyClass);
 		} 
 
 		var outputs = nodeData["output"];
@@ -67,7 +67,7 @@ app.registerExtension({
 			if (!(type in LiteGraph.registered_slot_out_types)) {
 				LiteGraph.registered_slot_out_types[type] = { nodes: [] };
 			}
-			LiteGraph.registered_slot_out_types[type].nodes.push(nodeType.comfyClass);
+			LiteGraph.registered_slot_out_types[type].nodes.push(nodeType.ccniyClass);
 
 			if(!LiteGraph.slot_types_out.includes(type)) {
 				LiteGraph.slot_types_out.push(type);

@@ -17,13 +17,13 @@ import urllib.request
 import urllib.parse
 
 
-from comfy.samplers import KSampler
+from ccniy.samplers import KSampler
 
 """
 These tests generate and save images through a range of parameters
 """
 
-class ComfyGraph:
+class ccniyGraph:
     def __init__(self, 
                  graph: dict,
                  sampler_nodes: list[str],
@@ -57,7 +57,7 @@ class ComfyGraph:
                 self.graph[node]['inputs']['filename_prefix'] = prefix
 
 
-class ComfyClient:
+class ccniyClient:
     # From examples/websockets_api_example.py
 
     def connect(self, 
@@ -127,14 +127,14 @@ class ComfyClient:
 default_graph_file = 'tests/inference/graphs/default_graph_sdxl1_0.json'
 with open(default_graph_file, 'r') as file:
     default_graph = json.loads(file.read())
-DEFAULT_COMFY_GRAPH = ComfyGraph(graph=default_graph, sampler_nodes=['10','14'])
-DEFAULT_COMFY_GRAPH_ID = os.path.splitext(os.path.basename(default_graph_file))[0]
+DEFAULT_ccniy_GRAPH = ccniyGraph(graph=default_graph, sampler_nodes=['10','14'])
+DEFAULT_ccniy_GRAPH_ID = os.path.splitext(os.path.basename(default_graph_file))[0]
 
 #
 # Loop through these variables
 #
-comfy_graph_list = [DEFAULT_COMFY_GRAPH]
-comfy_graph_ids = [DEFAULT_COMFY_GRAPH_ID]
+ccniy_graph_list = [DEFAULT_ccniy_GRAPH]
+ccniy_graph_ids = [DEFAULT_ccniy_GRAPH_ID]
 prompt_list = [
     'a painting of a cat',
 ]
@@ -165,38 +165,38 @@ class TestInference:
 
     def start_client(self, listen:str, port:int):
         # Start client
-        comfy_client = ComfyClient()
+        ccniy_client = ccniyClient()
         # Connect to server (with retries)
         n_tries = 5
         for i in range(n_tries):
             time.sleep(4)
             try:
-                comfy_client.connect(listen=listen, port=port)
+                ccniy_client.connect(listen=listen, port=port)
             except ConnectionRefusedError as e:
                 print(e)
                 print(f"({i+1}/{n_tries}) Retrying...")
             else:
                 break
-        return comfy_client
+        return ccniy_client
 
     #
     # Client and graph fixtures with server warmup
     #
     # Returns a "_client_graph", which is client-graph pair corresponding to an initialized server
     # The "graph" is the default graph
-    @fixture(scope="class", params=comfy_graph_list, ids=comfy_graph_ids, autouse=True)
-    def _client_graph(self, request, args_pytest, _server) -> (ComfyClient, ComfyGraph):
-        comfy_graph = request.param
+    @fixture(scope="class", params=ccniy_graph_list, ids=ccniy_graph_ids, autouse=True)
+    def _client_graph(self, request, args_pytest, _server) -> (ccniyClient, ccniyGraph):
+        ccniy_graph = request.param
         
         # Start client
-        comfy_client = self.start_client(args_pytest["listen"], args_pytest["port"])
+        ccniy_client = self.start_client(args_pytest["listen"], args_pytest["port"])
 
         # Warm up pipeline
-        comfy_client.get_images(graph=comfy_graph.graph, save=False)
+        ccniy_client.get_images(graph=ccniy_graph.graph, save=False)
 
-        yield comfy_client, comfy_graph
-        del comfy_client
-        del comfy_graph
+        yield ccniy_client, ccniy_graph
+        del ccniy_client
+        del ccniy_graph
         torch.cuda.empty_cache()
 
     @fixture
@@ -205,29 +205,29 @@ class TestInference:
         yield client
     
     @fixture
-    def comfy_graph(self, _client_graph):
+    def ccniy_graph(self, _client_graph):
         # avoid mutating the graph
         graph = deepcopy(_client_graph[1])
         yield graph
 
-    def test_comfy(
+    def test_ccniy(
         self,
         client,
-        comfy_graph,
+        ccniy_graph,
         sampler,
         scheduler,
         prompt,
         request
     ):
         test_info = request.node.name
-        comfy_graph.set_filename_prefix(test_info)
-        # Settings for comfy graph
-        comfy_graph.set_sampler_name(sampler)
-        comfy_graph.set_scheduler(scheduler)
-        comfy_graph.set_prompt(prompt)
+        ccniy_graph.set_filename_prefix(test_info)
+        # Settings for ccniy graph
+        ccniy_graph.set_sampler_name(sampler)
+        ccniy_graph.set_scheduler(scheduler)
+        ccniy_graph.set_prompt(prompt)
 
         # Generate
-        images = client.get_images(comfy_graph.graph)
+        images = client.get_images(ccniy_graph.graph)
 
         assert len(images) != 0, "No images generated"
         # assert all images are not blank

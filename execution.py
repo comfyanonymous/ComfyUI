@@ -10,7 +10,7 @@ from typing import List, Literal, NamedTuple, Optional
 import torch
 import nodes
 
-import comfy.model_management
+import ccniy.model_management
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -155,7 +155,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:
                 server.send_sync("executed", { "node": unique_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
-    except comfy.model_management.InterruptProcessingException as iex:
+    except ccniy.model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs
@@ -288,7 +288,7 @@ class PromptExecutor:
 
         # First, send back the status to the frontend depending
         # on the exception type
-        if isinstance(ex, comfy.model_management.InterruptProcessingException):
+        if isinstance(ex, ccniy.model_management.InterruptProcessingException):
             mes = {
                 "prompt_id": prompt_id,
                 "node_id": node_id,
@@ -364,7 +364,7 @@ class PromptExecutor:
                     d = self.outputs_ui.pop(x)
                     del d
 
-            comfy.model_management.cleanup_models()
+            ccniy.model_management.cleanup_models()
             self.add_message("execution_cached",
                           { "nodes": list(current_outputs) , "prompt_id": prompt_id},
                           broadcast=False)
@@ -391,8 +391,8 @@ class PromptExecutor:
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
             self.server.last_node_id = None
-            if comfy.model_management.DISABLE_SMART_MEMORY:
-                comfy.model_management.unload_all_models()
+            if ccniy.model_management.DISABLE_SMART_MEMORY:
+                ccniy.model_management.unload_all_models()
 
 
 
