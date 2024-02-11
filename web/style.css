@@ -10,6 +10,10 @@
 	--border-color: #4e4e4e;
 	--tr-even-bg-color: #222;
 	--tr-odd-bg-color: #353535;
+	--primary-bg: #236692;
+		--primary-fg: #ffffff;
+		--primary-hover-bg: #3485bb;
+		--primary-hover-fg: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {

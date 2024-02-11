@@ -6,17 +6,22 @@ import { ComfySettingsDialog } from "./ui/settings.js";
 export const ComfyDialog = _ComfyDialog;
 
 /**
- * 
- * @param { string } tag HTML Element Tag and optional classes e.g. div.class1.class2
+ * @template { string | (keyof HTMLElementTagNameMap) } K
+ * @typedef { K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : HTMLElement } ElementType 
+ */
+
+/**
+ * @template { string | (keyof HTMLElementTagNameMap) } K 
+ * @param { K } tag HTML Element Tag and optional classes e.g. div.class1.class2
  * @param { string | Element | Element[] | ({
  * 	 parent?: Element,
- *   $?: (el: HTMLElement) => void, 
+ *   $?: (el: ElementType<K>) => void, 
  *   dataset?: DOMStringMap,
  *   style?: Partial<CSSStyleDeclaration>,
  * 	 for?: string
- * } & Omit<Partial<HTMLElement>, "style">) | undefined } [propsOrChildren]
+ * } & Omit<Partial<ElementType<K>>, "style">) | undefined } [propsOrChildren]
  * @param { string | Element | Element[] | undefined } [children]
- * @returns 
+ * @returns { ElementType<K> }
  */
 export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
@@ -587,7 +592,7 @@ export class ComfyUI {
 			name: "Enable Dev mode Options",
 			type: "boolean",
 			defaultValue: false,
-			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
+			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "flex" : "none"},
 		});
 
 		dragElement(this.menuContainer, this.settings);

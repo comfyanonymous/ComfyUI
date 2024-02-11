@@ -1,7 +1,8 @@
 import { $el } from "../ui.js";
 
-export class ComfyDialog {
+export class ComfyDialog extends EventTarget {
 	constructor() {
+		super();
 		this.element = $el("div.comfy-modal", { parent: document.body }, [
 			$el("div.comfy-modal-content", [$el("p", { $: (p) => (this.textElement = p) }), ...this.createButtons()]),
 		]);
