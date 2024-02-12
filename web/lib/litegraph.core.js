@@ -7139,7 +7139,8 @@ LGraphNode.prototype.executeAction = function(action)
     LGraphCanvas.prototype.copyToClipboard = function(nodes) {
         var clipboard_info = {
             nodes: [],
-            links: []
+            links: [],
+            groups: []
         };
         var index = 0;
         var selected_nodes_array = [];
@@ -7153,6 +7154,8 @@ LGraphNode.prototype.executeAction = function(action)
             index += 1;
         }
 
+        var _selected_groups = [];
+
         for (var i = 0; i < selected_nodes_array.length; ++i) {
             var node = selected_nodes_array[i];
             var cloned = node.clone();
@@ -7162,6 +7165,15 @@ LGraphNode.prototype.executeAction = function(action)
                 continue;
             }
             clipboard_info.nodes.push(cloned.serialize());
+
+            for (var group of this.graph._groups) {
+                group.recomputeInsideNodes();
+                if (group._nodes?.includes(node) && (!_selected_groups.includes(group))) {
+                    _selected_groups.push(group);
+                   clipboard_info.groups.push(group.serialize()); 
+                }
+            }
+
             if (node.inputs && node.inputs.length) {
                 for (var j = 0; j < node.inputs.length; ++j) {
                     var input = node.inputs[j];
@@ -7243,6 +7255,21 @@ LGraphNode.prototype.executeAction = function(action)
                 nodes.push(node);
             }
         }
+        
+        //restore groups
+        if (clipboard_info.groups) {
+            for (var i = 0; i < clipboard_info.groups.length; ++i) {
+                var group = new LiteGraph.LGraphGroup();
+                var group_data = clipboard_info.groups[i];
+                group.configure(group_data);
+                
+                group.pos[0] += this.graph_mouse[0] - posMin[0]; //+= 5;
+                group.pos[1] += this.graph_mouse[1] - posMin[1]; //+= 5;
+                app.graph.add(group,{doProcessChange:false});
+            }
+        }
+
+
 
         //create links
         for (var i = 0; i < clipboard_info.links.length; ++i) {
