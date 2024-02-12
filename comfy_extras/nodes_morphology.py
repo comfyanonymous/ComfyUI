@@ -8,14 +8,14 @@ class Morphology:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"image": ("IMAGE",),
-                                "operation": (["erode",  "dilate", "open", "close", "gradient", "bottom_hat"],),
-                                "kernel_size": ("INT", {"default": 3, "min": 3, "max": 999, "step": 2}),
+                                "operation": (["erode",  "dilate", "open", "close", "gradient", "bottom_hat", "top_hat"],),
+                                "kernel_size": ("INT", {"default": 3, "min": 3, "max": 999, "step": 1}),
                                 }}
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "process"
 
-    CATEGORY = "image/postprocessors"
+    CATEGORY = "image/postprocessing"
 
     def process(self, image, operation, kernel_size):
         device = comfy.model_management.get_torch_device()
@@ -31,9 +31,9 @@ class Morphology:
             output = closing(image_k, kernel)
         elif operation == "gradient":
             output = gradient(image_k, kernel)
-        elif operation == "tophat":
+        elif operation == "top_hat":
             output = top_hat(image_k, kernel)
-        elif operation == "bottomhat":
+        elif operation == "bottom_hat":
             output = bottom_hat(image_k, kernel)
         else:
             raise ValueError(f"Invalid operation {operation} for morphology. Must be one of 'erode', 'dilate', 'open', 'close', 'gradient', 'tophat', 'bottomhat'")
