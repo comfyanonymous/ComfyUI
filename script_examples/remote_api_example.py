@@ -100,10 +100,10 @@ _PROMPT_FROM_WEB_UI = {
 
 
 # Observe this is an ordinary dictionary. The JSON that was saved from the workflow is compatible with Python syntax.
-#
-# Now, QUIT AND CLOSE YOUR COMFYUI SERVER. You don't need it anymore. This script will handle starting and stopping
-# the server for you. Actually, it will create an object that does the same thing that pressing Queue Prompt does.
-#
+# 
+# Because you will be accessing a remote ComfyUI server, it should remain running somewhere. It can be your local machine,
+# or some other machine. Do what makes sense for your application.
+# 
 # We'll now write the entrypoint of our script. This is an `async def main()` because async helps us start and stop the
 # code object that will run your workflow, just like pressing the Queue Prompt button.
 async def main():
