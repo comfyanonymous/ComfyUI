@@ -8,14 +8,14 @@ class Morphology:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"image": ("IMAGE",),
-                                "operation": (["erode",  "dilate", "open", "close", "gradient", "bottom_hat"]),
-                                "kernel_size": ("INT", {"default": 3, "min": 3, "max": 101, "step": 2}),
+                                "operation": (["erode",  "dilate", "open", "close", "gradient", "bottom_hat"],),
+                                "kernel_size": ("INT", {"default": 3, "min": 3, "max": 999, "step": 2}),
                                 }}
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "process"
 
-    CATEGORY = "image/preprocessors"
+    CATEGORY = "image/postprocessors"
 
     def process(self, image, operation, kernel_size):
         device = comfy.model_management.get_torch_device()
@@ -42,4 +42,8 @@ class Morphology:
 
 NODE_CLASS_MAPPINGS = {
     "Morphology": Morphology,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "Morphology": "ImageMorphology",
 }
