@@ -483,7 +483,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         _model_patcher = model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
         if inital_load_device != torch.device("cpu"):
             print("loaded straight to GPU")
-            model_management.load_model_gpu(model_patcher)
+            model_management.load_model_gpu(_model_patcher)
 
     return (_model_patcher, clip, vae, clipvision)
 
