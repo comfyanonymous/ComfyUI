@@ -197,6 +197,7 @@ button.comfy-close-menu-btn {
 .comfy-modal button:hover,
 .comfy-menu-actions button:hover {
 	filter: brightness(1.2);
+	will-change: transform;
 	cursor: pointer;
 }
 
@@ -462,11 +463,13 @@ dialog::backdrop {
 	z-index: 9999 !important;
 	background-color: var(--comfy-menu-bg) !important;
 	filter: brightness(95%);
+	will-change: transform;
 }
 
 .litegraph.litecontextmenu .litemenu-entry:hover:not(.disabled):not(.separator) {
 	background-color: var(--comfy-menu-bg) !important;
 	filter: brightness(155%);
+	will-change: transform;
 	color: var(--input-text);
 }
 
@@ -527,12 +530,14 @@ dialog::backdrop {
 	color: var(--input-text);
 	background-color: var(--comfy-input-bg);
 	filter: brightness(80%);
+	will-change: transform;
 	padding-left: 0.2em;
 }
 
 .litegraph.lite-search-item.generic_type {
 	color: var(--input-text);
 	filter: brightness(50%);
+	will-change: transform;
 }
 
 @media only screen and (max-width: 450px) {
