@@ -8,13 +8,7 @@ class Morphology:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"image": ("IMAGE",),
-                                "operation": ("STRING", {"default": "dilate", "choices": ["erode",
-                                                                                         "dilate",
-                                                                                         "open",
-                                                                                         "close",
-                                                                                         "gradient",
-                                                                                         "top_hat",
-                                                                                         "bottom_hat"]}),
+                                "operation": (["erode",  "dilate", "open", "close", "gradient", "bottom_hat"]),
                                 "kernel_size": ("INT", {"default": 3, "min": 3, "max": 101, "step": 2}),
                                 }}
 
@@ -43,7 +37,7 @@ class Morphology:
             output = bottom_hat(image_k, kernel)
         else:
             raise ValueError(f"Invalid operation {operation} for morphology. Must be one of 'erode', 'dilate', 'open', 'close', 'gradient', 'tophat', 'bottomhat'")
-        img_out = output.to(comfy.model_management.intermediate_device())
+        img_out = output.to(comfy.model_management.intermediate_device()).movedim(1, -1)
         return (img_out,)
 
 NODE_CLASS_MAPPINGS = {
