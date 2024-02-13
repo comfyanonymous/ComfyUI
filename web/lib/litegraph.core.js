@@ -7166,13 +7166,6 @@ LGraphNode.prototype.executeAction = function(action)
             }
             clipboard_info.nodes.push(cloned.serialize());
 
-            for (var group of this.graph._groups) {
-                group.recomputeInsideNodes();
-                if (group._nodes?.includes(node) && (!_selected_groups.includes(group))) {
-                    _selected_groups.push(group);
-                   clipboard_info.groups.push(group.serialize()); 
-                }
-            }
 
             if (node.inputs && node.inputs.length) {
                 for (var j = 0; j < node.inputs.length; ++j) {
@@ -7200,6 +7193,17 @@ LGraphNode.prototype.executeAction = function(action)
                 }
             }
         }
+
+        //if every node in the group are selected, then the group is "selected"
+        for (var group of this.graph._groups) {
+            group.recomputeInsideNodes();
+            if (group._nodes?.every(function(node){
+                return selected_nodes_array.includes(node)
+            })) {
+               clipboard_info.groups.push(group.serialize()); 
+            }
+        }
+
         localStorage.setItem(
             "litegrapheditor_clipboard",
             JSON.stringify(clipboard_info)
