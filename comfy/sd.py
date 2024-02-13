@@ -470,10 +470,13 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         w = WeightsLoader()
         clip_target = model_config.clip_target()
         if clip_target is not None:
-            clip = CLIP(clip_target, embedding_directory=embedding_directory)
-            w.cond_stage_model = clip.cond_stage_model
             sd = model_config.process_clip_state_dict(sd)
-            load_model_weights(w, sd)
+            if any(k.startswith('cond_stage_model.') for k in sd):
+                clip = CLIP(clip_target, embedding_directory=embedding_directory)
+                w.cond_stage_model = clip.cond_stage_model
+                load_model_weights(w, sd)
+            else:
+                print("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
 
     left_over = sd.keys()
     if len(left_over) > 0:
