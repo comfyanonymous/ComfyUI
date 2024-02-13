@@ -7154,8 +7154,6 @@ LGraphNode.prototype.executeAction = function(action)
             index += 1;
         }
 
-        var _selected_groups = [];
-
         for (var i = 0; i < selected_nodes_array.length; ++i) {
             var node = selected_nodes_array[i];
             var cloned = node.clone();
