@@ -10,7 +10,8 @@
 		<script type="text/javascript" src="./lib/litegraph.core.js"></script>
 		<script type="text/javascript" src="./lib/litegraph.extensions.js" defer></script>
 		<script type="module">
-			import { app } from "./scripts/app.js";
+			import { app, loadModuleBasedOnPath } from "./scripts/app.js";
+			await loadModuleBasedOnPath();
 			await app.setup();
 			window.app = app;
 			window.graph = app.graph;
