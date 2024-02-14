@@ -102,6 +102,7 @@ vram_group.add_argument("--lowvram", action="store_true", help="Split the unet i
 vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
+parser.add_argument("--monitor-nodes", action="store_true", default=False, help="Monitor custom_nodes for modifications, and reload them.")
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")

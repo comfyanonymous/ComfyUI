@@ -145,7 +145,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id }, server.client_id)
 
         obj = object_storage.get((unique_id, class_type), None)
-        if obj is None:
+        should_reload = getattr(class_def, 'RELOAD_INST', False)
+        if obj is None or (obj.__class__ is not class_def and should_reload):
             obj = class_def()
             object_storage[(unique_id, class_type)] = obj
 
