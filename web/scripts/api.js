@@ -237,7 +237,6 @@ class ComfyApi extends EventTarget {
       .catch((error) => {
         console.error(error);
       });
-    console.log("final api.getNodeDefs return", nodeDefs);
     // const resp = await this.fetchApi("/object_info", { cache: "no-store" });
     return nodeDefs;
   }

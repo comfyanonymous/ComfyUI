@@ -1665,70 +1665,12 @@ export class ComfyApp {
    * Registers nodes with the graph
    */
   async registerNodes() {
-    const app = this;
-    // Load node definitions from the backend
-    const defs = await api.getNodeDefs();
-    await this.registerNodesFromDefs(defs);
-    await this.#invokeExtensionsAsync("registerCustomNodes");
-	
-    window.addEventListener('message', function(event) {
-      // Check the message received
-      if (event.data === 'showAllNodes') {
-        // Handle the "showAllNodes" message
-        console.log('Handling showAllNodes message');
-    
-        // Your code to show all nodes goes here
-        // For example, this could involve altering the display style of certain elements
-      }
-    });
-	  const LEFT_PADDING = 20;
-    let currentPosition = [LEFT_PADDING, 50]; // Start at the top-left corner of the canvas.
-    const canvasWidth = app.canvasEl.offsetWidth; // Dynamically get canvas width.
-    const rowGap = 60; // Vertical gap between rows.
-    const gap = 20;
-    let maxHeightInRow = 0; // Track the tallest node in the current row.
-    Object.keys(defs).forEach((nodeType, index) => {
-      const node = LiteGraph.createNode(nodeType);
-      const nodeWidth = node.size[0];
-      const nodeHeight = node.size[1];
-    
-      // Check if the node can fit in the canvas width at all
-      if (nodeWidth > canvasWidth) {
-        console.warn(`Node of type ${nodeType} exceeds the canvas width and cannot be placed.`);
-      }
-    
-      // Preemptively move to the next row if the current node would exceed the canvas width
-      if (currentPosition[0] + nodeWidth + gap > canvasWidth) {
-        currentPosition[0] = LEFT_PADDING; // Reset X position to start of the next row
-        currentPosition[1] += maxHeightInRow + rowGap; // Move Y position down
-        maxHeightInRow = nodeHeight; // Start tracking the new row's maxHeight with the current node
-      } else {
-        // The node fits in the current row, update maxHeightInRow
-        maxHeightInRow = Math.max(maxHeightInRow, nodeHeight);
-      }
-    
-      // Place the node at the current position
-      node.pos = [...currentPosition];
-      app.graph.add(node);
-    
-      // Move currentPosition right for the next node
-      currentPosition[0] += nodeWidth + gap;
-
-    });
-    // After adding and positioning all nodes
-    const totalHeightRequired = currentPosition[1] + maxHeightInRow + rowGap; // Add one more rowGap for bottom padding
-    var message = { type: 'updateCanvasHeight', height: totalHeightRequired };
-    // Send the message to the parent window
-    window.parent.postMessage(message, window.location.origin); 
-    // Adjust canvas height to fit all nodes
-
-    // to disable mousewheel zooming but not working
-    // this.canvas._mousewheel_callback = function(event) {
-    // 	e.preventDefault();
-    // 	e.stopPropagation();
-    // 	return false; // Returning false to indicate the event should not be propagated
-    // };
-  }
+		const app = this;
+		// Load node definitions from the backend
+		const defs = await api.getNodeDefs();
+		await this.registerNodesFromDefs(defs);
+		await this.#invokeExtensionsAsync("registerCustomNodes");
+	}
 
   getWidgetType(inputData, inputName) {
     const type = inputData[0];
@@ -2500,12 +2442,16 @@ export async function loadModuleBasedOnPath() {
   const queryParams = new URLSearchParams(window.location.search);
   const nodeId = queryParams.get('nodeID');
   const workflowVersionID = queryParams.get('workflowVersionID');
+  const packageID = queryParams.get('packageID');
   if (nodeId !== null) {
     const {ComfyViewNodeApp} = await import("/web/scripts/comfyspace_viewNodeApp.js");
     app = new ComfyViewNodeApp();
   } else if(workflowVersionID !== null) {
     const {ComfyViewWorkflowApp} = await import("/web/scripts/comfyspace_viewWorkflowApp.js");
     app = new ComfyViewWorkflowApp();
+  } else if(packageID !=null) {
+    const {ComfyViewNodePackageApp} = await import("/web/scripts/comfyspace_viewNodePackageApp.js");
+    app = new ComfyViewNodePackageApp();
   } else {
     // For any other path, import app.js and perform setup
     app = new ComfyApp()

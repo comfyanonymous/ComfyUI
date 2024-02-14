@@ -2,6 +2,10 @@
 import { ComfyApp } from "./app.js";
 
 export class ComfyViewNodeApp extends ComfyApp {
+  async setup() {
+    LGraphCanvas.prototype.processMouseWheel =()=>{}
+    await super.setup();
+  }
   async registerNodes() {
       const app = this;
       // Load node definitions from the backend
