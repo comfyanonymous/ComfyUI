@@ -1639,31 +1639,17 @@ export class ComfyApp {
 
     // Load previous workflow
     let restored = false;
-    try {
-      const json = localStorage.getItem("workflow");
-      if (json) {
-        const workflow = JSON.parse(json);
-        // await this.loadGraphData(workflow);
-        restored = true;
-      }
-    } catch (err) {
-      console.error("Error loading previous workflow", err);
-    }
+    // try {
+    //   const json = localStorage.getItem("workflow");
+    //   if (json) {
+    //     const workflow = JSON.parse(json);
+    //     // await this.loadGraphData(workflow);
+    //     restored = true;
+    //   }
+    // } catch (err) {
+    //   console.error("Error loading previous workflow", err);
+    // }
 
-    // We failed to restore a workflow so load the default
-    if (!restored) {
-    //   await this.loadGraphData();
-    }
-
-    // Save current workflow automatically
-    // setInterval(
-    //   () =>
-    //     localStorage.setItem(
-    //       "workflow",
-    //       JSON.stringify(this.graph.serialize())
-    //     ),
-    //   1000
-    // );
 
     this.#addDrawNodeHandler();
     this.#addDrawGroupsHandler();
@@ -2512,20 +2498,17 @@ export class ComfyApp {
 export async function loadModuleBasedOnPath() {
   console.log('Loading module based on path');
   const queryParams = new URLSearchParams(window.location.search);
-    const nodeId = queryParams.get('nodeID');
-  
+  const nodeId = queryParams.get('nodeID');
+  const workflowVersionID = queryParams.get('workflowVersionID');
   if (nodeId !== null) {
-    
-    console.log('Loading viewNodeApp for node:', nodeId);
     const {ComfyViewNodeApp} = await import("/web/scripts/comfyspace_viewNodeApp.js");
-    
     app = new ComfyViewNodeApp();
-    
+  } else if(workflowVersionID !== null) {
+    const {ComfyViewWorkflowApp} = await import("/web/scripts/comfyspace_viewWorkflowApp.js");
+    app = new ComfyViewWorkflowApp();
   } else {
-    
     // For any other path, import app.js and perform setup
     app = new ComfyApp()
-    
   }
 }
 
