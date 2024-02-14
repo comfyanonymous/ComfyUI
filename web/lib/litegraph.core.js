@@ -5616,7 +5616,6 @@ LGraphNode.prototype.executeAction = function(action)
      * @method bindEvents
      **/
     LGraphCanvas.prototype.bindEvents = function() {
-        return;
         if (this._events_binded) {
             console.warn("LGraphCanvas: events already binded");
             return;
