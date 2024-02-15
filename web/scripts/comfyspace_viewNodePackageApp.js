@@ -6,6 +6,18 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     // to disable mousewheel zooming
     LGraphCanvas.prototype.processMouseWheel =()=>{}
     await super.setup();
+    this.canvasEl.addEventListener("click", (e)=> {
+			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );
+			window.parent.postMessage({ type: "onClickNodeEvent", nodeType: node.type }, window.location.origin);
+		});
+		this.canvasEl.addEventListener("mousemove", (e)=> {
+			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );		
+			if(node) {
+				app.canvasEl.style.cursor = "pointer";
+			} else {
+				app.canvasEl.style.cursor = "default";
+			}
+		});
   }
   async registerNodes() {
     const app = this;
