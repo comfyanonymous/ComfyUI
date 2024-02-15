@@ -435,7 +435,7 @@ class PromptExecutor:
                 "exception_type": error["exception_type"],
                 "traceback": error["traceback"],
                 "current_inputs": error["current_inputs"],
-                "current_outputs": error["current_outputs"],
+                "current_outputs": list(current_outputs),
             }
             self.add_message("execution_error", mes, broadcast=False)
         
