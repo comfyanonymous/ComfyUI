@@ -105,7 +105,7 @@ class TopologicalSort:
                 if subgraph_nodes is not None and from_node_id not in subgraph_nodes:
                     continue
                 input_type, input_category, input_info = self.get_input_info(unique_id, input_name)
-                is_lazy = "lazy" in input_info and input_info["lazy"]
+                is_lazy = input_info is not None and "lazy" in input_info and input_info["lazy"]
                 if include_lazy or not is_lazy:
                     self.add_strong_link(from_node_id, from_socket, unique_id)
 
