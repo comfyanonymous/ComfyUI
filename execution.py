@@ -16,6 +16,7 @@ import comfy.graph_utils
 from comfy.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
 from comfy.graph_utils import is_link, GraphBuilder
 from comfy.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetInputSignatureWithID, CacheKeySetID
+from comfy.cli_args import args
 
 class ExecutionResult(Enum):
     SUCCESS = 0
@@ -550,7 +551,8 @@ def validate_inputs(prompt, item, validated):
             o_id = val[0]
             o_class_type = prompt[o_id]['class_type']
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            if r[val[1]] != type_input:
+            is_variant = args.enable_variants and (r[val[1]] == "*" or type_input == "*")
+            if r[val[1]] != type_input and not is_variant:
                 received_type = r[val[1]]
                 details = f"{x}, {received_type} != {type_input}"
                 error = {
