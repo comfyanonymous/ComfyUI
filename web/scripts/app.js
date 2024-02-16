@@ -63,6 +63,8 @@ export class ComfyApp {
      * @type {ComfyExtension[]}
      */
     this.extensions = [];
+    /** @type {string[]} */
+    this.extensionFilesPath = []
 
     /**
      * Stores the execution output data for each node
@@ -1484,15 +1486,11 @@ export class ComfyApp {
 
   /**
    * Loads all extensions from the API into the window in parallel
+   * @param {string[]} extensionFiles 
    */
   async #loadExtensions() {
-    // const extensions = await api.getExtensions();
-    // this.logging.addEntry("Comfy.App", "debug", { Extensions: extensions });
-    const allowedExtensions = [
-      '/extensions/core/colorPalette.js',
-      '/nodes-viewer/nodesViewer.js',
-    ]
-    const extensionPromises = allowedExtensions.map(async (ext) => {
+    console.log('this.extensionFilesPath', this.extensionFilesPath)
+    const extensionPromises = this.extensionFilesPath.map(async (ext) => {
       try {
         await import(api.apiURL(ext));
       } catch (error) {

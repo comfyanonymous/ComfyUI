@@ -4,8 +4,15 @@ import { ComfyApp } from "./app.js";
 export class ComfyViewWorkflowApp extends ComfyApp {
   #defs = null;
   #workflow = null
-
+  
   async setup() {
+    await fetch("/api/listComfyExtensions").then(resp => resp.json()).then(data => {
+      if(data.paths) {
+        this.extensionFilesPath = data.paths;
+      }
+    }).catch(error => {
+      console.error("error fetching comfy extensions", error);
+    }); 
     const queryParams = new URLSearchParams(window.location.search);
     const workflowVersionID = queryParams.get('workflowVersionID');
     await fetch("/api/getCloudflowVersion/?id=" + workflowVersionID, {
@@ -35,6 +42,7 @@ export class ComfyViewWorkflowApp extends ComfyApp {
       await this.registerNodesFromDefs(this.#defs);
       await this.#invokeExtensionsAsync("registerCustomNodes");
     }
+
   /**
    * Invoke an async extension callback
    * Each callback will be invoked concurrently
