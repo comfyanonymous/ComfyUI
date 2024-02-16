@@ -318,9 +318,10 @@ def load_controlnet(ckpt_path, model=None):
         return ControlLora(controlnet_data)
 
     controlnet_config = None
+    supported_inference_dtypes = None
+
     if "controlnet_cond_embedding.conv_in.weight" in controlnet_data: #diffusers format
-        unet_dtype = comfy.model_management.unet_dtype()
-        controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data, unet_dtype)
+        controlnet_config = comfy.model_detection.unet_config_from_diffusers_unet(controlnet_data)
         diffusers_keys = comfy.utils.unet_to_diffusers(controlnet_config)
         diffusers_keys["controlnet_mid_block.weight"] = "middle_block_out.0.weight"
         diffusers_keys["controlnet_mid_block.bias"] = "middle_block_out.0.bias"
@@ -380,12 +381,20 @@ def load_controlnet(ckpt_path, model=None):
         return net
 
     if controlnet_config is None:
-        unet_dtype = comfy.model_management.unet_dtype()
-        controlnet_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, unet_dtype, True).unet_config
+        model_config = comfy.model_detection.model_config_from_unet(controlnet_data, prefix, True)
+        supported_inference_dtypes = model_config.supported_inference_dtypes
+        controlnet_config = model_config.unet_config
+
     load_device = comfy.model_management.get_torch_device()
+    if supported_inference_dtypes is None:
+        unet_dtype = comfy.model_management.unet_dtype()
+    else:
+        unet_dtype = comfy.model_management.unet_dtype(supported_dtypes=supported_inference_dtypes)
+
     manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device)
     if manual_cast_dtype is not None:
         controlnet_config["operations"] = comfy.ops.manual_cast
+    controlnet_config["dtype"] = unet_dtype
     controlnet_config.pop("out_channels")
     controlnet_config["hint_channels"] = controlnet_data["{}input_hint_block.0.weight".format(prefix)].shape[1]
     control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
