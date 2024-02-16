@@ -463,6 +463,8 @@ paths:
                   
                   ```
                 type: object
+                required:
+                  - urls
                 properties:
                   urls:
                     type: array
