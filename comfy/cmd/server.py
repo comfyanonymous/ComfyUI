@@ -657,7 +657,7 @@ class PromptServer(ExecutorToClientProgress):
                         os.makedirs(os.path.dirname(cache_path))
                     except:
                         pass
-                shutil.copy(image_, cache_path)
+                # shutil.copy(image_, cache_path)
                 filename = os.path.basename(image_)
                 digest_headers_ = {
                     "Digest": f"SHA-256={content_digest}",
