@@ -42,4 +42,6 @@ class SC_Prior(LatentFormat):
     def __init__(self):
         self.scale_factor = 1.0
 
-
+class SC_B(LatentFormat):
+    def __init__(self):
+        self.scale_factor = 1.0
