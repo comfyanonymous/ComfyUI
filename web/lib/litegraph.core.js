@@ -11910,7 +11910,7 @@ LGraphNode.prototype.executeAction = function(action)
 					var ctor = LiteGraph.registered_node_types[ type ];
 					if(filter && ctor.filter != filter )
 						return false;
-                    if ((!options.show_all_if_empty || str) && type.toLowerCase().indexOf(str) === -1)
+                    if ((!options.show_all_if_empty || str) && type.toLowerCase().indexOf(str) === -1 && (!ctor.title || ctor.title.toLowerCase().indexOf(str) === -1))
                         return false;
                     
                     // filter by slot IN, OUT types
@@ -11964,7 +11964,18 @@ LGraphNode.prototype.executeAction = function(action)
                 if (!first) {
                     first = type;
                 }
-                help.innerText = type;
+
+                const nodeType = LiteGraph.registered_node_types[type];
+                if (nodeType?.title) {
+                    help.innerText = nodeType?.title;
+                    const typeEl = document.createElement("span");
+                    typeEl.className = "litegraph lite-search-item-type";
+                    typeEl.textContent = type;
+                    help.append(typeEl);
+                } else {
+                    help.innerText = type;
+                }
+
                 help.dataset["type"] = escape(type);
                 help.className = "litegraph lite-search-item";
                 if (className) {

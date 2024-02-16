@@ -126,7 +126,7 @@ class LatentBatchSeedBehavior:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
-                              "seed_behavior": (["random", "fixed"],),}}
+                              "seed_behavior": (["random", "fixed"],{"default": "fixed"}),}}
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "op"
