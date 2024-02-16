@@ -108,9 +108,7 @@ class SelfAttentionGuidance:
 
     def patch(self, model, scale, blur_sigma, activation_proportion):
         m = model.clone()
-        model_sampling = m.model.model_sampling
-        sigmin = model_sampling.sigma(model_sampling.timestep(model_sampling.sigma_min))
-        sigmax = model_sampling.sigma(model_sampling.timestep(model_sampling.sigma_max))
+        sigma_start = m.model.model_sampling.percent_to_sigma(activation_proportion)
         
         attn_scores = None
 
@@ -149,7 +147,7 @@ class SelfAttentionGuidance:
             x = args["input"]
             if min(cfg_result.shape[2:]) <= 4: #skip when too small to add padding
                 return cfg_result
-            if 1-activation_proportion < (sigma - sigmin) / (sigmax - sigmin):
+            if sigma > sigma_start:
                 return cfg_result
             # create the adversarially blurred image
             degraded = create_blur_map(uncond_pred, uncond_attn, sag_sigma, sag_threshold)
