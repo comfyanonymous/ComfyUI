@@ -1660,6 +1660,7 @@ export class ComfyApp {
 	}
 
 	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+    return;
 		let seenTypes = new Set();
 
 		this.ui.dialog.show(
