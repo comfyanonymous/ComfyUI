@@ -336,7 +336,7 @@ class Stable_Cascade_C(supported_models_base.BASE):
         return out
 
     def clip_target(self):
-        return None
+        return supported_models_base.ClipTarget(sdxl_clip.StableCascadeTokenizer, sdxl_clip.StableCascadeClipModel)
 
 class Stable_Cascade_B(Stable_Cascade_C):
     unet_config = {
