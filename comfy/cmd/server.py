@@ -22,7 +22,7 @@ import aiofiles
 import aiohttp
 from aiohttp import web
 
-from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes
+from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation
 from ..cmd import execution
 from ..cmd import folder_paths
 import mimetypes
@@ -621,7 +621,7 @@ class PromptServer(ExecutorToClientProgress):
             # todo: check that the files specified in the InputFile nodes exist
 
             # convert a valid prompt to the queue tuple this expects
-            completed: Future = self.loop.create_future()
+            completed: Future[TaskInvocation | dict] = self.loop.create_future()
             number = self.number
             self.number += 1
             self.prompt_queue.put(
@@ -633,7 +633,8 @@ class PromptServer(ExecutorToClientProgress):
             except Exception as ex:
                 return web.Response(body=str(ex), status=503)
                 # expect a single image
-            outputs_dict: dict = completed.result()
+            result: TaskInvocation | dict = completed.result()
+            outputs_dict: dict = result.outputs if isinstance(result, TaskInvocation) else result
             # find images and read them
 
             output_images: List[str] = []
