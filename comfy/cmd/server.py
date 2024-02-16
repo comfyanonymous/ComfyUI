@@ -5,7 +5,7 @@ import glob
 import struct
 import sys
 import shutil
-from urllib.parse import quote
+from urllib.parse import quote, urljoin
 from pkg_resources import resource_filename
 
 from PIL import Image, ImageOps
@@ -16,7 +16,7 @@ import json
 import os
 import uuid
 from asyncio import Future, AbstractEventLoop
-from typing import List
+from typing import List, Optional
 
 import aiofiles
 import aiohttp
@@ -92,14 +92,16 @@ class PromptServer(ExecutorToClientProgress):
         self.messages: asyncio.Queue = asyncio.Queue()
         self.number: int = 0
         self.port: int = 8188
+        self._external_address: Optional[str] = None
 
         middlewares = [cache_control]
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
-        self.app: web.Application = web.Application(client_max_size=max_upload_size, handler_args={'max_field_size': 16380},
-                                   middlewares=middlewares)
+        self.app: web.Application = web.Application(client_max_size=max_upload_size,
+                                                    handler_args={'max_field_size': 16380},
+                                                    middlewares=middlewares)
         self.sockets = dict()
         web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../web")
         if not os.path.exists(web_root_path):
@@ -254,7 +256,7 @@ class PromptServer(ExecutorToClientProgress):
                 if os.path.isfile(file):
                     with Image.open(file) as original_pil:
                         metadata = PngInfo()
-                        if hasattr(original_pil,'text'):
+                        if hasattr(original_pil, 'text'):
                             for key in original_pil.text:
                                 metadata.add_text(key, original_pil.text[key])
                         original_pil = original_pil.convert('RGBA')
@@ -407,7 +409,7 @@ class PromptServer(ExecutorToClientProgress):
             info['name'] = node_class
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[
                 node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
-            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
+            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class, 'DESCRIPTION') else ''
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
                 info['output_node'] = True
@@ -425,7 +427,8 @@ class PromptServer(ExecutorToClientProgress):
                 try:
                     out[x] = node_info(x)
                 except Exception as e:
-                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
+                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.",
+                          file=sys.stderr)
                     traceback.print_exc()
             return web.json_response(out)
 
@@ -489,7 +492,7 @@ class PromptServer(ExecutorToClientProgress):
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put(
                         QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute),
-                                                                      completed=None))
+                                  completed=None))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
@@ -606,6 +609,7 @@ class PromptServer(ExecutorToClientProgress):
 
                     return web.Response(status=200,
                                         headers=digest_headers_,
+                                        content_type="application/json",
                                         body=json.dumps({'urls': [cache_url]}))
                 elif accept == "image/png":
                     return web.FileResponse(cache_path,
@@ -622,7 +626,7 @@ class PromptServer(ExecutorToClientProgress):
             self.number += 1
             self.prompt_queue.put(
                 QueueItem(queue_tuple=(number, str(uuid.uuid4()), prompt_dict, {}, valid[2]),
-                                                              completed=completed))
+                          completed=completed))
 
             try:
                 await completed
@@ -654,17 +658,28 @@ class PromptServer(ExecutorToClientProgress):
                         pass
                 shutil.copy(image_, cache_path)
                 filename = os.path.basename(image_)
-                comfyui_url = f"http://{self.address}:{self.port}/view?filename={filename}&type=output"
                 digest_headers_ = {
                     "Digest": f"SHA-256={content_digest}",
-                    "Location": f"/api/v1/images/{content_digest}",
-                    "Content-Disposition": f"filename=\"{filename}\""
                 }
-                if accept == "application/json":
+                urls_ = [cache_url]
+                if len(output_images) == 1:
+                    digest_headers_.update({
+                        "Location": f"/api/v1/images/{content_digest}",
+                        "Content-Disposition": f"filename=\"{filename}\""
+                    })
 
+                for image_indv_ in output_images:
+                    image_indv_filename_ = os.path.basename(image_indv_)
+                    urls_ += [
+                        f"http://{self.address}:{self.port}/view?filename={image_indv_filename_}&type=output",
+                        urljoin(self.external_address, f"/view?filename={image_indv_filename_}&type=output")
+                    ]
+
+                if accept == "application/json":
                     return web.Response(status=200,
+                                        content_type="application/json",
                                         headers=digest_headers_,
-                                        body=json.dumps({'urls': [cache_url, comfyui_url]}))
+                                        body=json.dumps({'urls': urls_}))
                 elif accept == "image/png":
                     return web.FileResponse(image_,
                                             headers=digest_headers_)
@@ -681,6 +696,14 @@ class PromptServer(ExecutorToClientProgress):
             last_history_item: HistoryEntry = history_items[-1]
             prompt = last_history_item['prompt'][2]
             return web.json_response(prompt, status=200)
+
+    @property
+    def external_address(self):
+        return self._external_address if self._external_address is not None else f"http://{'localhost' if self.address == '0.0.0.0' else self.address}:{self.port}"
+
+    @external_address.setter
+    def external_address(self, value):
+        self._external_address = value
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)

@@ -224,6 +224,8 @@ async def main():
 
     loop = asyncio.get_event_loop()
     server = server_module.PromptServer(loop)
+    if args.external_address is not None:
+        server.external_address = args.external_address
     if args.distributed_queue_connection_uri is not None:
         distributed = True
         q = DistributedPromptQueue(

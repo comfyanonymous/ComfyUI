@@ -28,6 +28,23 @@ class AsyncRemoteComfyClient:
             f"ws://{server_address_url.hostname}:{server_address_url.port}", f"/ws?clientId={client_id}")
         self.loop = loop or asyncio.get_event_loop()
 
+    async def queue_prompt_uris(self, prompt: PromptDict) -> List[str]:
+        """
+        Calls the API to queue a prompt.
+        :param prompt:
+        :return: a list of URLs corresponding to the SaveImage nodes in the prompt.
+        """
+        prompt_json = AsyncRemoteComfyClient.__json_encoder.encode(prompt)
+        async with aiohttp.ClientSession() as session:
+            response: ClientResponse
+            async with session.post(urljoin(self.server_address, "/api/v1/prompts"), data=prompt_json,
+                                    headers={'Content-Type': 'application/json', 'Accept': 'application/json'}) as response:
+
+                if response.status == 200:
+                    return (await response.json())["urls"]
+                else:
+                    raise RuntimeError(f"could not prompt: {response.status}: {await response.text()}")
+
     async def queue_prompt(self, prompt: PromptDict) -> bytes:
         """
         Calls the API to queue a prompt. Returns the bytes of the first PNG returned by a SaveImage node.

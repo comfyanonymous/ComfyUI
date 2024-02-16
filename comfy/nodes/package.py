@@ -16,7 +16,8 @@ except:
     custom_nodes: typing.Optional[types.ModuleType] = None
 from .package_typing import ExportedNodes
 from functools import reduce
-from pkg_resources import resource_filename, iter_entry_points
+from pkg_resources import resource_filename
+from importlib.metadata import entry_points
 
 _comfy_nodes = ExportedNodes()
 
@@ -85,7 +86,7 @@ def import_all_nodes_in_workspace() -> ExportedNodes:
             custom_nodes_mappings.update(_import_and_enumerate_nodes_in_module(custom_nodes, print_import_times=True))
 
         # load from entrypoints
-        for entry_point in iter_entry_points(group='comfyui.custom_nodes'):
+        for entry_point in entry_points().select(group='comfyui.custom_nodes'):
             # Load the module associated with the current entry point
             module = entry_point.load()
 

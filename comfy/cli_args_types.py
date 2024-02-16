@@ -74,6 +74,7 @@ class Configuration(dict):
         distributed_queue_frontend (bool): Frontends will start the web UI and connect to the provided AMQP URL to submit prompts.
         distributed_queue_worker (bool): Workers will pull requests off the AMQP URL.
         distributed_queue_name (str): This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID.
+        external_address (str): Specifies a base URL for external addresses reported by the API, such as for image paths.
     """
     def __init__(self, **kwargs):
         super().__init__()
@@ -135,6 +136,7 @@ class Configuration(dict):
         self.distributed_queue_worker: bool = False
         self.distributed_queue_frontend: bool = False
         self.distributed_queue_name: str = "comfyui"
+        self.external_address: Optional[str] = None
         for key, value in kwargs.items():
             self[key] = value
 

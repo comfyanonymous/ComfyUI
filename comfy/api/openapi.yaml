@@ -378,7 +378,7 @@ paths:
         200:
           headers:
             Location:
-              description: The URL to the file based on a hash of the request body.
+              description: The URL to the file based on a hash of the request body when exactly one SaveImage node is specified.
               example: /api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
               schema:
                 type: string
@@ -388,7 +388,7 @@ paths:
               schema:
                 type: string
             Content-Disposition:
-              description: The filename when a SaveImage node is specified.
+              description: The filename when exactly one SaveImage node is specified.
               example: filename=ComfyUI_00001.png
               schema:
                 type: string
@@ -407,8 +407,11 @@ paths:
                 description: |
                   A list of URLs to retrieve the binary content of the image.
                   
-                  This will return two URLs. The first is the ordinary ComfyUI view image URL that exactly corresponds
-                  to the UI call. The second is the URL that corresponds to sha256 hash of the request body.
+                  The first URL is named by the digest of the prompt and references the image returned by the first
+                  SaveImage URL, allowing you to exactly retrieve the image without re-running the prompt. 
+                  
+                  Then, for each SaveImage node, there will be two URLs: the internal URL returned by the worker, and
+                  the URL for the image based on the `--external-address` / `COMFYUI_EXTERNAL_ADDRESS` configuration.
                   
                   Hashing function for web browsers:
                   
@@ -466,7 +469,7 @@ paths:
                     items:
                       type: string
                 example:
-                  urls: [ "/api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3", "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output" ]
+                  urls: [ "/api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3", "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output", "https://comfyui.example.com/view?filename=ComfyUI_00001_.png&type=output" ]
         204:
           description: |
             The prompt was run but did not contain any SaveImage outputs, so nothing will be returned.
@@ -781,6 +784,14 @@ components:
         - class_type
         - inputs
       properties:
+        _meta:
+          type: object
+          properties:
+            title:
+              type: string
+              description: |
+                The title of the node when authored in the workflow. Set only when the end user changed it using the
+                panel properties in the UI.
         class_type:
           type: string
           description: The node's class type, which maps to a class in NODE_CLASS_MAPPINGS.
@@ -794,12 +805,11 @@ components:
               - type: array
                 description: |
                   When this is specified, it is a node connection, followed by an output.
-                items:
-                  minItems: 2
-                  maxItems: 2
-                  prefixItems:
-                    - type: string
-                    - type: integer
+                minItems: 2
+                maxItems: 2
+                prefixItems:
+                  - type: string
+                  - type: integer
           description: The inputs for the node, which can be scalar values or references to other nodes' outputs.
         is_changed:
           oneOf:

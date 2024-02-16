@@ -17,11 +17,12 @@ def pytest_addoption(parser):
 def run_server(args_pytest):
     from comfy.cmd.main import main
     from comfy.cli_args import args
+    import asyncio
     args.output_directory = args_pytest["output_dir"]
     args.listen = args_pytest["listen"]
     args.port = args_pytest["port"]
     print("running server anyway!")
-    main()
+    asyncio.run(main())
 
 
 # This initializes args at the beginning of the test session

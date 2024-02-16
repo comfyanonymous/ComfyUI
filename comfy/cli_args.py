@@ -135,7 +135,8 @@ parser.add_argument(
 )
 parser.add_argument("--distributed-queue-name", type=str, default="comfyui",
                     help="This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
-
+parser.add_argument("--external-address", required=False,
+                    help="Specifies a base URL for external addresses reported by the API, such as for image paths.")
 
 if options.args_parsing:
     args, _ = parser.parse_known_args()
