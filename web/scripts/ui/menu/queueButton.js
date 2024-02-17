@@ -2,12 +2,17 @@
 
 import { ComfyButton } from "../components/button.js";
 import { $el } from "../../ui.js";
+import { api } from "../../api.js";
 import { ComfySplitButton } from "../components/splitButton.js";
 
 export class ComfyQueueButton {
-	element = $el("div.comfyui-queue-action");
+	element = $el("div.comfyui-queue-button");
 
-	constructor() {
+	constructor(app) {
+		this.queueSizeElement = $el("span.comfyui-queue-count", {
+			textContent: "?",
+		});
+
 		const btn = new ComfySplitButton(
 			{
 				primary: new ComfyButton({
@@ -15,13 +20,13 @@ export class ComfyQueueButton {
 						$el("span", {
 							textContent: "Queue",
 						}),
-						$el("span.comfyui-queue-count", {
-							textContent: "99+",
-							title: "186 prompts queued"
-						}),
+						this.queueSizeElement,
 					]),
 					icon: "play",
 					classList: "comfyui-button",
+					action: () => {
+						app.queuePrompt(0, 1);
+					},
 				}),
 				mode: "click",
 				position: "absolute",
@@ -33,5 +38,13 @@ export class ComfyQueueButton {
 		);
 		btn.element.classList.add("primary");
 		this.element.append(btn.element);
+
+		api.addEventListener("status", ({ detail }) => {
+			const sz = detail?.exec_info?.queue_remaining;
+			if (sz != null) {
+				this.queueSizeElement.textContent = sz > 99 ? "99+" : sz;
+				this.queueSizeElement.title = `${sz} promps in queue`;
+			}
+		});
 	}
 }

@@ -10,6 +10,7 @@ import { prop } from "../../utils.js";
  *    iconSize?: number;
  *    content?: string | HTMLElement;
  *    tooltip?: string;
+ *    enabled?: boolean;
  *    action?: (e: Event, btn: ComfyButton) => void,
  *    classList?: import("../utils.js").ClassList,
  * 	  visibilitySetting?: { id: string, showValue: any },
@@ -18,6 +19,7 @@ import { prop } from "../../utils.js";
  */
 export class ComfyButton {
 	#over = 0;
+	#popupOpen = false;
 	iconElement = $el("i.mdi");
 	contentElement = $el("span");
 	/**
@@ -28,7 +30,7 @@ export class ComfyButton {
 	/**
 	 * @param {ComfyButtonProps} opts
 	 */
-	constructor({ icon, iconSize, content, tooltip, action, classList = "comfyui-button", visibilitySetting, app }) {
+	constructor({ icon, iconSize, content, tooltip, action, classList = "comfyui-button", visibilitySetting, app, enabled = true }) {
 		this.element = $el("button", [this.iconElement, this.contentElement]);
 
 		this.icon = prop(this, "icon", icon, toggleElement(this.iconElement, { onShow: this.updateIcon }));
@@ -48,9 +50,19 @@ export class ComfyButton {
 			})
 		);
 
-		this.tooltip = prop(this, "tooltip", tooltip, (v) => (this.element.title = v ?? ""));
+		this.tooltip = prop(this, "tooltip", tooltip, (v) => {
+			if (v) {
+				this.element.title = v;
+			} else {
+				this.element.removeAttribute("title");
+			}
+		});
 		this.classList = prop(this, "classList", classList, this.updateClasses);
 		this.hidden = prop(this, "hidden", false, this.updateClasses);
+		this.enabled = prop(this, "enabled", enabled, () => {
+			this.updateClasses();
+			this.element.disabled = !this.enabled;
+		});
 		this.action = prop(this, "action", action);
 		this.element.addEventListener("click", (e) => {
 			if (this.popup) {
@@ -72,7 +84,21 @@ export class ComfyButton {
 	}
 
 	updateIcon = () => (this.iconElement.className = `mdi mdi-${this.icon}${this.iconSize ? " mdi-" + this.iconSize : ""}`);
-	updateClasses = () => applyClasses(this.element, this.classList, ...(this.hidden ? ["hidden"] : []));
+	updateClasses = () => {
+		const internalClasses = [];
+		if (this.hidden) {
+			internalClasses.push("hidden");
+		}
+		if (!this.enabled) {
+			internalClasses.push("disabled");
+		}
+		if (this.#popupOpen) {
+			internalClasses.push("popup-open");
+		} else {
+			internalClasses.push("popup-closed");
+		}
+		applyClasses(this.element, this.classList, ...internalClasses);
+	};
 
 	/**
 	 *
@@ -92,6 +118,11 @@ export class ComfyButton {
 				});
 			}
 		}
+
+		popup.addEventListener("change", () => {
+			this.#popupOpen = popup.open;
+			this.updateClasses();
+		});
 
 		return this;
 	}

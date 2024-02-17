@@ -5,8 +5,11 @@ import { addStylesheet, downloadBlob } from "../../utils.js";
 import { ComfyButton } from "../components/button.js";
 import { ComfyButtonGroup } from "../components/buttonGroup.js";
 import { ComfySplitButton } from "../components/splitButton.js";
+import { ComfyViewHistoryButton } from "./viewHistory.js";
 import { ComfyQueueButton } from "./queueButton.js";
 import { ComfyWorkflows } from "./workflows.js";
+import { ComfyViewQueueButton } from "./viewQueue.js";
+import { getInteruptButton } from "./interruptButton.js";
 
 addStylesheet("menu.css", import.meta.url);
 
@@ -49,6 +52,15 @@ export class ComfyAppMenu {
 					icon: "content-save-edit",
 					content: "Save As",
 					tooltip: "Save the current graph as a new workflow",
+					action: () => {
+						let filename = prompt("Save workflow as:", "workflow");
+						if (!filename) return;
+						if (!filename.toLowerCase().endsWith(".json")) {
+							filename += ".json";
+						}
+
+						this.exportWorkflow("workflow", "workflow");
+					},
 				}),
 				new ComfyButton({
 					icon: "download",
@@ -61,8 +73,8 @@ export class ComfyAppMenu {
 					content: "Export (API Format)",
 					tooltip: "Export the current workflow as JSON for use with the ComfyUI API",
 					action: () => this.exportWorkflow("workflow_api", "output"),
-					visibilitySetting: { id: "Comfy.DevMode", showValue: "true" },
-					app
+					visibilitySetting: { id: "Comfy.DevMode", showValue: true },
+					app,
 				})
 			).element,
 			collapseOnMobile(
@@ -70,22 +82,24 @@ export class ComfyAppMenu {
 					new ComfyButton({
 						icon: "refresh",
 						content: "Refresh",
-						action: () => {
-							console.log("refresh");
-						},
+						tooltip: "Refresh widgets in nodes to find new models or files",
+						action: () => app.refreshComboInNodes(),
 					}),
 					new ComfyButton({
 						icon: "clipboard-edit-outline",
 						content: "Clipspace",
-						action: () => {
-							console.log("clipboard-edit-outline");
-						},
+						tooltip: "Open Clipspace window",
+						action: () => app["openClipspace"](),
 					}),
 					new ComfyButton({
 						icon: "cancel",
 						content: "Clear",
+						tooltip: "Clears current workflow",
 						action: () => {
-							console.log("cancel");
+							if (!app.ui.settings.getSettingValue("Comfy.ConfirmClear", true) || confirm("Clear workflow?")) {
+								app.clean();
+								app.graph.clear();
+							}
 						},
 					})
 				)
@@ -95,6 +109,7 @@ export class ComfyAppMenu {
 				new ComfyButton({
 					icon: "cog",
 					content: "Settings",
+					tooltip: "Open settings",
 					action: () => {
 						app.ui.settings.show();
 					},
@@ -102,28 +117,19 @@ export class ComfyAppMenu {
 			).element,
 			collapseOnMobile(
 				new ComfyButtonGroup(
-					new ComfyButton({
-						icon: "history",
-						content: "View History",
-						action: () => {
-							console.log("history");
-						},
-					}),
-					new ComfyButton({
-						icon: "format-list-numbered",
-						content: "View Queue",
-						action: () => {
-							console.log("format-list-numbered");
-						},
-					})
+					new ComfyViewHistoryButton(app).element,
+					new ComfyViewQueueButton(app).element,
+					getInteruptButton("sm-hide").element
 				)
 			).element,
-			new ComfyQueueButton().element,
+
+			getInteruptButton("sm-show").element,
+			new ComfyQueueButton(app).element,
 			showOnMobile(
 				new ComfyButton({
 					icon: "menu",
 					action: (_, btn) => {
-						btn.icon = this.element.classList.toggle("expanded") ? "close" : "menu";
+						btn.icon = this.element.classList.toggle("expanded") ? "menu-open" : "menu";
 					},
 					classList: "comfyui-button comfyui-menu-button",
 				})

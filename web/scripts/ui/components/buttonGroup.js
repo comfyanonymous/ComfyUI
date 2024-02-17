@@ -7,7 +7,7 @@ import { prop } from "../../utils.js";
 export class ComfyButtonGroup {
 	element = $el("div.comfyui-button-group");
 
-	/** @param {Array<ComfyButton>} buttons */
+	/** @param {Array<ComfyButton | HTMLElement>} buttons */
 	constructor(...buttons) {
 		this.buttons = prop(this, "buttons", buttons, () => this.update());
 	}
@@ -40,6 +40,6 @@ export class ComfyButtonGroup {
 	}
 
 	update() {
-		this.element.replaceChildren(...this.buttons.map((b) => b.element));
+		this.element.replaceChildren(...this.buttons.map((b) => b["element"] ?? b));
 	}
 }

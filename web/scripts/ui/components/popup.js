@@ -41,7 +41,10 @@ export class ComfyPopup extends EventTarget {
 
 		container.append(this.element);
 
-		this.children = prop(this, "children", children, () => this.element.replaceChildren(...this.children));
+		this.children = prop(this, "children", children, () => {
+			this.element.replaceChildren(...this.children);
+			this.update();
+		});
 		this.classList = prop(this, "classList", classList, () => applyClasses(this.element, this.classList, "comfyui-popup", horizontal));
 		this.open = prop(this, "open", false, (v, o) => {
 			if (v === o) return;
@@ -59,7 +62,7 @@ export class ComfyPopup extends EventTarget {
 
 	#hide() {
 		this.element.classList.remove("open");
-		window.removeEventListener("resize", this.#update);
+		window.removeEventListener("resize", this.update);
 		window.removeEventListener("click", this.#clickHandler, { capture: true });
 		window.removeEventListener("keydown", this.#escHandler, { capture: true });
 
@@ -69,9 +72,9 @@ export class ComfyPopup extends EventTarget {
 
 	#show() {
 		this.element.classList.add("open");
-		this.#update();
+		this.update();
 
-		window.addEventListener("resize", this.#update);
+		window.addEventListener("resize", this.update);
 		window.addEventListener("click", this.#clickHandler, { capture: true });
 		if (this.closeOnEscape) {
 			window.addEventListener("keydown", this.#escHandler, { capture: true });
@@ -97,7 +100,7 @@ export class ComfyPopup extends EventTarget {
 		}
 	};
 
-	#update = () => {
+	update = () => {
 		const rect = this.target.getBoundingClientRect();
 		if (this.position === "absolute") {
 			if (this.horizontal === "left") {

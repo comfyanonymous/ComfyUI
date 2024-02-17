@@ -140,6 +140,8 @@ export class ComfySettingsDialog extends ComfyDialog {
 			onChange,
 			name,
 			render: () => {
+				if (type === "hidden") return;
+
 				const setter = (v) => {
 					if (onChange) {
 						onChange(v, value);
@@ -314,7 +316,7 @@ export class ComfySettingsDialog extends ComfyDialog {
 				},
 				[$el("th"), $el("th", { style: { width: "33%" } })]
 			),
-			...this.settings.sort((a, b) => a.name.localeCompare(b.name)).map((s) => s.render())
+			...this.settings.sort((a, b) => a.name.localeCompare(b.name)).map((s) => s.render()).filter(Boolean)
 		);
 		this.element.showModal();
 	}
