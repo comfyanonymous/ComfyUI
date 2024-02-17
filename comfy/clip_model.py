@@ -97,7 +97,7 @@ class CLIPTextModel_(torch.nn.Module):
         x = self.embeddings(input_tokens)
         mask = None
         if attention_mask is not None:
-            mask = 1.0 - attention_mask.to(x.dtype).unsqueeze(1).unsqueeze(1).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
+            mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], attention_mask.shape[-1], attention_mask.shape[-1])
             mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
 
         causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
