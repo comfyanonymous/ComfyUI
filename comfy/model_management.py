@@ -772,6 +772,9 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     return True
 
 def should_use_bf16(device=None):
+    if FORCE_FP32:
+        return False
+
     if is_intel_xpu():
         return True
 
