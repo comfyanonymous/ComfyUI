@@ -215,11 +215,14 @@ def cached_filename_list_(folder_name):
     return out
 
 def get_filename_list(folder_name):
+    print(f"get_filename_list {folder_name}")
     out = cached_filename_list_(folder_name)
     if out is None:
         out = get_filename_list_(folder_name)
         global filename_list_cache
         filename_list_cache[folder_name] = out
+
+    print(list(out[0]))
     return list(out[0])
 
 def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height=0):
