@@ -96,9 +96,11 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 Put your VAE in: models/vae
 
 ### AMD GPUs (ZLUDA)
-Thanks to the efforts of @vosen and @lshqqytiger AMD users are now able to use applications utilizing cuda.
+Thanks to the efforts of @vosen and @lshqqytiger AMD users are now able to run basic cuda applications on their AMD gpu.
 
-Check if your gpu is compatible with the hip sdk at <https://rocm.docs.amd.com/projects/install-on-windows/en/develop/reference/system-requirements.html>
+Check out [ZLUDA](https://github.com/lshqqytiger/ZLUDA) for more information.
+
+First check if your gpu is compatible with the hip sdk at <https://rocm.docs.amd.com/projects/install-on-windows/en/develop/reference/system-requirements.html>
 
 Download and install the hip sdk from <https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html>.
 
