@@ -327,7 +327,7 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Gets user configuration data and where data should be stored
-	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> } 
+	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> }
 	 */
 	async getUserConfig() {
 		return (await this.fetchApi("/users")).json();
@@ -335,7 +335,7 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Creates a new user
-	 * @param { string } username 
+	 * @param { string } username
 	 * @returns The fetch response
 	 */
 	createUser(username) {
@@ -394,7 +394,7 @@ class ComfyApi extends EventTarget {
 	 * Gets a user data file for the current user
 	 * @param { string } file The name of the userdata file to load
 	 * @param { RequestInit } [options]
-	 * @returns { Promise<unknown> } The fetch response object
+	 * @returns { Promise<Response> } The fetch response object
 	 */
 	async getUserData(file, options) {
 		return this.fetchApi(`/userdata/${encodeURIComponent(file)}`, options);
@@ -412,10 +412,54 @@ class ComfyApi extends EventTarget {
 			method: "POST",
 			body: options?.stringify ? JSON.stringify(data) : data,
 			...options,
-		});	
+		});
 		if (resp.status !== 200) {
 			throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
 		}
+	}
+
+	/**
+	 * Deletes a user data file for the current user
+	 * @param { string } file The name of the userdata file to delete
+	 */
+	async deleteUserData(file) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}`, {
+			method: "DELETE",
+		});
+		if (resp.status !== 204) {
+			throw new Error(`Error removing user data file '${file}': ${resp.status} ${(resp).statusText}`);
+		}
+	}
+
+	/**
+	 * @overload
+	 * Lists user data files for the current user
+	 * @param { string } dir The directory in which to list files
+	 * @param { boolean } [recurse] If the listing should be recursive
+	 * @param { true } [split] If the paths should be split based on the os path separator
+	 * @returns { Promise<string[][]>> } The list of split file paths
+	 */
+	/**
+	 * @overload
+	 * Lists user data files for the current user
+	 * @param { string } dir The directory in which to list files
+	 * @param { boolean } [recurse] If the listing should be recursive
+	 * @param { false | undefined } [split] If the paths should be split based on the os path separator
+	 * @returns { Promise<string[]>> } The list of files
+	 */
+	async listUserData(dir, recurse, split) {
+		const resp = await this.fetchApi(
+			`/userdata?${new URLSearchParams({
+				recurse,
+				dir,
+				split,
+			})}`
+		);
+		if (resp.status === 404) return [];
+		if (resp.status !== 200) {
+			throw new Error(`Error getting user data list '${dir}': ${resp.status} ${resp.statusText}`);
+		}
+		return resp.json();
 	}
 }
 

@@ -17,6 +17,9 @@
 .hidden {
 	display: none !important;
 }
+.mdi.rotate270::before {
+	transform: rotate(270deg);
+}
 
 /* Generic */
 .comfyui-button {
@@ -294,8 +297,8 @@
 }
 
 .comfyui-workflows-popup {
-	width: 100%;
-	max-width: 350px;
+	font-family: Arial, Helvetica, sans-serif;
+		font-size: 0.8em;
 	padding: 10px;
 	overflow: auto;
 	background-color: var(--border-color);
@@ -304,6 +307,101 @@
 	border-bottom-left-radius: 4px;
 }
 
+.comfyui-workflows-actions {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+.comfyui-workflows-actions .comfyui-button {
+	background: var(--comfy-input-bg);
+	color: var(--input-text);
+}
+
+.comfyui-workflows-actions .comfyui-button:not(:disabled):hover {
+	background: var(--primary-bg);
+	color: var(--primary-fg);
+}
+
+.comfyui-workflows-favorites {
+	border-bottom: 1px solid var(--comfy-input-bg);
+	padding-bottom: 5px;
+}
+
+.comfyui-workflows-favorites:empty {
+	display: none;
+}
+
+.comfyui-workflows-tree {
+	padding: 0;
+	padding-top: 5px;
+	margin-bottom: 0;
+	margin: 0;
+}
+
+.comfyui-workflows-tree>ul {
+	padding: 0;
+}
+
+.comfyui-workflows-tree>ul ul {
+	margin: 0;
+	padding: 0 0 0 30px;
+}
+
+.comfyui-workflows-tree .closed>ul {
+	display: none;
+}
+
+.comfyui-workflows-tree li,
+.comfyui-workflows-tree-file {
+	--item-height: 31px;
+	list-style-type: none;
+	height: var(--item-height);
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.comfyui-workflows-tree li:hover::before,
+.comfyui-workflows-tree-file:hover::before {
+	content: "";
+	position: absolute;
+	width: 100%;
+	left: 0;
+	height: var(--item-height);
+	background-color: var(--comfy-input-bg);
+	z-index: -1;
+}
+
+.comfyui-workflows-tree-file span {
+	flex: auto;
+}
+
+.comfyui-workflows-tree-file span+.comfyui-workflows-file-action {
+	margin-left: 10px;
+}
+
+.comfyui-workflows-tree-file .comfyui-workflows-file-action {
+	opacity: 0;
+	background-color: transparent;
+	color: var(--fg-color);
+	padding: 2px 4px;
+}
+
+.comfyui-workflows-tree-file .comfyui-workflows-file-action:hover {
+	background-color: var(--primary-bg);
+	color: var(--primary-fg);
+}
+
+.comfyui-workflows-tree-file:hover .comfyui-workflows-file-action {
+	opacity: 1;
+}
+
+.comfyui-workflows-tree-file>.mdi-star {
+	color: orange
+}
 /* View List */
 .comfyui-view-list-popup {
 	padding: 10px;

@@ -83,7 +83,7 @@ export class ComfyButton {
 		}
 	}
 
-	updateIcon = () => (this.iconElement.className = `mdi mdi-${this.icon}${this.iconSize ? " mdi-" + this.iconSize : ""}`);
+	updateIcon = () => (this.iconElement.className = `mdi mdi-${this.icon}${this.iconSize ? " mdi-" + this.iconSize + "px" : ""}`);
 	updateClasses = () => {
 		const internalClasses = [];
 		if (this.hidden) {
@@ -92,10 +92,12 @@ export class ComfyButton {
 		if (!this.enabled) {
 			internalClasses.push("disabled");
 		}
-		if (this.#popupOpen) {
-			internalClasses.push("popup-open");
-		} else {
-			internalClasses.push("popup-closed");
+		if (this.popup) {
+			if (this.#popupOpen) {
+				internalClasses.push("popup-open");
+			} else {
+				internalClasses.push("popup-closed");
+			}
 		}
 		applyClasses(this.element, this.classList, ...internalClasses);
 	};

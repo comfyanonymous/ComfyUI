@@ -1730,7 +1730,7 @@ export class ComfyApp {
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
 	 */
-	async loadGraphData(graphData, clean = true) {
+	async loadGraphData(graphData, clean = true, keepOld = false) {
 		if (clean !== false) {
 			this.clean();
 		}
@@ -1765,7 +1765,7 @@ export class ComfyApp {
 		}
 
 		try {
-			this.graph.configure(graphData);
+			this.graph.configure(graphData, keepOld);
 		} catch (error) {
 			let errorHint = [];
 			// Try extracting filename to see if it was caused by an extension script

@@ -38,7 +38,7 @@ export class ComfyAppMenu {
 			});
 
 		this.logo = $el("h1.comfyui-logo.sm-hide", { title: "ComfyUI" }, "ComfyUI");
-		this.workflows = new ComfyWorkflowsMenu();
+		this.workflows = new ComfyWorkflowsMenu(app);
 		this.element = $el("nav.comfyui-menu", { parent: document.body }, [
 			this.logo,
 			this.workflows.element,
