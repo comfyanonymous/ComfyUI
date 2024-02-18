@@ -64,3 +64,25 @@ class SDXLClipModel(torch.nn.Module):
 class SDXLRefinerClipModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None):
         super().__init__(device=device, dtype=dtype, clip_name="g", clip_model=SDXLClipG)
+
+
+class StableCascadeClipGTokenizer(sd1_clip.SDTokenizer):
+    def __init__(self, tokenizer_path=None, embedding_directory=None):
+        super().__init__(tokenizer_path, pad_with_end=True, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g')
+
+class StableCascadeTokenizer(sd1_clip.SD1Tokenizer):
+    def __init__(self, embedding_directory=None):
+        super().__init__(embedding_directory=embedding_directory, clip_name="g", tokenizer=StableCascadeClipGTokenizer)
+
+class StableCascadeClipG(sd1_clip.SDClipModel):
+    def __init__(self, device="cpu", max_length=77, freeze=True, layer="hidden", layer_idx=-1, dtype=None):
+        textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_config_bigg.json")
+        super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype,
+                         special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=False, enable_attention_masks=True)
+
+    def load_sd(self, sd):
+        return super().load_sd(sd)
+
+class StableCascadeClipModel(sd1_clip.SD1ClipModel):
+    def __init__(self, device="cpu", dtype=None):
+        super().__init__(device=device, dtype=dtype, clip_name="g", clip_model=StableCascadeClipG)
