@@ -9,7 +9,7 @@ import math
 import time
 import random
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
@@ -183,6 +183,26 @@ class ConditioningSetAreaPercentage:
             n[1]['set_area_to_bounds'] = False
             c.append(n)
         return (c, )
+
+class ConditioningSetAreaStrength:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning, strength):
+        c = []
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            n[1]['strength'] = strength
+            c.append(n)
+        return (c, )
+
 
 class ConditioningSetMask:
     @classmethod
@@ -358,6 +378,62 @@ class VAEEncodeForInpaint:
         t = vae.encode(pixels)
 
         return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
+
+
+class InpaintModelConditioning:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "vae": ("VAE", ),
+                             "pixels": ("IMAGE", ),
+                             "mask": ("MASK", ),
+                             }}
+
+    RETURN_TYPES = ("CONDITIONING","CONDITIONING","LATENT")
+    RETURN_NAMES = ("positive", "negative", "latent")
+    FUNCTION = "encode"
+
+    CATEGORY = "conditioning/inpaint"
+
+    def encode(self, positive, negative, pixels, vae, mask):
+        x = (pixels.shape[1] // 8) * 8
+        y = (pixels.shape[2] // 8) * 8
+        mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
+
+        orig_pixels = pixels
+        pixels = orig_pixels.clone()
+        if pixels.shape[1] != x or pixels.shape[2] != y:
+            x_offset = (pixels.shape[1] % 8) // 2
+            y_offset = (pixels.shape[2] % 8) // 2
+            pixels = pixels[:,x_offset:x + x_offset, y_offset:y + y_offset,:]
+            mask = mask[:,:,x_offset:x + x_offset, y_offset:y + y_offset]
+
+        m = (1.0 - mask.round()).squeeze(1)
+        for i in range(3):
+            pixels[:,:,:,i] -= 0.5
+            pixels[:,:,:,i] *= m
+            pixels[:,:,:,i] += 0.5
+        concat_latent = vae.encode(pixels)
+        orig_latent = vae.encode(orig_pixels)
+
+        out_latent = {}
+
+        out_latent["samples"] = orig_latent
+        out_latent["noise_mask"] = mask
+
+        out = []
+        for conditioning in [positive, negative]:
+            c = []
+            for t in conditioning:
+                d = t[1].copy()
+                d["concat_latent_image"] = concat_latent
+                d["concat_mask"] = mask
+                n = [t[0], d]
+                c.append(n)
+            out.append(c)
+        return (out[0], out[1], out_latent)
+
 
 class SaveLatent:
     def __init__(self):
@@ -778,15 +854,20 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
+                              "type": (["stable_diffusion", "stable_cascade"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
     CATEGORY = "advanced/loaders"
 
-    def load_clip(self, clip_name):
+    def load_clip(self, clip_name, type="stable_diffusion"):
+        clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        if type == "stable_cascade":
+            clip_type = comfy.sd.CLIPType.STABLE_CASCADE
+
         clip_path = folder_paths.get_full_path("clip", clip_name)
-        clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
 class DualCLIPLoader:
@@ -947,8 +1028,8 @@ class GLIGENTextBoxApply:
         return (c, )
 
 class EmptyLatentImage:
-    def __init__(self, device="cpu"):
-        self.device = device
+    def __init__(self):
+        self.device = comfy.model_management.intermediate_device()
 
     @classmethod
     def INPUT_TYPES(s):
@@ -961,7 +1042,7 @@ class EmptyLatentImage:
     CATEGORY = "latent"
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.zeros([batch_size, 4, height // 8, width // 8])
+        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
         return ({"samples":latent}, )
 
 
@@ -1358,7 +1439,7 @@ class SaveImage:
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
-        for image in images:
+        for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
@@ -1370,7 +1451,8 @@ class SaveImage:
                     for x in extra_pnginfo:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
-            file = f"{filename}_{counter:05}_.png"
+            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+            file = f"{filename_with_batch_num}_{counter:05}_.png"
             img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
@@ -1410,17 +1492,32 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
-        i = Image.open(image_path)
-        i = ImageOps.exif_transpose(i)
-        image = i.convert("RGB")
-        image = np.array(image).astype(np.float32) / 255.0
-        image = torch.from_numpy(image)[None,]
-        if 'A' in i.getbands():
-            mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-            mask = 1. - torch.from_numpy(mask)
+        img = Image.open(image_path)
+        output_images = []
+        output_masks = []
+        for i in ImageSequence.Iterator(img):
+            i = ImageOps.exif_transpose(i)
+            if i.mode == 'I':
+                i = i.point(lambda i: i * (1 / 255))
+            image = i.convert("RGB")
+            image = np.array(image).astype(np.float32) / 255.0
+            image = torch.from_numpy(image)[None,]
+            if 'A' in i.getbands():
+                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                mask = 1. - torch.from_numpy(mask)
+            else:
+                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+            output_images.append(image)
+            output_masks.append(mask.unsqueeze(0))
+
+        if len(output_images) > 1:
+            output_image = torch.cat(output_images, dim=0)
+            output_mask = torch.cat(output_masks, dim=0)
         else:
-            mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (image, mask.unsqueeze(0))
+            output_image = output_images[0]
+            output_mask = output_masks[0]
+
+        return (output_image, output_mask)
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -1457,6 +1554,8 @@ class LoadImageMask:
         i = Image.open(image_path)
         i = ImageOps.exif_transpose(i)
         if i.getbands() != ("R", "G", "B", "A"):
+            if i.mode == 'I':
+                i = i.point(lambda i: i * (1 / 255))
             i = i.convert("RGBA")
         mask = None
         c = channel[0].upper()
@@ -1478,12 +1577,9 @@ class LoadImageMask:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, image, channel):
+    def VALIDATE_INPUTS(s, image):
         if not folder_paths.exists_annotated_filepath(image):
             return "Invalid image file: {}".format(image)
-
-        if channel not in s._color_channels:
-            return "Invalid color channel: {}".format(channel)
 
         return True
 
@@ -1614,10 +1710,11 @@ class ImagePadForOutpaint:
     def expand_image(self, image, left, top, right, bottom, feathering):
         d1, d2, d3, d4 = image.size()
 
-        new_image = torch.zeros(
+        new_image = torch.ones(
             (d1, d2 + top + bottom, d3 + left + right, d4),
             dtype=torch.float32,
-        )
+        ) * 0.5
+
         new_image[:, top:top + d2, left:left + d3, :] = image
 
         mask = torch.ones(
@@ -1683,6 +1780,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetAreaPercentage": ConditioningSetAreaPercentage,
+    "ConditioningSetAreaStrength": ConditioningSetAreaStrength,
     "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
@@ -1709,6 +1807,7 @@ NODE_CLASS_MAPPINGS = {
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "GLIGENLoader": GLIGENLoader,
     "GLIGENTextBoxApply": GLIGENTextBoxApply,
+    "InpaintModelConditioning": InpaintModelConditioning,
 
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
@@ -1867,6 +1966,13 @@ def init_custom_nodes():
         "nodes_model_downscale.py",
         "nodes_images.py",
         "nodes_video_model.py",
+        "nodes_sag.py",
+        "nodes_perpneg.py",
+        "nodes_stable3d.py",
+        "nodes_sdupscale.py",
+        "nodes_photomaker.py",
+        "nodes_cond.py",
+        "nodes_stable_cascade.py",
     ]
 
     for node_file in extras_files:

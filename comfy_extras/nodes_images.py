@@ -48,6 +48,25 @@ class RepeatImageBatch:
         s = image.repeat((amount, 1,1,1))
         return (s,)
 
+class ImageFromBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",),
+                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
+                              "length": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "frombatch"
+
+    CATEGORY = "image/batch"
+
+    def frombatch(self, image, batch_index, length):
+        s_in = image
+        batch_index = min(s_in.shape[0] - 1, batch_index)
+        length = min(s_in.shape[0] - batch_index, length)
+        s = s_in[batch_index:batch_index + length].clone()
+        return (s,)
+
 class SaveAnimatedWEBP:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -74,7 +93,7 @@ class SaveAnimatedWEBP:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "image/animation"
 
     def save_images(self, images, fps, filename_prefix, lossless, quality, method, num_frames=0, prompt=None, extra_pnginfo=None):
         method = self.methods.get(method)
@@ -136,7 +155,7 @@ class SaveAnimatedPNG:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "image/animation"
 
     def save_images(self, images, fps, compress_level, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
@@ -170,6 +189,7 @@ class SaveAnimatedPNG:
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
     "RepeatImageBatch": RepeatImageBatch,
+    "ImageFromBatch": ImageFromBatch,
     "SaveAnimatedWEBP": SaveAnimatedWEBP,
     "SaveAnimatedPNG": SaveAnimatedPNG,
 }

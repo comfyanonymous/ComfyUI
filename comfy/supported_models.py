@@ -217,6 +217,16 @@ class SSD1B(SDXL):
         "use_temporal_attention": False,
     }
 
+class Segmind_Vega(SDXL):
+    unet_config = {
+        "model_channels": 320,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [0, 0, 1, 1, 2, 2],
+        "context_dim": 2048,
+        "adm_in_channels": 2816,
+        "use_temporal_attention": False,
+    }
+
 class SVD_img2vid(supported_models_base.BASE):
     unet_config = {
         "model_channels": 320,
@@ -242,5 +252,114 @@ class SVD_img2vid(supported_models_base.BASE):
     def clip_target(self):
         return None
 
-models = [SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B]
+class Stable_Zero123(supported_models_base.BASE):
+    unet_config = {
+        "context_dim": 768,
+        "model_channels": 320,
+        "use_linear_in_transformer": False,
+        "adm_in_channels": None,
+        "use_temporal_attention": False,
+        "in_channels": 8,
+    }
+
+    unet_extra_config = {
+        "num_heads": 8,
+        "num_head_channels": -1,
+    }
+
+    clip_vision_prefix = "cond_stage_model.model.visual."
+
+    latent_format = latent_formats.SD15
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.Stable_Zero123(self, device=device, cc_projection_weight=state_dict["cc_projection.weight"], cc_projection_bias=state_dict["cc_projection.bias"])
+        return out
+
+    def clip_target(self):
+        return None
+
+class SD_X4Upscaler(SD20):
+    unet_config = {
+        "context_dim": 1024,
+        "model_channels": 256,
+        'in_channels': 7,
+        "use_linear_in_transformer": True,
+        "adm_in_channels": None,
+        "use_temporal_attention": False,
+    }
+
+    unet_extra_config = {
+        "disable_self_attentions": [True, True, True, False],
+        "num_classes": 1000,
+        "num_heads": 8,
+        "num_head_channels": -1,
+    }
+
+    latent_format = latent_formats.SD_X4
+
+    sampling_settings = {
+        "linear_start": 0.0001,
+        "linear_end": 0.02,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.SD_X4Upscaler(self, device=device)
+        return out
+
+class Stable_Cascade_C(supported_models_base.BASE):
+    unet_config = {
+        "stable_cascade_stage": 'c',
+    }
+
+    unet_extra_config = {}
+
+    latent_format = latent_formats.SC_Prior
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    sampling_settings = {
+        "shift": 2.0,
+    }
+
+    def process_unet_state_dict(self, state_dict):
+        key_list = list(state_dict.keys())
+        for y in ["weight", "bias"]:
+            suffix = "in_proj_{}".format(y)
+            keys = filter(lambda a: a.endswith(suffix), key_list)
+            for k_from in keys:
+                weights = state_dict.pop(k_from)
+                prefix = k_from[:-(len(suffix) + 1)]
+                shape_from = weights.shape[0] // 3
+                for x in range(3):
+                    p = ["to_q", "to_k", "to_v"]
+                    k_to = "{}.{}.{}".format(prefix, p[x], y)
+                    state_dict[k_to] = weights[shape_from*x:shape_from*(x + 1)]
+        return state_dict
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.StableCascade_C(self, device=device)
+        return out
+
+    def clip_target(self):
+        return supported_models_base.ClipTarget(sdxl_clip.StableCascadeTokenizer, sdxl_clip.StableCascadeClipModel)
+
+class Stable_Cascade_B(Stable_Cascade_C):
+    unet_config = {
+        "stable_cascade_stage": 'b',
+    }
+
+    unet_extra_config = {}
+
+    latent_format = latent_formats.SC_B
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+    sampling_settings = {
+        "shift": 1.0,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.StableCascade_B(self, device=device)
+        return out
+
+
+models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B]
 models += [SVD_img2vid]

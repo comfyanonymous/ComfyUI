@@ -1,6 +1,19 @@
 import { api } from "./api.js"
 import "./domWidget.js";
 
+let controlValueRunBefore = false;
+export function updateControlWidgetLabel(widget) {
+	let replacement = "after";
+	let find = "before";
+	if (controlValueRunBefore) {
+		[find, replacement] = [replacement, find]
+	}
+	widget.label = (widget.label ?? widget.name).replace(find, replacement);
+}
+
+const IS_CONTROL_WIDGET = Symbol();
+const HAS_EXECUTED = Symbol();
+
 function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 	let defaultVal = inputData[1]["default"];
 	let { min, max, step, round} = inputData[1];
@@ -62,10 +75,15 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 			serialize: false, // Don't include this in prompt.
 		}
 	);
+	valueControl[IS_CONTROL_WIDGET] = true;
+	updateControlWidgetLabel(valueControl);
 	widgets.push(valueControl);
 
 	const isCombo = targetWidget.type === "combo";
 	let comboFilter;
+	if (isCombo) {
+		valueControl.options.values.push("increment-wrap");
+	}
 	if (isCombo && options.addFilterList !== false) {
 		comboFilter = node.addWidget(
 			"string",
@@ -76,10 +94,12 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 				serialize: false, // Don't include this in prompt.
 			}
 		);
+		updateControlWidgetLabel(comboFilter);
+
 		widgets.push(comboFilter);
 	}
 
-	valueControl.afterQueued = () => {
+	const applyWidgetControl = () => {
 		var v = valueControl.value;
 
 		if (isCombo && v !== "fixed") {
@@ -110,6 +130,12 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 			switch (v) {
 				case "increment":
 					current_index += 1;
+					break;
+				case "increment-wrap":
+					current_index += 1;
+					if ( current_index >= current_length ) {
+					    current_index = 0;
+					}
 					break;
 				case "decrement":
 					current_index -= 1;
@@ -159,6 +185,23 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 			targetWidget.callback(targetWidget.value);
 		}
 	};
+
+	valueControl.beforeQueued = () => {
+		if (controlValueRunBefore) {
+			// Don't run on first execution
+			if (valueControl[HAS_EXECUTED]) {
+				applyWidgetControl();
+			}
+		}
+		valueControl[HAS_EXECUTED] = true;
+	};
+
+	valueControl.afterQueued = () => {
+		if (!controlValueRunBefore) {
+			applyWidgetControl();
+		}
+	};
+
 	return widgets;
 };
 
@@ -224,6 +267,34 @@ function isSlider(display, app) {
 	return (display==="slider") ? "slider" : "number"
 }
 
+export function initWidgets(app) {
+	app.ui.settings.addSetting({
+		id: "Comfy.WidgetControlMode",
+		name: "Widget Value Control Mode",
+		type: "combo",
+		defaultValue: "after",
+		options: ["before", "after"],
+		tooltip: "Controls when widget values are updated (randomize/increment/decrement), either before the prompt is queued or after.",
+		onChange(value) {
+			controlValueRunBefore = value === "before";
+			for (const n of app.graph._nodes) {
+				if (!n.widgets) continue;
+				for (const w of n.widgets) {
+					if (w[IS_CONTROL_WIDGET]) {
+						updateControlWidgetLabel(w);
+						if (w.linkedWidgets) {
+							for (const l of w.linkedWidgets) {
+								updateControlWidgetLabel(l);
+							}
+						}
+					}
+				}
+			}
+			app.graph.setDirtyCanvas(true);
+		},
+	});
+}
+
 export const ComfyWidgets = {
 	"INT:seed": seedWidget,
 	"INT:noise_seed": seedWidget,
@@ -233,7 +304,7 @@ export const ComfyWidgets = {
 		let disable_rounding = app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")
 		if (precision == 0) precision = undefined;
 		const { val, config } = getNumberDefaults(inputData, 0.5, precision, !disable_rounding);
-		return { widget: node.addWidget(widgetType, inputName, val, 
+		return { widget: node.addWidget(widgetType, inputName, val,
 			function (v) {
 				if (config.round) {
 					this.value = Math.round(v/config.round)*config.round;

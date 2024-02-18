@@ -1,5 +1,5 @@
 import { ComfyLogging } from "./logging.js";
-import { ComfyWidgets } from "./widgets.js";
+import { ComfyWidgets, initWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
@@ -269,6 +269,71 @@ export class ComfyApp {
 	 * @param {*} node The node to add the menu handler
 	 */
 	#addNodeContextMenuHandler(node) {
+		function getCopyImageOption(img) {
+			if (typeof window.ClipboardItem === "undefined") return [];
+			return [
+				{
+					content: "Copy Image",
+					callback: async () => {
+						const url = new URL(img.src);
+						url.searchParams.delete("preview");
+
+						const writeImage = async (blob) => {
+							await navigator.clipboard.write([
+								new ClipboardItem({
+									[blob.type]: blob,
+								}),
+							]);
+						};
+
+						try {
+							const data = await fetch(url);
+							const blob = await data.blob();
+							try {
+								await writeImage(blob);
+							} catch (error) {
+								// Chrome seems to only support PNG on write, convert and try again
+								if (blob.type !== "image/png") {
+									const canvas = $el("canvas", {
+										width: img.naturalWidth,
+										height: img.naturalHeight,
+									});
+									const ctx = canvas.getContext("2d");
+									let image;
+									if (typeof window.createImageBitmap === "undefined") {
+										image = new Image();
+										const p = new Promise((resolve, reject) => {
+											image.onload = resolve;
+											image.onerror = reject;
+										}).finally(() => {
+											URL.revokeObjectURL(image.src);
+										});
+										image.src = URL.createObjectURL(blob);
+										await p;
+									} else {
+										image = await createImageBitmap(blob);
+									}
+									try {
+										ctx.drawImage(image, 0, 0);
+										canvas.toBlob(writeImage, "image/png");
+									} finally {
+										if (typeof image.close === "function") {
+											image.close();
+										}
+									}
+
+									return;
+								}
+								throw error;
+							}
+						} catch (error) {
+							alert("Error copying image: " + (error.message ?? error));
+						}
+					},
+				},
+			];
+		}
+
 		node.prototype.getExtraMenuOptions = function (_, options) {
 			if (this.imgs) {
 				// If this node has images then we add an open in new tab item
@@ -286,16 +351,17 @@ export class ComfyApp {
 							content: "Open Image",
 							callback: () => {
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
-								window.open(url, "_blank")
+								url.searchParams.delete("preview");
+								window.open(url, "_blank");
 							},
 						},
+						...getCopyImageOption(img), 
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
+								url.searchParams.delete("preview");
 								a.href = url;
 								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
@@ -308,33 +374,41 @@ export class ComfyApp {
 			}
 
 			options.push({
-					content: "Bypass",
-					callback: (obj) => { if (this.mode === 4) this.mode = 0; else this.mode = 4; this.graph.change(); }
-				});
+				content: "Bypass",
+				callback: (obj) => {
+					if (this.mode === 4) this.mode = 0;
+					else this.mode = 4;
+					this.graph.change();
+				},
+			});
 
 			// prevent conflict of clipspace content
-			if(!ComfyApp.clipspace_return_node) {
+			if (!ComfyApp.clipspace_return_node) {
 				options.push({
-						content: "Copy (Clipspace)",
-						callback: (obj) => { ComfyApp.copyToClipspace(this); }
-					});
+					content: "Copy (Clipspace)",
+					callback: (obj) => {
+						ComfyApp.copyToClipspace(this);
+					},
+				});
 
-				if(ComfyApp.clipspace != null) {
+				if (ComfyApp.clipspace != null) {
 					options.push({
-							content: "Paste (Clipspace)",
-							callback: () => { ComfyApp.pasteFromClipspace(this); }
-						});
+						content: "Paste (Clipspace)",
+						callback: () => {
+							ComfyApp.pasteFromClipspace(this);
+						},
+					});
 				}
 
-				if(ComfyApp.isImageNode(this)) {
+				if (ComfyApp.isImageNode(this)) {
 					options.push({
-							content: "Open in MaskEditor",
-							callback: (obj) => {
-								ComfyApp.copyToClipspace(this);
-								ComfyApp.clipspace_return_node = this;
-								ComfyApp.open_maskeditor();
-							}
-						});
+						content: "Open in MaskEditor",
+						callback: (obj) => {
+							ComfyApp.copyToClipspace(this);
+							ComfyApp.clipspace_return_node = this;
+							ComfyApp.open_maskeditor();
+						},
+					});
 				}
 			}
 		};
@@ -1291,10 +1365,92 @@ export class ComfyApp {
 	    await Promise.all(extensionPromises);
 	}
 
+	async #migrateSettings() {
+		this.isNewUserSession = true;
+		// Store all current settings
+		const settings = Object.keys(this.ui.settings).reduce((p, n) => {
+			const v = localStorage[`Comfy.Settings.${n}`];
+			if (v) {
+				try {
+					p[n] = JSON.parse(v);
+				} catch (error) {}
+			}
+			return p;
+		}, {});
+
+		await api.storeSettings(settings);
+	}
+
+	async #setUser() {
+		const userConfig = await api.getUserConfig();
+		this.storageLocation = userConfig.storage;
+		if (typeof userConfig.migrated == "boolean") {
+			// Single user mode migrated true/false for if the default user is created
+			if (!userConfig.migrated && this.storageLocation === "server") {
+				// Default user not created yet
+				await this.#migrateSettings();
+			}
+			return;
+		}
+
+		this.multiUserServer = true;
+		let user = localStorage["Comfy.userId"];
+		const users = userConfig.users ?? {};
+		if (!user || !users[user]) {
+			// This will rarely be hit so move the loading to on demand
+			const { UserSelectionScreen } = await import("./ui/userSelection.js");
+		
+			this.ui.menuContainer.style.display = "none";
+			const { userId, username, created } = await new UserSelectionScreen().show(users, user);
+			this.ui.menuContainer.style.display = "";
+
+			user = userId;
+			localStorage["Comfy.userName"] = username;
+			localStorage["Comfy.userId"] = user;
+
+			if (created) {
+				api.user = user;
+				await this.#migrateSettings();
+			}
+		}
+
+		api.user = user;
+
+		this.ui.settings.addSetting({
+			id: "Comfy.SwitchUser",
+			name: "Switch User",
+			type: (name) => {
+				let currentUser = localStorage["Comfy.userName"];
+				if (currentUser) {
+					currentUser = ` (${currentUser})`;
+				}
+				return $el("tr", [
+					$el("td", [
+						$el("label", {
+							textContent: name,
+						}),
+					]),
+					$el("td", [
+						$el("button", {
+							textContent: name + (currentUser ?? ""),
+							onclick: () => {
+								delete localStorage["Comfy.userId"];
+								delete localStorage["Comfy.userName"];
+								window.location.reload();
+							},
+						}),
+					]),
+				]);
+			},
+		});
+	}
+
 	/**
 	 * Set up the app on the page
 	 */
 	async setup() {
+		await this.#setUser();
+		await this.ui.settings.load();
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
@@ -1338,16 +1494,22 @@ export class ComfyApp {
 
 		await this.#invokeExtensionsAsync("init");
 		await this.registerNodes();
+		initWidgets(this);
 
 		// Load previous workflow
 		let restored = false;
 		try {
-			const json = localStorage.getItem("workflow");
-			if (json) {
-				const workflow = JSON.parse(json);
-				await this.loadGraphData(workflow);
-				restored = true;
-			}
+			const loadWorkflow = async (json) => {
+				if (json) {
+					const workflow = JSON.parse(json);
+					await this.loadGraphData(workflow);
+					return true;
+				}
+			};
+			const clientId = api.initialClientId ?? api.clientId;
+			restored =
+				(clientId && (await loadWorkflow(sessionStorage.getItem(`workflow:${clientId}`)))) ||
+				(await loadWorkflow(localStorage.getItem("workflow")));
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
 		}
@@ -1358,7 +1520,13 @@ export class ComfyApp {
 		}
 
 		// Save current workflow automatically
-		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
+		setInterval(() => {
+			const workflow = JSON.stringify(this.graph.serialize());
+			localStorage.setItem("workflow", workflow);
+			if (api.clientId) {
+				sessionStorage.setItem(`workflow:${api.clientId}`, workflow);
+			}
+		}, 1000);
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
@@ -1519,14 +1687,36 @@ export class ComfyApp {
 	}
 
 	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+		let seenTypes = new Set();
+
 		this.ui.dialog.show(
-			$el("div", [
+			$el("div.comfy-missing-nodes", [
 				$el("span", { textContent: "When loading the graph, the following node types were not found: " }),
 				$el(
 					"ul",
-					Array.from(new Set(missingNodeTypes)).map((t) => $el("li", { textContent: t }))
+					Array.from(new Set(missingNodeTypes)).map((t) => {
+						let children = [];
+						if (typeof t === "object") {
+							if(seenTypes.has(t.type)) return null;
+							seenTypes.add(t.type);
+							children.push($el("span", { textContent: t.type }));
+							if (t.hint) {
+								children.push($el("span", { textContent: t.hint }));
+							}
+							if (t.action) {
+								children.push($el("button", { onclick: t.action.callback, textContent: t.action.text }));
+							}
+						} else {
+							if(seenTypes.has(t)) return null;
+							seenTypes.add(t);
+							children.push($el("span", { textContent: t }));
+						}
+						return $el("li", children);
+					}).filter(Boolean)
 				),
-				...(hasAddedNodes ? [$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." })] : []),
+				...(hasAddedNodes
+					? [$el("span", { textContent: "Nodes that have failed to load will show as red on the graph." })]
+					: []),
 			])
 		);
 		this.logging.addEntry("Comfy.App", "warn", {
@@ -1537,9 +1727,12 @@ export class ComfyApp {
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
+	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
 	 */
-	async loadGraphData(graphData) {
-		this.clean();
+	async loadGraphData(graphData, clean = true) {
+		if (clean !== false) {
+			this.clean();
+		}
 
 		let reset_invalid_values = false;
 		if (!graphData) {
@@ -1667,6 +1860,14 @@ export class ComfyApp {
 	 */
 	async graphToPrompt() {
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
+			if (outerNode.widgets) {
+				for (const widget of outerNode.widgets) {
+					// Allow widgets to run callbacks before a prompt has been queued
+					// e.g. random seed before every gen
+					widget.beforeQueued?.();
+				}
+			}
+
 			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
 				if (node.isVirtualNode) {
@@ -1682,7 +1883,8 @@ export class ComfyApp {
 		const output = {};
 		// Process nodes in order of execution
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
-			const innerNodes = outerNode.getInnerNodes ? outerNode.getInnerNodes() : [outerNode];
+			const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
+			const innerNodes = (!skipNode && outerNode.getInnerNodes) ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
 				if (node.isVirtualNode) {
 					continue;
@@ -1748,15 +1950,26 @@ export class ComfyApp {
 							if (parent?.updateLink) {
 								link = parent.updateLink(link);
 							}
-							inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+							if (link) {
+								inputs[node.inputs[i].name] = [String(link.origin_id), parseInt(link.origin_slot)];
+							}
 						}
 					}
 				}
 
-				output[String(node.id)] = {
+				let node_data = {
 					inputs,
 					class_type: node.comfyClass,
 				};
+
+				if (this.ui.settings.getSettingValue("Comfy.DevMode")) {
+					// Ignored by the backend.
+					node_data["_meta"] = {
+						title: node.title,
+					}
+				}
+
+				output[String(node.id)] = node_data;
 			}
 		}
 
@@ -1866,6 +2079,7 @@ export class ComfyApp {
 		} finally {
 			this.#processingQueue = false;
 		}
+		api.dispatchEvent(new CustomEvent("promptQueued", { detail: { number, batchCount } }));
 	}
 
 	/**
@@ -1893,6 +2107,8 @@ export class ComfyApp {
 					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
 				} else if (pngInfo.prompt) {
 					this.loadApiJson(JSON.parse(pngInfo.prompt));
+				} else if (pngInfo.Prompt) {
+					this.loadApiJson(JSON.parse(pngInfo.Prompt)); // Support loading prompts from that webp custom node.
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
@@ -1946,8 +2162,17 @@ export class ComfyApp {
 				if (value instanceof Array) {
 					const [fromId, fromSlot] = value;
 					const fromNode = app.graph.getNodeById(fromId);
-					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
-					if (toSlot !== -1) {
+					let toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+					if (toSlot == null || toSlot === -1) {
+						try {
+							// Target has no matching input, most likely a converted widget
+							const widget = node.widgets?.find((w) => w.name === input);
+							if (widget && node.convertWidgetToInput?.(widget)) {
+								toSlot = node.inputs?.length - 1;
+							}
+						} catch (error) {}
+					}
+					if (toSlot != null || toSlot !== -1) {
 						fromNode.connect(fromSlot, node, toSlot);
 					}
 				} else {
@@ -1983,12 +2208,8 @@ export class ComfyApp {
 	async refreshComboInNodes() {
 		const defs = await api.getNodeDefs();
 
-		for(const nodeId in LiteGraph.registered_node_types) {
-			const node = LiteGraph.registered_node_types[nodeId];
-			const nodeDef = defs[nodeId];
-			if(!nodeDef) continue;
-
-			node.nodeData = nodeDef;
+		for (const nodeId in defs) {
+			this.registerNodeDef(nodeId, defs[nodeId]);
 		}
 
 		for(let nodeNum in this.graph._nodes) {
@@ -2013,6 +2234,8 @@ export class ComfyApp {
 				}
 			}
 		}
+
+		await this.#invokeExtensionsAsync("refreshComboInNodes", defs);
 	}
 
 	/**

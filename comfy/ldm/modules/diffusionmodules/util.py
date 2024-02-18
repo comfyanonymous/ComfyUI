@@ -16,7 +16,6 @@ import numpy as np
 from einops import repeat, rearrange
 
 from comfy.ldm.util import instantiate_from_config
-import comfy.ops
 
 class AlphaBlender(nn.Module):
     strategies = ["learned", "fixed", "learned_with_images"]
@@ -52,9 +51,9 @@ class AlphaBlender(nn.Module):
         if self.merge_strategy == "fixed":
             # make shape compatible
             # alpha = repeat(self.mix_factor, '1 -> b () t  () ()', t=t, b=bs)
-            alpha = self.mix_factor
+            alpha = self.mix_factor.to(image_only_indicator.device)
         elif self.merge_strategy == "learned":
-            alpha = torch.sigmoid(self.mix_factor)
+            alpha = torch.sigmoid(self.mix_factor.to(image_only_indicator.device))
             # make shape compatible
             # alpha = repeat(alpha, '1 -> s () ()', s = t * bs)
         elif self.merge_strategy == "learned_with_images":
@@ -62,7 +61,7 @@ class AlphaBlender(nn.Module):
             alpha = torch.where(
                 image_only_indicator.bool(),
                 torch.ones(1, 1, device=image_only_indicator.device),
-                rearrange(torch.sigmoid(self.mix_factor), "... -> ... 1"),
+                rearrange(torch.sigmoid(self.mix_factor.to(image_only_indicator.device)), "... -> ... 1"),
             )
             alpha = rearrange(alpha, self.rearrange_pattern)
             # make shape compatible
@@ -99,7 +98,7 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2,
         alphas = torch.cos(alphas).pow(2)
         alphas = alphas / alphas[0]
         betas = 1 - alphas[1:] / alphas[:-1]
-        betas = np.clip(betas, a_min=0, a_max=0.999)
+        betas = torch.clamp(betas, min=0, max=0.999)
 
     elif schedule == "squaredcos_cap_v2":  # used for karlo prior
         # return early
@@ -114,7 +113,7 @@ def make_beta_schedule(schedule, n_timestep, linear_start=1e-4, linear_end=2e-2,
         betas = torch.linspace(linear_start, linear_end, n_timestep, dtype=torch.float64) ** 0.5
     else:
         raise ValueError(f"schedule '{schedule}' unknown.")
-    return betas.numpy()
+    return betas
 
 
 def make_ddim_timesteps(ddim_discr_method, num_ddim_timesteps, num_ddpm_timesteps, verbose=True):
@@ -271,46 +270,6 @@ def mean_flat(tensor):
     Take the mean over all non-batch dimensions.
     """
     return tensor.mean(dim=list(range(1, len(tensor.shape))))
-
-
-def normalization(channels, dtype=None):
-    """
-    Make a standard normalization layer.
-    :param channels: number of input channels.
-    :return: an nn.Module for normalization.
-    """
-    return GroupNorm32(32, channels, dtype=dtype)
-
-
-# PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
-class SiLU(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(x)
-
-
-class GroupNorm32(nn.GroupNorm):
-    def forward(self, x):
-        return super().forward(x.float()).type(x.dtype)
-
-
-def conv_nd(dims, *args, **kwargs):
-    """
-    Create a 1D, 2D, or 3D convolution module.
-    """
-    if dims == 1:
-        return nn.Conv1d(*args, **kwargs)
-    elif dims == 2:
-        return comfy.ops.Conv2d(*args, **kwargs)
-    elif dims == 3:
-        return nn.Conv3d(*args, **kwargs)
-    raise ValueError(f"unsupported dimensions: {dims}")
-
-
-def linear(*args, **kwargs):
-    """
-    Create a linear module.
-    """
-    return comfy.ops.Linear(*args, **kwargs)
 
 
 def avg_pool_nd(dims, *args, **kwargs):
