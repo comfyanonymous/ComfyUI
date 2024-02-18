@@ -102,7 +102,7 @@ Check if your gpu is compatible with the hip sdk at <https://rocm.docs.amd.com/p
 
 Download and install the hip sdk from <https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html>.
 
-Download the latest release of zluda from <https://github.com/lshqqytiger/ZLUDA/releases>, extract all files.
+Download the latest release of zluda from <https://github.com/lshqqytiger/ZLUDA/releases> and extract all files.
 
 Add `%HIP_PATH%bin` and the zluda folder with the files you extracted into to your windows PATH enviroment variable
 
