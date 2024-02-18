@@ -147,7 +147,7 @@ export class ComfyViewList {
 		return await api.getItems(this.type);
 	}
 
-	getRow = (item, section) => {
+	getRow(item, section) {
 		return {
 			text: item.prompt[0] + "",
 			actions: [

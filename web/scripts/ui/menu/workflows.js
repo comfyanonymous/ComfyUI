@@ -5,7 +5,7 @@ import { prop } from "../../utils.js";
 import { $el } from "../../ui.js";
 import { ComfyPopup } from "../components/popup.js";
 
-export class ComfyWorkflows {
+export class ComfyWorkflowsMenu {
 	element = $el("div.comfyui-workflows");
 
 	get open() {
@@ -32,7 +32,7 @@ export class ComfyWorkflows {
 
 		this.popup = new ComfyPopup(
 			{ target: this.element, classList: "comfyui-workflows-popup" },
-			$el("button", { style: { height: "300px" } }, "aaa")
+			new ComfyWorkflowsPopup().element
 		);
 		this.popup.addEventListener("change", () => {
 			this.button.icon = "chevron-" + (this.popup.open ? "up" : "down");
@@ -43,5 +43,18 @@ export class ComfyWorkflows {
 			classList.unsaved = v;
 			this.button.classList = classList;
 		});
+
+		setTimeout(() => {
+			this.popup.open = true;
+		}, 500);
+	}
+}
+
+export class ComfyWorkflowsPopup {
+	element = $el("div.comfyui-workflows-panel");
+
+	constructor() {
+		this.element.append(new ComfyButton({ content: "New Workflow" }).element);
+		this.element.append(new ComfyButton({ content: "Default Workflow" }).element);
 	}
 }

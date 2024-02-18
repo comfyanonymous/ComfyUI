@@ -88,9 +88,5 @@ export class ComfyQueueButton {
 				}
 			}
 		});
-
-		setTimeout(() => {
-			btn.popup.open = true;
-		}, 500);
 	}
 }

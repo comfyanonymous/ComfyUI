@@ -7,7 +7,7 @@ import { ComfyButtonGroup } from "../components/buttonGroup.js";
 import { ComfySplitButton } from "../components/splitButton.js";
 import { ComfyViewHistoryButton } from "./viewHistory.js";
 import { ComfyQueueButton } from "./queueButton.js";
-import { ComfyWorkflows } from "./workflows.js";
+import { ComfyWorkflowsMenu } from "./workflows.js";
 import { ComfyViewQueueButton } from "./viewQueue.js";
 import { getInteruptButton } from "./interruptButton.js";
 
@@ -38,7 +38,7 @@ export class ComfyAppMenu {
 			});
 
 		this.logo = $el("h1.comfyui-logo.sm-hide", { title: "ComfyUI" }, "ComfyUI");
-		this.workflows = new ComfyWorkflows();
+		this.workflows = new ComfyWorkflowsMenu();
 		this.element = $el("nav.comfyui-menu", { parent: document.body }, [
 			this.logo,
 			this.workflows.element,
@@ -141,7 +141,7 @@ export class ComfyAppMenu {
 	 * @param {string} defaultName
 	 */
 	getFilename(defaultName) {
-		if (this.app.ui.settings.getSettingValue("Comfy.PromptFilename")) {
+		if (this.app.ui.settings.getSettingValue("Comfy.PromptFilename", true)) {
 			defaultName = prompt("Save workflow as:", defaultName);
 			if (!defaultName) return;
 			if (!defaultName.toLowerCase().endsWith(".json")) {

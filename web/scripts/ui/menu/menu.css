@@ -50,8 +50,9 @@
 	left: var(--left);
 	right: var(--right);
 	top: var(--top);
-	z-index: 1000;
+	z-index: 2000;
 	max-height: calc(100vh - var(--top) - 10px);
+	box-shadow: 3px 3px 5px 0px rgba(0, 0, 0, 0.3);
 }
 
 .comfyui-popup:not(.open) {
@@ -270,6 +271,10 @@
 	flex-direction: row-reverse;
 }
 
+.comfyui-workflows-button.popup-open {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
 .comfyui-workflows-button.unsaved {
 	font-style: italic;
 }
