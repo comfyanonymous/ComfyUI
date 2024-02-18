@@ -172,7 +172,8 @@ class BasicCache:
         self.cache[cache_key] = value
 
     def _get_immediate(self, node_id):
-        assert self.cache_key_set is not None
+        if self.cache_key_set is None:
+            return None
         cache_key = self.cache_key_set.get_data_key(node_id)
         if cache_key in self.cache:
             return self.cache[cache_key]
