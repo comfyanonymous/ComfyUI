@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import sys
 from asyncio import AbstractEventLoop
 from contextlib import AsyncExitStack
 from dataclasses import asdict
