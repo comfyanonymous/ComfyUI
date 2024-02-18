@@ -1,5 +1,6 @@
 import itertools
 from typing import Sequence, Mapping
+from comfy.graph import DynamicPrompt
 
 import nodes
 
@@ -10,7 +11,7 @@ class CacheKeySet:
         self.keys = {}
         self.subcache_keys = {}
 
-    def add_keys(node_ids):
+    def add_keys(self, node_ids):
         raise NotImplementedError()
 
     def all_node_ids(self):
@@ -66,7 +67,7 @@ class CacheKeySetInputSignature(CacheKeySet):
         self.is_changed_cache = is_changed_cache
         self.add_keys(node_ids)
 
-    def include_node_id_in_input(self):
+    def include_node_id_in_input(self) -> bool:
         return False
 
     def add_keys(self, node_ids):
@@ -131,8 +132,9 @@ class CacheKeySetInputSignatureWithID(CacheKeySetInputSignature):
 class BasicCache:
     def __init__(self, key_class):
         self.key_class = key_class
-        self.dynprompt = None
-        self.cache_key_set = None
+        self.initialized = False
+        self.dynprompt: DynamicPrompt
+        self.cache_key_set: CacheKeySet
         self.cache = {}
         self.subcaches = {}
 
@@ -140,16 +142,17 @@ class BasicCache:
         self.dynprompt = dynprompt
         self.cache_key_set = self.key_class(dynprompt, node_ids, is_changed_cache)
         self.is_changed_cache = is_changed_cache
+        self.initialized = True
 
     def all_node_ids(self):
-        assert self.cache_key_set is not None
+        assert self.initialized
         node_ids = self.cache_key_set.all_node_ids()
         for subcache in self.subcaches.values():
             node_ids = node_ids.union(subcache.all_node_ids())
         return node_ids
 
     def clean_unused(self):
-        assert self.cache_key_set is not None
+        assert self.initialized
         preserve_keys = set(self.cache_key_set.get_used_keys())
         preserve_subcaches = set(self.cache_key_set.get_used_subcache_keys())
         to_remove = []
@@ -167,12 +170,12 @@ class BasicCache:
             del self.subcaches[key]
 
     def _set_immediate(self, node_id, value):
-        assert self.cache_key_set is not None
+        assert self.initialized
         cache_key = self.cache_key_set.get_data_key(node_id)
         self.cache[cache_key] = value
 
     def _get_immediate(self, node_id):
-        if self.cache_key_set is None:
+        if not self.initialized:
             return None
         cache_key = self.cache_key_set.get_data_key(node_id)
         if cache_key in self.cache:
@@ -181,7 +184,6 @@ class BasicCache:
             return None
 
     def _ensure_subcache(self, node_id, children_ids):
-        assert self.cache_key_set is not None
         subcache_key = self.cache_key_set.get_subcache_key(node_id)
         subcache = self.subcaches.get(subcache_key, None)
         if subcache is None:
@@ -191,7 +193,7 @@ class BasicCache:
         return subcache
 
     def _get_subcache(self, node_id):
-        assert self.cache_key_set is not None
+        assert self.initialized
         subcache_key = self.cache_key_set.get_subcache_key(node_id)
         if subcache_key in self.subcaches:
             return self.subcaches[subcache_key]
@@ -211,6 +213,7 @@ class HierarchicalCache(BasicCache):
         super().__init__(key_class)
 
     def _get_cache_for(self, node_id):
+        assert self.dynprompt is not None
         parent_id = self.dynprompt.get_parent_node_id(node_id)
         if parent_id is None:
             return self

@@ -84,7 +84,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, prompt={}, dynpro
     for x in inputs:
         input_data = inputs[x]
         input_type, input_category, input_info = get_input_info(class_def, x)
-        if is_link(input_data) and not input_info.get("rawLink", False):
+        if is_link(input_data) and (not input_info or not input_info.get("rawLink", False)):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if outputs is None:
@@ -94,7 +94,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, prompt={}, dynpro
                 continue
             obj = cached_output[output_index]
             input_data_all[x] = obj
-        elif input_category is not None:
+        else:
             input_data_all[x] = [input_data]
 
     if "hidden" in valid_inputs:
@@ -336,8 +336,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                     # Check for conflicts
                     for node_id in new_graph.keys():
                         if dynprompt.get_node(node_id) is not None:
-                            raise Exception("Attempt to add duplicate node %s" % node_id)
-                            break
+                            raise Exception("Attempt to add duplicate node %s. Ensure node ids are unique and deterministic or use graph_utils.GraphBuilder." % node_id)
                     for node_id, node_info in new_graph.items():
                         new_node_ids.append(node_id)
                         display_id = node_info.get("override_display_id", unique_id)
@@ -518,6 +517,7 @@ def validate_inputs(prompt, item, validated):
 
     for x in valid_inputs:
         type_input, input_category, extra_info = get_input_info(obj_class, x)
+        assert extra_info is not None
         if x not in inputs:
             if input_category == "required":
                 error = {
@@ -698,8 +698,6 @@ def validate_inputs(prompt, item, validated):
                         "details": details,
                         "extra_info": {
                             "input_name": x,
-                            "input_config": info,
-                            "received_value": val,
                         }
                     }
                     errors.append(error)
