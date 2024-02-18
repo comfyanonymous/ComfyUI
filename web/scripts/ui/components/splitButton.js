@@ -13,7 +13,7 @@ export class ComfySplitButton {
 	 * 		horizontal?: "left" | "right",
 	 * 		position?: "relative" | "absolute"
 	 *  }} param0
-	 *  @param {Array<ComfyButton>} items
+	 *  @param {Array<ComfyButton> | Array<HTMLElement>} items
 	 */
 	constructor({ primary, mode, horizontal = "left", position = "relative" }, ...items) {
 		this.arrow = new ComfyButton({
@@ -38,6 +38,6 @@ export class ComfySplitButton {
 	}
 
 	update() {
-		this.popup.element.replaceChildren(...this.items.map((b) => b.element));
+		this.popup.element.replaceChildren(...this.items.map((b) => b.element ?? b));
 	}
 }

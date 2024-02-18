@@ -2,7 +2,7 @@
 
 import { ComfyButton } from "../components/button.js";
 import { ComfyViewList, ComfyViewListButton } from "./viewList.js";
-import { api } from "/scripts/api.js";
+import { api } from "../../api.js";
 
 export class ComfyViewQueueButton extends ComfyViewListButton {
 	constructor(app) {
@@ -10,7 +10,7 @@ export class ComfyViewQueueButton extends ComfyViewListButton {
 			button: new ComfyButton({
 				content: "View Queue",
 				icon: "format-list-numbered",
-				tooltip: "View Queue",
+				tooltip: "View queue",
 				classList: "comfyui-button comfyui-queue-button",
 			}),
 			list: ComfyViewQueueList,
@@ -20,7 +20,7 @@ export class ComfyViewQueueButton extends ComfyViewListButton {
 }
 
 export class ComfyViewQueueList extends ComfyViewList {
-	getRow(item, section) {
+	getRow = (item, section) => {
 		if (section !== "Running") {
 			return super.getRow(item, section);
 		}

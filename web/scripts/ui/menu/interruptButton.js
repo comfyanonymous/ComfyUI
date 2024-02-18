@@ -6,6 +6,7 @@ import { ComfyButton } from "../components/button.js";
 export function getInteruptButton(visibility) {
 	const btn = new ComfyButton({
 		icon: "close",
+		tooltip: "Cancel current generation",
 		enabled: false,
 		action: () => {
 			api.interrupt();
