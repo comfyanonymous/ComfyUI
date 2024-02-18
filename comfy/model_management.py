@@ -487,7 +487,7 @@ def unet_inital_load_device(parameters, dtype):
     else:
         return cpu_dev
 
-def unet_dtype(device=None, model_params=0):
+def unet_dtype(device=None, model_params=0, supported_dtypes=[torch.float16, torch.bfloat16, torch.float32]):
     if args.bf16_unet:
         return torch.bfloat16
     if args.fp16_unet:
@@ -497,20 +497,31 @@ def unet_dtype(device=None, model_params=0):
     if args.fp8_e5m2_unet:
         return torch.float8_e5m2
     if should_use_fp16(device=device, model_params=model_params, manual_cast=True):
-        return torch.float16
+        if torch.float16 in supported_dtypes:
+            return torch.float16
+    if should_use_bf16(device, model_params=model_params, manual_cast=True):
+        if torch.bfloat16 in supported_dtypes:
+            return torch.bfloat16
     return torch.float32
 
 # None means no manual cast
-def unet_manual_cast(weight_dtype, inference_device):
+def unet_manual_cast(weight_dtype, inference_device, supported_dtypes=[torch.float16, torch.bfloat16, torch.float32]):
     if weight_dtype == torch.float32:
         return None
 
-    fp16_supported = comfy.model_management.should_use_fp16(inference_device, prioritize_performance=False)
+    fp16_supported = should_use_fp16(inference_device, prioritize_performance=False)
     if fp16_supported and weight_dtype == torch.float16:
         return None
 
-    if fp16_supported:
+    bf16_supported = should_use_bf16(inference_device)
+    if bf16_supported and weight_dtype == torch.bfloat16:
+        return None
+
+    if fp16_supported and torch.float16 in supported_dtypes:
         return torch.float16
+
+    elif bf16_supported and torch.bfloat16 in supported_dtypes:
+        return torch.bfloat16
     else:
         return torch.float32
 
@@ -684,17 +695,20 @@ def mps_mode():
     global cpu_state
     return cpu_state == CPUState.MPS
 
-def is_device_cpu(device):
+def is_device_type(device, type):
     if hasattr(device, 'type'):
-        if (device.type == 'cpu'):
+        if (device.type == type):
             return True
     return False
 
+def is_device_cpu(device):
+    return is_device_type(device, 'cpu')
+
 def is_device_mps(device):
-    if hasattr(device, 'type'):
-        if (device.type == 'mps'):
-            return True
-    return False
+    return is_device_type(device, 'mps')
+
+def is_device_cuda(device):
+    return is_device_type(device, 'cuda')
 
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
     global directml_enabled
@@ -756,6 +770,43 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
             return False
 
     return True
+
+def should_use_bf16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
+    if device is not None:
+        if is_device_cpu(device): #TODO ? bf16 works on CPU but is extremely slow
+            return False
+
+    if device is not None: #TODO not sure about mps bf16 support
+        if is_device_mps(device):
+            return False
+
+    if FORCE_FP32:
+        return False
+
+    if directml_enabled:
+        return False
+
+    if cpu_mode() or mps_mode():
+        return False
+
+    if is_intel_xpu():
+        return True
+
+    if device is None:
+        device = torch.device("cuda")
+
+    props = torch.cuda.get_device_properties(device)
+    if props.major >= 8:
+        return True
+
+    bf16_works = torch.cuda.is_bf16_supported()
+
+    if bf16_works or manual_cast:
+        free_model_memory = (get_free_memory() * 0.9 - minimum_inference_memory())
+        if (not prioritize_performance) or model_params * 4 > free_model_memory:
+            return True
+
+    return False
 
 def soft_empty_cache(force=False):
     global cpu_state
