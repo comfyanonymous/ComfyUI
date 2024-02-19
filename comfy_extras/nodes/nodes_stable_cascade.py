@@ -17,7 +17,7 @@
 """
 
 import torch
-import nodes
+import comfy.nodes.common
 import comfy.utils
 
 
@@ -28,8 +28,8 @@ class StableCascade_EmptyLatentImage:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
-            "width": ("INT", {"default": 1024, "min": 256, "max": nodes.MAX_RESOLUTION, "step": 8}),
-            "height": ("INT", {"default": 1024, "min": 256, "max": nodes.MAX_RESOLUTION, "step": 8}),
+            "width": ("INT", {"default": 1024, "min": 256, "max": comfy.nodes.common.MAX_RESOLUTION, "step": 8}),
+            "height": ("INT", {"default": 1024, "min": 256, "max": comfy.nodes.common.MAX_RESOLUTION, "step": 8}),
             "compression": ("INT", {"default": 42, "min": 4, "max": 128, "step": 1}),
             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})
         }}
