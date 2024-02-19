@@ -6,9 +6,12 @@ import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
+import { getUserId } from "./utils.js";
 import { getWorkflow } from "./utils.js";
 
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
+
+
 
 function sanitizeNodeName(string) {
 	let entityMap = {
@@ -53,7 +56,7 @@ export class ComfyApp {
 	constructor() {
 		this.ui = new ComfyUI(this);
 		this.logging = new ComfyLogging(this);
-
+		this.uid = getUserId()
 		/**
 		 * List of extensions that are registered with the app
 		 * @type {ComfyExtension[]}
@@ -1497,6 +1500,7 @@ export class ComfyApp {
 		await this.registerNodes();
 		initWidgets(this);
 
+
 		// Load prebuilt workflow
 		const workflow = await getWorkflow();
 
@@ -2050,9 +2054,8 @@ export class ComfyApp {
 
 				for (let i = 0; i < batchCount; i++) {
 					const p = await this.graphToPrompt();
-
 					try {
-						const res = await api.queuePrompt(number, p);
+						const res = await api.queuePrompt(number, p, this.uid);
 						this.lastNodeErrors = res.node_errors;
 						if (this.lastNodeErrors.length > 0) {
 							this.canvas.draw(true, true);

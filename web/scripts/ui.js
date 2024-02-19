@@ -1,7 +1,9 @@
+
 import { api } from "./api.js";
 import { ComfyDialog as _ComfyDialog } from "./ui/dialog.js";
 import { toggleSwitch } from "./ui/toggleSwitch.js";
 import { ComfySettingsDialog } from "./ui/settings.js";
+import { getUserId } from "./utils.js";
 
 export const ComfyDialog = _ComfyDialog;
 
@@ -18,6 +20,7 @@ export const ComfyDialog = _ComfyDialog;
  * @param { Element[] | undefined } [children]
  * @returns 
  */
+
 export function $el(tag, propsOrChildren, children) {
 	const split = tag.split(".");
 	const element = document.createElement(split.shift());
@@ -219,9 +222,16 @@ class ComfyList {
 						// Allow items to specify a custom remove action (e.g. for interrupt current prompt)
 						const removeAction = item.remove || {
 							name: "Delete",
-							cb: () => api.deleteItem(this.#type, item.prompt[1]),
+							cb: () => {
+								var uid = getUserId();
+								if(uid == item.prompt[5]) {
+									api.deleteItem(this.#type, item.prompt[1])
+								} else {
+									alert("You can only delete your own prompts.")
+								}
+							},
 						};
-						return $el("div", {textContent: item.prompt[0] + ": "}, [
+						return $el("div", {textContent: item.prompt[0] + " - " + (item.prompt[5].length <= 10 ? item.prompt[5] : item.prompt[5].substring(0, 10) + "...") + ": "}, [
 							$el("button", {
 								textContent: "Load",
 								onclick: async () => {
@@ -234,8 +244,13 @@ class ComfyList {
 							$el("button", {
 								textContent: removeAction.name,
 								onclick: async () => {
-									await removeAction.cb();
-									await this.update();
+									var uid = getUserId();
+									if(uid == item.prompt[5]) {
+										await removeAction.cb();
+										await this.update();
+									} else {
+										alert("You can only delete your own prompts.")
+									}
 								},
 							}),
 						]);
@@ -243,13 +258,13 @@ class ComfyList {
 				]),
 			]),
 			$el("div.comfy-list-actions", [
-				$el("button", {
-					textContent: "Clear " + this.#text,
-					onclick: async () => {
-						await api.clearItems(this.#type);
-						await this.load();
-					},
-				}),
+				// $el("button", {
+				// 	textContent: "Clear " + this.#text,
+				// 	onclick: async () => {
+				// 		await api.clearItems(this.#type);
+				// 		await this.load();
+				// 	},
+				// }),
 				$el("button", {textContent: "Refresh", onclick: () => this.load()}),
 			])
 		);
@@ -418,10 +433,10 @@ export class ComfyUI {
 				$el("span.drag-handle"),
 				$el("span.comfy-menu-queue-size", { $: (q) => (this.queueSize = q) }),
 				$el("div.comfy-menu-actions", [
-					$el("button.comfy-settings-btn", {
-						textContent: "⚙️",
-						onclick: () => this.settings.show(),
-					}),
+// 					$el("button.comfy-settings-btn", {
+// 						textContent: "⚙️",
+// 						onclick: () => this.settings.show(),
+// 					}),
 					$el("button.comfy-close-menu-btn", {
 						textContent: "\u00d7",
 						onclick: () => {
@@ -430,25 +445,25 @@ export class ComfyUI {
 						},
 					}),
 				]),
+
 			]),
 			$el("button.comfy-queue-btn", {
 				id: "queue-button",
 				textContent: "Queue Prompt",
 				onclick: () => app.queuePrompt(0, this.batchCount),
 			}),
-			$el("div", {}, [
-				$el("label", {innerHTML: "Extra options"}, [
-					$el("input", {
-						type: "checkbox",
-						onchange: (i) => {
-							document.getElementById("extraOptions").style.display = i.srcElement.checked ? "block" : "none";
-							this.batchCount = i.srcElement.checked ? document.getElementById("batchCountInputRange").value : 1;
-							document.getElementById("autoQueueCheckbox").checked = false;
-							this.autoQueueEnabled = false;
-						},
-					}),
-				]),
-			]),
+			// $el("div", {}, [
+			// 	$el("label", {innerHTML: "Extra options"}, [
+			// 		$el("input", {
+			// 			type: "checkbox",
+			// 			onchange: (i) => {
+			// 				document.getElementById("extraOptions").style.display = i.srcElement.checked ? "block" : "none";
+			// 				this.batchCount = i.srcElement.checked ? document.getElementById("batchCountInputRange").value : 1;
+			// 				document.getElementById("autoQueueCheckbox").checked = false;
+			// 			},
+			// 		}),
+			// 	]),
+			// ]),
 			$el("div", {id: "extraOptions", style: {width: "100%", display: "none"}}, [
 				$el("div",[
 
@@ -495,11 +510,11 @@ export class ComfyUI {
 				])
 			]),
 			$el("div.comfy-menu-btns", [
-				$el("button", {
-					id: "queue-front-button",
-					textContent: "Queue Front",
-					onclick: () => app.queuePrompt(-1, this.batchCount)
-				}),
+				// $el("button", {
+				// 	id: "queue-front-button",
+				// 	textContent: "Queue Front",
+				// 	onclick: () => app.queuePrompt(-1, this.batchCount)
+				// }),
 				$el("button", {
 					$: (b) => (this.queue.button = b),
 					id: "comfy-view-queue-button",
@@ -551,52 +566,52 @@ export class ComfyUI {
 					});
 				},
 			}),
-			$el("button", {
-				id: "comfy-dev-save-api-button",
-				textContent: "Save (API Format)",
-				style: {width: "100%", display: "none"},
-				onclick: () => {
-					let filename = "workflow_api.json";
-					if (promptFilename.value) {
-						filename = prompt("Save workflow (API) as:", filename);
-						if (!filename) return;
-						if (!filename.toLowerCase().endsWith(".json")) {
-							filename += ".json";
-						}
-					}
-					app.graphToPrompt().then(p=>{
-						const json = JSON.stringify(p.output, null, 2); // convert the data to a JSON string
-						const blob = new Blob([json], {type: "application/json"});
-						const url = URL.createObjectURL(blob);
-						const a = $el("a", {
-							href: url,
-							download: filename,
-							style: {display: "none"},
-							parent: document.body,
-						});
-						a.click();
-						setTimeout(function () {
-							a.remove();
-							window.URL.revokeObjectURL(url);
-						}, 0);
-					});
-				},
-			}),
+			// $el("button", {
+			// 	id: "comfy-dev-save-api-button",
+			// 	textContent: "Save (API Format)",
+			// 	style: {width: "100%", display: "none"},
+			// 	onclick: () => {
+			// 		let filename = "workflow_api.json";
+			// 		if (promptFilename.value) {
+			// 			filename = prompt("Save workflow (API) as:", filename);
+			// 			if (!filename) return;
+			// 			if (!filename.toLowerCase().endsWith(".json")) {
+			// 				filename += ".json";
+			// 			}
+			// 		}
+			// 		app.graphToPrompt().then(p=>{
+			// 			const json = JSON.stringify(p.output, null, 2); // convert the data to a JSON string
+			// 			const blob = new Blob([json], {type: "application/json"});
+			// 			const url = URL.createObjectURL(blob);
+			// 			const a = $el("a", {
+			// 				href: url,
+			// 				download: filename,
+			// 				style: {display: "none"},
+			// 				parent: document.body,
+			// 			});
+			// 			a.click();
+			// 			setTimeout(function () {
+			// 				a.remove();
+			// 				window.URL.revokeObjectURL(url);
+			// 			}, 0);
+			// 		});
+			// 	},
+			// }),
 			$el("button", {id: "comfy-load-button", textContent: "Load", onclick: () => fileInput.click()}),
 			$el("button", {
 				id: "comfy-refresh-button",
 				textContent: "Refresh",
 				onclick: () => app.refreshComboInNodes()
 			}),
-			$el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
-			$el("button", {
-				id: "comfy-clear-button", textContent: "Clear", onclick: () => {
-					if (!confirmClear.value || confirm("Clear workflow?")) {
-						app.clean();
-						app.graph.clear();
-					}
-				}
-			}),
+			// $el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
+			// $el("button", {
+			// 	id: "comfy-clear-button", textContent: "Clear", onclick: () => {
+			// 		if (!confirmClear.value || confirm("Clear workflow?")) {
+			// 			app.clean();
+			// 			app.graph.clear();
+			// 		}
+			// 	}
+			// }),
 			$el("button", {
 				id: "comfy-load-default-button", textContent: "Load Default", onclick: async () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
@@ -604,15 +619,20 @@ export class ComfyUI {
 					}
 				}
 			}),
+			$el("button", {
+				id: "comfy-join-discord-button",
+				textContent: "Join Discord",
+				onclick: () => { window.location.href = "https://discord.gg/BesB8jzsqa" }
+			}),
 		]);
 
-		const devMode = this.settings.addSetting({
-			id: "Comfy.DevMode",
-			name: "Enable Dev mode Options",
-			type: "boolean",
-			defaultValue: false,
-			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
-		});
+		// const devMode = this.settings.addSetting({
+		// 	id: "Comfy.DevMode",
+		// 	name: "Enable Dev mode Options",
+		// 	type: "boolean",
+		// 	defaultValue: false,
+		// 	onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
+		// });
 
 		dragElement(this.menuContainer, this.settings);
 
