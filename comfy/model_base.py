@@ -5,6 +5,8 @@ from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmenta
 from . import model_management
 from . import conds
 from . import ops
+from .ldm.cascade.stage_c import StageC
+from .ldm.cascade.stage_b import StageB
 from enum import Enum
 from . import utils
 
@@ -12,9 +14,10 @@ class ModelType(Enum):
     EPS = 1
     V_PREDICTION = 2
     V_PREDICTION_EDM = 3
+    STABLE_CASCADE = 4
 
 
-from .model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM
+from .model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
 
 
 def model_sampling(model_config, model_type):
@@ -27,6 +30,9 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.V_PREDICTION_EDM:
         c = V_PREDICTION
         s = ModelSamplingContinuousEDM
+    elif model_type == ModelType.STABLE_CASCADE:
+        c = EPS
+        s = StableCascadeSampling
 
     class ModelSampling(s, c):
         pass
@@ -35,7 +41,7 @@ def model_sampling(model_config, model_type):
 
 
 class BaseModel(torch.nn.Module):
-    def __init__(self, model_config, model_type=ModelType.EPS, device=None):
+    def __init__(self, model_config, model_type=ModelType.EPS, device=None, unet_model=UNetModel):
         super().__init__()
 
         unet_config = model_config.unet_config
@@ -48,7 +54,7 @@ class BaseModel(torch.nn.Module):
                 operations = ops.manual_cast
             else:
                 operations = ops.disable_weight_init
-            self.diffusion_model = UNetModel(**unet_config, device=device, operations=operations)
+            self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -425,4 +431,57 @@ class SD_X4Upscaler(BaseModel):
 
         out['c_concat'] = conds.CONDNoiseShape(image)
         out['y'] = conds.CONDRegular(noise_level)
+        return out
+
+class StableCascade_C(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=StageC)
+        self.diffusion_model.eval().requires_grad_(False)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+        clip_text_pooled = kwargs["pooled_output"]
+        if clip_text_pooled is not None:
+            out['clip_text_pooled'] = conds.CONDRegular(clip_text_pooled)
+
+        if "unclip_conditioning" in kwargs:
+            embeds = []
+            for unclip_cond in kwargs["unclip_conditioning"]:
+                weight = unclip_cond["strength"]
+                embeds.append(unclip_cond["clip_vision_output"].image_embeds.unsqueeze(0) * weight)
+            clip_img = torch.cat(embeds, dim=1)
+        else:
+            clip_img = torch.zeros((1, 1, 768))
+        out["clip_img"] = conds.CONDRegular(clip_img)
+        out["sca"] = conds.CONDRegular(torch.zeros((1,)))
+        out["crp"] = conds.CONDRegular(torch.zeros((1,)))
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['clip_text'] = conds.CONDCrossAttn(cross_attn)
+        return out
+
+
+class StableCascade_B(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=StageB)
+        self.diffusion_model.eval().requires_grad_(False)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+        noise = kwargs.get("noise", None)
+
+        clip_text_pooled = kwargs["pooled_output"]
+        if clip_text_pooled is not None:
+            out['clip_text_pooled'] = conds.CONDRegular(clip_text_pooled)
+
+        #size of prior doesn't really matter if zeros because it gets resized but I still want it to get batched
+        prior = kwargs.get("stable_cascade_prior", torch.zeros((1, 16, (noise.shape[2] * 4) // 42, (noise.shape[3] * 4) // 42), dtype=noise.dtype, layout=noise.layout, device=noise.device))
+
+        out["effnet"] = conds.CONDRegular(prior)
+        out["sca"] = conds.CONDRegular(torch.zeros((1,)))
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['clip'] = conds.CONDCrossAttn(cross_attn)
         return out
