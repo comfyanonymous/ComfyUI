@@ -169,6 +169,8 @@ UNET_MAP_BASIC = {
 }
 
 def unet_to_diffusers(unet_config):
+    if "num_res_blocks" not in unet_config:
+        return {}
     num_res_blocks = unet_config["num_res_blocks"]
     channel_mult = unet_config["channel_mult"]
     transformer_depth = unet_config["transformer_depth"][:]

@@ -37,3 +37,11 @@ class SDXL(LatentFormat):
 class SD_X4(LatentFormat):
     def __init__(self):
         self.scale_factor = 0.08333
+
+class SC_Prior(LatentFormat):
+    def __init__(self):
+        self.scale_factor = 1.0
+
+class SC_B(LatentFormat):
+    def __init__(self):
+        self.scale_factor = 1.0
