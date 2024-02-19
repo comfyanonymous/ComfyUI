@@ -36,7 +36,6 @@ class EfficientNetEncoder(nn.Module):
         x = x * 0.5 + 0.5
         x = (x - self.mean.view([3,1,1])) / self.std.view([3,1,1])
         o = self.mapper(self.backbone(x))
-        print(o.shape)
         return o
 
 
