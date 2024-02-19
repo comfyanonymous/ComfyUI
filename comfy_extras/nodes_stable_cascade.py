@@ -29,8 +29,8 @@ class StableCascade_EmptyLatentImage:
         return {"required": {
             "width": ("INT", {"default": 1024, "min": 256, "max": nodes.MAX_RESOLUTION, "step": 8}),
             "height": ("INT", {"default": 1024, "min": 256, "max": nodes.MAX_RESOLUTION, "step": 8}),
-            "compression": ("INT", {"default": 42, "min": 32, "max": 64, "step": 1}),
-            "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})
+            "compression": ("INT", {"default": 42, "min": 4, "max": 128, "step": 1}),
+            "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})
         }}
     RETURN_TYPES = ("LATENT", "LATENT")
     RETURN_NAMES = ("stage_c", "stage_b")
