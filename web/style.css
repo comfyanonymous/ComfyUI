@@ -103,11 +103,11 @@ body {
 .comfy-menu {
 	font-size: 15px;
 	position: absolute;
-	top: 25%;
+	top: 50%;
 	right: 0;
 	text-align: center;
 	z-index: 999;
-	width: 270px;
+	width: 170px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -237,14 +237,14 @@ span.drag-handle::after {
 
 .comfy-list-items {
 	overflow-y: scroll;
-	max-height: 400px;
+	max-height: 100px;
 	min-height: 25px;
 	background-color: var(--comfy-input-bg);
 	padding: 5px;
 }
 
 .comfy-list h4 {
-	min-width: 260px;
+	min-width: 160px;
 	margin: 0;
 	padding: 3px;
 	font-weight: normal;
