@@ -35,7 +35,7 @@ class PerpNeg:
 
             pos = noise_pred_pos - noise_pred_nocond
             neg = noise_pred_neg - noise_pred_nocond
-            perp = ((torch.mul(pos, neg).sum())/(torch.norm(neg)**2)) * neg
+            perp = neg - ((torch.mul(neg, pos).sum())/(torch.norm(pos)**2)) * pos
             perp_neg = perp * neg_scale
             cfg_result = noise_pred_nocond + cond_scale*(pos - perp_neg)
             cfg_result = x - cfg_result
