@@ -295,6 +295,9 @@ paths:
     post:
       summary: (UI) Unload models or free memory
       operationId: free
+      responses:
+        200:
+          description: The free request was accepted. No content body.
       requestBody:
         content:
           application/json:
