@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 
 import os
@@ -34,11 +35,11 @@ import importlib
 import folder_paths
 import latent_preview
 
-def before_node_execution():
-    comfy.model_management.throw_exception_if_processing_interrupted()
+def before_node_execution(*, current_key: Optional[str] = None):
+    comfy.model_management.throw_exception_if_processing_interrupted(current_key=current_key)
 
-def interrupt_processing(value=True):
-    comfy.model_management.interrupt_current_processing(value)
+def interrupt_processing(value=True, *, current_key: Optional[str] = None):
+    comfy.model_management.interrupt_processing(value, current_key=current_key)
 
 MAX_RESOLUTION=8192
 

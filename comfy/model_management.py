@@ -1,3 +1,4 @@
+from typing import Dict, Optional, Set
 import psutil
 from enum import Enum
 from comfy.cli_args import args
@@ -832,25 +833,57 @@ import threading
 class InterruptProcessingException(Exception):
     pass
 
-interrupt_processing_mutex = threading.RLock()
+_interrupt_processing_mutex = threading.RLock()
+_interrupt_processing_set: Set[str|None] = set()
+"""Set of prompt_ids/keys for which processing should be interrupted.
 
-interrupt_processing = False
-def interrupt_current_processing(value=True):
-    global interrupt_processing
-    global interrupt_processing_mutex
-    with interrupt_processing_mutex:
-        interrupt_processing = value
+None is a special key that means all prompt_ids/keys.
+"""
 
-def processing_interrupted():
-    global interrupt_processing
-    global interrupt_processing_mutex
-    with interrupt_processing_mutex:
-        return interrupt_processing
+def interrupt_processing(value=True, *, current_key: Optional[str]):
+    """Set processing interrupt state for a given prompt_id/key.
+    
+    If current_key is None, set the interrupt state for all prompt_ids/keys.
+    """
+    global _interrupt_processing_set
+    global _interrupt_processing_mutex
+    with _interrupt_processing_mutex:
+        if value:
+            if current_key is None:
+                _interrupt_processing_set = {None}
+            else:
+                _interrupt_processing_set.add(current_key)
+        else:
+            if current_key is None:
+                _interrupt_processing_set.clear()
+            else:
+                _interrupt_processing_set.discard(current_key)
 
-def throw_exception_if_processing_interrupted():
-    global interrupt_processing
-    global interrupt_processing_mutex
-    with interrupt_processing_mutex:
-        if interrupt_processing:
-            interrupt_processing = False
-            raise InterruptProcessingException()
+def processing_interrupted(*, current_key: Optional[str]):
+    """Check if processing should be interrupted for a given prompt_id/key.
+    
+    If current_key is None, check if processing should be interrupted for any prompt_id/key.
+    """
+    global _interrupt_processing_set
+    global _interrupt_processing_mutex
+    with _interrupt_processing_mutex:
+        return (current_key in _interrupt_processing_set
+                or None in _interrupt_processing_set)
+
+def throw_exception_if_processing_interrupted(*, current_key: Optional[str]):
+    """Check if processing should be interrupted for a given prompt_id/key and throw an exception if so.
+    
+    If current_key is None, will raise if interrupt_processing(value=True, current_key=None) was called.
+    
+    After calling this function, the interrupt state is cleared.
+    """
+    global _interrupt_processing_set
+    global _interrupt_processing_mutex
+    with _interrupt_processing_mutex:
+        try:
+            if current_key in _interrupt_processing_set:
+                raise InterruptProcessingException()
+            elif None in _interrupt_processing_set:
+                raise InterruptProcessingException()
+        finally:
+            _interrupt_processing_set.clear()
