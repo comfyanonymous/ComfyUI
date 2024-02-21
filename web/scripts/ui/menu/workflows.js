@@ -5,6 +5,11 @@ import { prop } from "../../utils.js";
 import { $el } from "../../ui.js";
 import { api } from "../../api.js";
 import { ComfyPopup } from "../components/popup.js";
+import { createSpinner } from "../spinner.js";
+
+function trimJsonExt(name) {
+	return name.replace(/\.json$/, "");
+}
 
 export class ComfyWorkflowsMenu {
 	element = $el("div.comfyui-workflows");
@@ -18,13 +23,39 @@ export class ComfyWorkflowsMenu {
 	}
 
 	constructor(app) {
+		this.app = app;
+
+		let ignoreChange = false;
+		let first = true;
+		api.addEventListener("workflowChanged", ({ detail }) => {
+			if (detail) {
+				this.unsaved = first ? localStorage.getItem("Comfy.LastWorkflowUnsaved") === "true" : false;
+				this.currentWorkflow = detail;
+			} else {
+				this.unsaved = true;
+				this.currentWorkflow = "Unsaved workflow";
+			}
+			first = false;
+			ignoreChange = true;
+			setTimeout(() => (ignoreChange = false), 5);
+		});
+
+		api.addEventListener("graphChanged", () => {
+			if (ignoreChange) {
+				ignoreChange = false;
+			} else {
+				this.unsaved = true;
+			}
+		});
+
 		const classList = {
 			"comfyui-workflows-button": true,
 			"comfyui-button": true,
-			unsaved: true,
+			unsaved: false,
 		};
+		this.workflowLabel = $el("span.comfyui-workflows-label", "Unsaved workflow");
 		this.button = new ComfyButton({
-			content: $el("div.comfyui-workflows-button-inner", [$el("i.mdi.mdi-graph"), $el("span.comfyui-workflows-label", "Unsaved workflow")]),
+			content: $el("div.comfyui-workflows-button-inner", [$el("i.mdi.mdi-graph"), this.workflowLabel]),
 			icon: "chevron-down",
 			classList,
 		});
@@ -41,11 +72,48 @@ export class ComfyWorkflowsMenu {
 		this.unsaved = prop(this, "unsaved", classList.unsaved, (v) => {
 			classList.unsaved = v;
 			this.button.classList = classList;
+			if (!first) {
+				localStorage.setItem("Comfy.LastWorkflowUnsaved", v);
+			}
 		});
+		this.currentWorkflow = prop(this, "currentWorkflow", "", () => {
+			this.button.element.title = this.workflowLabel.textContent = trimJsonExt(this.currentWorkflow);
+		});
+	}
 
-		setTimeout(() => {
-			this.popup.open = true;
-		}, 500);
+	save(saveAs) {
+		if (!saveAs && this.app.currentWorkflow) {
+			this.#saveWorkflow(this.app.currentWorkflow);
+		} else {
+			this.#saveWorkflow();
+		}
+	}
+
+	/**
+	 * @param {string} [filename]
+	 */
+	async #saveWorkflow(filename) {
+		let overwrite = true;
+		if (!filename) {
+			overwrite = false;
+			filename = prompt("Save workflow as:", this.app.currentWorkflow || "workflow");
+			if (!filename) return;
+			if (!filename.toLowerCase().endsWith(".json")) {
+				filename += ".json";
+			}
+		}
+
+		const p = await this.app.graphToPrompt();
+		const json = JSON.stringify(p.workflow, null, 2);
+		const res = await api.storeUserData("workflows/" + filename, json, { stringify: false, throwOnError: false, overwrite });
+		if (res.status === 409) {
+			if (!confirm(`Workflow '${filename}' already exists, do you want to overwrite it?`)) return;
+			await api.storeUserData("workflows/" + filename, json, { stringify: false });
+		}
+
+		this.unsaved = false;
+		this.app.currentWorkflow = filename;
+		localStorage.setItem("Comfy.LastWorkflow", filename);
 	}
 }
 
@@ -59,10 +127,30 @@ export class ComfyWorkflowsContent {
 		this.app = app;
 		this.popup = popup;
 		this.actions = $el("div.comfyui-workflows-actions", [
-			new ComfyButton({ content: "New Workflow", icon: "plus" }).element,
-			new ComfyButton({ content: "Load Default" }).element,
+			new ComfyButton({
+				content: "New Workflow",
+				icon: "plus",
+				action: () => {
+					app.currentWorkflow = null;
+					app.clean();
+					app.graph.clear();
+					popup.open = false;
+				},
+			}).element,
+			new ComfyButton({
+				content: "Load Default",
+				action: () => {
+					popup.open = false;
+					app.loadGraphData();
+				},
+			}).element,
 		]);
-		this.load();
+
+		this.spinner = createSpinner();
+		this.element.replaceChildren(this.actions, this.spinner);
+
+		this.popup.addEventListener("open", () => this.load());
+		this.popup.addEventListener("close", () => this.element.replaceChildren(this.actions, this.spinner));
 	}
 
 	async loadWorkflowsInfo() {
@@ -93,26 +181,29 @@ export class ComfyWorkflowsContent {
 
 		this.favoritesElement = $el(
 			"div.comfyui-workflows-favorites",
-			favorites.map((f) => {
-				const entry = this.#fileLookup[f];
-				const res = new FileNode(
-					this,
-					entry.path,
-					entry.part,
-					"div",
-					(f) => {
-						entry.isFavorite = f;
-						entry.updateFavorite();
-						this.updateFavoritesElement();
-					},
-					() => {
-						res.element.remove();
-						entry.remove();
-						return false;
-					}
-				);
-				return res.element;
-			})
+			favorites
+				.map((f) => {
+					const entry = this.#fileLookup[f];
+					if (!entry) return null;
+					const res = new FileNode(
+						this,
+						entry.path,
+						entry.part,
+						"div",
+						(f) => {
+							entry.isFavorite = f;
+							entry.updateFavorite();
+							this.updateFavoritesElement();
+						},
+						() => {
+							res.element.remove();
+							entry.remove();
+							return false;
+						}
+					);
+					return res.element;
+				})
+				.filter(Boolean)
 		);
 
 		if (current) {
@@ -239,7 +330,7 @@ class FileNode {
 						this.parent.favorites.delete(this.path);
 						await this.parent.storeWorkflowsInfo();
 					}
-					// await api.deleteUserData(fileName);
+					await api.deleteUserData(fileName);
 					this.remove();
 				} else {
 					btn.icon = "delete-empty";
@@ -252,7 +343,7 @@ class FileNode {
 			deleteButton.element.style.removeProperty("background");
 		});
 
-		const loadWorkflow = async (e, insert) => {
+		const loadWorkflow = async (e) => {
 			e.stopImmediatePropagation();
 			const resp = await api.getUserData(fileName);
 			if (resp.status !== 200) {
@@ -260,16 +351,16 @@ class FileNode {
 				return;
 			}
 			const data = await resp.json();
-			// TODO: fix insert, LiteGraph has a dont clear parameter but it doesnt fix duplicate ids
-			await this.parent.app.loadGraphData(data, !insert, insert);
+			await this.parent.app.loadGraphData(data, true, this.path);
 			this.parent.popup.open = false;
 		};
 
-		const name = this.part.replace(/\.json$/, "");
+		const name = trimJsonExt(this.part);
 		this.element = $el(
 			tagName + ".comfyui-workflows-tree-file",
 			{
-				onclick: (e) => loadWorkflow(e, false),
+				onclick: (e) => loadWorkflow(e),
+				title: this.path,
 			},
 			[
 				this.nodeIcon,

@@ -250,7 +250,7 @@
 	}
 }
 
-@media only screen and (max-width: 490px) {
+@media only screen and (max-width: 520px) {
 	.comfyui-workflows-label {
 		display: none;
 	}
@@ -272,6 +272,7 @@
 /* Workflows */
 .comfyui-workflows-button {
 	flex-direction: row-reverse;
+	max-width: 200px;
 }
 
 .comfyui-workflows-button.popup-open {
@@ -282,16 +283,34 @@
 	font-style: italic;
 }
 
-.comfyui-workflows-button.unsaved .comfyui-workflows-label:after {
-	content: "*";
+.comfyui-workflows-button>span {
+	flex: auto;
+	text-align: left;
+	overflow: hidden;
 }
-
 .comfyui-workflows-button-inner {
 	display: flex;
 	align-items: center;
 	gap: 7px;
 }
+.comfyui-workflows-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	direction: rtl;
+	flex: auto;
+	position: relative;
+}
 
+.comfyui-workflows-button.unsaved .comfyui-workflows-label {
+	padding-left: 8px;
+}
+
+.comfyui-workflows-button.unsaved .comfyui-workflows-label:after {
+	content: "*";
+	position: absolute;
+	top: 0;
+	left: 0;
+}
 .comfyui-workflows-button-inner .mdi-graph::before {
 	transform: rotate(-90deg);
 }
@@ -307,6 +326,16 @@
 	border-bottom-left-radius: 4px;
 }
 
+.comfyui-workflows-panel {
+	min-height: 150px;
+}
+
+.comfyui-workflows-panel .lds-ring {
+	transform: translate(-50%);
+	position: absolute;
+	left: 50%;
+	top: 75px;
+}
 .comfyui-workflows-actions {
 	display: flex;
 	gap: 10px;
@@ -335,17 +364,21 @@
 .comfyui-workflows-tree {
 	padding: 0;
 	padding-top: 5px;
-	margin-bottom: 0;
 	margin: 0;
 }
 
+.comfyui-workflows-tree:empty::after {
+	content: "No saved workflows";
+	display: block;
+	text-align: center;
+}
 .comfyui-workflows-tree>ul {
 	padding: 0;
 }
 
 .comfyui-workflows-tree>ul ul {
 	margin: 0;
-	padding: 0 0 0 30px;
+	padding: 0 0 0 25px;
 }
 
 .comfyui-workflows-tree .closed>ul {

@@ -58,16 +58,16 @@ class UserManager():
         if os.path.commonpath((root_dir, user_root)) != root_dir:
             return None
 
-        parent = user_root
-
         if file is not None:
             # prevent leaving /{type}/{user}
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
                 return None
 
+        parent = os.path.split(path)[0]
+
         if create_dir and not os.path.exists(parent):
-            os.mkdir(parent)
+            os.makedirs(parent, exist_ok=True)
 
         return path
 
@@ -161,8 +161,13 @@ class UserManager():
             path = get_user_data_path(request)
             if not isinstance(path, str):
                 return path
+            
+            overwrite = request.query["overwrite"] != "false"
+            if not overwrite and os.path.exists(path):
+                return web.Response(status=409)
 
             body = await request.read()
+
             with open(path, "wb") as f:
                 f.write(body)
                 

@@ -404,18 +404,19 @@ class ComfyApi extends EventTarget {
 	 * Stores a user data file for the current user
 	 * @param { string } file The name of the userdata file to save
 	 * @param { unknown } data The data to save to the file
-	 * @param { RequestInit & { stringify?: boolean, throwOnError?: boolean } } [options]
-	 * @returns { Promise<void> }
+	 * @param { RequestInit & { overwrite?: boolean, stringify?: boolean, throwOnError?: boolean } } [options]
+	 * @returns { Promise<Response> }
 	 */
-	async storeUserData(file, data, options = { stringify: true, throwOnError: true }) {
-		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}`, {
+	async storeUserData(file, data, options = { overwrite: true, stringify: true, throwOnError: true }) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}?overwrite=${options?.overwrite}`, {
 			method: "POST",
 			body: options?.stringify ? JSON.stringify(data) : data,
 			...options,
 		});
-		if (resp.status !== 200) {
+		if (resp.status !== 200 && options?.throwOnError !== false) {
 			throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
 		}
+		return resp;
 	}
 
 	/**

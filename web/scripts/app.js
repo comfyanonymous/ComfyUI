@@ -40,6 +40,29 @@ export class ComfyApp {
 	 */
 	#processingQueue = false;
 
+	/**	The name of the current workflow
+	 * @type { string | null }
+	 */
+	#currentWorkflow = null;
+
+	/**
+	 * Content Clipboard
+	 * @type {serialized node object}
+	 */
+	static clipspace = null;
+	static clipspace_invalidate_handler = null;
+	static open_maskeditor = null;
+	static clipspace_return_node = null;
+
+	get currentWorkflow() {
+		return this.#currentWorkflow;
+	}
+
+	set currentWorkflow(value) {
+		this.#currentWorkflow = value ?? null;
+		api.dispatchEvent(new CustomEvent("workflowChanged", { detail: value ?? null }));
+	}
+
 	/**
 	 * Content Clipboard
 	 * @type {serialized node object}
@@ -1503,7 +1526,8 @@ export class ComfyApp {
 			const loadWorkflow = async (json) => {
 				if (json) {
 					const workflow = JSON.parse(json);
-					await this.loadGraphData(workflow);
+					const workflowName = localStorage.getItem("Comfy.LastWorkflow");
+					await this.loadGraphData(workflow, true, workflowName);
 					return true;
 				}
 			};
@@ -1725,12 +1749,13 @@ export class ComfyApp {
 		});
 	}
 
-	/**
+/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
+	 * @param { string } name The name of the workflow
 	 */
-	async loadGraphData(graphData, clean = true, keepOld = false) {
+	async loadGraphData(graphData, clean = true, name = null) {
 		if (clean !== false) {
 			this.clean();
 		}
@@ -1748,6 +1773,9 @@ export class ComfyApp {
 		{
 			graphData = structuredClone(graphData);
 		}
+
+		this.currentWorkflow = name;
+		localStorage.setItem("Comfy.LastWorkflow", name ?? "");
 
 		const missingNodeTypes = [];
 		await this.#invokeExtensionsAsync("beforeConfigureGraph", graphData, missingNodeTypes);

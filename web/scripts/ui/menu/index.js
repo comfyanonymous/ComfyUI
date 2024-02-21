@@ -1,6 +1,7 @@
 // @ts-check
 
 import { $el } from "../../ui.js";
+import { api } from "../../api.js";
 import { addStylesheet, downloadBlob } from "../../utils.js";
 import { ComfyButton } from "../components/button.js";
 import { ComfyButtonGroup } from "../components/buttonGroup.js";
@@ -29,16 +30,16 @@ export class ComfyAppMenu {
 	constructor(app) {
 		this.app = app;
 
+		this.workflows = new ComfyWorkflowsMenu(app);
 		const getSaveButton = (t) =>
 			new ComfyButton({
 				icon: "content-save",
 				tooltip: "Save the current workflow",
-				action: () => this.exportWorkflow("workflow", "workflow"),
+				action: () => this.workflows.save(),
 				content: t,
 			});
 
 		this.logo = $el("h1.comfyui-logo.sm-hide", { title: "ComfyUI" }, "ComfyUI");
-		this.workflows = new ComfyWorkflowsMenu(app);
 		this.element = $el("nav.comfyui-menu", { parent: document.body }, [
 			this.logo,
 			this.workflows.element,
@@ -52,15 +53,7 @@ export class ComfyAppMenu {
 					icon: "content-save-edit",
 					content: "Save As",
 					tooltip: "Save the current graph as a new workflow",
-					action: () => {
-						let filename = prompt("Save workflow as:", "workflow");
-						if (!filename) return;
-						if (!filename.toLowerCase().endsWith(".json")) {
-							filename += ".json";
-						}
-
-						this.exportWorkflow("workflow", "workflow");
-					},
+					action: () => this.workflows.save(true),
 				}),
 				new ComfyButton({
 					icon: "download",
