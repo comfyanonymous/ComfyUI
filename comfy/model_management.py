@@ -834,7 +834,7 @@ class InterruptProcessingException(Exception):
     pass
 
 _interrupt_processing_mutex = threading.RLock()
-_interrupt_processing_set: Set[str|None] = set()
+_interrupt_processing_set: Set[Optional[str]] = set()
 """Set of prompt_ids/keys for which processing should be interrupted.
 
 None is a special key that means all prompt_ids/keys.
