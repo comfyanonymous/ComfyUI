@@ -222,7 +222,7 @@ paths:
                         status_str:
                           type: string
                         completed:
-                          type: bool
+                          type: boolean
                         messages:
                           type: array
                           items:
