@@ -75,6 +75,7 @@ class Configuration(dict):
         distributed_queue_worker (bool): Workers will pull requests off the AMQP URL.
         distributed_queue_name (str): This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID.
         external_address (str): Specifies a base URL for external addresses reported by the API, such as for image paths.
+        verbose (bool): Shows extra output for debugging purposes such as import errors of custom nodes.
     """
     def __init__(self, **kwargs):
         super().__init__()

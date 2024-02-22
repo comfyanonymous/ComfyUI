@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import logging
 import os
 import pkgutil
 import time
@@ -63,6 +64,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
             except KeyboardInterrupt as interrupted:
                 raise interrupted
             except Exception as x:
+                logging.error(f"{full_name} import failed", exc_info=x)
                 success = False
             timings.append((time.perf_counter() - time_before, full_name, success))
 

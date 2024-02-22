@@ -176,9 +176,8 @@ setup(
     author="",
     version=version,
     python_requires=">=3.9,<3.13",
-    # todo: figure out how to include the web directory to eventually let main live inside the package
-    # todo: see https://packaging.python.org/en/latest/guides/creating-and-discovering-plugins/ for more about adding plugins
-    packages=find_packages(exclude=[] if is_editable else ['custom_nodes']),
+    packages=find_packages(exclude=["tests"] + [] if is_editable else ['custom_nodes']),
+    package_dir={'': ''},
     include_package_data=True,
     install_requires=dependencies(),
     setup_requires=["pip", "wheel"],

@@ -1,23 +1,64 @@
 from __future__ import annotations
 
-import typing
-from typing import Protocol, ClassVar, Tuple, Dict
 from dataclasses import dataclass, field
+from typing import TypedDict, Union, Optional, Sequence, Dict, ClassVar, Protocol, Tuple, TypeVar, Any, Literal, \
+    Callable
 
-T = typing.TypeVar('T', bound='CustomNode')
+T = TypeVar('T')
+
+
+class NumberSpecOptions(TypedDict, total=False):
+    default: Union[int, float]
+    min: Union[int, float]
+    max: Union[int, float]
+    step: Union[int, float]
+    round: int
+
+
+IntSpec = Dict[str, Union[
+    Literal["INT"],
+    Tuple[Literal["INT"], Dict[str, Union[int, float, str]]]
+]]
+FloatSpec = Dict[str, Union[
+    Literal["FLOAT"],
+    Tuple[Literal["FLOAT"], Dict[str, Union[int, float, str]]]
+]]
+StringSpec = Dict[str, Union[
+    Literal["STRING"],
+    Tuple[Literal["STRING"], Dict[str, str]]
+]]
+ChoiceSpec = Dict[str, Union[
+    Sequence[str],  # Directly a list of choices
+    Tuple[Sequence[str], Dict[str, Any]]  # Choices with additional specifications
+]]
+
+ComplexInputSpec = Dict[str, Any]
+InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, ChoiceSpec, ComplexInputSpec]
+
+
+class InputTypes(Protocol):
+    required: Dict[str, InputTypeSpec]
+    optional: Optional[Dict[str, InputTypeSpec]]
+    hidden: Optional[Dict[str, InputTypeSpec]]
+
+
+ValidateInputsMethod = Optional[Callable[..., Union[bool, str]]]
 
 
 class CustomNode(Protocol):
     @classmethod
-    def INPUT_TYPES(cls) -> dict: ...
+    def INPUT_TYPES(cls) -> InputTypes: ...
 
-    RETURN_TYPES: ClassVar[typing.Sequence[str]]
-    RETURN_NAMES: typing.Optional[ClassVar[Tuple[str]]]
-    OUTPUT_IS_LIST: typing.Optional[ClassVar[typing.Sequence[bool]]]
-    INPUT_IS_LIST: typing.Optional[ClassVar[bool]]
+    # Optional method signature for VALIDATE_INPUTS
+    VALIDATE_INPUTS: ClassVar[ValidateInputsMethod] = None
+
+    RETURN_TYPES: ClassVar[Sequence[str]]
+    RETURN_NAMES: Optional[ClassVar[Tuple[str]]]
+    OUTPUT_IS_LIST: Optional[ClassVar[Sequence[bool]]]
+    INPUT_IS_LIST: Optional[ClassVar[bool]]
     FUNCTION: ClassVar[str]
     CATEGORY: ClassVar[str]
-    OUTPUT_NODE: typing.Optional[ClassVar[bool]]
+    OUTPUT_NODE: Optional[ClassVar[bool]]
 
     def __call__(self) -> T:
         ...
