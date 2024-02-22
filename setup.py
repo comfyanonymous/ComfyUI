@@ -177,7 +177,6 @@ setup(
     version=version,
     python_requires=">=3.9,<3.13",
     packages=find_packages(exclude=["tests"] + [] if is_editable else ['custom_nodes']),
-    package_dir={'': ''},
     include_package_data=True,
     install_requires=dependencies(),
     setup_requires=["pip", "wheel"],
