@@ -218,8 +218,12 @@ def recursive_execute(server: ExecutorToClientProgress, prompt, outputs, current
     return (True, None, None)
 
 
-def recursive_will_execute(prompt, outputs, current_item):
+def recursive_will_execute(prompt, outputs, current_item, memo={}):
     unique_id = current_item
+
+    if unique_id in memo:
+        return memo[unique_id]
+
     inputs = prompt[unique_id]['inputs']
     will_execute = []
     if unique_id in outputs:
@@ -231,9 +235,10 @@ def recursive_will_execute(prompt, outputs, current_item):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                will_execute += recursive_will_execute(prompt, outputs, input_unique_id)
+                will_execute += recursive_will_execute(prompt, outputs, input_unique_id, memo)
 
-    return will_execute + [unique_id]
+    memo[unique_id] = will_execute + [unique_id]
+    return memo[unique_id]
 
 
 def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item):
@@ -408,8 +413,9 @@ class PromptExecutor:
 
             while len(to_execute) > 0:
                 # always execute the output that depends on the least amount of unexecuted nodes first
+                memo = {}
                 to_execute = sorted(list(
-                    map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1])), a[-1]), to_execute)))
+                    map(lambda a: (len(recursive_will_execute(prompt, self.outputs, a[-1], memo)), a[-1]), to_execute)))
                 output_node_id = to_execute.pop(0)[-1]
 
                 # This call shouldn't raise anything if there's an error deep in
