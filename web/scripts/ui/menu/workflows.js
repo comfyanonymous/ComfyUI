@@ -343,35 +343,50 @@ class FileNode {
 			deleteButton.element.style.removeProperty("background");
 		});
 
-		const loadWorkflow = async (e) => {
+		const getWorkflow = async (e) => {
 			e.stopImmediatePropagation();
 			const resp = await api.getUserData(fileName);
 			if (resp.status !== 200) {
-				alert(`Error storing user data file '${fileName}': ${resp.status} ${resp.statusText}`);
+				alert(`Error loading user data file '${fileName}': ${resp.status} ${resp.statusText}`);
 				return;
 			}
-			const data = await resp.json();
+			return await resp.json();
+		};
+
+		const loadWorkflow = async (e) => {
+			const data = await getWorkflow(e);
 			await this.parent.app.loadGraphData(data, true, this.path);
 			this.parent.popup.open = false;
+		};
+
+		const insertWorkflow = async (e) => {
+			const data = await getWorkflow(e);
+			const old = localStorage.getItem("litegrapheditor_clipboard");
+			const graph = new LGraph(data);
+			const canvas = new LGraphCanvas(null, graph, { skip_events: true, skip_render: true });
+			canvas.selectNodes();
+			canvas.copyToClipboard();
+			this.parent.app.canvas.pasteFromClipboard();
+			localStorage.setItem("litegrapheditor_clipboard", old);
 		};
 
 		const name = trimJsonExt(this.part);
 		this.element = $el(
 			tagName + ".comfyui-workflows-tree-file",
 			{
-				onclick: (e) => loadWorkflow(e),
+				onclick: loadWorkflow,
 				title: this.path,
 			},
 			[
 				this.nodeIcon,
 				$el("span", name),
-				// new ComfyButton({
-				// 	icon: "file-move-outline",
-				// 	tooltip: "Insert this workflow into the current view",
-				// 	classList: "comfyui-button comfyui-workflows-file-action",
-				// 	iconSize: 18,
-				// 	action: (e) => loadWorkflow(e, true),
-				// }).element,
+				new ComfyButton({
+					icon: "file-move-outline",
+					tooltip: "Insert this workflow into the current view",
+					classList: "comfyui-button comfyui-workflows-file-action",
+					iconSize: 18,
+					action: insertWorkflow,
+				}).element,
 				new ComfyButton({
 					icon: "pencil",
 					tooltip: "Rename this workflow",

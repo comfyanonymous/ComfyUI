@@ -71,8 +71,8 @@ export class ComfyViewList {
 
 		this.element = $el(`div.comfyui-${this.type}-popup.comfyui-view-list-popup`, [
 			$el("h3", mode),
+			$el("header", [this.clear.element, this.refresh.element]),
 			this.items,
-			$el("footer", [this.clear.element, this.refresh.element]),
 		]);
 
 		api.addEventListener("status", () => {

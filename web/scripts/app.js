@@ -1793,7 +1793,7 @@ export class ComfyApp {
 		}
 
 		try {
-			this.graph.configure(graphData, keepOld);
+			this.graph.configure(graphData);
 		} catch (error) {
 			let errorHint = [];
 			// Try extracting filename to see if it was caused by an extension script

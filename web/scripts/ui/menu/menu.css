@@ -484,15 +484,15 @@
 	text-align: center;
 	padding: 0 2px;
 }
-.comfyui-view-list-popup footer {
-	margin-top: 10px;
+.comfyui-view-list-popup header {
+	margin-bottom: 10px;
 	display: flex;
 	gap: 5px;
 }
-.comfyui-view-list-popup footer .comfyui-button {
+.comfyui-view-list-popup header .comfyui-button {
 	border: 1px solid transparent;
 }
-.comfyui-view-list-popup footer .comfyui-button:not(:disabled):hover {
+.comfyui-view-list-popup header .comfyui-button:not(:disabled):hover {
 	border: 1px solid var(--comfy-menu-bg);
 }
 /* Queue button */
