@@ -1,6 +1,9 @@
 # Define a class for your command-line arguments
 import enum
-from typing import Optional, List, TypedDict
+from typing import Optional, List, TypeAlias, Callable
+import configargparse as argparse
+
+ConfigurationExtender: TypeAlias = Callable[[argparse.ArgParser], Optional[argparse.ArgParser]]
 
 
 class LatentPreviewMethod(enum.Enum):
@@ -77,6 +80,7 @@ class Configuration(dict):
         external_address (str): Specifies a base URL for external addresses reported by the API, such as for image paths.
         verbose (bool): Shows extra output for debugging purposes such as import errors of custom nodes.
     """
+
     def __init__(self, **kwargs):
         super().__init__()
         self.cwd: Optional[str] = None

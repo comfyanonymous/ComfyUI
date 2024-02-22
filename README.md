@@ -255,7 +255,13 @@ setup(
 
 All `.py` files located in the package specified by the entrypoint with your package's name will be scanned for node class mappings declared like this:
 
+**some_nodes.py**:
 ```py
+from comfy.nodes.package_typing import CustomNode
+
+class Binary_Preprocessor(CustomNode):
+  ...
+
 NODE_CLASS_MAPPINGS = {
     "BinaryPreprocessor": Binary_Preprocessor
 }
@@ -264,6 +270,136 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 ```
 These packages will be scanned recursively.
+
+Extending the `comfy.nodes.package_typing.CustomNode` provides type hints for authoring nodes.
+
+## Adding Custom Configuration
+
+Declare an entry point for configuration hooks in your **setup.py** that defines a function that takes and returns an
+`configargparser.ArgParser` object:
+
+**setup.py**
+```python
+setup(
+  name="mypackage",
+  ...
+  entry_points={
+    'comfyui.custom_nodes': [
+      'mypackage = mypackage_custom_nodes',
+    ],
+    'comfyui.custom_config': [
+      'mypackage = mypackage_custom_config:add_configuration',
+    ]
+  },
+)
+```
+
+**mypackage_custom_config.py**:
+```python
+import configargparse
+
+
+def add_configuration(parser: configargparse.ArgParser) -> configargparse.ArgParser:
+  parser.add_argument("--openai-api-key",
+                      required=False,
+                      type=str,
+                      help="Configures the OpenAI API Key for the OpenAI nodes", env_var="OPENAI_API_KEY")
+  return parser
+
+```
+
+You can now see your configuration option at the bottom of the `--help` command along with hints for how to use it:
+
+```shell
+$ comfyui --help
+usage: comfyui.exe [-h] [-c CONFIG_FILE] [--write-out-config-file CONFIG_OUTPUT_PATH] [-w CWD] [-H [IP]] [--port PORT]
+                   [--enable-cors-header [ORIGIN]] [--max-upload-size MAX_UPLOAD_SIZE] [--extra-model-paths-config PATH [PATH ...]]
+...
+                   [--openai-api-key OPENAI_API_KEY]
+
+options:
+  -h, --help            show this help message and exit
+  -c CONFIG_FILE, --config CONFIG_FILE
+                        config file path
+  --write-out-config-file CONFIG_OUTPUT_PATH
+                        takes the current command line args and writes them out to a config file at the given path, then exits
+  -w CWD, --cwd CWD     Specify the working directory. If not set, this is the current working directory. models/, input/, output/ and other
+                        directories will be located here by default. [env var: COMFYUI_CWD]
+  -H [IP], --listen [IP]
+                        Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to
+                        0.0.0.0. (listens on all) [env var: COMFYUI_LISTEN]
+  --port PORT           Set the listen port. [env var: COMFYUI_PORT]
+...
+  --distributed-queue-name DISTRIBUTED_QUEUE_NAME
+                        This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be
+                        prefixed by the queue name, followed by a '.', then the user ID [env var: COMFYUI_DISTRIBUTED_QUEUE_NAME]
+  --external-address EXTERNAL_ADDRESS
+                        Specifies a base URL for external addresses reported by the API, such as for image paths. [env var:
+                        COMFYUI_EXTERNAL_ADDRESS]
+  --openai-api-key OPENAI_API_KEY
+                        Configures the OpenAI API Key for the OpenAI nodes [env var: OPENAI_API_KEY]
+```
+
+You can now start `comfyui` with:
+
+```shell
+comfyui --openai-api-key=abcdefg12345
+```
+
+or set the environment variable you specified:
+
+```shell
+export OPENAI_API_KEY=abcdefg12345
+comfyui
+```
+
+or add it to your config file:
+
+**config.yaml**:
+```txt
+openapi-api-key: abcdefg12345
+```
+
+```shell
+comfyui --config config.yaml
+```
+
+Since `comfyui` looks for a `config.yaml` in your current working directory by default, you can omit the argument if
+`config.yaml` is located in your current working directory:
+
+```shell
+comfyui
+```
+
+Your entry point for adding configuration options should **not** import your nodes. This gives you the opportunity to
+use the configuration you added in your nodes; otherwise, if you imported your nodes in your configuration entry point,
+the nodes will potentially be initialized without any configuration.
+
+Access your configuration from `cli_args`:
+
+```python
+from comfy.cli_args import args
+from comfy.cli_args_types import Configuration
+from typing import Optional
+
+
+# Add type hints when accessing args
+class CustomConfiguration(Configuration):
+  def __init__(self):
+    super().__init__()
+    self.openai_api_key: Optional[str] = None
+
+
+args: CustomConfiguration
+
+
+class OpenAINode(CustomNode):
+  ...
+
+  def execute(self):
+    openai_api_key = args.open_api_key
+```
+
 
 # Troubleshooting
 
