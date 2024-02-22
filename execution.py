@@ -94,7 +94,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, prompt={}, dynpro
                 continue
             obj = cached_output[output_index]
             input_data_all[x] = obj
-        else:
+        elif input_category is not None:
             input_data_all[x] = [input_data]
 
     if "hidden" in valid_inputs:
