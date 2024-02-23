@@ -234,9 +234,13 @@
     margin-left: 5px;
     font-size: 14px;
     padding: 2px 5px;
+/*
+    These three properties being here triggers some rendering bug in Safari that freezes the ComfyUI for many seconds
+
     position: relative;
     top: -2px;
     opacity: 0.8;
+*/
     border-radius: 4px;
  }
 
