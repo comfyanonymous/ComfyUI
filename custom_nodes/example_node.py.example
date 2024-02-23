@@ -4,17 +4,17 @@ class Example:
 
     Class methods
     -------------
-    INPUT_TYPES (dict): 
+    INPUT_TYPES (dict):
         Tell the main program input parameters of nodes.
     IS_CHANGED:
         optional method to control when the node is re executed.
 
     Attributes
     ----------
-    RETURN_TYPES (`tuple`): 
-        The type of each element in the output tulple.
+    RETURN_TYPES (`tuple`):
+        The type of each element in the output tuple.
     RETURN_NAMES (`tuple`):
-        Optional: The name of each output in the output tulple.
+        Optional: The name of each output in the output tuple.
     FUNCTION (`str`):
         The name of the entry-point method. For example, if `FUNCTION = "execute"` then it will run Example().execute()
     OUTPUT_NODE ([`bool`]):
@@ -29,7 +29,7 @@ class Example:
     """
     def __init__(self):
         pass
-    
+
     @classmethod
     def INPUT_TYPES(s):
         """
@@ -44,26 +44,30 @@ class Example:
                     * Key field_name (`string`): Name of a entry-point method's argument
                     * Value field_config (`tuple`):
                         + First value is a string indicate the type of field or a list for selection.
-                        + Secound value is a config for type "INT", "STRING" or "FLOAT".
+                        + Second value is a config for the type ("INT", "STRING", "FLOAT", etc.)
+                            + Optionally include a user friendly display_name property that will be used to display on the widget or slot.
+                            + A default value can also be provided.
         """
         return {
             "required": {
                 "image": ("IMAGE",),
                 "int_field": ("INT", {
-                    "default": 0, 
+                    "display_name": "An integer",
+                    "default": 0,
                     "min": 0, #Minimum value
                     "max": 4096, #Maximum value
                     "step": 64, #Slider's step
                     "display": "number" # Cosmetic only: display as "number" or "slider"
                 }),
                 "float_field": ("FLOAT", {
+                    "display_name": "A float value",
                     "default": 1.0,
                     "min": 0.0,
                     "max": 10.0,
                     "step": 0.01,
                     "round": 0.001, #The value represeting the precision to round to, will be set to the step value by default. Can be set to False to disable rounding.
                     "display": "number"}),
-                "print_to_screen": (["enable", "disable"],),
+                "print_to_screen": (["enable", "disable"], {"display_name": "Print to screen?"}),
                 "string_field": ("STRING", {
                     "multiline": False, #True if you want the field to look like the one on the ClipTextEncode node
                     "default": "Hello World!"
