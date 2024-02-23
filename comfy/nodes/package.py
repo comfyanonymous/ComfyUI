@@ -64,6 +64,10 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
             except KeyboardInterrupt as interrupted:
                 raise interrupted
             except Exception as x:
+                if isinstance(x, AttributeError):
+                    potential_path_error: AttributeError = x
+                    if potential_path_error.name == '__path__':
+                        continue
                 logging.error(f"{full_name} import failed", exc_info=x)
                 success = False
             timings.append((time.perf_counter() - time_before, full_name, success))

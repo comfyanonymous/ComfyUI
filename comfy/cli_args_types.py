@@ -146,6 +146,8 @@ class Configuration(dict):
             self[key] = value
 
     def __getattr__(self, item):
+        if item not in self:
+            return None
         return self[item]
 
     def __setattr__(self, key, value):
