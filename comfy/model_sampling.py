@@ -150,10 +150,10 @@ class StableCascadeSampling(ModelSamplingDiscrete):
         self._init_alpha_cumprod = torch.cos(self.cosine_s / (1 + self.cosine_s) * torch.pi * 0.5) ** 2
 
         #This part is just for compatibility with some schedulers in the codebase
-        self.num_timesteps = 1000
+        self.num_timesteps = 10000
         sigmas = torch.empty((self.num_timesteps), dtype=torch.float32)
         for x in range(self.num_timesteps):
-            t = x / self.num_timesteps
+            t = (x + 1) / self.num_timesteps
             sigmas[x] = self.sigma(t)
 
         self.set_sigmas(sigmas)
