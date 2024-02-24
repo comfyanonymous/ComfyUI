@@ -84,7 +84,7 @@ class GlobalResponseNorm(nn.Module):
     def forward(self, x):
         Gx = torch.norm(x, p=2, dim=(1, 2), keepdim=True)
         Nx = Gx / (Gx.mean(dim=-1, keepdim=True) + 1e-6)
-        return self.gamma.to(x.device) * (x * Nx) + self.beta.to(x.device) + x
+        return self.gamma.to(device=x.device, dtype=x.dtype) * (x * Nx) + self.beta.to(device=x.device, dtype=x.dtype) + x
 
 
 class ResBlock(nn.Module):
