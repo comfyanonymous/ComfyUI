@@ -123,10 +123,13 @@ class CLIP:
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
     def encode_from_tokens(self, tokens, return_pooled=False):
+        self.cond_stage_model.reset_clip_options()
+
         if self.layer_idx is not None:
-            self.cond_stage_model.clip_layer(self.layer_idx)
-        else:
-            self.cond_stage_model.reset_clip_layer()
+            self.cond_stage_model.set_clip_options({"layer": self.layer_idx})
+
+        if return_pooled == "unprojected":
+            self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
         self.load_model()
         cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
