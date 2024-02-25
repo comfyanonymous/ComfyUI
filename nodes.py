@@ -1003,7 +1003,7 @@ class GLIGENTextBoxApply:
 
     def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
         c = []
-        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled=True)
+        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled="unprojected")
         for t in conditioning_to:
             n = [t[0], t[1].copy()]
             position_params = [(cond_pooled, height // 8, width // 8, y // 8, x // 8)]
