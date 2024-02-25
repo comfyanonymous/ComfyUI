@@ -12,6 +12,7 @@ import websocket #NOTE: websocket-client (https://github.com/websocket-client/we
 import uuid
 import urllib.request
 import urllib.parse
+import urllib.error
 from comfy.graph_utils import GraphBuilder, Node
 
 class RunResult:
@@ -125,7 +126,6 @@ class TestExecution:
                 '--listen', args_pytest["listen"],
                 '--port', str(args_pytest["port"]),
                 '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
-                '--enable-variants',
                 ])
         yield
         p.kill()
@@ -236,6 +236,67 @@ class TestExecution:
             client.run(g)
         except Exception as e:
             assert 'prompt_id' in e.args[0], f"Did not get back a proper error message: {e}"
+
+    @pytest.mark.parametrize("test_value, expect_error", [
+        (5, True),
+        ("foo", True),
+        (5.0, False),
+    ])
+    def test_validation_error_literal(self, test_value, expect_error, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        validation1 = g.node("TestCustomValidation1", input1=test_value, input2=3.0)
+        g.node("SaveImage", images=validation1.out(0))
+
+        if expect_error:
+            with pytest.raises(urllib.error.HTTPError):
+                client.run(g)
+        else:
+            client.run(g)
+
+    @pytest.mark.parametrize("test_type, test_value", [
+        ("StubInt", 5),
+        ("StubFloat", 5.0)
+    ])
+    def test_validation_error_edge1(self, test_type, test_value, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        stub = g.node(test_type, value=test_value)
+        validation1 = g.node("TestCustomValidation1", input1=stub.out(0), input2=3.0)
+        g.node("SaveImage", images=validation1.out(0))
+
+        with pytest.raises(urllib.error.HTTPError):
+            client.run(g)
+
+    @pytest.mark.parametrize("test_type, test_value, expect_error", [
+        ("StubInt", 5, True),
+        ("StubFloat", 5.0, False)
+    ])
+    def test_validation_error_edge2(self, test_type, test_value, expect_error, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        stub = g.node(test_type, value=test_value)
+        validation2 = g.node("TestCustomValidation2", input1=stub.out(0), input2=3.0)
+        g.node("SaveImage", images=validation2.out(0))
+
+        if expect_error:
+            with pytest.raises(urllib.error.HTTPError):
+                client.run(g)
+        else:
+            client.run(g)
+
+    @pytest.mark.parametrize("test_type, test_value, expect_error", [
+        ("StubInt", 5, True),
+        ("StubFloat", 5.0, False)
+    ])
+    def test_validation_error_edge3(self, test_type, test_value, expect_error, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        stub = g.node(test_type, value=test_value)
+        validation3 = g.node("TestCustomValidation3", input1=stub.out(0), input2=3.0)
+        g.node("SaveImage", images=validation3.out(0))
+
+        if expect_error:
+            with pytest.raises(urllib.error.HTTPError):
+                client.run(g)
+        else:
+            client.run(g)
 
     def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder):
         g = builder

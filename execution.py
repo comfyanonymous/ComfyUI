@@ -92,6 +92,8 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, prompt={}, dynpro
             cached_output = outputs.get(input_unique_id)
             if cached_output is None:
                 continue
+            if output_index >= len(cached_output):
+                continue
             obj = cached_output[output_index]
             input_data_all[x] = obj
         elif input_category is not None:
@@ -514,6 +516,7 @@ def validate_inputs(prompt, item, validated):
     validate_function_inputs = []
     if hasattr(obj_class, "VALIDATE_INPUTS"):
         validate_function_inputs = inspect.getfullargspec(obj_class.VALIDATE_INPUTS).args
+    received_types = {}
 
     for x in valid_inputs:
         type_input, input_category, extra_info = get_input_info(obj_class, x)
@@ -551,9 +554,9 @@ def validate_inputs(prompt, item, validated):
             o_id = val[0]
             o_class_type = prompt[o_id]['class_type']
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            is_variant = args.enable_variants and (r[val[1]] == "*" or type_input == "*")
-            if r[val[1]] != type_input and not is_variant:
-                received_type = r[val[1]]
+            received_type = r[val[1]]
+            received_types[x] = received_type
+            if 'input_types' not in validate_function_inputs and received_type != type_input:
                 details = f"{x}, {received_type} != {type_input}"
                 error = {
                     "type": "return_type_mismatch",
@@ -622,34 +625,34 @@ def validate_inputs(prompt, item, validated):
                 errors.append(error)
                 continue
 
-            if "min" in extra_info and val < extra_info["min"]:
-                error = {
-                    "type": "value_smaller_than_min",
-                    "message": "Value {} smaller than min of {}".format(val, extra_info["min"]),
-                    "details": f"{x}",
-                    "extra_info": {
-                        "input_name": x,
-                        "input_config": info,
-                        "received_value": val,
-                    }
-                }
-                errors.append(error)
-                continue
-            if "max" in extra_info and val > extra_info["max"]:
-                error = {
-                    "type": "value_bigger_than_max",
-                    "message": "Value {} bigger than max of {}".format(val, extra_info["max"]),
-                    "details": f"{x}",
-                    "extra_info": {
-                        "input_name": x,
-                        "input_config": info,
-                        "received_value": val,
-                    }
-                }
-                errors.append(error)
-                continue
-
             if x not in validate_function_inputs:
+                if "min" in extra_info and val < extra_info["min"]:
+                    error = {
+                        "type": "value_smaller_than_min",
+                        "message": "Value {} smaller than min of {}".format(val, extra_info["min"]),
+                        "details": f"{x}",
+                        "extra_info": {
+                            "input_name": x,
+                            "input_config": info,
+                            "received_value": val,
+                        }
+                    }
+                    errors.append(error)
+                    continue
+                if "max" in extra_info and val > extra_info["max"]:
+                    error = {
+                        "type": "value_bigger_than_max",
+                        "message": "Value {} bigger than max of {}".format(val, extra_info["max"]),
+                        "details": f"{x}",
+                        "extra_info": {
+                            "input_name": x,
+                            "input_config": info,
+                            "received_value": val,
+                        }
+                    }
+                    errors.append(error)
+                    continue
+
                 if isinstance(type_input, list):
                     if val not in type_input:
                         input_config = info
@@ -682,6 +685,8 @@ def validate_inputs(prompt, item, validated):
         for x in input_data_all:
             if x in validate_function_inputs:
                 input_filtered[x] = input_data_all[x]
+        if 'input_types' in validate_function_inputs:
+            input_filtered['input_types'] = [received_types]
 
         #ret = obj_class.VALIDATE_INPUTS(**input_filtered)
         ret = map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS")

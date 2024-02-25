@@ -1,9 +1,7 @@
 import torch
+from .tools import VariantSupport
 
 class TestLazyMixImages:
-    def __init__(self):
-        pass
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -50,9 +48,6 @@ class TestLazyMixImages:
         return (result[0],)
 
 class TestVariadicAverage:
-    def __init__(self):
-        pass
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -74,9 +69,6 @@ class TestVariadicAverage:
 
 
 class TestCustomIsChanged:
-    def __init__(self):
-        pass
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -103,14 +95,116 @@ class TestCustomIsChanged:
         else:
             return False
 
+class TestCustomValidation1:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input1": ("IMAGE,FLOAT",),
+                "input2": ("IMAGE,FLOAT",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "custom_validation1"
+
+    CATEGORY = "Testing/Nodes"
+
+    def custom_validation1(self, input1, input2):
+        if isinstance(input1, float) and isinstance(input2, float):
+            result = torch.ones([1, 512, 512, 3]) * input1 * input2
+        else:
+            result = input1 * input2
+        return (result,)
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, input1=None, input2=None):
+        if input1 is not None:
+            if not isinstance(input1, (torch.Tensor, float)):
+                return f"Invalid type of input1: {type(input1)}"
+        if input2 is not None:
+            if not isinstance(input2, (torch.Tensor, float)):
+                return f"Invalid type of input2: {type(input2)}"
+
+        return True
+
+class TestCustomValidation2:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input1": ("IMAGE,FLOAT",),
+                "input2": ("IMAGE,FLOAT",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "custom_validation2"
+
+    CATEGORY = "Testing/Nodes"
+
+    def custom_validation2(self, input1, input2):
+        if isinstance(input1, float) and isinstance(input2, float):
+            result = torch.ones([1, 512, 512, 3]) * input1 * input2
+        else:
+            result = input1 * input2
+        return (result,)
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, input_types, input1=None, input2=None):
+        if input1 is not None:
+            if not isinstance(input1, (torch.Tensor, float)):
+                return f"Invalid type of input1: {type(input1)}"
+        if input2 is not None:
+            if not isinstance(input2, (torch.Tensor, float)):
+                return f"Invalid type of input2: {type(input2)}"
+
+        if 'input1' in input_types:
+            if input_types['input1'] not in ["IMAGE", "FLOAT"]:
+                return f"Invalid type of input1: {input_types['input1']}"
+        if 'input2' in input_types:
+            if input_types['input2'] not in ["IMAGE", "FLOAT"]:
+                return f"Invalid type of input2: {input_types['input2']}"
+
+        return True
+
+@VariantSupport()
+class TestCustomValidation3:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input1": ("IMAGE,FLOAT",),
+                "input2": ("IMAGE,FLOAT",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "custom_validation3"
+
+    CATEGORY = "Testing/Nodes"
+
+    def custom_validation3(self, input1, input2):
+        if isinstance(input1, float) and isinstance(input2, float):
+            result = torch.ones([1, 512, 512, 3]) * input1 * input2
+        else:
+            result = input1 * input2
+        return (result,)
+
 TEST_NODE_CLASS_MAPPINGS = {
     "TestLazyMixImages": TestLazyMixImages,
     "TestVariadicAverage": TestVariadicAverage,
     "TestCustomIsChanged": TestCustomIsChanged,
+    "TestCustomValidation1": TestCustomValidation1,
+    "TestCustomValidation2": TestCustomValidation2,
+    "TestCustomValidation3": TestCustomValidation3,
 }
 
 TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestLazyMixImages": "Lazy Mix Images",
     "TestVariadicAverage": "Variadic Average",
     "TestCustomIsChanged": "Custom IsChanged",
+    "TestCustomValidation1": "Custom Validation 1",
+    "TestCustomValidation2": "Custom Validation 2",
+    "TestCustomValidation3": "Custom Validation 3",
 }

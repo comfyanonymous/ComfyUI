@@ -1,5 +1,7 @@
 from comfy.graph_utils import GraphBuilder
+from .tools import VariantSupport
 
+@VariantSupport()
 class TestAccumulateNode:
     def __init__(self):
         pass
@@ -27,6 +29,7 @@ class TestAccumulateNode:
             value = accumulation["accum"] + [to_add]
         return ({"accum": value},)
 
+@VariantSupport()
 class TestAccumulationHeadNode:
     def __init__(self):
         pass
@@ -75,6 +78,7 @@ class TestAccumulationTailNode:
         else:
             return ({"accum": accum[:-1]}, accum[-1])
 
+@VariantSupport()
 class TestAccumulationToListNode:
     def __init__(self):
         pass
@@ -97,6 +101,7 @@ class TestAccumulationToListNode:
     def accumulation_to_list(self, accumulation):
         return (accumulation["accum"],)
 
+@VariantSupport()
 class TestListToAccumulationNode:
     def __init__(self):
         pass
@@ -119,6 +124,7 @@ class TestListToAccumulationNode:
     def list_to_accumulation(self, list):
         return ({"accum": list},)
 
+@VariantSupport()
 class TestAccumulationGetLengthNode:
     def __init__(self):
         pass
@@ -140,6 +146,7 @@ class TestAccumulationGetLengthNode:
     def accumlength(self, accumulation):
         return (len(accumulation['accum']),)
         
+@VariantSupport()
 class TestAccumulationGetItemNode:
     def __init__(self):
         pass
@@ -162,6 +169,7 @@ class TestAccumulationGetItemNode:
     def get_item(self, accumulation, index):
         return (accumulation['accum'][index],)
         
+@VariantSupport()
 class TestAccumulationSetItemNode:
     def __init__(self):
         pass
@@ -222,6 +230,7 @@ class TestIntMathOperation:
 
 
 from .flow_control import NUM_FLOW_SOCKETS
+@VariantSupport()
 class TestForLoopOpen:
     def __init__(self):
         pass
@@ -257,6 +266,7 @@ class TestForLoopOpen:
             "expand": graph.finalize(),
         }
 
+@VariantSupport()
 class TestForLoopClose:
     def __init__(self):
         pass
@@ -295,6 +305,7 @@ class TestForLoopClose:
         }
 
 NUM_LIST_SOCKETS = 10
+@VariantSupport()
 class TestMakeListNode:
     def __init__(self):
         pass
