@@ -86,7 +86,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.layer = layer
         self.layer_idx = None
         self.special_tokens = special_tokens
-        self.text_projection = torch.nn.Parameter(torch.eye(self.transformer.get_input_embeddings().weight.shape[1]))
+
         self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
         self.enable_attention_masks = enable_attention_masks
 
@@ -182,18 +182,12 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         else:
             pooled_output = None
 
-        if self.text_projection is not None and pooled_output is not None:
-            pooled_output = pooled_output.float().to(self.text_projection.device) @ self.text_projection.float()
         return z.float(), pooled_output
 
     def encode(self, tokens):
         return self(tokens)
 
     def load_sd(self, sd):
-        if "text_projection" in sd:
-            self.text_projection[:] = sd.pop("text_projection")
-        if "text_projection.weight" in sd:
-            self.text_projection[:] = sd.pop("text_projection.weight").transpose(0, 1)
         return self.transformer.load_state_dict(sd, strict=False)
 
 def parse_parentheses(string):
