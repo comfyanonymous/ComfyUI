@@ -46,7 +46,8 @@ class DifferentialDiffusion():
         if self.valid_sigmas:
             thresholds = (ts - ts_min) / (ts_max - ts_min)
             thresholds = thresholds.reshape(1, -1, 1, 1, 1)
-            self.denoise_mask = (denoise_mask.unsqueeze(1) >= thresholds).to(denoise_mask.dtype)
+            mask = torch.logical_and(denoise_mask.unsqueeze(1) >= thresholds, denoise_mask.unsqueeze(1) > 0)
+            self.denoise_mask = mask.to(denoise_mask.dtype)
             self.denoise_mask_i = iter(self.denoise_mask[:, i] for i in range(self.denoise_mask.shape[1]))
     
     def forward(self, sigma: torch.Tensor, denoise_mask: torch.Tensor):
@@ -59,7 +60,8 @@ class DifferentialDiffusion():
                 self.valid_sigmas = False
         if not self.valid_sigmas:
             threshold = (sigma[0] - self.sigmas_min) / (self.sigmas_max - self.sigmas_min)
-            denoise_mask = (denoise_mask >= threshold).to(denoise_mask.dtype)
+            mask = torch.logical_and(denoise_mask >= threshold, denoise_mask > 0)
+            denoise_mask = mask.to(denoise_mask.dtype)
         return denoise_mask
 
 def find_outer_instance(target: str, target_type=None, callback=None):
