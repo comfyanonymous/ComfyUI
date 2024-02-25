@@ -37,15 +37,16 @@ class DifferentialDiffusion():
                                     callback=lambda frame, target: (frame.f_locals[target], frame.f_code.co_name)) or (None, "")
         self.valid_sigmas = not ("sample_" not in sampler or any(s in sampler for s in self.varying_sigmas_samplers)) or "generic" in sampler
         if self.sigmas is None:
-            self.sigmas = torch.cat((sigma[:1], sigma[:1].clone().zero_()))
-        ts = self.sigmas[:-1] if self.sigmas[:-1].shape[0] > 1 else self.sigmas
+            self.sigmas = sigma[:1].repeat(2)
+            self.sigmas[-1:].zero_()
+        ts = self.sigmas[:-1]
         self.sigmas_min = ts_min = ts.min()
         self.sigmas_max = ts_max = ts.max()
+        if ts_min == ts_max: ts_min.zero_()
         if self.valid_sigmas:
-            # interpolate
             thresholds = (ts - ts_min) / (ts_max - ts_min)
             thresholds = thresholds.reshape(1, -1, 1, 1, 1)
-            self.denoise_mask = (denoise_mask.unsqueeze(1) > thresholds).to(denoise_mask.dtype)
+            self.denoise_mask = (denoise_mask.unsqueeze(1) >= thresholds).to(denoise_mask.dtype)
             self.denoise_mask_i = iter(self.denoise_mask[:, i] for i in range(self.denoise_mask.shape[1]))
     
     def forward(self, sigma: torch.Tensor, denoise_mask: torch.Tensor):
@@ -58,7 +59,7 @@ class DifferentialDiffusion():
                 self.valid_sigmas = False
         if not self.valid_sigmas:
             threshold = (sigma[0] - self.sigmas_min) / (self.sigmas_max - self.sigmas_min)
-            denoise_mask = (denoise_mask > threshold).to(denoise_mask.dtype)
+            denoise_mask = (denoise_mask >= threshold).to(denoise_mask.dtype)
         return denoise_mask
 
 def find_outer_instance(target: str, target_type=None, callback=None):
