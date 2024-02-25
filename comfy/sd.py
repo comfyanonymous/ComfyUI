@@ -365,6 +365,9 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
     for i in range(len(clip_data)):
         if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
             clip_data[i] = comfy.utils.clip_text_transformers_convert(clip_data[i], "", "")
+        else:
+            if "text_projection" in clip_data[i]:
+                clip_data[i]["text_projection.weight"] = clip_data[i]["text_projection"].transpose(0, 1) #old models saved with the CLIPSave node
 
     clip_target = EmptyClass()
     clip_target.params = {}
