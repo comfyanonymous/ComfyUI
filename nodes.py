@@ -1961,6 +1961,7 @@ def init_custom_nodes():
         "nodes_photomaker.py",
         "nodes_cond.py",
         "nodes_stable_cascade.py",
+        "nodes_differential_diffusion.py",
     ]
 
     for node_file in extras_files:
