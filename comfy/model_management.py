@@ -267,10 +267,6 @@ try:
         torch.backends.cuda.enable_math_sdp(True)
         torch.backends.cuda.enable_mem_efficient_sdp(False)
 
-        if ENABLE_PYTORCH_ATTENTION:
-            print("Disabling pytorch cross attention because ZLUDA does currently not support it.")
-            ENABLE_PYTORCH_ATTENTION = False
-
     print("Device:", torch_device_name)
 except:
     print("Could not pick default device.")
