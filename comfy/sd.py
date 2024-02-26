@@ -52,7 +52,7 @@ def load_clip_weights(model, sd):
         if ids.dtype == torch.float32:
             sd['cond_stage_model.transformer.text_model.embeddings.position_ids'] = ids.round()
 
-    sd = comfy.utils.transformers_convert(sd, "cond_stage_model.model.", "cond_stage_model.transformer.text_model.", 24)
+    sd = comfy.utils.clip_text_transformers_convert(sd, "cond_stage_model.model.", "cond_stage_model.transformer.")
     return load_model_weights(model, sd)
 
 
@@ -123,10 +123,13 @@ class CLIP:
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
     def encode_from_tokens(self, tokens, return_pooled=False):
+        self.cond_stage_model.reset_clip_options()
+
         if self.layer_idx is not None:
-            self.cond_stage_model.clip_layer(self.layer_idx)
-        else:
-            self.cond_stage_model.reset_clip_layer()
+            self.cond_stage_model.set_clip_options({"layer": self.layer_idx})
+
+        if return_pooled == "unprojected":
+            self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
         self.load_model()
         cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
@@ -361,7 +364,10 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
 
     for i in range(len(clip_data)):
         if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
-            clip_data[i] = comfy.utils.transformers_convert(clip_data[i], "", "text_model.", 32)
+            clip_data[i] = comfy.utils.clip_text_transformers_convert(clip_data[i], "", "")
+        else:
+            if "text_projection" in clip_data[i]:
+                clip_data[i]["text_projection.weight"] = clip_data[i]["text_projection"].transpose(0, 1) #old models saved with the CLIPSave node
 
     clip_target = EmptyClass()
     clip_target.params = {}
