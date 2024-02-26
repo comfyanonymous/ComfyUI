@@ -1,19 +1,20 @@
-import os
-import sys
 import asyncio
-import traceback
-
-import nodes
-import folder_paths
-import execution
-import uuid
-import urllib
-import json
 import glob
+import json
+import os
 import struct
+import sys
+import traceback
+import urllib
+import uuid
+from io import BytesIO
+
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
-from io import BytesIO
+
+import execution
+import folder_paths
+import nodes
 
 try:
     import aiohttp
@@ -26,11 +27,12 @@ except ImportError:
     sys.exit()
 
 import mimetypes
-from comfy.cli_args import args
-import comfy.utils
-import comfy.model_management
 
+import comfy.model_management
+import comfy.utils
 from app.user_manager import UserManager
+from comfy.cli_args import args
+
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -458,6 +460,8 @@ class PromptServer():
             out_string = ""
             json_data =  await request.json()
             json_data = self.trigger_on_prompt(json_data)
+
+            # import pdb; pdb.set_trace()
 
             if "number" in json_data:
                 number = float(json_data['number'])
