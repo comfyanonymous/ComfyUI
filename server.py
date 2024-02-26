@@ -145,6 +145,20 @@ class PromptServer():
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
             return web.json_response(extensions)
+        
+        @routes.get("/workflows/{file}")
+        async def get_workflow(request):
+            file = request.match_info.get("file", None)
+            path = os.path.abspath("workflows/"+file)
+            workflows = web.FileResponse(path) if os.path.exists(path) else None
+            return workflows
+        
+        @routes.get("/workflows")
+        async def get_workflows(request):
+            files = glob.glob(os.path.join(
+                os.curdir, 'workflows/**/*.json'), recursive=True)
+            relpaths = list(map(lambda f:os.path.relpath(f,"./workflows" ).replace("\\", "/"), files))
+            return web.json_response(relpaths)
 
         def get_dir_by_type(dir_type):
             if dir_type is None:

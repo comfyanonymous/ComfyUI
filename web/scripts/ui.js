@@ -34,7 +34,7 @@ export function $el(tag, propsOrChildren, children) {
 		if (Array.isArray(propsOrChildren)) {
 			element.append(...propsOrChildren);
 		} else {
-			const {parent, $: cb, dataset, style} = propsOrChildren;
+			const { parent, $: cb, dataset, style } = propsOrChildren;
 			delete propsOrChildren.parent;
 			delete propsOrChildren.$;
 			delete propsOrChildren.dataset;
@@ -221,7 +221,7 @@ class ComfyList {
 							name: "Delete",
 							cb: () => api.deleteItem(this.#type, item.prompt[1]),
 						};
-						return $el("div", {textContent: item.prompt[0] + ": "}, [
+						return $el("div", { textContent: item.prompt[0] + ": " }, [
 							$el("button", {
 								textContent: "Load",
 								onclick: async () => {
@@ -250,7 +250,7 @@ class ComfyList {
 						await this.load();
 					},
 				}),
-				$el("button", {textContent: "Refresh", onclick: () => this.load()}),
+				$el("button", { textContent: "Refresh", onclick: () => this.load() }),
 			])
 		);
 	}
@@ -362,7 +362,7 @@ export class ComfyUI {
 			id: "comfy-file-input",
 			type: "file",
 			accept: ".json,image/png,.latent,.safetensors,image/webp",
-			style: {display: "none"},
+			style: { display: "none" },
 			parent: document.body,
 			onchange: () => {
 				app.handleFile(fileInput.files[0]);
@@ -414,7 +414,7 @@ export class ComfyUI {
 					width: "100%",
 					cursor: "default"
 				}
-			}, 	[
+			}, [
 				$el("span.drag-handle"),
 				$el("span.comfy-menu-queue-size", { $: (q) => (this.queueSize = q) }),
 				$el("div.comfy-menu-actions", [
@@ -437,7 +437,7 @@ export class ComfyUI {
 				onclick: () => app.queuePrompt(0, this.batchCount),
 			}),
 			$el("div", {}, [
-				$el("label", {innerHTML: "Extra options"}, [
+				$el("label", { innerHTML: "Extra options" }, [
 					$el("input", {
 						type: "checkbox",
 						onchange: (i) => {
@@ -449,16 +449,16 @@ export class ComfyUI {
 					}),
 				]),
 			]),
-			$el("div", {id: "extraOptions", style: {width: "100%", display: "none"}}, [
-				$el("div",[
+			$el("div", { id: "extraOptions", style: { width: "100%", display: "none" } }, [
+				$el("div", [
 
-					$el("label", {innerHTML: "Batch count"}),
+					$el("label", { innerHTML: "Batch count" }),
 					$el("input", {
 						id: "batchCountInputNumber",
 						type: "number",
 						value: this.batchCount,
 						min: "1",
-						style: {width: "35%", "margin-left": "0.4em"},
+						style: { width: "35%", "margin-left": "0.4em" },
 						oninput: (i) => {
 							this.batchCount = i.target.value;
 							document.getElementById("batchCountInputRange").value = this.batchCount;
@@ -474,11 +474,11 @@ export class ComfyUI {
 							this.batchCount = i.srcElement.value;
 							document.getElementById("batchCountInputNumber").value = i.srcElement.value;
 						},
-					}),		
+					}),
 				]),
-				$el("div",[
-					$el("label",{
-						for:"autoQueueCheckbox",
+				$el("div", [
+					$el("label", {
+						for: "autoQueueCheckbox",
 						innerHTML: "Auto Queue"
 					}),
 					$el("input", {
@@ -533,14 +533,14 @@ export class ComfyUI {
 							filename += ".json";
 						}
 					}
-					app.graphToPrompt().then(p=>{
+					app.graphToPrompt().then(p => {
 						const json = JSON.stringify(p.workflow, null, 2); // convert the data to a JSON string
-						const blob = new Blob([json], {type: "application/json"});
+						const blob = new Blob([json], { type: "application/json" });
 						const url = URL.createObjectURL(blob);
 						const a = $el("a", {
 							href: url,
 							download: filename,
-							style: {display: "none"},
+							style: { display: "none" },
 							parent: document.body,
 						});
 						a.click();
@@ -554,7 +554,7 @@ export class ComfyUI {
 			$el("button", {
 				id: "comfy-dev-save-api-button",
 				textContent: "Save (API Format)",
-				style: {width: "100%", display: "none"},
+				style: { width: "100%", display: "none" },
 				onclick: () => {
 					let filename = "workflow_api.json";
 					if (promptFilename.value) {
@@ -564,14 +564,14 @@ export class ComfyUI {
 							filename += ".json";
 						}
 					}
-					app.graphToPrompt().then(p=>{
+					app.graphToPrompt().then(p => {
 						const json = JSON.stringify(p.output, null, 2); // convert the data to a JSON string
-						const blob = new Blob([json], {type: "application/json"});
+						const blob = new Blob([json], { type: "application/json" });
 						const url = URL.createObjectURL(blob);
 						const a = $el("a", {
 							href: url,
 							download: filename,
-							style: {display: "none"},
+							style: { display: "none" },
 							parent: document.body,
 						});
 						a.click();
@@ -582,13 +582,13 @@ export class ComfyUI {
 					});
 				},
 			}),
-			$el("button", {id: "comfy-load-button", textContent: "Load", onclick: () => fileInput.click()}),
+			$el("button", { id: "comfy-load-button", textContent: "Load", onclick: () => app.loadWorkflows() }),
 			$el("button", {
 				id: "comfy-refresh-button",
 				textContent: "Refresh",
 				onclick: () => app.refreshComboInNodes()
 			}),
-			$el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
+			$el("button", { id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace() }),
 			$el("button", {
 				id: "comfy-clear-button", textContent: "Clear", onclick: () => {
 					if (!confirmClear.value || confirm("Clear workflow?")) {
@@ -611,12 +611,12 @@ export class ComfyUI {
 			name: "Enable Dev mode Options",
 			type: "boolean",
 			defaultValue: false,
-			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none"},
+			onChange: function (value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "block" : "none" },
 		});
 
 		dragElement(this.menuContainer, this.settings);
 
-		this.setStatus({exec_info: {queue_remaining: "X"}});
+		this.setStatus({ exec_info: { queue_remaining: "X" } });
 	}
 
 	setStatus(status) {
