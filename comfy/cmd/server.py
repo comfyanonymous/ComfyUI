@@ -712,11 +712,11 @@ class PromptServer(ExecutorToClientProgress):
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([
-                web.static('/extensions/' + quote(name), dir, follow_symlinks=True),
+                web.static('/extensions/' + quote(name), dir),
             ])
 
         self.app.add_routes([
-            web.static('/', self.web_root, follow_symlinks=True),
+            web.static('/', self.web_root),
         ])
 
     def get_queue_info(self):
