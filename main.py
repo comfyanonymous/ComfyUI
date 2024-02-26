@@ -193,6 +193,13 @@ if __name__ == "__main__":
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
+    if args.windows_standalone_build:
+        try:
+            import new_updater
+            new_updater.update_windows_updater()
+        except:
+            pass
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     server = server.PromptServer(loop)
