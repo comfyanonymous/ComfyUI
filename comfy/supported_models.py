@@ -40,8 +40,8 @@ class SD15(supported_models_base.BASE):
                 state_dict['cond_stage_model.transformer.text_model.embeddings.position_ids'] = ids.round()
 
         replace_prefix = {}
-        replace_prefix["cond_stage_model."] = "cond_stage_model.clip_l."
-        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
+        replace_prefix["cond_stage_model."] = "clip_l."
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=True)
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
@@ -72,10 +72,10 @@ class SD20(supported_models_base.BASE):
 
     def process_clip_state_dict(self, state_dict):
         replace_prefix = {}
-        replace_prefix["conditioner.embedders.0.model."] = "cond_stage_model.model." #SD2 in sgm format
-        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
-
-        state_dict = utils.transformers_convert(state_dict, "cond_stage_model.model.", "cond_stage_model.clip_h.transformer.text_model.", 24)
+        replace_prefix["conditioner.embedders.0.model."] = "clip_h." #SD2 in sgm format
+        replace_prefix["cond_stage_model.model."] = "clip_h."
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=True)
+        state_dict = utils.clip_text_transformers_convert(state_dict, "clip_h.", "clip_h.transformer.")
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
@@ -131,11 +131,10 @@ class SDXLRefiner(supported_models_base.BASE):
     def process_clip_state_dict(self, state_dict):
         keys_to_replace = {}
         replace_prefix = {}
+        replace_prefix["conditioner.embedders.0.model."] = "clip_g."
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=True)
 
-        state_dict = utils.transformers_convert(state_dict, "conditioner.embedders.0.model.", "cond_stage_model.clip_g.transformer.text_model.", 32)
-        keys_to_replace["conditioner.embedders.0.model.text_projection"] = "cond_stage_model.clip_g.text_projection"
-        keys_to_replace["conditioner.embedders.0.model.logit_scale"] = "cond_stage_model.clip_g.logit_scale"
-
+        state_dict = utils.clip_text_transformers_convert(state_dict, "clip_g.", "clip_g.transformer.")
         state_dict = utils.state_dict_key_replace(state_dict, keys_to_replace)
         return state_dict
 
@@ -179,14 +178,12 @@ class SDXL(supported_models_base.BASE):
         keys_to_replace = {}
         replace_prefix = {}
 
-        replace_prefix["conditioner.embedders.0.transformer.text_model"] = "cond_stage_model.clip_l.transformer.text_model"
-        state_dict = utils.transformers_convert(state_dict, "conditioner.embedders.1.model.", "cond_stage_model.clip_g.transformer.text_model.", 32)
-        keys_to_replace["conditioner.embedders.1.model.text_projection"] = "cond_stage_model.clip_g.text_projection"
-        keys_to_replace["conditioner.embedders.1.model.text_projection.weight"] = "cond_stage_model.clip_g.text_projection"
-        keys_to_replace["conditioner.embedders.1.model.logit_scale"] = "cond_stage_model.clip_g.logit_scale"
+        replace_prefix["conditioner.embedders.0.transformer.text_model"] = "clip_l.transformer.text_model"
+        replace_prefix["conditioner.embedders.1.model."] = "clip_g."
+        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=True)
 
-        state_dict = utils.state_dict_prefix_replace(state_dict, replace_prefix)
         state_dict = utils.state_dict_key_replace(state_dict, keys_to_replace)
+        state_dict = utils.clip_text_transformers_convert(state_dict, "clip_g.", "clip_g.transformer.")
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
@@ -320,6 +317,10 @@ class Stable_Cascade_C(supported_models_base.BASE):
         "shift": 2.0,
     }
 
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoder."]
+    clip_vision_prefix = "clip_l_vision."
+
     def process_unet_state_dict(self, state_dict):
         key_list = list(state_dict.keys())
         for y in ["weight", "bias"]:
@@ -333,6 +334,12 @@ class Stable_Cascade_C(supported_models_base.BASE):
                     p = ["to_q", "to_k", "to_v"]
                     k_to = "{}.{}.{}".format(prefix, p[x], y)
                     state_dict[k_to] = weights[shape_from*x:shape_from*(x + 1)]
+        return state_dict
+
+    def process_clip_state_dict(self, state_dict):
+        state_dict = utils.state_dict_prefix_replace(state_dict, {k: "" for k in self.text_encoder_key_prefix}, filter_keys=True)
+        if "clip_g.text_projection" in state_dict:
+            state_dict["clip_g.transformer.text_projection.weight"] = state_dict.pop("clip_g.text_projection").transpose(0, 1)
         return state_dict
 
     def get_model(self, state_dict, prefix="", device=None):
@@ -355,6 +362,8 @@ class Stable_Cascade_B(Stable_Cascade_C):
     sampling_settings = {
         "shift": 1.0,
     }
+
+    clip_vision_prefix = None
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.StableCascade_B(self, device=device)

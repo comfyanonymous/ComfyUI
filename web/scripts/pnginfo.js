@@ -24,7 +24,7 @@ export function getPngMetadata(file) {
 				const length = dataView.getUint32(offset);
 				// Get the chunk type
 				const type = String.fromCharCode(...pngData.slice(offset + 4, offset + 8));
-				if (type === "tEXt" || type == "comf") {
+				if (type === "tEXt" || type == "comf" || type === "iTXt") {
 					// Get the keyword
 					let keyword_end = offset + 8;
 					while (pngData[keyword_end] !== 0) {
@@ -33,7 +33,7 @@ export function getPngMetadata(file) {
 					const keyword = String.fromCharCode(...pngData.slice(offset + 8, keyword_end));
 					// Get the text
 					const contentArraySegment = pngData.slice(keyword_end + 1, offset + 8 + length);
-					const contentJson = Array.from(contentArraySegment).map(s=>String.fromCharCode(s)).join('')
+					const contentJson = new TextDecoder("utf-8").decode(contentArraySegment);
 					txt_chunks[keyword] = contentJson;
 				}
 

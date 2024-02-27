@@ -720,9 +720,9 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if FORCE_FP16:
         return True
 
-    if device is not None: #TODO
+    if device is not None:
         if is_device_mps(device):
-            return False
+            return True
 
     if FORCE_FP32:
         return False
@@ -730,8 +730,11 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if directml_enabled:
         return False
 
-    if cpu_mode() or mps_mode():
-        return False #TODO ?
+    if mps_mode():
+        return True
+
+    if cpu_mode():
+        return False
 
     if is_intel_xpu():
         return True

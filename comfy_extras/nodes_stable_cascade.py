@@ -18,6 +18,7 @@
 
 import torch
 import nodes
+import comfy.utils
 
 
 class StableCascade_EmptyLatentImage:
@@ -29,8 +30,8 @@ class StableCascade_EmptyLatentImage:
         return {"required": {
             "width": ("INT", {"default": 1024, "min": 256, "max": nodes.MAX_RESOLUTION, "step": 8}),
             "height": ("INT", {"default": 1024, "min": 256, "max": nodes.MAX_RESOLUTION, "step": 8}),
-            "compression": ("INT", {"default": 42, "min": 32, "max": 64, "step": 1}),
-            "batch_size": ("INT", {"default": 1, "min": 1, "max": 64})
+            "compression": ("INT", {"default": 42, "min": 4, "max": 128, "step": 1}),
+            "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})
         }}
     RETURN_TYPES = ("LATENT", "LATENT")
     RETURN_NAMES = ("stage_c", "stage_b")
@@ -41,6 +42,39 @@ class StableCascade_EmptyLatentImage:
     def generate(self, width, height, compression, batch_size=1):
         c_latent = torch.zeros([batch_size, 16, height // compression, width // compression])
         b_latent = torch.zeros([batch_size, 4, height // 4, width // 4])
+        return ({
+            "samples": c_latent,
+        }, {
+            "samples": b_latent,
+        })
+
+class StableCascade_StageC_VAEEncode:
+    def __init__(self, device="cpu"):
+        self.device = device
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "image": ("IMAGE",),
+            "vae": ("VAE", ),
+            "compression": ("INT", {"default": 42, "min": 4, "max": 128, "step": 1}),
+        }}
+    RETURN_TYPES = ("LATENT", "LATENT")
+    RETURN_NAMES = ("stage_c", "stage_b")
+    FUNCTION = "generate"
+
+    CATEGORY = "_for_testing/stable_cascade"
+
+    def generate(self, image, vae, compression):
+        width = image.shape[-2]
+        height = image.shape[-3]
+        out_width = (width // compression) * vae.downscale_ratio
+        out_height = (height // compression) * vae.downscale_ratio
+
+        s = comfy.utils.common_upscale(image.movedim(-1,1), out_width, out_height, "bicubic", "center").movedim(1,-1)
+
+        c_latent = vae.encode(s[:,:,:,:3])
+        b_latent = torch.zeros([c_latent.shape[0], 4, height // 4, width // 4])
         return ({
             "samples": c_latent,
         }, {
@@ -71,4 +105,5 @@ class StableCascade_StageB_Conditioning:
 NODE_CLASS_MAPPINGS = {
     "StableCascade_EmptyLatentImage": StableCascade_EmptyLatentImage,
     "StableCascade_StageB_Conditioning": StableCascade_StageB_Conditioning,
+    "StableCascade_StageC_VAEEncode": StableCascade_StageC_VAEEncode,
 }
