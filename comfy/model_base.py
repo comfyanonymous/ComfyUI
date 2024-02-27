@@ -15,9 +15,10 @@ class ModelType(Enum):
     V_PREDICTION = 2
     V_PREDICTION_EDM = 3
     STABLE_CASCADE = 4
+    EDM = 5
 
 
-from comfy.model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
+from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
 
 
 def model_sampling(model_config, model_type):
@@ -33,6 +34,9 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.STABLE_CASCADE:
         c = EPS
         s = StableCascadeSampling
+    elif model_type == ModelType.EDM:
+        c = EDM
+        s = ModelSamplingContinuousEDM
 
     class ModelSampling(s, c):
         pass
