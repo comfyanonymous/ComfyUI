@@ -21,6 +21,7 @@ class DifferentialDiffusion():
     def __init__(self) -> None:
         DifferentialDiffusion.INIT = False
         self.sigmas: torch.Tensor = None
+        self.linear_thresholds: torch.Tensor = None
         self.mask_i = None
         self.valid_sigmas = False
         self.varying_sigmas_samplers = ["dpmpp_2s", "dpmpp_sde", "dpm_2", "heun", "restart"]
@@ -37,13 +38,14 @@ class DifferentialDiffusion():
         if self.sigmas is None:
             self.sigmas = sigma[:1].repeat(2)
             self.sigmas[-1:].zero_()
-        ts = self.sigmas[:-1]
+        ts = self.sigmas
         self.sigmas_min = ts_min = ts.min()
         self.sigmas_max = ts_max = ts.max()
-        if ts_min == ts_max: ts_min.zero_()
+        self.linear_thresholds = torch.linspace(1, 0, self.sigmas.shape[0], dtype=sigma.dtype, device=sigma.device)
         if self.valid_sigmas:
-            thresholds = (ts - ts_min) / (ts_max - ts_min)
-            thresholds = thresholds.reshape(-1, 1, 1, 1, 1)
+            t = (ts - ts_min) / (ts_max - ts_min)
+            t = torch.lerp(self.linear_thresholds, t, t)[:-1]
+            thresholds = t.reshape(-1, 1, 1, 1, 1)
             mask = denoise_mask.unsqueeze(0)
             mask = (mask >= thresholds) & (mask > 0)
             mask = mask.to(denoise_mask.dtype)
@@ -58,6 +60,9 @@ class DifferentialDiffusion():
             except StopIteration:
                 self.valid_sigmas = False
         threshold = (sigma[0] - self.sigmas_min) / (self.sigmas_max - self.sigmas_min)
+        nearest_idx = (self.sigmas - sigma[0]).abs().argmin()
+        if self.linear_thresholds.shape[0] > nearest_idx:
+            threshold = torch.lerp(self.linear_thresholds[nearest_idx], threshold, threshold)
         mask = (denoise_mask >= threshold) & (denoise_mask > 0)
         return mask.to(denoise_mask.dtype)
 
