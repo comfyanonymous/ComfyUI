@@ -355,11 +355,12 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
         self.max_length = max_length
+        self.min_length = min_length
 
         empty = self.tokenizer('')["input_ids"]
         if has_start_token:
@@ -471,6 +472,8 @@ class SDTokenizer:
         batch.append((self.end_token, 1.0, 0))
         if self.pad_to_max_length:
             batch.extend([(pad_token, 1.0, 0)] * (self.max_length - len(batch)))
+        if self.min_length is not None and len(batch) < self.min_length:
+            batch.extend([(pad_token, 1.0, 0)] * (self.min_length - len(batch)))
 
         if not return_word_ids:
             batched_tokens = [[(t, w) for t, w,_ in x] for x in batched_tokens]
