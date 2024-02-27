@@ -1943,8 +1943,8 @@ export class ComfyApp {
 
 											link = parent.getInputLink(parent_input);
 											if (link) {
-												parent = parent.getInputNode(parent_input);
 												consumedLinks[parent.id].add(parent_input);
+												parent = parent.getInputNode(parent_input);
 											}
 											found = true;
 											break;
