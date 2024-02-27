@@ -1908,6 +1908,10 @@ export class ComfyApp {
 					}
 				}
 
+				// Track a list of links to use with bypassed nodes to prevent
+				// linking to the same input
+				let consumedLinks = {};
+
 				// Store all node links
 				for (let i in node.inputs) {
 					let parent = node.getInputNode(i);
@@ -1930,9 +1934,17 @@ export class ComfyApp {
 									for (let parent_input in all_inputs) {
 										parent_input = all_inputs[parent_input];
 										if (parent.inputs[parent_input]?.type === node.inputs[i].type) {
+						  					consumedLinks[parent.id] = consumedLinks[parent.id] || new Set();
+	
+											if (consumedLinks[parent.id].has(parent_input)) {
+												// do not link the same node twice
+												continue;
+											}
+
 											link = parent.getInputLink(parent_input);
 											if (link) {
 												parent = parent.getInputNode(parent_input);
+												consumedLinks[parent.id].add(parent_input);
 											}
 											found = true;
 											break;
