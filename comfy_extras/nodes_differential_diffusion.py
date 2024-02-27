@@ -32,8 +32,7 @@ class DifferentialDiffusion():
     
     def init_sigmas(self, sigma: torch.Tensor, denoise_mask: torch.Tensor):
         self.__init__()
-        self.sigmas, sampler = find_outer_instance("sigmas", 
-                                    callback=lambda frame, target: (frame.f_locals[target], frame.f_code.co_name)) or (None, "")
+        self.sigmas, sampler = find_outer_instance("sigmas", callback=get_sigmas_and_sampler) or (None, "")
         self.valid_sigmas = not ("sample_" not in sampler or any(s in sampler for s in self.varying_sigmas_samplers)) or "generic" in sampler
         if self.sigmas is None:
             self.sigmas = sigma[:1].repeat(2)
@@ -58,11 +57,15 @@ class DifferentialDiffusion():
                 return next(self.mask_i)
             except StopIteration:
                 self.valid_sigmas = False
-        if not self.valid_sigmas:
-            threshold = (sigma[0] - self.sigmas_min) / (self.sigmas_max - self.sigmas_min)
-            mask = (denoise_mask >= threshold) & (denoise_mask > 0)
-            return mask.to(denoise_mask.dtype)
-        return denoise_mask
+        threshold = (sigma[0] - self.sigmas_min) / (self.sigmas_max - self.sigmas_min)
+        mask = (denoise_mask >= threshold) & (denoise_mask > 0)
+        return mask.to(denoise_mask.dtype)
+
+def get_sigmas_and_sampler(frame, target):
+    found = frame.f_locals[target]
+    if isinstance(found, torch.Tensor) and found[-1] < 0.1:
+        return found, frame.f_code.co_name
+    return False
 
 def find_outer_instance(target: str, target_type=None, callback=None):
     frame = inspect.currentframe()
@@ -70,7 +73,9 @@ def find_outer_instance(target: str, target_type=None, callback=None):
     while frame and i < 100:
         if target in frame.f_locals:
             if callback is not None:
-                return callback(frame, target)
+                res = callback(frame, target)
+                if res:
+                    return res
             else:
                 found = frame.f_locals[target]
                 if isinstance(found, target_type):
