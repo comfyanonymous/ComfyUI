@@ -67,7 +67,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     ]
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
                  freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=comfy.clip_model.CLIPTextModel,
-                 special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False):  # clip-vit-base-patch32
+                 special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False, return_projected_pooled=True):  # clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS
 
@@ -86,16 +86,18 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.layer = layer
         self.layer_idx = None
         self.special_tokens = special_tokens
-        self.text_projection = torch.nn.Parameter(torch.eye(self.transformer.get_input_embeddings().weight.shape[1]))
+
         self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
         self.enable_attention_masks = enable_attention_masks
 
         self.layer_norm_hidden_state = layer_norm_hidden_state
+        self.return_projected_pooled = return_projected_pooled
+
         if layer == "hidden":
             assert layer_idx is not None
             assert abs(layer_idx) < self.num_layers
-            self.clip_layer(layer_idx)
-        self.layer_default = (self.layer, self.layer_idx)
+            self.set_clip_options({"layer": layer_idx})
+        self.options_default = (self.layer, self.layer_idx, self.return_projected_pooled)
 
     def freeze(self):
         self.transformer = self.transformer.eval()
@@ -103,16 +105,19 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         for param in self.parameters():
             param.requires_grad = False
 
-    def clip_layer(self, layer_idx):
-        if abs(layer_idx) > self.num_layers:
+    def set_clip_options(self, options):
+        layer_idx = options.get("layer", self.layer_idx)
+        self.return_projected_pooled = options.get("projected_pooled", self.return_projected_pooled)
+        if layer_idx is None or abs(layer_idx) > self.num_layers:
             self.layer = "last"
         else:
             self.layer = "hidden"
             self.layer_idx = layer_idx
 
-    def reset_clip_layer(self):
-        self.layer = self.layer_default[0]
-        self.layer_idx = self.layer_default[1]
+    def reset_clip_options(self):
+        self.layer = self.options_default[0]
+        self.layer_idx = self.options_default[1]
+        self.return_projected_pooled = self.options_default[2]
 
     def set_up_textual_embeddings(self, tokens, current_embeds):
         out_tokens = []
@@ -177,23 +182,19 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         else:
             z = outputs[1]
 
-        if outputs[2] is not None:
-            pooled_output = outputs[2].float()
-        else:
-            pooled_output = None
+        pooled_output = None
+        if len(outputs) >= 3:
+            if not self.return_projected_pooled and len(outputs) >= 4 and outputs[3] is not None:
+                pooled_output = outputs[3].float()
+            elif outputs[2] is not None:
+                pooled_output = outputs[2].float()
 
-        if self.text_projection is not None and pooled_output is not None:
-            pooled_output = pooled_output.float().to(self.text_projection.device) @ self.text_projection.float()
         return z.float(), pooled_output
 
     def encode(self, tokens):
         return self(tokens)
 
     def load_sd(self, sd):
-        if "text_projection" in sd:
-            self.text_projection[:] = sd.pop("text_projection")
-        if "text_projection.weight" in sd:
-            self.text_projection[:] = sd.pop("text_projection.weight").transpose(0, 1)
         return self.transformer.load_state_dict(sd, strict=False)
 
 def parse_parentheses(string):
@@ -354,11 +355,12 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
         self.max_length = max_length
+        self.min_length = min_length
 
         empty = self.tokenizer('')["input_ids"]
         if has_start_token:
@@ -470,6 +472,8 @@ class SDTokenizer:
         batch.append((self.end_token, 1.0, 0))
         if self.pad_to_max_length:
             batch.extend([(pad_token, 1.0, 0)] * (self.max_length - len(batch)))
+        if self.min_length is not None and len(batch) < self.min_length:
+            batch.extend([(pad_token, 1.0, 0)] * (self.min_length - len(batch)))
 
         if not return_word_ids:
             batched_tokens = [[(t, w) for t, w,_ in x] for x in batched_tokens]
@@ -503,11 +507,11 @@ class SD1ClipModel(torch.nn.Module):
         self.clip = "clip_{}".format(self.clip_name)
         setattr(self, self.clip, clip_model(device=device, dtype=dtype, **kwargs))
 
-    def clip_layer(self, layer_idx):
-        getattr(self, self.clip).clip_layer(layer_idx)
+    def set_clip_options(self, options):
+        getattr(self, self.clip).set_clip_options(options)
 
-    def reset_clip_layer(self):
-        getattr(self, self.clip).reset_clip_layer()
+    def reset_clip_options(self):
+        getattr(self, self.clip).reset_clip_options()
 
     def encode_token_weights(self, token_weight_pairs):
         token_weight_pairs = token_weight_pairs[self.clip_name]
