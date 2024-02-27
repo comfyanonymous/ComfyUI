@@ -5,9 +5,10 @@ import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
-import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
-import { ComfyAppMenu } from "./ui/menu/index.js"
-export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
+import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js";
+import { ComfyAppMenu } from "./ui/menu/index.js";
+import { getStorageValue, setStorageValue } from "./utils.js";
+export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview";
 
 function sanitizeNodeName(string) {
 	let entityMap = {
@@ -61,6 +62,7 @@ export class ComfyApp {
 	set currentWorkflow(value) {
 		this.#currentWorkflow = value ?? null;
 		api.dispatchEvent(new CustomEvent("workflowChanged", { detail: value ?? null }));
+		setStorageValue("Comfy.LastWorkflow", value ?? "");
 	}
 
 	/**
@@ -1526,7 +1528,7 @@ export class ComfyApp {
 			const loadWorkflow = async (json) => {
 				if (json) {
 					const workflow = JSON.parse(json);
-					const workflowName = localStorage.getItem("Comfy.LastWorkflow");
+					const workflowName = getStorageValue("Comfy.LastWorkflow");
 					await this.loadGraphData(workflow, true, workflowName);
 					return true;
 				}
@@ -1775,7 +1777,6 @@ export class ComfyApp {
 		}
 
 		this.currentWorkflow = name;
-		localStorage.setItem("Comfy.LastWorkflow", name ?? "");
 
 		const missingNodeTypes = [];
 		await this.#invokeExtensionsAsync("beforeConfigureGraph", graphData, missingNodeTypes);

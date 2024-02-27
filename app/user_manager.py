@@ -189,10 +189,14 @@ class UserManager():
             if not isinstance(source, str):
                 return source
             
-            dest = get_user_data_path(request, check_exists=True, param="dest")
+            dest = get_user_data_path(request, check_exists=False, param="dest")
             if not isinstance(source, str):
                 return dest
             
+            overwrite = request.query["overwrite"] != "false"
+            if not overwrite and os.path.exists(dest):
+                return web.Response(status=409)
+
             print(f"moving '{source}' -> '{dest}'")
             shutil.move(source, dest)
                 

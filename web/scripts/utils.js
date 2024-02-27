@@ -1,4 +1,5 @@
 import { $el } from "./ui.js";
+import { api } from "./api.js";
 
 // Simple date formatter
 const parts = {
@@ -88,8 +89,8 @@ export async function addStylesheet(urlOrFile, relativeTo) {
 }
 
 /**
- * @param { string } filename 
- * @param { Blob } blob 
+ * @param { string } filename
+ * @param { Blob } blob
  */
 export function downloadBlob(filename, blob) {
 	const url = URL.createObjectURL(blob);
@@ -126,4 +127,17 @@ export function prop(target, name, defaultValue, onChanged) {
 		},
 	});
 	return defaultValue;
+}
+
+export function getStorageValue(id) {
+	const clientId = api.clientId ?? api.initialClientId;
+	return (clientId && sessionStorage.getItem(`${id}:${clientId}`)) ?? localStorage.getItem(id);
+}
+
+export function setStorageValue(id, value) {
+	const clientId = api.clientId ?? api.initialClientId;
+	if (clientId) {
+		sessionStorage.setItem(`${id}:${clientId}`, value);
+	}
+	localStorage.setItem(id, value);
 }

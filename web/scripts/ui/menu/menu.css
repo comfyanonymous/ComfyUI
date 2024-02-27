@@ -299,6 +299,7 @@
 	direction: rtl;
 	flex: auto;
 	position: relative;
+	width: 120px;
 }
 
 .comfyui-workflows-button.unsaved .comfyui-workflows-label {

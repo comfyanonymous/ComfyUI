@@ -1,7 +1,7 @@
 // @ts-check
 
 import { ComfyButton } from "../components/button.js";
-import { prop } from "../../utils.js";
+import { prop, getStorageValue, setStorageValue } from "../../utils.js";
 import { $el } from "../../ui.js";
 import { api } from "../../api.js";
 import { ComfyPopup } from "../components/popup.js";
@@ -29,7 +29,7 @@ export class ComfyWorkflowsMenu {
 		let first = true;
 		api.addEventListener("workflowChanged", ({ detail }) => {
 			if (detail) {
-				this.unsaved = first ? localStorage.getItem("Comfy.LastWorkflowUnsaved") === "true" : false;
+				this.unsaved = first ? getStorageValue("Comfy.LastWorkflowUnsaved") === "true" : false;
 				this.currentWorkflow = detail;
 			} else {
 				this.unsaved = true;
@@ -73,7 +73,7 @@ export class ComfyWorkflowsMenu {
 			classList.unsaved = v;
 			this.button.classList = classList;
 			if (!first) {
-				localStorage.setItem("Comfy.LastWorkflowUnsaved", v);
+				setStorageValue("Comfy.LastWorkflowUnsaved", v);
 			}
 		});
 		this.currentWorkflow = prop(this, "currentWorkflow", "", () => {
@@ -83,7 +83,7 @@ export class ComfyWorkflowsMenu {
 
 	save(saveAs) {
 		if (!saveAs && this.app.currentWorkflow) {
-			this.#saveWorkflow(this.app.currentWorkflow);
+			this.#saveWorkflow(trimJsonExt(this.app.currentWorkflow));
 		} else {
 			this.#saveWorkflow();
 		}
@@ -108,12 +108,11 @@ export class ComfyWorkflowsMenu {
 		const res = await api.storeUserData("workflows/" + filename, json, { stringify: false, throwOnError: false, overwrite });
 		if (res.status === 409) {
 			if (!confirm(`Workflow '${filename}' already exists, do you want to overwrite it?`)) return;
-			await api.storeUserData("workflows/" + filename, json, { stringify: false });
+			await api.storeUserData("workflows/" + filename, json, { stringify: false, });
 		}
 
 		this.unsaved = false;
 		this.app.currentWorkflow = filename;
-		localStorage.setItem("Comfy.LastWorkflow", filename);
 	}
 }
 
@@ -330,6 +329,9 @@ class FileNode {
 						this.parent.favorites.delete(this.path);
 						await this.parent.storeWorkflowsInfo();
 					}
+					if (this.parent.app.currentWorkflow === this.path) {
+						this.parent.app.currentWorkflow = null;
+					}
 					await api.deleteUserData(fileName);
 					this.remove();
 				} else {
@@ -392,11 +394,27 @@ class FileNode {
 					tooltip: "Rename this workflow",
 					classList: "comfyui-button comfyui-workflows-file-action",
 					iconSize: 18,
-					action: (e) => {
+					action: async (e) => {
 						e.stopImmediatePropagation();
-						const newName = prompt("Enter new name", name);
+						const newName = prompt("Enter new name", trimJsonExt(this.path));
 						if (newName) {
 							// Rename file
+							try {
+								const res = await api.moveUserData("workflows/" + this.path, "workflows/" + newName);
+
+								if (res.status === 409) {
+									if (!confirm(`Workflow '${newName}' already exists, do you want to overwrite it?`)) return;
+									await api.moveUserData("workflows/" + this.path, "workflows/" + newName, { overwrite: true });
+								}
+
+								if (this.parent.app.currentWorkflow === this.path) {
+									this.parent.app.currentWorkflow = newName;
+								}
+
+								await this.parent.load();
+							} catch (error) {
+								alert(error.message ?? error);
+							}
 						}
 					},
 				}).element,

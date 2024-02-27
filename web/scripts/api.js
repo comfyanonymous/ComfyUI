@@ -407,7 +407,7 @@ class ComfyApi extends EventTarget {
 	 * @param { RequestInit & { overwrite?: boolean, stringify?: boolean, throwOnError?: boolean } } [options]
 	 * @returns { Promise<Response> }
 	 */
-	async storeUserData(file, data, options = { overwrite: true, stringify: true, throwOnError: true }) {
+	async storeUserData(file, data, options = { overwrite: false, stringify: true, throwOnError: true }) {
 		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}?overwrite=${options?.overwrite}`, {
 			method: "POST",
 			body: options?.stringify ? JSON.stringify(data) : data,
@@ -430,6 +430,18 @@ class ComfyApi extends EventTarget {
 		if (resp.status !== 204) {
 			throw new Error(`Error removing user data file '${file}': ${resp.status} ${(resp).statusText}`);
 		}
+	}
+
+	/**
+	 * Move a user data file for the current user
+	 * @param { string } source The userdata file to move
+	 * @param { string } dest The destination for the file
+	 */
+	async moveUserData(source, dest, options = { overwrite: false }) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(source)}/move/${encodeURIComponent(dest)}?overwrite=${options?.overwrite}`, {
+			method: "POST",
+		});
+		return resp;
 	}
 
 	/**

@@ -1,8 +1,7 @@
 // @ts-check
 
 import { $el } from "../../ui.js";
-import { api } from "../../api.js";
-import { addStylesheet, downloadBlob } from "../../utils.js";
+import { downloadBlob } from "../../utils.js";
 import { ComfyButton } from "../components/button.js";
 import { ComfyButtonGroup } from "../components/buttonGroup.js";
 import { ComfySplitButton } from "../components/splitButton.js";
@@ -11,8 +10,6 @@ import { ComfyQueueButton } from "./queueButton.js";
 import { ComfyWorkflowsMenu } from "./workflows.js";
 import { ComfyViewQueueButton } from "./viewQueue.js";
 import { getInteruptButton } from "./interruptButton.js";
-
-addStylesheet("menu.css", import.meta.url);
 
 const collapseOnMobile = (t) => {
 	(t.element ?? t).classList.add("comfyui-menu-mobile-collapse");
@@ -40,7 +37,7 @@ export class ComfyAppMenu {
 			});
 
 		this.logo = $el("h1.comfyui-logo.sm-hide", { title: "ComfyUI" }, "ComfyUI");
-		this.element = $el("nav.comfyui-menu", { parent: document.body }, [
+		this.element = $el("nav.comfyui-menu", { style: { display: "none" }, parent: document.body }, [
 			this.logo,
 			this.workflows.element,
 			new ComfySplitButton(
@@ -128,6 +125,22 @@ export class ComfyAppMenu {
 				})
 			).element,
 		]);
+
+		app.ui.settings.addSetting({
+			id: "Comfy.UseNewMenu",
+			defaultValue: false,
+			name: "[Beta] Use new menu and workflow management",
+			type: "boolean",
+			onChange: async (v) => {
+				if (v) {
+					app.ui.menuContainer.style.display = "none";
+					this.element.style.removeProperty("display");
+				} else {
+					app.ui.menuContainer.style.removeProperty("display");
+					this.element.style.display = "none";
+				}
+			},
+		});
 	}
 
 	/**
