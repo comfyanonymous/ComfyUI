@@ -110,7 +110,7 @@ def clip_text_transformers_convert(sd, prefix_from, prefix_to):
 
     tp = "{}text_projection".format(prefix_from)
     if tp in sd:
-        sd["{}text_projection.weight".format(prefix_to)] = sd.pop(tp).transpose(0, 1)
+        sd["{}text_projection.weight".format(prefix_to)] = sd.pop(tp).transpose(0, 1).contiguous()
     return sd
 
 
