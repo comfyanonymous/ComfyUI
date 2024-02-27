@@ -1,3 +1,4 @@
+import torch
 
 class LatentFormat:
     scale_factor = 1.0
@@ -33,6 +34,32 @@ class SDXL(LatentFormat):
                     [-0.3112, -0.2359, -0.2076]
                 ]
         self.taesd_decoder_name = "taesdxl_decoder"
+
+class SDXL_Playground_2_5(LatentFormat):
+    def __init__(self):
+        self.scale_factor = 0.5
+        self.latents_mean = torch.tensor([-1.6574, 1.886, -1.383, 2.5155]).view(1, 4, 1, 1)
+        self.latents_std = torch.tensor([8.4927, 5.9022, 6.5498, 5.2299]).view(1, 4, 1, 1)
+
+        self.latent_rgb_factors = [
+                    #   R        G        B
+                    [ 0.3920,  0.4054,  0.4549],
+                    [-0.2634, -0.0196,  0.0653],
+                    [ 0.0568,  0.1687, -0.0755],
+                    [-0.3112, -0.2359, -0.2076]
+                ]
+        self.taesd_decoder_name = "taesdxl_decoder"
+
+    def process_in(self, latent):
+        latents_mean = self.latents_mean.to(latent.device, latent.dtype)
+        latents_std = self.latents_std.to(latent.device, latent.dtype)
+        return (latent - latents_mean) * self.scale_factor / latents_std
+
+    def process_out(self, latent):
+        latents_mean = self.latents_mean.to(latent.device, latent.dtype)
+        latents_std = self.latents_std.to(latent.device, latent.dtype)
+        return latent * latents_std / self.scale_factor + latents_mean
+
 
 class SD_X4(LatentFormat):
     def __init__(self):
