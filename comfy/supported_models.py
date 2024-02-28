@@ -163,7 +163,13 @@ class SDXL(supported_models_base.BASE):
     latent_format = latent_formats.SDXL
 
     def model_type(self, state_dict, prefix=""):
-        if "v_pred" in state_dict:
+        if 'edm_mean' in state_dict and 'edm_std' in state_dict: #Playground V2.5
+            self.latent_format = latent_formats.SDXL_Playground_2_5()
+            self.sampling_settings["sigma_data"] = 0.5
+            self.sampling_settings["sigma_max"] = 80.0
+            self.sampling_settings["sigma_min"] = 0.002
+            return model_base.ModelType.EDM
+        elif "v_pred" in state_dict:
             return model_base.ModelType.V_PREDICTION
         else:
             return model_base.ModelType.EPS
@@ -190,11 +196,15 @@ class SDXL(supported_models_base.BASE):
         replace_prefix = {}
         keys_to_replace = {}
         state_dict_g = diffusers_convert.convert_text_enc_state_dict_v20(state_dict, "clip_g")
-        if "clip_g.transformer.text_model.embeddings.position_ids" in state_dict_g:
-            state_dict_g.pop("clip_g.transformer.text_model.embeddings.position_ids")
         for k in state_dict:
             if k.startswith("clip_l"):
                 state_dict_g[k] = state_dict[k]
+
+        state_dict_g["clip_l.transformer.text_model.embeddings.position_ids"] = torch.arange(77).expand((1, -1))
+        pop_keys = ["clip_l.transformer.text_projection.weight", "clip_l.logit_scale"]
+        for p in pop_keys:
+            if p in state_dict_g:
+                state_dict_g.pop(p)
 
         replace_prefix["clip_g"] = "conditioner.embedders.1.model"
         replace_prefix["clip_l"] = "conditioner.embedders.0"
