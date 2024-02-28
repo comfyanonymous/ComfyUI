@@ -6,19 +6,15 @@ import os
 import pkgutil
 import time
 import types
-import typing
-
-from . import base_nodes
-from comfy_extras import nodes as comfy_extras_nodes
-
-try:
-    import custom_nodes
-except:
-    custom_nodes: typing.Optional[types.ModuleType] = None
-from .package_typing import ExportedNodes
 from functools import reduce
-from pkg_resources import resource_filename
 from importlib.metadata import entry_points
+
+from pkg_resources import resource_filename
+
+from comfy_extras import nodes as comfy_extras_nodes
+from . import base_nodes
+from .package_typing import ExportedNodes
+from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
 
 _comfy_nodes = ExportedNodes()
 
@@ -42,7 +38,8 @@ def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleT
     return node_class_mappings and len(node_class_mappings) > 0 or web_directory
 
 
-def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import_times=False) -> ExportedNodes:
+def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import_times=False,
+                                          depth=100) -> ExportedNodes:
     exported_nodes = ExportedNodes()
     timings = []
     if _import_nodes_in_module(exported_nodes, module):
@@ -60,7 +57,8 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
                 submodule = importlib.import_module(full_name)
                 # Recursively call the function if it's a package
                 exported_nodes.update(
-                    _import_and_enumerate_nodes_in_module(submodule, print_import_times=print_import_times))
+                    _import_and_enumerate_nodes_in_module(submodule, print_import_times=print_import_times,
+                                                          depth=depth - 1))
             except KeyboardInterrupt as interrupted:
                 raise interrupted
             except Exception as x:
@@ -78,7 +76,8 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
     return exported_nodes
 
 
-def import_all_nodes_in_workspace() -> ExportedNodes:
+def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
+    global _comfy_nodes
     if len(_comfy_nodes) == 0:
         base_and_extra = reduce(lambda x, y: x.update(y),
                                 map(_import_and_enumerate_nodes_in_module, [
@@ -88,8 +87,9 @@ def import_all_nodes_in_workspace() -> ExportedNodes:
                                 ]),
                                 ExportedNodes())
         custom_nodes_mappings = ExportedNodes()
-        if custom_nodes is not None:
-            custom_nodes_mappings.update(_import_and_enumerate_nodes_in_module(custom_nodes, print_import_times=True))
+
+        if vanilla_custom_nodes:
+            custom_nodes_mappings += mitigated_import_of_vanilla_custom_nodes()
 
         # load from entrypoints
         for entry_point in entry_points().select(group='comfyui.custom_nodes'):

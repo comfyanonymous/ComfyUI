@@ -20,7 +20,8 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - [Workflows](https://comfyanonymous.github.io/ComfyUI_examples/)
 - [Installing](#installing)
 - [Configuration](#command-line-arguments)
-- [Custom Nodes Authoring](#custom-nodes)
+- [Installing Custom Nodes](#installing-custom-nodes)
+- [Authoring Custom Nodes](#custom-nodes)
 - [API](#using-comfyui-as-an-api--programmatically)
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy)
 
@@ -195,6 +196,18 @@ For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 com
 # Custom Nodes
 
 Custom Nodes can be added to ComfyUI by copying and pasting Python files into your `./custom_nodes` directory.
+
+## Installing Custom Nodes
+
+There are two kinds of custom nodes: vanilla custom nodes, which generally expect to be dropped into the `custom_nodes` directory and managed by a tool called the ComfyUI Extension manager ("vanilla" custom nodes) and this repository's opinionated, installable custom nodes ("installable").
+
+### Vanilla Custom Nodes
+
+Clone the repository containing the custom nodes into `custom_nodes/` in your working directory.
+
+### Installable Custom Nodes
+
+Run `pip install git+https://github.com/owner/repository`, replacing the `git` repository with the installable custom nodes URL. This is just the GitHub URL. 
 
 ## Authoring Custom Nodes
 

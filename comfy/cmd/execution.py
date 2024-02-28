@@ -11,6 +11,10 @@ import typing
 from typing import List, Optional, Tuple, Union
 from typing_extensions import TypedDict
 
+# Suppress warnings during import
+import warnings
+warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_node is deprecated. Please use torch.utils._pytree.register_pytree_node instead.")
+
 import torch
 
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
