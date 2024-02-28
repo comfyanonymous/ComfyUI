@@ -11,3 +11,4 @@ torchsde
 torchvision
 tqdm
 transformers>=4.25.1
+ultralytics
