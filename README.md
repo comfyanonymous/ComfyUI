@@ -1,44 +1,28 @@
-ComfyUI
+ComfyUI Distributed
 =======
-The most powerful and modular stable diffusion GUI and backend.
------------
-![ComfyUI Screenshot](comfyui_screenshot.png)
 
-This UI will let you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. For some workflow examples and see what ComfyUI can do you can check out:
+A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui).
 
-### [ComfyUI Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
+### New Features
 
-### [Installing ComfyUI](#installing)
+- Run with `comfyui` in your command line.
+- [Installable](#installing) via `pip`: `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.
+- [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with supports multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
+- [Installable custom nodes](#custom-nodes) via `pip`.
+- [New configuration options](#command-line-arguments) for directories, models and metrics.
+- [API](#using-comfyui-as-an-api--programmatically) support, using the vanilla ComfyUI API and new API endpoints.
+- [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
+- [Containers].
+- Automated tests for new features.
 
-## Features
-- Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/) and [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
-- Asynchronous Queue system
-- Many optimizations: Only re-executes the parts of the workflow that changes between executions.
-- Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
-- Works even if you don't have a GPU with: ```--cpu``` (slow)
-- Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
-- Embeddings/Textual inversion
-- [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
-- [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
-- Loading full workflows (with seeds) from generated PNG files.
-- Saving/Loading workflows as Json files.
-- Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
-- [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
-- [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
-- [ControlNet and T2I-Adapter](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
-- [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
-- [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
-- [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
-- [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
-- [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
-- [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
-- Latent previews with [TAESD](#how-to-show-high-quality-previews)
-- Starts up very fast.
-- Works fully offline: will never download anything.
-- [Config file](extra_model_paths.yaml.example) to set the search paths for models.
+### Table of Contents
 
-Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
+- [Workflows](https://comfyanonymous.github.io/ComfyUI_examples/)
+- [Installing](#installing)
+- [Configuration](#command-line-arguments)
+- [Custom Nodes Authoring](#custom-nodes)
+- [API](#using-comfyui-as-an-api--programmatically)
+- [Distributed](#distributed-multi-process-and-multi-gpu-comfy)
 
 # Getting Started
 
@@ -52,7 +36,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 [ 2. Open a command line on Windows. This is usually cmd.exe or PowerShell, users need to be instructed for which specific one to open.]: #
 [ 3. Create a virtual environment on a disk with a lot of space. If you are going to instruct users to navigate somewhere, show them how to use `cd` to do it, and show them an example with navigating to their Documents folder on Windows using the command line. Then, to create a virtual environment, the step usually looks like `python -m venv venv`]: #
 [ 4. Activate the virtual environment. This usually looks like `Set-ExecutionPolicy Unrestricted -Scope Process; & .\venv\Scripts\activate.ps1` in PowerShell. Observe the caveat of the execution policy problem. Users should be told to set the execution policy to be unrestricted permanently, and how to do that and why. Remember, they need something ergonomic and easy.]: #
-[ 5. Install this package. Currently, that is done with `pip install git+https://github.com/hiddenswitch/ComfyUI.git@installable`.]: #
+[ 5. Install this package. Currently, that is done with `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.]: #
 [ 6. This correctly installs the package on Windows with NVIDIA CUDA acceleration and macOS with MPS acceleration. However, users may have weird setups and need more help.]: #
 [ 7. Now users need a model. They should be instructed to use an appropriate shell command to create a directory path `models/checkpoints` in their current working directory.]: #
 [ 8. Then, they must download https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt into the path ./models/checkpoints/v1-5-pruned-emaonly.ckpt]: #
@@ -96,11 +80,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     pip install wheel
     pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
     ```
- 4. To run the web server:
-    ```shell
-    comfyui
-    ```
-    Create the directories you can fill with checkpoints:
+ 4. Create the directories you can fill with checkpoints:
     ```shell
     comfyui --create-directories
     ```
@@ -110,6 +90,22 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     comfyui --cwd="C:/some directory/"
     ```
     You can see all the command line options with hints using `comfyui --help`.
+
+ 5. Download models. These commands will download the SD1.5 and SDXL models. This assumes you are using the default directories.
+    ```shell
+    mkdir -p models/checkpoints
+    curl -L https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors?download=true -o models/checkpoints/v1-5-pruned-emaonly.safetensors
+    curl -L https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors?download=true -o models/checkpoints/sd_xl_base_1.0.safetensors
+    curl -L https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors?download=true -o models/checkpoints/sd_xl_refiner_1.0.safetensors
+    ```
+ 6. To run the web server:
+    ```shell
+    comfyui
+    ``` 
+    To make it accessible over the network:
+    ```shell
+    comfyui --listen
+    ```
 
 ## Manual Install (Windows, Linux, macOS) For Development
 
@@ -168,7 +164,7 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
 Because the package is installed "editably" with `pip install -e .`, any changes you make to the repository will affect the next launch of `comfy`. In IDEA based editors like PyCharm and IntelliJ, the Relodium plugin supports modifying your custom nodes or similar code while the server is running. 
 
 
-## Intel, DirectML and AMD Experimental Support
+### Intel, DirectML and AMD Experimental Support
 
 <details>
 #### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
@@ -178,8 +174,8 @@ Because the package is installed "editably" with `pip install -e .`, any changes
 Follow the manual installation steps. Then:
 
 ```shell
-pip uninstall torch torchvision torchaudio
-pip install torch torchvision torchaudio
+pip uninstall torch torchvision
+pip install torch torchvision
 pip install torch-directml
 ```
 
@@ -476,8 +472,7 @@ Ctrl can also be replaced with Cmd instead for macOS users
 
 ### Command Line Arguments
 
-<details>
-<pre>
+```
 usage: comfyui.exe [-h] [-c CONFIG_FILE]
                    [--write-out-config-file CONFIG_OUTPUT_PATH] [-w CWD]
                    [-H [IP]] [--port PORT] [--enable-cors-header [ORIGIN]]
@@ -679,14 +674,15 @@ config.json or specified via -c). Config file syntax allows: key=value,
 flag=true, stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi).
 In general, command-line values override environment variables which override
 config file values which override defaults.
-</pre>
-</details>
+```
 
 # Using ComfyUI as an API / Programmatically
 
 There are multiple ways to use this ComfyUI package to run workflows programmatically:
 
-**Start ComfyUI by creating an ordinary Python object.** This does not create a web server. It runs ComfyUI as a library, like any other package you are familiar with:
+### Embedded
+
+Start ComfyUI by creating an ordinary Python object. This does not create a web server. It runs ComfyUI as a library, like any other package you are familiar with:
 
 ```python
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
@@ -705,7 +701,9 @@ async with EmbeddedComfyClient() as client:
 
 See [script_examples/basic_api_example.py](script_examples/basic_api_example.py) for a complete example.
 
-**Start ComfyUI as a remote server, then access it via an API.** This requires you to start ComfyUI somewhere. Then access it via a standardized API.
+### Remote
+
+Start ComfyUI as a remote server, then access it via an API. This requires you to start ComfyUI somewhere. Then access it via a standardized API.
 
 ```python
 from comfy.client.aio_client import AsyncRemoteComfyClient
@@ -719,9 +717,13 @@ with open("image.png", "rb") as f:
 
 See [script_examples/remote_api_example.py](script_examples/remote_api_example.py) for a complete example.
 
-**Use a typed, generated API client for your programming language and access ComfyUI server remotely as an API.** You can generate the client from [comfy/api/openapi.yaml](comfy/api/openapi.yaml).
+### OpenAPI Spec for Vanilla API, Typed Clients
 
-**Submit jobs directly to a distributed work queue.** This package supports AMQP message queues like RabbitMQ. You can submit workflows to the queue, including from the web using RabbitMQ's STOMP support, and receive realtime progress updates from multiple workers. Continue to the next section for more details.
+Use a typed, generated API client for your programming language and access ComfyUI server remotely as an API. You can generate the client from [comfy/api/openapi.yaml](comfy/api/openapi.yaml).
+
+### RabbitMQ / AMQP Support
+
+Submit jobs directly to a distributed work queue. This package supports AMQP message queues like RabbitMQ. You can submit workflows to the queue, including from the web using RabbitMQ's STOMP support, and receive realtime progress updates from multiple workers. Continue to the next section for more details.
 
 # Distributed, Multi-Process and Multi-GPU Comfy
 
@@ -801,6 +803,20 @@ The frontend expects to find the referenced output images in its `--output-direc
 This means that workers and frontends do **not** have to have the same argument to `--cwd`. The paths that are passed to the **frontend**, such as the `inputs/` and `outputs/` directories, must have the **same contents** as the paths passed as those directories to the workers.
 
 Since reading models like large checkpoints over the network can be slow, you can use `--extra-model-paths-config` to specify additional model paths. Or, you can use `--cwd some/path`, where `some/path` is a local directory, and, and mount `some/path/outputs` to a network directory.
+
+# Containers
+
+Build the `Dockerfile`:
+
+```shell
+docker build . -t hiddenswitch/comfyui
+```
+
+To run:
+
+```shell
+docker run -it -v ./output:/workspace/output -v ./models:/workspace/models --gpus=all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --rm hiddenswitch/comfyui
+```
 
 ## Community
 

@@ -49,7 +49,7 @@ jobs:
             echo 'import site' >> ./python3${{ inputs.python_minor }}._pth
             curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
             ./python.exe get-pip.py
-            python -m pip wheel torch torchvision torchaudio --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
+            python -m pip wheel torch torchvision --pre --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2 -w ../temp_wheel_dir
             ls ../temp_wheel_dir
             ./python.exe -s -m pip install --pre ../temp_wheel_dir/*
             sed -i '1i../ComfyUI' ./python3${{ inputs.python_minor }}._pth
@@ -69,7 +69,7 @@ jobs:
             cp -r ComfyUI/.ci/windows_base_files/* ./
 
             echo "call update_comfyui.bat nopause
-            ..\python_embeded\python.exe -s -m pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
+            ..\python_embeded\python.exe -s -m pip install --upgrade --pre torch torchvision --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
             pause" > ./update/update_comfyui_and_python_dependencies.bat
             cd ..
 

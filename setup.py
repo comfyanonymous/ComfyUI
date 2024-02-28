@@ -49,15 +49,6 @@ Indicates if this is installing an editable (develop) mode package
 is_editable = '--editable' in sys.argv or '-e' in sys.argv or (
         'python' in sys.argv and 'setup.py' in sys.argv and 'develop' in sys.argv)
 
-# If we're installing with no build isolation, we can check if torch is already installed in the environment, and if so,
-# go ahead and use the version that is already installed.
-is_build_isolated_and_torch_version: Optional[str]
-try:
-    import torch
-    print(f"comfyui setup.py: torch version was {torch.__version__} and built without build isolation, using this torch instead of upgrading", file=sys.stderr)
-    is_build_isolated_and_torch_version = torch.__version__
-except Exception as e:
-    is_build_isolated_and_torch_version = None
 
 def _is_nvidia() -> bool:
     system = platform.system().lower()
@@ -111,13 +102,21 @@ def _is_linux_arm64():
 
 def dependencies() -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
-    # torch is already installed, and we could have only known this if the user specifically requested a
-    # no-build-isolation build, so the user knows what is going on
-    if is_build_isolated_and_torch_version is not None:
+    # If we're installing with no build isolation, we can check if torch is already installed in the environment, and if
+    # so, go ahead and use the version that is already installed.
+    existing_torch: Optional[str]
+    try:
+        import torch
+        print(f"comfyui setup.py: torch version was {torch.__version__} and built without build isolation, using this torch instead of upgrading", file=sys.stderr)
+        existing_torch = torch.__version__
+    except Exception:
+        existing_torch = None
+
+    if existing_torch is not None:
         for i, dep in enumerate(_dependencies):
             stripped = dep.strip()
             if stripped == "torch":
-                _dependencies[i] = f"{stripped}=={is_build_isolated_and_torch_version}"
+                _dependencies[i] = f"{stripped}=={existing_torch}"
                 break
         return _dependencies
     _alternative_indices = [amd_torch_index, nvidia_torch_index]

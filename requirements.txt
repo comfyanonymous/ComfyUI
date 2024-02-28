@@ -1,5 +1,4 @@
 torch
-torchaudio
 torchvision
 torchdiffeq>=0.2.3
 torchsde>=0.2.6
@@ -9,7 +8,7 @@ transformers>=4.29.1
 safetensors>=0.3.0
 pytorch-lightning>=2.0.0
 aiohttp>=3.8.4
-accelerate>=0.18.0
+accelerate>=0.25.0
 pyyaml>=6.0
 scikit-image>=0.20.0
 jsonmerge>=1.9.0
@@ -25,7 +24,7 @@ importlib_resources
 Pillow
 scipy
 tqdm
-protobuf==3.20.3
+protobuf
 psutil
 ConfigArgParse
 aio-pika
