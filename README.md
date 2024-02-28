@@ -682,6 +682,47 @@ config file values which override defaults.
 </pre>
 </details>
 
+# Using ComfyUI as an API / Programmatically
+
+There are multiple ways to use this ComfyUI package to run workflows programmatically:
+
+**Start ComfyUI by creating an ordinary Python object.** This does not create a web server. It runs ComfyUI as a library, like any other package you are familiar with:
+
+```python
+from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+async with EmbeddedComfyClient() as client:
+  # This will run your prompt
+  outputs = await client.queue_prompt(prompt)
+  # At this point, your prompt is finished and all the outputs, like saving images, have been completed.
+  # Now the outputs will contain the same thing that the Web UI expresses: a file path for each output.
+  # Let's find the node ID of the first SaveImage node. This will work when you change your workflow JSON from
+  # the example above.
+  save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
+  # Now let's print the absolute path to the image.
+  print(outputs[save_image_node_id]["images"][0]["abs_path"])
+# At this point, all the models have been unloaded from VRAM, and everything has been cleaned up.
+```
+
+See [script_examples/basic_api_example.py](script_examples/basic_api_example.py) for a complete example.
+
+**Start ComfyUI as a remote server, then access it via an API.** This requires you to start ComfyUI somewhere. Then access it via a standardized API.
+
+```python
+from comfy.client.aio_client import AsyncRemoteComfyClient
+client = AsyncRemoteComfyClient(server_address="http://localhost:8188")
+# Now let's get the bytes of the PNG image saved by the SaveImage node:
+png_image_bytes = await client.queue_prompt(prompt)
+# You can save these bytes wherever you need!
+with open("image.png", "rb") as f:
+    f.write(png_image_bytes)
+```
+
+See [script_examples/remote_api_example.py](script_examples/remote_api_example.py) for a complete example.
+
+**Use a typed, generated API client for your programming language and access ComfyUI server remotely as an API.** You can generate the client from [comfy/api/openapi.yaml](comfy/api/openapi.yaml).
+
+**Submit jobs directly to a distributed work queue.** This package supports AMQP message queues like RabbitMQ. You can submit workflows to the queue, including from the web using RabbitMQ's STOMP support, and receive realtime progress updates from multiple workers. Continue to the next section for more details.
+
 # Distributed, Multi-Process and Multi-GPU Comfy
 
 This package supports multi-processing across machines using RabbitMQ. This means you can launch multiple ComfyUI backend workers and queue prompts against them from multiple frontends.
@@ -730,25 +771,25 @@ Once you have installed this Python package following the installation steps, yo
 
 ```shell
 # you must replace the IP address with the one you printed above
-comfyui-worker --distributed-queue-connection-uri="amqp://guest@guest10.1.0.100"
+comfyui-worker --distributed-queue-connection-uri="amqp://guest:guest@10.1.0.100"
 ```
 
 All the normal command line arguments are supported. This means you can use `--cwd` to point to a file share containing the `models/` directory:
 
 ```shell
-comfyui-worker --cwd //10.1.0.100/shared/workspace --distributed-queue-connection-uri="amqp://guest@guest10.1.0.100"
+comfyui-worker --cwd //10.1.0.100/shared/workspace --distributed-queue-connection-uri="amqp://guest:guest@10.1.0.100"
 ```
 
 **Starting a Frontend:**
 
 ```shell
-comfyui --listen --distributed-queue-connection-uri="amqp://guest@guest10.1.0.100" --distributed-queue-frontend
+comfyui --listen --distributed-queue-connection-uri="amqp://guest:guest@10.1.0.100" --distributed-queue-frontend
 ```
 
 However, the frontend will **not** be able to find the output images or models to show the client by default. You must specify a place where the frontend can find the **same** outputs and models that are available to the backends:
 
 ```shell
-comfyui --cwd //10.1.0.100/shared/workspace --listen --distributed-queue-connection-uri="amqp://guest@guest10.1.0.100" --distributed-queue-frontend
+comfyui --cwd //10.1.0.100/shared/workspace --listen --distributed-queue-connection-uri="amqp://guest:guest@10.1.0.100" --distributed-queue-frontend
 ```
 
 You can carefully mount network directories into `outputs/` and `inputs/` such that they are shared among workers and frontends; you can store the `models/` on each machine, or serve them over a file share too.
