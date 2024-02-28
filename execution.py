@@ -122,7 +122,8 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-    if unique_id in outputs:
+
+    if unique_id in outputs and class_type != 'SaveImage':
         return (True, None, None)
 
     for x in inputs:
