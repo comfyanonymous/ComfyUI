@@ -1,5 +1,7 @@
 aiohttp
 einops
+ftfy
+fvcore
 lpips
 Pillow
 psutil
