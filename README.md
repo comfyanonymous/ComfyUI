@@ -12,7 +12,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - [New configuration options](#command-line-arguments) for directories, models and metrics.
 - [API](#using-comfyui-as-an-api--programmatically) support, using the vanilla ComfyUI API and new API endpoints.
 - [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
-- [Containers].
+- [Containers](#containers).
 - Automated tests for new features.
 
 ### Table of Contents
