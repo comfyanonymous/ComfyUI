@@ -7,12 +7,12 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 - Run with `comfyui` in your command line.
 - [Installable](#installing) via `pip`: `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.
-- [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with supports multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
+- [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
 - [Installable custom nodes](#custom-nodes) via `pip`.
 - [New configuration options](#command-line-arguments) for directories, models and metrics.
 - [API](#using-comfyui-as-an-api--programmatically) support, using the vanilla ComfyUI API and new API endpoints.
 - [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
-- [Containers](#containers).
+- [Containers](#containers) for running on Linux, Windows and Kubernetes with CUDA acceleration.
 - Automated tests for new features.
 
 ### Table of Contents
