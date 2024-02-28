@@ -17,7 +17,7 @@ from ..component_model.queue_types import ExecutionStatus
 
 class DistributedPromptWorker:
     """
-    A work in progress distributed prompt worker.
+    A distributed prompt worker.
     """
 
     def __init__(self, embedded_comfy_client: Optional[EmbeddedComfyClient] = None,
