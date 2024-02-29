@@ -833,9 +833,9 @@ class CLIPLoader:
     CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name, type="stable_diffusion"):
-        clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        clip_type = sd.CLIPType.STABLE_DIFFUSION
         if type == "stable_cascade":
-            clip_type = comfy.sd.CLIPType.STABLE_CASCADE
+            clip_type = sd.CLIPType.STABLE_CASCADE
 
         clip_path = folder_paths.get_full_path("clip", clip_name)
         clip = sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
