@@ -60,7 +60,7 @@ def _vanilla_load_custom_nodes_2() -> ExportedNodes:
     exported_nodes = ExportedNodes()
     for custom_node_path in node_paths:
         if not os.path.exists(custom_node_path) or not os.path.isdir(custom_node_path):
-            pass
+            continue
         possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
