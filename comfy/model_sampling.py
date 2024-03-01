@@ -11,6 +11,14 @@ class EPS:
         sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
         return model_input - model_output * sigma
 
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        if max_denoise:
+            noise = noise * torch.sqrt(1.0 + sigma ** 2.0)
+        else:
+            noise = noise * sigma
+        if latent_image is not None:
+            noise += latent_image
+        return noise
 
 class V_PREDICTION(EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
