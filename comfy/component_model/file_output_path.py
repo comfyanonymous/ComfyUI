@@ -29,12 +29,15 @@ def file_output_path(filename: str, type: Literal["input", "output", "temp"] = "
         output_dir = folder_paths.get_directory_by_type(type)
     if output_dir is None:
         raise ValueError(f"no such output directory because invalid type specified (type={type})")
-    if subfolder is not None:
+    if subfolder is not None and subfolder != "":
         full_output_dir = os.path.join(output_dir, subfolder)
-        if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+        if os.path.commonpath([os.path.abspath(full_output_dir), output_dir]) != output_dir:
             raise PermissionError("insecure")
         output_dir = full_output_dir
+        filename = os.path.basename(filename)
+    else:
+        if os.path.commonpath([os.path.abspath(output_dir), os.path.join(output_dir, filename)]) != output_dir:
+            raise PermissionError("insecure")
 
-    filename = os.path.basename(filename)
     file = os.path.join(output_dir, filename)
     return file

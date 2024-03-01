@@ -32,7 +32,7 @@ class StringSpecOptions(TypedDict, total=True):
 
 # todo: analyze the base_nodes for these types
 CommonReturnTypes = Union[
-    Literal["IMAGE", "STRING", "INT", "FLOAT", "CONDITIONING", "LATENT", "MASK", "MODEL", "VAE", "CLIP"], str]
+    Literal["IMAGE", "STRING", "INT", "BOOLEAN", "FLOAT", "CONDITIONING", "LATENT", "MASK", "MODEL", "VAE", "CLIP"], str]
 
 IntSpec = Tuple[Literal["INT"], IntSpecOptions]
 
@@ -96,7 +96,7 @@ class CustomNode(Protocol):
     def INPUT_TYPES(cls) -> InputTypes: ...
 
     # Optional method signature for VALIDATE_INPUTS
-    VALIDATE_INPUTS: ClassVar[ValidateInputsMethod] = None
+    VALIDATE_INPUTS: Optional[ClassVar[ValidateInputsMethod]]
 
     RETURN_TYPES: ClassVar[Tuple[CommonReturnTypes, ...]]
     RETURN_NAMES: Optional[ClassVar[Tuple[str, ...]]]
@@ -105,9 +105,6 @@ class CustomNode(Protocol):
     FUNCTION: ClassVar[str]
     CATEGORY: ClassVar[str]
     OUTPUT_NODE: Optional[ClassVar[bool]]
-
-    def __call__(self) -> T:
-        ...
 
 
 @dataclass
