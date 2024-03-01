@@ -484,7 +484,6 @@ class UNetModel(nn.Module):
         self.predict_codebook_ids = n_embed is not None
 
         self.default_num_video_frames = None
-        self.default_image_only_indicator = None
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
@@ -708,27 +707,30 @@ class UNetModel(nn.Module):
                 device=device,
                 operations=operations
             )]
-        if transformer_depth_middle >= 0:
-            mid_block += [get_attention_layer(  # always uses a self-attn
-                            ch, num_heads, dim_head, depth=transformer_depth_middle, context_dim=context_dim,
-                            disable_self_attn=disable_middle_self_attn, use_checkpoint=use_checkpoint
-                        ),
-            get_resblock(
-                merge_factor=merge_factor,
-                merge_strategy=merge_strategy,
-                video_kernel_size=video_kernel_size,
-                ch=ch,
-                time_embed_dim=time_embed_dim,
-                dropout=dropout,
-                out_channels=None,
-                dims=dims,
-                use_checkpoint=use_checkpoint,
-                use_scale_shift_norm=use_scale_shift_norm,
-                dtype=self.dtype,
-                device=device,
-                operations=operations
-            )]
-        self.middle_block = TimestepEmbedSequential(*mid_block)
+
+        self.middle_block = None
+        if transformer_depth_middle >= -1:
+            if transformer_depth_middle >= 0:
+                mid_block += [get_attention_layer(  # always uses a self-attn
+                                ch, num_heads, dim_head, depth=transformer_depth_middle, context_dim=context_dim,
+                                disable_self_attn=disable_middle_self_attn, use_checkpoint=use_checkpoint
+                            ),
+                get_resblock(
+                    merge_factor=merge_factor,
+                    merge_strategy=merge_strategy,
+                    video_kernel_size=video_kernel_size,
+                    ch=ch,
+                    time_embed_dim=time_embed_dim,
+                    dropout=dropout,
+                    out_channels=None,
+                    dims=dims,
+                    use_checkpoint=use_checkpoint,
+                    use_scale_shift_norm=use_scale_shift_norm,
+                    dtype=self.dtype,
+                    device=device,
+                    operations=operations
+                )]
+            self.middle_block = TimestepEmbedSequential(*mid_block)
         self._feature_size += ch
 
         self.output_blocks = nn.ModuleList([])
@@ -827,7 +829,7 @@ class UNetModel(nn.Module):
         transformer_patches = transformer_options.get("patches", {})
 
         num_video_frames = kwargs.get("num_video_frames", self.default_num_video_frames)
-        image_only_indicator = kwargs.get("image_only_indicator", self.default_image_only_indicator)
+        image_only_indicator = kwargs.get("image_only_indicator", None)
         time_context = kwargs.get("time_context", None)
 
         assert (y is not None) == (
@@ -858,7 +860,8 @@ class UNetModel(nn.Module):
                     h = p(h, transformer_options)
 
         transformer_options["block"] = ("middle", 0)
-        h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options, time_context=time_context, num_video_frames=num_video_frames, image_only_indicator=image_only_indicator)
+        if self.middle_block is not None:
+            h = forward_timestep_embed(self.middle_block, h, emb, context, transformer_options, time_context=time_context, num_video_frames=num_video_frames, image_only_indicator=image_only_indicator)
         h = apply_control(h, control, 'middle')
 
 

@@ -371,7 +371,6 @@ class SVD_img2vid(BaseModel):
         if "time_conditioning" in kwargs:
             out["time_context"] = conds.CONDCrossAttn(kwargs["time_conditioning"])
 
-        out['image_only_indicator'] = conds.CONDConstant(torch.zeros((1,), device=device))
         out['num_video_frames'] = conds.CONDConstant(noise.shape[0])
         return out
 

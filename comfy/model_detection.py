@@ -151,8 +151,10 @@ def detect_unet_config(state_dict, key_prefix):
     channel_mult.append(last_channel_mult)
     if "{}middle_block.1.proj_in.weight".format(key_prefix) in state_dict_keys:
         transformer_depth_middle = count_blocks(state_dict_keys, '{}middle_block.1.transformer_blocks.'.format(key_prefix) + '{}')
-    else:
+    elif "{}middle_block.0.in_layers.0.weight".format(key_prefix) in state_dict_keys:
         transformer_depth_middle = -1
+    else:
+        transformer_depth_middle = -2
 
     unet_config["in_channels"] = in_channels
     unet_config["out_channels"] = out_channels
@@ -242,6 +244,7 @@ def unet_config_from_diffusers_unet(state_dict, dtype=None):
     down_blocks = count_blocks(state_dict, "down_blocks.{}")
     for i in range(down_blocks):
         attn_blocks = count_blocks(state_dict, "down_blocks.{}.attentions.".format(i) + '{}')
+        res_blocks = count_blocks(state_dict, "down_blocks.{}.resnets.".format(i) + '{}')
         for ab in range(attn_blocks):
             transformer_count = count_blocks(state_dict, "down_blocks.{}.attentions.{}.transformer_blocks.".format(i, ab) + '{}')
             transformer_depth.append(transformer_count)
@@ -250,8 +253,8 @@ def unet_config_from_diffusers_unet(state_dict, dtype=None):
 
         attn_res *= 2
         if attn_blocks == 0:
-            transformer_depth.append(0)
-            transformer_depth.append(0)
+            for i in range(res_blocks):
+                transformer_depth.append(0)
 
     match["transformer_depth"] = transformer_depth
 
@@ -329,7 +332,19 @@ def unet_config_from_diffusers_unet(state_dict, dtype=None):
               'channel_mult': [1, 2, 4], 'transformer_depth_middle': -1, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
               'use_temporal_attention': False, 'use_temporal_resblock': False}
 
-    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint, SSD_1B, Segmind_Vega]
+    KOALA_700M = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
+              'num_classes': 'sequential', 'adm_in_channels': 2816, 'dtype': dtype, 'in_channels': 4, 'model_channels': 320,
+              'num_res_blocks': [1, 1, 1], 'transformer_depth': [0, 2, 5], 'transformer_depth_output': [0, 0, 2, 2, 5, 5],
+              'channel_mult': [1, 2, 4], 'transformer_depth_middle': -2, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
+              'use_temporal_attention': False, 'use_temporal_resblock': False}
+
+    KOALA_1B = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
+              'num_classes': 'sequential', 'adm_in_channels': 2816, 'dtype': dtype, 'in_channels': 4, 'model_channels': 320,
+              'num_res_blocks': [1, 1, 1], 'transformer_depth': [0, 2, 6], 'transformer_depth_output': [0, 0, 2, 2, 6, 6],
+              'channel_mult': [1, 2, 4], 'transformer_depth_middle': 6, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
+              'use_temporal_attention': False, 'use_temporal_resblock': False}
+
+    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint, SSD_1B, Segmind_Vega, KOALA_700M, KOALA_1B]
 
     for unet_config in supported_models:
         matches = True

@@ -240,9 +240,9 @@ def convert_text_enc_state_dict_v20(text_enc_dict, prefix=""):
         text_proj = "transformer.text_projection.weight"
         if k.endswith(text_proj):
             new_state_dict[k.replace(text_proj, "text_projection")] = v.transpose(0, 1).contiguous()
-
-        relabelled_key = textenc_pattern.sub(lambda m: protected[re.escape(m.group(0))], k)
-        new_state_dict[relabelled_key] = v
+        else:
+            relabelled_key = textenc_pattern.sub(lambda m: protected[re.escape(m.group(0))], k)
+            new_state_dict[relabelled_key] = v
 
     for k_pre, tensors in capture_qkv_weight.items():
         if None in tensors:
