@@ -1,6 +1,3 @@
-import signal
-import sys
-
 from .. import options
 
 options.enable_args_parsing()
@@ -10,6 +7,7 @@ import importlib.util
 
 from ..cmd import cuda_malloc
 from ..cmd import folder_paths
+from .extra_model_paths import load_extra_path_config
 from ..analytics.analytics import initialize_event_tracking
 import time
 
@@ -78,8 +76,6 @@ if args.deterministic:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
 
 from .. import utils
-import yaml
-from contextlib import AsyncExitStack
 
 from ..cmd import execution
 from ..cmd import server as server_module
@@ -170,27 +166,6 @@ def cleanup_temp():
     except NameError:
         # __file__ was not defined
         pass
-
-
-def load_extra_path_config(yaml_path):
-    with open(yaml_path, 'r') as stream:
-        config = yaml.safe_load(stream)
-    for c in config:
-        conf = config[c]
-        if conf is None:
-            continue
-        base_path = None
-        if "base_path" in conf:
-            base_path = conf.pop("base_path")
-        for x in conf:
-            for y in conf[x].split("\n"):
-                if len(y) == 0:
-                    continue
-                full_path = y
-                if base_path is not None:
-                    full_path = os.path.join(base_path, full_path)
-                print("Adding extra search path", x, full_path)
-                folder_paths.add_model_folder_path(x, full_path)
 
 
 def cuda_malloc_warning():

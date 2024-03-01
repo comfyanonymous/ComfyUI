@@ -1,6 +1,8 @@
 import asyncio
+import itertools
 import os
 
+from .extra_model_paths import load_extra_path_config
 from .. import options
 
 options.enable_args_parsing()
@@ -44,6 +46,10 @@ async def main():
         from ..cmd import folder_paths
 
         folder_paths.set_temp_directory(temp_dir)
+
+    if args.extra_model_paths_config:
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            load_extra_path_config(config_path)
 
     from ..distributed.distributed_prompt_worker import DistributedPromptWorker
     async with DistributedPromptWorker(connection_uri=args.distributed_queue_connection_uri,
