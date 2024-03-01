@@ -41,6 +41,7 @@ class DifferentialDiffusion():
         self.sigmas_min = self.sigmas.min()
         self.sigmas_max = self.sigmas.max()
         self.thresholds = torch.linspace(1, 0, self.sigmas.shape[0], dtype=sigma.dtype, device=sigma.device)
+        self.thresholds_min_len = self.thresholds.shape[0] - 1
         if self.valid_sigmas:
             thresholds = self.thresholds[:-1].reshape(-1, 1, 1, 1, 1)
             mask = denoise_mask.unsqueeze(0)
@@ -55,12 +56,11 @@ class DifferentialDiffusion():
                 return next(self.mask_i)
             except StopIteration:
                 self.valid_sigmas = False
-        nearest_idx = (self.sigmas - sigma[0]).abs().argmin()
-        tlen = self.thresholds.shape[0] - 1
-        if tlen > nearest_idx:
+        if self.thresholds_min_len > 1:
+            nearest_idx = (self.sigmas - sigma[0]).abs().argmin()
+            if not self.thresholds_min_len > nearest_idx:
+                nearest_idx = -2
             threshold = self.thresholds[nearest_idx]
-        elif tlen > 1:
-            threshold = self.thresholds[-2]
         else:
             threshold = (sigma[0] - self.sigmas_min) / (self.sigmas_max - self.sigmas_min)
         return (denoise_mask >= threshold).to(denoise_mask.dtype)
