@@ -167,6 +167,10 @@ class BaseModel(torch.nn.Module):
         if cross_attn_cnet is not None:
             out['crossattn_controlnet'] = comfy.conds.CONDCrossAttn(cross_attn_cnet)
 
+        c_concat = kwargs.get("noise_concat", None)
+        if c_concat is not None:
+            out['c_concat'] = comfy.conds.CONDNoiseShape(data)
+
         return out
 
     def load_model_weights(self, sd, unet_prefix=""):
