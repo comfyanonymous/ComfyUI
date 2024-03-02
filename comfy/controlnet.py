@@ -287,13 +287,13 @@ class ControlLora(ControlNet):
         for k in sd:
             weight = sd[k]
             try:
-                comfy.utils.set_attr(self.control_model, k, weight)
+                comfy.utils.set_attr_param(self.control_model, k, weight)
             except:
                 pass
 
         for k in self.control_weights:
             if k not in {"lora_controlnet"}:
-                comfy.utils.set_attr(self.control_model, k, self.control_weights[k].to(dtype).to(comfy.model_management.get_torch_device()))
+                comfy.utils.set_attr_param(self.control_model, k, self.control_weights[k].to(dtype).to(comfy.model_management.get_torch_device()))
 
     def copy(self):
         c = ControlLora(self.control_weights, global_average_pooling=self.global_average_pooling)
