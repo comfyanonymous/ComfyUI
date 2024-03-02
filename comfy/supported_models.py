@@ -163,7 +163,13 @@ class SDXL(supported_models_base.BASE):
     latent_format = latent_formats.SDXL
 
     def model_type(self, state_dict, prefix=""):
-        if "v_pred" in state_dict:
+        if 'edm_mean' in state_dict and 'edm_std' in state_dict: #Playground V2.5
+            self.latent_format = latent_formats.SDXL_Playground_2_5()
+            self.sampling_settings["sigma_data"] = 0.5
+            self.sampling_settings["sigma_max"] = 80.0
+            self.sampling_settings["sigma_min"] = 0.002
+            return model_base.ModelType.EDM
+        elif "v_pred" in state_dict:
             return model_base.ModelType.V_PREDICTION
         else:
             return model_base.ModelType.EPS
@@ -223,6 +229,26 @@ class Segmind_Vega(SDXL):
         "model_channels": 320,
         "use_linear_in_transformer": True,
         "transformer_depth": [0, 0, 1, 1, 2, 2],
+        "context_dim": 2048,
+        "adm_in_channels": 2816,
+        "use_temporal_attention": False,
+    }
+
+class KOALA_700M(SDXL):
+    unet_config = {
+        "model_channels": 320,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [0, 2, 5],
+        "context_dim": 2048,
+        "adm_in_channels": 2816,
+        "use_temporal_attention": False,
+    }
+
+class KOALA_1B(SDXL):
+    unet_config = {
+        "model_channels": 320,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [0, 2, 6],
         "context_dim": 2048,
         "adm_in_channels": 2816,
         "use_temporal_attention": False,
@@ -374,5 +400,5 @@ class Stable_Cascade_B(Stable_Cascade_C):
         return out
 
 
-models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B]
+models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B]
 models += [SVD_img2vid]
