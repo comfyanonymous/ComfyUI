@@ -176,10 +176,10 @@ class ModelPatcher:
 
     def patch_model(self, device_to=None, patch_weights=True):
         for k in self.object_patches:
-            old = getattr(self.model, k)
+            old = comfy.utils.get_attr(self.model, k)
             if k not in self.object_patches_backup:
                 self.object_patches_backup[k] = old
-            setattr(self.model, k, self.object_patches[k])
+            comfy.utils.set_attr(self.model, k, self.object_patches[k])
 
         if patch_weights:
             model_sd = self.model_state_dict()
@@ -352,6 +352,6 @@ class ModelPatcher:
 
         keys = list(self.object_patches_backup.keys())
         for k in keys:
-            setattr(self.model, k, self.object_patches_backup[k])
+            comfy.utils.set_attr(self.model, k, self.object_patches_backup[k])
 
         self.object_patches_backup = {}
