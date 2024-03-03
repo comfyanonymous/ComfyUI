@@ -3,10 +3,13 @@ einops
 ftfy
 fvcore
 lpips
+numba
+onnxruntime
 Pillow
 psutil
 pyyaml
 safetensors>=0.3.0
+scikit-image
 scipy
 torch
 torchsde
