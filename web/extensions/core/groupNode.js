@@ -142,6 +142,7 @@ export class GroupNodeConfig {
 		this.inputCount = 0;
 		this.oldToNewOutputMap = {};
 		this.newToOldOutputMap = {};
+		this.newToOldInputMap = {};
 		this.oldToNewInputMap = {};
 		this.oldToNewWidgetMap = {};
 		this.newToOldWidgetMap = {};
@@ -438,6 +439,8 @@ export class GroupNodeConfig {
 			
 			this.nodeDef.input.required[name] = config;
 			inputMap[i] = this.inputCount++;
+
+			this.newToOldInputMap[name] = [node.index, inputName];
 		}
 	}
 
@@ -647,44 +650,41 @@ export class GroupNodeHandler {
 		};
 
 		this.node.updateLink = (link) => {
-			// Replace the group node reference with the internal node
-			link = { ...link };
-			const output = this.groupData.newToOldOutputMap[link.origin_slot];
-			let innerNode = this.innerNodes[output.node.index];
-			let l;
-			while (innerNode?.type === "Reroute") {
-				l = innerNode.getInputLink(0);
-				innerNode = innerNode.getInputNode(0);
-			}
-
-			if (!innerNode) {
-				return null;
-			}
-
-			if (l && GroupNodeHandler.isGroupNode(innerNode)) {
-				return innerNode.updateLink(l);
-			}
-
-			link.origin_id = innerNode.id;
-			link.origin_slot = l?.origin_slot ?? output.slot;
-			return link;
+			// // Replace the group node reference with the internal node
+			// link = { ...link };
+			// const output = this.groupData.newToOldOutputMap[link.origin_slot];
+			// let innerNode = this.innerNodes[output.node.index];
+			// let l;
+			// while (innerNode?.type === "Reroute") {
+			// 	l = innerNode.getInputLink(0);
+			// 	innerNode = innerNode.getInputNode(0);
+			// }
+			// if (!innerNode) {
+			// 	return null;
+			// }
+			// if (l && GroupNodeHandler.isGroupNode(innerNode)) {
+			// 	return innerNode.updateLink(l);
+			// }
+			// link.origin_id = innerNode.id;
+			// link.origin_slot = l?.origin_slot ?? output.slot;
+			// return link;
 		};
 
 		this.node.getInnerNodes = () => {
-			if (!this.innerNodes) {
-				this.node.setInnerNodes(
-					this.groupData.nodeData.nodes.map((n, i) => {
-						const innerNode = LiteGraph.createNode(n.type);
-						innerNode.configure(n);
-						innerNode.id = `${this.node.id}:${i}`;
-						return innerNode;
-					})
-				);
-			}
+			// if (!this.innerNodes) {
+			// 	this.node.setInnerNodes(
+			// 		this.groupData.nodeData.nodes.map((n, i) => {
+			// 			const innerNode = LiteGraph.createNode(n.type);
+			// 			innerNode.configure(n);
+			// 			innerNode.id = `${this.node.id}:${i}`;
+			// 			return innerNode;
+			// 		})
+			// 	);
+			// }
 
-			this.updateInnerWidgets();
+			// this.updateInnerWidgets();
 
-			return this.innerNodes;
+			return [this.node];
 		};
 
 		this.node.recreate = async () => {
@@ -884,7 +884,7 @@ export class GroupNodeHandler {
 			const r = onDrawForeground?.apply?.(this, arguments);
 			if (+app.runningNodeId === this.id && this.runningInternalNodeId !== null) {
 				const n = groupData.nodes[this.runningInternalNodeId];
-				if(!n) return;
+				if (!n) return;
 				const message = `Running ${n.title || n.type} (${this.runningInternalNodeId}/${groupData.nodes.length})`;
 				ctx.save();
 				ctx.font = "12px sans-serif";
@@ -1252,6 +1252,66 @@ const ext = {
 	name: id,
 	setup() {
 		addConvertToGroupOptions();
+
+		const graphToPrompt = app.graphToPrompt;
+		app.graphToPrompt = async function () {
+			const graph = arguments[0] ?? app.graph;
+			const prompt = await graphToPrompt.apply(this, [graph, false]);
+
+			for (const nodeId in prompt.output) {
+				const node = graph.getNodeById(nodeId);
+				if (GroupNodeHandler.isGroupNode(node)) {
+					const groupData = GroupNodeHandler.getGroupData(node);
+					const innerGraph = new LGraph();
+					const canvas = new LGraphCanvas(null, innerGraph, { skip_events: true, skip_render: true });
+
+					const old = localStorage.getItem("litegrapheditor_clipboard");
+					localStorage.setItem("litegrapheditor_clipboard", JSON.stringify(groupData.nodeData));
+					canvas.pasteFromClipboard();
+					localStorage.setItem("litegrapheditor_clipboard", old);
+
+					// Add internal nodes to output
+					const innerPrompt = await app.graphToPrompt(innerGraph, false);
+					for (const innerNodeId in innerPrompt.output) {
+						const p = (prompt.output[`${nodeId}:${innerNodeId}`] = innerPrompt.output[innerNodeId]);
+						if (!p.inputs) continue;
+						for (const inputId in p.inputs) {
+							const input = p.inputs[inputId];
+							if (input instanceof Array) {
+								// Rewrite IDs
+								p.inputs[inputId][0] = `${nodeId}:${input[0]}`;
+							}
+						}
+					}
+
+					for (const inputId in prompt.output[nodeId].inputs ?? {}) {
+						const input = prompt.output[nodeId].inputs[inputId];
+						if (!(input instanceof Array)) continue;
+						const mapping = groupData.newToOldInputMap[inputId];
+						const toSlot = groupData.nodeData.nodes[mapping[0]].inputs.findIndex((inp) => inp.name === mapping[1]);
+						debugger;
+						const toNode = `${nodeId}:${mapping[0]}`;
+						prompt.output[toNode].inputs ??= {};
+						prompt.output[toNode].inputs[toSlot] = input;
+					}
+
+					for (let i = 0; i < node.outputs?.length; i++) {
+						const output = node.outputs[i];
+						if (!output.links) continue;
+						for (const linkId of output.links) {
+							const link = graph.links[linkId];
+							const targetNode = graph.getNodeById(link.target_id);
+							const input = (prompt.output[link.target_id].inputs ??= {});
+							const mapping = groupData.newToOldOutputMap[i];
+							input[targetNode.inputs[link.target_slot].name] = [`${nodeId}:${mapping.node.index + 1}`, mapping.slot];
+						}
+					}
+					delete prompt.output[nodeId];
+				}
+			}
+
+			return prompt;
+		};
 	},
 	async beforeConfigureGraph(graphData, missingNodeTypes) {
 		const nodes = graphData?.extra?.groupNodes;
@@ -1275,7 +1335,7 @@ const ext = {
 		if (nodes) {
 			await GroupNodeConfig.registerFromWorkflow(nodes, {});
 		}
-	}
+	},
 };
 
 app.registerExtension(ext);

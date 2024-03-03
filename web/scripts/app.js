@@ -8,6 +8,7 @@ import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js";
 import { ComfyAppMenu } from "./ui/menu/index.js";
 import { getStorageValue, setStorageValue } from "./utils.js";
+import { ComfyWorkflow } from "./workflows.js";
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview";
 
 function sanitizeNodeName(string) {
@@ -41,30 +42,6 @@ export class ComfyApp {
 	 */
 	#processingQueue = false;
 
-	/**	The name of the current workflow
-	 * @type { string | null }
-	 */
-	#currentWorkflow = null;
-
-	/**
-	 * Content Clipboard
-	 * @type {serialized node object}
-	 */
-	static clipspace = null;
-	static clipspace_invalidate_handler = null;
-	static open_maskeditor = null;
-	static clipspace_return_node = null;
-
-	get currentWorkflow() {
-		return this.#currentWorkflow;
-	}
-
-	set currentWorkflow(value) {
-		this.#currentWorkflow = value ?? null;
-		api.dispatchEvent(new CustomEvent("workflowChanged", { detail: value ?? null }));
-		setStorageValue("Comfy.LastWorkflow", value ?? "");
-	}
-
 	/**
 	 * Content Clipboard
 	 * @type {serialized node object}
@@ -77,6 +54,7 @@ export class ComfyApp {
 	constructor() {
 		this.ui = new ComfyUI(this);
 		this.logging = new ComfyLogging(this);
+		ComfyWorkflow.init(this);
 		new ComfyAppMenu(this);
 
 		/**
@@ -1755,9 +1733,9 @@ export class ComfyApp {
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
-	 * @param { string } name The name of the workflow
+	 * @param { import("./workflows.js").ComfyWorkflow | string | null } name The workflow
 	 */
-	async loadGraphData(graphData, clean = true, name = null) {
+	async loadGraphData(graphData, clean = true, workflow = null) {
 		if (clean !== false) {
 			this.clean();
 		}
@@ -1776,7 +1754,11 @@ export class ComfyApp {
 			graphData = structuredClone(graphData);
 		}
 
-		this.currentWorkflow = name;
+		if (workflow) {
+			ComfyWorkflow.changeWorkflow(workflow);
+		} else {
+			ComfyWorkflow.newWorkflow();
+		}
 
 		const missingNodeTypes = [];
 		await this.#invokeExtensionsAsync("beforeConfigureGraph", graphData, missingNodeTypes);
@@ -1888,8 +1870,8 @@ export class ComfyApp {
 	 * Converts the current graph workflow for sending to the API
 	 * @returns The workflow and node links
 	 */
-	async graphToPrompt() {
-		for (const outerNode of this.graph.computeExecutionOrder(false)) {
+	async graphToPrompt(graph = this.graph, clean = true) {
+		for (const outerNode of graph.computeExecutionOrder(false)) {
 			if (outerNode.widgets) {
 				for (const widget of outerNode.widgets) {
 					// Allow widgets to run callbacks before a prompt has been queued
@@ -1909,10 +1891,10 @@ export class ComfyApp {
 			}
 		}
 
-		const workflow = this.graph.serialize();
+		const workflow = graph.serialize();
 		const output = {};
 		// Process nodes in order of execution
-		for (const outerNode of this.graph.computeExecutionOrder(false)) {
+		for (const outerNode of graph.computeExecutionOrder(false)) {
 			const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
 			const innerNodes = (!skipNode && outerNode.getInnerNodes) ? outerNode.getInnerNodes() : [outerNode];
 			for (const node of innerNodes) {
@@ -2004,13 +1986,14 @@ export class ComfyApp {
 		}
 
 		// Remove inputs connected to removed nodes
-
-		for (const o in output) {
-			for (const i in output[o].inputs) {
-				if (Array.isArray(output[o].inputs[i])
-					&& output[o].inputs[i].length === 2
-					&& !output[output[o].inputs[i][0]]) {
-					delete output[o].inputs[i];
+		if(clean) {
+			for (const o in output) {
+				for (const i in output[o].inputs) {
+					if (Array.isArray(output[o].inputs[i])
+						&& output[o].inputs[i].length === 2
+						&& !output[output[o].inputs[i][0]]) {
+						delete output[o].inputs[i];
+					}
 				}
 			}
 		}

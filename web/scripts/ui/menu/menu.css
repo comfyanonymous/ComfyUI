@@ -299,7 +299,7 @@
 	direction: rtl;
 	flex: auto;
 	position: relative;
-	width: 120px;
+	width: 130px;
 }
 
 .comfyui-workflows-button.unsaved .comfyui-workflows-label {
@@ -353,9 +353,10 @@
 	color: var(--primary-fg);
 }
 
-.comfyui-workflows-favorites {
+.comfyui-workflows-favorites, .comfyui-workflows-open {
 	border-bottom: 1px solid var(--comfy-input-bg);
 	padding-bottom: 5px;
+	margin-bottom: 5px;
 }
 
 .comfyui-workflows-favorites:empty {
@@ -364,7 +365,6 @@
 
 .comfyui-workflows-tree {
 	padding: 0;
-	padding-top: 5px;
 	margin: 0;
 }
 

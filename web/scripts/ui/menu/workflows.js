@@ -6,6 +6,24 @@ import { $el } from "../../ui.js";
 import { api } from "../../api.js";
 import { ComfyPopup } from "../components/popup.js";
 import { createSpinner } from "../spinner.js";
+import { ComfyWorkflow } from "../../workflows.js";
+
+function reactive(html) {
+
+}
+
+reactive(`
+	<div>
+		<header>
+			<comfy-button icon="plus" text="New Workflow" onclick="newWorkflow" />
+		</header>
+		<section>
+			<h3>Open Workflows</h3>
+			<div $if="hasWorkflows">
+		</section>
+	</div>
+`)
+
 
 function trimJsonExt(name) {
 	return name.replace(/\.json$/, "");
@@ -27,17 +45,18 @@ export class ComfyWorkflowsMenu {
 
 		let ignoreChange = false;
 		let first = true;
-		api.addEventListener("workflowChanged", ({ detail }) => {
-			if (detail) {
-				this.unsaved = first ? getStorageValue("Comfy.LastWorkflowUnsaved") === "true" : false;
-				this.currentWorkflow = detail;
-			} else {
-				this.unsaved = true;
-				this.currentWorkflow = "Unsaved workflow";
-			}
-			first = false;
-			ignoreChange = true;
-			setTimeout(() => (ignoreChange = false), 5);
+		api.addEventListener("workflowsChanged", ({ detail }) => {
+			this.currentWorkflow = ComfyWorkflow.activeWorkflow.displayName;
+			console.log(detail);
+			// if (detail) {
+			// 	this.unsaved = first ? getStorageValue("Comfy.LastWorkflowUnsaved") === "true" : false;
+			// } else {
+			// 	this.unsaved = true;
+			// }
+			// first = false;
+			// ignoreChange = true;
+			// setTimeout(() => (ignoreChange = false), 5);
+			// this.content.updateOpenElement();
 		});
 
 		api.addEventListener("graphChanged", () => {
@@ -63,7 +82,8 @@ export class ComfyWorkflowsMenu {
 		this.element.append(this.button.element);
 
 		this.popup = new ComfyPopup({ target: this.element, classList: "comfyui-workflows-popup" });
-		this.popup.children = [new ComfyWorkflowsContent(app, this.popup).element];
+		this.content = new ComfyWorkflowsContent(app, this.popup);
+		this.popup.children = [this.content.element];
 		this.popup.addEventListener("change", () => {
 			this.button.icon = "chevron-" + (this.popup.open ? "up" : "down");
 		});
@@ -108,7 +128,7 @@ export class ComfyWorkflowsMenu {
 		const res = await api.storeUserData("workflows/" + filename, json, { stringify: false, throwOnError: false, overwrite });
 		if (res.status === 409) {
 			if (!confirm(`Workflow '${filename}' already exists, do you want to overwrite it?`)) return;
-			await api.storeUserData("workflows/" + filename, json, { stringify: false, });
+			await api.storeUserData("workflows/" + filename, json, { stringify: false });
 		}
 
 		this.unsaved = false;
@@ -170,12 +190,43 @@ export class ComfyWorkflowsContent {
 	async load() {
 		const tree = await this.createTreeElement();
 		this.updateFavoritesElement();
-		this.element.replaceChildren(this.actions, this.favoritesElement, tree);
+		this.updateOpenElement();
+		this.element.replaceChildren(this.actions, this.openElement, this.favoritesElement, tree);
+	}
+
+	updateOpenElement() {
+		const current = this.openElement;
+
+		this.openElement = $el(
+			"div.comfyui-workflows-open",
+			[$el("h3", "Open Workflows"), ...ComfyWorkflow.openWorkflows.map((w) => {
+				const res = new FileNode(
+					this,
+					w.displayName,
+					w.displayName,
+					"div",
+					(f) => {
+						// entry.isFavorite = f;
+						// entry.updateFavorite();
+						// this.updateFavoritesElement();
+					},
+					() => {
+						// res.element.remove();
+						// entry.remove();
+						return false;
+					}
+				);
+				return res.element;
+			})]
+		);
+
+		if (current) {
+			current.replaceWith(this.openElement);
+		}
 	}
 
 	updateFavoritesElement() {
 		const favorites = [...this.favorites.values()];
-
 		const current = this.favoritesElement;
 
 		this.favoritesElement = $el(
