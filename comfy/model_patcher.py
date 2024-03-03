@@ -67,6 +67,9 @@ class ModelPatcher:
     def set_model_unet_function_wrapper(self, unet_wrapper_function):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
+    def set_model_denoise_mask_function(self, denoise_mask_function):
+        self.model_options["denoise_mask_function"] = denoise_mask_function
+
     def set_model_patch(self, patch, name):
         to = self.model_options["transformer_options"]
         if "patches" not in to:
