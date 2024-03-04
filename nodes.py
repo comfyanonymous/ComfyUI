@@ -1965,7 +1965,20 @@ def init_custom_nodes():
         "nodes_differential_diffusion.py",
     ]
 
+    import_failed = []
     for node_file in extras_files:
-        load_custom_node(os.path.join(extras_dir, node_file))
+        if not load_custom_node(os.path.join(extras_dir, node_file)):
+            import_failed.append(node_file)
 
     load_custom_nodes()
+
+    if len(import_failed) > 0:
+        print("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
+        for node in import_failed:
+            print("IMPORT FAILED: {}".format(node))
+        print("\nThis issue might be caused by missing dependencies.")
+        if args.windows_standalone_build:
+            print("Please run the update script: update/update_comfyui.bat")
+        else:
+            print("Please do a: pip install -r requirements.txt")
+        print()
