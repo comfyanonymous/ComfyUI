@@ -11,6 +11,7 @@ pyyaml
 safetensors>=0.3.0
 scikit-image
 scipy
+six
 torch
 torchsde
 torchvision
