@@ -1,6 +1,7 @@
 import os
 import importlib.util
 from comfy.cli_args import args
+import subprocess
 
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():
@@ -34,7 +35,12 @@ def get_gpu_names():
             return gpu_names
         return enum_display_devices()
     else:
-        return set()
+        gpu_names = set()
+        out = subprocess.check_output(['nvidia-smi', '-L'])
+        for l in out.split(b'\n'):
+            if len(l) > 0:
+                gpu_names.add(l.decode('utf-8').split(' (UUID')[0])
+        return gpu_names
 
 blacklist = {"GeForce GTX TITAN X", "GeForce GTX 980", "GeForce GTX 970", "GeForce GTX 960", "GeForce GTX 950", "GeForce 945M",
                 "GeForce 940M", "GeForce 930M", "GeForce 920M", "GeForce 910M", "GeForce GTX 750", "GeForce GTX 745", "Quadro K620",
