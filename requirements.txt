@@ -4,6 +4,7 @@ ftfy
 fvcore
 lpips
 numba
+omegaconf
 onnxruntime-gpu
 Pillow
 psutil
