@@ -68,7 +68,7 @@ jobs:
             cp -r ComfyUI/.ci/update_windows/* ./update/
             cp -r ComfyUI/.ci/windows_base_files/* ./
 
-            echo "..\python_embeded\python.exe .\update.py ..\ComfyUI\\
+            echo "call update_comfyui.bat nopause
             ..\python_embeded\python.exe -s -m pip install --upgrade --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
             pause" > ./update/update_comfyui_and_python_dependencies.bat
             cd ..

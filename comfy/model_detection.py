@@ -28,8 +28,37 @@ def calculate_transformer_depth(prefix, state_dict_keys, state_dict):
         return last_transformer_depth, context_dim, use_linear_in_transformer, time_stack
     return None
 
-def detect_unet_config(state_dict, key_prefix, dtype):
+def detect_unet_config(state_dict, key_prefix):
     state_dict_keys = list(state_dict.keys())
+
+    if '{}clf.1.weight'.format(key_prefix) in state_dict_keys: #stable cascade
+        unet_config = {}
+        text_mapper_name = '{}clip_txt_mapper.weight'.format(key_prefix)
+        if text_mapper_name in state_dict_keys:
+            unet_config['stable_cascade_stage'] = 'c'
+            w = state_dict[text_mapper_name]
+            if w.shape[0] == 1536: #stage c lite
+                unet_config['c_cond'] = 1536
+                unet_config['c_hidden'] = [1536, 1536]
+                unet_config['nhead'] = [24, 24]
+                unet_config['blocks'] = [[4, 12], [12, 4]]
+            elif w.shape[0] == 2048: #stage c full
+                unet_config['c_cond'] = 2048
+        elif '{}clip_mapper.weight'.format(key_prefix) in state_dict_keys:
+            unet_config['stable_cascade_stage'] = 'b'
+            w = state_dict['{}down_blocks.1.0.channelwise.0.weight'.format(key_prefix)]
+            if w.shape[-1] == 640:
+                unet_config['c_hidden'] = [320, 640, 1280, 1280]
+                unet_config['nhead'] = [-1, -1, 20, 20]
+                unet_config['blocks'] = [[2, 6, 28, 6], [6, 28, 6, 2]]
+                unet_config['block_repeat'] = [[1, 1, 1, 1], [3, 3, 2, 2]]
+            elif w.shape[-1] == 576: #stage b lite
+                unet_config['c_hidden'] = [320, 576, 1152, 1152]
+                unet_config['nhead'] = [-1, 9, 18, 18]
+                unet_config['blocks'] = [[2, 4, 14, 4], [4, 14, 4, 2]]
+                unet_config['block_repeat'] = [[1, 1, 1, 1], [2, 2, 2, 2]]
+
+        return unet_config
 
     unet_config = {
         "use_checkpoint": False,
@@ -45,7 +74,6 @@ def detect_unet_config(state_dict, key_prefix, dtype):
     else:
         unet_config["adm_in_channels"] = None
 
-    unet_config["dtype"] = dtype
     model_channels = state_dict['{}input_blocks.0.0.weight'.format(key_prefix)].shape[0]
     in_channels = state_dict['{}input_blocks.0.0.weight'.format(key_prefix)].shape[1]
 
@@ -123,8 +151,10 @@ def detect_unet_config(state_dict, key_prefix, dtype):
     channel_mult.append(last_channel_mult)
     if "{}middle_block.1.proj_in.weight".format(key_prefix) in state_dict_keys:
         transformer_depth_middle = count_blocks(state_dict_keys, '{}middle_block.1.transformer_blocks.'.format(key_prefix) + '{}')
-    else:
+    elif "{}middle_block.0.in_layers.0.weight".format(key_prefix) in state_dict_keys:
         transformer_depth_middle = -1
+    else:
+        transformer_depth_middle = -2
 
     unet_config["in_channels"] = in_channels
     unet_config["out_channels"] = out_channels
@@ -159,8 +189,8 @@ def model_config_from_unet_config(unet_config):
     print("no match", unet_config)
     return None
 
-def model_config_from_unet(state_dict, unet_key_prefix, dtype, use_base_if_no_match=False):
-    unet_config = detect_unet_config(state_dict, unet_key_prefix, dtype)
+def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False):
+    unet_config = detect_unet_config(state_dict, unet_key_prefix)
     model_config = model_config_from_unet_config(unet_config)
     if model_config is None and use_base_if_no_match:
         return comfy.supported_models_base.BASE(unet_config)
@@ -206,7 +236,7 @@ def convert_config(unet_config):
     return new_config
 
 
-def unet_config_from_diffusers_unet(state_dict, dtype):
+def unet_config_from_diffusers_unet(state_dict, dtype=None):
     match = {}
     transformer_depth = []
 
@@ -214,6 +244,7 @@ def unet_config_from_diffusers_unet(state_dict, dtype):
     down_blocks = count_blocks(state_dict, "down_blocks.{}")
     for i in range(down_blocks):
         attn_blocks = count_blocks(state_dict, "down_blocks.{}.attentions.".format(i) + '{}')
+        res_blocks = count_blocks(state_dict, "down_blocks.{}.resnets.".format(i) + '{}')
         for ab in range(attn_blocks):
             transformer_count = count_blocks(state_dict, "down_blocks.{}.attentions.{}.transformer_blocks.".format(i, ab) + '{}')
             transformer_depth.append(transformer_count)
@@ -222,8 +253,8 @@ def unet_config_from_diffusers_unet(state_dict, dtype):
 
         attn_res *= 2
         if attn_blocks == 0:
-            transformer_depth.append(0)
-            transformer_depth.append(0)
+            for i in range(res_blocks):
+                transformer_depth.append(0)
 
     match["transformer_depth"] = transformer_depth
 
@@ -301,7 +332,19 @@ def unet_config_from_diffusers_unet(state_dict, dtype):
               'channel_mult': [1, 2, 4], 'transformer_depth_middle': -1, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
               'use_temporal_attention': False, 'use_temporal_resblock': False}
 
-    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint, SSD_1B, Segmind_Vega]
+    KOALA_700M = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
+              'num_classes': 'sequential', 'adm_in_channels': 2816, 'dtype': dtype, 'in_channels': 4, 'model_channels': 320,
+              'num_res_blocks': [1, 1, 1], 'transformer_depth': [0, 2, 5], 'transformer_depth_output': [0, 0, 2, 2, 5, 5],
+              'channel_mult': [1, 2, 4], 'transformer_depth_middle': -2, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
+              'use_temporal_attention': False, 'use_temporal_resblock': False}
+
+    KOALA_1B = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False,
+              'num_classes': 'sequential', 'adm_in_channels': 2816, 'dtype': dtype, 'in_channels': 4, 'model_channels': 320,
+              'num_res_blocks': [1, 1, 1], 'transformer_depth': [0, 2, 6], 'transformer_depth_output': [0, 0, 2, 2, 6, 6],
+              'channel_mult': [1, 2, 4], 'transformer_depth_middle': 6, 'use_linear_in_transformer': True, 'context_dim': 2048, 'num_head_channels': 64,
+              'use_temporal_attention': False, 'use_temporal_resblock': False}
+
+    supported_models = [SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint, SSD_1B, Segmind_Vega, KOALA_700M, KOALA_1B]
 
     for unet_config in supported_models:
         matches = True
@@ -313,8 +356,8 @@ def unet_config_from_diffusers_unet(state_dict, dtype):
             return convert_config(unet_config)
     return None
 
-def model_config_from_diffusers_unet(state_dict, dtype):
-    unet_config = unet_config_from_diffusers_unet(state_dict, dtype)
+def model_config_from_diffusers_unet(state_dict):
+    unet_config = unet_config_from_diffusers_unet(state_dict)
     if unet_config is not None:
         return model_config_from_unet_config(unet_config)
     return None
