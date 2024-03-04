@@ -379,7 +379,8 @@ class PromptExecutor:
 
             while len(to_execute) > 0:
                 #always execute the output that depends on the least amount of unexecuted nodes first
-                output_node_id = min(to_execute, key=lambda a: len(recursive_will_execute(prompt, self.outputs, a, {})))
+                memo = {}
+                output_node_id = min(to_execute, key=lambda a: len(recursive_will_execute(prompt, self.outputs, a, memo)))
                 to_execute.remove(output_node_id)
 
                 # This call shouldn't raise anything if there's an error deep in
