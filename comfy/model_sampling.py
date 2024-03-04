@@ -16,8 +16,8 @@ class EPS:
             noise = noise * torch.sqrt(1.0 + sigma ** 2.0)
         else:
             noise = noise * sigma
-        if latent_image is not None:
-            noise += latent_image
+
+        noise += latent_image
         return noise
 
 class V_PREDICTION(EPS):
