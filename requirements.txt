@@ -1,7 +1,11 @@
 aiohttp
+attrs
+certifi
 einops
+filelock
 ftfy
 fvcore
+idna
 lpips
 numba
 onnxruntime
