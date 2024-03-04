@@ -27,7 +27,7 @@ class DifferentialDiffusion():
 
         ts_from = model.inner_model.model_sampling.timestep(sigma_from)
         ts_to = model.inner_model.model_sampling.timestep(sigma_to)
-        current_ts = model.inner_model.model_sampling.timestep(sigma)
+        current_ts = model.inner_model.model_sampling.timestep(sigma[0])
 
         threshold = (current_ts - ts_to) / (ts_from - ts_to)
 
