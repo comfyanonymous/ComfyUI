@@ -10,7 +10,7 @@ manager_path = os.path.join(custom_node_path, "ComfyUI-Manager")
 def process_json(file_path):
     if (os.path.exists(file_path) == False):
         print("🔴file not found", file_path)
-        gitclone_install("https://github.com/ltdrdata/ComfyUI-Manager", os.path.join(custom_node_path, "ComfyUI-Manager"))
+        gitclone_install(["https://github.com/ltdrdata/ComfyUI-Manager.git"])
     START_FROM = 102
     try:
         with open(file_path, 'r') as file:

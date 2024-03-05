@@ -44,35 +44,6 @@ dynamodb = boto3.resource(
 ddb_node_table = dynamodb.Table(node_table_name)
 ddb_package_table = dynamodb.Table(package_table_name)
 
-def gitclone_install2222(repo_url: str, target_dir: str):
-    print('gitclone_install',repo_url, target_dir)
-    # Save the current working directory
-    # original_cwd = os.getcwd()
-
-    try:
-        # Change the current working directory to custom_node_path
-        # os.chdir(custom_node_path)
-
-        # Running the git clone command
-        process = subprocess.Popen(['git', 'clone', repo_url, target_dir], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-
-        # Reading and printing the output
-        for line in iter(process.stdout.readline, ''):
-            print(line, end='')
-
-        # Wait for the process to complete and get the exit code
-        process.wait()
-        print("📟 installed repo", repo_url)
-        return process.returncode == 0
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return False
-
-    # finally:
-        # Change back to the original directory
-        # os.chdir(original_cwd)
-
 def run_main_py_and_wait(package_data:dict,index: int = 0):
     if os.path.exists(communication_file):
         print("Removing communication file")
