@@ -1,283 +1,273 @@
 // @ts-check
 
 import { api } from "./api.js";
-import { clone } from "./utils.js";
+import { ChangeTracker } from "./changeTracker.js";
+import { getStorageValue, setStorageValue } from "./utils.js";
 
-export class ComfyWorkflow {
-	/** @type { Array<ComfyWorkflow> } */
-	static openWorkflows = [];
-	/** @type {import("./app.js").ComfyApp} */
-	static app;
-	static unsavedCount = 0;
+export class ComfyWorkflowManager extends EventTarget {
+	#unsavedCount = 0;
 
-	unsaved = false;
-	/** @type { string | null } */
-	name = null;
-	/** @type { ChangeTracker } */
-	changeTracker;
-	/** @type { string | null } */
-	tempName = null;
+	/** @type {Array<ComfyWorkflow>} */
+	workflows = [];
+	/** @type {Array<ComfyWorkflow>} */
+	openWorkflows = [];
 
-	get displayName() {
-		return this.name ?? this.tempName;
-	}
-
-	static get activeWorkflow() {
+	get activeWorkflow() {
 		return this.openWorkflows[0];
-	}
-
-	static get changeTracker() {
-		return this.activeWorkflow.changeTracker;
-	}
-
-	/**
-	 * @param {string} [name]
-	 */
-	constructor(name) {
-		this.name = name;
-		if (!name) {
-			this.tempName = "Unsaved workflow";
-			if (ComfyWorkflow.unsavedCount++) {
-				this.tempName += ` (${ComfyWorkflow.unsavedCount})`;
-			}
-		}
-		this.changeTracker = new ChangeTracker(this);
 	}
 
 	/**
 	 * @param {import("./app.js").ComfyApp} app
 	 */
-	static init(app) {
-		ComfyWorkflow.app = app;
+	constructor(app) {
+		super();
+		this.app = app;
 		ChangeTracker.init(app);
 	}
 
-	/**
-	 * 
-	 * @param { Partial<ComfyWorkflow> } opts 
-	 * @returns 
-	 */
-	static newWorkflow(opts = {}) {
-		const workflow = new ComfyWorkflow(opts?.name);
-		Object.assign(workflow, opts);
-		ComfyWorkflow.openWorkflows.unshift(workflow);
-		ComfyWorkflow.#workflowsChanged();
-		return workflow;
-	}
-
-	/**
-	 * @param { ComfyWorkflow | string } workflow
-	 */
-	static changeWorkflow(workflow) {
-		let index;
-		if (typeof workflow === "string") {
-			index = this.openWorkflows.findIndex((w) => w.name === workflow);
-			if (index === -1) {
-				const r = ComfyWorkflow.newWorkflow({ name: workflow });
-				return r;
+	async loadWorkflows() {
+		try {
+			let favorites;
+			const resp = await api.getUserData("workflows/.index.json");
+			let info;
+			if (resp.status === 200) {
+				info = await resp.json();
+				favorites = new Set(info?.favorites ?? []);
 			} else {
-				workflow = this.openWorkflows[index];
+				favorites = new Set();
 			}
-		} else {
-			index = this.openWorkflows.indexOf(workflow);
+
+			const workflows = (await api.listUserData("workflows", true, true)).map((w) => {
+				return new ComfyWorkflow(this, w[0], w.slice(1), favorites.has(w[0]));
+			});
+
+			this.workflows = workflows;
+		} catch (error) {
+			alert("Error loading workflows: " + (error.message ?? error));
+			this.workflows = [];
 		}
-		if (index !== -1) {
-			this.openWorkflows.splice(index, 1);
-		}
-		this.openWorkflows.unshift(workflow);
-		this.#workflowsChanged();
-		return workflow;
+	}
+
+	async saveWorkflowMetadata() {
+		await api.storeUserData("workflows/.index.json", {
+			favorites: [...this.workflows.filter((w) => w.isFavorite).map((w) => w.name)],
+		});
 	}
 
 	/**
-	 * @param { ComfyWorkflow } workflow
+	 * @param {string | ComfyWorkflow | null} workflow
 	 */
-	static closeWorkflow(workflow) {
+	setWorkflow(workflow) {
+		if (workflow && typeof workflow === "string") {
+			// Selected by path, i.e. on reload of last workflow
+			const found = this.workflows.find((w) => w.path === workflow);
+			if (found) {
+				workflow = found;
+				workflow.unsaved = !workflow || (getStorageValue("Comfy.PreviousWorkflowUnsaved") === "true");
+			}
+		}
+
+		if (!(workflow instanceof ComfyWorkflow)) {
+			// Still not found, either reloading a deleted workflow or blank
+			workflow = new ComfyWorkflow(this, workflow || "Unsaved Workflow" + (this.#unsavedCount++ ? ` (${this.#unsavedCount})` : ""));
+		}
+
 		const index = this.openWorkflows.indexOf(workflow);
 		if (index !== -1) {
-			this.openWorkflows.splice(index, 1);
+			// Swapping to an open workflow
+			this.openWorkflows.unshift(this.openWorkflows.splice(index, 1)[0]);
+		} else {
+			// Opening a new workflow
+			this.openWorkflows.unshift(workflow);
 		}
-		ComfyWorkflow.#workflowsChanged();
-	}
 
-	static #workflowsChanged() {
-		console.log("workflowsChanged", this.activeWorkflow?.name, this.openWorkflows.length);
-		api.dispatchEvent(new CustomEvent("workflowsChanged", { detail: this.activeWorkflow }));
+		setStorageValue("Comfy.PreviousWorkflow", this.activeWorkflow.path ?? "");
+		this.dispatchEvent(new CustomEvent("change"));
 	}
 }
 
-export class ChangeTracker {
-	static MAX_HISTORY = 50;
+export class ComfyWorkflow {
+	#name;
+	#path;
+	#pathParts;
+	#isFavorite = false;
+	/** @type {ChangeTracker | null} */
+	changeTracker = null;
+	unsaved = false;
 
-	undo = [];
-	redo = [];
-	activeState = null;
-	isOurLoad = false;
-	/** @type { ComfyWorkflow } */
-	workflow;
-
-	constructor(workflow) {
-		this.workflow = workflow;
+	get name() {
+		return this.#name;
 	}
 
-	checkState() {
-		const currentState = ComfyWorkflow.app.graph.serialize();
-		if (!ChangeTracker.graphEqual(this.activeState, currentState)) {
-			this.undo.push(this.activeState);
-			if (this.undo.length > ChangeTracker.MAX_HISTORY) {
-				this.undo.shift();
-			}
-			this.activeState = clone(currentState);
-			this.redo.length = 0;
-			this.workflow.unsaved = true;
-			api.dispatchEvent(new CustomEvent("graphChanged", { detail: this.activeState }));
+	get path() {
+		return this.#path;
+	}
+
+	get pathParts() {
+		return this.#pathParts;
+	}
+
+	get isFavorite() {
+		return this.#isFavorite;
+	}
+
+	get isOpen() {
+		return !!this.changeTracker;
+	}
+
+	/**
+	 * @overload
+	 * @param {ComfyWorkflowManager} manager
+	 * @param {string} path
+	 */
+	/**
+	 * @overload
+	 * @param {ComfyWorkflowManager} manager
+	 * @param {string} path
+	 * @param {string[]} pathParts
+	 * @param {boolean} isFavorite
+	 */
+	/**
+	 * @param {ComfyWorkflowManager} manager
+	 * @param {string} path
+	 * @param {string[]} [pathParts]
+	 * @param {boolean} [isFavorite]
+	 */
+	constructor(manager, path, pathParts, isFavorite) {
+		this.manager = manager;
+		if (pathParts) {
+			this.#path = path;
+			this.#pathParts = pathParts;
+			this.#name = pathParts[pathParts.length - 1].replace(/\.json$/, "");
+			this.#isFavorite = isFavorite;
+		} else {
+			this.#name = path;
+			this.unsaved = true;
 		}
 	}
 
-	async updateState(source, target) {
-		const prevState = source.pop();
-		if (prevState) {
-			target.push(this.activeState);
-			this.isOurLoad = true;
-			await ComfyWorkflow.app.loadGraphData(prevState, false, this.workflow);
-			this.activeState = prevState;
+	async getWorkflowData() {
+		const resp = await api.getUserData("workflows/" + this.path);
+		if (resp.status !== 200) {
+			alert(`Error loading user data file '${this.path}': ${resp.status} ${resp.statusText}`);
+			return;
+		}
+		return await resp.json();
+	}
+
+	load = async () => {
+		if (this.isOpen) {
+			await this.manager.app.loadGraphData(this.changeTracker.activeState, true, this);
+		} else {
+			const data = await this.getWorkflowData();
+			if (!data) return;
+			await this.manager.app.loadGraphData(data, true, this);
+		}
+	};
+
+	async save() {
+		if (!this.path) {
+			await this.#save(null, false);
+		} else {
+			await this.#save(this.path, true);
 		}
 	}
 
-	async undoRedo(e) {
-		if (e.ctrlKey || e.metaKey) {
-			if (e.key === "y") {
-				this.updateState(this.redo, this.undo);
-				return true;
-			} else if (e.key === "z") {
-				this.updateState(this.undo, this.redo);
-				return true;
-			}
+	/**
+	 * @param {boolean} value
+	 */
+	async favorite(value) {
+		try {
+			await this.manager.saveWorkflowMetadata();
+			this.#isFavorite = value;
+			this.manager.dispatchEvent(new CustomEvent("favorite", { detail: this }));
+		} catch (error) {
+			alert("Error favoriting workflow " + this.name + "\n" + (error.message ?? error));
 		}
 	}
 
-	static init(app) {
-		const loadGraphData = app.loadGraphData;
-		app.loadGraphData = async function () {
-			const v = await loadGraphData.apply(this, arguments);
-			if (ComfyWorkflow.changeTracker.isOurLoad) {
-				ComfyWorkflow.changeTracker.isOurLoad = false;
-			} else {
-				ComfyWorkflow.changeTracker.checkState();
-			}
-			return v;
-		};
+	/**
+	 * @param {string} path
+	 */
+	async rename(path) {
+		let res = await api.moveUserData("workflows/" + this.path, "workflows/" + path);
 
-		let keyIgnored = false;
-		window.addEventListener(
-			"keydown",
-			(e) => {
-				requestAnimationFrame(async () => {
-					let activeEl;
-					// If we are auto queue in change mode then we do want to trigger on inputs
-					if (!app.ui.autoQueueEnabled || app.ui.autoQueueMode === "instant") {
-						activeEl = document.activeElement;
-						if (activeEl?.tagName === "INPUT" || activeEl?.["type"] === "textarea") {
-							// Ignore events on inputs, they have their native history
-							return;
-						}
-					}
+		if (res.status === 409) {
+			if (!confirm(`Workflow '${path}' already exists, do you want to overwrite it?`)) return res;
+			res = await api.moveUserData("workflows/" + this.path, "workflows/" + path, { overwrite: true });
+		}
 
-					keyIgnored = e.key === "Control" || e.key === "Shift" || e.key === "Alt" || e.key === "Meta";
-					if (keyIgnored) return;
-
-					// Check if this is a ctrl+z ctrl+y
-					if (await ComfyWorkflow.changeTracker.undoRedo(e)) return;
-
-					// If our active element is some type of input then handle changes after they're done
-					if (ChangeTracker.bindInput(activeEl)) return;
-					ComfyWorkflow.changeTracker.checkState();
-				});
-			},
-			true
-		);
-
-		window.addEventListener("keyup", (e) => {
-			if (keyIgnored) {
-				keyIgnored = false;
-				ComfyWorkflow.changeTracker.checkState();
-			}
-		});
-
-		// Handle clicking DOM elements (e.g. widgets)
-		window.addEventListener("mouseup", () => {
-			ComfyWorkflow.changeTracker.checkState();
-		});
-
-		// Handle prompt queue event for dynamic widget changes
-		api.addEventListener("promptQueued", () => {
-			ComfyWorkflow.changeTracker.checkState();
-		});
-
-		// Handle litegraph clicks
-		const processMouseUp = LGraphCanvas.prototype.processMouseUp;
-		LGraphCanvas.prototype.processMouseUp = function (e) {
-			const v = processMouseUp.apply(this, arguments);
-			ComfyWorkflow.changeTracker.checkState();
-			return v;
-		};
-		const processMouseDown = LGraphCanvas.prototype.processMouseDown;
-		LGraphCanvas.prototype.processMouseDown = function (e) {
-			const v = processMouseDown.apply(this, arguments);
-			ComfyWorkflow.changeTracker.checkState();
-			return v;
-		};
-
-		// Handle litegraph context menu for COMBO widgets
-		const close = LiteGraph.ContextMenu.prototype.close;
-		LiteGraph.ContextMenu.prototype.close = function (e) {
-			const v = close.apply(this, arguments);
-			ComfyWorkflow.changeTracker.checkState();
-			return v;
-		};
+		this.#updatePath(path);
+		return res;
 	}
 
-	static bindInput(activeEl) {
-		if (activeEl && activeEl.tagName !== "CANVAS" && activeEl.tagName !== "BODY") {
-			for (const evt of ["change", "input", "blur"]) {
-				if (`on${evt}` in activeEl) {
-					const listener = () => {
-						ComfyWorkflow.changeTracker.checkState();
-						activeEl.removeEventListener(evt, listener);
-					};
-					activeEl.addEventListener(evt, listener);
-					return true;
-				}
-			}
+	async insert() {
+		const data = await this.getWorkflowData();
+		if (!data) return;
+
+		const old = localStorage.getItem("litegrapheditor_clipboard");
+		const graph = new LGraph(data);
+		const canvas = new LGraphCanvas(null, graph, { skip_events: true, skip_render: true });
+		canvas.selectNodes();
+		canvas.copyToClipboard();
+		this.manager.app.canvas.pasteFromClipboard();
+		localStorage.setItem("litegrapheditor_clipboard", old);
+	}
+
+	async delete() {
+		if (this.isFavorite) {
+			await this.favorite(false);
+		}
+		await api.deleteUserData(this.path);
+		this.manager.dispatchEvent(new CustomEvent("delete", { detail: this }));
+	}
+
+	track() {
+		if (this.changeTracker) {
+			this.changeTracker.restoreViewport();
+		} else {
+			this.changeTracker = new ChangeTracker(this);
 		}
 	}
 
-	static graphEqual(a, b, root = true) {
-		if (a === b) return true;
+	/**
+	 * @param {string} path
+	 */
+	#updatePath(path) {
+		this.#path = path;
+		if (!path.includes("\\")) {
+			this.#pathParts = path.split("/");
+		} else {
+			this.#pathParts = path.split("\\");
+		}
+		this.manager.dispatchEvent(new CustomEvent("rename", { detail: this }));
+	}
 
-		if (typeof a == "object" && a && typeof b == "object" && b) {
-			const keys = Object.getOwnPropertyNames(a);
-
-			if (keys.length != Object.getOwnPropertyNames(b).length) {
-				return false;
-			}
-
-			for (const key of keys) {
-				let av = a[key];
-				let bv = b[key];
-				if (root && key === "nodes") {
-					// Nodes need to be sorted as the order changes when selecting nodes
-					av = [...av].sort((a, b) => a.id - b.id);
-					bv = [...bv].sort((a, b) => a.id - b.id);
-				}
-				if (!ChangeTracker.graphEqual(av, bv, false)) {
-					return false;
-				}
-			}
-
-			return true;
+	/**
+	 * @param {string|null} path
+	 * @param {boolean} overwrite
+	 */
+	async #save(path, overwrite) {
+		if (!path) {
+			path = prompt("Save workflow as:", this.path ?? "workflow");
+			if (!path) return;
 		}
 
-		return false;
+		if (!path.toLowerCase().endsWith(".json")) {
+			path += ".json";
+		}
+
+		const p = await this.manager.app.graphToPrompt();
+		const json = JSON.stringify(p.workflow, null, 2);
+		const res = await api.storeUserData("workflows/" + path, json, { stringify: false, throwOnError: false, overwrite });
+		if (res.status === 409) {
+			if (!confirm(`Workflow '${path}' already exists, do you want to overwrite it?`)) return;
+			await api.storeUserData("workflows/" + path, json, { stringify: false });
+			this.#updatePath(path);
+		} else if (path === this.path && this.isOpen) {
+			this.unsaved = false;
+			this.manager.dispatchEvent(new CustomEvent("save", { detail: this }));
+		}
 	}
 }
+

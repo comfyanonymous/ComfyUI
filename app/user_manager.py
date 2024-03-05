@@ -130,7 +130,7 @@ class UserManager():
             
             split_path = request.rel_url.query.get('split', '').lower() == "true"
             if split_path:
-                results = [x.split(os.sep) for x in results]
+                results = [[x] + x.split(os.sep) for x in results]
 
             return web.json_response(results)
 

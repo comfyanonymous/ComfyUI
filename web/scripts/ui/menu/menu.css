@@ -292,6 +292,7 @@
 	display: flex;
 	align-items: center;
 	gap: 7px;
+	width: 130px;
 }
 .comfyui-workflows-label {
 	overflow: hidden;
@@ -299,7 +300,6 @@
 	direction: rtl;
 	flex: auto;
 	position: relative;
-	width: 130px;
 }
 
 .comfyui-workflows-button.unsaved .comfyui-workflows-label {

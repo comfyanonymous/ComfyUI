@@ -450,7 +450,7 @@ class ComfyApi extends EventTarget {
 	 * @param { string } dir The directory in which to list files
 	 * @param { boolean } [recurse] If the listing should be recursive
 	 * @param { true } [split] If the paths should be split based on the os path separator
-	 * @returns { Promise<string[][]>> } The list of split file paths
+	 * @returns { Promise<string[][]>> } The list of split file paths in the format [fullPath, ...splitPath]
 	 */
 	/**
 	 * @overload

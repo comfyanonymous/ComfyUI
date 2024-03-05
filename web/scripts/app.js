@@ -8,7 +8,7 @@ import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js";
 import { ComfyAppMenu } from "./ui/menu/index.js";
 import { getStorageValue, setStorageValue } from "./utils.js";
-import { ComfyWorkflow } from "./workflows.js";
+import { ComfyWorkflowManager } from "./workflows.js";
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview";
 
 function sanitizeNodeName(string) {
@@ -54,8 +54,8 @@ export class ComfyApp {
 	constructor() {
 		this.ui = new ComfyUI(this);
 		this.logging = new ComfyLogging(this);
-		ComfyWorkflow.init(this);
-		new ComfyAppMenu(this);
+		this.workflowManager = new ComfyWorkflowManager(this);
+		this.menu = new ComfyAppMenu(this);
 
 		/**
 		 * List of extensions that are registered with the app
@@ -1454,7 +1454,7 @@ export class ComfyApp {
 	 */
 	async setup() {
 		await this.#setUser();
-		await this.ui.settings.load();
+		await Promise.all([this.workflowManager.loadWorkflows(), this.ui.settings.load()]);
 		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
@@ -1506,7 +1506,7 @@ export class ComfyApp {
 			const loadWorkflow = async (json) => {
 				if (json) {
 					const workflow = JSON.parse(json);
-					const workflowName = getStorageValue("Comfy.LastWorkflow");
+					const workflowName = getStorageValue("Comfy.PreviousWorkflow");
 					await this.loadGraphData(workflow, true, workflowName);
 					return true;
 				}
@@ -1729,11 +1729,11 @@ export class ComfyApp {
 		});
 	}
 
-/**
+	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
-	 * @param { import("./workflows.js").ComfyWorkflow | string | null } name The workflow
+	 * @param { import("./workflows.js").ComfyWorkflow | null } name The workflow
 	 */
 	async loadGraphData(graphData, clean = true, workflow = null) {
 		if (clean !== false) {
@@ -1754,10 +1754,15 @@ export class ComfyApp {
 			graphData = structuredClone(graphData);
 		}
 
-		if (workflow) {
-			ComfyWorkflow.changeWorkflow(workflow);
-		} else {
-			ComfyWorkflow.newWorkflow();
+		try {
+			this.workflowManager.activeWorkflow?.changeTracker?.storeViewport()
+		} catch (error) {
+		}
+
+		try {
+			this.workflowManager.setWorkflow(workflow);
+		} catch (error) {
+			console.error(error);
 		}
 
 		const missingNodeTypes = [];
@@ -1777,6 +1782,11 @@ export class ComfyApp {
 
 		try {
 			this.graph.configure(graphData);
+
+			try {
+				this.workflowManager.activeWorkflow?.track()
+			} catch (error) {
+			}
 		} catch (error) {
 			let errorHint = [];
 			// Try extracting filename to see if it was caused by an extension script
