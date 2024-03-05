@@ -11,8 +11,8 @@ import os
 import uuid
 from botocore.exceptions import BotoCoreError, ClientError
 from boto3.dynamodb.conditions import Key
-from githubUtils import clear_except_allowed_folder, get_github_repo_stars
-from manager_copy import gitclone_install, run_script
+from .githubUtils import clear_except_allowed_folder, get_github_repo_stars
+from .manager_copy import gitclone_install, run_script
 
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
@@ -215,39 +215,3 @@ def create_node_dydb(data):
 def delete_installed_node(target_dir: str):
     # Delete the installed node
     shutil.rmtree(target_dir)
-
-def process_json(file_path):
-    if (os.path.exists(file_path) == False):
-        print("🔴file not found", file_path)
-        gitclone_install("https://github.com/ltdrdata/ComfyUI-Manager", os.path.join(custom_node_path, "ComfyUI-Manager"))
-    START_FROM = 102
-    try:
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            for index, node in enumerate(data["custom_nodes"][START_FROM:]):
-                print(f"🗂️🗂️No.{START_FROM + index} files", node['files'])
-                repo = node['reference']
-                if 'github' not in repo:
-                    continue
-                if repo.endswith('.git'):
-                    repo = repo[:-4]
-                if repo.endswith('/'):
-                    repo = repo[:-1]
-                repo_name = repo.split('/')[-1]
-                print('repo name',repo_name)
-                target_dir = os.path.join(custom_node_path, repo_name)
-                git_clone_url = repo + '.git' if not repo.endswith('.git') else repo
-                # gitclone_install( git_clone_url, target_dir)
-                clear_except_allowed_folder(custom_node_path, 'ComfyUI-Manager')
-                gitclone_install([git_clone_url])
-                run_main_py_and_wait({
-                    'reference': repo,
-                    'title': node['title'],
-                    'description': node['description'],
-                    'author': node['author'],
-                },START_FROM + index)
-    except Exception as e:
-        return f"An error occurred: {e}"
-
-
-process_json(os.path.join(manager_path, "custom-node-list.json"))
