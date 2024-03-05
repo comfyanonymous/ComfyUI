@@ -12,7 +12,6 @@ numba
 onnxruntime
 Pillow
 psutil
-psutil
 pyyaml
 safetensors>=0.3.0
 scikit-image
