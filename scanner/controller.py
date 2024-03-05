@@ -13,6 +13,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from boto3.dynamodb.conditions import Key
 from .githubUtils import clear_except_allowed_folder, get_github_repo_stars
 from .manager_copy import gitclone_install, run_script
+from .ddb_utils import create_pacakge_ddb
 
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
@@ -77,11 +78,8 @@ def run_main_py_and_wait(package_data:dict,index: int = 0):
         print("Removing communication file")
         os.remove(communication_file)
     os.chdir(comfy_path)
-    # process = subprocess.Popen(['python', 'main.py'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
         cmd = ['python', 'main.py']  # Use 'python3' instead of 'python' if your system requires it
-
-        # Call the run_script function with the command
         # You can specify the current working directory (cwd) if needed, or use '.' for the current directory
         run_script(cmd, cwd='.')
     
@@ -131,41 +129,7 @@ def packageGitUrlExists(url:str):
         print("A record with the same gitHtmlUrl already exists.")
         return True
     return False
-def create_pacakge_ddb(pacakge_data:dict):
-    repo_url = pacakge_data['reference']
-    title = pacakge_data['title']
-    description = pacakge_data['description']
-    repo_data = get_github_repo_stars(repo_url)
-    owner_avatar_url= repo_data['owner_avatar_url'] if 'owner_avatar_url' in repo_data else None
-    # image_url = repo_data['image_url'] if 'image_url' in repo_data else None
-    star_count = repo_data['stars'] if 'stars' in repo_data else None
-    try:
-        repo_useranme = repo_url.split('/')[-2]
-        repo_name = repo_url.split('/')[-1]
-        # if get_package_ddb(repo_name) is not None:
-        #     repo_name = repo_name + "_" + repo_useranme
-        print("\n⭐️repo_name",repo_name)
-        item = {
-            'id': repo_name,  # Convert UUID to string
-            "authorID": "admin",
-            'gitHtmlUrl': repo_url,
-            # 'gitUsername': repo_useranme,
-            'title': title,
-            'description': description,
-            'ownerGitAvatarUrl': owner_avatar_url,
-            # 'imageUrl': image_url,
-            'totalStars': star_count,
-            'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat()
-        }
-        print('ddb package item created','\n')
-        response = ddb_package_table.put_item(Item=item)
-        return item
 
-    except Exception as e:
-        if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
-            print("A record with the same gitHtmlUrl was inserted concurrently.")
-        print("Error adding package item to DynamoDB:", e)
-        return None
 def get_node_ddb(id:str):
     try:
         response = ddb_node_table.get_item(
