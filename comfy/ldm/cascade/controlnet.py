@@ -86,7 +86,6 @@ class ControlNet(nn.Module):
         self.unshuffle_amount = 8
 
     def forward(self, x):
-        print(x)
         x = self.backbone(x)
         proj_outputs = [None for _ in range(max(self.proj_blocks) + 1)]
         for i, idx in enumerate(self.proj_blocks):
