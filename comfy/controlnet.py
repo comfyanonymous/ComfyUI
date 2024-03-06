@@ -9,6 +9,7 @@ import comfy.ops
 
 import comfy.cldm.cldm
 import comfy.t2i_adapter.adapter
+import comfy.ldm.cascade.controlnet
 
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
@@ -78,6 +79,7 @@ class ControlBase:
         c.strength = self.strength
         c.timestep_percent_range = self.timestep_percent_range
         c.global_average_pooling = self.global_average_pooling
+        c.compression_ratio = self.compression_ratio
 
     def inference_memory_requirements(self, dtype):
         if self.previous_controlnet is not None:
@@ -433,11 +435,12 @@ def load_controlnet(ckpt_path, model=None):
     return control
 
 class T2IAdapter(ControlBase):
-    def __init__(self, t2i_model, channels_in, device=None):
+    def __init__(self, t2i_model, channels_in, compression_ratio, device=None):
         super().__init__(device)
         self.t2i_model = t2i_model
         self.channels_in = channels_in
         self.control_input = None
+        self.compression_ratio = compression_ratio
 
     def scale_image_to(self, width, height):
         unshuffle_amount = self.t2i_model.unshuffle_amount
@@ -482,11 +485,13 @@ class T2IAdapter(ControlBase):
         return self.control_merge(control_input, mid, control_prev, x_noisy.dtype)
 
     def copy(self):
-        c = T2IAdapter(self.t2i_model, self.channels_in)
+        c = T2IAdapter(self.t2i_model, self.channels_in, self.compression_ratio)
         self.copy_to(c)
         return c
 
 def load_t2i_adapter(t2i_data):
+    compression_ratio = 8
+
     if 'adapter' in t2i_data:
         t2i_data = t2i_data['adapter']
     if 'adapter.body.0.resnets.0.block1.weight' in t2i_data: #diffusers format
@@ -514,8 +519,12 @@ def load_t2i_adapter(t2i_data):
         if cin == 256 or cin == 768:
             xl = True
         model_ad = comfy.t2i_adapter.adapter.Adapter(cin=cin, channels=[channel, channel*2, channel*4, channel*4][:4], nums_rb=2, ksize=ksize, sk=True, use_conv=use_conv, xl=xl)
+    elif "backbone.0.0.weight" in keys:
+        model_ad = comfy.ldm.cascade.controlnet.ControlNet(c_in=t2i_data['backbone.0.0.weight'].shape[1], proj_blocks=[0, 4, 8, 12, 51, 55, 59, 63])
+        compression_ratio = 32
     else:
         return None
+
     missing, unexpected = model_ad.load_state_dict(t2i_data)
     if len(missing) > 0:
         print("t2i missing", missing)
@@ -523,4 +532,4 @@ def load_t2i_adapter(t2i_data):
     if len(unexpected) > 0:
         print("t2i unexpected", unexpected)
 
-    return T2IAdapter(model_ad, model_ad.input_channels)
+    return T2IAdapter(model_ad, model_ad.input_channels, compression_ratio)
