@@ -15,9 +15,10 @@ class ModelType(Enum):
     V_PREDICTION = 2
     V_PREDICTION_EDM = 3
     STABLE_CASCADE = 4
+    EDM = 5
 
 
-from comfy.model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
+from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
 
 
 def model_sampling(model_config, model_type):
@@ -33,6 +34,9 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.STABLE_CASCADE:
         c = EPS
         s = StableCascadeSampling
+    elif model_type == ModelType.EDM:
+        c = EDM
+        s = ModelSamplingContinuousEDM
 
     class ModelSampling(s, c):
         pass
@@ -162,6 +166,10 @@ class BaseModel(torch.nn.Module):
         cross_attn_cnet = kwargs.get("cross_attn_controlnet", None)
         if cross_attn_cnet is not None:
             out['crossattn_controlnet'] = comfy.conds.CONDCrossAttn(cross_attn_cnet)
+
+        c_concat = kwargs.get("noise_concat", None)
+        if c_concat is not None:
+            out['c_concat'] = comfy.conds.CONDNoiseShape(data)
 
         return out
 
@@ -368,7 +376,6 @@ class SVD_img2vid(BaseModel):
         if "time_conditioning" in kwargs:
             out["time_context"] = comfy.conds.CONDCrossAttn(kwargs["time_conditioning"])
 
-        out['image_only_indicator'] = comfy.conds.CONDConstant(torch.zeros((1,), device=device))
         out['num_video_frames'] = comfy.conds.CONDConstant(noise.shape[0])
         return out
 

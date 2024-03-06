@@ -1,7 +1,12 @@
 aiohttp
+attrs
+certifi
 einops
+filelock
 ftfy
 fvcore
+idna
+kornia>=0.7.1
 lpips
 numba
 omegaconf
@@ -12,6 +17,7 @@ pyyaml
 safetensors>=0.3.0
 scikit-image
 scipy
+six
 torch
 torchsde
 torchvision
