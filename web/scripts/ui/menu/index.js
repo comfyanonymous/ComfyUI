@@ -32,7 +32,7 @@ export class ComfyAppMenu {
 			new ComfyButton({
 				icon: "content-save",
 				tooltip: "Save the current workflow",
-				action: () => this.workflows.save(),
+				action: () => app.workflowManager.activeWorkflow.save(),
 				content: t,
 			});
 
@@ -50,7 +50,7 @@ export class ComfyAppMenu {
 					icon: "content-save-edit",
 					content: "Save As",
 					tooltip: "Save the current graph as a new workflow",
-					action: () => this.workflows.save(true),
+					action: () => app.workflowManager.activeWorkflow.save(true),
 				}),
 				new ComfyButton({
 					icon: "download",

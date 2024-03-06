@@ -10,7 +10,7 @@ export class ChangeTracker {
 	redo = [];
 	activeState = null;
 	isOurLoad = false;
-	/** @type { import("./workflows").ComfyWorkflow } */
+	/** @type { import("./workflows").ComfyWorkflowInstance } */
 	workflow;
 
 	ds;

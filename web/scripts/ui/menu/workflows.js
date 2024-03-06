@@ -25,11 +25,19 @@ export class ComfyWorkflowsMenu {
 	constructor(app) {
 		this.app = app;
 
-		app.workflowManager.addEventListener("change", () => {
+		const updateActive = () => {
 			const active = app.workflowManager.activeWorkflow;
 			this.button.tooltip = active.path;
 			this.workflowLabel.textContent = active.name;
 			this.unsaved = active.unsaved;
+		};
+
+		app.workflowManager.addEventListener("changeWorkflow", updateActive);
+		app.workflowManager.addEventListener("rename", updateActive);
+		app.workflowManager.addEventListener("delete", updateActive);
+
+		app.workflowManager.addEventListener("save", () => {
+			this.unsaved = app.workflowManager.activeWorkflow.unsaved;
 		});
 
 		api.addEventListener("graphChanged", () => {
@@ -41,7 +49,7 @@ export class ComfyWorkflowsMenu {
 			"comfyui-button": true,
 			unsaved: getStorageValue("Comfy.PreviousWorkflowUnsaved") === "true",
 		};
-		this.workflowLabel = $el("span.comfyui-workflows-label", "Unsaved workflow");
+		this.workflowLabel = $el("span.comfyui-workflows-label", "");
 		this.button = new ComfyButton({
 			content: $el("div.comfyui-workflows-button-inner", [$el("i.mdi.mdi-graph"), this.workflowLabel]),
 			icon: "chevron-down",
@@ -68,6 +76,8 @@ export class ComfyWorkflowsMenu {
 
 export class ComfyWorkflowsContent {
 	element = $el("div.comfyui-workflows-panel");
+	treeState = {};
+	treeFiles = {};
 
 	/**
 	 * @param {import("../../app.js").ComfyApp} app
@@ -78,27 +88,34 @@ export class ComfyWorkflowsContent {
 		this.popup = popup;
 		this.actions = $el("div.comfyui-workflows-actions", [
 			new ComfyButton({
-				content: "New Workflow",
-				icon: "plus",
+				content: "Default",
+				icon: "file-code",
+				iconSize: 18,
+				classList: "comfyui-button primary",
+				action: () => {
+					popup.open = false;
+					app.loadGraphData();
+				},
+			}).element,
+			new ComfyButton({
+				content: "Browse",
+				icon: "folder",
+				iconSize: 18,
+				action: () => {
+					popup.open = false;
+					app.ui.loadFile();
+				},
+			}).element,
+			new ComfyButton({
+				content: "Blank",
+				icon: "plus-thick",
+				iconSize: 18,
 				action: () => {
 					app.workflowManager.setWorkflow(null);
 					app.clean();
 					app.graph.clear();
+					app.workflowManager.activeWorkflow.track();
 					popup.open = false;
-				},
-			}).element,
-			new ComfyButton({
-				content: "Load JSON",
-				action: () => {
-					popup.open = false;
-					app.loadGraphData();
-				},
-			}).element,
-			new ComfyButton({
-				content: "Load Default",
-				action: () => {
-					popup.open = false;
-					app.loadGraphData();
 				},
 			}).element,
 		]);
@@ -108,22 +125,42 @@ export class ComfyWorkflowsContent {
 
 		this.popup.addEventListener("open", () => this.load());
 		this.popup.addEventListener("close", () => this.element.replaceChildren(this.actions, this.spinner));
+
+		this.app.workflowManager.addEventListener("favorite", (e) => {
+			const workflow = e["detail"];
+			const button = this.treeFiles[workflow.path]?.primaryButton;
+			if (!button) return; // Can happen when a workflow is renamed
+			button.icon = this.#getFavoriteIcon(workflow);
+			button.overIcon = this.#getFavoriteOverIcon(workflow);
+			this.updateFavorites();
+		});
+
+		this.app.workflowManager.addEventListener("open", (e) => {
+			this.updateOpen();
+		});
+		this.app.workflowManager.addEventListener("close", (e) => {
+			this.updateOpen();
+		});
+		this.app.workflowManager.addEventListener("rename", (e) => {
+			this.load();
+		});
 	}
 
 	async load() {
+		await this.app.workflowManager.loadWorkflows();
 		this.updateTree();
 		this.updateFavorites();
-		this.updateOpenWorkflows();
+		this.updateOpen();
 		this.element.replaceChildren(this.actions, this.openElement, this.favoritesElement, this.treeElement);
 	}
 
-	updateOpenWorkflows() {
+	updateOpen() {
 		const current = this.openElement;
 
 		this.openElement = $el("div.comfyui-workflows-open", [
 			$el("h3", "Open Workflows"),
 			...this.app.workflowManager.openWorkflows.map((w) => {
-				const wrapper = new WorkflowElement(w, {
+				const wrapper = new WorkflowElement(this, w, {
 					buttons: [],
 				});
 
@@ -141,27 +178,8 @@ export class ComfyWorkflowsContent {
 		this.favoritesElement = $el(
 			"div.comfyui-workflows-favorites",
 			favorites
-				.map((f) => {
-					return $el("span", f.path);
-					// const entry = this.#fileLookup[f];
-					// if (!entry) return null;
-					// const res = new FileNode(
-					// 	this,
-					// 	entry.path,
-					// 	entry.part,
-					// 	"div",
-					// 	(f) => {
-					// 		entry.isFavorite = f;
-					// 		entry.updateFavorite();
-					// 		this.updateFavoritesElement();
-					// 	},
-					// 	() => {
-					// 		res.element.remove();
-					// 		entry.remove();
-					// 		return false;
-					// 	}
-					// );
-					// return res.element;
+				.map((w) => {
+					return this.#getWorkflowElement(w).element;
 				})
 				.filter(Boolean)
 		);
@@ -171,9 +189,9 @@ export class ComfyWorkflowsContent {
 
 	updateTree() {
 		const current = this.treeElement;
-		const flat = {};
 		const nodes = {};
 
+		this.treeFiles = {};
 		this.treeElement = $el("ul.comfyui-workflows-tree");
 
 		for (const workflow of this.app.workflowManager.workflows) {
@@ -183,33 +201,8 @@ export class ComfyWorkflowsContent {
 			let currentRoot = this.treeElement;
 
 			for (let i = 0; i < workflow.pathParts.length; i++) {
-				const part = workflow.pathParts[i];
-				currentPath += (currentPath ? "\\" : "") + part;
-				let parentNode = nodes[currentPath];
-
-				// Create a new parent node if it doesn't exist
-				if (!parentNode) {
-					parentNode = $el("ul.closed", {
-						$: (el) => {
-							el.onclick = (e) => {
-								el.classList.toggle("closed");
-								e.stopImmediatePropagation();
-							};
-						},
-					});
-					currentRoot.append(parentNode);
-
-					// Create a node for the current part and an inner UL for its children if it isnt a leaf node
-					const leaf = i === workflow.pathParts.length - 1;
-					let nodeElement;
-					if (leaf) {
-						const fileNode = new WorkflowElement(workflow, { buttons: [] });
-						nodeElement = fileNode.element;
-					} else {
-						nodeElement = $el("li", [$el("i.mdi.mdi-18px.mdi-folder"), $el("span", part)]);
-					}
-					parentNode.append(nodeElement);
-				}
+				currentPath += (currentPath ? "\\" : "") + workflow.pathParts[i];
+				const parentNode = nodes[currentPath] ?? this.#createNode(currentPath, workflow, i, currentRoot);
 
 				nodes[currentPath] = parentNode;
 				currentRoot = parentNode;
@@ -218,190 +211,175 @@ export class ComfyWorkflowsContent {
 
 		current?.replaceWith(this.treeElement);
 	}
+
+	#expandNode(el, workflow, thisPath, i) {
+		const expanded = !el.classList.toggle("closed");
+		if (expanded) {
+			let c = "";
+			for (let j = 0; j <= i; j++) {
+				c += (c ? "\\" : "") + workflow.pathParts[j];
+				this.treeState[c] = true;
+			}
+		} else {
+			let c = thisPath;
+			for (let j = i + 1; j < workflow.pathParts.length; j++) {
+				c += (c ? "\\" : "") + workflow.pathParts[j];
+				delete this.treeState[c];
+			}
+			delete this.treeState[thisPath];
+		}
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#getFavoriteIcon(workflow) {
+		return workflow.isFavorite ? "star" : "file-outline";
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#getFavoriteOverIcon(workflow) {
+		return workflow.isFavorite ? "star-off" : "star-outline";
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#getFavoriteButton(workflow, primary) {
+		return new ComfyButton({
+			icon: this.#getFavoriteIcon(workflow),
+			overIcon: this.#getFavoriteOverIcon(workflow),
+			iconSize: 18,
+			classList: "comfyui-button comfyui-workflows-file-action-favorite" + (primary ? " comfyui-workflows-file-action-primary" : ""),
+			action: (e) => {
+				e.stopImmediatePropagation();
+				workflow.favorite(!workflow.isFavorite);
+			},
+		});
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#getDeleteButton(workflow) {
+		const deleteButton = new ComfyButton({
+			icon: "delete",
+			tooltip: "Delete this workflow",
+			classList: "comfyui-button comfyui-workflows-file-action",
+			iconSize: 18,
+			action: async (e, btn) => {
+				e.stopImmediatePropagation();
+
+				if (btn.icon === "delete-empty") {
+					btn.enabled = false;
+					await workflow.delete();
+					await this.load();
+				} else {
+					btn.icon = "delete-empty";
+					btn.element.style.background = "red";
+				}
+			},
+		});
+		deleteButton.element.addEventListener("mouseleave", () => {
+			deleteButton.icon = "delete";
+			deleteButton.element.style.removeProperty("background");
+		});
+		return deleteButton;
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#getInsertButton(workflow) {
+		return new ComfyButton({
+			icon: "file-move-outline",
+			iconSize: 18,
+			tooltip: "Insert this workflow into the current workflow",
+			classList: "comfyui-button comfyui-workflows-file-action",
+			action: (e) => {
+				if (!this.app.shiftDown) {
+					this.popup.open = false;
+				}
+				e.stopImmediatePropagation();
+				if (!this.app.shiftDown) {
+					this.popup.open = false;
+				}
+				workflow.insert();
+			},
+		});
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#getRenameButton(workflow) {
+		return new ComfyButton({
+			icon: "pencil",
+			tooltip: "Rename this workflow",
+			classList: "comfyui-button comfyui-workflows-file-action",
+			iconSize: 18,
+			action: async (e) => {
+				e.stopImmediatePropagation();
+				const newName = prompt("Enter new name", workflow.path);
+				if (newName) {
+					await workflow.rename(newName);
+				}
+			},
+		});
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#getWorkflowElement(workflow) {
+		return new WorkflowElement(this, workflow, {
+			primaryButton: this.#getFavoriteButton(workflow, true),
+			buttons: [this.#getInsertButton(workflow), this.#getRenameButton(workflow), this.#getDeleteButton(workflow)],
+		});
+	}
+
+	/** @param {ComfyWorkflow} workflow */
+	#createLeafNode(workflow) {
+		const fileNode = this.#getWorkflowElement(workflow);
+		this.treeFiles[workflow.path] = fileNode;
+		return fileNode;
+	}
+
+	#createNode(currentPath, workflow, i, currentRoot) {
+		const part = workflow.pathParts[i];
+
+		const parentNode = $el("ul" + (this.treeState[currentPath] ? "" : ".closed"), {
+			$: (el) => {
+				el.onclick = (e) => {
+					this.#expandNode(el, workflow, currentPath, i);
+					e.stopImmediatePropagation();
+				};
+			},
+		});
+		currentRoot.append(parentNode);
+
+		// Create a node for the current part and an inner UL for its children if it isnt a leaf node
+		const leaf = i === workflow.pathParts.length - 1;
+		let nodeElement;
+		if (leaf) {
+			nodeElement = this.#createLeafNode(workflow).element;
+		} else {
+			nodeElement = $el("li", [$el("i.mdi.mdi-18px.mdi-folder"), $el("span", part)]);
+		}
+		parentNode.append(nodeElement);
+		return parentNode;
+	}
 }
 
 class WorkflowElement {
 	/**
+	 * @param { ComfyWorkflowsContent } parent
 	 * @param { ComfyWorkflow } workflow
 	 */
-	constructor(workflow, { tagName = "li", buttons }) {
+	constructor(parent, workflow, { tagName = "li", primaryButton, buttons }) {
+		this.parent = parent;
 		this.workflow = workflow;
+		this.primaryButton = primaryButton;
 		this.buttons = buttons;
 
 		this.element = $el(
 			tagName + ".comfyui-workflows-tree-file",
 			{
-				onclick: workflow.load,
+				onclick: () => {
+					workflow.load();
+					this.parent.popup.open = false;
+				},
 				title: this.workflow.path,
 			},
-			[$el("span", workflow.name)]
+			[this.primaryButton?.element, $el("span", workflow.name), ...buttons.map((b) => b.element)]
 		);
 	}
 }
-
-// class FileNode {
-// 	constructor(parent, path, part, tagName = "li", onFavorite = null, onRemove = null) {
-// 		this.parent = parent;
-// 		this.path = path;
-// 		this.part = part;
-// 		this.createFileElement(tagName);
-// 		this.onFavorite = onFavorite;
-// 		this.onRemove = onRemove;
-// 	}
-
-// 	updateFavorite() {
-// 		if (this.onFavorite?.(this.isFavorite) === false) return;
-// 		if (this.isFavorite) {
-// 			this.parent.favorites.add(this.path);
-// 			this.favoriteButton.icon = "star";
-// 			this.favoriteButton.tooltip = "Unfavorite this workflow";
-// 			this.nodeIcon.classList.remove("mdi-file-outline");
-// 			this.nodeIcon.classList.add("mdi-star");
-// 		} else {
-// 			this.parent.favorites.delete(this.path);
-// 			this.favoriteButton.icon = "star-outline";
-// 			this.favoriteButton.tooltip = "Favorite this workflow";
-// 			this.nodeIcon.classList.add("mdi-file-outline");
-// 			this.nodeIcon.classList.remove("mdi-star");
-// 		}
-// 	}
-
-// 	remove() {
-// 		if (this.onRemove?.() === false) return;
-
-// 		const folderNode = this.element.parentElement.parentElement;
-// 		if (folderNode.querySelectorAll("ul").length === 1) {
-// 			folderNode.remove();
-// 		} else {
-// 			this.element.parentElement.remove();
-// 		}
-// 	}
-
-// 	createFileElement(tagName) {
-// 		const fileName = `workflows\\${this.path}`;
-
-// 		this.isFavorite = this.parent.favorites.has(this.path);
-// 		this.nodeIcon = $el("i.mdi.mdi-18px");
-// 		this.favoriteButton = new ComfyButton({
-// 			icon: this.isFavorite ? "star" : "star-outline",
-// 			classList: "comfyui-button comfyui-workflows-file-action comfyui-workflows-file-action-favorite",
-// 			iconSize: 18,
-// 			action: async (e) => {
-// 				e.stopImmediatePropagation();
-// 				this.isFavorite = !this.isFavorite;
-// 				this.updateFavorite();
-// 				this.parent.updateFavoritesElement();
-// 				await this.parent.storeWorkflowsInfo();
-// 			},
-// 		});
-
-// 		const deleteButton = new ComfyButton({
-// 			icon: "delete",
-// 			tooltip: "Delete this workflow",
-// 			classList: "comfyui-button comfyui-workflows-file-action",
-// 			iconSize: 18,
-// 			action: async (e, btn) => {
-// 				e.stopImmediatePropagation();
-
-// 				if (btn.icon === "delete-empty") {
-// 					btn.enabled = false;
-// 					if (this.isFavorite) {
-// 						this.parent.favorites.delete(this.path);
-// 						await this.parent.storeWorkflowsInfo();
-// 					}
-// 					if (this.parent.app.currentWorkflow === this.path) {
-// 						this.parent.app.currentWorkflow = null;
-// 					}
-// 					await api.deleteUserData(fileName);
-// 					this.remove();
-// 				} else {
-// 					btn.icon = "delete-empty";
-// 					btn.element.style.background = "red";
-// 				}
-// 			},
-// 		});
-// 		deleteButton.element.addEventListener("mouseleave", () => {
-// 			deleteButton.icon = "delete";
-// 			deleteButton.element.style.removeProperty("background");
-// 		});
-
-// 		const getWorkflow = async (e) => {
-// 			e.stopImmediatePropagation();
-// 			const resp = await api.getUserData(fileName);
-// 			if (resp.status !== 200) {
-// 				alert(`Error loading user data file '${fileName}': ${resp.status} ${resp.statusText}`);
-// 				return;
-// 			}
-// 			return await resp.json();
-// 		};
-
-// 		const loadWorkflow = async (e) => {
-// 			const data = await getWorkflow(e);
-// 			await this.parent.app.loadGraphData(data, true, this.path);
-// 			this.parent.popup.open = false;
-// 		};
-
-// 		const insertWorkflow = async (e) => {
-// 			const data = await getWorkflow(e);
-// 			const old = localStorage.getItem("litegrapheditor_clipboard");
-// 			const graph = new LGraph(data);
-// 			const canvas = new LGraphCanvas(null, graph, { skip_events: true, skip_render: true });
-// 			canvas.selectNodes();
-// 			canvas.copyToClipboard();
-// 			this.parent.app.canvas.pasteFromClipboard();
-// 			localStorage.setItem("litegrapheditor_clipboard", old);
-// 		};
-
-// 		const name = trimJsonExt(this.part);
-// 		this.element = $el(
-// 			tagName + ".comfyui-workflows-tree-file",
-// 			{
-// 				onclick: loadWorkflow,
-// 				title: this.path,
-// 			},
-// 			[
-// 				this.nodeIcon,
-// 				$el("span", name),
-// 				new ComfyButton({
-// 					icon: "file-move-outline",
-// 					tooltip: "Insert this workflow into the current view",
-// 					classList: "comfyui-button comfyui-workflows-file-action",
-// 					iconSize: 18,
-// 					action: insertWorkflow,
-// 				}).element,
-// 				new ComfyButton({
-// 					icon: "pencil",
-// 					tooltip: "Rename this workflow",
-// 					classList: "comfyui-button comfyui-workflows-file-action",
-// 					iconSize: 18,
-// 					action: async (e) => {
-// 						e.stopImmediatePropagation();
-// 						const newName = prompt("Enter new name", trimJsonExt(this.path));
-// 						if (newName) {
-// 							// Rename file
-// 							try {
-// 								const res = await api.moveUserData("workflows/" + this.path, "workflows/" + newName);
-
-// 								if (res.status === 409) {
-// 									if (!confirm(`Workflow '${newName}' already exists, do you want to overwrite it?`)) return;
-// 									await api.moveUserData("workflows/" + this.path, "workflows/" + newName, { overwrite: true });
-// 								}
-
-// 								if (this.parent.app.currentWorkflow === this.path) {
-// 									this.parent.app.currentWorkflow = newName;
-// 								}
-
-// 								await this.parent.load();
-// 							} catch (error) {
-// 								alert(error.message ?? error);
-// 							}
-// 						}
-// 					},
-// 				}).element,
-// 				this.favoriteButton.element,
-// 				deleteButton.element,
-// 			]
-// 		);
-// 		this.updateFavorite();
-// 	}
-// }

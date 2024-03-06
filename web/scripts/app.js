@@ -1733,7 +1733,7 @@ export class ComfyApp {
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
-	 * @param { import("./workflows.js").ComfyWorkflow | null } name The workflow
+	 * @param { import("./workflows.js").ComfyWorkflowInstance | null } name The workflow
 	 */
 	async loadGraphData(graphData, clean = true, workflow = null) {
 		if (clean !== false) {

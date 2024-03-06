@@ -59,7 +59,7 @@ export function $el(tag, propsOrChildren, children) {
 
 			Object.assign(element, propsOrChildren);
 			if (children) {
-				element.append(...(children instanceof Array ? children : [children]));
+				element.append(...(children instanceof Array ? children.filter(Boolean) : [children]));
 			}
 
 			if (parent) {
@@ -373,6 +373,8 @@ export class ComfyUI {
 				app.handleFile(fileInput.files[0]);
 			},
 		});
+
+		this.loadFile = () => fileInput.click();
 
 		const autoQueueModeEl = toggleSwitch(
 			"autoQueueMode",

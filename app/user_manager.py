@@ -171,7 +171,8 @@ class UserManager():
             with open(path, "wb") as f:
                 f.write(body)
                 
-            return web.Response(status=200)
+            resp = os.path.relpath(path, self.get_request_user_filepath(request, None))
+            return web.json_response(resp)
 
         @routes.delete("/userdata/{file}")
         async def delete_userdata(request):
@@ -200,4 +201,5 @@ class UserManager():
             print(f"moving '{source}' -> '{dest}'")
             shutil.move(source, dest)
                 
-            return web.Response(status=204)
+            resp = os.path.relpath(dest, self.get_request_user_filepath(request, None))
+            return web.json_response(resp)

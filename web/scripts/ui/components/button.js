@@ -7,6 +7,7 @@ import { prop } from "../../utils.js";
 /**
  * @typedef {{
  *    icon?: string;
+ *    overIcon?: string;
  *    iconSize?: number;
  *    content?: string | HTMLElement;
  *    tooltip?: string;
@@ -20,6 +21,7 @@ import { prop } from "../../utils.js";
 export class ComfyButton {
 	#over = 0;
 	#popupOpen = false;
+	isOver = false;	
 	iconElement = $el("i.mdi");
 	contentElement = $el("span");
 	/**
@@ -30,10 +32,40 @@ export class ComfyButton {
 	/**
 	 * @param {ComfyButtonProps} opts
 	 */
-	constructor({ icon, iconSize, content, tooltip, action, classList = "comfyui-button", visibilitySetting, app, enabled = true }) {
-		this.element = $el("button", [this.iconElement, this.contentElement]);
+	constructor({
+		icon,
+		overIcon,
+		iconSize,
+		content,
+		tooltip,
+		action,
+		classList = "comfyui-button",
+		visibilitySetting,
+		app,
+		enabled = true,
+	}) {
+		this.element = $el("button", {
+			onmouseenter: () => {
+				this.isOver = true;
+				if(this.overIcon) {
+					this.updateIcon();
+				}
+			},
+			onmouseleave: () => {
+				this.isOver = false;
+				if(this.overIcon) {
+					this.updateIcon();
+				}
+			}
+
+		}, [this.iconElement, this.contentElement]);
 
 		this.icon = prop(this, "icon", icon, toggleElement(this.iconElement, { onShow: this.updateIcon }));
+		this.overIcon = prop(this, "overIcon", overIcon, () => {
+			if(this.isOver) {
+				this.updateIcon();
+			}
+		});
 		this.iconSize = prop(this, "iconSize", iconSize, this.updateIcon);
 		this.content = prop(
 			this,
@@ -83,7 +115,7 @@ export class ComfyButton {
 		}
 	}
 
-	updateIcon = () => (this.iconElement.className = `mdi mdi-${this.icon}${this.iconSize ? " mdi-" + this.iconSize + "px" : ""}`);
+	updateIcon = () => (this.iconElement.className = `mdi mdi-${(this.isOver && this.overIcon) || this.icon}${this.iconSize ? " mdi-" + this.iconSize + "px" : ""}`);
 	updateClasses = () => {
 		const internalClasses = [];
 		if (this.hidden) {

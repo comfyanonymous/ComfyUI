@@ -37,12 +37,12 @@
 	opacity: 0.5;
 	cursor: not-allowed;
 }
-.primary .comfyui-button {
+.primary .comfyui-button, .primary.comfyui-button {
 	background-color: var(--primary-bg) !important;
 	color: var(--primary-fg) !important;
 }
 
-.primary .comfyui-button:not(:disabled):hover {
+.primary .comfyui-button:not(:disabled):hover, .primary.comfyui-button:not(:disabled):hover {
 	background-color: var(--primary-hover-bg) !important;
 	color: var(--primary-hover-fg) !important;
 }
@@ -433,9 +433,17 @@
 	opacity: 1;
 }
 
-.comfyui-workflows-tree-file>.mdi-star {
+.comfyui-workflows-tree-file .comfyui-workflows-file-action-primary {
+	background-color: transparent;
+	color: var(--fg-color);
+	padding: 2px 4px;
+	margin: 0 -4px;
+}
+
+.comfyui-workflows-file-action-favorite .mdi-star {
 	color: orange
 }
+
 /* View List */
 .comfyui-view-list-popup {
 	padding: 10px;
