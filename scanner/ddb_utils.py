@@ -12,8 +12,8 @@ load_dotenv(os.path.join(root_path, '.env.local'))
 aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
 aws_region = os.getenv('AWS_REGION')
-node_table_name = "Node" + os.getenv('DDB_TABLE_POSTFIX')# DDB_TABLE_CUSTOM_NODE
-package_table_name = "NodePackage" + os.getenv('DDB_TABLE_POSTFIX')
+node_table_name = "ComfyNode" + os.getenv('DDB_TABLE_POSTFIX')# DDB_TABLE_CUSTOM_NODE
+package_table_name = "ComfyNodePackage" + os.getenv('DDB_TABLE_POSTFIX')
 log_file = os.path.join(root_path, 'log.txt')
 
 if not aws_access_key_id or not aws_secret_access_key:
@@ -82,4 +82,13 @@ def create_pacakge_ddb(pacakge_data:dict):
         if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
             print("A record with the same gitHtmlUrl was inserted concurrently.")
         print("Error adding package item to DynamoDB:", e)
+        return None
+
+#####v2######
+def put_node_package_ddb(item):
+    try:
+        response = ddb_package_table.put_item(Item=item)
+        return item
+    except Exception as e:
+        print("❌🔴Error adding package item to DynamoDB:", e)
         return None

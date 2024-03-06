@@ -11,9 +11,7 @@ import os
 import uuid
 from botocore.exceptions import BotoCoreError, ClientError
 from boto3.dynamodb.conditions import Key
-from .githubUtils import clear_except_allowed_folder, get_github_repo_stars
-from .manager_copy import gitclone_install, run_script
-from .ddb_utils import create_pacakge_ddb
+from .manager_copy import run_script
 
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
@@ -44,12 +42,16 @@ dynamodb = boto3.resource(
 ddb_node_table = dynamodb.Table(node_table_name)
 ddb_package_table = dynamodb.Table(package_table_name)
 
+cur_git_repo = None
 def run_main_py_and_wait(package_data:dict,index: int = 0):
+    global cur_git_repo
+    # print(f"😻git clone installing:{package_data['reference']}")
     if os.path.exists(communication_file):
         print("Removing communication file")
         os.remove(communication_file)
     os.chdir(comfy_path)
     try:
+        cur_git_repo=package_data['title']
         cmd = ['python', 'main.py']  # Use 'python3' instead of 'python' if your system requires it
         # You can specify the current working directory (cwd) if needed, or use '.' for the current directory
         run_script(cmd, cwd='.')
@@ -59,27 +61,27 @@ def run_main_py_and_wait(package_data:dict,index: int = 0):
         # process.wait()
         print(f"\033[93m Done importing:{package_data['reference']}\033[0m", end='')  
         # Create package and node in DynamoDB
-        package = create_pacakge_ddb(package_data)
-        print(f"📦created pacakge ddb: {package['title']}, index: {index}")
-        totalCount = 0 
-        if not os.path.exists(communication_file):
-            print("🔴communication_file not found")
-        with open(communication_file, 'r') as file:
-             for line in file:
-                try:
-                    data = json.loads(line.strip())
-                    if 'node_type' in data:
-                        print(f"💡node: {data['node_type']}")
-                        create_node_dydb({
-                            'nodeType': data['node_type'],  
-                            'nodeDef': data['node_def'],
-                            'folderPaths': data['folder_paths'],
-                            'gitHtmlUrl': package_data['reference'],
-                            'packageID': package['id']
-                        })
-                        totalCount += 1
-                except json.JSONDecodeError as e:
-                    print(f"Error decoding JSON: {e}")
+        # package = create_pacakge_ddb(package_data)
+        # print(f"📦created pacakge ddb: {package['title']}, index: {index}")
+        # totalCount = 0 
+        # if not os.path.exists(communication_file):
+        #     print("🔴communication_file not found")
+        # with open(communication_file, 'r') as file:
+        #      for line in file:
+        #         try:
+        #             data = json.loads(line.strip())
+        #             if 'node_type' in data:
+        #                 print(f"💡node: {data['node_type']}")
+        #                 create_node_dydb({
+        #                     'nodeType': data['node_type'],  
+        #                     'nodeDef': data['node_def'],
+        #                     'folderPaths': data['folder_paths'],
+        #                     'gitHtmlUrl': package_data['reference'],
+        #                     'packageID': package['id']
+        #                 })
+        #                 totalCount += 1
+        #         except json.JSONDecodeError as e:
+        #             print(f"Error decoding JSON: {e}")
         
 def get_package_ddb(id:str):
     response = ddb_package_table.get_item(
@@ -142,7 +144,7 @@ def create_node_dydb(data):
             'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat()
         }
         response = ddb_node_table.put_item(Item=item)
-        print("👌ddb node item added:", item)
+        print("👌ddb node item added id:", item.id)
 
     except Exception as e:
         print("Error adding node item to DynamoDB:", e)

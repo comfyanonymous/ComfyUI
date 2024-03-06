@@ -1,5 +1,7 @@
 
-from scanner.controller import gitclone_install, clear_except_allowed_folder, run_main_py_and_wait
+from scanner.controller import run_main_py_and_wait
+from scanner.githubUtils import clear_except_allowed_folder
+from scanner.manager_copy import gitclone_install
 import os
 import json
 import subprocess
@@ -11,7 +13,8 @@ def process_json(file_path):
     if (os.path.exists(file_path) == False):
         print("🔴file not found", file_path)
         gitclone_install(["https://github.com/ltdrdata/ComfyUI-Manager.git"])
-    START_FROM = 102
+    # START_FROM = 102
+    START_FROM = 7
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
@@ -28,7 +31,6 @@ def process_json(file_path):
                 print('repo name',repo_name)
                 target_dir = os.path.join(custom_node_path, repo_name)
                 git_clone_url = repo + '.git' if not repo.endswith('.git') else repo
-                # gitclone_install( git_clone_url, target_dir)
                 clear_except_allowed_folder(custom_node_path, 'ComfyUI-Manager')
                 gitclone_install([git_clone_url])
                 run_main_py_and_wait({

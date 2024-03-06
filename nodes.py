@@ -1874,9 +1874,14 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 EXTENSION_WEB_DIRS = {}
-
+from scanner.ddb_utils import put_node_package_ddb
+from scanner.githubUtils import get_repo_user_and_name
+cur_node_package = {}
 def load_custom_node(module_path, ignore=set()):
+    global cur_node_package
     module_name = os.path.basename(module_path)
+    cur_node_package = {}
+    print('🤔🤔🤔 load custom node',module_path, 'module name', module_name)
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
         module_name = sp[0]
@@ -1896,6 +1901,7 @@ def load_custom_node(module_path, ignore=set()):
             web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
             if os.path.isdir(web_dir):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
+                cur_node_package['webDir'] = getattr(module, "WEB_DIRECTORY")
 
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name in module.NODE_CLASS_MAPPINGS:
@@ -1910,10 +1916,11 @@ def load_custom_node(module_path, ignore=set()):
     except Exception as e:
         print(traceback.format_exc())
         print(f"Cannot import {module_path} module for custom nodes:", e)
+        cur_node_package['importError'] = str(e)
         return False
 
 # copied from server.py
-def node_info(node_class):
+def node_info(node_class:str):
     obj_class = NODE_CLASS_MAPPINGS[node_class]
     info = {}
     info['input'] = obj_class.INPUT_TYPES()
@@ -1945,7 +1952,8 @@ def custom_serializer(obj):
         return {str(key): custom_serializer(value) for key, value in obj.items()}
     else:
         return obj
-
+from scanner.controller import cur_git_repo
+base_node_done = False  
 def load_custom_nodes():
     print('🤔🤔🤔 load cusotm nodes')
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
@@ -1964,26 +1972,34 @@ def load_custom_nodes():
             prev_nodes = set(NODE_CLASS_MAPPINGS.keys())
             success = load_custom_node(module_path, base_node_names)
             print("imported nodes: success",success)
-            with open('communication_file.txt', 'a') as file:
-                nodes_count = len(NODE_CLASS_MAPPINGS) - len(prev_nodes)
-                json_string = json.dumps({"import_success": success,"nodes_count":nodes_count, "import_time": time.perf_counter() - time_before})
-                file.write(json_string + '\n')  # Adding newline character for each JSON string
-                for name in NODE_CLASS_MAPPINGS:
-                    try:
-                        if name not in prev_nodes: 
-                            paths = analyze_class(NODE_CLASS_MAPPINGS[name])
-                            node_def = node_info(name)
-                            data = {"node_type": name, "node_def": node_def, "folder_paths": paths}
-                            print("✅imported node: data",data)
-                            # Writing JSON string to a file
-                            
-                            json_string = json.dumps(data, default=custom_serializer)
-                            print("✅imported node: json_string",json_string)
-                            file.write(json_string + '\n')  # Adding newline character for each JSON string
-                    except Exception as e:
-                        print("❌analyze imported node: error",e)
+            # with open('communication_file.txt', 'a') as file:
+            #     nodes_count = len(NODE_CLASS_MAPPINGS) - len(prev_nodes)
+            #     json_string = json.dumps({"import_success": success,"nodes_count":nodes_count, "import_time": time.perf_counter() - time_before})
+            #     file.write(json_string + '\n')  # Adding newline character for each JSON string
+            #     for name in NODE_CLASS_MAPPINGS:
+            #         try:
+            #             if name not in prev_nodes: 
+            #                 paths = analyze_class(NODE_CLASS_MAPPINGS[name])
+            #                 node_def = node_info(name)
+            #                 data = {"node_type": name, "node_def": node_def, "folder_paths": paths}
+            #                 # Writing JSON string to a file
+            #                 json_string = json.dumps(data, default=custom_serializer)
+            #                 file.write(json_string + '\n')  # Adding newline character for each JSON string
+            #         except Exception as e:
+            #             print("❌analyze imported node: error",e)
                         
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
+            username, repo_name = get_repo_user_and_name(module_path)
+            print('🍻 cur_node_package',cur_node_package)
+            put_node_package_ddb({
+                **cur_node_package,
+                'id': username + '_' + repo_name,
+                'gitRepo': username + '/' + repo_name,
+                'nameID': repo_name,
+                'title': cur_git_repo,
+                'authorID': 'admin',
+                'status': 'IMPORT_'+ 'SUCCESS' if success else 'FAILED'
+            })
 
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")

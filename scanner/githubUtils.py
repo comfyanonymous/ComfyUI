@@ -1,3 +1,4 @@
+import subprocess
 import requests
 import os
 import shutil
@@ -94,3 +95,23 @@ def clear_except_allowed_folder(path, allowedFolder):
         else:
             os.remove(item_path)
             print(f"Removed file: {item_path}")
+
+######v2
+def get_repo_user_and_name(module_path):
+    command = ['git', 'config', '--get', 'remote.origin.url']
+    try:
+        result = subprocess.run(command, cwd=module_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        repo_url = result.stdout.strip()
+
+        # Match both HTTPS and SSH URLs
+        match = re.search(r'(?:https?://github.com/|git@github.com:)([^/]+)/([^/.]+)', repo_url)
+        if match:
+            username, repo_name = match.groups()
+            return username, repo_name
+        else:
+            return "Could not parse URL", ""
+    except subprocess.CalledProcessError as e:
+        return f"Error: {e.stderr}", ""
+# Example usage
+# module_path = 'path/to/git/repo'
+# username, repo_name = get_repo_user_and_name(module_path)
