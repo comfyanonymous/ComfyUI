@@ -67,7 +67,7 @@ class ControlNet(nn.Module):
                 operations.Conv2d(c_in, 4096 * 4, kernel_size=1, dtype=dtype, device=device),
                 nn.LeakyReLU(0.2, inplace=True),
                 operations.Conv2d(4096 * 4, 1024, kernel_size=1, dtype=dtype, device=device),
-                *[CNetResBlock(1024) for _ in range(8)],
+                *[CNetResBlock(1024, dtype=dtype, device=device, operations=operations) for _ in range(8)],
                 operations.Conv2d(1024, 1280, kernel_size=1, dtype=dtype, device=device),
             )
             embd_channels = 1280
