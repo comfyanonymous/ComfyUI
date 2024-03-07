@@ -32,6 +32,8 @@ body {
 	overflow: hidden;
 	background-color: var(--bg-color);
 	color: var(--fg-color);
+	display: flex;
+	flex-direction: column;
 }
 
 #graph-canvas {

@@ -37,12 +37,14 @@
 	opacity: 0.5;
 	cursor: not-allowed;
 }
-.primary .comfyui-button, .primary.comfyui-button {
+.primary .comfyui-button,
+.primary.comfyui-button {
 	background-color: var(--primary-bg) !important;
 	color: var(--primary-fg) !important;
 }
 
-.primary .comfyui-button:not(:disabled):hover, .primary.comfyui-button:not(:disabled):hover {
+.primary .comfyui-button:not(:disabled):hover,
+.primary.comfyui-button:not(:disabled):hover {
 	background-color: var(--primary-hover-bg) !important;
 	color: var(--primary-hover-fg) !important;
 }
@@ -126,9 +128,6 @@
 
 /* Menu */
 .comfyui-menu {
-	position: absolute;
-	top: 0;
-	left: 0;
 	width: 100vw;
 	background: var(--comfy-menu-bg);
 	color: var(--fg-color);
@@ -273,6 +272,8 @@
 .comfyui-workflows-button {
 	flex-direction: row-reverse;
 	max-width: 200px;
+	position: relative;
+	z-index: 0;
 }
 
 .comfyui-workflows-button.popup-open {
@@ -282,8 +283,17 @@
 .comfyui-workflows-button.unsaved {
 	font-style: italic;
 }
+.comfyui-workflows-button-progress {
+	position: absolute;
+	top: 0;
+	left: 0;
+	background-color: green;
+	height: 100%;
+	border-radius: 4px;
+	z-index: -1;
+}
 
-.comfyui-workflows-button>span {
+.comfyui-workflows-button > span {
 	flex: auto;
 	text-align: left;
 	overflow: hidden;
@@ -292,7 +302,7 @@
 	display: flex;
 	align-items: center;
 	gap: 7px;
-	width: 130px;
+	width: 150px;
 }
 .comfyui-workflows-label {
 	overflow: hidden;
@@ -318,7 +328,7 @@
 
 .comfyui-workflows-popup {
 	font-family: Arial, Helvetica, sans-serif;
-		font-size: 0.8em;
+	font-size: 0.8em;
 	padding: 10px;
 	overflow: auto;
 	background-color: var(--border-color);
@@ -337,6 +347,13 @@
 	left: 50%;
 	top: 75px;
 }
+
+.comfyui-workflows-panel h3 {
+	margin: 10px 0 10px 0;
+	font-size: 11px;
+	opacity: 0.8;
+}
+
 .comfyui-workflows-actions {
 	display: flex;
 	gap: 10px;
@@ -353,7 +370,8 @@
 	color: var(--primary-fg);
 }
 
-.comfyui-workflows-favorites, .comfyui-workflows-open {
+.comfyui-workflows-favorites,
+.comfyui-workflows-open {
 	border-bottom: 1px solid var(--comfy-input-bg);
 	padding-bottom: 5px;
 	margin-bottom: 5px;
@@ -373,22 +391,22 @@
 	display: block;
 	text-align: center;
 }
-.comfyui-workflows-tree>ul {
+.comfyui-workflows-tree > ul {
 	padding: 0;
 }
 
-.comfyui-workflows-tree>ul ul {
+.comfyui-workflows-tree > ul ul {
 	margin: 0;
 	padding: 0 0 0 25px;
 }
 
-.comfyui-workflows-tree .closed>ul {
+.comfyui-workflows-tree .closed > ul {
 	display: none;
 }
 
 .comfyui-workflows-tree li,
 .comfyui-workflows-tree-file {
-	--item-height: 31px;
+	--item-height: 32px;
 	list-style-type: none;
 	height: var(--item-height);
 	display: flex;
@@ -409,28 +427,41 @@
 	z-index: -1;
 }
 
+.comfyui-workflows-tree-file.running:not(:hover)::before {
+	content: "";
+	position: absolute;
+	width: var(--progress, 0);
+	left: 0;
+	height: var(--item-height);
+	background-color: green;
+	z-index: -1;
+}
+
+.comfyui-workflows-tree-file.unsaved span {
+	font-style: italic;
+}
+
 .comfyui-workflows-tree-file span {
 	flex: auto;
 }
 
-.comfyui-workflows-tree-file span+.comfyui-workflows-file-action {
+.comfyui-workflows-tree-file span + .comfyui-workflows-file-action {
 	margin-left: 10px;
 }
 
 .comfyui-workflows-tree-file .comfyui-workflows-file-action {
-	opacity: 0;
 	background-color: transparent;
 	color: var(--fg-color);
 	padding: 2px 4px;
 }
 
+.comfyui-workflows-tree-file:not(:hover) .comfyui-workflows-file-action {
+	opacity: 0;
+}
+
 .comfyui-workflows-tree-file .comfyui-workflows-file-action:hover {
 	background-color: var(--primary-bg);
 	color: var(--primary-fg);
-}
-
-.comfyui-workflows-tree-file:hover .comfyui-workflows-file-action {
-	opacity: 1;
 }
 
 .comfyui-workflows-tree-file .comfyui-workflows-file-action-primary {
@@ -441,7 +472,7 @@
 }
 
 .comfyui-workflows-file-action-favorite .mdi-star {
-	color: orange
+	color: orange;
 }
 
 /* View List */

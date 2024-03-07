@@ -9,6 +9,7 @@ import { createSpinner } from "../spinner.js";
 import { ComfyWorkflow } from "../../workflows.js";
 
 export class ComfyWorkflowsMenu {
+	#first = true;
 	element = $el("div.comfyui-workflows");
 
 	get open() {
@@ -24,34 +25,18 @@ export class ComfyWorkflowsMenu {
 	 */
 	constructor(app) {
 		this.app = app;
-
-		const updateActive = () => {
-			const active = app.workflowManager.activeWorkflow;
-			this.button.tooltip = active.path;
-			this.workflowLabel.textContent = active.name;
-			this.unsaved = active.unsaved;
-		};
-
-		app.workflowManager.addEventListener("changeWorkflow", updateActive);
-		app.workflowManager.addEventListener("rename", updateActive);
-		app.workflowManager.addEventListener("delete", updateActive);
-
-		app.workflowManager.addEventListener("save", () => {
-			this.unsaved = app.workflowManager.activeWorkflow.unsaved;
-		});
-
-		api.addEventListener("graphChanged", () => {
-			this.unsaved = true;
-		});
+		this.#bindEvents();
 
 		const classList = {
 			"comfyui-workflows-button": true,
 			"comfyui-button": true,
 			unsaved: getStorageValue("Comfy.PreviousWorkflowUnsaved") === "true",
+			running: false,
 		};
+		this.buttonProgress = $el("div.comfyui-workflows-button-progress");
 		this.workflowLabel = $el("span.comfyui-workflows-label", "");
 		this.button = new ComfyButton({
-			content: $el("div.comfyui-workflows-button-inner", [$el("i.mdi.mdi-graph"), this.workflowLabel]),
+			content: $el("div.comfyui-workflows-button-inner", [$el("i.mdi.mdi-graph"), this.workflowLabel, this.buttonProgress]),
 			icon: "chevron-down",
 			classList,
 		});
@@ -72,12 +57,59 @@ export class ComfyWorkflowsMenu {
 			setStorageValue("Comfy.PreviousWorkflowUnsaved", v);
 		});
 	}
+
+	#updateProgress = () => {
+		const prompt = this.app.workflowManager.activePrompt;
+		let percent = 0;
+		if (this.app.workflowManager.activeWorkflow === prompt?.workflow) {
+			const total = Object.values(prompt.nodes);
+			const done = total.filter(Boolean);
+			percent = (done.length / total.length) * 100;
+		}
+		this.buttonProgress.style.width = percent + "%";
+	};
+
+	#updateActive = () => {
+		const active = this.app.workflowManager.activeWorkflow;
+		this.button.tooltip = active.path;
+		this.workflowLabel.textContent = active.name;
+		this.unsaved = active.unsaved;
+
+		if (this.#first) {
+			this.#first = false;
+			this.content.load();
+		}
+
+		this.#updateProgress();
+	};
+
+	#bindEvents() {
+		this.app.workflowManager.addEventListener("changeWorkflow", this.#updateActive);
+		this.app.workflowManager.addEventListener("rename", this.#updateActive);
+		this.app.workflowManager.addEventListener("delete", this.#updateActive);
+
+		this.app.workflowManager.addEventListener("save", () => {
+			this.unsaved = this.app.workflowManager.activeWorkflow.unsaved;
+		});
+
+		this.app.workflowManager.addEventListener("execute", (e) => {
+			this.#updateProgress();
+		});
+
+		api.addEventListener("graphChanged", () => {
+			this.unsaved = true;
+		});
+	}
 }
 
 export class ComfyWorkflowsContent {
 	element = $el("div.comfyui-workflows-panel");
 	treeState = {};
 	treeFiles = {};
+	/** @type { Map<ComfyWorkflow, WorkflowElement> } */
+	openFiles = new Map();
+	/** @type {WorkflowElement} */
+	activeElement = null;
 
 	/**
 	 * @param {import("../../app.js").ComfyApp} app
@@ -128,22 +160,19 @@ export class ComfyWorkflowsContent {
 
 		this.app.workflowManager.addEventListener("favorite", (e) => {
 			const workflow = e["detail"];
-			const button = this.treeFiles[workflow.path]?.primaryButton;
+			const button = this.treeFiles[workflow.path]?.primary;
 			if (!button) return; // Can happen when a workflow is renamed
 			button.icon = this.#getFavoriteIcon(workflow);
 			button.overIcon = this.#getFavoriteOverIcon(workflow);
 			this.updateFavorites();
 		});
 
-		this.app.workflowManager.addEventListener("open", (e) => {
-			this.updateOpen();
-		});
-		this.app.workflowManager.addEventListener("close", (e) => {
-			this.updateOpen();
-		});
-		this.app.workflowManager.addEventListener("rename", (e) => {
-			this.load();
-		});
+		for (const e of ["save", "open", "close", "changeWorkflow"]) {
+			// TODO: dont be lazy and just update the specific element
+			app.workflowManager.addEventListener(e, () => this.updateOpen());
+		}
+		this.app.workflowManager.addEventListener("rename", () => this.load());
+		this.app.workflowManager.addEventListener("execute", (e) => this.#updateActive());
 	}
 
 	async load() {
@@ -156,18 +185,45 @@ export class ComfyWorkflowsContent {
 
 	updateOpen() {
 		const current = this.openElement;
+		this.openFiles.clear();
 
 		this.openElement = $el("div.comfyui-workflows-open", [
-			$el("h3", "Open Workflows"),
+			$el("h3", "Open"),
 			...this.app.workflowManager.openWorkflows.map((w) => {
 				const wrapper = new WorkflowElement(this, w, {
-					buttons: [],
+					primary: { element: $el("i.mdi.mdi-18px.mdi-circle-small") },
+					buttons: [
+						new ComfyButton({
+							icon: "content-save",
+							iconSize: 18,
+							classList: "comfyui-button comfyui-workflows-file-action",
+							enabled: w.unsaved,
+							action: (e) => {
+								e.stopImmediatePropagation();
+								w.save();
+							},
+						}),
+						new ComfyButton({
+							icon: "close",
+							iconSize: 18,
+							classList: "comfyui-button comfyui-workflows-file-action",
+							action: (e) => {
+								e.stopImmediatePropagation();
+								this.app.workflowManager.closeWorkflow(w);
+							},
+						}),
+					],
 				});
+				if (w.unsaved) {
+					wrapper.element.classList.add("unsaved");
+				}
 
+				this.openFiles.set(w, wrapper);
 				return wrapper.element;
 			}),
 		]);
 
+		this.#updateActive();
 		current?.replaceWith(this.openElement);
 	}
 
@@ -175,14 +231,14 @@ export class ComfyWorkflowsContent {
 		const current = this.favoritesElement;
 		const favorites = [...this.app.workflowManager.workflows.filter((w) => w.isFavorite)];
 
-		this.favoritesElement = $el(
-			"div.comfyui-workflows-favorites",
-			favorites
+		this.favoritesElement = $el("div.comfyui-workflows-favorites", [
+			$el("h3", "Favorites"),
+			...favorites
 				.map((w) => {
 					return this.#getWorkflowElement(w).element;
 				})
-				.filter(Boolean)
-		);
+				.filter(Boolean),
+		]);
 
 		current?.replaceWith(this.favoritesElement);
 	}
@@ -192,13 +248,14 @@ export class ComfyWorkflowsContent {
 		const nodes = {};
 
 		this.treeFiles = {};
-		this.treeElement = $el("ul.comfyui-workflows-tree");
+		const tree = $el("ul.comfyui-workflows-tree");
+		this.treeElement = $el("section", [$el("h3", "Browse"), tree]);
 
 		for (const workflow of this.app.workflowManager.workflows) {
 			if (!workflow.pathParts) continue;
 
 			let currentPath = "";
-			let currentRoot = this.treeElement;
+			let currentRoot = tree;
 
 			for (let i = 0; i < workflow.pathParts.length; i++) {
 				currentPath += (currentPath ? "\\" : "") + workflow.pathParts[i];
@@ -228,6 +285,34 @@ export class ComfyWorkflowsContent {
 			}
 			delete this.treeState[thisPath];
 		}
+	}
+
+	#updateActive() {
+		this.#removeActive();
+
+		const active = this.app.workflowManager.activePrompt;
+		if (!active?.workflow) return;
+
+		const open = this.openFiles.get(active.workflow);
+		if (!open) return;
+
+		this.activeElement = open;
+
+		const total = Object.values(active.nodes);
+		const done = total.filter(Boolean);
+		const percent = done.length / total.length;
+		open.element.classList.add("running");
+		open.element.style.setProperty("--progress", percent * 100 + "%");
+		open.primary.element.classList.remove("mdi-circle-small");
+		open.primary.element.classList.add("mdi-play");
+	}
+
+	#removeActive() {
+		if (!this.activeElement) return;
+		this.activeElement.element.classList.remove("running");
+		this.activeElement.element.style.removeProperty("--progress");
+		this.activeElement.primary.element.classList.add("mdi-circle-small");
+		this.activeElement.primary.element.classList.remove("mdi-play");
 	}
 
 	/** @param {ComfyWorkflow} workflow */
@@ -321,7 +406,7 @@ export class ComfyWorkflowsContent {
 	/** @param {ComfyWorkflow} workflow */
 	#getWorkflowElement(workflow) {
 		return new WorkflowElement(this, workflow, {
-			primaryButton: this.#getFavoriteButton(workflow, true),
+			primary: this.#getFavoriteButton(workflow, true),
 			buttons: [this.#getInsertButton(workflow), this.#getRenameButton(workflow), this.#getDeleteButton(workflow)],
 		});
 	}
@@ -364,10 +449,10 @@ class WorkflowElement {
 	 * @param { ComfyWorkflowsContent } parent
 	 * @param { ComfyWorkflow } workflow
 	 */
-	constructor(parent, workflow, { tagName = "li", primaryButton, buttons }) {
+	constructor(parent, workflow, { tagName = "li", primary, buttons }) {
 		this.parent = parent;
 		this.workflow = workflow;
-		this.primaryButton = primaryButton;
+		this.primary = primary;
 		this.buttons = buttons;
 
 		this.element = $el(
@@ -379,7 +464,7 @@ class WorkflowElement {
 				},
 				title: this.workflow.path,
 			},
-			[this.primaryButton?.element, $el("span", workflow.name), ...buttons.map((b) => b.element)]
+			[this.primary?.element, $el("span", workflow.name), ...buttons.map((b) => b.element)]
 		);
 	}
 }

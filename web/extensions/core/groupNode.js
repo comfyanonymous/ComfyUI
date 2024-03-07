@@ -1172,7 +1172,7 @@ export class GroupNodeHandler {
 	}
 
 	static isGroupNode(node) {
-		return !!node.constructor?.nodeData?.[GROUP];
+		return !!node?.constructor?.nodeData?.[GROUP];
 	}
 
 	static async fromNodes(nodes) {

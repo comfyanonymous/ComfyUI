@@ -12,18 +12,28 @@ function appendJson(path) {
 }
 
 export class ComfyWorkflowManager extends EventTarget {
+	/** @type {string | null} */
+	#activePromptId = null;
 	#unsavedCount = 0;
-
 	/** @type {Record<string, ComfyWorkflow>} */
 	workflowLookup = {};
-
 	/** @type {Array<ComfyWorkflow>} */
 	workflows = [];
 	/** @type {Array<ComfyWorkflow>} */
 	openWorkflows = [];
+	/** @type {Record<string, {workflow?: ComfyWorkflow, nodes?: Record<string, boolean>}>} */
+	queuedPrompts = {};
 
 	get activeWorkflow() {
 		return this.openWorkflows[0];
+	}
+
+	get activePromptId() {
+		return this.#activePromptId;
+	}
+
+	get activePrompt() {
+		return this.queuedPrompts[this.#activePromptId];
 	}
 
 	/**
@@ -33,6 +43,48 @@ export class ComfyWorkflowManager extends EventTarget {
 		super();
 		this.app = app;
 		ChangeTracker.init(app);
+
+		this.#bindExecutionEvents();
+	}
+
+	#bindExecutionEvents() {
+		// TODO: on reload, set active prompt based on the latest ws message
+
+		const emit = () => this.dispatchEvent(new CustomEvent("execute", { detail: this.activePrompt }));
+		let executing = null;
+		api.addEventListener("execution_start", (e) => {
+			this.#activePromptId = e.detail.prompt_id;
+
+			// This event can fire before the event is stored, so put a placeholder
+			this.queuedPrompts[this.#activePromptId] ??= { nodes: {} };
+			emit();
+		});
+		api.addEventListener("execution_cached", (e) => {
+			if (!this.activePrompt) return;
+			for (const n of e.detail.nodes) {
+				this.activePrompt.nodes[n] = true;
+			}
+			emit();
+		});
+		api.addEventListener("executed", (e) => {
+			if (!this.activePrompt) return;
+			this.activePrompt.nodes[e.detail.node] = true;
+			emit();
+		});
+		api.addEventListener("executing", (e) => {
+			if (!this.activePrompt) return;
+
+			if (executing) {
+				// Seems sometimes nodes that are cached fire executing but not executed
+				this.activePrompt.nodes[executing] = true;
+			}
+			executing = e.detail;
+			if (!executing) {
+				delete this.queuedPrompts[this.#activePromptId];
+				this.#activePromptId = null;
+			}
+			emit();
+		});
 	}
 
 	async loadWorkflows() {
@@ -98,6 +150,35 @@ export class ComfyWorkflowManager extends EventTarget {
 
 		setStorageValue("Comfy.PreviousWorkflow", this.activeWorkflow.path ?? "");
 		this.dispatchEvent(new CustomEvent("changeWorkflow"));
+	}
+
+	storePrompt({ nodes, id }) {
+		this.queuedPrompts[id] ??= {};
+		this.queuedPrompts[id].nodes = {
+			...nodes.reduce((p, n) => {
+				p[n] = false;
+				return p;
+			}, {}),
+			...this.queuedPrompts[id].nodes,
+		};
+		this.queuedPrompts[id].workflow = this.activeWorkflow;
+	}
+
+	/**
+	 * @param {ComfyWorkflow} workflow
+	 */
+	async closeWorkflow(workflow) {
+		if (!workflow.isOpen) {
+			return;
+		}
+		workflow.changeTracker = null;
+		this.openWorkflows.splice(this.openWorkflows.indexOf(workflow), 1);
+		if (this.openWorkflows.length) {
+			await this.openWorkflows[0].load();
+		} else {
+			// Load default
+			await this.app.loadGraphData();
+		}
 	}
 }
 
@@ -188,7 +269,6 @@ export class ComfyWorkflow {
 	}
 
 	load = async () => {
-		debugger;
 		if (this.isOpen) {
 			await this.manager.app.loadGraphData(this.changeTracker.activeState, true, this);
 		} else {
@@ -282,7 +362,7 @@ export class ComfyWorkflow {
 
 	track() {
 		if (this.changeTracker) {
-			this.changeTracker.restoreViewport();
+			this.changeTracker.restore();
 		} else {
 			this.changeTracker = new ChangeTracker(this);
 		}

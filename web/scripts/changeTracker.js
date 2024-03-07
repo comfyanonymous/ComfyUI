@@ -14,6 +14,7 @@ export class ChangeTracker {
 	workflow;
 
 	ds;
+	nodeOutputs;
 
 	get app() {
 		return this.workflow.manager.app;
@@ -23,14 +24,19 @@ export class ChangeTracker {
 		this.workflow = workflow;
 	}
 
-	storeViewport() {
+	store() {
+		this.nodeOutputs = clone(this.app.nodeOutputs);
 		this.ds = { scale: this.app.canvas.ds.scale, offset: [...this.app.canvas.ds.offset] };
 	}
 
-	restoreViewport() {
-		if (!this.ds) return;
-		this.app.canvas.ds.scale = this.ds.scale;
-		this.app.canvas.ds.offset = this.ds.offset;
+	restore() {
+		if (this.ds) {
+			this.app.canvas.ds.scale = this.ds.scale;
+			this.app.canvas.ds.offset = this.ds.offset;
+		}
+		if (this.nodeOutputs) {
+			this.app.nodeOutputs = this.nodeOutputs;
+		}
 	}
 
 	checkState() {

@@ -1247,11 +1247,15 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("progress", ({ detail }) => {
+			if (this.workflowManager.activePrompt?.workflow 
+				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return console.log(this.workflowManager.activePrompt?.workflow, this.workflowManager.activeWorkflow);
 			this.progress = detail;
 			this.graph.setDirtyCanvas(true, false);
 		});
 
 		api.addEventListener("executing", ({ detail }) => {
+			if (this.workflowManager.activePrompt ?.workflow
+				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return console.log(this.workflowManager.activePrompt?.workflow, this.workflowManager.activeWorkflow);
 			this.progress = null;
 			this.runningNodeId = detail;
 			this.graph.setDirtyCanvas(true, false);
@@ -1259,6 +1263,8 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("executed", ({ detail }) => {
+			if (this.workflowManager.activePrompt ?.workflow
+				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return console.log(this.workflowManager.activePrompt?.workflow, this.workflowManager.activeWorkflow);
 			const output = this.nodeOutputs[detail.node];
 			if (detail.merge && output) {
 				for (const k in detail.output ?? {}) {
@@ -1462,7 +1468,7 @@ export class ComfyApp {
 		mainCanvas.style.touchAction = "none"
 		const canvasEl = (this.canvasEl = Object.assign(mainCanvas, { id: "graph-canvas" }));
 		canvasEl.tabIndex = "1";
-		document.body.prepend(canvasEl);
+		document.body.append(canvasEl);
 
 		addDomClippingSetting();
 		this.#addProcessMouseHandler();
@@ -1736,6 +1742,11 @@ export class ComfyApp {
 	 * @param { import("./workflows.js").ComfyWorkflowInstance | null } name The workflow
 	 */
 	async loadGraphData(graphData, clean = true, workflow = null) {
+		try {
+			this.workflowManager.activeWorkflow?.changeTracker?.store()
+		} catch (error) {
+		}
+
 		if (clean !== false) {
 			this.clean();
 		}
@@ -1753,12 +1764,7 @@ export class ComfyApp {
 		{
 			graphData = structuredClone(graphData);
 		}
-
-		try {
-			this.workflowManager.activeWorkflow?.changeTracker?.storeViewport()
-		} catch (error) {
-		}
-
+	
 		try {
 			this.workflowManager.setWorkflow(workflow);
 		} catch (error) {
@@ -2071,6 +2077,14 @@ export class ComfyApp {
 						this.lastNodeErrors = res.node_errors;
 						if (this.lastNodeErrors.length > 0) {
 							this.canvas.draw(true, true);
+						} else {
+							try {
+								this.workflowManager.storePrompt({
+									id: res.prompt_id,
+									nodes: Object.keys(p.output)
+								});
+							} catch (error) {
+							}
 						}
 					} catch (error) {
 						const formattedError = this.#formatPromptError(error)

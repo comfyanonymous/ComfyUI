@@ -37,7 +37,7 @@ export class ComfyAppMenu {
 			});
 
 		this.logo = $el("h1.comfyui-logo.sm-hide", { title: "ComfyUI" }, "ComfyUI");
-		this.element = $el("nav.comfyui-menu", { style: { display: "none" }, parent: document.body }, [
+		this.element = $el("nav.comfyui-menu", { style: { display: "none" } }, [
 			this.logo,
 			this.workflows.element,
 			new ComfySplitButton(
@@ -125,6 +125,8 @@ export class ComfyAppMenu {
 				})
 			).element,
 		]);
+
+		document.body.prepend(this.element);
 
 		app.ui.settings.addSetting({
 			id: "Comfy.UseNewMenu",
