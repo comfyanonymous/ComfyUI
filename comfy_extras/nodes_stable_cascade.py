@@ -37,7 +37,7 @@ class StableCascade_EmptyLatentImage:
     RETURN_NAMES = ("stage_c", "stage_b")
     FUNCTION = "generate"
 
-    CATEGORY = "_for_testing/stable_cascade"
+    CATEGORY = "latent/stable_cascade"
 
     def generate(self, width, height, compression, batch_size=1):
         c_latent = torch.zeros([batch_size, 16, height // compression, width // compression])
@@ -63,7 +63,7 @@ class StableCascade_StageC_VAEEncode:
     RETURN_NAMES = ("stage_c", "stage_b")
     FUNCTION = "generate"
 
-    CATEGORY = "_for_testing/stable_cascade"
+    CATEGORY = "latent/stable_cascade"
 
     def generate(self, image, vae, compression):
         width = image.shape[-2]
@@ -91,7 +91,7 @@ class StableCascade_StageB_Conditioning:
 
     FUNCTION = "set_prior"
 
-    CATEGORY = "_for_testing/stable_cascade"
+    CATEGORY = "conditioning/stable_cascade"
 
     def set_prior(self, conditioning, stage_c):
         c = []
