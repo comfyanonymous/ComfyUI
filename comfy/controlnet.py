@@ -527,6 +527,10 @@ def load_t2i_adapter(t2i_data):
         model_ad = comfy.ldm.cascade.controlnet.ControlNet(c_in=t2i_data['backbone.0.0.weight'].shape[1], proj_blocks=[0, 4, 8, 12, 51, 55, 59, 63])
         compression_ratio = 32
         upscale_algorithm = 'bilinear'
+    elif "backbone.10.blocks.0.weight" in keys:
+        model_ad = comfy.ldm.cascade.controlnet.ControlNet(c_in=t2i_data['backbone.0.weight'].shape[1], bottleneck_mode="large", proj_blocks=[0, 4, 8, 12, 51, 55, 59, 63])
+        compression_ratio = 1
+        upscale_algorithm = 'nearest-exact'
     else:
         return None
 
