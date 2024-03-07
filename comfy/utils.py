@@ -98,7 +98,21 @@ def transformers_convert(sd, prefix_from, prefix_to, number):
                     p = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"]
                     k_to = "{}encoder.layers.{}.{}.{}".format(prefix_to, resblock, p[x], y)
                     sd[k_to] = weights[shape_from*x:shape_from*(x + 1)]
+
     return sd
+
+def clip_text_transformers_convert(sd, prefix_from, prefix_to):
+    sd = transformers_convert(sd, prefix_from, "{}text_model.".format(prefix_to), 32)
+
+    tp = "{}text_projection.weight".format(prefix_from)
+    if tp in sd:
+        sd["{}text_projection.weight".format(prefix_to)] = sd.pop(tp)
+
+    tp = "{}text_projection".format(prefix_from)
+    if tp in sd:
+        sd["{}text_projection.weight".format(prefix_to)] = sd.pop(tp).transpose(0, 1).contiguous()
+    return sd
+
 
 UNET_MAP_ATTENTIONS = {
     "proj_in.weight",
@@ -280,8 +294,11 @@ def set_attr(obj, attr, value):
     for name in attrs[:-1]:
         obj = getattr(obj, name)
     prev = getattr(obj, attrs[-1])
-    setattr(obj, attrs[-1], torch.nn.Parameter(value, requires_grad=False))
-    del prev
+    setattr(obj, attrs[-1], value)
+    return prev
+
+def set_attr_param(obj, attr, value):
+    return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
 
 def copy_to_param(obj, attr, value):
     # inplace update tensor instead of replacing it
