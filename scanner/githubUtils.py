@@ -107,7 +107,11 @@ def get_repo_user_and_name(module_path):
         match = re.search(r'(?:https?://github.com/|git@github.com:)([^/]+)/([^/.]+)', repo_url)
         if match:
             username, repo_name = match.groups()
-            return username, repo_name
+            # Attempt to get the default branch name
+            branch_command = ['git', 'rev-parse', '--abbrev-ref', 'HEAD']
+            branch_result = subprocess.run(branch_command, cwd=module_path, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            main_branch = branch_result.stdout.strip()
+            return username, repo_name, main_branch
         else:
             return "Could not parse URL", ""
     except subprocess.CalledProcessError as e:

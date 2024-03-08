@@ -3,6 +3,7 @@ import datetime
 import os 
 from dotenv import load_dotenv
 import boto3
+from .githubUtils import get_github_repo_stars
 
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
@@ -87,7 +88,15 @@ def create_pacakge_ddb(pacakge_data:dict):
 #####v2######
 def put_node_package_ddb(item):
     try:
-        response = ddb_package_table.put_item(Item=item)
+        repo_data = get_github_repo_stars(item.get('gitHtmlUrl'))
+        owner_avatar_url= repo_data['owner_avatar_url'] if 'owner_avatar_url' in repo_data else None
+        star_count = repo_data['stars'] if 'stars' in repo_data else None
+        response = ddb_package_table.put_item(Item={
+            **item,
+            'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat(),
+            'totalStars': star_count,
+            'ownerGitAvatarUrl': owner_avatar_url
+        })
         return item
     except Exception as e:
         print("❌🔴Error adding package item to DynamoDB:", e)

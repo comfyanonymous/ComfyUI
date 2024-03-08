@@ -1901,7 +1901,7 @@ def load_custom_node(module_path, ignore=set()):
             web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
             if os.path.isdir(web_dir):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
-                cur_node_package['webDir'] = getattr(module, "WEB_DIRECTORY")
+                cur_node_package['webDir'] =  os.path.normpath(getattr(module, "WEB_DIRECTORY"))
 
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
             for name in module.NODE_CLASS_MAPPINGS:
@@ -1914,9 +1914,10 @@ def load_custom_node(module_path, ignore=set()):
             print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
             return False
     except Exception as e:
+        error_details = traceback.format_exc() + f"\nCannot import {module_path} module for custom nodes: {e}"
         print(traceback.format_exc())
         print(f"Cannot import {module_path} module for custom nodes:", e)
-        cur_node_package['importError'] = str(e)
+        cur_node_package['importError'] = error_details
         return False
 
 # copied from server.py
@@ -1989,16 +1990,17 @@ def load_custom_nodes():
             #             print("❌analyze imported node: error",e)
                         
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
-            username, repo_name = get_repo_user_and_name(module_path)
+            username, repo_name, default_branch_name = get_repo_user_and_name(module_path)
             print('🍻 cur_node_package',cur_node_package)
             put_node_package_ddb({
                 **cur_node_package,
                 'id': username + '_' + repo_name,
                 'gitRepo': username + '/' + repo_name,
+                'gitHtmlUrl': 'https://github.com/'+username + '/' + repo_name,
                 'nameID': repo_name,
-                'title': cur_git_repo,
                 'authorID': 'admin',
-                'status': 'IMPORT_'+ 'SUCCESS' if success else 'FAILED'
+                'status': 'IMPORT_'+ ('SUCCESS' if success else 'FAILED'),
+                'defaultBranch': default_branch_name,
             })
 
     if len(node_import_times) > 0:
