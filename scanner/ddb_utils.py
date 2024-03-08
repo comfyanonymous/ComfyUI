@@ -101,3 +101,14 @@ def put_node_package_ddb(item):
     except Exception as e:
         print("❌🔴Error adding package item to DynamoDB:", e)
         return None
+
+def put_node_ddb(item):
+    try:
+        response = ddb_node_table.put_item(Item={
+            **item,
+            'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat(),
+        })
+        return item
+    except Exception as e:
+        print("❌🔴Error adding package item to DynamoDB:", e)
+        return None

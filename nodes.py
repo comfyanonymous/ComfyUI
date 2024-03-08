@@ -1,3 +1,4 @@
+from decimal import Decimal
 import torch
 
 import os
@@ -1874,7 +1875,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 EXTENSION_WEB_DIRS = {}
-from scanner.ddb_utils import put_node_package_ddb
+from scanner.ddb_utils import put_node_package_ddb, put_node_ddb
 from scanner.githubUtils import get_repo_user_and_name
 cur_node_package = {}
 def load_custom_node(module_path, ignore=set()):
@@ -1973,35 +1974,41 @@ def load_custom_nodes():
             prev_nodes = set(NODE_CLASS_MAPPINGS.keys())
             success = load_custom_node(module_path, base_node_names)
             print("imported nodes: success",success)
-            # with open('communication_file.txt', 'a') as file:
-            #     nodes_count = len(NODE_CLASS_MAPPINGS) - len(prev_nodes)
-            #     json_string = json.dumps({"import_success": success,"nodes_count":nodes_count, "import_time": time.perf_counter() - time_before})
-            #     file.write(json_string + '\n')  # Adding newline character for each JSON string
-            #     for name in NODE_CLASS_MAPPINGS:
-            #         try:
-            #             if name not in prev_nodes: 
-            #                 paths = analyze_class(NODE_CLASS_MAPPINGS[name])
-            #                 node_def = node_info(name)
-            #                 data = {"node_type": name, "node_def": node_def, "folder_paths": paths}
-            #                 # Writing JSON string to a file
-            #                 json_string = json.dumps(data, default=custom_serializer)
-            #                 file.write(json_string + '\n')  # Adding newline character for each JSON string
-            #         except Exception as e:
-            #             print("❌analyze imported node: error",e)
-                        
+            # WRITE TO DDB
+            nodes_count = len(NODE_CLASS_MAPPINGS) - len(prev_nodes)
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
             username, repo_name, default_branch_name = get_repo_user_and_name(module_path)
             print('🍻 cur_node_package',cur_node_package)
+            packageID = username + '_' + repo_name
             put_node_package_ddb({
                 **cur_node_package,
-                'id': username + '_' + repo_name,
+                'id': packageID,
                 'gitRepo': username + '/' + repo_name,
                 'gitHtmlUrl': 'https://github.com/'+username + '/' + repo_name,
                 'nameID': repo_name,
                 'authorID': 'admin',
                 'status': 'IMPORT_'+ ('SUCCESS' if success else 'FAILED'),
                 'defaultBranch': default_branch_name,
+                'totalNodes':nodes_count,
+                "importTime": Decimal(str( time.perf_counter() - time_before))
             })
+            for name in NODE_CLASS_MAPPINGS:
+                try:
+                    if name not in prev_nodes: 
+                        paths = analyze_class(NODE_CLASS_MAPPINGS[name])
+                        node_def = node_info(name)
+                        node_id = name.replace(' ', '_')
+                        data = {
+                            "id": node_id+"~"+packageID,
+                            "nodeType": name, 
+                            "nodeDef": json.dumps(node_def), 
+                            "packageID": packageID,
+                            "gitRepo": username + '/' + repo_name}
+                        if paths is not None and len(paths) > 0:
+                            data['folderPaths'] = json.dumps(paths, default=custom_serializer)
+                        put_node_ddb(data)
+                except Exception as e:
+                    print("❌analyze imported node: error",e)
 
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")
@@ -2010,7 +2017,6 @@ def load_custom_nodes():
                 import_message = ""
             else:
                 import_message = " (IMPORT FAILED)"
-                print("__workspace_scanner__","🔴Import failed for node:",node_import_times[1])
             print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
         print()
 

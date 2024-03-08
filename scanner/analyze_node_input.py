@@ -52,8 +52,9 @@ def analyze_class(cls):
                 }
             except Exception as e:
                 return f"Error adding path: {e}"
-        print('111111111paths',mo_paths)
-        return custom_serializer(mo_paths)
+        ret = custom_serializer(mo_paths)
+        print('111111111paths',ret)
+        return ret
 
 def fix_paths(paths):
     fixed_paths = []
