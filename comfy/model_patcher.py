@@ -67,6 +67,9 @@ class ModelPatcher:
     def set_model_unet_function_wrapper(self, unet_wrapper_function):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
+    def set_model_denoise_mask_function(self, denoise_mask_function):
+        self.model_options["denoise_mask_function"] = denoise_mask_function
+
     def set_model_patch(self, patch, name):
         to = self.model_options["transformer_options"]
         if "patches" not in to:
@@ -176,10 +179,9 @@ class ModelPatcher:
 
     def patch_model(self, device_to=None, patch_weights=True):
         for k in self.object_patches:
-            old = getattr(self.model, k)
+            old = comfy.utils.set_attr(self.model, k, self.object_patches[k])
             if k not in self.object_patches_backup:
                 self.object_patches_backup[k] = old
-            setattr(self.model, k, self.object_patches[k])
 
         if patch_weights:
             model_sd = self.model_state_dict()
@@ -203,7 +205,7 @@ class ModelPatcher:
                 if inplace_update:
                     comfy.utils.copy_to_param(self.model, key, out_weight)
                 else:
-                    comfy.utils.set_attr(self.model, key, out_weight)
+                    comfy.utils.set_attr_param(self.model, key, out_weight)
                 del temp_weight
 
             if device_to is not None:
@@ -342,7 +344,7 @@ class ModelPatcher:
                 comfy.utils.copy_to_param(self.model, k, self.backup[k])
         else:
             for k in keys:
-                comfy.utils.set_attr(self.model, k, self.backup[k])
+                comfy.utils.set_attr_param(self.model, k, self.backup[k])
 
         self.backup = {}
 
@@ -352,6 +354,6 @@ class ModelPatcher:
 
         keys = list(self.object_patches_backup.keys())
         for k in keys:
-            setattr(self.model, k, self.object_patches_backup[k])
+            comfy.utils.set_attr(self.model, k, self.object_patches_backup[k])
 
         self.object_patches_backup = {}
