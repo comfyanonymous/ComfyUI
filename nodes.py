@@ -1976,7 +1976,7 @@ def init_custom_nodes():
         print("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
         for node in import_failed:
             print("IMPORT FAILED: {}".format(node))
-        print("\nThis issue might be caused by missing dependencies.")
+        print("\nThis issue might be caused by missing newly dependencies added the last time you updated ComfyUI.")
         if args.windows_standalone_build:
             print("Please run the update script: update/update_comfyui.bat")
         else:
