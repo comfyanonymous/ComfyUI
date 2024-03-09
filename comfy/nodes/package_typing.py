@@ -124,12 +124,12 @@ class ExportedNodes:
 
     def __sub__(self, other: ExportedNodes):
         exported_nodes = ExportedNodes().update(self)
-        for self_key in exported_nodes.NODE_CLASS_MAPPINGS:
+        for self_key in frozenset(exported_nodes.NODE_CLASS_MAPPINGS):
             if self_key in other.NODE_CLASS_MAPPINGS:
                 exported_nodes.NODE_CLASS_MAPPINGS.pop(self_key)
             if self_key in other.NODE_DISPLAY_NAME_MAPPINGS:
                 exported_nodes.NODE_DISPLAY_NAME_MAPPINGS.pop(self_key)
-        for self_key in exported_nodes.EXTENSION_WEB_DIRS:
+        for self_key in frozenset(exported_nodes.EXTENSION_WEB_DIRS):
             if self_key in other.EXTENSION_WEB_DIRS:
                 exported_nodes.EXTENSION_WEB_DIRS.pop(self_key)
         return exported_nodes

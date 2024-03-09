@@ -34,10 +34,8 @@ from .. import model_management
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.file_output_path import file_output_path
 from ..nodes.package import import_all_nodes_in_workspace
+from ..nodes.package_typing import ExportedNodes
 from ..vendor.appdirs import user_data_dir
-
-nodes = import_all_nodes_in_workspace()
-
 from ..app.user_manager import UserManager
 
 
@@ -114,6 +112,7 @@ class PromptServer(ExecutorToClientProgress):
         self.client_id = None
 
         self.on_prompt_handlers = []
+        self.nodes: ExportedNodes = ExportedNodes()
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -157,7 +156,7 @@ class PromptServer(ExecutorToClientProgress):
                 glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
             extensions = list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files))
 
-            for name, dir in nodes.EXTENSION_WEB_DIRS.items():
+            for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
                 files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
                 extensions.extend(list(map(lambda f: "/extensions/" + quote(
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
@@ -398,7 +397,7 @@ class PromptServer(ExecutorToClientProgress):
             return web.json_response(self.get_queue_info())
 
         def node_info(node_class):
-            obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
+            obj_class = self.nodes.NODE_CLASS_MAPPINGS[node_class]
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['output'] = obj_class.RETURN_TYPES
@@ -407,8 +406,8 @@ class PromptServer(ExecutorToClientProgress):
                 obj_class.RETURN_TYPES)
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
             info['name'] = node_class
-            info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[
-                node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
+            info['display_name'] = self.nodes.NODE_DISPLAY_NAME_MAPPINGS[
+                node_class] if node_class in self.nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = obj_class.DESCRIPTION if hasattr(obj_class, 'DESCRIPTION') else ''
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
@@ -423,7 +422,7 @@ class PromptServer(ExecutorToClientProgress):
         @routes.get("/object_info")
         async def get_object_info(request):
             out = {}
-            for x in nodes.NODE_CLASS_MAPPINGS:
+            for x in self.nodes.NODE_CLASS_MAPPINGS:
                 try:
                     out[x] = node_info(x)
                 except Exception as e:
@@ -436,7 +435,7 @@ class PromptServer(ExecutorToClientProgress):
         async def get_object_info_node(request):
             node_class = request.match_info.get("node_class", None)
             out = {}
-            if (node_class is not None) and (node_class in nodes.NODE_CLASS_MAPPINGS):
+            if (node_class is not None) and (node_class in self.nodes.NODE_CLASS_MAPPINGS):
                 out[node_class] = node_info(node_class)
             return web.json_response(out)
 
@@ -710,7 +709,7 @@ class PromptServer(ExecutorToClientProgress):
         self.user_manager.add_routes(self.routes)
         self.app.add_routes(self.routes)
 
-        for name, dir in nodes.EXTENSION_WEB_DIRS.items():
+        for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([
                 web.static('/extensions/' + quote(name), dir),
             ])

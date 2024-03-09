@@ -16,7 +16,7 @@ from . import base_nodes
 from .package_typing import ExportedNodes
 from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
 
-_comfy_nodes = ExportedNodes()
+_comfy_nodes: ExportedNodes = ExportedNodes()
 
 
 def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleType):
@@ -77,7 +77,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
 
 
 def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
-    global _comfy_nodes
+    # only load these nodes once
     if len(_comfy_nodes) == 0:
         base_and_extra = reduce(lambda x, y: x.update(y),
                                 map(_import_and_enumerate_nodes_in_module, [
@@ -88,9 +88,6 @@ def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
                                 ExportedNodes())
         custom_nodes_mappings = ExportedNodes()
 
-        if vanilla_custom_nodes:
-            custom_nodes_mappings += mitigated_import_of_vanilla_custom_nodes()
-
         # load from entrypoints
         for entry_point in entry_points().select(group='comfyui.custom_nodes'):
             # Load the module associated with the current entry point
@@ -100,6 +97,11 @@ def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
             if isinstance(module, types.ModuleType):
                 custom_nodes_mappings.update(
                     _import_and_enumerate_nodes_in_module(module, print_import_times=True))
+
+        # load the vanilla custom nodes last
+        if vanilla_custom_nodes:
+            custom_nodes_mappings += mitigated_import_of_vanilla_custom_nodes()
+
         # don't allow custom nodes to overwrite base nodes
         custom_nodes_mappings -= base_and_extra
 

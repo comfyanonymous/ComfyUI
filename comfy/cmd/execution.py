@@ -10,21 +10,18 @@ import traceback
 import typing
 from typing import List, Optional, Tuple, Union
 from typing_extensions import TypedDict
-
-# Suppress warnings during import
-import warnings
-warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_node is deprecated. Please use torch.utils._pytree.register_pytree_node instead.")
-
 import torch
 
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..component_model.executor_types import ExecutorToClientProgress
+from .. import model_management
+from ..nodes.package_typing import ExportedNodes
 from ..nodes.package import import_all_nodes_in_workspace
 
-nodes = import_all_nodes_in_workspace()
-from .. import model_management  # type: ignore
-
+# ideally this would be passed in from main, but the way this is authored, we can't easily pass nodes down to the
+# various functions that are declared here. It should have been a context in the first place.
+nodes: ExportedNodes = import_all_nodes_in_workspace()
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, prompt=None, extra_data=None):
     if extra_data is None:
@@ -88,7 +85,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
         results.append(getattr(obj, func)(**input_data_all))
     elif max_len_input == 0:
         if allow_interrupt:
-            nodes.before_node_execution()
+            model_management.throw_exception_if_processing_interrupted()
         results.append(getattr(obj, func)())
     else:
         for i in range(max_len_input):
@@ -141,7 +138,14 @@ def format_value(x):
         return str(x)
 
 
-def recursive_execute(server: ExecutorToClientProgress, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui,
+def recursive_execute(server: ExecutorToClientProgress,
+                      prompt,
+                      outputs,
+                      current_item,
+                      extra_data,
+                      executed,
+                      prompt_id,
+                      outputs_ui,
                       object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']

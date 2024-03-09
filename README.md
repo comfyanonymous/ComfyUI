@@ -147,10 +147,6 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     ```shell
     comfyui
     ```
-    To generate python OpenAPI models:
-    ```shell
-    comfyui-openapi-gen
-    ```
     To run tests:
     ```shell
     pytest tests/inference

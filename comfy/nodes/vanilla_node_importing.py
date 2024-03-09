@@ -89,17 +89,31 @@ def _vanilla_load_custom_nodes_2() -> ExportedNodes:
 
 def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     # only vanilla custom nodes will ever go into the custom_nodes directory
-    # this mitigation puts files that custom nodes expects are at the root of the repository back where they should be found
-    from ..cmd import cuda_malloc, folder_paths, execution, server, latent_preview
-    for module in (cuda_malloc, folder_paths, execution, server, latent_preview):
+    # this mitigation puts files that custom nodes expects are at the root of the repository back where they should be
+    # found. we're in the middle of executing the import of execution and server, in all likelihood, so like all things,
+    # the way community custom nodes is pretty radioactive
+    from ..cmd import cuda_malloc, folder_paths, latent_preview
+    for module in (cuda_malloc, folder_paths, latent_preview):
         module_short_name = module.__name__.split(".")[-1]
         sys.modules[module_short_name] = module
     sys.modules['nodes'] = base_nodes
+    from ..cmd import execution, server
+    for module in (execution, server):
+        module_short_name = module.__name__.split(".")[-1]
+        sys.modules[module_short_name] = module
+
+    # Impact Pack wants to find model_patcher
+    from .. import model_patcher
+    sys.modules['model_patcher'] = model_patcher
+
     comfy_extras_mitigation: Dict[str, types.ModuleType] = {}
+
+    import comfy_extras
     for module_name, module in sys.modules.items():
         if not module_name.startswith("comfy_extras.nodes"):
             continue
         module_short_name = module_name.split(".")[-1]
+        setattr(comfy_extras, module_short_name, module)
         comfy_extras_mitigation[f'comfy_extras.{module_short_name}'] = module
     sys.modules.update(comfy_extras_mitigation)
     vanilla_custom_nodes = _vanilla_load_custom_nodes_2()

@@ -181,7 +181,6 @@ setup(
     setup_requires=["pip", "wheel"],
     entry_points={
         'console_scripts': [
-            'comfyui-openapi-gen = comfy.cmd.openapi_gen:main',
             'comfyui = comfy.cmd.main:entrypoint',
             'comfyui-worker = comfy.cmd.worker:entrypoint'
         ],

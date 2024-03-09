@@ -1,5 +1,8 @@
 from .. import options
+# Suppress warnings during import
+import warnings
 
+warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_node is deprecated. Please use torch.utils._pytree.register_pytree_node instead.")
 options.enable_args_parsing()
 
 import os
@@ -9,6 +12,8 @@ from ..cmd import cuda_malloc
 from ..cmd import folder_paths
 from .extra_model_paths import load_extra_path_config
 from ..analytics.analytics import initialize_event_tracking
+from ..nodes.package import import_all_nodes_in_workspace
+
 import time
 
 
@@ -77,7 +82,6 @@ if args.deterministic:
 
 from .. import utils
 
-from ..cmd import execution
 from ..cmd import server as server_module
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.queue_types import BinaryEventTypes, ExecutionStatus
@@ -88,7 +92,9 @@ from ..distributed.server_stub import ServerStub
 
 
 def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
-    e = execution.PromptExecutor(_server)
+    from ..cmd.execution import PromptExecutor
+
+    e = PromptExecutor(_server)
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -202,10 +208,27 @@ async def main():
         except:
             pass
 
+    # configure extra model paths earlier
+    try:
+        extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+        if os.path.isfile(extra_model_paths_config_path):
+            load_extra_path_config(extra_model_paths_config_path)
+    except NameError:
+        pass
+
+    if args.extra_model_paths_config:
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            load_extra_path_config(config_path)
+
     loop = asyncio.get_event_loop()
     server = server_module.PromptServer(loop)
     if args.external_address is not None:
         server.external_address = args.external_address
+
+    # at this stage, it's safe to import nodes
+    server.nodes = import_all_nodes_in_workspace()
+    # as a side effect, this also populates the nodes for execution
+
     if args.distributed_queue_connection_uri is not None:
         distributed = True
         q = DistributedPromptQueue(
@@ -219,19 +242,10 @@ async def main():
         await q.init()
     else:
         distributed = False
-        q = execution.PromptQueue(server)
+        from execution import PromptQueue
+        q = PromptQueue(server)
     server.prompt_queue = q
 
-    try:
-        extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
-        if os.path.isfile(extra_model_paths_config_path):
-            load_extra_path_config(extra_model_paths_config_path)
-    except NameError:
-        pass
-
-    if args.extra_model_paths_config:
-        for config_path in itertools.chain(*args.extra_model_paths_config):
-            load_extra_path_config(config_path)
 
     server.add_routes()
     hijack_progress(server)
