@@ -879,7 +879,7 @@ export declare class LGraphNode {
     disconnectInput(slot: number | string): boolean;
     /**
      * returns the center of a connection point in canvas coords
-     * @param is_input true if if a input slot, false if it is an output
+     * @param is_input true if it is an input slot, false if it is an output
      * @param slot (could be the number of the slot or the string with the name of the slot)
      * @param out a place to store the output, to free garbage
      * @return the position
