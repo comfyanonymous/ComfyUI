@@ -228,6 +228,23 @@ class SamplerDPMPP_SDE:
         sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})
         return (sampler, )
 
+class SamplerEulerAncestral:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise):
+        sampler = comfy.samplers.ksampler("euler_ancestral", {"eta": eta, "s_noise": s_noise})
+        return (sampler, )
+
 class SamplerCustom:
     @classmethod
     def INPUT_TYPES(s):
@@ -288,6 +305,7 @@ NODE_CLASS_MAPPINGS = {
     "VPScheduler": VPScheduler,
     "SDTurboScheduler": SDTurboScheduler,
     "KSamplerSelect": KSamplerSelect,
+    "SamplerEulerAncestral": SamplerEulerAncestral,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "SplitSigmas": SplitSigmas,
