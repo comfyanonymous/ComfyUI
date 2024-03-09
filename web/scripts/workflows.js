@@ -4,11 +4,15 @@ import { api } from "./api.js";
 import { ChangeTracker } from "./changeTracker.js";
 import { getStorageValue, setStorageValue } from "./utils.js";
 
-function appendJson(path) {
+function appendJsonExt(path) {
 	if (!path.toLowerCase().endsWith(".json")) {
 		path += ".json";
 	}
 	return path;
+}
+
+export function trimJsonExt(path) {
+	return path?.replace(/\.json$/, "");
 }
 
 export class ComfyWorkflowManager extends EventTarget {
@@ -256,7 +260,7 @@ export class ComfyWorkflow {
 		}
 
 		this.#pathParts = pathParts;
-		this.#name = pathParts[pathParts.length - 1].replace(/\.json$/, "");
+		this.#name = trimJsonExt(pathParts[pathParts.length - 1]);
 	}
 
 	async getWorkflowData() {
@@ -304,7 +308,7 @@ export class ComfyWorkflow {
 	 * @param {string} path
 	 */
 	async rename(path) {
-		path = appendJson(path);
+		path = appendJsonExt(path);
 		let resp = await api.moveUserData("workflows/" + this.path, "workflows/" + path);
 
 		if (resp.status === 409) {
@@ -374,11 +378,11 @@ export class ComfyWorkflow {
 	 */
 	async #save(path, overwrite) {
 		if (!path) {
-			path = prompt("Save workflow as:", this.path ?? this.name ?? "workflow");
+			path = prompt("Save workflow as:", trimJsonExt(this.path) ?? this.name ?? "workflow");
 			if (!path) return;
 		}
 
-		path = appendJson(path);
+		path = appendJsonExt(path);
 
 		const p = await this.manager.app.graphToPrompt();
 		const json = JSON.stringify(p.workflow, null, 2);
@@ -399,8 +403,8 @@ export class ComfyWorkflow {
 			// Saved new workflow, patch this instance
 			this.#updatePath(path, null);
 			await this.manager.loadWorkflows();
-			this.manager.dispatchEvent(new CustomEvent("rename", { detail: this }));
 			this.unsaved = false;
+			this.manager.dispatchEvent(new CustomEvent("rename", { detail: this }));
 		} else if (path !== this.path) {
 			// Saved as, open the new copy
 			await this.manager.loadWorkflows();

@@ -1373,6 +1373,11 @@ export class ComfyApp {
 	    });
 	
 	    await Promise.all(extensionPromises);
+		try {
+			this.menu.workflows.registerExtension(this);
+		} catch (error) {
+			console.error(error);
+		}
 	}
 
 	async #migrateSettings() {
@@ -1880,6 +1885,9 @@ export class ComfyApp {
 			this.showMissingNodesError(missingNodeTypes);
 		}
 		await this.#invokeExtensionsAsync("afterConfigureGraph", missingNodeTypes);
+		requestAnimationFrame(() => {
+			this.graph.setDirtyCanvas(true, true);
+		});
 	}
 
 	/**

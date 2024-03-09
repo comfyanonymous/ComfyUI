@@ -6,7 +6,7 @@ import { $el } from "../../ui.js";
 import { api } from "../../api.js";
 import { ComfyPopup } from "../components/popup.js";
 import { createSpinner } from "../spinner.js";
-import { ComfyWorkflow } from "../../workflows.js";
+import { ComfyWorkflow, trimJsonExt } from "../../workflows.js";
 
 export class ComfyWorkflowsMenu {
 	#first = true;
@@ -100,6 +100,161 @@ export class ComfyWorkflowsMenu {
 			this.unsaved = true;
 		});
 	}
+
+	#getMenuOptions(callback) {
+		const menu = [];
+		const directories = new Map();
+		for (const workflow of this.app.workflowManager.workflows || []) {
+			const path = workflow.pathParts;
+			if (!path) continue;
+			let parent = menu;
+			let currentPath = "";
+			for (let i = 0; i < path.length - 1; i++) {
+				currentPath += "/" + path[i];
+				let newParent = directories.get(currentPath);
+				if (!newParent) {
+					newParent = {
+						title: path[i],
+						has_submenu: true,
+						submenu: {
+							options: [],
+						},
+					};
+					parent.push(newParent);
+					newParent = newParent.submenu.options;
+					directories.set(currentPath, newParent);
+				}
+				parent = newParent;
+			}
+			parent.push({
+				title: trimJsonExt(path[path.length - 1]),
+				callback: () => callback(workflow),
+			});
+		}
+		return menu;
+	}
+
+	#getFavoriteMenuOptions(callback) {
+		const menu = [];
+		for (const workflow of this.app.workflowManager.workflows || []) {
+			if (workflow.isFavorite) {
+				menu.push({
+					title: "⭐ " + workflow.name,
+					callback: () => callback(workflow),
+				});
+			}
+		}
+		return menu;
+	}
+
+	/**
+	 * @param {import("../../app.js").ComfyApp} app
+	 */
+	registerExtension(app) {
+		const self = this;
+		app.registerExtension({
+			name: "Comfy.Workflows",
+			async beforeRegisterNodeDef(nodeType) {
+				function getImageWidget(node) {
+					const inputs = { ...node.constructor?.nodeData?.input?.required, ...node.constructor?.nodeData?.input?.optional };
+					for (const input in inputs) {
+						if (inputs[input][0] === "IMAGEUPLOAD") {
+							const imageWidget = node.widgets.find((w) => w.name === (inputs[input]?.[1]?.widget ?? "image"));
+							if (imageWidget) return imageWidget;
+						}
+					}
+				}
+
+				function setWidgetImage(node, widget, img) {
+					const url = new URL(img.src);
+					const filename = url.searchParams.get("filename");
+					const subfolder = url.searchParams.get("subfolder");
+					const type = url.searchParams.get("type");
+					const imageId = `${subfolder ? subfolder + "/" : ""}${filename} [${type}]`;
+					widget.value = imageId;
+					node.imgs = [img];
+				}
+
+				/**
+				 * @param {HTMLImageElement} img
+				 * @param {ComfyWorkflow} workflow
+				 */
+				async function sendToWorkflow(img, workflow) {
+					await workflow.load();
+					let targetNode;
+					let targetWidget;
+					const nodes = app.graph.computeExecutionOrder(false);
+					for (const n of nodes) {
+						const widget = getImageWidget(n);
+						if (widget == null) continue;
+
+						if (n.title?.toLowerCase().includes("input")) {
+							targetWidget = widget;
+							targetNode = n;
+							break;
+						} else if (!targetWidget) {
+							targetWidget = widget;
+							targetNode = n;
+						} else {
+							alert(
+								"Multiple image nodes have been found, the first one has been selected. You can include 'input' in the title of the node to use a specific node."
+							);
+							break;
+						}
+					}
+
+					if(!targetWidget) {
+						alert("No image nodes have been found in this workflow!");
+						return;
+					}
+
+		
+					setWidgetImage(targetNode, targetWidget, img);
+				}
+
+				const getExtraMenuOptions = nodeType.prototype["getExtraMenuOptions"];
+				nodeType.prototype["getExtraMenuOptions"] = function (_, options) {
+					const r = getExtraMenuOptions?.apply?.(this, arguments);
+					const t = /** @type { {imageIndex?: number, overIndex?: number, imgs: string[]} } */ /** @type {any} */ (this);
+					let img;
+					if (t.imageIndex != null) {
+						// An image is selected so select that
+						img = t.imgs?.[t.imageIndex];
+					} else if (t.overIndex != null) {
+						// No image is selected but one is hovered
+						img = t.img?.s[t.overIndex];
+					}
+
+					if (img) {
+						let pos = options.findIndex((o) => o.content === "Save Image");
+						if (pos === -1) {
+							pos = 0;
+						} else {
+							pos++;
+						}
+
+						options.splice(pos, 0, {
+							content: "Send to workflow",
+							has_submenu: true,
+							submenu: {
+								options: [
+									{
+										callback: () => sendToWorkflow(img, app.workflowManager.activeWorkflow),
+										title: "[Current workflow]",
+									},
+									...self.#getFavoriteMenuOptions(sendToWorkflow.bind(null, img)),
+									null,
+									...self.#getMenuOptions(sendToWorkflow.bind(null, img)),
+								],
+							},
+						});
+					}
+
+					return r;
+				};
+			},
+		});
+	}
 }
 
 export class ComfyWorkflowsContent {
@@ -191,18 +346,9 @@ export class ComfyWorkflowsContent {
 			$el("h3", "Open"),
 			...this.app.workflowManager.openWorkflows.map((w) => {
 				const wrapper = new WorkflowElement(this, w, {
-					primary: { element: $el("i.mdi.mdi-18px.mdi-circle-small") },
+					primary: { element: $el("i.mdi.mdi-18px.mdi-progress-pencil") },
 					buttons: [
-						new ComfyButton({
-							icon: "content-save",
-							iconSize: 18,
-							classList: "comfyui-button comfyui-workflows-file-action",
-							enabled: w.unsaved,
-							action: (e) => {
-								e.stopImmediatePropagation();
-								w.save();
-							},
-						}),
+						this.#getRenameButton(w),
 						new ComfyButton({
 							icon: "close",
 							iconSize: 18,
@@ -303,7 +449,7 @@ export class ComfyWorkflowsContent {
 		const percent = done.length / total.length;
 		open.element.classList.add("running");
 		open.element.style.setProperty("--progress", percent * 100 + "%");
-		open.primary.element.classList.remove("mdi-circle-small");
+		open.primary.element.classList.remove("mdi-progress-pencil");
 		open.primary.element.classList.add("mdi-play");
 	}
 
@@ -311,7 +457,7 @@ export class ComfyWorkflowsContent {
 		if (!this.activeElement) return;
 		this.activeElement.element.classList.remove("running");
 		this.activeElement.element.style.removeProperty("--progress");
-		this.activeElement.primary.element.classList.add("mdi-circle-small");
+		this.activeElement.primary.element.classList.add("mdi-progress-pencil");
 		this.activeElement.primary.element.classList.remove("mdi-play");
 	}
 

@@ -253,7 +253,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 			const transform = new DOMMatrix()
 				.scaleSelf(elRect.width / ctx.canvas.width, elRect.height / ctx.canvas.height)
 				.multiplySelf(ctx.getTransform())
-				.translateSelf(margin, margin + y + elRect.top);
+				.translateSelf(margin, margin + y );
 
 			const scale = new DOMMatrix().scaleSelf(transform.a, transform.d);
 
@@ -261,7 +261,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 				transformOrigin: "0 0",
 				transform: scale,
 				left: `${transform.a + transform.e}px`,
-				top: `${transform.d + transform.f}px`,
+				top: `${transform.d + transform.f + + elRect.top}px`,
 				width: `${widgetWidth - margin * 2}px`,
 				height: `${(widget.computedHeight ?? 50) - margin * 2}px`,
 				position: "absolute",

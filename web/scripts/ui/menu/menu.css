@@ -250,6 +250,9 @@
 }
 
 @media only screen and (max-width: 520px) {
+	.comfyui-workflows-button-inner {
+		width: unset !important;
+	}
 	.comfyui-workflows-label {
 		display: none;
 	}

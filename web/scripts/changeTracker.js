@@ -3,29 +3,33 @@
 import { api } from "./api.js";
 import { clone } from "./utils.js";
 
+
 export class ChangeTracker {
 	static MAX_HISTORY = 50;
-
+	#app;
 	undo = [];
 	redo = [];
 	activeState = null;
 	isOurLoad = false;
-	/** @type { import("./workflows").ComfyWorkflowInstance } */
+	/** @type { import("./workflows").ComfyWorkflow | null } */
 	workflow;
 
 	ds;
 	nodeOutputs;
 
 	get app() {
-		return this.workflow.manager.app;
+		return this.#app ?? this.workflow.manager.app;
 	}
 
 	constructor(workflow) {
 		this.workflow = workflow;
 	}
 
+	#setApp(app) {
+		this.#app = app;
+	}
+
 	store() {
-		this.nodeOutputs = clone(this.app.nodeOutputs);
 		this.ds = { scale: this.app.canvas.ds.scale, offset: [...this.app.canvas.ds.offset] };
 	}
 
@@ -81,7 +85,8 @@ export class ChangeTracker {
 
 	/** @param { import("./app.js").ComfyApp } app */
 	static init(app) {
-		const changeTracker = () => app.workflowManager.activeWorkflow.changeTracker;
+		const changeTracker = () => app.workflowManager.activeWorkflow?.changeTracker ?? globalTracker;
+		globalTracker.#setApp(app);
 
 		const loadGraphData = app.loadGraphData;
 		app.loadGraphData = async function () {
@@ -162,6 +167,26 @@ export class ChangeTracker {
 			changeTracker().checkState();
 			return v;
 		};
+
+		// Store node outputs
+		api.addEventListener("executed", ({ detail }) => {
+			const prompt = app.workflowManager.queuedPrompts[detail.prompt_id];
+			if(!prompt.workflow) return;
+			const nodeOutputs = prompt.workflow.changeTracker.nodeOutputs ??= {};
+			const output = nodeOutputs[detail.node];
+			if (detail.merge && output) {
+				for (const k in detail.output ?? {}) {
+					const v = output[k];
+					if (v instanceof Array) {
+						output[k] = v.concat(detail.output[k]);
+					} else {
+						output[k] = detail.output[k];
+					}
+				}
+			} else {
+				nodeOutputs[detail.node] = detail.output;
+			}
+		});
 	}
 
 	static bindInput(app, activeEl) {
@@ -208,3 +233,5 @@ export class ChangeTracker {
 		return false;
 	}
 }
+
+const globalTracker = new ChangeTracker({});
