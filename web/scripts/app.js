@@ -1466,7 +1466,7 @@ export class ComfyApp {
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
-		this.#addApiUpdateHandlers();
+		// this.#addApiUpdateHandlers();
 
 		this.graph = new LGraph();
 

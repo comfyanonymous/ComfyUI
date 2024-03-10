@@ -4,6 +4,14 @@ import { ComfyApp } from "./app.js";
 export class ComfyViewNodeApp extends ComfyApp {
   async setup() {
     LGraphCanvas.prototype.processMouseWheel =()=>{}
+    await fetch("/api/listComfyExtensions").then(resp => resp.json()).then(data => {
+      if(data.paths) {
+        console.log("data.paths", data.paths);
+        this.extensionFilesPath = data.paths;
+      }
+    }).catch(error => {
+      console.error("error fetching comfy extensions", error);
+    }); 
     await super.setup();
   }
   async registerNodes() {

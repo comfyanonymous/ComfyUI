@@ -5,6 +5,16 @@ export class ComfyViewNodePackageApp extends ComfyApp {
   async setup() {
     // to disable mousewheel zooming
     LGraphCanvas.prototype.processMouseWheel =()=>{}
+    const params = new URLSearchParams(window.location.search);
+    const pacakgeID = params.get("packageID");
+    await fetch(`/api/listComfyExtensions?packageID=${pacakgeID}`).then(resp => resp.json()).then(data => {
+      if(data.paths) {
+        console.log("data.paths", data.paths);
+        this.extensionFilesPath = data.paths;
+      }
+    }).catch(error => {
+      console.error("error fetching comfy extensions", error);
+    }); 
     await super.setup();
     this.canvasEl.addEventListener("click", (e)=> {
 			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );

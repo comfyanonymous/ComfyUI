@@ -3,11 +3,17 @@ import requests
 import os
 import shutil
 from dotenv import load_dotenv
+from dotenv import load_dotenv
+import boto3
 
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
 load_dotenv(os.path.join(root_path, '.env.local'))
 github_key = os.getenv('GITHUB_API_KEY')
+s3_bucket_name = os.getenv('S3_BUCKET_NAME')
+aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+aws_region = os.getenv('AWS_REGION')
 
 def get_github_repo_stars(repo_url):
     if github_key is None:
@@ -32,9 +38,22 @@ def get_github_repo_stars(repo_url):
         stars = repo_data.get("stargazers_count", 0)
         owner_avatar_url = repo_data['owner']['avatar_url']
         # image_url = get_first_image_url_from_readme(owner, repo)
+        description = repo_data.get('description')
+        if not description:
+            # Fetch README content
+            readme_url = f"https://api.github.com/repos/{owner}/{repo}/readme"
+            readme_info = requests.get(readme_url, headers=headers).json()
+            readme_content = readme_info.get('content', '')
+            readme_text = requests.get(readme_info['download_url']).text if 'download_url' in readme_info else ""
+            paragraphs = readme_text.split('\n\n')
+            # Keep only the first two paragraphs
+            first_two_paragraphs = paragraphs[:2]
+            description = '\n'.join(first_two_paragraphs)
+
         return {
             "stars": stars,
             "owner_avatar_url": owner_avatar_url,
+            'description': description,
             # "image_url": image_url
         }
     else:
@@ -116,6 +135,50 @@ def get_repo_user_and_name(module_path):
             return "Could not parse URL", ""
     except subprocess.CalledProcessError as e:
         return f"Error: {e.stderr}", ""
-# Example usage
-# module_path = 'path/to/git/repo'
-# username, repo_name = get_repo_user_and_name(module_path)
+
+
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=aws_access_key_id,
+    aws_secret_access_key=aws_secret_access_key,
+    region_name=aws_region
+)
+def download_and_upload_to_s3(repo_url, webDir, current_path=''):
+    """
+    Recursively downloads contents from a specified directory in a GitHub repo and uploads them to S3, maintaining the directory structure.
+    
+    :param repo_url: URL to the GitHub repository
+    :param webDir: Path to the directory in the repository from which to start the download
+    :param current_path: Keeps track of the current path for recursive calls
+    """
+    parts = repo_url.split("/")
+    owner, repo = parts[-2], parts[-1]
+
+    headers = {
+        "Authorization": f"token {github_key}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{webDir}/{current_path}"
+
+    response = requests.get(api_url, headers=headers)
+    items = response.json()
+
+    if not isinstance(items, list):  # If the response is not a list, it might be an error message
+        print(f"Error fetching {api_url}: {items.get('message', 'Unknown error')}")
+        return
+
+    for item in items:
+        if item['type'] == 'file':
+            # Download the file content
+            download_response = requests.get(item['download_url'])
+            file_name = os.path.basename(item['path'])
+            s3_key = f"packageWebDir/{owner}_{repo}/{current_path}{file_name}"
+            
+            # Upload to S3
+            s3_client.put_object(Bucket="comfyspace", Key=s3_key, Body=download_response.content)
+            print(f"✅ Uploaded {file_name} to S3 with key {s3_key}")
+        elif item['type'] == 'dir':
+            # Recursively process the directory
+            new_path = os.path.join(current_path, os.path.basename(item['path'])) + '/'
+            print(f"📁 Processing directory: {new_path}")
+            download_and_upload_to_s3(repo_url, webDir, new_path)

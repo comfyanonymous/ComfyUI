@@ -1,4 +1,4 @@
-from .githubUtils import get_github_repo_stars
+from .githubUtils import download_and_upload_to_s3, get_github_repo_stars
 import datetime
 import os 
 from dotenv import load_dotenv
@@ -91,11 +91,17 @@ def put_node_package_ddb(item):
         repo_data = get_github_repo_stars(item.get('gitHtmlUrl'))
         owner_avatar_url= repo_data['owner_avatar_url'] if 'owner_avatar_url' in repo_data else None
         star_count = repo_data['stars'] if 'stars' in repo_data else None
+        
+        webDir = item.get('webDir')
+        jsFilePaths = None
+        if webDir:
+            jsFilePaths = download_and_upload_to_s3(item['gitRepo'], webDir)
         response = ddb_package_table.put_item(Item={
             **item,
             'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat(),
             'totalStars': star_count,
-            'ownerGitAvatarUrl': owner_avatar_url
+            'ownerGitAvatarUrl': owner_avatar_url,
+            'description': repo_data.get('description','')
         })
         return item
     except Exception as e:
