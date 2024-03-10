@@ -1955,16 +1955,35 @@ def custom_serializer(obj):
     else:
         return obj
 from scanner.controller import cur_git_repo
-base_node_done = False  
-put_node_package_ddb({
-                'id': 'comfyanonymous_ComfyUI',
-                'gitRepo': "comfyanonymous/ComfyUI",
-                'gitHtmlUrl': 'https://github.com/comfyanonymous/ComfyUI',
-                'nameID': 'ComfyUI',
-                'authorID': 'admin',
-                'status': 'IMPORT_SUCCESS',
-                'defaultBranch': 'master',
-            })
+
+# For COMFYUI BASE NODES
+def save_base_nodes_to_ddb():
+    baseNodeDefs = {}
+    for name in NODE_CLASS_MAPPINGS: 
+        paths = analyze_class(NODE_CLASS_MAPPINGS[name])
+        node_def = node_info(name)
+        data = {
+            "id": name+"~"+'comfyanonymous_ComfyUI',
+            "nodeType": name, 
+            "nodeDef": json.dumps(node_def), 
+            "packageID": 'comfyanonymous_ComfyUI',
+            "gitRepo": 'comfyanonymous/ComfyUI'}
+        baseNodeDefs[name] = node_def
+        if paths is not None and len(paths) > 0:
+            data['folderPaths'] = json.dumps(paths, default=custom_serializer)
+        put_node_ddb(data)
+    put_node_package_ddb({
+                    'id': 'comfyanonymous_ComfyUI',
+                    'gitRepo': "comfyanonymous/ComfyUI",
+                    'gitHtmlUrl': 'https://github.com/comfyanonymous/ComfyUI',
+                    'nameID': 'ComfyUI',
+                    'authorID': 'admin',
+                    'status': 'IMPORT_SUCCESS',
+                    'defaultBranch': 'master',
+                    'totalNodes':len(NODE_CLASS_MAPPINGS),
+                    'nodeDefs': json.dumps(baseNodeDefs)
+                })
+# save_base_nodes_to_ddb()
 def load_custom_nodes():
     print('🤔🤔🤔 load cusotm nodes')
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
@@ -2004,19 +2023,6 @@ def load_custom_nodes():
                             "packageID": packageID,
                             "gitRepo": username + '/' + repo_name}
                         custom_node_defs[name] = node_def
-                        if paths is not None and len(paths) > 0:
-                            data['folderPaths'] = json.dumps(paths, default=custom_serializer)
-                        put_node_ddb(data)
-                    # For COMFYUI BASE NODES
-                    if name in base_node_names: 
-                        paths = analyze_class(NODE_CLASS_MAPPINGS[name])
-                        node_def = node_info(name)
-                        data = {
-                            "id": name+"~"+'comfyanonymous_ComfyUI',
-                            "nodeType": name, 
-                            "nodeDef": json.dumps(node_def), 
-                            "packageID": 'comfyanonymous_ComfyUI',
-                            "gitRepo": 'comfyanonymous/ComfyUI'}
                         if paths is not None and len(paths) > 0:
                             data['folderPaths'] = json.dumps(paths, default=custom_serializer)
                         put_node_ddb(data)
