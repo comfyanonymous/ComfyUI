@@ -598,3 +598,43 @@
 	padding: 0;
 	margin: 0;
 }
+
+/** Send to workflow widget selection dialog */
+.comfy-widget-selection-dialog {
+	border: none;
+}
+
+.comfy-widget-selection-dialog div {
+	color: var(--fg-color);
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+.comfy-widget-selection-dialog h2 {
+	margin-top: 0;
+}
+
+.comfy-widget-selection-dialog section {
+	width: fit-content;
+	display: flex;
+	flex-direction: column;
+}
+
+.comfy-widget-selection-item {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+}
+
+.comfy-widget-selection-item span {
+	margin-right: auto;
+}
+
+.comfy-widget-selection-item span::before {
+	content: '#' attr(data-id);
+	opacity: 0.5;
+	margin-right: 5px;
+}
+
+.comfy-modal .comfy-widget-selection-item button {
+	font-size: 1em;
+}

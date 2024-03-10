@@ -1,9 +1,9 @@
 import { $el } from "../ui.js";
 
 export class ComfyDialog extends EventTarget {
-	constructor() {
+	constructor(type = "div") {
 		super();
-		this.element = $el("div.comfy-modal", { parent: document.body }, [
+		this.element = $el(type + ".comfy-modal", { parent: document.body }, [
 			$el("div.comfy-modal-content", [$el("p", { $: (p) => (this.textElement = p) }), ...this.createButtons()]),
 		]);
 	}
@@ -26,7 +26,7 @@ export class ComfyDialog extends EventTarget {
 		if (typeof html === "string") {
 			this.textElement.innerHTML = html;
 		} else {
-			this.textElement.replaceChildren(html);
+			this.textElement.replaceChildren(...(html instanceof Array ? html : [html]));
 		}
 		this.element.style.display = "flex";
 	}

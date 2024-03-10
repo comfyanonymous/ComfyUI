@@ -7,6 +7,7 @@ import { api } from "../../api.js";
 import { ComfyPopup } from "../components/popup.js";
 import { createSpinner } from "../spinner.js";
 import { ComfyWorkflow, trimJsonExt } from "../../workflows.js";
+import { ComfyDialog } from "../dialog.js";
 
 export class ComfyWorkflowsMenu {
 	#first = true;
@@ -173,6 +174,7 @@ export class ComfyWorkflowsMenu {
 					const imageId = `${subfolder ? subfolder + "/" : ""}${filename} [${type}]`;
 					widget.value = imageId;
 					node.imgs = [img];
+					app.graph.setDirtyCanvas(true, true);
 				}
 
 				/**
@@ -181,35 +183,31 @@ export class ComfyWorkflowsMenu {
 				 */
 				async function sendToWorkflow(img, workflow) {
 					await workflow.load();
-					let targetNode;
-					let targetWidget;
+					let options = [];
 					const nodes = app.graph.computeExecutionOrder(false);
-					for (const n of nodes) {
-						const widget = getImageWidget(n);
+					for (const node of nodes) {
+						const widget = getImageWidget(node);
 						if (widget == null) continue;
 
-						if (n.title?.toLowerCase().includes("input")) {
-							targetWidget = widget;
-							targetNode = n;
+						if (node.title?.toLowerCase().includes("input")) {
+							options = [{ widget, node }];
 							break;
-						} else if (!targetWidget) {
-							targetWidget = widget;
-							targetNode = n;
 						} else {
-							alert(
-								"Multiple image nodes have been found, the first one has been selected. You can include 'input' in the title of the node to use a specific node."
-							);
-							break;
+							options.push({ widget, node });
 						}
 					}
 
-					if(!targetWidget) {
+					if (!options.length) {
 						alert("No image nodes have been found in this workflow!");
 						return;
+					} else if (options.length > 1) {
+						const dialog = new WidgetSelectionDialog(options);
+						const res = await dialog.show(app);
+						if (!res) return;
+						options = [res];
 					}
 
-		
-					setWidgetImage(targetNode, targetWidget, img);
+					setWidgetImage(options[0].node, options[0].widget, img);
 				}
 
 				const getExtraMenuOptions = nodeType.prototype["getExtraMenuOptions"];
@@ -612,5 +610,71 @@ class WorkflowElement {
 			},
 			[this.primary?.element, $el("span", workflow.name), ...buttons.map((b) => b.element)]
 		);
+	}
+}
+
+class WidgetSelectionDialog extends ComfyDialog {
+	#options;
+	#resolve;
+
+	/**
+	 * @param {Array<{widget: {name: string}, node: {pos: [number, number], title: string, id: string, type: string}}>} options
+	 */
+	constructor(options) {
+		super("dialog");
+		this.#options = options;
+	}
+
+	show(app) {
+		this.element.addEventListener("close", () => {
+			this.close();
+		});
+		this.element.classList.add("comfy-widget-selection-dialog");
+		super.show(
+			$el("div", [
+				$el("h2", "Select image target"),
+				$el(
+					"p",
+					"This workflow has multiple image loader nodes, you can rename a node to include 'input' in the title for it to be automatically selected, or select one below."
+				),
+				$el(
+					"section",
+					this.#options.map((opt) => {
+						return $el("div.comfy-widget-selection-item", [
+							$el("span", { dataset: { id: opt.node.id } }, `${opt.node.title ?? opt.node.type} ${opt.widget.name}`),
+							$el(
+								"button.comfyui-button",
+								{
+									onclick: () => {
+										app.canvas.ds.offset[0] = -opt.node.pos[0] + 50;
+										app.canvas.ds.offset[1] = -opt.node.pos[1] + 50;
+										app.canvas.selectNode(opt.node);
+									},
+								},
+								"Show"
+							),
+							$el(
+								"button.comfyui-button.primary",
+								{
+									onclick: () => {
+										this.#resolve(opt);
+										this.close();
+									},
+								},
+								"Select"
+							),
+						]);
+					})
+				),
+			])
+		);
+		return new Promise((resolve) => {
+			this.#resolve = resolve;
+		});
+	}
+
+	close() {
+		this.#resolve();
+		super.close();
 	}
 }
