@@ -104,7 +104,7 @@ if self_update and not files_equal(update_py_path, repo_update_py_path) and file
 if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
     import subprocess
     try:
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-r', repo_req_path])
+        subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', repo_req_path])
         shutil.copy(repo_req_path, req_path)
     except:
         pass

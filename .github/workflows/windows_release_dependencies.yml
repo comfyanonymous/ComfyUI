@@ -24,7 +24,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "6"
+        default: "8"
 #  push:
 #    branches:
 #      - master
