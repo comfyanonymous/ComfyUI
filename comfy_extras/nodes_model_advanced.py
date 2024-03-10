@@ -1,6 +1,7 @@
 import folder_paths
 import comfy.sd
 import comfy.model_sampling
+import comfy.latent_formats
 import torch
 
 class LCM(comfy.model_sampling.EPS):
@@ -135,7 +136,7 @@ class ModelSamplingContinuousEDM:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["v_prediction", "eps"],),
+                              "sampling": (["v_prediction", "edm_playground_v2.5", "eps"],),
                               "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               }}
@@ -148,17 +149,25 @@ class ModelSamplingContinuousEDM:
     def patch(self, model, sampling, sigma_max, sigma_min):
         m = model.clone()
 
+        latent_format = None
+        sigma_data = 1.0
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
         elif sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
+        elif sampling == "edm_playground_v2.5":
+            sampling_type = comfy.model_sampling.EDM
+            sigma_data = 0.5
+            latent_format = comfy.latent_formats.SDXL_Playground_2_5()
 
         class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousEDM, sampling_type):
             pass
 
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        model_sampling.set_sigma_range(sigma_min, sigma_max)
+        model_sampling.set_parameters(sigma_min, sigma_max, sigma_data)
         m.add_object_patch("model_sampling", model_sampling)
+        if latent_format is not None:
+            m.add_object_patch("latent_format", latent_format)
         return (m, )
 
 class RescaleCFG:

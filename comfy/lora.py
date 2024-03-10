@@ -197,6 +197,15 @@ def model_lora_keys_clip(model, key_map={}):
                     key_map[lora_key] = k
                     lora_key = "text_encoder.text_model.encoder.layers.{}.{}".format(b, c) #diffusers lora
                     key_map[lora_key] = k
+                    lora_key = "lora_prior_te_text_model_encoder_layers_{}_{}".format(b, LORA_CLIP_MAP[c]) #cascade lora: TODO put lora key prefix in the model config
+                    key_map[lora_key] = k
+
+
+    k = "clip_g.transformer.text_projection.weight"
+    if k in sdk:
+        key_map["lora_prior_te_text_projection"] = k #cascade lora?
+        # key_map["text_encoder.text_projection"] = k #TODO: check if other lora have the text_projection too
+        # key_map["lora_te_text_projection"] = k
 
     return key_map
 
@@ -207,6 +216,7 @@ def model_lora_keys_unet(model, key_map={}):
         if k.startswith("diffusion_model.") and k.endswith(".weight"):
             key_lora = k[len("diffusion_model."):-len(".weight")].replace(".", "_")
             key_map["lora_unet_{}".format(key_lora)] = k
+            key_map["lora_prior_unet_{}".format(key_lora)] = k #cascade lora: TODO put lora key prefix in the model config
 
     diffusers_keys = comfy.utils.unet_to_diffusers(model.model_config.unet_config)
     for k in diffusers_keys:
