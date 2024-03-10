@@ -1,18 +1,37 @@
 
 import { ComfyApp } from "./app.js";
 
+const COMFYUI_CORE_EXTENSIONS = [
+  // "/extensions/core/clipspace.js",
+  "/extensions/core/colorPalette.js",
+  // "/extensions/core/contextMenuFilter.js",
+  // "/extensions/core/dynamicPrompts.js",
+  // "/extensions/core/editAttention.js",
+  "/extensions/core/groupNode.js",
+  "/extensions/core/groupNodeManage.js",
+  "/extensions/core/groupOptions.js",
+  // "/extensions/core/invertMenuScrolling.js",
+  // "/extensions/core/keybinds.js",
+  // "/extensions/core/linkRenderMode.js",
+  "/extensions/core/maskeditor.js",
+  // "/extensions/core/nodeTemplates.js",
+  "/extensions/core/noteNode.js",
+  "/extensions/core/rerouteNode.js",
+  "/extensions/core/saveImageExtraOutput.js",
+  "/extensions/core/slotDefaults.js",
+  "/extensions/core/snapToGrid.js",
+  // "/extensions/core/undoRedo.js",
+  "/extensions/core/uploadImage.js",
+  "/extensions/core/widgetInputs.js",
+  "/extensions/dp.js",
+]
+
 export class ComfyViewWorkflowApp extends ComfyApp {
-  #defs = null;
   #workflow = null
   
   async setup() {
-    await fetch("/api/listComfyExtensions").then(resp => resp.json()).then(data => {
-      if(data.paths) {
-        this.extensionFilesPath = data.paths;
-      }
-    }).catch(error => {
-      console.error("error fetching comfy extensions", error);
-    }); 
+    this.extensionFilesPath = COMFYUI_CORE_EXTENSIONS;
+
     const queryParams = new URLSearchParams(window.location.search);
     const workflowVersionID = queryParams.get('workflowVersionID');
     await fetch("/api/getCloudflowVersion/?id=" + workflowVersionID, {
@@ -26,7 +45,7 @@ export class ComfyViewWorkflowApp extends ComfyApp {
       .then((data) => {
         console.log("getCloudflowVersion data", data);
         const workflowVer = data.data;
-        this.#defs = JSON.parse(workflowVer.nodeDefs);
+        this.nodeDefs = JSON.parse(workflowVer.nodeDefs);
         this.#workflow = JSON.parse(workflowVer.json);
       })
       .catch((error) => {
@@ -36,37 +55,4 @@ export class ComfyViewWorkflowApp extends ComfyApp {
     await super.setup();
     await this.loadGraphData(this.#workflow);
   }
-  async registerNodes() {
-    console.log("registerNodes",  this.#defs,'workflow', this.#workflow);
-      
-      await this.registerNodesFromDefs(this.#defs);
-      await this.#invokeExtensionsAsync("registerCustomNodes");
-    }
-
-  /**
-   * Invoke an async extension callback
-   * Each callback will be invoked concurrently
-   * @param {string} method The extension callback to execute
-   * @param  {...any} args Any arguments to pass to the callback
-   * @returns
-   */
-  async #invokeExtensionsAsync(method, ...args) {
-      return await Promise.all(
-      this.extensions.map(async (ext) => {
-          if (method in ext) {
-          try {
-              return await ext[method](...args, this);
-          } catch (error) {
-              console.error(
-              `Error calling extension '${ext.name}' method '${method}'`,
-              { error },
-              { extension: ext },
-              { args }
-              );
-          }
-          }
-      })
-      );
-  }
-
 }

@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 import boto3
 from .githubUtils import get_github_repo_stars
+import json
 
 scanner_path = os.path.dirname(__file__)
 root_path = os.path.dirname(os.path.dirname(scanner_path))
@@ -95,13 +96,14 @@ def put_node_package_ddb(item):
         webDir = item.get('webDir')
         jsFilePaths = None
         if webDir:
-            jsFilePaths = download_and_upload_to_s3(item['gitRepo'], webDir)
+            jsFilePaths = json.dumps(download_and_upload_to_s3(item['gitRepo'], webDir))
         response = ddb_package_table.put_item(Item={
             **item,
             'updatedAt': datetime.datetime.now().replace(microsecond=0).isoformat(),
             'totalStars': star_count,
             'ownerGitAvatarUrl': owner_avatar_url,
-            'description': repo_data.get('description','')
+            'description': repo_data.get('description',''),
+            'jsFilePaths': jsFilePaths
         })
         return item
     except Exception as e:

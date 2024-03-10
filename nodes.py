@@ -1991,18 +1991,7 @@ def load_custom_nodes():
             username, repo_name, default_branch_name = get_repo_user_and_name(module_path)
             print('🍻 cur_node_package',cur_node_package)
             packageID = username + '_' + repo_name
-            put_node_package_ddb({
-                **cur_node_package,
-                'id': packageID,
-                'gitRepo': username + '/' + repo_name,
-                'gitHtmlUrl': 'https://github.com/'+username + '/' + repo_name,
-                'nameID': repo_name,
-                'authorID': 'admin',
-                'status': 'IMPORT_'+ ('SUCCESS' if success else 'FAILED'),
-                'defaultBranch': default_branch_name,
-                'totalNodes':nodes_count,
-                "importTime": Decimal(str( time.perf_counter() - time_before))
-            })
+            custom_node_defs = {}
             for name in NODE_CLASS_MAPPINGS:
                 try:
                     if name not in prev_nodes: 
@@ -2014,9 +2003,11 @@ def load_custom_nodes():
                             "nodeDef": json.dumps(node_def), 
                             "packageID": packageID,
                             "gitRepo": username + '/' + repo_name}
+                        custom_node_defs[name] = node_def
                         if paths is not None and len(paths) > 0:
                             data['folderPaths'] = json.dumps(paths, default=custom_serializer)
                         put_node_ddb(data)
+                    # For COMFYUI BASE NODES
                     if name in base_node_names: 
                         paths = analyze_class(NODE_CLASS_MAPPINGS[name])
                         node_def = node_info(name)
@@ -2031,7 +2022,19 @@ def load_custom_nodes():
                         put_node_ddb(data)
                 except Exception as e:
                     print("❌analyze imported node: error",e)
-
+            put_node_package_ddb({
+                **cur_node_package,
+                'id': packageID,
+                'gitRepo': username + '/' + repo_name,
+                'gitHtmlUrl': 'https://github.com/'+username + '/' + repo_name,
+                'nameID': repo_name,
+                'authorID': 'admin',
+                'status': 'IMPORT_'+ ('SUCCESS' if success else 'FAILED'),
+                'defaultBranch': default_branch_name,
+                'totalNodes':nodes_count,
+                "importTime": Decimal(str( time.perf_counter() - time_before)),
+                'nodeDefs': json.dumps(custom_node_defs)
+            })
     if len(node_import_times) > 0:
         print("\nImport times for custom nodes:")
         for n in sorted(node_import_times):

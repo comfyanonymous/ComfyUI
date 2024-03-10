@@ -1,21 +1,55 @@
 
 import { ComfyApp } from "./app.js";
-
+const COMFYUI_CORE_EXTENSIONS = [
+  // "/extensions/core/clipspace.js",
+  "/extensions/core/colorPalette.js",
+  // "/extensions/core/contextMenuFilter.js",
+  // "/extensions/core/dynamicPrompts.js",
+  // "/extensions/core/editAttention.js",
+  // "/extensions/core/groupNode.js",
+  // "/extensions/core/groupNodeManage.js",
+  // "/extensions/core/groupOptions.js",
+  // "/extensions/core/invertMenuScrolling.js",
+  // "/extensions/core/keybinds.js",
+  // "/extensions/core/linkRenderMode.js",
+  "/extensions/core/maskeditor.js",
+  // "/extensions/core/nodeTemplates.js",
+  // "/extensions/core/noteNode.js",
+  // "/extensions/core/rerouteNode.js",
+  "/extensions/core/saveImageExtraOutput.js",
+  "/extensions/core/slotDefaults.js",
+  "/extensions/core/snapToGrid.js",
+  "/extensions/core/undoRedo.js",
+  "/extensions/core/uploadImage.js",
+  "/extensions/core/widgetInputs.js",
+  "/extensions/dp.js",
+]
 export class ComfyViewNodePackageApp extends ComfyApp {
+  /** @type {{nodeDefs:string,jsFilePaths:string}} */
+  nodePackage = null;
+  pacakgeID = null;
+  extensionFilesPath =  COMFYUI_CORE_EXTENSIONS;
+  constructor() {
+    super();
+    const params = new URLSearchParams(window.location.search);
+    this.pacakgeID = params.get("packageID");
+  }
   async setup() {
     // to disable mousewheel zooming
     LGraphCanvas.prototype.processMouseWheel =()=>{}
-    const params = new URLSearchParams(window.location.search);
-    const pacakgeID = params.get("packageID");
-    await fetch(`/api/listComfyExtensions?packageID=${pacakgeID}`).then(resp => resp.json()).then(data => {
-      if(data.paths) {
-        console.log("data.paths", data.paths);
-        this.extensionFilesPath = data.paths;
+    if(this.pacakgeID) {
+      try {
+        const resp = await fetch("/api/getNodePackage?id="+this.pacakgeID);
+        this.nodePackage = (await resp.json())?.data;
+        this.nodeDefs = JSON.parse(this.nodePackage.nodeDefs??"{}"); 
+      } catch (error) {
+        console.error("Error fetching node package", error);
       }
-    }).catch(error => {
-      console.error("error fetching comfy extensions", error);
-    }); 
+    }
+    console.log("this.nodeDefs", this.nodeDefs);
     await super.setup();
+    await this.loadPackageExtensions();
+    await this.addNodesToGraph();
     this.canvasEl.addEventListener("click", (e)=> {
 			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );
 			window.parent.postMessage({ type: "onClickNodeEvent", nodeType: node.type }, window.location.origin);
@@ -29,13 +63,29 @@ export class ComfyViewNodePackageApp extends ComfyApp {
 			}
 		});
   }
-  async registerNodes() {
-    const app = this;
-    // Load node definitions from the backend
-    const defs = await this.getNodeDefs();
-    await this.registerNodesFromDefs(defs);
-    await this.#invokeExtensionsAsync("registerCustomNodes");
-	
+  async loadPackageExtensions() {
+    try {
+        // download the extension js files to public/web/extensions
+        await fetch('/api/listComfyExtensions?packageID='+this.pacakgeID);
+    } catch (error) {
+        console.error("Error loading extension", ext, error);
+    }
+    const jsFilePaths = JSON.parse(this.nodePackage?.jsFilePaths || "[]");
+    console.log("jsFilePaths", jsFilePaths);
+    const extensionPromises = jsFilePaths.map(async ext => {
+        try {
+            await import(`/web/extensions/${this.pacakgeID}/${ext}`);
+        } catch (error) {
+            console.error("Error loading extension", ext, error);
+        }
+    });
+    try {
+      await Promise.all(extensionPromises);
+    } catch (error) {
+      console.error("Error loading extensions", error);
+    }
+}
+  async addNodesToGraph() {
     window.addEventListener('message', function(event) {
       // Check the message received
       if (event.data === 'showAllNodes') {
@@ -48,11 +98,11 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     });
 	  const LEFT_PADDING = 20;
     let currentPosition = [LEFT_PADDING, 50]; // Start at the top-left corner of the canvas.
-    const canvasWidth = app.canvasEl.offsetWidth; // Dynamically get canvas width.
+    const canvasWidth = this.canvasEl.offsetWidth; // Dynamically get canvas width.
     const rowGap = 60; // Vertical gap between rows.
     const gap = 20;
     let maxHeightInRow = 0; // Track the tallest node in the current row.
-    Object.keys(defs).forEach((nodeType, index) => {
+    Object.keys(this.nodeDefs).forEach((nodeType, index) => {
       const node = LiteGraph.createNode(nodeType);
       const nodeWidth = node.size[0];
       const nodeHeight = node.size[1];
@@ -74,7 +124,7 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     
       // Place the node at the current position
       node.pos = [...currentPosition];
-      app.graph.add(node);
+      this.graph.add(node);
     
       // Move currentPosition right for the next node
       currentPosition[0] += nodeWidth + gap;
@@ -87,65 +137,4 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     window.parent.postMessage(message, window.location.origin); 
     // Adjust canvas height to fit all nodes
   }
-
-  async getNodeDefs() {
-    const params = new URLSearchParams(window.location.search);
-    const pacakgeID = params.get("packageID");
-    let nodeDefs = {};
-    await fetch("/api/listNodesByPackageID/?packageID=" + pacakgeID, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => {
-        return response.json();
-      })
-      .then((data) => {
-        console.log("node defs", data);
-
-        data?.items?.forEach((item) => {
-          if (!item?.nodeDef) {
-            return;
-          }
-          try {
-            const parsedNodeDef = JSON.parse(item.nodeDef);
-            nodeDefs[item.id] = parsedNodeDef;
-          } catch (error) {
-            console.error("error parsing nodeDef", error);
-          }
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-    // const resp = await this.fetchApi("/object_info", { cache: "no-store" });
-    return nodeDefs;
-  }
-  
-  /**
-   * Invoke an async extension callback
-   * Each callback will be invoked concurrently
-   * @param {string} method The extension callback to execute
-   * @param  {...any} args Any arguments to pass to the callback
-   * @returns
-   */
-  async #invokeExtensionsAsync(method, ...args) {
-      return await Promise.all(
-      this.extensions.map(async (ext) => {
-          if (method in ext) {
-          try {
-              return await ext[method](...args, this);
-          } catch (error) {
-              console.error(
-              `Error calling extension '${ext.name}' method '${method}'`,
-              { error },
-              { extension: ext },
-              { args }
-              );
-          }
-          }
-      })
-      );
-  }
-
 }

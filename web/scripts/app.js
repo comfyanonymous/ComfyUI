@@ -29,8 +29,10 @@ function sanitizeNodeName(string) {
  */
 
 export class ComfyApp {
-  /** @type {string[]} */
-  extensionFilesPath = []
+  /** comfyspace cloud @type {string[]} */
+  extensionFilesPath = [];
+  /** comfyspace cloud @type {string[]} */
+  nodeDefs = {};
 	/**
 	 * List of entries to queue
 	 * @type {{number: number, batchCount: number}[]}
@@ -1517,7 +1519,7 @@ export class ComfyApp {
 	async registerNodes() {
 		const app = this;
 		// Load node definitions from the backend
-		const defs = await api.getNodeDefs();
+		const defs = this.nodeDefs;
 		await this.registerNodesFromDefs(defs);
 		await this.#invokeExtensionsAsync("registerCustomNodes");
 	}

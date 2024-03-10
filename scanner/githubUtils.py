@@ -1,3 +1,4 @@
+import mimetypes
 import subprocess
 import requests
 import os
@@ -143,14 +144,20 @@ s3_client = boto3.client(
     aws_secret_access_key=aws_secret_access_key,
     region_name=aws_region
 )
-def download_and_upload_to_s3(repo_url, webDir, current_path=''):
+def download_and_upload_to_s3(repo_url, webDir, current_path='', file_paths=None):
     """
-    Recursively downloads contents from a specified directory in a GitHub repo and uploads them to S3, maintaining the directory structure.
+    Recursively downloads contents from a specified directory in a GitHub repo and uploads them to S3,
+    maintaining the directory structure. Collects paths of all files processed.
     
     :param repo_url: URL to the GitHub repository
     :param webDir: Path to the directory in the repository from which to start the download
     :param current_path: Keeps track of the current path for recursive calls
+    :param file_paths: Accumulator for collecting file paths
+    :return: List of all file paths processed
     """
+    if file_paths is None:
+        file_paths = []
+    
     parts = repo_url.split("/")
     owner, repo = parts[-2], parts[-1]
 
@@ -165,7 +172,7 @@ def download_and_upload_to_s3(repo_url, webDir, current_path=''):
 
     if not isinstance(items, list):  # If the response is not a list, it might be an error message
         print(f"Error fetching {api_url}: {items.get('message', 'Unknown error')}")
-        return
+        return file_paths
 
     for item in items:
         if item['type'] == 'file':
@@ -174,11 +181,21 @@ def download_and_upload_to_s3(repo_url, webDir, current_path=''):
             file_name = os.path.basename(item['path'])
             s3_key = f"packageWebDir/{owner}_{repo}/{current_path}{file_name}"
             
+            # Collect file path
+            file_paths.append(f"{current_path}{file_name}")
+            mime_type = guess_mime_type(file_name)
+            print(f"📄 Uploading typ {mime_type}, {file_name} to S3 with key {s3_key}")
             # Upload to S3
-            s3_client.put_object(Bucket="comfyspace", Key=s3_key, Body=download_response.content)
+            s3_client.put_object(Bucket="comfyspace", Key=s3_key, Body=download_response.content, ContentType=mime_type)
             print(f"✅ Uploaded {file_name} to S3 with key {s3_key}")
         elif item['type'] == 'dir':
             # Recursively process the directory
             new_path = os.path.join(current_path, os.path.basename(item['path'])) + '/'
             print(f"📁 Processing directory: {new_path}")
-            download_and_upload_to_s3(repo_url, webDir, new_path)
+            download_and_upload_to_s3(repo_url, webDir, new_path, file_paths)
+
+    return file_paths
+
+def guess_mime_type(file_name):
+    mime_type, _ = mimetypes.guess_type(file_name)
+    return mime_type or 'application/octet-stream'
