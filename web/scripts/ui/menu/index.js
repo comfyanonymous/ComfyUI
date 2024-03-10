@@ -16,7 +16,7 @@ const collapseOnMobile = (t) => {
 	return t;
 };
 const showOnMobile = (t) => {
-	(t.element ?? t).classList.add("sm-show");
+	(t.element ?? t).classList.add("lt-lg-show");
 	return t;
 };
 
@@ -36,94 +36,95 @@ export class ComfyAppMenu {
 				content: t,
 			});
 
-		this.logo = $el("h1.comfyui-logo.sm-hide", { title: "ComfyUI" }, "ComfyUI");
-		this.element = $el("nav.comfyui-menu", { style: { display: "none" } }, [
+		this.logo = $el("h1.comfyui-logo.nlg-hide", { title: "ComfyUI" }, "ComfyUI");
+		this.saveButton = new ComfySplitButton(
+			{
+				primary: getSaveButton(),
+				mode: "hover",
+			},
+			getSaveButton("Save"),
+			new ComfyButton({
+				icon: "content-save-edit",
+				content: "Save As",
+				tooltip: "Save the current graph as a new workflow",
+				action: () => app.workflowManager.activeWorkflow.save(true),
+			}),
+			new ComfyButton({
+				icon: "download",
+				content: "Export",
+				tooltip: "Export the current workflow as JSON",
+				action: () => this.exportWorkflow("workflow", "workflow"),
+			}),
+			new ComfyButton({
+				icon: "api",
+				content: "Export (API Format)",
+				tooltip: "Export the current workflow as JSON for use with the ComfyUI API",
+				action: () => this.exportWorkflow("workflow_api", "output"),
+				visibilitySetting: { id: "Comfy.DevMode", showValue: true },
+				app,
+			})
+		);
+		this.actionsGroup = new ComfyButtonGroup(
+			new ComfyButton({
+				icon: "refresh",
+				content: "Refresh",
+				tooltip: "Refresh widgets in nodes to find new models or files",
+				action: () => app.refreshComboInNodes(),
+			}),
+			new ComfyButton({
+				icon: "clipboard-edit-outline",
+				content: "Clipspace",
+				tooltip: "Open Clipspace window",
+				action: () => app["openClipspace"](),
+			}),
+			new ComfyButton({
+				icon: "cancel",
+				content: "Clear",
+				tooltip: "Clears current workflow",
+				action: () => {
+					if (!app.ui.settings.getSettingValue("Comfy.ConfirmClear", true) || confirm("Clear workflow?")) {
+						app.clean();
+						app.graph.clear();
+					}
+				},
+			})
+		);
+		this.settingsGroup = new ComfyButtonGroup(
+			new ComfyButton({
+				icon: "cog",
+				content: "Settings",
+				tooltip: "Open settings",
+				action: () => {
+					app.ui.settings.show();
+				},
+			})
+		);
+		this.viewGroup = new ComfyButtonGroup(
+			new ComfyViewHistoryButton(app).element,
+			new ComfyViewQueueButton(app).element,
+			getInteruptButton("nlg-hide").element
+		);
+		this.mobileMenuButton = new ComfyButton({
+			icon: "menu",
+			action: (_, btn) => {
+				btn.icon = this.element.classList.toggle("expanded") ? "menu-open" : "menu";
+				window.dispatchEvent(new Event("resize"));
+			},
+			classList: "comfyui-button comfyui-menu-button",
+		});
+
+		this.element = $el("nav.comfyui-menu.lg", { style: { display: "none" } }, [
 			this.logo,
 			this.workflows.element,
-			new ComfySplitButton(
-				{
-					primary: getSaveButton(),
-					mode: "hover",
-				},
-				getSaveButton("Save"),
-				new ComfyButton({
-					icon: "content-save-edit",
-					content: "Save As",
-					tooltip: "Save the current graph as a new workflow",
-					action: () => app.workflowManager.activeWorkflow.save(true),
-				}),
-				new ComfyButton({
-					icon: "download",
-					content: "Export",
-					tooltip: "Export the current workflow as JSON",
-					action: () => this.exportWorkflow("workflow", "workflow"),
-				}),
-				new ComfyButton({
-					icon: "api",
-					content: "Export (API Format)",
-					tooltip: "Export the current workflow as JSON for use with the ComfyUI API",
-					action: () => this.exportWorkflow("workflow_api", "output"),
-					visibilitySetting: { id: "Comfy.DevMode", showValue: true },
-					app,
-				})
-			).element,
-			collapseOnMobile(
-				new ComfyButtonGroup(
-					new ComfyButton({
-						icon: "refresh",
-						content: "Refresh",
-						tooltip: "Refresh widgets in nodes to find new models or files",
-						action: () => app.refreshComboInNodes(),
-					}),
-					new ComfyButton({
-						icon: "clipboard-edit-outline",
-						content: "Clipspace",
-						tooltip: "Open Clipspace window",
-						action: () => app["openClipspace"](),
-					}),
-					new ComfyButton({
-						icon: "cancel",
-						content: "Clear",
-						tooltip: "Clears current workflow",
-						action: () => {
-							if (!app.ui.settings.getSettingValue("Comfy.ConfirmClear", true) || confirm("Clear workflow?")) {
-								app.clean();
-								app.graph.clear();
-							}
-						},
-					})
-				)
-			).element,
+			this.saveButton.element,
+			collapseOnMobile(this.actionsGroup).element,
 			$el("section.comfyui-menu-push"),
-			collapseOnMobile(
-				new ComfyButton({
-					icon: "cog",
-					content: "Settings",
-					tooltip: "Open settings",
-					action: () => {
-						app.ui.settings.show();
-					},
-				})
-			).element,
-			collapseOnMobile(
-				new ComfyButtonGroup(
-					new ComfyViewHistoryButton(app).element,
-					new ComfyViewQueueButton(app).element,
-					getInteruptButton("sm-hide").element
-				)
-			).element,
+			collapseOnMobile(this.settingsGroup).element,
+			collapseOnMobile(this.viewGroup).element,
 
-			getInteruptButton("sm-show").element,
+			getInteruptButton("lt-lg-show").element,
 			new ComfyQueueButton(app).element,
-			showOnMobile(
-				new ComfyButton({
-					icon: "menu",
-					action: (_, btn) => {
-						btn.icon = this.element.classList.toggle("expanded") ? "menu-open" : "menu";
-					},
-					classList: "comfyui-button comfyui-menu-button",
-				})
-			).element,
+			showOnMobile(this.mobileMenuButton).element,
 		]);
 
 		document.body.prepend(this.element);
@@ -137,12 +138,100 @@ export class ComfyAppMenu {
 				if (v) {
 					app.ui.menuContainer.style.display = "none";
 					this.element.style.removeProperty("display");
+
+					this.calculateSizeBreak();
 				} else {
 					app.ui.menuContainer.style.removeProperty("display");
 					this.element.style.display = "none";
 				}
 			},
 		});
+
+		window.addEventListener("resize", () => {
+			this.calculateSizeBreak();
+		});
+	}
+
+	#sizeBreak = "lg";
+	#lastSizeBreaks = {
+		lg: null,
+		md: null,
+		sm: null,
+		xs: null,
+	};
+	#sizeBreaks = Object.keys(this.#lastSizeBreaks);
+	#cachedInnerSize = null;
+	#cacheTimeout = null;
+
+	updateSizeBreak(idx, prevIdx, direction) {
+		const newSize = this.#sizeBreaks[idx];
+		if (newSize === this.#sizeBreak) return;
+		this.#cachedInnerSize = null;
+		clearTimeout(this.#cacheTimeout);
+
+		this.#sizeBreak = this.#sizeBreaks[idx];
+		for (let i = 0; i < this.#sizeBreaks.length; i++) {
+			const sz = this.#sizeBreaks[i];
+			if (sz === this.#sizeBreak) {
+				this.element.classList.add(sz);
+			} else {
+				this.element.classList.remove(sz);
+			}
+			if (i < idx) {
+				this.element.classList.add("lt-" + sz);
+			} else {
+				this.element.classList.remove("lt-" + sz);
+			}
+		}
+
+		// Allow multiple updates, but prevent bouncing 
+		if (!direction) {
+			direction = prevIdx - idx;
+		} else if (direction != prevIdx - idx) {
+			return;
+		}
+		this.calculateSizeBreak(direction);
+	}
+
+	calculateSizeBreak(direction = 0) {
+		let idx = this.#sizeBreaks.indexOf(this.#sizeBreak);
+		const currIdx = idx;
+		const innerSize = this.calculateInnerSize(idx);
+		if (window.innerWidth >= this.#lastSizeBreaks[this.#sizeBreaks[idx - 1]]) {
+			if (idx > 0) {
+				idx--;
+			}
+		} else if (innerSize > this.element.clientWidth) {
+			this.#lastSizeBreaks[this.#sizeBreak] = Math.max(window.innerWidth, innerSize);
+			// We need to shrink
+			if (idx < this.#sizeBreaks.length - 1) {
+				idx++;
+			}
+		}
+
+		this.updateSizeBreak(idx, currIdx, direction);
+	}
+
+	calculateInnerSize(idx) {
+		// Cache the inner size to prevent too much calculation when resizing the window
+		clearTimeout(this.#cacheTimeout);
+		if (this.#cachedInnerSize) {
+			// Extend cache time
+			this.#cacheTimeout = setTimeout(() => (this.#cachedInnerSize = null), 100);
+		} else {
+			let innerSize = 0;
+			let count = 1;
+			for (const c of this.element.children) {
+				if (c.classList.contains("comfyui-menu-push")) continue; // ignore right push
+				if (idx && c.classList.contains("comfyui-menu-mobile-collapse")) continue; // ignore collapse items
+				innerSize += c.clientWidth;
+				count++;
+			}
+			innerSize += 8 * count;
+			this.#cachedInnerSize = innerSize;
+			this.#cacheTimeout = setTimeout(() => (this.#cachedInnerSize = null), 100);
+		}
+		return this.#cachedInnerSize;
 	}
 
 	/**
