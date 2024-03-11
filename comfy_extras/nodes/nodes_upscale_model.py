@@ -1,3 +1,4 @@
+from comfy.model_downloader import get_filename_list_with_downloadable, KNOWN_UPSCALERS, get_or_download
 from ..chainner_models import model_loading
 from comfy import model_management
 import torch
@@ -8,7 +9,7 @@ from comfy.cmd import folder_paths
 class UpscaleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"model_name": (folder_paths.get_filename_list("upscale_models"),),
+        return {"required": {"model_name": (get_filename_list_with_downloadable("upscale_models", KNOWN_UPSCALERS),),
                              }}
 
     RETURN_TYPES = ("UPSCALE_MODEL",)
@@ -17,7 +18,7 @@ class UpscaleModelLoader:
     CATEGORY = "loaders"
 
     def load_model(self, model_name):
-        model_path = folder_paths.get_full_path("upscale_models", model_name)
+        model_path = get_or_download("upscale_models", model_name, KNOWN_UPSCALERS)
         sd = utils.load_torch_file(model_path, safe_load=True)
         if "module.layers.0.residual_group.blocks.0.norm1.weight" in sd:
             sd = utils.state_dict_prefix_replace(sd, {"module.": ""})

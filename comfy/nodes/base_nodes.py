@@ -22,6 +22,8 @@ from .. import model_management
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
+from ..model_downloader import HuggingFile, get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
+    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 
@@ -497,7 +499,7 @@ class CheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"),),
-                              "ckpt_name": (folder_paths.get_filename_list("checkpoints"),)}}
+                              "ckpt_name": (get_filename_list_with_downloadable("checkpoints", KNOWN_CHECKPOINTS),)}}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
@@ -505,13 +507,13 @@ class CheckpointLoader:
 
     def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
         config_path = folder_paths.get_full_path("configs", config_name)
-        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        ckpt_path = get_or_download("checkpoints", ckpt_name, KNOWN_CHECKPOINTS)
         return sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"),),
+        return {"required": { "ckpt_name": (get_filename_list_with_downloadable("checkpoints", KNOWN_CHECKPOINTS),),
                              }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
@@ -519,7 +521,7 @@ class CheckpointLoaderSimple:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
-        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        ckpt_path = get_or_download("checkpoints", ckpt_name, KNOWN_CHECKPOINTS)
         out = sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out[:3]
 
@@ -553,7 +555,7 @@ class DiffusersLoader:
 class unCLIPCheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"),),
+        return {"required": { "ckpt_name": (get_filename_list_with_downloadable("checkpoints", KNOWN_UNCLIP_CHECKPOINTS),),
                              }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE", "CLIP_VISION")
     FUNCTION = "load_checkpoint"
@@ -561,7 +563,7 @@ class unCLIPCheckpointLoader:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
-        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        ckpt_path = get_or_download("checkpoints", ckpt_name, KNOWN_UNCLIP_CHECKPOINTS)
         out = sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
 
@@ -861,7 +863,7 @@ class DualCLIPLoader:
 class CLIPVisionLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"),),
+        return {"required": { "clip_name": (get_filename_list_with_downloadable("clip_vision", KNOWN_CLIP_VISION_MODELS),),
                              }}
     RETURN_TYPES = ("CLIP_VISION",)
     FUNCTION = "load_clip"
@@ -869,7 +871,7 @@ class CLIPVisionLoader:
     CATEGORY = "loaders"
 
     def load_clip(self, clip_name):
-        clip_path = folder_paths.get_full_path("clip_vision", clip_name)
+        clip_path = get_or_download("clip_vision", clip_name, KNOWN_CLIP_VISION_MODELS)
         clip_vision = clip_vision_module.load(clip_path)
         return (clip_vision,)
 
@@ -956,7 +958,7 @@ class unCLIPConditioning:
 class GLIGENLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "gligen_name": (folder_paths.get_filename_list("gligen"),)}}
+        return {"required": { "gligen_name": (get_filename_list_with_downloadable("gligen", KNOWN_GLIGEN_MODELS),)}}
 
     RETURN_TYPES = ("GLIGEN",)
     FUNCTION = "load_gligen"
@@ -964,7 +966,7 @@ class GLIGENLoader:
     CATEGORY = "loaders"
 
     def load_gligen(self, gligen_name):
-        gligen_path = folder_paths.get_full_path("gligen", gligen_name)
+        gligen_path = get_or_download("gligen", gligen_name, KNOWN_GLIGEN_MODELS)
         gligen = sd.load_gligen(gligen_path)
         return (gligen,)
 

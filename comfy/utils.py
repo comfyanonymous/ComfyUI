@@ -7,6 +7,9 @@ from . import checkpoint_pickle
 import safetensors.torch
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
+from contextlib import contextmanager
+
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -486,3 +489,30 @@ class ProgressBar:
 
 def get_project_root() -> str:
     return os.path.join(os.path.dirname(__file__), "..")
+
+
+@contextmanager
+def comfy_tqdm():
+    """
+    Monky patches child calls to tqdm and sends the progress to the UI
+    :return:
+    """
+    _original_init = tqdm.__init__
+    _original_update = tqdm.update
+    try:
+        def __init(self, *args, **kwargs):
+            _original_init(self, *args, **kwargs)
+            self._progress_bar = ProgressBar(self.total)
+
+        def __update(self, n=1):
+            assert self._progress_bar is not None
+            _original_update(self, n)
+            self._progress_bar.update(n)
+
+        tqdm.__init__ = __init
+        tqdm.update = __update
+        yield
+    finally:
+        # Restore original tqdm
+        tqdm.__init__ = _original_init
+        tqdm.update = _original_update

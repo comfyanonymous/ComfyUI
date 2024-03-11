@@ -31,3 +31,4 @@ aio-pika
 pyjwt[crypto]
 kornia>=0.7.1
 mpmath>=1.0,!=1.4.0a0
+huggingface_hub
