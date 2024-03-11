@@ -15,15 +15,8 @@ from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
 
-try:
-    import aiohttp
-    from aiohttp import web
-except ImportError:
-    print("Module 'aiohttp' not installed. Please install it via:")
-    print("pip install aiohttp")
-    print("or")
-    print("pip install -r requirements.txt")
-    sys.exit()
+import aiohttp
+from aiohttp import web
 
 import mimetypes
 from comfy.cli_args import args
