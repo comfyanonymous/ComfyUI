@@ -1,5 +1,5 @@
 import torch
-from comfy.ldm.modules.attention import optimized_attention_for_device
+from .ldm.modules.attention import optimized_attention_for_device
 
 class CLIPAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):

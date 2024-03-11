@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from .ldm.modules.attention import CrossAttention
 from inspect import isfunction
-from comfy.ops import manual_cast
+from .ops import manual_cast
 ops = manual_cast
 
 def exists(val):

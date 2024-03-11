@@ -6,7 +6,7 @@ from typing import Optional
 from aio_pika import connect_robust
 from aio_pika.patterns import RPC
 
-from comfy.distributed.distributed_types import RpcRequest, RpcReply
+from .distributed_types import RpcRequest, RpcReply
 
 
 class DistributedPromptClient:

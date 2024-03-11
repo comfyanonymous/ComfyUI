@@ -5,7 +5,7 @@ from typing import Optional, OrderedDict, List, Dict
 import collections
 from itertools import islice
 
-from comfy.component_model.queue_types import HistoryEntry, QueueItem, ExecutionStatus, MAXIMUM_HISTORY_SIZE
+from ..component_model.queue_types import HistoryEntry, QueueItem, ExecutionStatus, MAXIMUM_HISTORY_SIZE
 
 
 class History:

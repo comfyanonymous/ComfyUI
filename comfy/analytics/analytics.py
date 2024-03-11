@@ -39,7 +39,7 @@ def initialize_event_tracking(loop: Optional[asyncio.AbstractEventLoop] = None):
     # patch nodes
     from ..nodes.base_nodes import SaveImage, CLIPTextEncode, LoraLoader, CheckpointLoaderSimple
     from ..cmd.execution import PromptQueue
-    from comfy.component_model.queue_types import QueueItem
+    from ..component_model.queue_types import QueueItem
 
     prompt_queue_put = PromptQueue.put
 

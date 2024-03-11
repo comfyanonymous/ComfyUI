@@ -176,6 +176,7 @@ def create_parser() -> argparse.ArgumentParser:
                         help="This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID")
     parser.add_argument("--external-address", required=False,
                         help="Specifies a base URL for external addresses reported by the API, such as for image paths.")
+    parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
@@ -207,6 +208,12 @@ def parse_args(parser: Optional[argparse.ArgumentParser] = None) -> Configuratio
 
     if args.disable_auto_launch:
         args.auto_launch = False
+
+    logging_level = logging.WARNING
+    if args.verbose:
+        logging_level = logging.DEBUG
+
+    logging.basicConfig(format="%(message)s", level=logging_level)
 
     return Configuration(**vars(args))
 
