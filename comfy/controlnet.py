@@ -432,7 +432,7 @@ def load_controlnet(ckpt_path, model=None):
         logging.warning("missing controlnet keys: {}".format(missing))
 
     if len(unexpected) > 0:
-        logging.info("unexpected controlnet keys: {}".format(unexpected))
+        logging.debug("unexpected controlnet keys: {}".format(unexpected))
 
     global_average_pooling = False
     filename = os.path.splitext(ckpt_path)[0]
@@ -545,6 +545,6 @@ def load_t2i_adapter(t2i_data):
         logging.warning("t2i missing {}".format(missing))
 
     if len(unexpected) > 0:
-        logging.info("t2i unexpected {}".format(unexpected))
+        logging.debug("t2i unexpected {}".format(unexpected))
 
     return T2IAdapter(model_ad, model_ad.input_channels, compression_ratio, upscale_algorithm)

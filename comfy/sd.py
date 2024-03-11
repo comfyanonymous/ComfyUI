@@ -229,7 +229,7 @@ class VAE:
             logging.warning("Missing VAE keys {}".format(m))
 
         if len(u) > 0:
-            logging.info("Leftover VAE keys {}".format(u))
+            logging.debug("Leftover VAE keys {}".format(u))
 
         if device is None:
             device = model_management.vae_device()
@@ -397,7 +397,7 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
             logging.warning("clip missing: {}".format(m))
 
         if len(u) > 0:
-            logging.info("clip unexpected: {}".format(u))
+            logging.debug("clip unexpected: {}".format(u))
     return clip
 
 def load_gligen(ckpt_path):
@@ -538,18 +538,18 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
                     logging.warning("clip missing: {}".format(m))
 
                 if len(u) > 0:
-                    logging.info("clip unexpected {}:".format(u))
+                    logging.debug("clip unexpected {}:".format(u))
             else:
                 logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
 
     left_over = sd.keys()
     if len(left_over) > 0:
-        logging.info("left over keys: {}".format(left_over))
+        logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
         if inital_load_device != torch.device("cpu"):
-            logging.warning("loaded straight to GPU")
+            logging.info("loaded straight to GPU")
             model_management.load_model_gpu(model_patcher)
 
     return (model_patcher, clip, vae, clipvision)
@@ -589,7 +589,7 @@ def load_unet_state_dict(sd): #load unet in diffusers format
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
-        logging.warning("left over keys in unet: {}".format(left_over))
+        logging.info("left over keys in unet: {}".format(left_over))
     return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
 def load_unet(unet_path):

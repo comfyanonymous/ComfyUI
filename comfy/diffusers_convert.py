@@ -178,7 +178,7 @@ def convert_vae_state_dict(vae_state_dict):
     for k, v in new_state_dict.items():
         for weight_name in weights_to_convert:
             if f"mid.attn_1.{weight_name}.weight" in k:
-                logging.info(f"Reshaping {k} for SD format")
+                logging.debug(f"Reshaping {k} for SD format")
                 new_state_dict[k] = reshape_weight_for_sd(v)
     return new_state_dict
 
