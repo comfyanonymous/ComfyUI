@@ -1904,7 +1904,7 @@ def load_custom_node(module_path, ignore=set()):
             return False
     except Exception as e:
         logging.warning(traceback.format_exc())
-        logging.warning(f"Cannot import {module_path} module for custom nodes:", e)
+        logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
 def load_custom_nodes():

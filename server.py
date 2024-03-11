@@ -413,8 +413,8 @@ class PromptServer():
                 try:
                     out[x] = node_info(x)
                 except Exception as e:
-                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
-                    traceback.print_exc()
+                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                    logging.error(traceback.format_exc())
             return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
@@ -641,6 +641,6 @@ class PromptServer():
                 json_data = handler(json_data)
             except Exception as e:
                 logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
-                traceback.print_exc()
+                logging.warning(traceback.format_exc())
 
         return json_data

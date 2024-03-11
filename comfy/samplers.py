@@ -4,6 +4,7 @@ import torch
 import collections
 from comfy import model_management
 import math
+import logging
 
 def get_area_and_mult(conds, x_in, timestep_in):
     area = (x_in.shape[2], x_in.shape[3], 0, 0)
@@ -625,7 +626,7 @@ def calculate_sigmas_scheduler(model, scheduler_name, steps):
     elif scheduler_name == "sgm_uniform":
         sigmas = normal_scheduler(model, steps, sgm=True)
     else:
-        print("error invalid scheduler", scheduler_name)
+        logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas
 
 def sampler_object(name):
