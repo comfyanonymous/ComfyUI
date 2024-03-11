@@ -17,6 +17,7 @@ from io import BytesIO
 
 import aiohttp
 from aiohttp import web
+import logging
 
 import mimetypes
 from comfy.cli_args import args
@@ -33,7 +34,7 @@ async def send_socket_catch_exception(function, message):
     try:
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
-        print("send error:", err)
+        logging.warning("send error: {}".format(err))
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -111,7 +112,7 @@ class PromptServer():
                     
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
-                        print('ws connection closed with exception %s' % ws.exception())
+                        logging.warning('ws connection closed with exception %s' % ws.exception())
             finally:
                 self.sockets.pop(sid, None)
             return ws
@@ -446,7 +447,7 @@ class PromptServer():
 
         @routes.post("/prompt")
         async def post_prompt(request):
-            print("got prompt")
+            logging.info("got prompt")
             resp_code = 200
             out_string = ""
             json_data =  await request.json()
@@ -478,7 +479,7 @@ class PromptServer():
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
-                    print("invalid prompt:", valid[1])
+                    logging.warning("invalid prompt: {}".format(valid[1]))
                     return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
                 return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
@@ -626,8 +627,8 @@ class PromptServer():
         await site.start()
 
         if verbose:
-            print("Starting server\n")
-            print("To see the GUI go to: http://{}:{}".format(address, port))
+            logging.info("Starting server\n")
+            logging.info("To see the GUI go to: http://{}:{}".format(address, port))
         if call_on_start is not None:
             call_on_start(address, port)
 
@@ -639,7 +640,7 @@ class PromptServer():
             try:
                 json_data = handler(json_data)
             except Exception as e:
-                print(f"[ERROR] An error occurred during the on_prompt_handler processing")
+                logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
                 traceback.print_exc()
 
         return json_data
