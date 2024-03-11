@@ -1,5 +1,6 @@
 import comfy.supported_models
 import comfy.supported_models_base
+import logging
 
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
@@ -186,7 +187,7 @@ def model_config_from_unet_config(unet_config):
         if model_config.matches(unet_config):
             return model_config(unet_config)
 
-    print("no match", unet_config)
+    logging.error("no match {}".format(unet_config))
     return None
 
 def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False):
