@@ -1,4 +1,5 @@
 *.log
+.DS_Store
 communication_file.txt
 __pycache__/
 *.py[cod]

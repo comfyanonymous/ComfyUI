@@ -28,27 +28,28 @@ export class ComfyViewNodePackageApp extends ComfyApp {
   /** @type {{nodeDefs:string,jsFilePaths:string}} */
   nodePackage = null;
   pacakgeID = null;
+  nodeType= null;
   extensionFilesPath =  COMFYUI_CORE_EXTENSIONS;
   constructor() {
     super();
     const params = new URLSearchParams(window.location.search);
     this.pacakgeID = params.get("packageID");
+    this.nodeType = params.get('node');
   }
   async setup() {
     // to disable mousewheel zooming
     LGraphCanvas.prototype.processMouseWheel =()=>{}
     if(this.pacakgeID) {
       try {
-        const resp = await fetch("/api/getNodePackage?id="+this.pacakgeID);
+        const resp = await fetch("https://www.comfyspace.art/api/getNodePackage?id="+this.pacakgeID);
         this.nodePackage = (await resp.json())?.data;
         this.nodeDefs = JSON.parse(this.nodePackage.nodeDefs??"{}"); 
       } catch (error) {
         console.error("Error fetching node package", error);
       }
     }
-    console.log("this.nodeDefs", this.nodeDefs);
-    await super.setup();
     await this.loadPackageExtensions();
+    await super.setup();
     await this.addNodesToGraph();
     this.canvasEl.addEventListener("click", (e)=> {
 			var node = app.graph.getNodeOnPos( e.clientX, e.clientY, app.graph._nodes, 5 );
@@ -64,26 +65,8 @@ export class ComfyViewNodePackageApp extends ComfyApp {
 		});
   }
   async loadPackageExtensions() {
-    try {
-        // download the extension js files to public/web/extensions
-        await fetch('/api/listComfyExtensions?packageID='+this.pacakgeID);
-    } catch (error) {
-        console.error("Error loading extension", ext, error);
-    }
     const jsFilePaths = JSON.parse(this.nodePackage?.jsFilePaths || "[]");
-    console.log("jsFilePaths", jsFilePaths);
-    const extensionPromises = jsFilePaths.map(async ext => {
-        try {
-            await import(`/web/extensions/${this.pacakgeID}/${ext}`);
-        } catch (error) {
-            console.error("Error loading extension", ext, error);
-        }
-    });
-    try {
-      await Promise.all(extensionPromises);
-    } catch (error) {
-      console.error("Error loading extensions", error);
-    }
+    this.extensionFilesPath = this.extensionFilesPath.concat(jsFilePaths.map(ext=>"/extensions/"+this.pacakgeID+"/"+ext));
 }
   async addNodesToGraph() {
     window.addEventListener('message', function(event) {
@@ -103,6 +86,9 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     const gap = 20;
     let maxHeightInRow = 0; // Track the tallest node in the current row.
     Object.keys(this.nodeDefs).forEach((nodeType, index) => {
+      if(this.nodeType && this.nodeType !== nodeType) {
+        return;
+      }
       const node = LiteGraph.createNode(nodeType);
       const nodeWidth = node.size[0];
       const nodeHeight = node.size[1];

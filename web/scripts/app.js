@@ -55,7 +55,7 @@ export class ComfyApp {
 
 	constructor() {
 		this.ui = new ComfyUI(this);
-		this.logging = new ComfyLogging(this);
+		// this.logging = new ComfyLogging(this);
 
 		/**
 		 * List of extensions that are registered with the app
@@ -2220,17 +2220,13 @@ export class ComfyApp {
 export async function loadModuleBasedOnPath() {
   console.log('Loading module based on path');
   const queryParams = new URLSearchParams(window.location.search);
-  const nodeId = queryParams.get('nodeID');
   const workflowVersionID = queryParams.get('workflowVersionID');
   const packageID = queryParams.get('packageID');
-  if (nodeId !== null) {
-    const {ComfyViewNodeApp} = await import("/web/scripts/comfyspace_viewNodeApp.js");
-    app = new ComfyViewNodeApp();
-  } else if(workflowVersionID !== null) {
-    const {ComfyViewWorkflowApp} = await import("/web/scripts/comfyspace_viewWorkflowApp.js");
+  if(workflowVersionID !== null) {
+    const {ComfyViewWorkflowApp} = await import("./comfyspace_viewWorkflowApp.js");
     app = new ComfyViewWorkflowApp();
   } else if(packageID !=null) {
-    const {ComfyViewNodePackageApp} = await import("/web/scripts/comfyspace_viewNodePackageApp.js");
+    const {ComfyViewNodePackageApp} = await import("./comfyspace_viewNodePackageApp.js");
     app = new ComfyViewNodePackageApp();
   } else {
     // For any other path, import app.js and perform setup
