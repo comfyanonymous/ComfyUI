@@ -245,6 +245,22 @@ class SamplerEulerAncestral:
         sampler = comfy.samplers.ksampler("euler_ancestral", {"eta": eta, "s_noise": s_noise})
         return (sampler, )
 
+class SamplerLMS:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"order": ("INT", {"default": 4, "min": 1, "max": 100}),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, order):
+        sampler = comfy.samplers.ksampler("lms", {"order": order})
+        return (sampler, )
+
 class SamplerCustom:
     @classmethod
     def INPUT_TYPES(s):
@@ -306,6 +322,7 @@ NODE_CLASS_MAPPINGS = {
     "SDTurboScheduler": SDTurboScheduler,
     "KSamplerSelect": KSamplerSelect,
     "SamplerEulerAncestral": SamplerEulerAncestral,
+    "SamplerLMS": SamplerLMS,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "SplitSigmas": SplitSigmas,
