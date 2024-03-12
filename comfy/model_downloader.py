@@ -87,9 +87,10 @@ KNOWN_CHECKPOINTS = [
     HuggingFile("jomcs/NeverEnding_Dream-Feb19-2023", "CarDos Anime/cardosAnime_v10.safetensors", show_in_ui=False),
     # from https://github.com/comfyanonymous/ComfyUI_examples/blob/master/area_composition/README.md
     HuggingFile("ckpt/anything-v3.0", "Anything-V3.0.ckpt", show_in_ui=False),
-    # from https://github.com/huchenlei/ComfyUI-layerdiffuse
-    CivitFile(133005, 357609, filename="juggernautXL_v8Rundiffusion.safetensors"),
+    # latest, popular civitai models
     CivitFile(133005, 357609, filename="juggernautXL_v9Rundiffusionphoto2.safetensors"),
+    CivitFile(112902, 351306, filename="dreamshaperXL_v21TurboDPMSDE.safetensors"),
+    CivitFile(139562, 344487, filename="realvisxlV40_v40Bakedvae.safetensors"),
 ]
 
 KNOWN_UNCLIP_CHECKPOINTS = [
@@ -113,4 +114,9 @@ KNOWN_GLIGEN_MODELS = [
 
 KNOWN_CLIP_VISION_MODELS = [
     HuggingFile("comfyanonymous/clip_vision_g", "clip_vision_g.safetensors")
+]
+
+KNOWN_LORAS = [
+    CivitFile(model_id=211577, model_version_id=238349, filename="openxl_handsfix.safetensors"),
+    # todo: a lot of the slider loras are useful and should also be included
 ]

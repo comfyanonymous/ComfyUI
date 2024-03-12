@@ -24,7 +24,7 @@ from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
-    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS
+    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS
 from ..model_downloader_types import HuggingFile
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
@@ -593,7 +593,7 @@ class LoraLoader:
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
-                              "lora_name": (folder_paths.get_filename_list("loras"),),
+                              "lora_name": (get_filename_list_with_downloadable("loras", KNOWN_LORAS),),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
                               }}
@@ -606,7 +606,7 @@ class LoraLoader:
         if strength_model == 0 and strength_clip == 0:
             return (model, clip)
 
-        lora_path = folder_paths.get_full_path("loras", lora_name)
+        lora_path = get_or_download("loras", lora_name, KNOWN_LORAS)
         lora = None
         if self.loaded_lora is not None:
             if self.loaded_lora[0] == lora_path:
