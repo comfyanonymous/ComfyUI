@@ -36,9 +36,45 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     this.pacakgeID = params.get("packageID");
     this.nodeType = params.get('node');
   }
+  async setupMouseWheel() {
+    LGraphCanvas.prototype.processMouseWheel = function(e) {
+      if (!this.graph || !this.allow_dragcanvas) {
+          return;
+      }
+  
+      var delta = e.wheelDeltaY != null ? e.wheelDeltaY : e.detail * -60;
+  
+      // Assuming the existence of a method similar to 'adjustMouseEvent' to get canvas-relative coordinates if needed
+      // this.adjustMouseEvent(e);
+  
+      // The amount of scrolling for each wheel event; you may adjust this value to get the desired scrolling speed
+      var scrollSpeed = 20;
+  
+      // Modifying the ds.offset[1] (y offset) based on the delta
+      // Inverting the direction: scrolling up will move the canvas down and vice versa
+      if (delta > 0) {
+          // Scrolling up - Move the canvas down
+          this.ds.offset[1] += scrollSpeed;
+      } else if (delta < 0) {
+          // Scrolling down - Move the canvas up
+          this.ds.offset[1] -= scrollSpeed;
+      }
+  
+      // Mark the canvas as needing a redraw
+      this.dirty_canvas = true;
+      this.dirty_bgcanvas = true;
+  
+      e.preventDefault();
+      return false; // Prevent the default scrolling behavior of the browser
+  };
+  
+  }
   async setup() {
     // to disable mousewheel zooming
-    LGraphCanvas.prototype.processMouseWheel =()=>{}
+    // LGraphCanvas.prototype.processMouseWheel =()=>{}
+    this.setupMouseWheel();
+    LGraphCanvas.prototype.processMouseMove = ()=>{}
+    // LGraphCanvas.prototype.processMouseDown = ()=>{}
     if(this.pacakgeID) {
       try {
         const resp = await fetch("https://www.comfyspace.art/api/getNodePackage?id="+this.pacakgeID);
