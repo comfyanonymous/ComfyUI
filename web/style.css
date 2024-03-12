@@ -372,6 +372,32 @@ dialog::backdrop {
 	background: rgba(0, 0, 0, 0.5);
 }
 
+.comfy-dialog.comfy-modal {
+	top: 0;
+	font-family: Arial, sans-serif;
+	border-color: var(--bg-color);
+}
+
+.comfy-dialog .comfy-modal-content {
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 10px;
+	color: var(--fg-color);
+}
+
+.comfy-dialog .comfy-modal-content h3 {
+	margin-top: 0;
+}
+
+.comfy-dialog .comfy-modal-content > p {
+	width: 100%;
+}
+
+.comfy-dialog .comfy-modal-content > .comfyui-button {
+	flex: 1;
+	justify-content: center;
+}
+
 #comfy-settings-dialog {
 	padding: 0;
 	width: 41rem;

@@ -1,21 +1,26 @@
 import { $el } from "../ui.js";
 
 export class ComfyDialog extends EventTarget {
-	constructor(type = "div") {
+	#buttons;
+
+	constructor(type = "div", buttons = null) {
 		super();
+		this.#buttons = buttons;
 		this.element = $el(type + ".comfy-modal", { parent: document.body }, [
 			$el("div.comfy-modal-content", [$el("p", { $: (p) => (this.textElement = p) }), ...this.createButtons()]),
 		]);
 	}
 
 	createButtons() {
-		return [
-			$el("button", {
-				type: "button",
-				textContent: "Close",
-				onclick: () => this.close(),
-			}),
-		];
+		return (
+			this.#buttons ?? [
+				$el("button", {
+					type: "button",
+					textContent: "Close",
+					onclick: () => this.close(),
+				}),
+			]
+		);
 	}
 
 	close() {

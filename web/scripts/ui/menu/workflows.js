@@ -7,7 +7,7 @@ import { api } from "../../api.js";
 import { ComfyPopup } from "../components/popup.js";
 import { createSpinner } from "../spinner.js";
 import { ComfyWorkflow, trimJsonExt } from "../../workflows.js";
-import { ComfyDialog } from "../dialog.js";
+import { ComfyAsyncDialog } from "../components/asyncDialog.js";
 
 export class ComfyWorkflowsMenu {
 	#first = true;
@@ -213,39 +213,42 @@ export class ComfyWorkflowsMenu {
 				const getExtraMenuOptions = nodeType.prototype["getExtraMenuOptions"];
 				nodeType.prototype["getExtraMenuOptions"] = function (_, options) {
 					const r = getExtraMenuOptions?.apply?.(this, arguments);
-					const t = /** @type { {imageIndex?: number, overIndex?: number, imgs: string[]} } */ /** @type {any} */ (this);
-					let img;
-					if (t.imageIndex != null) {
-						// An image is selected so select that
-						img = t.imgs?.[t.imageIndex];
-					} else if (t.overIndex != null) {
-						// No image is selected but one is hovered
-						img = t.img?.s[t.overIndex];
-					}
 
-					if (img) {
-						let pos = options.findIndex((o) => o.content === "Save Image");
-						if (pos === -1) {
-							pos = 0;
-						} else {
-							pos++;
+					if (app.ui.settings.getSettingValue("Comfy.UseNewMenu", false) === true) {
+						const t = /** @type { {imageIndex?: number, overIndex?: number, imgs: string[]} } */ /** @type {any} */ (this);
+						let img;
+						if (t.imageIndex != null) {
+							// An image is selected so select that
+							img = t.imgs?.[t.imageIndex];
+						} else if (t.overIndex != null) {
+							// No image is selected but one is hovered
+							img = t.img?.s[t.overIndex];
 						}
 
-						options.splice(pos, 0, {
-							content: "Send to workflow",
-							has_submenu: true,
-							submenu: {
-								options: [
-									{
-										callback: () => sendToWorkflow(img, app.workflowManager.activeWorkflow),
-										title: "[Current workflow]",
-									},
-									...self.#getFavoriteMenuOptions(sendToWorkflow.bind(null, img)),
-									null,
-									...self.#getMenuOptions(sendToWorkflow.bind(null, img)),
-								],
-							},
-						});
+						if (img) {
+							let pos = options.findIndex((o) => o.content === "Save Image");
+							if (pos === -1) {
+								pos = 0;
+							} else {
+								pos++;
+							}
+
+							options.splice(pos, 0, {
+								content: "Send to workflow",
+								has_submenu: true,
+								submenu: {
+									options: [
+										{
+											callback: () => sendToWorkflow(img, app.workflowManager.activeWorkflow),
+											title: "[Current workflow]",
+										},
+										...self.#getFavoriteMenuOptions(sendToWorkflow.bind(null, img)),
+										null,
+										...self.#getMenuOptions(sendToWorkflow.bind(null, img)),
+									],
+								},
+							});
+						}
 					}
 
 					return r;
@@ -277,6 +280,7 @@ export class ComfyWorkflowsContent {
 				icon: "file-code",
 				iconSize: 18,
 				classList: "comfyui-button primary",
+				tooltip: "Load default workflow",
 				action: () => {
 					popup.open = false;
 					app.loadGraphData();
@@ -286,6 +290,7 @@ export class ComfyWorkflowsContent {
 				content: "Browse",
 				icon: "folder",
 				iconSize: 18,
+				tooltip: "Browse for an image or exported workflow",
 				action: () => {
 					popup.open = false;
 					app.ui.loadFile();
@@ -295,6 +300,7 @@ export class ComfyWorkflowsContent {
 				content: "Blank",
 				icon: "plus-thick",
 				iconSize: 18,
+				tooltip: "Create a new blank workflow",
 				action: () => {
 					app.workflowManager.setWorkflow(null);
 					app.clean();
@@ -351,6 +357,7 @@ export class ComfyWorkflowsContent {
 							icon: "close",
 							iconSize: 18,
 							classList: "comfyui-button comfyui-workflows-file-action",
+							tooltip: "Close workflow",
 							action: (e) => {
 								e.stopImmediatePropagation();
 								this.app.workflowManager.closeWorkflow(w);
@@ -470,12 +477,18 @@ export class ComfyWorkflowsContent {
 	}
 
 	/** @param {ComfyWorkflow} workflow */
+	#getFavoriteTooltip(workflow) {
+		return workflow.isFavorite ? "Remove this workflow from your favorites" : "Add this workflow to your favorites";
+	}
+
+	/** @param {ComfyWorkflow} workflow */
 	#getFavoriteButton(workflow, primary) {
 		return new ComfyButton({
 			icon: this.#getFavoriteIcon(workflow),
 			overIcon: this.#getFavoriteOverIcon(workflow),
 			iconSize: 18,
 			classList: "comfyui-button comfyui-workflows-file-action-favorite" + (primary ? " comfyui-workflows-file-action-primary" : ""),
+			tooltip: this.#getFavoriteTooltip(workflow),
 			action: (e) => {
 				e.stopImmediatePropagation();
 				workflow.favorite(!workflow.isFavorite);
@@ -613,24 +626,20 @@ class WorkflowElement {
 	}
 }
 
-class WidgetSelectionDialog extends ComfyDialog {
+class WidgetSelectionDialog extends ComfyAsyncDialog {
 	#options;
-	#resolve;
 
 	/**
 	 * @param {Array<{widget: {name: string}, node: {pos: [number, number], title: string, id: string, type: string}}>} options
 	 */
 	constructor(options) {
-		super("dialog");
+		super();
 		this.#options = options;
 	}
 
 	show(app) {
-		this.element.addEventListener("close", () => {
-			this.close();
-		});
 		this.element.classList.add("comfy-widget-selection-dialog");
-		super.show(
+		return super.show(
 			$el("div", [
 				$el("h2", "Select image target"),
 				$el(
@@ -649,6 +658,7 @@ class WidgetSelectionDialog extends ComfyDialog {
 										app.canvas.ds.offset[0] = -opt.node.pos[0] + 50;
 										app.canvas.ds.offset[1] = -opt.node.pos[1] + 50;
 										app.canvas.selectNode(opt.node);
+										app.graph.setDirtyCanvas(true, true);
 									},
 								},
 								"Show"
@@ -657,8 +667,7 @@ class WidgetSelectionDialog extends ComfyDialog {
 								"button.comfyui-button.primary",
 								{
 									onclick: () => {
-										this.#resolve(opt);
-										this.close();
+										this.close(opt);
 									},
 								},
 								"Select"
@@ -668,13 +677,5 @@ class WidgetSelectionDialog extends ComfyDialog {
 				),
 			])
 		);
-		return new Promise((resolve) => {
-			this.#resolve = resolve;
-		});
-	}
-
-	close() {
-		this.#resolve();
-		super.close();
 	}
 }

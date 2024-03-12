@@ -2,6 +2,7 @@
 
 import { api } from "./api.js";
 import { ChangeTracker } from "./changeTracker.js";
+import { ComfyAsyncDialog } from "./ui/components/asyncDialog.js";
 import { getStorageValue, setStorageValue } from "./utils.js";
 
 function appendJsonExt(path) {
@@ -171,9 +172,33 @@ export class ComfyWorkflowManager extends EventTarget {
 	/**
 	 * @param {ComfyWorkflow} workflow
 	 */
-	async closeWorkflow(workflow) {
+	async closeWorkflow(workflow, warnIfUnsaved = true) {
 		if (!workflow.isOpen) {
-			return;
+			return true;
+		}
+		if (workflow.unsaved && warnIfUnsaved) {
+			const res = await ComfyAsyncDialog.prompt({
+				title: "Save Changes?",
+				message: `Do you want to save changes to "${workflow.path ?? workflow.name}" before closing?`,
+				actions: ["Yes", "No", "Cancel"],
+			});
+			if (res === "Yes") {
+				const active = this.activeWorkflow;
+				if (active !== workflow) {
+					// We need to switch to the workflow to save it
+					await workflow.load();
+				}
+
+				if (!(await workflow.save())) {
+					// Save was canceled, restore the previous workflow
+					if (active !== workflow) {
+						await active.load();
+					}
+					return;
+				}
+			} else if (res === "Cancel") {
+				return;
+			}
 		}
 		workflow.changeTracker = null;
 		this.openWorkflows.splice(this.openWorkflows.indexOf(workflow), 1);
@@ -284,9 +309,9 @@ export class ComfyWorkflow {
 
 	async save(saveAs = false) {
 		if (!this.path || saveAs) {
-			await this.#save(null, false);
+			return !!(await this.#save(null, false));
 		} else {
-			await this.#save(this.path, true);
+			return !!(await this.#save(this.path, true));
 		}
 	}
 
@@ -331,6 +356,7 @@ export class ComfyWorkflow {
 			await this.favorite(true);
 		}
 		this.manager.dispatchEvent(new CustomEvent("rename", { detail: this }));
+		setStorageValue("Comfy.PreviousWorkflow", this.path ?? "");
 	}
 
 	async insert() {
@@ -405,6 +431,7 @@ export class ComfyWorkflow {
 			await this.manager.loadWorkflows();
 			this.unsaved = false;
 			this.manager.dispatchEvent(new CustomEvent("rename", { detail: this }));
+			setStorageValue("Comfy.PreviousWorkflow", this.path ?? "");
 		} else if (path !== this.path) {
 			// Saved as, open the new copy
 			await this.manager.loadWorkflows();
@@ -415,5 +442,7 @@ export class ComfyWorkflow {
 			this.unsaved = false;
 			this.manager.dispatchEvent(new CustomEvent("save", { detail: this }));
 		}
+
+		return true;
 	}
 }

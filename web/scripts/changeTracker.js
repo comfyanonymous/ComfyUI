@@ -44,6 +44,8 @@ export class ChangeTracker {
 	}
 
 	checkState() {
+		if(!this.app.graph) return;
+		
 		const currentState = this.app.graph.serialize();
 		if (!this.activeState) {
 			this.activeState = clone(currentState);
