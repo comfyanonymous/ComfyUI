@@ -179,14 +179,14 @@ def download_and_upload_to_s3(repo_url, webDir, current_path='', file_paths=None
             # Download the file content
             download_response = requests.get(item['download_url'])
             file_name = os.path.basename(item['path'])
-            s3_key = f"packageWebDir/{owner}_{repo}/{current_path}{file_name}"
+            s3_key = f"extensions/{owner}_{repo}/{current_path}{file_name}"
             
             # Collect file path
             file_paths.append(f"{current_path}{file_name}")
             mime_type = guess_mime_type(file_name)
             print(f"📄 Uploading typ {mime_type}, {file_name} to S3 with key {s3_key}")
             # Upload to S3
-            s3_client.put_object(Bucket="comfyspace", Key=s3_key, Body=download_response.content, ContentType=mime_type)
+            s3_client.put_object(Bucket="comfyui-static", Key=s3_key, Body=download_response.content, ContentType=mime_type)
             print(f"✅ Uploaded {file_name} to S3 with key {s3_key}")
         elif item['type'] == 'dir':
             # Recursively process the directory

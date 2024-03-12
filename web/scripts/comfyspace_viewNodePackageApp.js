@@ -119,40 +119,44 @@ export class ComfyViewNodePackageApp extends ComfyApp {
       if(this.nodeType && this.nodeType !== nodeType) {
         return;
       }
-      const node = LiteGraph.createNode(nodeType);
-      const nodeWidth = node.size[0];
-      const nodeHeight = node.size[1];
-    
-      // Check if the node can fit in the canvas width at all
-      if (nodeWidth > canvasWidth) {
-        console.warn(`Node of type ${nodeType} exceeds the canvas width and cannot be placed.`);
-      }
-    
-      // Preemptively move to the next row if the current node would exceed the canvas width
-      if (currentPosition[0] + nodeWidth + gap > canvasWidth) {
-        currentPosition[0] = LEFT_PADDING; // Reset X position to start of the next row
-        currentPosition[1] += maxHeightInRow + rowGap; // Move Y position down
-        maxHeightInRow = nodeHeight; // Start tracking the new row's maxHeight with the current node
-      } else {
-        // The node fits in the current row, update maxHeightInRow
-        maxHeightInRow = Math.max(maxHeightInRow, nodeHeight);
-      }
-    
-      // Place the node at the current position
-      node.pos = [...currentPosition];
-      this.graph.add(node);
-    
-      // Move currentPosition right for the next node
-      currentPosition[0] += nodeWidth + gap;
+      try{
+        const node = LiteGraph.createNode(nodeType);
+        const nodeWidth = node.size[0];
+        const nodeHeight = node.size[1];
+      
+        // Check if the node can fit in the canvas width at all
+        if (nodeWidth > canvasWidth) {
+          console.warn(`Node of type ${nodeType} exceeds the canvas width and cannot be placed.`);
+        }
+      
+        // Preemptively move to the next row if the current node would exceed the canvas width
+        if (currentPosition[0] + nodeWidth + gap > canvasWidth) {
+          currentPosition[0] = LEFT_PADDING; // Reset X position to start of the next row
+          currentPosition[1] += maxHeightInRow + rowGap; // Move Y position down
+          maxHeightInRow = nodeHeight; // Start tracking the new row's maxHeight with the current node
+        } else {
+          // The node fits in the current row, update maxHeightInRow
+          maxHeightInRow = Math.max(maxHeightInRow, nodeHeight);
+        }
+      
+        // Place the node at the current position
+        node.pos = [...currentPosition];
+        this.graph.add(node);
+      
+        // Move currentPosition right for the next node
+        currentPosition[0] += nodeWidth + gap;
 
+        // After adding and positioning all nodes
+        const totalHeightRequired = currentPosition[1] + maxHeightInRow + rowGap; // Add one more rowGap for bottom padding
+        var message = { type: 'updateCanvasHeight', height: totalHeightRequired };
+        console.log("totalHeightRequired", totalHeightRequired);
+        this.graph.canvasHeightRequired = totalHeightRequired;
+        // Send the message to the parent window
+        window.parent.postMessage(message, window.location.origin); 
+        // Adjust canvas height to fit all nodes
+      } catch(e) {
+        console.error("Error adding node", nodeType, e);
+      }
     });
-    // After adding and positioning all nodes
-    const totalHeightRequired = currentPosition[1] + maxHeightInRow + rowGap; // Add one more rowGap for bottom padding
-    var message = { type: 'updateCanvasHeight', height: totalHeightRequired };
-    console.log("totalHeightRequired", totalHeightRequired);
-    this.graph.canvasHeightRequired = totalHeightRequired;
-    // Send the message to the parent window
-    window.parent.postMessage(message, window.location.origin); 
-    // Adjust canvas height to fit all nodes
   }
 }

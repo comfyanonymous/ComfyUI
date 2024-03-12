@@ -14,7 +14,7 @@ def process_json(file_path):
         print("🔴file not found", file_path)
         gitclone_install(["https://github.com/ltdrdata/ComfyUI-Manager.git"])
     # START_FROM = 102
-    START_FROM = 16
+    START_FROM = 2
     try:
         with open(file_path, 'r') as file:
             data = json.load(file)
