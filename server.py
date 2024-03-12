@@ -626,11 +626,17 @@ class PromptServer():
             msg = await self.messages.get()
             await self.send(*msg)
 
+    async def broadcast_queue_status(self):
+        while True:
+            self.send_sync("status", { "status": self.get_queue_info() })
+            await asyncio.sleep(0.2)
+
     async def start(self, address, port, verbose=True, call_on_start=None):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         site = web.TCPSite(runner, address, port)
         await site.start()
+        self.loop.create_task(self.broadcast_queue_status())
 
         if verbose:
             print("Starting server\n")
