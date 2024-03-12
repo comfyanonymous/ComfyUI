@@ -30,6 +30,7 @@ export class ComfyViewNodePackageApp extends ComfyApp {
   pacakgeID = null;
   nodeType= null;
   extensionFilesPath =  COMFYUI_CORE_EXTENSIONS;
+  canvasHeightRequired = 500;
   constructor() {
     super();
     const params = new URLSearchParams(window.location.search);
@@ -42,23 +43,15 @@ export class ComfyViewNodePackageApp extends ComfyApp {
           return;
       }
   
+      // Get the wheel delta
       var delta = e.wheelDeltaY != null ? e.wheelDeltaY : e.detail * -60;
   
-      // Assuming the existence of a method similar to 'adjustMouseEvent' to get canvas-relative coordinates if needed
-      // this.adjustMouseEvent(e);
+      // Scaling factor to adjust the sensitivity, might need tuning based on testing
+      var sensitivity = 0.5;
   
-      // The amount of scrolling for each wheel event; you may adjust this value to get the desired scrolling speed
-      var scrollSpeed = 20;
-  
-      // Modifying the ds.offset[1] (y offset) based on the delta
-      // Inverting the direction: scrolling up will move the canvas down and vice versa
-      if (delta > 0) {
-          // Scrolling up - Move the canvas down
-          this.ds.offset[1] += scrollSpeed;
-      } else if (delta < 0) {
-          // Scrolling down - Move the canvas up
-          this.ds.offset[1] -= scrollSpeed;
-      }
+      // Apply the delta directly after scaling for sensitivity adjustment
+      // this.ds.offset[1] -= delta * sensitivity;
+      this.ds.offset[1] += delta * sensitivity;
   
       // Mark the canvas as needing a redraw
       this.dirty_canvas = true;
@@ -67,6 +60,7 @@ export class ComfyViewNodePackageApp extends ComfyApp {
       e.preventDefault();
       return false; // Prevent the default scrolling behavior of the browser
   };
+  
   
   }
   async setup() {
@@ -155,6 +149,8 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     // After adding and positioning all nodes
     const totalHeightRequired = currentPosition[1] + maxHeightInRow + rowGap; // Add one more rowGap for bottom padding
     var message = { type: 'updateCanvasHeight', height: totalHeightRequired };
+    console.log("totalHeightRequired", totalHeightRequired);
+    this.graph.canvasHeightRequired = totalHeightRequired;
     // Send the message to the parent window
     window.parent.postMessage(message, window.location.origin); 
     // Adjust canvas height to fit all nodes
