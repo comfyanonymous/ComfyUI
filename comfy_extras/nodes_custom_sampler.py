@@ -181,6 +181,28 @@ class KSamplerSelect:
         sampler = comfy.samplers.sampler_object(sampler_name)
         return (sampler, )
 
+class SamplerDPMPP_3M_SDE:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
+                     "noise_device": (['gpu', 'cpu'], ),
+                      }
+               }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise, noise_device):
+        if noise_device == 'cpu':
+            sampler_name = "dpmpp_3m_sde"
+        else:
+            sampler_name = "dpmpp_3m_sde_gpu"
+        sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise})
+        return (sampler, )
+
 class SamplerDPMPP_2M_SDE:
     @classmethod
     def INPUT_TYPES(s):
@@ -323,6 +345,7 @@ NODE_CLASS_MAPPINGS = {
     "KSamplerSelect": KSamplerSelect,
     "SamplerEulerAncestral": SamplerEulerAncestral,
     "SamplerLMS": SamplerLMS,
+    "SamplerDPMPP_3M_SDE": SamplerDPMPP_3M_SDE,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "SplitSigmas": SplitSigmas,
