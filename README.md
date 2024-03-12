@@ -14,6 +14,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
 - [Containers](#containers) for running on Linux, Windows and Kubernetes with CUDA acceleration.
 - Automated tests for new features.
+- Automatic model downloading for well-known models.
 
 ### Table of Contents
 
@@ -33,14 +34,14 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 [Most users are familiar with double clicking an .exe or a .msi file for installing things; or they install from Steam. This doens't work that way. Instead, the following steps install this package]: #
 
-[ 1. Install Python 3.11. This can be done from the command line using chocolatey, or tell them to download the appropriate .exe and double click on it and follow the installer. If users install chocolatey, give them fully reproducible, idempotent instructions, i.e. stuff strictly in the command line for powershell or cmd.exe.]: #
+[ 1. Install the latest Python. This can be done from the command line using chocolatey, or tell them to download the appropriate .exe and double click on it and follow the installer. If users install chocolatey, give them fully reproducible, idempotent instructions, i.e. stuff strictly in the command line for powershell or cmd.exe.]: #
 [ 2. Open a command line on Windows. This is usually cmd.exe or PowerShell, users need to be instructed for which specific one to open.]: #
 [ 3. Create a virtual environment on a disk with a lot of space. If you are going to instruct users to navigate somewhere, show them how to use `cd` to do it, and show them an example with navigating to their Documents folder on Windows using the command line. Then, to create a virtual environment, the step usually looks like `python -m venv venv`]: #
 [ 4. Activate the virtual environment. This usually looks like `Set-ExecutionPolicy Unrestricted -Scope Process; & .\venv\Scripts\activate.ps1` in PowerShell. Observe the caveat of the execution policy problem. Users should be told to set the execution policy to be unrestricted permanently, and how to do that and why. Remember, they need something ergonomic and easy.]: #
 [ 5. Install this package. Currently, that is done with `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.]: #
 [ 6. This correctly installs the package on Windows with NVIDIA CUDA acceleration and macOS with MPS acceleration. However, users may have weird setups and need more help.]: #
 [ 7. Now users need a model. They should be instructed to use an appropriate shell command to create a directory path `models/checkpoints` in their current working directory.]: #
-[ 8. Then, they must download https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt into the path ./models/checkpoints/v1-5-pruned-emaonly.ckpt]: #
+[ 8. Then, they will not need to download models. Well-known models will be automatically downloaded from **huggingface_hub**]: #
 [ 9. Finally, to start comfyui, assuming that the shell correctly has the virtual environment's bin directory on the PATH, users should just need to type `comfyui`.]: #
 [ 10. The console should output a URL to visit. It is usually http://127.0.0.1:8188. Tell them to visit this URL in their browser.]: #
 [ 11. Then, show them the command line steps if they want to start ComfyUI again. Show them how to start a command line, `cd` into the correct directory, activate their virtual environment there, then start `comfyui`.]: #
@@ -91,59 +92,68 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     comfyui --cwd="C:/some directory/"
     ```
     You can see all the command line options with hints using `comfyui --help`.
-
- 5. Download models. These commands will download the SD1.5 and SDXL models. This assumes you are using the default directories.
-    ```shell
-    mkdir -p models/checkpoints
-    curl -L https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors?download=true -o models/checkpoints/v1-5-pruned-emaonly.safetensors
-    curl -L https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors?download=true -o models/checkpoints/sd_xl_base_1.0.safetensors
-    curl -L https://huggingface.co/stabilityai/stable-diffusion-xl-refiner-1.0/resolve/main/sd_xl_refiner_1.0.safetensors?download=true -o models/checkpoints/sd_xl_refiner_1.0.safetensors
-    ```
- 6. To run the web server:
+ 5. To run the web server:
     ```shell
     comfyui
-    ``` 
+    ```
+    When you run workflows that use well-known models, this will download them automatically.
+    
     To make it accessible over the network:
     ```shell
     comfyui --listen
     ```
 
+### Known Models
+
+These models will be automatically downloaded when you queue prompts with workflows that use them:
+
+- **Stable Diffusion XL (SDXL) Base**: `stabilityai/stable-diffusion-xl-base-1.0`
+- **Stable Diffusion XL (SDXL) Refiner**: `stabilityai/stable-diffusion-xl-refiner-1.0`
+- **SDXL Turbo**: `stabilityai/sdxl-turbo` (both FP16 and standard versions)
+- **Stable Cascade**: The stages from `stabilityai/stable-cascade` (Stage A, Stage B, and Stage C)
+- **Stable Diffusion 1.5**: From `runwayml/stable-diffusion-v1-5` (including pruned, EMA-only, and pruned versions)
+- **Stable Diffusion 2.1**: `stabilityai/stable-diffusion-2-1` (v2-1 768 EMA pruned version)
+- **Waifu Diffusion 1.5 Beta3**: `waifu-diffusion/wd-1-5-beta3` (Illusion FP16 version)
+- **NeverEnding Dream**: `jomcs/NeverEnding_Dream-Feb19-2023` (CarDos Anime version)
+- **Anything-V3.0**: The anime model `ckpt/anything-v3.0` 
+- **Stable Diffusion 2.1 Unclip**: `stabilityai/stable-diffusion-2-1-unclip` (both high and low versions)
+- **Stable Zero123**: `stabilityai/stable-zero123`
+- **Annotators (RealESRGAN Upscaler)**: `lllyasviel/Annotators` (RealESRGAN x4plus)
+- **GLIGEN Pruned Safetensors**: `comfyanonymous/GLIGEN_pruned_safetensors` (both standard and FP16 versions)
+- **CLIP Vision G**: `comfyanonymous/clip_vision_g`
+
+
+
 ## Manual Install (Windows, Linux, macOS) For Development
 
- 1. Clone this repo:
-    ```shell
-    git clone https://github.com/comfyanonymous/ComfyUI.git
-    cd ComfyUI
-    ```
-
- 2. Put your Stable Diffusion checkpoints (the huge ckpt/safetensors files) into the `models/checkpoints` folder. You can download SD v1.5 using the following command:
-    ```shell
-    curl -L https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt -o ./models/checkpoints/v1-5-pruned-emaonly.ckpt
-    ```
-
- 3. Create a virtual environment:
-    1. Create an environment:
-       ```shell
-       python -m virtualenv venv
-       ```
-    2. Activate it:
+1. Clone this repo:
+   ```shell
+   git clone https://github.com/comfyanonymous/ComfyUI.git
+   cd ComfyUI
+   ```
+2. Create a virtual environment:
+   1. Create an environment:
+      ```shell
+      python -m virtualenv venv
+      ```
+   2. Activate it:
        
-       **Windows (PowerShell):**
-       ```pwsh
-       Set-ExecutionPolicy Unrestricted -Scope Process
-       & .\venv\Scripts\activate.ps1
-       ```
+      **Windows (PowerShell):**
+      ```pwsh
+      Set-ExecutionPolicy Unrestricted -Scope Process
+      & .\venv\Scripts\activate.ps1
+      ```
        
-       **Linux and macOS**
-       ```shell
-       source ./venv/bin/activate
-       ```
+      **Linux and macOS**
+      ```shell
+      source ./venv/bin/activate
+      ```
 
- 4. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
-    ```shell
-    pip install -e .[dev]
-    ```
- 5. To run the web server:
+3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
+   ```shell
+   pip install -e ".[dev]"
+   ```
+4. To run the web server:
     ```shell
     comfyui
     ```
@@ -153,41 +163,12 @@ On macOS, install exactly Python 3.11 using `brew`, which you can download from 
     (cd tests-ui && npm ci && npm run test:generate && npm test)
     ```
     You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
- 6. To create the standalone binary:
+5. To create the standalone binary:
     ```shell
     python -m PyInstaller --onefile --noupx -n ComfyUI --add-data="comfy/;comfy/" --paths $(pwd) --paths comfy/cmd main.py
     ```
 
-Because the package is installed "editably" with `pip install -e .`, any changes you make to the repository will affect the next launch of `comfy`. In IDEA based editors like PyCharm and IntelliJ, the Relodium plugin supports modifying your custom nodes or similar code while the server is running. 
-
-
-### Intel, DirectML and AMD Experimental Support
-
-<details>
-#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
-
-#### DirectML (AMD Cards on Windows)
-
-Follow the manual installation steps. Then:
-
-```shell
-pip uninstall torch torchvision
-pip install torch torchvision
-pip install torch-directml
-```
-
-Then, launch ComfyUI with `comfyui --directml`.
-
-### For AMD cards not officially supported by ROCm
-
-Try running it with this command if you have issues:
-
-For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.0 comfyui```
-
-For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 comfyui```
-
-`
-</details>
+Because pip installs the package as editable with `pip install -e .`, any changes you make to the repository will affect the next launch of `comfy`. In IDEA based editors like PyCharm and IntelliJ, the Relodium plugin supports modifying your custom nodes or similar code while the server is running.
 
 # Custom Nodes
 
@@ -199,7 +180,7 @@ There are two kinds of custom nodes: vanilla custom nodes, which generally expec
 
 ### Vanilla Custom Nodes
 
-Clone the repository containing the custom nodes into `custom_nodes/` in your working directory.
+Clone the repository containing the custom nodes into `custom_nodes/` in your working directory. Currently, this is not known to be compatible with ComfyUI Node Manager.
 
 ### Installable Custom Nodes
 
@@ -812,6 +793,8 @@ The frontend expects to find the referenced output images in its `--output-direc
 This means that workers and frontends do **not** have to have the same argument to `--cwd`. The paths that are passed to the **frontend**, such as the `inputs/` and `outputs/` directories, must have the **same contents** as the paths passed as those directories to the workers.
 
 Since reading models like large checkpoints over the network can be slow, you can use `--extra-model-paths-config` to specify additional model paths. Or, you can use `--cwd some/path`, where `some/path` is a local directory, and, and mount `some/path/outputs` to a network directory.
+
+Known models listed in [**model_downloader.py**](./comfy/model_downloader.py) are downloaded using `huggingface_hub` with the default `cache_dir`. This means you can mount a read-write-many volume, like an SMB share, into the default cache directory. Read more about this [here](https://huggingface.co/docs/huggingface_hub/en/guides/download).
 
 # Containers
 
