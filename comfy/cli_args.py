@@ -209,7 +209,7 @@ def parse_args(parser: Optional[argparse.ArgumentParser] = None) -> Configuratio
     if args.disable_auto_launch:
         args.auto_launch = False
 
-    logging_level = logging.WARNING
+    logging_level = logging.INFO
     if args.verbose:
         logging_level = logging.DEBUG
 

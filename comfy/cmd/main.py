@@ -5,6 +5,7 @@ import warnings
 warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_node is deprecated. Please use torch.utils._pytree.register_pytree_node instead.")
 options.enable_args_parsing()
 
+import logging
 import os
 import importlib.util
 
@@ -26,7 +27,7 @@ def execute_prestartup_script():
             spec.loader.exec_module(module)
             return True
         except Exception as e:
-            print(f"Failed to execute startup-script: {script_path} / {e}")
+            logging.error(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -45,14 +46,13 @@ def execute_prestartup_script():
                 success = execute_script(script_path)
                 node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
     if len(node_prestartup_times) > 0:
-        print("\nPrestartup times for custom nodes:")
+        logging.info("\nPrestartup times for custom nodes:")
         for n in sorted(node_prestartup_times):
             if n[2]:
                 import_message = ""
             else:
                 import_message = " (PRESTARTUP FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
-        print()
+            logging.info("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
 
 
 execute_prestartup_script()
@@ -74,7 +74,7 @@ if os.name == "nt":
 
 if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-    print("Set cuda device to:", args.cuda_device)
+    logging.info("Set cuda device to:", args.cuda_device)
 
 if args.deterministic:
     if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
@@ -124,7 +124,7 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
-            print("Prompt executed in {:.2f} seconds".format(execution_time))
+            logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
@@ -183,14 +183,14 @@ def cuda_malloc_warning():
             if b in device_name:
                 cuda_malloc_warning = True
         if cuda_malloc_warning:
-            print(
+            logging.warning(
                 "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
 async def main():
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
-        print(f"Setting temp directory to: {temp_dir}")
+        logging.debug(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
@@ -263,7 +263,7 @@ async def main():
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
-        print(f"Setting output directory to: {output_dir}")
+        logging.debug(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
     # These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
@@ -273,7 +273,7 @@ async def main():
 
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
-        print(f"Setting input directory to: {input_dir}")
+        logging.debug(f"Setting input directory to: {input_dir}")
         folder_paths.set_input_directory(input_dir)
 
     if args.quick_test_for_ci:
@@ -297,7 +297,7 @@ async def main():
     except asyncio.CancelledError:
         if distributed:
             await q.close()
-        print("\nStopped server")
+        logging.debug("\nStopped server")
 
     cleanup_temp()
 

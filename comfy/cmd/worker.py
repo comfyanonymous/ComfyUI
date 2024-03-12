@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import os
+import logging
 
 from .extra_model_paths import load_extra_path_config
 from .. import options
@@ -19,7 +20,7 @@ async def main():
 
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        print("Set cuda device to:", args.cuda_device)
+        logging.info(f"Set cuda device to: {args.cuda_device}")
 
     if args.deterministic:
         if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
@@ -28,21 +29,21 @@ async def main():
     # configure paths
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
-        print(f"Setting output directory to: {output_dir}")
+        logging.info(f"Setting output directory to: {output_dir}")
         from ..cmd import folder_paths
         
         folder_paths.set_output_directory(output_dir)
     
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
-        print(f"Setting input directory to: {input_dir}")
+        logging.info(f"Setting input directory to: {input_dir}")
         from ..cmd import folder_paths
     
         folder_paths.set_input_directory(input_dir)
 
     if args.temp_directory:
         temp_dir = os.path.abspath(args.temp_directory)
-        print(f"Setting temp directory to: {temp_dir}")
+        logging.info(f"Setting temp directory to: {temp_dir}")
         from ..cmd import folder_paths
 
         folder_paths.set_temp_directory(temp_dir)

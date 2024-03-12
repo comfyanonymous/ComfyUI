@@ -4,6 +4,7 @@ import torch
 import collections
 from . import model_management
 import math
+import logging
 
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
 
@@ -626,7 +627,7 @@ def calculate_sigmas_scheduler(model, scheduler_name, steps):
     elif scheduler_name == "sgm_uniform":
         sigmas = normal_scheduler(model, steps, sgm=True)
     else:
-        print("error invalid scheduler", scheduler_name)
+        logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas
 
 def sampler_object(name):

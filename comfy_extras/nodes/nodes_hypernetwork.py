@@ -1,6 +1,7 @@
 from comfy import utils
 from comfy.cmd import folder_paths
 import torch
+import logging
 
 def load_hypernetwork_patch(path, strength):
     sd = utils.load_torch_file(path, safe_load=True)
@@ -23,7 +24,7 @@ def load_hypernetwork_patch(path, strength):
     }
 
     if activation_func not in valid_activation:
-        print("Unsupported Hypernetwork format, if you report it I might implement it.", path, " ", activation_func, is_layer_norm, use_dropout, activate_output, last_layer_dropout)
+        logging.error("Unsupported Hypernetwork format, if you report it I might implement it. {}   {} {} {} {} {}".format(path, activation_func, is_layer_norm, use_dropout, activate_output, last_layer_dropout))
         return None
 
     out = {}
