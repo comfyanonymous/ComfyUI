@@ -1,53 +1,71 @@
-import dataclasses
-from typing import List, Optional
+from __future__ import annotations
+
+import logging
+from os.path import join
+from typing import List, Any, Optional
 
 from huggingface_hub import hf_hub_download
+from requests import Session
 
 from .cmd import folder_paths
-from .utils import comfy_tqdm
-from posixpath import split
+from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse
+from .utils import comfy_tqdm, ProgressBar
+
+session = Session()
 
 
-@dataclasses.dataclass
-class HuggingFile:
-    """
-    A file on Huggingface Hub
-
-    Attributes:
-        repo_id (str): The Huggingface repository of a known file
-        filename (str): The path to the known file in the repository
-        show_in_ui (bool): Not used. Will indicate whether or not the file should be shown in the UI to reduce clutter
-    """
-    repo_id: str
-    filename: str
-    show_in_ui: Optional[bool] = True
-
-    def __str__(self):
-        return split(self.filename)[-1]
-
-
-def get_filename_list_with_downloadable(folder_name: str, known_huggingface_files: List[HuggingFile]) -> List[str]:
+def get_filename_list_with_downloadable(folder_name: str, known_files: List[Any]) -> List[str]:
     existing = frozenset(folder_paths.get_filename_list(folder_name))
-    downloadable = frozenset(str(f) for f in known_huggingface_files)
+    downloadable = frozenset(str(f) for f in known_files)
     return sorted(list(existing | downloadable))
 
 
-def get_or_download(folder_name: str, filename: str, known_huggingface_files: List[HuggingFile]) -> str:
+def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFile | CivitFile]) -> str:
     path = folder_paths.get_full_path(folder_name, filename)
 
     if path is None:
         try:
             destination = folder_paths.get_folder_paths(folder_name)[0]
-            hugging_file = next(f for f in known_huggingface_files if str(f) == filename)
+            known_file = next(f for f in known_files if str(f) == filename)
             with comfy_tqdm():
-                path = hf_hub_download(repo_id=hugging_file.repo_id,
-                                       filename=hugging_file.filename,
-                                       local_dir=destination,
-                                       resume_download=True)
+                if isinstance(known_file, HuggingFile):
+                    path = hf_hub_download(repo_id=known_file.repo_id,
+                                           filename=known_file.filename,
+                                           local_dir=destination,
+                                           resume_download=True)
+                else:
+                    url: Optional[str] = None
+
+                    if isinstance(known_file, CivitFile):
+                        model_info_res = session.get(
+                            f"https://civitai.com/api/v1/models/{known_file.model_id}?modelVersionId={known_file.model_version_id}")
+                        model_info: CivitModelsGetResponse = model_info_res.json()
+                        for model_version in model_info['modelVersions']:
+                            for file in model_version['files']:
+                                if file['name'] == filename:
+                                    url = file['downloadUrl']
+                                    break
+                            if url is not None:
+                                break
+                    else:
+                        raise RuntimeError("unknown file type")
+
+                    if url is None:
+                        logging.warning(f"Could not retrieve file {str(known_file)}")
+                    else:
+                        with session.get(url, stream=True, allow_redirects=True) as response:
+                            total_size = int(response.headers.get("content-length", 0))
+                            progress_bar = ProgressBar(total=total_size)
+                            with open(join(destination, filename), "wb") as file:
+                                for chunk in response.iter_content(chunk_size=512 * 1024):
+                                    progress_bar.update(len(chunk))
+                                    file.write(chunk)
+                        path = folder_paths.get_full_path(folder_name, filename)
+                        assert path is not None
         except StopIteration:
             pass
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.error("Error while trying to download a file", exc_info=exc)
     return path
 
 
@@ -69,6 +87,9 @@ KNOWN_CHECKPOINTS = [
     HuggingFile("jomcs/NeverEnding_Dream-Feb19-2023", "CarDos Anime/cardosAnime_v10.safetensors", show_in_ui=False),
     # from https://github.com/comfyanonymous/ComfyUI_examples/blob/master/area_composition/README.md
     HuggingFile("ckpt/anything-v3.0", "Anything-V3.0.ckpt", show_in_ui=False),
+    # from https://github.com/huchenlei/ComfyUI-layerdiffuse
+    CivitFile(133005, 357609, filename="juggernautXL_v8Rundiffusion.safetensors"),
+    CivitFile(133005, 357609, filename="juggernautXL_v9Rundiffusionphoto2.safetensors"),
 ]
 
 KNOWN_UNCLIP_CHECKPOINTS = [

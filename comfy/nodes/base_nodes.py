@@ -23,8 +23,9 @@ from .. import model_management
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
-from ..model_downloader import HuggingFile, get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
+from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
     KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS
+from ..model_downloader_types import HuggingFile
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 

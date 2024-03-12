@@ -2,6 +2,8 @@ import os
 import sys
 import time
 import logging
+from typing import Optional
+
 from pkg_resources import resource_filename
 
 from ..cli_args import args
@@ -131,9 +133,11 @@ def exists_annotated_filepath(name):
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(folder_name, full_folder_path):
+def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None):
     global folder_names_and_paths
-    if folder_name in folder_names_and_paths:
+    if full_folder_path is None:
+        full_folder_path = os.path.join(models_dir, folder_name)
+    if folder_name in folder_names_and_paths and full_folder_path not in folder_names_and_paths[folder_name][0]:
         folder_names_and_paths[folder_name][0].append(full_folder_path)
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
