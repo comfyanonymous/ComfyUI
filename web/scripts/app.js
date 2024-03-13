@@ -6,6 +6,7 @@ import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
+import { getWorkflow } from "./utils.js";
 
 export const ANIM_PREVIEW_WIDGET = "$$comfy_animation_preview"
 
@@ -1496,28 +1497,37 @@ export class ComfyApp {
 		await this.registerNodes();
 		initWidgets(this);
 
-		// Load previous workflow
-		let restored = false;
-		try {
-			const loadWorkflow = async (json) => {
-				if (json) {
-					const workflow = JSON.parse(json);
-					await this.loadGraphData(workflow);
-					return true;
-				}
-			};
-			const clientId = api.initialClientId ?? api.clientId;
-			restored =
-				(clientId && (await loadWorkflow(sessionStorage.getItem(`workflow:${clientId}`)))) ||
-				(await loadWorkflow(localStorage.getItem("workflow")));
-		} catch (err) {
-			console.error("Error loading previous workflow", err);
+		// Load prebuilt workflow
+		const workflow = await getWorkflow();
+
+		if (workflow) {
+			await this.loadGraphData(workflow);
+		}
+		else {
+			// Load previous workflow
+			let restored = false;
+			try {
+				const loadWorkflow = async (json) => {
+					if (json) {
+						const workflow = JSON.parse(json);
+						await this.loadGraphData(workflow);
+						return true;
+					}
+				};
+				const clientId = api.initialClientId ?? api.clientId;
+				restored =
+					(clientId && (await loadWorkflow(sessionStorage.getItem(`workflow:${clientId}`)))) ||
+					(await loadWorkflow(localStorage.getItem("workflow")));
+			} catch (err) {
+				console.error("Error loading previous workflow", err);
+			}
+
+			// We failed to restore a workflow so load the default
+			if (!restored) {
+				await this.loadGraphData();
+			}
 		}
 
-		// We failed to restore a workflow so load the default
-		if (!restored) {
-			await this.loadGraphData();
-		}
 
 		// Save current workflow automatically
 		setInterval(() => {
