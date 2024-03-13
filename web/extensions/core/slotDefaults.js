@@ -60,7 +60,7 @@ app.registerExtension({
 			if (!(type in this.slot_types_default_in)) {
 				this.slot_types_default_in[type] = ["Reroute"];// ["Reroute", "Primitive"];  primitive doesn't always work :'()
 			}
-
+			if (this.slot_types_default_in[type].includes(nodeId)) continue;
 			this.slot_types_default_in[type].push(nodeId);
 
 			// Store each node that can handle this output type
