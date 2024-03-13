@@ -10,11 +10,8 @@ from functools import reduce
 from importlib.metadata import entry_points
 
 from pkg_resources import resource_filename
-
-from comfy_extras import nodes as comfy_extras_nodes
-from . import base_nodes
 from .package_typing import ExportedNodes
-from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
+
 
 _comfy_nodes: ExportedNodes = ExportedNodes()
 
@@ -77,6 +74,10 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
 
 
 def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
+    # now actually import the nodes, to improve control of node loading order
+    from comfy_extras import nodes as comfy_extras_nodes
+    from . import base_nodes
+    from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
     # only load these nodes once
     if len(_comfy_nodes) == 0:
         base_and_extra = reduce(lambda x, y: x.update(y),

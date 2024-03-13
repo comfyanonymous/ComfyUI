@@ -1,0 +1,4 @@
+root = true
+
+[*]
+max_line_length = off

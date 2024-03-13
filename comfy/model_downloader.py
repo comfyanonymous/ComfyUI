@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import logging
+import os
+from itertools import chain
 from os.path import join
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Union
 
 from huggingface_hub import hf_hub_download
 from requests import Session
 
 from .cmd import folder_paths
-from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse
-from .utils import comfy_tqdm, ProgressBar
+from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_
+from .interruption import InterruptProcessingException
+from .utils import ProgressBar, comfy_tqdm
 
 session = Session()
 
@@ -20,32 +23,40 @@ def get_filename_list_with_downloadable(folder_name: str, known_files: List[Any]
     return sorted(list(existing | downloadable))
 
 
-def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFile | CivitFile]) -> str:
+def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFile | CivitFile]) -> Optional[str]:
     path = folder_paths.get_full_path(folder_name, filename)
 
     if path is None:
         try:
+            # todo: should this be the first or last path?
             destination = folder_paths.get_folder_paths(folder_name)[0]
-            known_file = next(f for f in known_files if str(f) == filename)
+            known_file: Optional[HuggingFile | CivitFile] = None
+            for candidate in known_files:
+                if candidate.filename == filename or filename in candidate.alternate_filenames or filename == candidate.save_with_filename:
+                    known_file = candidate
+                    break
+            if known_file is None:
+                return path
             with comfy_tqdm():
                 if isinstance(known_file, HuggingFile):
+                    save_filename = known_file.save_with_filename or known_file.filename
                     path = hf_hub_download(repo_id=known_file.repo_id,
-                                           filename=known_file.filename,
+                                           filename=save_filename,
                                            local_dir=destination,
                                            resume_download=True)
                 else:
                     url: Optional[str] = None
+                    save_filename = known_file.save_with_filename or known_file.filename
 
                     if isinstance(known_file, CivitFile):
                         model_info_res = session.get(
                             f"https://civitai.com/api/v1/models/{known_file.model_id}?modelVersionId={known_file.model_version_id}")
                         model_info: CivitModelsGetResponse = model_info_res.json()
-                        for model_version in model_info['modelVersions']:
-                            for file in model_version['files']:
-                                if file['name'] == filename:
-                                    url = file['downloadUrl']
-                                    break
-                            if url is not None:
+
+                        file: CivitFile_
+                        for file in chain.from_iterable(version['files'] for version in model_info['modelVersions']):
+                            if file['name'] == filename:
+                                url = file['downloadUrl']
                                 break
                     else:
                         raise RuntimeError("unknown file type")
@@ -53,19 +64,29 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                     if url is None:
                         logging.warning(f"Could not retrieve file {str(known_file)}")
                     else:
-                        with session.get(url, stream=True, allow_redirects=True) as response:
-                            total_size = int(response.headers.get("content-length", 0))
-                            progress_bar = ProgressBar(total=total_size)
-                            with open(join(destination, filename), "wb") as file:
-                                for chunk in response.iter_content(chunk_size=512 * 1024):
-                                    progress_bar.update(len(chunk))
-                                    file.write(chunk)
+                        destination_with_filename = join(destination, save_filename)
+                        try:
+
+                            with session.get(url, stream=True, allow_redirects=True) as response:
+                                total_size = int(response.headers.get("content-length", 0))
+                                progress_bar = ProgressBar(total=total_size)
+                                with open(destination_with_filename, "wb") as file:
+                                    for chunk in response.iter_content(chunk_size=512 * 1024):
+                                        progress_bar.update(len(chunk))
+                                        file.write(chunk)
+                        except InterruptProcessingException:
+                            os.remove(destination_with_filename)
+
                         path = folder_paths.get_full_path(folder_name, filename)
                         assert path is not None
         except StopIteration:
             pass
         except Exception as exc:
             logging.error("Error while trying to download a file", exc_info=exc)
+        finally:
+            # a path was found for any reason, so we should invalidate the cache
+            if path is not None:
+                folder_paths.invalidate_cache(folder_name)
     return path
 
 
@@ -118,5 +139,10 @@ KNOWN_CLIP_VISION_MODELS = [
 
 KNOWN_LORAS = [
     CivitFile(model_id=211577, model_version_id=238349, filename="openxl_handsfix.safetensors"),
-    # todo: a lot of the slider loras are useful and should also be included
 ]
+
+
+def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:
+    symbol += models
+    folder_paths.invalidate_cache(folder_name)
+    return symbol

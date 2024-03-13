@@ -23,6 +23,7 @@ import aiofiles
 import aiohttp
 from aiohttp import web
 
+import comfy.interruption
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation
 from ..cmd import execution
 from ..cmd import folder_paths
@@ -515,7 +516,7 @@ class PromptServer(ExecutorToClientProgress):
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            model_management.interrupt_current_processing()
+            comfy.interruption.interrupt_current_processing()
             return web.Response(status=200)
 
         @routes.post("/free")

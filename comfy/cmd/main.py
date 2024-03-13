@@ -1,94 +1,26 @@
-from .. import options
 # Suppress warnings during import
-import warnings
-
-warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_node is deprecated. Please use torch.utils._pytree.register_pytree_node instead.")
-options.enable_args_parsing()
-
+import asyncio
+import gc
+import itertools
 import logging
 import os
-import importlib.util
-
-from ..cmd import cuda_malloc
-from ..cmd import folder_paths
-from .extra_model_paths import load_extra_path_config
-from ..analytics.analytics import initialize_event_tracking
-from ..nodes.package import import_all_nodes_in_workspace
-
-import time
-
-
-def execute_prestartup_script():
-    def execute_script(script_path):
-        module_name = os.path.splitext(script_path)[0]
-        try:
-            spec = importlib.util.spec_from_file_location(module_name, script_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            return True
-        except Exception as e:
-            logging.error(f"Failed to execute startup-script: {script_path} / {e}")
-        return False
-
-    node_paths = folder_paths.get_folder_paths("custom_nodes")
-    node_prestartup_times = []
-    for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path) if os.path.exists(custom_node_path) else []
-
-        for possible_module in possible_modules:
-            module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
-                continue
-
-            script_path = os.path.join(module_path, "prestartup_script.py")
-            if os.path.exists(script_path):
-                time_before = time.perf_counter()
-                success = execute_script(script_path)
-                node_prestartup_times.append((time.perf_counter() - time_before, module_path, success))
-    if len(node_prestartup_times) > 0:
-        logging.info("\nPrestartup times for custom nodes:")
-        for n in sorted(node_prestartup_times):
-            if n[2]:
-                import_message = ""
-            else:
-                import_message = " (PRESTARTUP FAILED)"
-            logging.info("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
-
-
-execute_prestartup_script()
-
-# Main code
-import asyncio
-import itertools
 import shutil
 import threading
-import gc
+import time
 
-from ..cli_args import args
-
-if os.name == "nt":
-    import logging
-
-    logging.getLogger("xformers").addFilter(
-        lambda record: 'A matching Triton is not available' not in record.getMessage())
-
-if args.cuda_device is not None:
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-    logging.info("Set cuda device to:", args.cuda_device)
-
-if args.deterministic:
-    if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
-        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
-
-from .. import utils
-
+from comfy.utils import hijack_progress
+from .extra_model_paths import load_extra_path_config
+from .main_pre import args
+from .. import model_management
+from ..analytics.analytics import initialize_event_tracking
+from ..cmd import cuda_malloc
+from ..cmd import folder_paths
 from ..cmd import server as server_module
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
-from ..component_model.queue_types import BinaryEventTypes, ExecutionStatus
-from .. import model_management
+from ..component_model.queue_types import ExecutionStatus
 from ..distributed.distributed_prompt_queue import DistributedPromptQueue
-from ..component_model.executor_types import ExecutorToClientProgress
 from ..distributed.server_stub import ServerStub
+from ..nodes.package import import_all_nodes_in_workspace
 
 
 def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
@@ -120,7 +52,7 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
                             completed=e.success,
                             messages=e.status_messages))
             if _server.client_id is not None:
-                _server.send_sync("executing", { "node": None, "prompt_id": prompt_id }, _server.client_id)
+                _server.send_sync("executing", {"node": None, "prompt_id": prompt_id}, _server.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
@@ -150,18 +82,6 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
 
 async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
-
-
-def hijack_progress(server: ExecutorToClientProgress):
-    def hook(value: float, total: float, preview_image):
-        model_management.throw_exception_if_processing_interrupted()
-        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
-
-        server.send_sync("progress", progress, server.client_id)
-        if preview_image is not None:
-            server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
-
-    utils.set_progress_bar_global_hook(hook)
 
 
 def cleanup_temp():
@@ -194,6 +114,18 @@ async def main():
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
+    # configure extra model paths earlier
+    try:
+        extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+        if os.path.isfile(extra_model_paths_config_path):
+            load_extra_path_config(extra_model_paths_config_path)
+    except NameError:
+        pass
+
+    if args.extra_model_paths_config:
+        for config_path in itertools.chain(*args.extra_model_paths_config):
+            load_extra_path_config(config_path)
+
     # create the default directories if we're instructed to, then exit
     # or, if it's a windows standalone build, the single .exe file should have its side-by-side directories always created
     if args.create_directories:
@@ -207,18 +139,6 @@ async def main():
             new_updater.update_windows_updater()
         except:
             pass
-
-    # configure extra model paths earlier
-    try:
-        extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
-        if os.path.isfile(extra_model_paths_config_path):
-            load_extra_path_config(extra_model_paths_config_path)
-    except NameError:
-        pass
-
-    if args.extra_model_paths_config:
-        for config_path in itertools.chain(*args.extra_model_paths_config):
-            load_extra_path_config(config_path)
 
     loop = asyncio.get_event_loop()
     server = server_module.PromptServer(loop)
@@ -245,7 +165,6 @@ async def main():
         from execution import PromptQueue
         q = PromptQueue(server)
     server.prompt_queue = q
-
 
     server.add_routes()
     hijack_progress(server)
@@ -293,7 +212,7 @@ async def main():
     server.port = args.port
     try:
         await run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
-                                    call_on_start=call_on_start)
+                  call_on_start=call_on_start)
     except asyncio.CancelledError:
         if distributed:
             await q.close()

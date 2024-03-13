@@ -11,7 +11,9 @@ import typing
 from typing import List, Optional, Tuple, Union
 from typing_extensions import TypedDict
 import torch
+import lazy_object_proxy
 
+from .. import interruption
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..component_model.executor_types import ExecutorToClientProgress
@@ -21,7 +23,7 @@ from ..nodes.package import import_all_nodes_in_workspace
 
 # ideally this would be passed in from main, but the way this is authored, we can't easily pass nodes down to the
 # various functions that are declared here. It should have been a context in the first place.
-nodes: ExportedNodes = import_all_nodes_in_workspace()
+nodes: ExportedNodes = lazy_object_proxy.Proxy(import_all_nodes_in_workspace)
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, prompt=None, extra_data=None):
     if extra_data is None:
@@ -80,16 +82,16 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     results = []
     if input_is_list:
         if allow_interrupt:
-            model_management.throw_exception_if_processing_interrupted()
+            interruption.throw_exception_if_processing_interrupted()
         results.append(getattr(obj, func)(**input_data_all))
     elif max_len_input == 0:
         if allow_interrupt:
-            model_management.throw_exception_if_processing_interrupted()
+            interruption.throw_exception_if_processing_interrupted()
         results.append(getattr(obj, func)())
     else:
         for i in range(max_len_input):
             if allow_interrupt:
-                model_management.throw_exception_if_processing_interrupted()
+                interruption.throw_exception_if_processing_interrupted()
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
     return results
 
@@ -185,7 +187,7 @@ def recursive_execute(server: ExecutorToClientProgress,
             if server.client_id is not None:
                 server.send_sync("executed", {"node": unique_id, "output": output_ui, "prompt_id": prompt_id},
                                  server.client_id)
-    except model_management.InterruptProcessingException as iex:
+    except interruption.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
 
         # skip formatting inputs/outputs
@@ -327,7 +329,7 @@ class PromptExecutor:
 
         # First, send back the status to the frontend depending
         # on the exception type
-        if isinstance(ex, model_management.InterruptProcessingException):
+        if isinstance(ex, interruption.InterruptProcessingException):
             mes = {
                 "prompt_id": prompt_id,
                 "node_id": node_id,
@@ -367,7 +369,7 @@ class PromptExecutor:
             execute_outputs = []
         if extra_data is None:
             extra_data = {}
-        model_management.interrupt_current_processing(False)
+        interruption.interrupt_current_processing(False)
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]

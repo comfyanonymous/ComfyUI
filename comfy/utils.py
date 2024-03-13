@@ -1,15 +1,25 @@
 import os.path
+from contextlib import contextmanager
 
 import torch
 import math
 import struct
-from . import checkpoint_pickle
+
+from tqdm import tqdm
+
+from . import checkpoint_pickle, interruption
 import safetensors.torch
 import numpy as np
 from PIL import Image
-from tqdm import tqdm
-from contextlib import contextmanager
 import logging
+
+from .component_model.executor_types import ExecutorToClientProgress
+from .component_model.queue_types import BinaryEventTypes
+
+PROGRESS_BAR_ENABLED = True
+PROGRESS_BAR_HOOK = None
+
+
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -457,15 +467,32 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
         output[b:b+1] = out/out_div
     return output
 
-PROGRESS_BAR_ENABLED = True
+
+def hijack_progress(server: ExecutorToClientProgress):
+    def hook(value: float, total: float, preview_image):
+        interruption.throw_exception_if_processing_interrupted()
+        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+
+        server.send_sync("progress", progress, server.client_id)
+        if preview_image is not None:
+            server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
+
+    set_progress_bar_global_hook(hook)
+
+
 def set_progress_bar_enabled(enabled):
     global PROGRESS_BAR_ENABLED
     PROGRESS_BAR_ENABLED = enabled
 
-PROGRESS_BAR_HOOK = None
+
+def get_progress_bar_enabled() -> bool:
+    return PROGRESS_BAR_ENABLED
+
+
 def set_progress_bar_global_hook(function):
     global PROGRESS_BAR_HOOK
     PROGRESS_BAR_HOOK = function
+
 
 class ProgressBar:
     def __init__(self, total: float):

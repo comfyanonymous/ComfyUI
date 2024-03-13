@@ -22,6 +22,14 @@ class CivitFile:
     def __str__(self):
         return self.filename
 
+    @property
+    def save_with_filename(self):
+        return self.filename
+
+    @property
+    def alternate_filenames(self):
+        return []
+
 
 @dataclasses.dataclass
 class HuggingFile:
@@ -35,6 +43,8 @@ class HuggingFile:
     """
     repo_id: str
     filename: str
+    save_with_filename: Optional[str] = None
+    alternate_filenames: List[str] = dataclasses.field(default_factory=list)
     show_in_ui: Optional[bool] = True
 
     def __str__(self):

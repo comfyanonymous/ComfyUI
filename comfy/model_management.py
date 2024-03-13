@@ -2,7 +2,7 @@ import psutil
 import logging
 from enum import Enum
 from .cli_args import args
-from . import utils
+from . import interruption
 from threading import RLock
 
 import torch
@@ -840,31 +840,14 @@ def unload_all_models():
 def resolve_lowvram_weight(weight, model, key): #TODO: remove
     return weight
 
-#TODO: might be cleaner to put this somewhere else
-import threading
 
-class InterruptProcessingException(Exception):
-    pass
-
-interrupt_processing_mutex = threading.RLock()
-
-interrupt_processing = False
 def interrupt_current_processing(value=True):
-    global interrupt_processing
-    global interrupt_processing_mutex
-    with interrupt_processing_mutex:
-        interrupt_processing = value
+    interruption.interrupt_current_processing(value)
+
 
 def processing_interrupted():
-    global interrupt_processing
-    global interrupt_processing_mutex
-    with interrupt_processing_mutex:
-        return interrupt_processing
+    interruption.processing_interrupted()
+
 
 def throw_exception_if_processing_interrupted():
-    global interrupt_processing
-    global interrupt_processing_mutex
-    with interrupt_processing_mutex:
-        if interrupt_processing:
-            interrupt_processing = False
-            raise InterruptProcessingException()
+    interruption.throw_exception_if_processing_interrupted()
