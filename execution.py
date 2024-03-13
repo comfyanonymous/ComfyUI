@@ -116,6 +116,16 @@ def format_value(x):
     else:
         return str(x)
 
+
+def get_route_node_keys(key, prompt):
+    '''Obtain route node number'''
+    keys=[]
+    for k,v in prompt.items():
+        for k1,v1 in v['inputs'].items():
+            if type(v1)==list and v1[0]==key:
+                keys.append(k)
+                keys=keys+get_route_node_keys(k,prompt)
+    return keys
 def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
@@ -123,6 +133,35 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     if unique_id in outputs:
         return (True, None, None)
+    
+    #CountingCycleTail----------start----------
+    startNum=None
+    delKeys=[]
+    backhaul={}
+    clTypes=['CountingCycleTail','IfExecute']
+    oldPrompt=None
+    if class_type in clTypes:
+        oldPrompt=copy.deepcopy(prompt)
+
+    if class_type=='CountingCycleTail':
+        startNum=prompt[unique_id]['inputs']['total'][0]
+        inputNum=prompt[unique_id]['inputs']['images'][0]
+        startInput=prompt[startNum]['inputs']
+        maxKey = int(sorted(list(prompt.keys()), key=lambda x: int(x))[-1])
+        delKeys=list(set(get_route_node_keys(startNum,prompt)))
+        delKeys.append(startNum)
+        delKeys = list(filter(lambda x: x != inputNum, delKeys))
+        for key in delKeys:
+            outputs.pop(key, None)
+        for i in range(startInput['i']+1,startInput['total'],startInput['stop']):
+            prompt[str(maxKey+i)]=prompt[inputNum]
+            prompt[unique_id]['inputs']['images'+str(i)]=[str(maxKey+i),prompt[unique_id]['inputs']['images'][-1]]
+            if i==startInput['i']+1:
+                backhaul['images'+str(i)]=prompt[unique_id]['inputs']['images']
+            else:
+                backhaul['images'+str(i)]=[str(maxKey+i-startInput['stop']),prompt[unique_id]['inputs']['images'][-1]]
+
+    #CountingCycleTail-----------end---------
 
     for x in inputs:
         input_data = inputs[x]
@@ -131,10 +170,27 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
+                #CountingCycleTail----------start----------
+                if class_type=='CountingCycleTail' and x !='images' and x.startswith('images'):
+                    if startNum!=None:
+                        prompt[startNum]['inputs']['i']=prompt[startNum]['inputs']['i']+prompt[startNum]['inputs']['stop']
+                        prompt[startNum]['inputs']['images']=backhaul[x]
+                        print(prompt[startNum])
+                        for key in delKeys:
+                            outputs.pop(key, None)
+                #CountingCycleTail-----------end---------
                 result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, object_storage)
                 if result[0] is not True:
                     # Another node failed further upstream
                     return result
+
+            #If Execute-----------start---------
+            if class_type=='IfExecute' and x=='ANY':
+                if outputs[input_unique_id][output_index][0]:
+                    inputs['IF_FALSE']=oldPrompt[unique_id]['inputs']['IF_TRUE']
+                else:
+                    inputs['IF_TRUE']=oldPrompt[unique_id]['inputs']['IF_FALSE']
+            #If Execute-----------end---------
 
     input_data_all = None
     try:
@@ -150,6 +206,13 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
 
         output_data, output_ui = get_output_data(obj, input_data_all)
         outputs[unique_id] = output_data
+        #Restore prompt----------start----------
+        if class_type=='CountingCycleTail':
+            prompt[startNum]['inputs']=oldPrompt[startNum]['inputs']
+            prompt[unique_id]['inputs']=oldPrompt[unique_id]['inputs']
+        if class_type=='IfExecute':
+            prompt[unique_id]['inputs']=oldPrompt[unique_id]['inputs']
+        #Restore prompt-----------end---------
         if len(output_ui) > 0:
             outputs_ui[unique_id] = output_ui
             if server.client_id is not None:

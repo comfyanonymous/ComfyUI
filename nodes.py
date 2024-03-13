@@ -1739,7 +1739,90 @@ class ImagePadForOutpaint:
 
         return (new_image, mask)
 
+class CountingCycleFirst:
+    def __init__(self):
+        pass
 
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "total": ("INT", {"default": 0, "min": 0, "max": 99999}),
+                "stop": ("INT", {"default": 1, "min": 1, "max": 999}),
+                "i": ("INT", {"default": 0, "min": 0, "max": 99999}),
+            }
+        }
+    RETURN_TYPES = ("INT","INT","INT","IMAGE",)
+    RETURN_NAMES = ("total","i","seed",'images',)
+    FUNCTION = "for_start_fun"
+
+    CATEGORY = "utils"
+
+    def for_start_fun(self,total,stop,i, **kwargs):
+        images=kwargs['images'] if 'images' in kwargs else None
+        random.seed(i)
+        return (total,i,random.randint(0,sys.maxsize),images,)
+    
+class CountingCycleTail:
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        
+        return {
+            "required": {
+                "total": ("INT", {"forceInput": True}),
+                "images": ("IMAGE", ),
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ('images',)
+    FUNCTION = "for_end_fun"
+
+    CATEGORY = "utils"
+
+    def for_end_fun(self,total,images, **kwargs):
+        for k,v in kwargs.items():
+            if k.startswith('images') and v!=None:
+                if images== None:
+                    images = v
+                    continue
+                if images.shape[1:] != v.shape[1:]:
+                    v = comfy.utils.common_upscale(v.movedim(-1,1), images.shape[2], images.shape[1], "bilinear", "center").movedim(1,-1)
+                images = torch.cat((images, v), dim=0)
+
+        return (images,)
+    
+class AlwaysEqualProxy(str):
+    def __eq__(self, _):
+        return True
+
+    def __ne__(self, _):
+        return False
+
+class IfExecute:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "ANY": (AlwaysEqualProxy("*"),),
+                "IF_TRUE": (AlwaysEqualProxy("*"),),
+                "IF_FALSE": (AlwaysEqualProxy("*"),),
+            }
+        }
+
+    RETURN_TYPES = (AlwaysEqualProxy("*"),)
+
+    RETURN_NAMES = "?"
+
+    FUNCTION = "return_based_on_bool"
+
+    CATEGORY = "utils"
+
+    def return_based_on_bool(self, ANY, IF_TRUE, IF_FALSE):
+        return (IF_TRUE if ANY else IF_FALSE,)
+    
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
@@ -1807,6 +1890,10 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
     "LoraLoaderModelOnly": LoraLoaderModelOnly,
+    
+    "CountingCycleFirst": CountingCycleFirst,
+    "CountingCycleTail": CountingCycleTail,
+    "IfExecute": IfExecute,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1866,6 +1953,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
+    "CountingCycleFirst":"Counting cycle first",
+    "CountingCycleTail": "Counting cycle tail",
+    "IfExecute": "If Execute",
 }
 
 EXTENSION_WEB_DIRS = {}
