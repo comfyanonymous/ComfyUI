@@ -24,13 +24,20 @@ def cast_bias_weight(s, input):
     non_blocking = comfy.model_management.device_supports_non_blocking(input.device)
     if s.bias is not None:
         bias = s.bias.to(device=input.device, dtype=input.dtype, non_blocking=non_blocking)
+        if s.bias_function is not None:
+            bias = s.bias_function(bias)
     weight = s.weight.to(device=input.device, dtype=input.dtype, non_blocking=non_blocking)
+    if s.weight_function is not None:
+        weight = s.weight_function(weight)
     return weight, bias
 
 
 class disable_weight_init:
     class Linear(torch.nn.Linear):
         comfy_cast_weights = False
+        weight_function = None
+        bias_function = None
+
         def reset_parameters(self):
             return None
 
@@ -46,6 +53,9 @@ class disable_weight_init:
 
     class Conv2d(torch.nn.Conv2d):
         comfy_cast_weights = False
+        weight_function = None
+        bias_function = None
+
         def reset_parameters(self):
             return None
 
@@ -61,6 +71,9 @@ class disable_weight_init:
 
     class Conv3d(torch.nn.Conv3d):
         comfy_cast_weights = False
+        weight_function = None
+        bias_function = None
+
         def reset_parameters(self):
             return None
 
@@ -76,6 +89,9 @@ class disable_weight_init:
 
     class GroupNorm(torch.nn.GroupNorm):
         comfy_cast_weights = False
+        weight_function = None
+        bias_function = None
+
         def reset_parameters(self):
             return None
 
@@ -92,6 +108,9 @@ class disable_weight_init:
 
     class LayerNorm(torch.nn.LayerNorm):
         comfy_cast_weights = False
+        weight_function = None
+        bias_function = None
+
         def reset_parameters(self):
             return None
 
@@ -111,6 +130,9 @@ class disable_weight_init:
 
     class ConvTranspose2d(torch.nn.ConvTranspose2d):
         comfy_cast_weights = False
+        weight_function = None
+        bias_function = None
+
         def reset_parameters(self):
             return None
 
