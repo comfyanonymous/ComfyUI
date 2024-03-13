@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange, repeat
 from typing import Optional, Any
+import logging
 
 from .diffusionmodules.util import checkpoint, AlphaBlender, timestep_embedding
 from .sub_quadratic_attention import efficient_dot_product_attention
@@ -20,7 +21,7 @@ ops = comfy.ops.disable_weight_init
 
 # CrossAttn precision handling
 if args.dont_upcast_attention:
-    print("disabling upcasting of attention")
+    logging.info("disabling upcasting of attention")
     _ATTN_PRECISION = "fp16"
 else:
     _ATTN_PRECISION = "fp32"
@@ -274,12 +275,12 @@ def attention_split(q, k, v, heads, mask=None):
                 model_management.soft_empty_cache(True)
                 if cleared_cache == False:
                     cleared_cache = True
-                    print("out of memory error, emptying cache and trying again")
+                    logging.warning("out of memory error, emptying cache and trying again")
                     continue
                 steps *= 2
                 if steps > 64:
                     raise e
-                print("out of memory error, increasing steps and trying again", steps)
+                logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
             else:
                 raise e
 
@@ -351,17 +352,17 @@ def attention_pytorch(q, k, v, heads, mask=None):
 optimized_attention = attention_basic
 
 if model_management.xformers_enabled():
-    print("Using xformers cross attention")
+    logging.info("Using xformers cross attention")
     optimized_attention = attention_xformers
 elif model_management.pytorch_attention_enabled():
-    print("Using pytorch cross attention")
+    logging.info("Using pytorch cross attention")
     optimized_attention = attention_pytorch
 else:
     if args.use_split_cross_attention:
-        print("Using split optimization for cross attention")
+        logging.info("Using split optimization for cross attention")
         optimized_attention = attention_split
     else:
-        print("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
+        logging.info("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
 optimized_attention_masked = optimized_attention
