@@ -394,19 +394,96 @@ export class ComfyWorkflowsContent {
 		current?.replaceWith(this.favoritesElement);
 	}
 
+	filterTree() {
+		if (!this.filterText) {
+			this.treeRoot.classList.remove("filtered");
+			// Unfilter whole tree
+			for (const item of Object.values(this.treeFiles)) {
+				item.element.parentElement.style.removeProperty("display");
+				this.showTreeParents(item.element.parentElement);
+			}
+			return;
+		}
+		this.treeRoot.classList.add("filtered");
+		const searchTerms = this.filterText.toLocaleLowerCase().split(" ");
+		for (const item of Object.values(this.treeFiles)) {
+			const parts = item.workflow.pathParts;
+			let termIndex = 0;
+			let valid = false;
+			for (const part of parts) {
+				let currentIndex = 0;
+				do {
+					currentIndex = part.indexOf(searchTerms[termIndex], currentIndex);
+					if (currentIndex > -1) currentIndex += searchTerms[termIndex].length;
+				} while (currentIndex !== -1 && ++termIndex < searchTerms.length);
+
+				if (termIndex >= searchTerms.length) {
+					valid = true;
+					break;
+				}
+			}
+			if (valid) {
+				item.element.parentElement.style.removeProperty("display");
+				this.showTreeParents(item.element.parentElement);
+			} else {
+				item.element.parentElement.style.display = "none";
+				this.hideTreeParents(item.element.parentElement);
+			}
+		}
+	}
+
+	hideTreeParents(element) {
+		// Hide all parents if no children are visible
+		if (element.parentElement?.classList.contains("comfyui-workflows-tree") === false) {
+			for (let i = 1; i < element.parentElement.children.length; i++) {
+				const c = element.parentElement.children[i];
+				if (c.style.display !== "none") {
+					return;
+				}
+			}
+			element.parentElement.style.display = "none";
+			this.hideTreeParents(element.parentElement);
+		}
+	}
+
+	showTreeParents(element) {
+		if (element.parentElement?.classList.contains("comfyui-workflows-tree") === false) {
+			element.parentElement.style.removeProperty("display");
+			this.showTreeParents(element.parentElement);
+		}
+	}
+
 	updateTree() {
 		const current = this.treeElement;
 		const nodes = {};
+		let typingTimeout;
 
 		this.treeFiles = {};
-		const tree = $el("ul.comfyui-workflows-tree");
-		this.treeElement = $el("section", [$el("h3", "Browse"), tree]);
+		this.treeRoot = $el("ul.comfyui-workflows-tree");
+		this.treeElement = $el("section", [
+			$el("header", [
+				$el("h3", "Browse"),
+				$el("div.comfy-ui-workflows-search", [
+					$el("i.mdi.mdi-18px.mdi-magnify"),
+					$el("input", {
+						placeholder: "Search",
+						value: this.filterText ?? "",
+						oninput: (e) => {
+							this.filterText = e.target["value"]?.trim();
+							clearTimeout(typingTimeout);
+							typingTimeout = setTimeout(() => this.filterTree(), 100);
+						},
+					}),
+				]),
+			]),
+			this.treeRoot,
+		]);
 
 		for (const workflow of this.app.workflowManager.workflows) {
 			if (!workflow.pathParts) continue;
 
 			let currentPath = "";
-			let currentRoot = tree;
+			let currentRoot = this.treeRoot;
 
 			for (let i = 0; i < workflow.pathParts.length; i++) {
 				currentPath += (currentPath ? "\\" : "") + workflow.pathParts[i];
@@ -418,6 +495,7 @@ export class ComfyWorkflowsContent {
 		}
 
 		current?.replaceWith(this.treeElement);
+		this.filterTree();
 	}
 
 	#expandNode(el, workflow, thisPath, i) {

@@ -262,6 +262,31 @@
 	opacity: 0.8;
 }
 
+.comfyui-workflows-panel section header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.comfy-ui-workflows-search .mdi {
+	position: relative;
+	top: 2px;
+	pointer-events: none;
+}
+.comfy-ui-workflows-search input {
+	background-color: var(--comfy-input-bg);
+	color: var(--input-text);
+	border: none;
+	border-radius: 4px;
+	padding: 4px 10px;
+	margin-left: -24px;
+	text-indent: 18px;
+}
+.comfy-ui-workflows-search input:placeholder-shown {
+	width: 10px;
+}
+.comfy-ui-workflows-search input:placeholder-shown:focus {
+	width: auto;
+}
 .comfyui-workflows-actions {
 	display: flex;
 	gap: 10px;
@@ -308,7 +333,7 @@
 	padding: 0 0 0 25px;
 }
 
-.comfyui-workflows-tree .closed > ul {
+.comfyui-workflows-tree:not(.filtered) .closed > ul {
 	display: none;
 }
 
