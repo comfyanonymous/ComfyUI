@@ -201,7 +201,7 @@ class ControlNet(ControlBase):
         super().cleanup()
 
 class ControlLoraOps:
-    class Linear(torch.nn.Module):
+    class Linear(torch.nn.Module, comfy.ops.CastWeightBiasOp):
         def __init__(self, in_features: int, out_features: int, bias: bool = True,
                     device=None, dtype=None) -> None:
             factory_kwargs = {'device': device, 'dtype': dtype}
@@ -220,7 +220,7 @@ class ControlLoraOps:
             else:
                 return torch.nn.functional.linear(input, weight, bias)
 
-    class Conv2d(torch.nn.Module):
+    class Conv2d(torch.nn.Module, comfy.ops.CastWeightBiasOp):
         def __init__(
             self,
             in_channels,
