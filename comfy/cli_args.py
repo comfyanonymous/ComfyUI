@@ -177,6 +177,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--external-address", required=False,
                         help="Specifies a base URL for external addresses reported by the API, such as for image paths.")
     parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
+    parser.add_argument("--disable-known-models", action="store_true", help="Disables automatic downloads of known models and prevents them from appearing in the UI.")
 
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):

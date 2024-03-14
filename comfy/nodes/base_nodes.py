@@ -24,7 +24,7 @@ from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
-    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS
+    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 
@@ -703,7 +703,7 @@ class VAELoader:
 class ControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"),)}}
+        return {"required": { "control_net_name": (get_filename_list_with_downloadable("controlnet", KNOWN_CONTROLNETS),)}}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -711,7 +711,7 @@ class ControlNetLoader:
     CATEGORY = "loaders"
 
     def load_controlnet(self, control_net_name):
-        controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
+        controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_CONTROLNETS)
         controlnet_ = controlnet.load_controlnet(controlnet_path)
         return (controlnet_,)
 
@@ -719,7 +719,7 @@ class DiffControlNetLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "control_net_name": (folder_paths.get_filename_list("controlnet"),)}}
+                              "control_net_name": (get_filename_list_with_downloadable("controlnet", KNOWN_DIFF_CONTROLNETS),)}}
 
     RETURN_TYPES = ("CONTROL_NET",)
     FUNCTION = "load_controlnet"
@@ -727,9 +727,9 @@ class DiffControlNetLoader:
     CATEGORY = "loaders"
 
     def load_controlnet(self, model, control_net_name):
-        controlnet_path = folder_paths.get_full_path("controlnet", control_net_name)
+        controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_DIFF_CONTROLNETS)
         controlnet_ = controlnet.load_controlnet(controlnet_path, model)
-        return (controlnet,)
+        return (controlnet_,)
 
 
 class ControlNetApply:

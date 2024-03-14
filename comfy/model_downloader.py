@@ -13,20 +13,21 @@ from .cmd import folder_paths
 from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_
 from .interruption import InterruptProcessingException
 from .utils import ProgressBar, comfy_tqdm
+from .cli_args import args
 
-session = Session()
+_session = Session()
 
 
 def get_filename_list_with_downloadable(folder_name: str, known_files: List[Any]) -> List[str]:
     existing = frozenset(folder_paths.get_filename_list(folder_name))
-    downloadable = frozenset(str(f) for f in known_files)
+    downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files)
     return sorted(list(existing | downloadable))
 
 
 def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFile | CivitFile]) -> Optional[str]:
     path = folder_paths.get_full_path(folder_name, filename)
 
-    if path is None:
+    if path is None and not args.disable_known_models:
         try:
             # todo: should this be the first or last path?
             destination = folder_paths.get_folder_paths(folder_name)[0]
@@ -49,14 +50,14 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                     save_filename = known_file.save_with_filename or known_file.filename
 
                     if isinstance(known_file, CivitFile):
-                        model_info_res = session.get(
+                        model_info_res = _session.get(
                             f"https://civitai.com/api/v1/models/{known_file.model_id}?modelVersionId={known_file.model_version_id}")
                         model_info: CivitModelsGetResponse = model_info_res.json()
 
-                        file: CivitFile_
-                        for file in chain.from_iterable(version['files'] for version in model_info['modelVersions']):
-                            if file['name'] == filename:
-                                url = file['downloadUrl']
+                        civit_file: CivitFile_
+                        for civit_file in chain.from_iterable(version['files'] for version in model_info['modelVersions']):
+                            if civit_file['name'] == filename:
+                                url = civit_file['downloadUrl']
                                 break
                     else:
                         raise RuntimeError("unknown file type")
@@ -67,7 +68,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                         destination_with_filename = join(destination, save_filename)
                         try:
 
-                            with session.get(url, stream=True, allow_redirects=True) as response:
+                            with _session.get(url, stream=True, allow_redirects=True) as response:
                                 total_size = int(response.headers.get("content-length", 0))
                                 progress_bar = ProgressBar(total=total_size)
                                 with open(destination_with_filename, "wb") as file:
@@ -139,10 +140,98 @@ KNOWN_CLIP_VISION_MODELS = [
 
 KNOWN_LORAS = [
     CivitFile(model_id=211577, model_version_id=238349, filename="openxl_handsfix.safetensors"),
+    CivitFile(model_id=324815, model_version_id=364137, filename="blur_control_xl_v1.safetensors"),
+]
+
+KNOWN_CONTROLNETS = [
+    HuggingFile("thibaud/controlnet-openpose-sdxl-1.0", "OpenPoseXL2.safetensors"),
+    HuggingFile("thibaud/controlnet-openpose-sdxl-1.0", "control-lora-openposeXL2-rank256.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11e_sd15_ip2p_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11e_sd15_shuffle_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11f1e_sd15_tile_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11f1p_sd15_depth_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_canny_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_inpaint_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_lineart_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_mlsd_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_normalbae_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_openpose_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_scribble_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_seg_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15_softedge_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11p_sd15s2_lineart_anime_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11e_sd15_ip2p_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11e_sd15_shuffle_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11f1e_sd15_tile_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11f1p_sd15_depth_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_canny_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_inpaint_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_lineart_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_mlsd_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_normalbae_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_openpose_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_scribble_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_seg_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15_softedge_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11p_sd15s2_lineart_anime_fp16.safetensors"),
+    HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_v11u_sd15_tile_fp16.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "diffusers_xl_canny_full.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "diffusers_xl_canny_mid.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "diffusers_xl_canny_small.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "diffusers_xl_depth_full.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "diffusers_xl_depth_mid.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "diffusers_xl_depth_small.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "ioclab_sd15_recolor.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_blur.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_blur_anime.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_blur_anime_beta.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_canny.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_canny_anime.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_depth.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_depth_anime.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_openpose_anime.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_openpose_anime_v2.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "kohya_controllllite_xl_scribble_anime.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_canny_128lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_canny_256lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_depth_128lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_depth_256lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_recolor_128lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_recolor_256lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_sketch_128lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sai_xl_sketch_256lora.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sargezt_xl_depth.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sargezt_xl_depth_faid_vidit.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sargezt_xl_depth_zeed.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "sargezt_xl_softedge.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_canny.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_depth_midas.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_depth_zoe.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_lineart.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_openpose.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_sketch.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_xl_canny.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_xl_openpose.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_xl_sketch.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "thibaud_xl_openpose.safetensors"),
+    HuggingFile("lllyasviel/sd_control_collection", "thibaud_xl_openpose_256lora.safetensors"),
+]
+
+KNOWN_DIFF_CONTROLNETS = [
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_canny_fp16.safetensors"),
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_depth_fp16.safetensors"),
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_hed_fp16.safetensors"),
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_mlsd_fp16.safetensors"),
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_normal_fp16.safetensors"),
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_openpose_fp16.safetensors"),
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_scribble_fp16.safetensors"),
+    HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_seg_fp16.safetensors"),
 ]
 
 
 def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:
+    if args.disable_known_models:
+        logging.warning(f"Known models have been disabled in the options (while adding {folder_name}/{','.join(map(str, models))})")
     symbol += models
     folder_paths.invalidate_cache(folder_name)
     return symbol

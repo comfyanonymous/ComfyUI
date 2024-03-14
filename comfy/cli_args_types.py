@@ -79,6 +79,7 @@ class Configuration(dict):
         distributed_queue_name (str): This name will be used by the frontends and workers to exchange prompt requests and replies. Progress updates will be prefixed by the queue name, followed by a '.', then the user ID.
         external_address (str): Specifies a base URL for external addresses reported by the API, such as for image paths.
         verbose (bool): Shows extra output for debugging purposes such as import errors of custom nodes.
+        disable_known_models (bool): Disables automatic downloads of known models and prevents them from appearing in the UI.
     """
 
     def __init__(self, **kwargs):
@@ -142,6 +143,7 @@ class Configuration(dict):
         self.distributed_queue_frontend: bool = False
         self.distributed_queue_name: str = "comfyui"
         self.external_address: Optional[str] = None
+        self.disable_known_models: bool = False
         for key, value in kwargs.items():
             self[key] = value
 
