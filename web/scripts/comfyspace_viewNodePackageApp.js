@@ -34,7 +34,7 @@ export class ComfyViewNodePackageApp extends ComfyApp {
   constructor() {
     super();
     const params = new URLSearchParams(window.location.search);
-    this.pacakgeID = params.get("packageID");
+    this.pacakgeID = params.get("packageID").replaceAll("/", "_");
     this.nodeType = params.get('node');
   }
   async setupMouseWheel() {
@@ -149,7 +149,6 @@ export class ComfyViewNodePackageApp extends ComfyApp {
         // After adding and positioning all nodes
         const totalHeightRequired = currentPosition[1] + maxHeightInRow + rowGap; // Add one more rowGap for bottom padding
         var message = { type: 'updateCanvasHeight', height: totalHeightRequired };
-        console.log("totalHeightRequired", totalHeightRequired);
         this.graph.canvasHeightRequired = totalHeightRequired;
         // Send the message to the parent window
         window.parent.postMessage(message, window.location.origin); 
