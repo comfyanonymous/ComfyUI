@@ -1907,7 +1907,7 @@ def load_custom_node(module_path, ignore=set()):
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-def load_custom_nodes(public_mark: str = '_public/'):
+def load_custom_nodes(public_mark: str = 'public/'):
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
