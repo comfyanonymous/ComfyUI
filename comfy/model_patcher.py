@@ -1,6 +1,7 @@
 import torch
 import copy
 import inspect
+import logging
 
 import comfy.utils
 import comfy.model_management
@@ -23,6 +24,7 @@ class ModelPatcher:
             self.current_device = current_device
 
         self.weight_inplace_update = weight_inplace_update
+        self.model_lowvram = False
 
     def model_size(self):
         if self.size > 0:
@@ -177,6 +179,27 @@ class ModelPatcher:
                     sd.pop(k)
         return sd
 
+    def patch_weight_to_device(self, key, device_to=None):
+        if key not in self.patches:
+            return
+
+        weight = comfy.utils.get_attr(self.model, key)
+
+        inplace_update = self.weight_inplace_update
+
+        if key not in self.backup:
+            self.backup[key] = weight.to(device=self.offload_device, copy=inplace_update)
+
+        if device_to is not None:
+            temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
+        else:
+            temp_weight = weight.to(torch.float32, copy=True)
+        out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
+        if inplace_update:
+            comfy.utils.copy_to_param(self.model, key, out_weight)
+        else:
+            comfy.utils.set_attr_param(self.model, key, out_weight)
+
     def patch_model(self, device_to=None, patch_weights=True):
         for k in self.object_patches:
             old = comfy.utils.set_attr(self.model, k, self.object_patches[k])
@@ -187,31 +210,56 @@ class ModelPatcher:
             model_sd = self.model_state_dict()
             for key in self.patches:
                 if key not in model_sd:
-                    print("could not patch. key doesn't exist in model:", key)
+                    logging.warning("could not patch. key doesn't exist in model: {}".format(key))
                     continue
 
-                weight = model_sd[key]
-
-                inplace_update = self.weight_inplace_update
-
-                if key not in self.backup:
-                    self.backup[key] = weight.to(device=self.offload_device, copy=inplace_update)
-
-                if device_to is not None:
-                    temp_weight = comfy.model_management.cast_to_device(weight, device_to, torch.float32, copy=True)
-                else:
-                    temp_weight = weight.to(torch.float32, copy=True)
-                out_weight = self.calculate_weight(self.patches[key], temp_weight, key).to(weight.dtype)
-                if inplace_update:
-                    comfy.utils.copy_to_param(self.model, key, out_weight)
-                else:
-                    comfy.utils.set_attr_param(self.model, key, out_weight)
-                del temp_weight
+                self.patch_weight_to_device(key, device_to)
 
             if device_to is not None:
                 self.model.to(device_to)
                 self.current_device = device_to
 
+        return self.model
+
+    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0):
+        self.patch_model(device_to, patch_weights=False)
+
+        logging.info("loading in lowvram mode {}".format(lowvram_model_memory/(1024 * 1024)))
+        class LowVramPatch:
+            def __init__(self, key, model_patcher):
+                self.key = key
+                self.model_patcher = model_patcher
+            def __call__(self, weight):
+                return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
+
+        mem_counter = 0
+        for n, m in self.model.named_modules():
+            lowvram_weight = False
+            if hasattr(m, "comfy_cast_weights"):
+                module_mem = comfy.model_management.module_size(m)
+                if mem_counter + module_mem >= lowvram_model_memory:
+                    lowvram_weight = True
+
+            weight_key = "{}.weight".format(n)
+            bias_key = "{}.bias".format(n)
+
+            if lowvram_weight:
+                if weight_key in self.patches:
+                    m.weight_function = LowVramPatch(weight_key, self)
+                if bias_key in self.patches:
+                    m.bias_function = LowVramPatch(weight_key, self)
+
+                m.prev_comfy_cast_weights = m.comfy_cast_weights
+                m.comfy_cast_weights = True
+            else:
+                if hasattr(m, "weight"):
+                    self.patch_weight_to_device(weight_key, device_to)
+                    self.patch_weight_to_device(bias_key, device_to)
+                    m.to(device_to)
+                    mem_counter += comfy.model_management.module_size(m)
+                    logging.debug("lowvram: loaded module regularly {}".format(m))
+
+        self.model_lowvram = True
         return self.model
 
     def calculate_weight(self, patches, weight, key):
@@ -236,7 +284,7 @@ class ModelPatcher:
                 w1 = v[0]
                 if alpha != 0.0:
                     if w1.shape != weight.shape:
-                        print("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
+                        logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
                     else:
                         weight += alpha * comfy.model_management.cast_to_device(w1, weight.device, weight.dtype)
             elif patch_type == "lora": #lora/locon
@@ -252,7 +300,7 @@ class ModelPatcher:
                 try:
                     weight += (alpha * torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1))).reshape(weight.shape).type(weight.dtype)
                 except Exception as e:
-                    print("ERROR", key, e)
+                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "lokr":
                 w1 = v[0]
                 w2 = v[1]
@@ -291,7 +339,7 @@ class ModelPatcher:
                 try:
                     weight += alpha * torch.kron(w1, w2).reshape(weight.shape).type(weight.dtype)
                 except Exception as e:
-                    print("ERROR", key, e)
+                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "loha":
                 w1a = v[0]
                 w1b = v[1]
@@ -320,7 +368,7 @@ class ModelPatcher:
                 try:
                     weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype)
                 except Exception as e:
-                    print("ERROR", key, e)
+                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "glora":
                 if v[4] is not None:
                     alpha *= v[4] / v[0].shape[0]
@@ -330,13 +378,26 @@ class ModelPatcher:
                 b1 = comfy.model_management.cast_to_device(v[2].flatten(start_dim=1), weight.device, torch.float32)
                 b2 = comfy.model_management.cast_to_device(v[3].flatten(start_dim=1), weight.device, torch.float32)
 
-                weight += ((torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)) * alpha).reshape(weight.shape).type(weight.dtype)
+                try:
+                    weight += ((torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)) * alpha).reshape(weight.shape).type(weight.dtype)
+                except Exception as e:
+                    logging.error("ERROR {} {} {}".format(patch_type, key, e))
             else:
-                print("patch type not recognized", patch_type, key)
+                logging.warning("patch type not recognized {} {}".format(patch_type, key))
 
         return weight
 
     def unpatch_model(self, device_to=None):
+        if self.model_lowvram:
+            for m in self.model.modules():
+                if hasattr(m, "prev_comfy_cast_weights"):
+                    m.comfy_cast_weights = m.prev_comfy_cast_weights
+                    del m.prev_comfy_cast_weights
+                m.weight_function = None
+                m.bias_function = None
+
+            self.model_lowvram = False
+
         keys = list(self.backup.keys())
 
         if self.weight_inplace_update:
