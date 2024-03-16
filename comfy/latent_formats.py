@@ -95,7 +95,7 @@ class SC_Prior(LatentFormat):
 
 class SC_B(LatentFormat):
     def __init__(self):
-        self.scale_factor = 1.0
+        self.scale_factor = 1.0 / 0.43
         self.latent_rgb_factors = [
             [ 0.1121,  0.2006,  0.1023],
             [-0.2093, -0.0222, -0.0195],
