@@ -33,7 +33,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
             destination = folder_paths.get_folder_paths(folder_name)[0]
             known_file: Optional[HuggingFile | CivitFile] = None
             for candidate in known_files:
-                if candidate.filename == filename or filename in candidate.alternate_filenames or filename == candidate.save_with_filename:
+                if str(candidate) == filename or candidate.filename == filename or filename in candidate.alternate_filenames or filename == candidate.save_with_filename:
                     known_file = candidate
                     break
             if known_file is None:

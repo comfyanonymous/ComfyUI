@@ -24,6 +24,8 @@ PROGRESS_BAR_HOOK = None
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
         device = torch.device("cpu")
+    if ckpt is None:
+        raise FileNotFoundError("the checkpoint was not found")
     if ckpt.lower().endswith(".safetensors"):
         sd = safetensors.torch.load_file(ckpt, device=device.type)
     else:
