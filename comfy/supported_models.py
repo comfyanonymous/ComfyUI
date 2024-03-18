@@ -45,6 +45,11 @@ class SD15(supported_models_base.BASE):
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
+        pop_keys = ["clip_l.transformer.text_projection.weight", "clip_l.logit_scale"]
+        for p in pop_keys:
+            if p in state_dict:
+                state_dict.pop(p)
+
         replace_prefix = {"clip_l.": "cond_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
