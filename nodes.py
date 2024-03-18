@@ -511,7 +511,7 @@ class LoadLatent:
         return True
 
 
-class CheckpointLoader:
+class CheckpointLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
@@ -526,7 +526,7 @@ class CheckpointLoader:
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
-class CheckpointLoaderSimple:
+class CheckpointLoaderSimple(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
@@ -541,7 +541,7 @@ class CheckpointLoaderSimple:
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out[:3]
 
-class DiffusersLoader:
+class DiffusersLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(cls):
         paths = []
@@ -568,7 +568,7 @@ class DiffusersLoader:
         return comfy.diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
-class unCLIPCheckpointLoader:
+class unCLIPCheckpointLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
@@ -650,7 +650,7 @@ class LoraLoaderModelOnly(LoraLoader):
     def load_lora_model_only(self, model, lora_name, strength_model):
         return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
 
-class VAELoader:
+class VAELoader(metaclass=comfy.utils.BaseCachedNode):
     @staticmethod
     def vae_list():
         vaes = folder_paths.get_filename_list("vae")
@@ -715,7 +715,7 @@ class VAELoader:
         vae = comfy.sd.VAE(sd=sd)
         return (vae,)
 
-class ControlNetLoader:
+class ControlNetLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "control_net_name": (folder_paths.get_filename_list("controlnet"), )}}
@@ -824,7 +824,7 @@ class ControlNetApplyAdvanced:
         return (out[0], out[1])
 
 
-class UNETLoader:
+class UNETLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "unet_name": (folder_paths.get_filename_list("unet"), ),
@@ -839,7 +839,7 @@ class UNETLoader:
         model = comfy.sd.load_unet(unet_path)
         return (model,)
 
-class CLIPLoader:
+class CLIPLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
@@ -859,7 +859,7 @@ class CLIPLoader:
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
-class DualCLIPLoader:
+class DualCLIPLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"), ), "clip_name2": (folder_paths.get_filename_list("clip"), ),
@@ -875,7 +875,7 @@ class DualCLIPLoader:
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return (clip,)
 
-class CLIPVisionLoader:
+class CLIPVisionLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip_vision"), ),
@@ -905,7 +905,7 @@ class CLIPVisionEncode:
         output = clip_vision.encode_image(image)
         return (output,)
 
-class StyleModelLoader:
+class StyleModelLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "style_model_name": (folder_paths.get_filename_list("style_models"), )}}
@@ -970,7 +970,7 @@ class unCLIPConditioning:
             c.append(n)
         return (c, )
 
-class GLIGENLoader:
+class GLIGENLoader(metaclass=comfy.utils.BaseCachedNode):
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "gligen_name": (folder_paths.get_filename_list("gligen"), )}}

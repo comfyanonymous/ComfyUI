@@ -116,6 +116,16 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
+def load_node_cache_config(p: str):
+    import yaml
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    except:  # noqa: E722
+        return {}
+
+parser.add_argument("--node-cache-config", type=load_node_cache_config, default='node_cache_config.yaml',
+                    metavar="PATH", help="Load node_cache_config.yaml files.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
