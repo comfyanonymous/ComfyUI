@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import dataclasses
 from os.path import split
-from typing import Optional
+from typing import Optional, List
+from typing_extensions import TypedDict, NotRequired
 
 
 @dataclasses.dataclass
@@ -49,9 +50,6 @@ class HuggingFile:
 
     def __str__(self):
         return split(self.filename)[-1]
-
-
-from typing import TypedDict, List, Optional, NotRequired
 
 
 class CivitStats(TypedDict):
