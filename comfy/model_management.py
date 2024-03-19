@@ -304,8 +304,8 @@ class LoadedModel:
 
         return self.real_model
 
-    def model_unload(self):
-        self.model.unpatch_model(self.model.offload_device)
+    def model_unload(self, skip_underlying_model=False):
+        self.model.unpatch_model(self.model.offload_device, skip_underlying_model)
         self.model.model_patches_to(self.model.offload_device)
 
     def __eq__(self, other):
@@ -322,7 +322,7 @@ def unload_model_clones(model):
 
     for i in to_unload:
         logging.debug("unload clone {}".format(i))
-        current_loaded_models.pop(i).model_unload()
+        current_loaded_models.pop(i).model_unload(skip_underlying_model=True)
 
 def free_memory(memory_required, device, keep_loaded=[]):
     unloaded_model = False

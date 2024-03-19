@@ -387,7 +387,7 @@ class ModelPatcher:
 
         return weight
 
-    def unpatch_model(self, device_to=None):
+    def unpatch_model(self, device_to=None, skip_underlying_model=False):
         if self.model_lowvram:
             for m in self.model.modules():
                 if hasattr(m, "prev_comfy_cast_weights"):
@@ -409,7 +409,7 @@ class ModelPatcher:
 
         self.backup = {}
 
-        if device_to is not None:
+        if device_to is not None and not skip_underlying_model:
             self.model.to(device_to)
             self.current_device = device_to
 
