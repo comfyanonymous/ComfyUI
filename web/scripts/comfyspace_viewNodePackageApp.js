@@ -71,7 +71,7 @@ export class ComfyViewNodePackageApp extends ComfyApp {
     // LGraphCanvas.prototype.processMouseDown = ()=>{}
     if(this.pacakgeID) {
       try {
-        const resp = await fetch("https://www.comfyspace.art/api/getNodePackage?id="+this.pacakgeID);
+        const resp = await fetch("https://www.nodecafe.org/api/getNodePackage?id="+this.pacakgeID);
         this.nodePackage = (await resp.json())?.data;
         this.nodeDefs = JSON.parse(this.nodePackage.nodeDefs??"{}"); 
       } catch (error) {
