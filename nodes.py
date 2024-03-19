@@ -15,9 +15,6 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import safetensors.torch
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
-
-
 import comfy.diffusers_load
 import comfy.samplers
 import comfy.sample
