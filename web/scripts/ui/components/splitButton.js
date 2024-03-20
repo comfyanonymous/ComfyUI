@@ -26,7 +26,7 @@ export class ComfySplitButton {
 		this.popup = new ComfyPopup({
 			target: this.element,
 			container: position === "relative" ? this.element : document.body,
-			classList: "comfyui-split-button-popup",
+			classList: "comfyui-split-button-popup" + (mode === "hover" ? " hover" : ""),
 			closeOnEscape: mode === "click",
 			position,
 			horizontal,
