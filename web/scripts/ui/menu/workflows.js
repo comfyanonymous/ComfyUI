@@ -625,9 +625,10 @@ export class ComfyWorkflowsContent {
 	#getRenameButton(workflow) {
 		return new ComfyButton({
 			icon: "pencil",
-			tooltip: "Rename this workflow",
+			tooltip: workflow.path ? "Rename this workflow" : "This workflow can't be renamed as it hasn't been saved.",
 			classList: "comfyui-button comfyui-workflows-file-action",
 			iconSize: 18,
+			enabled: !!workflow.path,
 			action: async (e) => {
 				e.stopImmediatePropagation();
 				const newName = prompt("Enter new name", workflow.path);
