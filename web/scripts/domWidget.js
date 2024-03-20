@@ -34,7 +34,7 @@ function getClipPath(node, element, elRect) {
 
 		const widgetRect = element.getBoundingClientRect();
 		const clipX = intersection[0] - widgetRect.x / scale + "px";
-		const clipY = intersection[1] - widgetRect.y / scale + "px";
+		const clipY = elRect.top + intersection[1] - widgetRect.y / scale + "px";
 		const clipWidth = intersection[2] + "px";
 		const clipHeight = intersection[3] + "px";
 		const path = `polygon(0% 0%, 0% 100%, ${clipX} 100%, ${clipX} ${clipY}, calc(${clipX} + ${clipWidth}) ${clipY}, calc(${clipX} + ${clipWidth}) calc(${clipY} + ${clipHeight}), ${clipX} calc(${clipY} + ${clipHeight}), ${clipX} 100%, 100% 100%, 100% 0%)`;
