@@ -53,7 +53,7 @@ export class ComfyAppMenu {
 				icon: "download",
 				content: "Export",
 				tooltip: "Export the current workflow as JSON",
-				action: () => this.exportWorkflow("workflow", "workflow"),
+				action: () => this.exportWorkflow( "workflow", "workflow"),
 			}),
 			new ComfyButton({
 				icon: "api",
@@ -254,10 +254,14 @@ export class ComfyAppMenu {
 	 * @param { "workflow" | "output" } [promptProperty]
 	 */
 	async exportWorkflow(filename, promptProperty) {
+		if(this.app.workflowManager.activeWorkflow?.path) {
+			filename = this.app.workflowManager.activeWorkflow.name;
+		}
 		const p = await this.app.graphToPrompt();
 		const json = JSON.stringify(p[promptProperty], null, 2);
 		const blob = new Blob([json], { type: "application/json" });
 		const file = this.getFilename(filename);
+		if(!file) return;
 		downloadBlob(file, blob);
 	}
 }
