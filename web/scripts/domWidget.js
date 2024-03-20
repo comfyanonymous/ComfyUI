@@ -209,7 +209,9 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 	if (!element.parentElement) {
 		document.body.append(element);
 	}
-
+	element.hidden = true;
+	element.style.display = "none";
+	
 	let mouseDownHandler;
 	if (element.blur) {
 		mouseDownHandler = (event) => {
