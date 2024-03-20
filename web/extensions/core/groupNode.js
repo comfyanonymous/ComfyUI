@@ -1029,7 +1029,7 @@ export class GroupNodeHandler {
 			}
 
 			const widget = innerNode.widgets?.find((w) => w.name === old.inputName);
-			if (widget) {
+			if (widget && widget.value!=newValue) { // avoid DOMWidget callbacks if no change
 				widget.value = newValue;
 			}
 		}
