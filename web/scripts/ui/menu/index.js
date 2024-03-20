@@ -144,6 +144,7 @@ export class ComfyAppMenu {
 					app.ui.menuContainer.style.removeProperty("display");
 					this.element.style.display = "none";
 				}
+				window.dispatchEvent(new Event("resize"));
 			},
 		});
 
