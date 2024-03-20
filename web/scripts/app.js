@@ -1740,11 +1740,26 @@ export class ComfyApp {
 		});
 	}
 
+	async changeWorkflow(callback, workflow = null) {
+		try {
+			this.workflowManager.activeWorkflow?.changeTracker?.store()
+		} catch (error) {
+			console.error(error);
+		}
+		await callback();
+		try {
+			this.workflowManager.setWorkflow(workflow);
+			this.workflowManager.activeWorkflow?.track()
+		} catch (error) {
+			console.error(error);
+		}
+	}
+
 	/**
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
-	 * @param { import("./workflows.js").ComfyWorkflowInstance | null } name The workflow
+	 * @param { import("./workflows.js").ComfyWorkflowInstance | null } workflow The workflow
 	 */
 	async loadGraphData(graphData, clean = true, workflow = null) {
 		try {
@@ -2133,28 +2148,38 @@ export class ComfyApp {
 	 * @param {File} file
 	 */
 	async handleFile(file) {
+		const removeExt = f => {
+			if(!f) return f;
+			const p = f.lastIndexOf(".");
+			if(p === -1) return f;
+			return f.substring(0, p);
+		};
+
+		const fileName = removeExt(file.name);
 		if (file.type === "image/png") {
 			const pngInfo = await getPngMetadata(file);
 			if (pngInfo) {
 				if (pngInfo.workflow) {
-					await this.loadGraphData(JSON.parse(pngInfo.workflow));
+					await this.loadGraphData(JSON.parse(pngInfo.workflow), true, fileName);
 				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt));
+					this.loadApiJson(JSON.parse(pngInfo.prompt), fileName);
 				} else if (pngInfo.parameters) {
-					importA1111(this.graph, pngInfo.parameters);
+					this.changeWorkflow(() => {
+						importA1111(this.graph, pngInfo.parameters);
+					}, fileName)
 				}
 			}
 		} else if (file.type === "image/webp") {
 			const pngInfo = await getWebpMetadata(file);
 			if (pngInfo) {
 				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
+					this.loadGraphData(JSON.parse(pngInfo.workflow), true, fileName);
 				} else if (pngInfo.Workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
+					this.loadGraphData(JSON.parse(pngInfo.Workflow), true, fileName); // Support loading workflows from that webp custom node.
 				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt));
+					this.loadApiJson(JSON.parse(pngInfo.prompt), fileName);
 				} else if (pngInfo.Prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.Prompt)); // Support loading prompts from that webp custom node.
+					this.loadApiJson(JSON.parse(pngInfo.Prompt), fileName); // Support loading prompts from that webp custom node.
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
@@ -2164,16 +2189,16 @@ export class ComfyApp {
 				if (jsonContent?.templates) {
 					this.loadTemplateData(jsonContent);
 				} else if(this.isApiJson(jsonContent)) {
-					this.loadApiJson(jsonContent);
+					this.loadApiJson(jsonContent, fileName);
 				} else {
-					await this.loadGraphData(jsonContent);
+					await this.loadGraphData(jsonContent, true, fileName);
 				}
 			};
 			reader.readAsText(file);
 		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
 			const info = await getLatentMetadata(file);
 			if (info.workflow) {
-				await this.loadGraphData(JSON.parse(info.workflow));
+				await this.loadGraphData(JSON.parse(info.workflow), true, fileName);
 			} else if (info.prompt) {
 				this.loadApiJson(JSON.parse(info.prompt));
 			}
@@ -2184,54 +2209,54 @@ export class ComfyApp {
 		return Object.values(data).every((v) => v.class_type);
 	}
 
-	loadApiJson(apiData) {
+	loadApiJson(apiData, fileName) {
 		const missingNodeTypes = Object.values(apiData).filter((n) => !LiteGraph.registered_node_types[n.class_type]);
 		if (missingNodeTypes.length) {
 			this.showMissingNodesError(missingNodeTypes.map(t => t.class_type), false);
 			return;
 		}
+		this.changeWorkflow(() => {
+			const ids = Object.keys(apiData);
+			app.graph.clear();
+			for (const id of ids) {
+				const data = apiData[id];
+				const node = LiteGraph.createNode(data.class_type);
+				node.id = isNaN(+id) ? id : +id;
+				graph.add(node);
+			}
 
-		const ids = Object.keys(apiData);
-		app.graph.clear();
-		for (const id of ids) {
-			const data = apiData[id];
-			const node = LiteGraph.createNode(data.class_type);
-			node.id = isNaN(+id) ? id : +id;
-			graph.add(node);
-		}
-
-		for (const id of ids) {
-			const data = apiData[id];
-			const node = app.graph.getNodeById(id);
-			for (const input in data.inputs ?? {}) {
-				const value = data.inputs[input];
-				if (value instanceof Array) {
-					const [fromId, fromSlot] = value;
-					const fromNode = app.graph.getNodeById(fromId);
-					let toSlot = node.inputs?.findIndex((inp) => inp.name === input);
-					if (toSlot == null || toSlot === -1) {
-						try {
-							// Target has no matching input, most likely a converted widget
-							const widget = node.widgets?.find((w) => w.name === input);
-							if (widget && node.convertWidgetToInput?.(widget)) {
-								toSlot = node.inputs?.length - 1;
-							}
-						} catch (error) {}
-					}
-					if (toSlot != null || toSlot !== -1) {
-						fromNode.connect(fromSlot, node, toSlot);
-					}
-				} else {
-					const widget = node.widgets?.find((w) => w.name === input);
-					if (widget) {
-						widget.value = value;
-						widget.callback?.(value);
+			for (const id of ids) {
+				const data = apiData[id];
+				const node = app.graph.getNodeById(id);
+				for (const input in data.inputs ?? {}) {
+					const value = data.inputs[input];
+					if (value instanceof Array) {
+						const [fromId, fromSlot] = value;
+						const fromNode = app.graph.getNodeById(fromId);
+						let toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+						if (toSlot == null || toSlot === -1) {
+							try {
+								// Target has no matching input, most likely a converted widget
+								const widget = node.widgets?.find((w) => w.name === input);
+								if (widget && node.convertWidgetToInput?.(widget)) {
+									toSlot = node.inputs?.length - 1;
+								}
+							} catch (error) {}
+						}
+						if (toSlot != null || toSlot !== -1) {
+							fromNode.connect(fromSlot, node, toSlot);
+						}
+					} else {
+						const widget = node.widgets?.find((w) => w.name === input);
+						if (widget) {
+							widget.value = value;
+							widget.callback?.(value);
+						}
 					}
 				}
 			}
-		}
-
-		app.graph.arrange();
+			app.graph.arrange();
+		}, fileName);
 	}
 
 	/**
