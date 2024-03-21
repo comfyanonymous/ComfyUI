@@ -401,7 +401,7 @@
 	padding: 2px 4px;
 }
 
-.comfyui-workflows-tree-file:not(:hover) .comfyui-workflows-file-action {
+.lg ~ .comfyui-workflows-popup .comfyui-workflows-tree-file:not(:hover) .comfyui-workflows-file-action {
 	opacity: 0;
 }
 
