@@ -96,7 +96,7 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     return results
 
 
-def get_output_data(obj, input_data_all):
+def get_output_data(obj, input_data_all) -> Tuple[List[typing.Any], typing.Dict[str, List[typing.Any]]]:
     results = []
     uis = []
     return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)

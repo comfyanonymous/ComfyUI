@@ -15,6 +15,8 @@ paths:
           description: the index.html of the website
           content:
             text/html:
+              schema:
+                type: string
               example: "<!DOCTYPE html>..."
   /embeddings:
     get:
@@ -390,7 +392,7 @@ paths:
                   The complete outputs dictionary from the workflow.
                   
                   Additionally, a list of URLs to binary outputs, whenever save nodes are used.
-                
+                  
                   For each SaveImage node, there will be two URLs: the internal URL returned by the worker, and
                   the URL for the image based on the `--external-address` / `COMFYUI_EXTERNAL_ADDRESS` configuration.
                   
@@ -454,9 +456,25 @@ paths:
                       type: string
                   outputs:
                     $ref: "#/components/schemas/Outputs"
-                example:
-                  outputs: {}
-                  urls: [ "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output", "https://comfyui.example.com/view?filename=ComfyUI_00001_.png&type=output" ]
+              example:
+                outputs: { }
+                urls: [ "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output", "https://comfyui.example.com/view?filename=ComfyUI_00001_.png&type=output" ]
+            multipart/mixed:
+              encoding:
+                "^\\d+$":
+                  contentType: image/png, image/jpeg, image/webp
+              schema:
+                type: object
+                description: |
+                  Each of the output nodes' binary values for images, and the "outputs" json object.
+                properties:
+                  outputs:
+                    $ref: "#/components/schemas/Outputs"
+                additionalProperties:
+                  patternProperties:
+                    "^\\d+$":
+                      type: string
+                      format: binary
         204:
           description: |
             The prompt was run but did not contain any SaveImage outputs, so nothing will be returned.
@@ -489,9 +507,12 @@ paths:
             enum:
               - "application/json"
               - "image/png"
+              - "multipart/mixed"
           required: false
           description: |
             Specifies the media type the client is willing to receive.
+            
+            multipart/mixed will soon be supported to return all the images from the workflow.
       requestBody:
         content:
           application/json:

@@ -21,7 +21,6 @@ def run_server(args_pytest):
     args.output_directory = args_pytest["output_dir"]
     args.listen = args_pytest["listen"]
     args.port = args_pytest["port"]
-    print("running server anyway!")
     asyncio.run(main())
 
 

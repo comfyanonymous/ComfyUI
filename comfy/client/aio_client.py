@@ -3,12 +3,14 @@ import uuid
 from asyncio import AbstractEventLoop
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List
 from urllib.parse import urlparse, urljoin
 
 import aiohttp
 from aiohttp import WSMessage, ClientResponse
+from typing_extensions import Dict
 
+from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..api.api_client import JSONEncoder
 from ..api.components.schema.prompt_request import PromptRequest
@@ -17,6 +19,9 @@ from ..component_model.file_output_path import file_output_path
 
 
 class AsyncRemoteComfyClient:
+    """
+    An asynchronous client for remote servers
+    """
     __json_encoder = JSONEncoder()
 
     def __init__(self, server_address: str = "http://localhost:8188", client_id: str = str(uuid.uuid4()),
@@ -28,11 +33,11 @@ class AsyncRemoteComfyClient:
             f"ws://{server_address_url.hostname}:{server_address_url.port}", f"/ws?clientId={client_id}")
         self.loop = loop or asyncio.get_event_loop()
 
-    async def queue_prompt_uris(self, prompt: PromptDict) -> List[str]:
+    async def queue_prompt_api(self, prompt: PromptDict) -> V1QueuePromptResponse:
         """
         Calls the API to queue a prompt.
         :param prompt:
-        :return: a list of URLs corresponding to the SaveImage nodes in the prompt.
+        :return: the API response from the server containing URLs and the outputs for the UI (nodes with OUTPUT_NODE == true)
         """
         prompt_json = AsyncRemoteComfyClient.__json_encoder.encode(prompt)
         async with aiohttp.ClientSession() as session:
@@ -41,9 +46,17 @@ class AsyncRemoteComfyClient:
                                     headers={'Content-Type': 'application/json', 'Accept': 'application/json'}) as response:
 
                 if response.status == 200:
-                    return (await response.json())["urls"]
+                    return V1QueuePromptResponse(**(await response.json()))
                 else:
                     raise RuntimeError(f"could not prompt: {response.status}: {await response.text()}")
+
+    async def queue_prompt_uris(self, prompt: PromptDict) -> List[str]:
+        """
+        Calls the API to queue a prompt.
+        :param prompt:
+        :return: a list of URLs corresponding to the SaveImage nodes in the prompt.
+        """
+        return (await self.queue_prompt_api(prompt)).urls
 
     async def queue_prompt(self, prompt: PromptDict) -> bytes:
         """

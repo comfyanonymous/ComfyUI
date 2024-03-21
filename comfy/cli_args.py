@@ -178,12 +178,14 @@ def create_parser() -> argparse.ArgumentParser:
                         help="Specifies a base URL for external addresses reported by the API, such as for image paths.")
     parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
     parser.add_argument("--disable-known-models", action="store_true", help="Disables automatic downloads of known models and prevents them from appearing in the UI.")
+    parser.add_argument("--max-queue-size", type=int, default=65536, help="The API will reject prompt requests if the queue's size exceeds this value.")
 
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
         try:
             plugin_callable: ConfigurationExtender | ModuleType = entry_point.load()
             if isinstance(plugin_callable, ModuleType):
+                # todo: find the configuration extender in the module
                 plugin_callable = ...
             else:
                 parser_result = plugin_callable(parser)

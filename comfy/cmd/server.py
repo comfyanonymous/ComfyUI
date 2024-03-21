@@ -1,43 +1,48 @@
 from __future__ import annotations
+
 import asyncio
-import traceback
 import glob
+import json
+import logging
+import mimetypes
+import os
 import struct
 import sys
-import shutil
-from urllib.parse import quote, urljoin
-from pkg_resources import resource_filename
-
-from PIL import Image, ImageOps
-from PIL.PngImagePlugin import PngInfo
-from io import BytesIO
-
-import logging
-import json
-import os
+import traceback
 import uuid
 from asyncio import Future, AbstractEventLoop
-from typing import List, Optional
+from io import BytesIO
+from typing import List, Optional, Dict
+from urllib.parse import quote, urlencode
+from posixpath import join as urljoin
+from can_ada import URL, parse as urlparse
 
 import aiofiles
 import aiohttp
+from PIL import Image, ImageOps
+from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
+from pkg_resources import resource_filename
+from typing_extensions import NamedTuple
 
 import comfy.interruption
-from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation
+from .. import model_management
+from .. import utils
+from ..app.user_manager import UserManager
+from ..cli_args import args
+from ..client.client_types import Output, FileOutput
 from ..cmd import execution
 from ..cmd import folder_paths
-import mimetypes
-
-from ..digest import digest
-from ..cli_args import args
-from .. import utils
-from .. import model_management
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.file_output_path import file_output_path
+from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation
+from ..digest import digest
 from ..nodes.package_typing import ExportedNodes
-from ..vendor.appdirs import user_data_dir
-from ..app.user_manager import UserManager
+
+
+class HeuristicPath(NamedTuple):
+    filename_heuristic: str
+    abs_path: str
 
 
 async def send_socket_catch_exception(function, message):
@@ -543,13 +548,6 @@ class PromptServer(ExecutorToClientProgress):
 
             return web.Response(status=200)
 
-        @routes.get("/api/v1/images/{content_digest}")
-        async def get_image(request: web.Request) -> web.FileResponse:
-            digest_ = request.match_info['content_digest']
-            path = str(os.path.join(user_data_dir("comfyui", "comfyanonymous", roaming=False), digest_))
-            return web.FileResponse(path,
-                                    headers={"Content-Disposition": f"filename=\"{digest_}.png\""})
-
         @routes.post("/api/v1/prompts")
         async def post_prompt(request: web.Request) -> web.Response | web.FileResponse:
             # check if the queue is too long
@@ -595,30 +593,6 @@ class PromptServer(ExecutorToClientProgress):
             if not valid[0]:
                 return web.Response(status=400, body=valid[1])
 
-            cache_path = os.path.join(user_data_dir("comfyui", "comfyanonymous", roaming=False), content_digest)
-            cache_url = f"/api/v1/images/{content_digest}"
-
-            if os.path.exists(cache_path):
-                filename__ = os.path.basename(cache_path)
-                digest_headers_ = {
-                    "Digest": f"SHA-256={content_digest}",
-                    "Location": f"/api/v1/images/{content_digest}"
-                }
-                if accept == "application/json":
-
-                    return web.Response(status=200,
-                                        headers=digest_headers_,
-                                        content_type="application/json",
-                                        body=json.dumps({'urls': [cache_url]}))
-                elif accept == "image/png":
-                    return web.FileResponse(cache_path,
-                                            headers={"Content-Disposition": f"filename=\"{filename__}\"",
-                                                     **digest_headers_})
-                else:
-                    return web.json_response(status=400, reason=f"invalid accept header {accept}")
-
-            # todo: check that the files specified in the InputFile nodes exist
-
             # convert a valid prompt to the queue tuple this expects
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
             number = self.number
@@ -633,55 +607,57 @@ class PromptServer(ExecutorToClientProgress):
                 return web.Response(body=str(ex), status=503)
                 # expect a single image
             result: TaskInvocation | dict = completed.result()
-            outputs_dict: dict = result.outputs if isinstance(result, TaskInvocation) else result
+            outputs_dict: Dict[str, Output] = result.outputs if isinstance(result, TaskInvocation) else result
             # find images and read them
 
-            output_images: List[str] = []
+            output_images: List[FileOutput] = []
             for node_id, node in outputs_dict.items():
-                images: List[dict] = []
+                images: List[FileOutput] = []
                 if 'images' in node:
                     images = node['images']
+                    # todo: does this ever occur?
                 elif (isinstance(node, dict)
                       and 'ui' in node and isinstance(node['ui'], dict)
                       and 'images' in node['ui']):
                     images = node['ui']['images']
                 for image_tuple in images:
-                    filename_ = image_tuple['abs_path']
-                    output_images.append(filename_)
+                    output_images.append(image_tuple)
 
             if len(output_images) > 0:
-                image_ = output_images[-1]
-                if not os.path.exists(os.path.dirname(cache_path)):
-                    try:
-                        os.makedirs(os.path.dirname(cache_path))
-                    except:
-                        pass
-                # shutil.copy(image_, cache_path)
-                filename = os.path.basename(image_)
+                main_image = output_images[-1]
+                filename = main_image["filename"]
                 digest_headers_ = {
                     "Digest": f"SHA-256={content_digest}",
                 }
-                urls_ = [cache_url]
+                urls_ = []
                 if len(output_images) == 1:
                     digest_headers_.update({
-                        "Location": f"/api/v1/images/{content_digest}",
                         "Content-Disposition": f"filename=\"{filename}\""
                     })
 
                 for image_indv_ in output_images:
-                    image_indv_filename_ = os.path.basename(image_indv_)
-                    urls_ += [
-                        f"http://{self.address}:{self.port}/view?filename={image_indv_filename_}&type=output",
-                        urljoin(self.external_address, f"/view?filename={image_indv_filename_}&type=output")
-                    ]
+                    local_address = f"http://{self.address}:{self.port}"
+                    external_address = self.external_address
+
+                    for base in (local_address, external_address):
+                        url: URL = urlparse(urljoin(base, "view"))
+                        url_search_dict: FileOutput = dict(image_indv_)
+                        del url_search_dict["abs_path"]
+                        if url_search_dict["subfolder"] == "":
+                            del url_search_dict["subfolder"]
+                        url.search = f"?{urlencode(url_search_dict)}"
+                        urls_.append(str(url))
 
                 if accept == "application/json":
                     return web.Response(status=200,
                                         content_type="application/json",
                                         headers=digest_headers_,
-                                        body=json.dumps({'urls': urls_}))
+                                        body=json.dumps({
+                                            'urls': urls_,
+                                            'outputs': outputs_dict
+                                        }))
                 elif accept == "image/png":
-                    return web.FileResponse(image_,
+                    return web.FileResponse(main_image["abs_path"],
                                             headers=digest_headers_)
             else:
                 return web.Response(status=204)
@@ -750,7 +726,7 @@ class PromptServer(ExecutorToClientProgress):
             if hasattr(Image, 'Resampling'):
                 resampling = Image.Resampling.BILINEAR
             else:
-                resampling = Image.ANTIALIAS
+                resampling = Image.Resampling.LANCZOS
 
             image = ImageOps.contain(image, (max_size, max_size), resampling)
         type_num = 1
@@ -838,5 +814,4 @@ class PromptServer(ExecutorToClientProgress):
 
     @classmethod
     def get_too_busy_queue_size(cls):
-        # todo: what is too busy of a queue for API clients?
-        return 100
+        return args.max_queue_size

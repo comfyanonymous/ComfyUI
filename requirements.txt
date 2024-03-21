@@ -33,3 +33,4 @@ kornia>=0.7.1
 mpmath>=1.0,!=1.4.0a0
 huggingface_hub
 lazy-object-proxy
+can_ada

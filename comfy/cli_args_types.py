@@ -80,6 +80,7 @@ class Configuration(dict):
         external_address (str): Specifies a base URL for external addresses reported by the API, such as for image paths.
         verbose (bool): Shows extra output for debugging purposes such as import errors of custom nodes.
         disable_known_models (bool): Disables automatic downloads of known models and prevents them from appearing in the UI.
+        max_queue_size (int): The API will reject prompt requests if the queue's size exceeds this value.
     """
 
     def __init__(self, **kwargs):
@@ -144,6 +145,7 @@ class Configuration(dict):
         self.distributed_queue_name: str = "comfyui"
         self.external_address: Optional[str] = None
         self.disable_known_models: bool = False
+        self.max_queue_size: int = 65536
         for key, value in kwargs.items():
             self[key] = value
 
