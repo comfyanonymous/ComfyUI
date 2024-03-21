@@ -381,7 +381,6 @@ dialog::backdrop {
 }
 
 .comfy-dialog.comfy-modal {
-	top: 0;
 	font-family: Arial, sans-serif;
 	border-color: var(--bg-color);
 	box-shadow: none;
