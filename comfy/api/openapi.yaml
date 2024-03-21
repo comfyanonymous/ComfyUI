@@ -84,6 +84,8 @@ paths:
     get:
       summary: (UI) View image
       operationId: view_image
+      description: |
+        Reads the image with the specified file name and located in the specified subfolder.
       parameters:
         - in: query
           name: filename
@@ -110,6 +112,11 @@ paths:
               - 'rgba'
               - 'rgb'
               - 'a'
+        - in: query
+          name: preview
+          schema:
+            type: string
+            pattern: '^(?<format>webp|jpeg);(?<quality>\d{1,2})$'
       responses:
         '200':
           description: Successful retrieval of file
@@ -322,29 +329,6 @@ paths:
               description: >-
                 A POST request to /free with: {"unload_models":true} will unload models from vram. 
                 A POST request to /free with: {"free_memory":true} will unload models and free all cached data from the last run workflow.
-  /api/v1/images/{digest}:
-    get:
-      summary: (API) Get image
-      description: |
-        Returns an image given a content hash.
-      parameters:
-        - name: digest
-          in: path
-          required: true
-          description: A digest of the request used to generate the image
-          schema:
-            type: string
-          example: e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
-      responses:
-        404:
-          description: No image was found.
-        200:
-          description: An image.
-          content:
-            image/png:
-              schema:
-                type: string
-                format: binary
   /api/v1/prompts:
     get:
       summary: (API) Get prompt
@@ -380,11 +364,6 @@ paths:
       responses:
         200:
           headers:
-            Location:
-              description: The URL to the file based on a hash of the request body when exactly one SaveImage node is specified.
-              example: /api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
-              schema:
-                type: string
             Digest:
               description: The digest of the request body
               example: SHA256=e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
@@ -402,18 +381,17 @@ paths:
             image/png:
               schema:
                 description: |
-                  Binary image data. This will be the first SaveImage node in the workflow.
+                  Binary image data. This will be the contents of the last node that returns image outputs in the workflow.
                 type: string
                 format: binary
             application/json:
               schema:
                 description: |
-                  A list of URLs to retrieve the binary content of the image.
+                  The complete outputs dictionary from the workflow.
                   
-                  The first URL is named by the digest of the prompt and references the image returned by the first
-                  SaveImage URL, allowing you to exactly retrieve the image without re-running the prompt. 
-                  
-                  Then, for each SaveImage node, there will be two URLs: the internal URL returned by the worker, and
+                  Additionally, a list of URLs to binary outputs, whenever save nodes are used.
+                
+                  For each SaveImage node, there will be two URLs: the internal URL returned by the worker, and
                   the URL for the image based on the `--external-address` / `COMFYUI_EXTERNAL_ADDRESS` configuration.
                   
                   Hashing function for web browsers:
@@ -468,13 +446,17 @@ paths:
                 type: object
                 required:
                   - urls
+                  - outputs
                 properties:
                   urls:
                     type: array
                     items:
                       type: string
+                  outputs:
+                    $ref: "#/components/schemas/Outputs"
                 example:
-                  urls: [ "/api/v1/images/e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3", "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output", "https://comfyui.example.com/view?filename=ComfyUI_00001_.png&type=output" ]
+                  outputs: {}
+                  urls: [ "http://127.0.0.1:8188/view?filename=ComfyUI_00001_.png&type=output", "https://comfyui.example.com/view?filename=ComfyUI_00001_.png&type=output" ]
         204:
           description: |
             The prompt was run but did not contain any SaveImage outputs, so nothing will be returned.
@@ -602,181 +584,6 @@ components:
               $ref: "#/components/schemas/Workflow"
     Prompt:
       type: object
-      example: {
-        "3": {
-          "inputs": {
-            "seed": 732984013877771,
-            "steps": 25,
-            "cfg": 100,
-            "sampler_name": "euler_ancestral",
-            "scheduler": "normal",
-            "denoise": 1,
-            "model": [
-              "10",
-              0
-            ],
-            "positive": [
-              "6",
-              0
-            ],
-            "negative": [
-              "7",
-              0
-            ],
-            "latent_image": [
-              "5",
-              0
-            ]
-          },
-          "class_type": "KSampler"
-        },
-        "4": {
-          "inputs": {
-            "ckpt_name": "sd_xl_base_1.0.safetensors"
-          },
-          "class_type": "CheckpointLoaderSimple"
-        },
-        "5": {
-          "inputs": {
-            "width": 512,
-            "height": 512,
-            "batch_size": 1
-          },
-          "class_type": "EmptyLatentImage"
-        },
-        "6": {
-          "inputs": {
-            "text": "$POSITIVE_TEXT",
-            "clip": [
-              "10",
-              1
-            ]
-          },
-          "class_type": "CLIPTextEncode"
-        },
-        "7": {
-          "inputs": {
-            "text": "$NEGATIVE_TEXT",
-            "clip": [
-              "10",
-              1
-            ]
-          },
-          "class_type": "CLIPTextEncode"
-        },
-        "8": {
-          "inputs": {
-            "samples": [
-              "3",
-              0
-            ],
-            "vae": [
-              "4",
-              2
-            ]
-          },
-          "class_type": "VAEDecode"
-        },
-        "10": {
-          "inputs": {
-            "lora_name": "pixel-art-xl-v1.1.safetensors",
-            "strength_model": 1,
-            "strength_clip": 1,
-            "model": [
-              "4",
-              0
-            ],
-            "clip": [
-              "4",
-              1
-            ]
-          },
-          "class_type": "LoraLoader"
-        },
-        "15": {
-          "inputs": {
-            "images": [
-              "26",
-              0
-            ]
-          },
-          "class_type": "PreviewImage"
-        },
-        "16": {
-          "inputs": {
-            "images": [
-              "8",
-              0
-            ]
-          },
-          "class_type": "PreviewImage"
-        },
-        "18": {
-          "inputs": {
-            "upscale_method": "nearest-exact",
-            "scale_by": 0.125,
-            "image": [
-              "8",
-              0
-            ]
-          },
-          "class_type": "ImageScaleBy"
-        },
-        "19": {
-          "inputs": {
-            "threshold": 250,
-            "mask": [
-              "21",
-              0
-            ]
-          },
-          "class_type": "BinarizeMask"
-        },
-        "21": {
-          "inputs": {
-            "model": "u2net",
-            "image": [
-              "18",
-              0
-            ]
-          },
-          "class_type": "ImageEstimateForegroundMask"
-        },
-        "25": {
-          "inputs": {
-            "upscale_method": "nearest-exact",
-            "scale_by": 8,
-            "image": [
-              "26",
-              0
-            ]
-          },
-          "class_type": "ImageScaleBy"
-        },
-        "26": {
-          "inputs": {
-            "image": [
-              "18",
-              0
-            ],
-            "mask": [
-              "19",
-              0
-            ]
-          },
-          "class_type": "ImageCutout"
-        },
-        "27": {
-          "inputs": {
-            "filename_prefix": "Downscale",
-            "images": [
-              "25",
-              0
-            ]
-          },
-          "class_type": "SaveImage"
-        }
-      }
       description: |
         The keys are stringified integers corresponding to nodes.
         
@@ -958,16 +765,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FileOutput"
+      additionalProperties:
+        $ref: "#/components/schemas/FileOutput"
     FileOutput:
       type: object
       required:
         - filename
         - subfolder
         - type
+        - abs_path
       properties:
         filename:
           type: string
         subfolder:
           type: string
         type:
+          type: string
+        abs_path:
           type: string
