@@ -546,6 +546,7 @@ class KSAMPLER(Sampler):
             k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
+        samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
         return samples
 
 
