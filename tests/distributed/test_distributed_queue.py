@@ -1,11 +1,20 @@
 import asyncio
+import logging
 import os
+import sys
+import time
 import uuid
+import subprocess
+import socket
+
 from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
 import jwt
 import pytest
+import requests
 
+from comfy.client.aio_client import AsyncRemoteComfyClient
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 from comfy.distributed.server_stub import ServerStub
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
@@ -95,3 +104,69 @@ async def test_distributed_prompt_queues_same_process():
                 assert frontend_pov_result.outputs is not None
                 assert len(frontend_pov_result.outputs) == 1
                 assert frontend_pov_result.status is not None
+
+
+@pytest.mark.asyncio
+async def test_frontend_backend_workers():
+    processes_to_close: List[subprocess.Popen] = []
+    with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
+        try:
+            params = rabbitmq.get_connection_params()
+            connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
+
+            frontend_command = [
+                "comfyui",
+                "--listen=0.0.0.0",
+                "--cpu",
+                "--distributed-queue-frontend",
+                f"--distributed-queue-connection-uri={connection_uri}",
+            ]
+
+            processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr))
+            backend_command = [
+                "comfyui-worker",
+                f"--distributed-queue-connection-uri={connection_uri}",
+            ]
+
+            processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
+            server_address = f"http://{get_lan_ip()}:8188"
+            start_time = time.time()
+            while time.time() - start_time < 60:
+                try:
+                    response = requests.get(server_address)
+                    if response.status_code == 200:
+                        break
+                except ConnectionRefusedError:
+                    pass
+                except Exception as exc:
+                    logging.warning("", exc_info=exc)
+                time.sleep(1)
+
+            client = AsyncRemoteComfyClient(server_address=server_address)
+            prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+            png_image_bytes = await client.queue_prompt(prompt)
+            assert len(png_image_bytes) > 1000
+        finally:
+            for process in processes_to_close:
+                process.terminate()
+
+
+def get_lan_ip():
+    """
+    Finds the host's IP address on the LAN it's connected to.
+
+    Returns:
+        str: The IP address of the host on the LAN.
+    """
+    # Create a dummy socket
+    s = None
+    try:
+        # Connect to a dummy address (Here, Google's public DNS server)
+        # The actual connection is not made, but this allows finding out the LAN IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    finally:
+        if s is not None:
+            s.close()
+    return ip

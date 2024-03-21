@@ -23,6 +23,7 @@ class ExecutingMessage(TypedDict):
     node: str | None
     prompt_id: NotRequired[str]
     output: NotRequired[dict]
+    sid: NotRequired[str]
 
 
 class ProgressMessage(TypedDict):
@@ -30,6 +31,7 @@ class ProgressMessage(TypedDict):
     max: float
     prompt_id: Optional[str]
     node: Optional[str]
+    sid: NotRequired[str]
 
 
 ExecutedMessage: TypeAlias = ExecutingMessage

@@ -92,7 +92,11 @@ def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
         # load from entrypoints
         for entry_point in entry_points().select(group='comfyui.custom_nodes'):
             # Load the module associated with the current entry point
-            module = entry_point.load()
+            try:
+                module = entry_point.load()
+            except ModuleNotFoundError as module_not_found_error:
+                logging.error(f"A module was not found while importing nodes via an entry point: {entry_point}. Please ensure the entry point in setup.py is named correctly", exc_info=module_not_found_error)
+                continue
 
             # Ensure that what we've loaded is indeed a module
             if isinstance(module, types.ModuleType):
