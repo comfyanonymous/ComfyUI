@@ -276,8 +276,8 @@ def module_size(module):
 class LoadedModel:
     def __init__(self, model):
         self.model = model
-        self.model_accelerated = False
         self.device = model.load_device
+        self.weights_loaded = False
 
     def model_memory(self):
         return self.model.model_size()
@@ -289,54 +289,33 @@ class LoadedModel:
             return self.model_memory()
 
     def model_load(self, lowvram_model_memory=0):
-        patch_model_to = None
-        if lowvram_model_memory == 0:
-            patch_model_to = self.device
+        patch_model_to = self.device
 
         self.model.model_patches_to(self.device)
         self.model.model_patches_to(self.model.model_dtype())
 
+        load_weights = not self.weights_loaded
+
         try:
-            self.real_model = self.model.patch_model(device_to=patch_model_to) #TODO: do something with loras and offloading to CPU
+            if lowvram_model_memory > 0 and load_weights:
+                self.real_model = self.model.patch_model_lowvram(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory)
+            else:
+                self.real_model = self.model.patch_model(device_to=patch_model_to, patch_weights=load_weights)
         except Exception as e:
             self.model.unpatch_model(self.model.offload_device)
             self.model_unload()
             raise e
 
-        if lowvram_model_memory > 0:
-            logging.info("loading in lowvram mode {}".format(lowvram_model_memory/(1024 * 1024)))
-            mem_counter = 0
-            for m in self.real_model.modules():
-                if hasattr(m, "comfy_cast_weights"):
-                    m.prev_comfy_cast_weights = m.comfy_cast_weights
-                    m.comfy_cast_weights = True
-                    module_mem = module_size(m)
-                    if mem_counter + module_mem < lowvram_model_memory:
-                        m.to(self.device)
-                        mem_counter += module_mem
-                elif hasattr(m, "weight"): #only modules with comfy_cast_weights can be set to lowvram mode
-                    m.to(self.device)
-                    mem_counter += module_size(m)
-                    logging.warning("lowvram: loaded module regularly {}".format(m))
-
-            self.model_accelerated = True
-
         if is_intel_xpu() and not args.disable_ipex_optimize:
             self.real_model = torch.xpu.optimize(self.real_model.eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
 
+        self.weights_loaded = True
         return self.real_model
 
-    def model_unload(self):
-        if self.model_accelerated:
-            for m in self.real_model.modules():
-                if hasattr(m, "prev_comfy_cast_weights"):
-                    m.comfy_cast_weights = m.prev_comfy_cast_weights
-                    del m.prev_comfy_cast_weights
-
-            self.model_accelerated = False
-
-        self.model.unpatch_model(self.model.offload_device)
+    def model_unload(self, unpatch_weights=True):
+        self.model.unpatch_model(self.model.offload_device, unpatch_weights=unpatch_weights)
         self.model.model_patches_to(self.model.offload_device)
+        self.weights_loaded = self.weights_loaded and not unpatch_weights
 
     def __eq__(self, other):
         return self.model is other.model
@@ -344,16 +323,35 @@ class LoadedModel:
 def minimum_inference_memory():
     return (1024 * 1024 * 1024)
 
-def unload_model_clones(model):
+def unload_model_clones(model, unload_weights_only=True, force_unload=True):
     with model_management_lock:
         to_unload = []
         for i in range(len(current_loaded_models)):
             if model.is_clone(current_loaded_models[i].model):
                 to_unload = [i] + to_unload
 
+        if len(to_unload) == 0:
+            return None
+
+        same_weights = 0
         for i in to_unload:
-            logging.debug("unload clone {}".format(i))
-            current_loaded_models.pop(i).model_unload()
+            if model.clone_has_same_weights(current_loaded_models[i].model):
+                same_weights += 1
+
+        if same_weights == len(to_unload):
+            unload_weight = False
+        else:
+            unload_weight = True
+
+        if not force_unload:
+            if unload_weights_only and unload_weight == False:
+                return None
+
+        for i in to_unload:
+            logging.debug("unload clone {}{}".format(i, unload_weight))
+            current_loaded_models.pop(i).model_unload(unpatch_weights=unload_weight)
+
+        return unload_weight
 
 def free_memory(memory_required, device, keep_loaded=[]):
     with model_management_lock:
@@ -410,12 +408,17 @@ def load_models_gpu(models, memory_required=0):
 
         total_memory_required = {}
         for loaded_model in models_to_load:
-            unload_model_clones(loaded_model.model)
+            unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False) #unload clones where the weights are different
             total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
 
         for device in total_memory_required:
             if device != torch.device("cpu"):
                 free_memory(total_memory_required[device] * 1.3 + extra_mem, device, models_already_loaded)
+
+        for loaded_model in models_to_load:
+            weights_unloaded = unload_model_clones(loaded_model.model, unload_weights_only=False, force_unload=False) #unload the rest of the clones where the weights can stay loaded
+            if weights_unloaded is not None:
+                loaded_model.weights_loaded = not weights_unloaded
 
         for loaded_model in models_to_load:
             model = loaded_model.model

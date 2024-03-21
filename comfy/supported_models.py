@@ -45,6 +45,11 @@ class SD15(supported_models_base.BASE):
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
+        pop_keys = ["clip_l.transformer.text_projection.weight", "clip_l.logit_scale"]
+        for p in pop_keys:
+            if p in state_dict:
+                state_dict.pop(p)
+
         replace_prefix = {"clip_l.": "cond_stage_model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
@@ -279,6 +284,41 @@ class SVD_img2vid(supported_models_base.BASE):
     def clip_target(self):
         return None
 
+class SV3D_u(SVD_img2vid):
+    unet_config = {
+        "model_channels": 320,
+        "in_channels": 8,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [1, 1, 1, 1, 1, 1, 0, 0],
+        "context_dim": 1024,
+        "adm_in_channels": 256,
+        "use_temporal_attention": True,
+        "use_temporal_resblock": True
+    }
+
+    vae_key_prefix = ["conditioner.embedders.1.encoder."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.SV3D_u(self, device=device)
+        return out
+
+class SV3D_p(SV3D_u):
+    unet_config = {
+        "model_channels": 320,
+        "in_channels": 8,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [1, 1, 1, 1, 1, 1, 0, 0],
+        "context_dim": 1024,
+        "adm_in_channels": 1280,
+        "use_temporal_attention": True,
+        "use_temporal_resblock": True
+    }
+
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.SV3D_p(self, device=device)
+        return out
+
 class Stable_Zero123(supported_models_base.BASE):
     unet_config = {
         "context_dim": 768,
@@ -400,5 +440,5 @@ class Stable_Cascade_B(Stable_Cascade_C):
         return out
 
 
-models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B]
+models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p]
 models += [SVD_img2vid]

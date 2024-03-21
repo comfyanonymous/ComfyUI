@@ -549,6 +549,7 @@ class KSAMPLER(Sampler):
             k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
+        samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
         return samples
 
 
@@ -562,11 +563,11 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
             return k_diffusion_sampling.sample_dpm_fast(model, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=callback, disable=disable)
         sampler_function = dpm_fast_function
     elif sampler_name == "dpm_adaptive":
-        def dpm_adaptive_function(model, noise, sigmas, extra_args, callback, disable):
+        def dpm_adaptive_function(model, noise, sigmas, extra_args, callback, disable, **extra_options):
             sigma_min = sigmas[-1]
             if sigma_min == 0:
                 sigma_min = sigmas[-2]
-            return k_diffusion_sampling.sample_dpm_adaptive(model, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=callback, disable=disable)
+            return k_diffusion_sampling.sample_dpm_adaptive(model, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=callback, disable=disable, **extra_options)
         sampler_function = dpm_adaptive_function
     else:
         sampler_function = getattr(k_diffusion_sampling, "sample_{}".format(sampler_name))

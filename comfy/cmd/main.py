@@ -8,7 +8,7 @@ import shutil
 import threading
 import time
 
-from comfy.utils import hijack_progress
+from ..utils import hijack_progress
 from .extra_model_paths import load_extra_path_config
 from .main_pre import args
 from .. import model_management
