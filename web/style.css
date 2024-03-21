@@ -13,15 +13,23 @@
 	--tr-even-bg-color: #222;
 	--tr-odd-bg-color: #353535;
 	--primary-bg: #236692;
-		--primary-fg: #ffffff;
-		--primary-hover-bg: #3485bb;
-		--primary-hover-fg: #ffffff;
+	--primary-fg: #ffffff;
+	--primary-hover-bg: #3485bb;
+	--primary-hover-fg: #ffffff;
+	--content-bg: #e0e0e0;
+	--content-fg: #000;
+	--content-hover-bg: #adadad;
+	--content-hover-fg: #000;
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
 		--fg-color: #fff;
 		--bg-color: #202020;
+		--content-bg: #4e4e4e;
+		--content-fg: #fff;
+		--content-hover-bg: #222;
+		--content-hover-fg: #fff;
 	}
 }
 
