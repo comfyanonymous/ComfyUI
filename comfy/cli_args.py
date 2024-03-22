@@ -141,7 +141,7 @@ def create_parser() -> argparse.ArgumentParser:
                         help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
 
     parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
-    parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
+    parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI. Raises an error if nodes cannot be imported,")
     parser.add_argument("--windows-standalone-build", default=hasattr(sys, 'frozen') and getattr(sys, 'frozen'),
                         action="store_true",
                         help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")

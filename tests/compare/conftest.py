@@ -29,6 +29,8 @@ def args_pytest(pytestconfig):
 
 def gather_file_basenames(directory: str):
     files = []
+    if not os.path.isdir(directory):
+        return files
     for file in os.listdir(directory):
         if file.endswith(".png"):
             files.append(file)

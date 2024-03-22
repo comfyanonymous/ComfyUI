@@ -40,11 +40,20 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                 return path
             with comfy_tqdm():
                 if isinstance(known_file, HuggingFile):
-                    save_filename = known_file.save_with_filename or known_file.filename
                     path = hf_hub_download(repo_id=known_file.repo_id,
-                                           filename=save_filename,
+                                           filename=known_file.filename,
                                            local_dir=destination,
                                            resume_download=True)
+                    if known_file.save_with_filename is not None:
+                        linked_filename = known_file.save_with_filename
+                    elif os.path.basename(known_file.filename) != known_file.filename:
+                        linked_filename = os.path.basename(known_file.filename)
+                    else:
+                        linked_filename = None
+                    try:
+                        os.symlink(os.path.join(destination,known_file.filename), linked_filename)
+                    except Exception as exc_info:
+                        logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}", exc_info=exc_info)
                 else:
                     url: Optional[str] = None
                     save_filename = known_file.save_with_filename or known_file.filename

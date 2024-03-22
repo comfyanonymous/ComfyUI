@@ -1,0 +1,218 @@
+import os
+import pathlib
+import re
+import uuid
+from datetime import datetime
+
+import pytest
+import torch
+from PIL import Image
+from freezegun import freeze_time
+from comfy.cmd import folder_paths
+from comfy_extras.nodes.nodes_open_api import SaveImagesResponse, IntRequestParameter, FloatRequestParameter, StringRequestParameter, HashImage, StringPosixPathJoin, LegacyOutputURIs, DevNullUris, StringJoin, StringToUri, UriFormat, ImageExifMerge, ImageExifCreationDateAndBatchNumber, ImageExif, ImageExifUncommon
+
+_image_1x1 = torch.zeros((1, 1, 3), dtype=torch.float32, device="cpu")
+
+
+@pytest.fixture(scope="function", autouse=True)
+def use_tmp_path(tmp_path: pathlib.Path):
+    orig_dir = folder_paths.get_output_directory()
+    folder_paths.set_output_directory(tmp_path)
+    yield tmp_path
+    folder_paths.set_output_directory(orig_dir)
+
+
+def test_save_image_response():
+    assert SaveImagesResponse.INPUT_TYPES() is not None
+    n = SaveImagesResponse()
+    result = n.execute(images=[_image_1x1], uris=["with_prefix/1.png"], name="test")
+    assert os.path.isfile(os.path.join(folder_paths.get_output_directory(), "with_prefix/1.png"))
+    assert len(result["result"]) == 1
+    assert len(result["ui"]["images"]) == 1
+    assert result["result"][0]["filename"] == "1.png"
+    assert result["result"][0]["subfolder"] == "with_prefix"
+    assert result["result"][0]["name"] == "test"
+
+
+def test_save_image_response_abs_local_uris():
+    assert SaveImagesResponse.INPUT_TYPES() is not None
+    n = SaveImagesResponse()
+    result = n.execute(images=[_image_1x1], uris=[os.path.join(folder_paths.get_output_directory(), "with_prefix/1.png")], name="test")
+    assert os.path.isfile(os.path.join(folder_paths.get_output_directory(), "with_prefix/1.png"))
+    assert len(result["result"]) == 1
+    assert len(result["ui"]["images"]) == 1
+    assert result["result"][0]["filename"] == "1.png"
+    assert result["result"][0]["subfolder"] == "with_prefix"
+    assert result["result"][0]["name"] == "test"
+
+
+def test_save_image_response_remote_uris():
+    n = SaveImagesResponse()
+    uri = "memory://some_folder/1.png"
+    result = n.execute(images=[_image_1x1], uris=[uri])
+    assert len(result["result"]) == 1
+    assert len(result["ui"]["images"]) == 1
+    filename_ = result["result"][0]["filename"]
+    assert filename_ != "1.png"
+    assert filename_ != ""
+    assert uuid.UUID(filename_.replace(".png", "")) is not None
+    assert os.path.isfile(os.path.join(folder_paths.get_output_directory(), filename_))
+    assert result["result"][0]["abs_path"] == uri
+    assert result["result"][0]["subfolder"] == ""
+
+
+def test_save_exif():
+    n = SaveImagesResponse()
+    filename = "with_prefix/2.png"
+    result = n.execute(images=[_image_1x1], uris=[filename], name="test", exif=[{
+        "Title": "test title"
+    }])
+    filepath = os.path.join(folder_paths.get_output_directory(), filename)
+    assert os.path.isfile(filepath)
+    with Image.open(filepath) as img:
+        assert img.info['Title'] == "test title"
+
+
+def test_no_local_file():
+    n = SaveImagesResponse()
+    uri = "memory://some_folder/2.png"
+    result = n.execute(images=[_image_1x1], uris=[uri], local_uris=["/dev/null"])
+    assert len(result["result"]) == 1
+    assert len(result["ui"]["images"]) == 1
+    assert result["result"][0]["filename"] == ""
+    assert not os.path.isfile(os.path.join(folder_paths.get_output_directory(), result["result"][0]["filename"]))
+    assert result["result"][0]["abs_path"] == uri
+    assert result["result"][0]["subfolder"] == ""
+
+
+def test_int_request_parameter():
+    nt = IntRequestParameter.INPUT_TYPES()
+    assert nt is not None
+    n = IntRequestParameter()
+    v, = n.execute(value=1, name="test")
+    assert v == 1
+
+
+def test_float_request_parameter():
+    nt = FloatRequestParameter.INPUT_TYPES()
+    assert nt is not None
+    n = FloatRequestParameter()
+    v, = n.execute(value=3.5, name="test", description="")
+    assert v == 3.5
+
+
+def test_string_request_parameter():
+    nt = StringRequestParameter.INPUT_TYPES()
+    assert nt is not None
+    n = StringRequestParameter()
+    v, = n.execute(value="test", name="test")
+    assert v == "test"
+
+
+def test_hash_images():
+    nt = HashImage.INPUT_TYPES()
+    assert nt is not None
+    n = HashImage()
+    hashes = n.execute(images=[_image_1x1.clone(), _image_1x1.clone()])
+    # same image, same hash
+    assert hashes[0] == hashes[1]
+    # hash should be a valid sha256 hash
+    p = re.compile(r'^[0-9a-fA-F]{64}$')
+    for hash in hashes:
+        assert p.match(hash)
+
+
+def test_string_posix_path_join():
+    nt = StringPosixPathJoin.INPUT_TYPES()
+    assert nt is not None
+    n = StringPosixPathJoin()
+    joined_path = n.execute(value2="c", value0="a", value1="b")
+    assert joined_path == "a/b/c"
+
+
+def test_legacy_output_uris(use_tmp_path):
+    nt = LegacyOutputURIs.INPUT_TYPES()
+    assert nt is not None
+    n = LegacyOutputURIs()
+    images_ = [_image_1x1, _image_1x1]
+    output_paths = n.execute(images=images_)
+    # from SaveImage node
+    full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path("ComfyUI", str(use_tmp_path), images_[0].shape[1], images_[0].shape[0])
+    file1 = f"{filename}_{counter:05}_.png"
+    file2 = f"{filename}_{counter + 1:05}_.png"
+    files = [file1, file2]
+    assert os.path.basename(output_paths[0]) == files[0]
+    assert os.path.basename(output_paths[1]) == files[1]
+
+
+def test_null_uris():
+    nt = DevNullUris.INPUT_TYPES()
+    assert nt is not None
+    n = DevNullUris()
+    res = n.execute([_image_1x1, _image_1x1])
+    assert all(x == "/dev/null" for x in res)
+
+
+def test_string_join():
+    assert StringJoin.INPUT_TYPES() is not None
+    n = StringJoin()
+    assert n.execute(separator="*", value1="b", value3="c", value0="a") == "a*b*c"
+
+
+def test_string_to_uri():
+    assert StringToUri.INPUT_TYPES() is not None
+    n = StringToUri()
+    assert n.execute("x", batch=3) == ["x"] * 3
+
+
+def test_uri_format(use_tmp_path):
+    assert UriFormat.INPUT_TYPES() is not None
+    n = UriFormat()
+    images = [_image_1x1, _image_1x1]
+    # with defaults
+    uris, metadata_uris = n.execute(images=images, uri_template="{output}/{uuid}_{batch_index:05d}.png")
+    for uri in uris:
+        assert os.path.isabs(uri), "uri format returns absolute URIs when output appears"
+        assert os.path.commonpath([uri, use_tmp_path]) == str(use_tmp_path), "should be under output dir"
+    uris, metadata_uris = n.execute(images=images, uri_template="{output}/{uuid}.png")
+    for uri in uris:
+        assert os.path.isabs(uri)
+        assert os.path.commonpath([uri, use_tmp_path]) == str(use_tmp_path), "should be under output dir"
+
+    with pytest.raises(KeyError):
+        n.execute(images=images, uri_template="{xyz}.png")
+
+
+def test_image_exif_merge():
+    assert ImageExifMerge.INPUT_TYPES() is not None
+    n = ImageExifMerge()
+    res = n.execute(value0=[{"a": "1"}, {"a": "1"}], value1=[{"b": "2"}, {"a": "1"}], value2=[{"a": 3}, {}], value4=[{"a": ""}, {}])
+    assert res[0]["a"] == 3
+    assert res[0]["b"] == "2"
+    assert res[1]["a"] == "1"
+
+
+@freeze_time("2012-01-14 03:21:34", tz_offset=-4)
+def test_image_exif_creation_date_and_batch_number():
+    assert ImageExifCreationDateAndBatchNumber.INPUT_TYPES() is not None
+    n = ImageExifCreationDateAndBatchNumber()
+    res = n.execute(images=[_image_1x1, _image_1x1])
+    mock_now = datetime(2012, 1, 13, 23, 21, 34)
+
+    now_formatted = mock_now.strftime("%Y:%m:%d %H:%M:%S%z")
+    assert res[0]["ImageNumber"] == "0"
+    assert res[1]["ImageNumber"] == "1"
+    assert res[0]["CreationDate"] == res[1]["CreationDate"] == now_formatted
+
+
+def test_image_exif():
+    assert ImageExif.INPUT_TYPES() is not None
+    n = ImageExif()
+    res = n.execute(images=[_image_1x1], Title="test", Artist="test2")
+    assert res[0]["Title"] == "test"
+    assert res[0]["Artist"] == "test2"
+
+
+def test_image_exif_uncommon():
+    assert "DigitalZoomRatio" in ImageExifUncommon.INPUT_TYPES()
+    ImageExifUncommon().execute(images=[_image_1x1])

@@ -148,11 +148,11 @@ scheduler_list = SCHEDULER_NAMES[:]
 @pytest.mark.parametrize("sampler", sampler_list)
 @pytest.mark.parametrize("scheduler", scheduler_list)
 @pytest.mark.parametrize("prompt", prompt_list)
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 class TestInference:
     #
     # Initialize server and client
     #
-
 
     def start_client(self, listen: str, port: int):
         # Start client

@@ -196,6 +196,8 @@ async def main():
         folder_paths.set_input_directory(input_dir)
 
     if args.quick_test_for_ci:
+        # for CI purposes, try importing all the nodes
+        import_all_nodes_in_workspace()
         exit(0)
 
     call_on_start = None

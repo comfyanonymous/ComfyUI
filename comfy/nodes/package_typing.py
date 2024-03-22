@@ -63,6 +63,7 @@ ValidateInputsMethod = Optional[Callable[..., Union[bool, str]]]
 
 class FunctionReturnsUIVariables(TypedDict):
     ui: dict
+    result: NotRequired[Sequence[Any]]
 
 
 class SaveNodeResult(TypedDict, total=True):
@@ -78,6 +79,7 @@ class UIImagesImagesResult(TypedDict, total=True):
 
 class UIImagesResult(TypedDict, total=True):
     ui: UIImagesImagesResult
+    result: NotRequired[Sequence[Any]]
 
 
 class UILatentsLatentsResult(TypedDict, total=True):
@@ -86,6 +88,7 @@ class UILatentsLatentsResult(TypedDict, total=True):
 
 class UILatentsResult(TypedDict, total=True):
     ui: UILatentsLatentsResult
+    result: NotRequired[Sequence[Any]]
 
 
 ValidatedNodeResult = Union[Tuple, UIImagesResult, UILatentsResult, FunctionReturnsUIVariables]

@@ -12,7 +12,6 @@ from importlib.metadata import entry_points
 from pkg_resources import resource_filename
 from .package_typing import ExportedNodes
 
-
 _comfy_nodes: ExportedNodes = ExportedNodes()
 
 
@@ -35,10 +34,13 @@ def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleT
     return node_class_mappings and len(node_class_mappings) > 0 or web_directory
 
 
-def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import_times=False,
+def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
+                                          print_import_times=False,
+                                          raise_on_failure=False,
                                           depth=100) -> ExportedNodes:
     exported_nodes = ExportedNodes()
     timings = []
+    exceptions = []
     if _import_nodes_in_module(exported_nodes, module):
         pass
     else:
@@ -65,15 +67,21 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType, print_import
                         continue
                 logging.error(f"{full_name} import failed", exc_info=x)
                 success = False
+                exceptions.append(x)
             timings.append((time.perf_counter() - time_before, full_name, success))
 
     if print_import_times and len(timings) > 0 or any(not success for (_, _, success) in timings):
         for (duration, module_name, success) in sorted(timings):
             print(f"{duration:6.1f} seconds{'' if success else ' (IMPORT FAILED)'}, {module_name}")
+    if raise_on_failure and len(exceptions) > 0:
+        try:
+            raise ExceptionGroup("Node import failed", exceptions)
+        except NameError:
+            raise exceptions[0]
     return exported_nodes
 
 
-def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
+def import_all_nodes_in_workspace(vanilla_custom_nodes=True, raise_on_failure=False) -> ExportedNodes:
     # now actually import the nodes, to improve control of node loading order
     from comfy_extras import nodes as comfy_extras_nodes
     from . import base_nodes
@@ -81,7 +89,7 @@ def import_all_nodes_in_workspace(vanilla_custom_nodes=True) -> ExportedNodes:
     # only load these nodes once
     if len(_comfy_nodes) == 0:
         base_and_extra = reduce(lambda x, y: x.update(y),
-                                map(_import_and_enumerate_nodes_in_module, [
+                                map(lambda module_inner: _import_and_enumerate_nodes_in_module(module_inner, raise_on_failure=raise_on_failure), [
                                     # this is the list of default nodes to import
                                     base_nodes,
                                     comfy_extras_nodes
