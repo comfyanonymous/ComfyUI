@@ -1,9 +1,9 @@
 # Define a class for your command-line arguments
 import enum
-from typing import Optional, List, TypeAlias, Callable
+from typing import Optional, List, Callable
 import configargparse as argparse
 
-ConfigurationExtender: TypeAlias = Callable[[argparse.ArgParser], Optional[argparse.ArgParser]]
+ConfigurationExtender = Callable[[argparse.ArgParser], Optional[argparse.ArgParser]]
 
 
 class LatentPreviewMethod(enum.Enum):
