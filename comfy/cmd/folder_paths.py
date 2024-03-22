@@ -61,6 +61,9 @@ class FolderNames:
     def __len__(self):
         return len(self.contents)
 
+    def __iter__(self):
+        return iter(self.contents)    
+    
     def items(self):
         return self.contents.items()
 
