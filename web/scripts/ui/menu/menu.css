@@ -130,6 +130,8 @@
 	gap: 8px;
 	box-sizing: border-box;
 	z-index: 1000;
+	order: 0;
+	grid-column: 1/-1;
 }
 
 .comfyui-menu>* {
@@ -318,7 +320,7 @@
 	margin-bottom: 5px;
 }
 
-.comfyui-workflows-open li:first-of-type {
+.comfyui-workflows-open .active {
 	font-weight: bold;
 }
 
@@ -361,6 +363,7 @@
 	user-select: none;
 }
 
+.comfyui-workflows-tree-file.active::before,
 .comfyui-workflows-tree li:hover::before,
 .comfyui-workflows-tree-file:hover::before {
 	content: "";
@@ -371,6 +374,11 @@
 	background-color: var(--content-hover-bg);
 	color: var(--content-hover-fg);
 	z-index: -1;
+}
+
+.comfyui-workflows-tree-file.active::before {
+	background-color: var(--primary-bg);
+	color: var(--primary-fg);
 }
 
 .comfyui-workflows-tree-file.running:not(:hover)::before {

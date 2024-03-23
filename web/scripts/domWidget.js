@@ -33,7 +33,7 @@ function getClipPath(node, element, elRect) {
 		}
 
 		const widgetRect = element.getBoundingClientRect();
-		const clipX = intersection[0] - widgetRect.x / scale + "px";
+		const clipX = elRect.left + intersection[0] - widgetRect.x / scale + "px";
 		const clipY = elRect.top + intersection[1] - widgetRect.y / scale + "px";
 		const clipWidth = intersection[2] + "px";
 		const clipHeight = intersection[3] + "px";
@@ -262,8 +262,8 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 			Object.assign(element.style, {
 				transformOrigin: "0 0",
 				transform: scale,
-				left: `${transform.a + transform.e}px`,
-				top: `${transform.d + transform.f + + elRect.top}px`,
+				left: `${transform.a + transform.e + elRect.left}px`,
+				top: `${transform.d + transform.f + elRect.top}px`,
 				width: `${widgetWidth - margin * 2}px`,
 				height: `${(widget.computedHeight ?? 50) - margin * 2}px`,
 				position: "absolute",

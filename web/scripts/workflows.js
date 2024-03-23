@@ -20,6 +20,8 @@ export class ComfyWorkflowManager extends EventTarget {
 	/** @type {string | null} */
 	#activePromptId = null;
 	#unsavedCount = 0;
+	#activeWorkflow;
+
 	/** @type {Record<string, ComfyWorkflow>} */
 	workflowLookup = {};
 	/** @type {Array<ComfyWorkflow>} */
@@ -30,7 +32,7 @@ export class ComfyWorkflowManager extends EventTarget {
 	queuedPrompts = {};
 
 	get activeWorkflow() {
-		return this.openWorkflows[0];
+		return this.#activeWorkflow ?? this.openWorkflows[0];
 	}
 
 	get activePromptId() {
@@ -145,13 +147,12 @@ export class ComfyWorkflowManager extends EventTarget {
 		}
 
 		const index = this.openWorkflows.indexOf(workflow);
-		if (index !== -1) {
-			// Swapping to an open workflow
-			this.openWorkflows.unshift(this.openWorkflows.splice(index, 1)[0]);
-		} else {
+		if (index === -1) {
 			// Opening a new workflow
-			this.openWorkflows.unshift(workflow);
+			this.openWorkflows.push(workflow);
 		}
+
+		this.#activeWorkflow = workflow;
 
 		setStorageValue("Comfy.PreviousWorkflow", this.activeWorkflow.path ?? "");
 		this.dispatchEvent(new CustomEvent("changeWorkflow"));
@@ -203,7 +204,8 @@ export class ComfyWorkflowManager extends EventTarget {
 		workflow.changeTracker = null;
 		this.openWorkflows.splice(this.openWorkflows.indexOf(workflow), 1);
 		if (this.openWorkflows.length) {
-			await this.openWorkflows[0].load();
+			this.#activeWorkflow = this.openWorkflows[0];
+			await this.#activeWorkflow.load();
 		} else {
 			// Load default
 			await this.app.loadGraphData();

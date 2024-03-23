@@ -368,6 +368,9 @@ export class ComfyWorkflowsContent {
 				if (w.unsaved) {
 					wrapper.element.classList.add("unsaved");
 				}
+				if(w === this.app.workflowManager.activeWorkflow) {
+					wrapper.element.classList.add("active");
+				}
 
 				this.openFiles.set(w, wrapper);
 				return wrapper.element;

@@ -56,6 +56,10 @@ export class ComfyApp {
 		this.logging = new ComfyLogging(this);
 		this.workflowManager = new ComfyWorkflowManager(this);
 		this.menu = new ComfyAppMenu(this);
+		this.bodyTop = $el("div.comfyui-body-top", { parent: document.body });
+		this.bodyLeft = $el("div.comfyui-body-left", { parent: document.body });
+		this.bodyRight = $el("div.comfyui-body-right", { parent: document.body });
+		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });
 
 		/**
 		 * List of extensions that are registered with the app
