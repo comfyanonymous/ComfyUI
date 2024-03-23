@@ -407,13 +407,10 @@ class PromptServer(ExecutorToClientProgress):
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['output'] = obj_class.RETURN_TYPES
-            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [
-                                                                                                               False] * len(
-                obj_class.RETURN_TYPES)
+            info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
             info['name'] = node_class
-            info['display_name'] = self.nodes.NODE_DISPLAY_NAME_MAPPINGS[
-                node_class] if node_class in self.nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
+            info['display_name'] = self.nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in self.nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = obj_class.DESCRIPTION if hasattr(obj_class, 'DESCRIPTION') else ''
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
@@ -591,7 +588,7 @@ class PromptServer(ExecutorToClientProgress):
 
             valid = execution.validate_prompt(prompt_dict)
             if not valid[0]:
-                return web.Response(status=400, body=valid[1])
+                return web.Response(status=400, content_type="application/json", body=json.dumps(valid[1]))
 
             # convert a valid prompt to the queue tuple this expects
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
@@ -643,6 +640,8 @@ class PromptServer(ExecutorToClientProgress):
                         url: URL = urlparse(urljoin(base, "view"))
                         url_search_dict: FileOutput = dict(image_indv_)
                         del url_search_dict["abs_path"]
+                        if "name" in url_search_dict:
+                            del url_search_dict["name"]
                         if url_search_dict["subfolder"] == "":
                             del url_search_dict["subfolder"]
                         url.search = f"?{urlencode(url_search_dict)}"

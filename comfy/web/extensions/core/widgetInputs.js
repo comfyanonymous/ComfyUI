@@ -108,12 +108,19 @@ function getWidgetType(config) {
 }
 
 function isValidCombo(combo, obj) {
-	// New input isnt a combo
+	// New input isn't a combo
 	if (!(obj instanceof Array)) {
 		console.log(`connection rejected: tried to connect combo to ${obj}`);
 		return false;
 	}
-	// New imput combo has a different size
+
+    // Special case an object with length zero
+    // This implies the node is going to provide the combo value dynamically
+	if (obj.length === 0) {
+        return true;
+    }
+
+    // New input combo has a different size
 	if (combo.length !== obj.length) {
 		console.log(`connection rejected: combo lists dont match`);
 		return false;

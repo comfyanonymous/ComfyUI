@@ -28,11 +28,20 @@ class FloatSpecOptions(TypedDict, total=True):
 class StringSpecOptions(TypedDict, total=True):
     multiline: NotRequired[bool]
     default: NotRequired[str]
+    dynamicPrompts: NotRequired[bool]
+
+
+class BoolSpecOptions(TypedDict):
+    default: NotRequired[bool]
+
+
+class DefaultSpecOptions(TypedDict):
+    default: NotRequired[Any]
 
 
 # todo: analyze the base_nodes for these types
 CommonReturnTypes = Union[
-    Literal["IMAGE", "STRING", "INT", "BOOLEAN", "FLOAT", "CONDITIONING", "LATENT", "MASK", "MODEL", "VAE", "CLIP"], str]
+    Literal["IMAGE", "STRING", "INT", "BOOLEAN", "FLOAT", "CONDITIONING", "LATENT", "MASK", "MODEL", "VAE", "CLIP"], str, List]
 
 IntSpec = Tuple[Literal["INT"], IntSpecOptions]
 
@@ -40,11 +49,13 @@ FloatSpec = Tuple[Literal["FLOAT"], FloatSpecOptions]
 
 StringSpec = Tuple[Literal["STRING"], StringSpecOptions]
 
+BooleanSpec = Tuple[Literal["BOOLEAN"], BoolSpecOptions]
+
 ChoiceSpec = Tuple[Union[Sequence[str], Sequence[float], Sequence[int]]]
 
 NonPrimitiveTypeSpec = Tuple[CommonReturnTypes]
 
-InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, ChoiceSpec, NonPrimitiveTypeSpec]
+InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, BooleanSpec, ChoiceSpec, NonPrimitiveTypeSpec]
 
 
 class HiddenSpec(TypedDict, total=True):

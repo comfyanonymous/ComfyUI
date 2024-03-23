@@ -9,6 +9,7 @@ class FileOutput(TypedDict, total=False):
     subfolder: str
     type: Literal["output", "input", "temp"]
     abs_path: str
+    name: NotRequired[str]
 
 
 class Output(TypedDict, total=False):

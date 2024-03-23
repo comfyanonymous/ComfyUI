@@ -504,8 +504,11 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
             o_id = val[0]
             o_class_type = prompt[o_id]['class_type']
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-            if r[val[1]] != type_input:
-                received_type = r[val[1]]
+            type_input_from_prompt = r[val[1]]
+            is_combo = all(isinstance(x, typing.List) or isinstance(x, typing.Tuple) for x in (type_input, type_input_from_prompt))
+            is_invalid_string_to_combo = is_combo and len(type_input_from_prompt) != 0
+            if type_input_from_prompt != type_input and is_invalid_string_to_combo:
+                received_type = type_input_from_prompt
                 details = f"{x}, {received_type} != {type_input}"
                 error = {
                     "type": "return_type_mismatch",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -60,22 +61,32 @@ class SaveNodeResultWithName(SaveNodeResult):
     name: str
 
 
+@dataclasses.dataclass
+class ExifContainer:
+    exif: dict = dataclasses.field(default_factory=dict)
+
+    def __getitem__(self, item: str):
+        return self.exif[item]
+
+
 class IntRequestParameter(CustomNode):
 
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                **_open_api_common_schema,
                 "value": ("INT", {"default": 0, "min": -sys.maxsize, "max": sys.maxsize})
+            },
+            "optional": {
+                **_open_api_common_schema,
             }
         }
 
     RETURN_TYPES = ("INT",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, value=0, *args, **kwargs):
+    def execute(self, value=0, *args, **kwargs) -> ValidatedNodeResult:
         return (value,)
 
 
@@ -85,16 +96,18 @@ class FloatRequestParameter(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                **_open_api_common_schema,
                 "value": ("FLOAT", {"default": 0})
+            },
+            "optional": {
+                **_open_api_common_schema,
             }
         }
 
     RETURN_TYPES = ("FLOAT",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, value=0.0, *args, **kwargs):
+    def execute(self, value=0.0, *args, **kwargs) -> ValidatedNodeResult:
         return (value,)
 
 
@@ -104,16 +117,52 @@ class StringRequestParameter(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                **_open_api_common_schema,
                 "value": ("STRING", {"multiline": True})
+            },
+            "optional": {
+                **_open_api_common_schema,
             }
         }
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, value="", *args, **kwargs):
+    def execute(self, value="", *args, **kwargs) -> ValidatedNodeResult:
+        return (value,)
+
+
+class BooleanRequestParameter(CustomNode):
+
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("BOOLEAN", {"default": True})
+            },
+            "optional": {
+                **_open_api_common_schema,
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "execute"
+    CATEGORY = "api/openapi"
+
+    def execute(self, value: bool = True, *args, **kwargs) -> ValidatedNodeResult:
+        return (value,)
+
+
+class StringEnumRequestParameter(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return StringRequestParameter.INPUT_TYPES()
+
+    RETURN_TYPES = ([],)
+    FUNCTION = "execute"
+    CATEGORY = "api/openapi"
+
+    def execute(self, value: str, *args, **kwargs) -> ValidatedNodeResult:
         return (value,)
 
 
@@ -128,9 +177,9 @@ class HashImage(CustomNode):
 
     RETURN_TYPES = ("IMAGE_HASHES",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, images: Sequence[Tensor]) -> Sequence[str]:
+    def execute(self, images: Sequence[Tensor]) -> ValidatedNodeResult:
         def process_image(image: Tensor) -> str:
             image_as_numpy_array: np.ndarray = 255. * image.cpu().numpy()
             image_as_numpy_array = np.ascontiguousarray(np.clip(image_as_numpy_array, 0, 255).astype(np.uint8))
@@ -142,7 +191,7 @@ class HashImage(CustomNode):
             return image_bytes_digest
 
         hashes = Parallel(n_jobs=-1)(delayed(process_image)(image) for image in images)
-        return hashes
+        return (hashes,)
 
 
 class StringPosixPathJoin(CustomNode):
@@ -150,16 +199,17 @@ class StringPosixPathJoin(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                f"value{i}": ("STRING", {"default": "", "multiline": True}) for i in range(5)
+                f"value{i}": ("STRING", {"default": "", "multiline": False}) for i in range(5)
             }
         }
 
     RETURN_TYPES = ("STRING",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, *args: str, **kwargs):
-        return posixpath.join(*[kwargs[key] for key in natsorted(kwargs.keys())])
+    def execute(self, *args: str, **kwargs) -> ValidatedNodeResult:
+        sorted_keys = natsorted(kwargs.keys())
+        return (posixpath.join(*[kwargs[key] for key in sorted_keys if kwargs[key] != ""]),)
 
 
 class LegacyOutputURIs(CustomNode):
@@ -175,9 +225,9 @@ class LegacyOutputURIs(CustomNode):
 
     RETURN_TYPES = ("URIS",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, images: Sequence[Tensor], prefix: str = "ComfyUI_", suffix: str = "_.png") -> List[str]:
+    def execute(self, images: Sequence[Tensor], prefix: str = "ComfyUI_", suffix: str = "_.png") -> ValidatedNodeResult:
         output_directory = folder_paths.get_output_directory()
         pattern = rf'^{prefix}([\d]+){suffix}$'
         compiled_pattern = re.compile(pattern)
@@ -194,7 +244,8 @@ class LegacyOutputURIs(CustomNode):
         highest_value = max(int(v, 10) for v in matched_values)
         # substitute batch number string
         # this is not going to produce exactly the same path names as SaveImage, but there's no reason to for %batch_num%
-        return [os.path.join(output_directory, f'{prefix.replace("%batch_num%", str(i))}{highest_value + i + 1:05d}{suffix}') for i in range(len(images))]
+        uris = [os.path.join(output_directory, f'{prefix.replace("%batch_num%", str(i))}{highest_value + i + 1:05d}{suffix}') for i in range(len(images))]
+        return (uris,)
 
 
 class DevNullUris(CustomNode):
@@ -208,10 +259,10 @@ class DevNullUris(CustomNode):
 
     RETURN_TYPES = ("URIS",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, images: Sequence[Tensor]):
-        return [_null_uri] * len(images)
+    def execute(self, images: Sequence[Tensor]) -> ValidatedNodeResult:
+        return ([_null_uri] * len(images),)
 
 
 class StringJoin(CustomNode):
@@ -224,10 +275,11 @@ class StringJoin(CustomNode):
         }
 
     RETURN_TYPES = ("STRING",)
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, separator: str = "_", *args: str, **kwargs):
-        return separator.join([kwargs[key] for key in natsorted(kwargs.keys())])
+    def execute(self, separator: str = "_", *args: str, **kwargs) -> ValidatedNodeResult:
+        sorted_keys = natsorted(kwargs.keys())
+        return (separator.join([kwargs[key] for key in sorted_keys if kwargs[key] != ""]),)
 
 
 class StringToUri(CustomNode):
@@ -242,10 +294,10 @@ class StringToUri(CustomNode):
 
     RETURN_TYPES = ("URIS",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, value: str = "", batch: int = 1):
-        return [value] * batch
+    def execute(self, value: str = "", batch: int = 1) -> ValidatedNodeResult:
+        return ([value] * batch,)
 
 
 class UriFormat(CustomNode):
@@ -253,7 +305,7 @@ class UriFormat(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "uri_template": ("STRING", {"default": "{output}/{uuid4}_{batch_index}.png"}),
+                "uri_template": ("STRING", {"default": "{output}/{uuid4}_{batch_index:05d}.png"}),
                 "metadata_uri_extension": ("STRING", {"default": ".json"}),
                 "image_hash_format_name": ("STRING", {"default": "image_hash"}),
                 "uuid_format_name": ("STRING", {"default": "uuid4"}),
@@ -272,7 +324,7 @@ class UriFormat(CustomNode):
 
     RETURN_TYPES = ("URIS", "URIS")
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
     def execute(self,
                 uri_template: str = "{output}/{uuid}_{batch_index:05d}.png",
@@ -327,19 +379,21 @@ class ImageExifMerge(CustomNode):
 
     RETURN_TYPES = ("EXIF",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, **kwargs):
+    def execute(self, **kwargs) -> ValidatedNodeResult:
         merges = [kwargs[key] for key in natsorted(kwargs.keys())]
         exifs_per_image = [list(group) for group in zip(*[pair for pair in merges])]
         result = []
         for exifs in exifs_per_image:
-            new_exif = {}
+            new_exif = ExifContainer()
+            exif: ExifContainer
             for exif in exifs:
-                new_exif.update({k: v for k,v in exif.items() if v != ""})
+                new_exif.exif.update({k: v for k, v in exif.exif.items() if v != ""})
 
             result.append(new_exif)
-        return result
+        return (result,)
+
 
 class ImageExifCreationDateAndBatchNumber(CustomNode):
     @classmethod
@@ -352,19 +406,18 @@ class ImageExifCreationDateAndBatchNumber(CustomNode):
 
     RETURN_TYPES = ("EXIF",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
-    def execute(self, images: Sequence[Tensor]):
-        return [{
-            "ImageNumber": str(i),
-            "CreationDate": datetime.now().strftime("%Y:%m:%d %H:%M:%S%z")
-        } for i in range(len(images))]
+    def execute(self, images: Sequence[Tensor]) -> ValidatedNodeResult:
+        exifs = [ExifContainer({"ImageNumber": str(i), "CreationDate": datetime.now().strftime("%Y:%m:%d %H:%M:%S%z")}) for i in range(len(images))]
+        return (exifs,)
 
 
 class ImageExifBase:
-    def execute(self, images: Sequence[Tensor] = (), *args, **metadata):
+    def execute(self, images: Sequence[Tensor] = (), *args, **metadata) -> ValidatedNodeResult:
         metadata = {k: v for k, v in metadata.items() if v != ""}
-        return [{**metadata} for _ in images]
+        exifs = [ExifContainer({**metadata}) for _ in images]
+        return (exifs,)
 
 
 class ImageExif(ImageExifBase, CustomNode):
@@ -379,7 +432,7 @@ class ImageExif(ImageExifBase, CustomNode):
 
     RETURN_TYPES = ("EXIF",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
 
 class ImageExifUncommon(ImageExifBase, CustomNode):
@@ -417,7 +470,7 @@ class ImageExifUncommon(ImageExifBase, CustomNode):
 
     RETURN_TYPES = ("EXIF",)
     FUNCTION = "execute"
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
 
 class SaveImagesResponse(CustomNode):
@@ -426,7 +479,6 @@ class SaveImagesResponse(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                **_open_api_common_schema,
                 "images": ("IMAGE",),
                 "uris": ("URIS",),
                 "pil_save_format": ("STRING", {"default": "png"}),
@@ -434,7 +486,8 @@ class SaveImagesResponse(CustomNode):
             "optional": {
                 "exif": ("EXIF",),
                 "metadata_uris": ("URIS",),
-                "local_uris": ("URIS",)
+                "local_uris": ("URIS",),
+                **_open_api_common_schema,
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -445,13 +498,13 @@ class SaveImagesResponse(CustomNode):
     FUNCTION = "execute"
     OUTPUT_NODE = True
     RETURN_TYPES = ("IMAGE_RESULT",)
-    CATEGORY = "openapi"
+    CATEGORY = "api/openapi"
 
     def execute(self,
                 name: str = "",
                 images: Sequence[Tensor] = tuple(),
                 uris: Sequence[str] = ("",),
-                exif: Sequence[dict] = None,
+                exif: Sequence[ExifContainer] = None,
                 metadata_uris: Optional[Sequence[str | None]] = None,
                 local_uris: Optional[Sequence[Optional[str]]] = None,
                 pil_save_format="png",
@@ -471,7 +524,7 @@ class SaveImagesResponse(CustomNode):
         if local_uris is None:
             local_uris = [None] * len(images)
         if exif is None:
-            exif = [dict() for _ in range(len(images))]
+            exif = [ExifContainer() for _ in range(len(images))]
 
         assert len(uris) == len(images) == len(metadata_uris) == len(local_uris) == len(exif), f"len(uris)={len(uris)} == len(images)={len(images)} == len(metadata_uris)={len(metadata_uris)} == len(local_uris)={len(local_uris)} == len(exif)={len(exif)}"
 
@@ -482,19 +535,20 @@ class SaveImagesResponse(CustomNode):
 
         images_ = ui_images_result["ui"]["images"]
 
+        exif_inst: ExifContainer
         for batch_number, (image, uri, metadata_uri, local_uri, exif_inst) in enumerate(zip(images, uris, metadata_uris, local_uris, exif)):
             image_as_numpy_array: np.ndarray = 255. * image.cpu().numpy()
             image_as_numpy_array = np.ascontiguousarray(np.clip(image_as_numpy_array, 0, 255).astype(np.uint8))
             image_as_pil: PIL.Image = Image.fromarray(image_as_numpy_array)
 
-            if prompt is not None and "prompt" not in exif_inst:
-                exif_inst["prompt"] = json.dumps(prompt)
+            if prompt is not None and "prompt" not in exif_inst.exif:
+                exif_inst.exif["prompt"] = json.dumps(prompt)
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
-                    exif_inst[x] = json.dumps(extra_pnginfo[x])
+                    exif_inst.exif[x] = json.dumps(extra_pnginfo[x])
 
             png_metadata = PngInfo()
-            for tag, value in exif_inst.items():
+            for tag, value in exif_inst.exif.items():
                 png_metadata.add_text(tag, value)
 
             fsspec_metadata: FsSpecComfyMetadata = {
@@ -562,7 +616,7 @@ class SaveImagesResponse(CustomNode):
 
             images_.append(img_item)
         if "ui" in ui_images_result and "images" in ui_images_result["ui"]:
-            ui_images_result["result"] = images_
+            ui_images_result["result"] = ui_images_result["ui"]["images"]
 
         return ui_images_result
 
@@ -575,6 +629,8 @@ for cls in (
         IntRequestParameter,
         FloatRequestParameter,
         StringRequestParameter,
+        StringEnumRequestParameter,
+        BooleanRequestParameter,
         HashImage,
         StringPosixPathJoin,
         LegacyOutputURIs,

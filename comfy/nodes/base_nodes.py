@@ -31,7 +31,7 @@ from .. import controlnet
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
+        return {"required": {"text": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", )}}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
