@@ -1,4 +1,9 @@
 
+def MakeSmartType(t):
+    if isinstance(t, str):
+        return SmartType(t)
+    return t
+
 class SmartType(str):
     def __ne__(self, other):
         if self == "*" or other == "*":
@@ -18,12 +23,12 @@ def VariantSupport():
                         continue
                     for key, value in types[category].items():
                         if isinstance(value, tuple):
-                            types[category][key] = (SmartType(value[0]),) + value[1:]
+                            types[category][key] = (MakeSmartType(value[0]),) + value[1:]
                 return types
             setattr(cls, "INPUT_TYPES", new_input_types)
         if hasattr(cls, "RETURN_TYPES"):
             old_return_types = cls.RETURN_TYPES
-            setattr(cls, "RETURN_TYPES", tuple(SmartType(x) for x in old_return_types))
+            setattr(cls, "RETURN_TYPES", tuple(MakeSmartType(x) for x in old_return_types))
         if hasattr(cls, "VALIDATE_INPUTS"):
             # Reflection is used to determine what the function signature is, so we can't just change the function signature
             raise NotImplementedError("VariantSupport does not support VALIDATE_INPUTS yet")
@@ -39,7 +44,7 @@ def VariantSupport():
                         expected_type = inputs["optional"][key][0]
                     else:
                         expected_type = None
-                    if expected_type is not None and SmartType(value) != expected_type:
+                    if expected_type is not None and MakeSmartType(value) != expected_type:
                         return f"Invalid type of {key}: {value} (expected {expected_type})"
                 return True
             setattr(cls, "VALIDATE_INPUTS", validate_inputs)
