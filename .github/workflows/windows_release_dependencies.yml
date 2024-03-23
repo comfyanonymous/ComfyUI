@@ -24,7 +24,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "6"
+        default: "8"
 #  push:
 #    branches:
 #      - master
@@ -41,10 +41,9 @@ jobs:
         - shell: bash
           run: |
             echo "@echo off
-            ..\python_embeded\python.exe .\update.py ..\ComfyUI\\
+            call update_comfyui.bat nopause
             echo -
-            echo This will try to update pytorch and all python dependencies, if you get an error wait for pytorch/xformers to fix their stuff
-            echo You should not be running this anyways unless you really have to
+            echo This will try to update pytorch and all python dependencies.
             echo -
             echo If you just want to update normally, close this and run update_comfyui.bat instead.
             echo -

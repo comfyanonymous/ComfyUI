@@ -1,5 +1,6 @@
 import torch
 from enum import Enum
+import logging
 
 from comfy import model_management
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
@@ -37,7 +38,7 @@ def load_model_weights(model, sd):
             w = sd.pop(x)
             del w
     if len(m) > 0:
-        print("missing", m)
+        logging.warning("missing {}".format(m))
     return model
 
 def load_clip_weights(model, sd):
@@ -52,7 +53,7 @@ def load_clip_weights(model, sd):
         if ids.dtype == torch.float32:
             sd['cond_stage_model.transformer.text_model.embeddings.position_ids'] = ids.round()
 
-    sd = comfy.utils.transformers_convert(sd, "cond_stage_model.model.", "cond_stage_model.transformer.text_model.", 24)
+    sd = comfy.utils.clip_text_transformers_convert(sd, "cond_stage_model.model.", "cond_stage_model.transformer.")
     return load_model_weights(model, sd)
 
 
@@ -81,7 +82,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     k1 = set(k1)
     for x in loaded:
         if (x not in k) and (x not in k1):
-            print("NOT LOADED", x)
+            logging.warning("NOT LOADED {}".format(x))
 
     return (new_modelpatcher, new_clip)
 
@@ -123,10 +124,13 @@ class CLIP:
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
     def encode_from_tokens(self, tokens, return_pooled=False):
+        self.cond_stage_model.reset_clip_options()
+
         if self.layer_idx is not None:
-            self.cond_stage_model.clip_layer(self.layer_idx)
-        else:
-            self.cond_stage_model.reset_clip_layer()
+            self.cond_stage_model.set_clip_options({"layer": self.layer_idx})
+
+        if return_pooled == "unprojected":
+            self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
         self.load_model()
         cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
@@ -222,10 +226,10 @@ class VAE:
 
         m, u = self.first_stage_model.load_state_dict(sd, strict=False)
         if len(m) > 0:
-            print("Missing VAE keys", m)
+            logging.warning("Missing VAE keys {}".format(m))
 
         if len(u) > 0:
-            print("Leftover VAE keys", u)
+            logging.debug("Leftover VAE keys {}".format(u))
 
         if device is None:
             device = model_management.vae_device()
@@ -288,7 +292,7 @@ class VAE:
                 samples = samples_in[x:x+batch_number].to(self.vae_dtype).to(self.device)
                 pixel_samples[x:x+batch_number] = self.process_output(self.first_stage_model.decode(samples).to(self.output_device).float())
         except model_management.OOM_EXCEPTION as e:
-            print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
+            logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             pixel_samples = self.decode_tiled_(samples_in)
 
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
@@ -314,7 +318,7 @@ class VAE:
                 samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).to(self.output_device).float()
 
         except model_management.OOM_EXCEPTION as e:
-            print("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
+            logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
             samples = self.encode_tiled_(pixel_samples)
 
         return samples
@@ -361,7 +365,10 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
 
     for i in range(len(clip_data)):
         if "transformer.resblocks.0.ln_1.weight" in clip_data[i]:
-            clip_data[i] = comfy.utils.transformers_convert(clip_data[i], "", "text_model.", 32)
+            clip_data[i] = comfy.utils.clip_text_transformers_convert(clip_data[i], "", "")
+        else:
+            if "text_projection" in clip_data[i]:
+                clip_data[i]["text_projection.weight"] = clip_data[i]["text_projection"].transpose(0, 1) #old models saved with the CLIPSave node
 
     clip_target = EmptyClass()
     clip_target.params = {}
@@ -387,10 +394,10 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
     for c in clip_data:
         m, u = clip.load_sd(c)
         if len(m) > 0:
-            print("clip missing:", m)
+            logging.warning("clip missing: {}".format(m))
 
         if len(u) > 0:
-            print("clip unexpected:", u)
+            logging.debug("clip unexpected: {}".format(u))
     return clip
 
 def load_gligen(ckpt_path):
@@ -528,21 +535,21 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
                 clip = CLIP(clip_target, embedding_directory=embedding_directory)
                 m, u = clip.load_sd(clip_sd, full_model=True)
                 if len(m) > 0:
-                    print("clip missing:", m)
+                    logging.warning("clip missing: {}".format(m))
 
                 if len(u) > 0:
-                    print("clip unexpected:", u)
+                    logging.debug("clip unexpected {}:".format(u))
             else:
-                print("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
+                logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
 
     left_over = sd.keys()
     if len(left_over) > 0:
-        print("left over keys:", left_over)
+        logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
         if inital_load_device != torch.device("cpu"):
-            print("loaded straight to GPU")
+            logging.info("loaded straight to GPU")
             model_management.load_model_gpu(model_patcher)
 
     return (model_patcher, clip, vae, clipvision)
@@ -571,7 +578,7 @@ def load_unet_state_dict(sd): #load unet in diffusers format
             if k in sd:
                 new_sd[diffusers_keys[k]] = sd.pop(k)
             else:
-                print(diffusers_keys[k], k)
+                logging.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
     unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=model_config.supported_inference_dtypes)
@@ -582,14 +589,14 @@ def load_unet_state_dict(sd): #load unet in diffusers format
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
-        print("left over keys in unet:", left_over)
+        logging.info("left over keys in unet: {}".format(left_over))
     return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
 def load_unet(unet_path):
     sd = comfy.utils.load_torch_file(unet_path)
     model = load_unet_state_dict(sd)
     if model is None:
-        print("ERROR UNSUPPORTED UNET", unet_path)
+        logging.error("ERROR UNSUPPORTED UNET {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
     return model
 

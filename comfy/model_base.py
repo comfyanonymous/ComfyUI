@@ -1,4 +1,5 @@
 import torch
+import logging
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from comfy.ldm.cascade.stage_c import StageC
 from comfy.ldm.cascade.stage_b import StageB
@@ -15,9 +16,10 @@ class ModelType(Enum):
     V_PREDICTION = 2
     V_PREDICTION_EDM = 3
     STABLE_CASCADE = 4
+    EDM = 5
 
 
-from comfy.model_sampling import EPS, V_PREDICTION, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
+from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
 
 
 def model_sampling(model_config, model_type):
@@ -33,6 +35,9 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.STABLE_CASCADE:
         c = EPS
         s = StableCascadeSampling
+    elif model_type == ModelType.EDM:
+        c = EDM
+        s = ModelSamplingContinuousEDM
 
     class ModelSampling(s, c):
         pass
@@ -62,8 +67,8 @@ class BaseModel(torch.nn.Module):
         if self.adm_channels is None:
             self.adm_channels = 0
         self.inpaint_model = False
-        print("model_type", model_type.name)
-        print("adm", self.adm_channels)
+        logging.info("model_type {}".format(model_type.name))
+        logging.debug("adm {}".format(self.adm_channels))
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
         sigma = t
@@ -163,6 +168,10 @@ class BaseModel(torch.nn.Module):
         if cross_attn_cnet is not None:
             out['crossattn_controlnet'] = comfy.conds.CONDCrossAttn(cross_attn_cnet)
 
+        c_concat = kwargs.get("noise_concat", None)
+        if c_concat is not None:
+            out['c_concat'] = comfy.conds.CONDNoiseShape(data)
+
         return out
 
     def load_model_weights(self, sd, unet_prefix=""):
@@ -175,10 +184,10 @@ class BaseModel(torch.nn.Module):
         to_load = self.model_config.process_unet_state_dict(to_load)
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         if len(m) > 0:
-            print("unet missing:", m)
+            logging.warning("unet missing: {}".format(m))
 
         if len(u) > 0:
-            print("unet unexpected:", u)
+            logging.warning("unet unexpected: {}".format(u))
         del to_load
         return self
 
@@ -368,9 +377,38 @@ class SVD_img2vid(BaseModel):
         if "time_conditioning" in kwargs:
             out["time_context"] = comfy.conds.CONDCrossAttn(kwargs["time_conditioning"])
 
-        out['image_only_indicator'] = comfy.conds.CONDConstant(torch.zeros((1,), device=device))
         out['num_video_frames'] = comfy.conds.CONDConstant(noise.shape[0])
         return out
+
+class SV3D_u(SVD_img2vid):
+    def encode_adm(self, **kwargs):
+        augmentation = kwargs.get("augmentation_level", 0)
+
+        out = []
+        out.append(self.embedder(torch.flatten(torch.Tensor([augmentation]))))
+
+        flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0)
+        return flat
+
+class SV3D_p(SVD_img2vid):
+    def __init__(self, model_config, model_type=ModelType.V_PREDICTION_EDM, device=None):
+        super().__init__(model_config, model_type, device=device)
+        self.embedder_512 = Timestep(512)
+
+    def encode_adm(self, **kwargs):
+        augmentation = kwargs.get("augmentation_level", 0)
+        elevation = kwargs.get("elevation", 0) #elevation and azimuth are in degrees here
+        azimuth = kwargs.get("azimuth", 0)
+        noise = kwargs.get("noise", None)
+
+        out = []
+        out.append(self.embedder(torch.flatten(torch.Tensor([augmentation]))))
+        out.append(self.embedder_512(torch.deg2rad(torch.fmod(torch.flatten(90 - torch.Tensor([elevation])), 360.0))))
+        out.append(self.embedder_512(torch.deg2rad(torch.fmod(torch.flatten(torch.Tensor([azimuth])), 360.0))))
+
+        out = list(map(lambda a: utils.resize_to_batch_size(a, noise.shape[0]), out))
+        return torch.cat(out, dim=1)
+
 
 class Stable_Zero123(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None, cc_projection_weight=None, cc_projection_bias=None):
