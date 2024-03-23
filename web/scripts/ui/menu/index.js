@@ -136,11 +136,13 @@ export class ComfyAppMenu {
 			type: "boolean",
 			onChange: async (v) => {
 				if (v) {
+					document.body.style.display = "grid";
 					app.ui.menuContainer.style.display = "none";
 					this.element.style.removeProperty("display");
 
 					this.calculateSizeBreak();
 				} else {
+					document.body.style.removeProperty("display");
 					app.ui.menuContainer.style.removeProperty("display");
 					this.element.style.display = "none";
 				}
