@@ -349,20 +349,27 @@ def unload_model_clones(model, unload_weights_only=True, force_unload=True):
     return unload_weight
 
 def free_memory(memory_required, device, keep_loaded=[]):
-    unloaded_model = False
+    unloaded_model = []
+    can_unload = []
+
     for i in range(len(current_loaded_models) -1, -1, -1):
-        if not DISABLE_SMART_MEMORY:
-            if get_free_memory(device) > memory_required:
-                break
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
             if shift_model not in keep_loaded:
-                m = current_loaded_models.pop(i)
-                m.model_unload()
-                del m
-                unloaded_model = True
+                can_unload.append((sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
 
-    if unloaded_model:
+    for x in sorted(can_unload):
+        i = x[-1]
+        if not DISABLE_SMART_MEMORY:
+            if get_free_memory(device) > memory_required:
+                break
+        current_loaded_models[i].model_unload()
+        unloaded_model.append(i)
+
+    for i in sorted(unloaded_model, reverse=True):
+        current_loaded_models.pop(i)
+
+    if len(unloaded_model) > 0:
         soft_empty_cache()
     else:
         if vram_state != VRAMState.HIGH_VRAM:
