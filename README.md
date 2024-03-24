@@ -222,3 +222,7 @@ I wanted to learn how Stable Diffusion worked in detail. I also wanted something
 ### Who is this for?
 
 This is for anyone that wants to make complex workflows with SD or that wants to learn more how SD works. The interface follows closely how SD works and the code should be much more simple to understand than other SD UIs.
+
+### Solutions to some known problems
+
+If you encounter the “RuntimeError: CUDA error: the launch timed out and was terminated” issue,This is due to insufficient graphics card performance, resulting in a WDDM TDR timeout. To solve this issue, create a new TdrDelay item under the registry path HKEY_LOCAL_MACHINE -> SYSTEM -> CurrentControlSet -> control -> GraphicsDrivers (create it as a DWORD (32-bit) type with a decimal value. The value should be set to greater than or equal to 2, you should attempt different values multiple times until the error ceases to occur). It's not recommended to disable the WDDM TDR by creating the TdrLevel item, as this will significantly degrade GPU performance.See https://learn.microsoft.com/zh-cn/windows-hardware/drivers/display/tdr-registry-keys for more information.
