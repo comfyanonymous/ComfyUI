@@ -79,6 +79,33 @@ class VideoLinearCFGGuidance:
         m.set_model_sampler_cfg_function(linear_cfg)
         return (m, )
 
+class VideoTriangleCFGGuidance:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "min_cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "sampling/video_models"
+
+    def patch(self, model, min_cfg):
+        def linear_cfg(args):
+            cond = args["cond"]
+            uncond = args["uncond"]
+            cond_scale = args["cond_scale"]
+            period = 1.0
+            values = torch.linspace(0, 1, cond.shape[0], device=cond.device)
+            values = 2 * (values / period - torch.floor(values / period + 0.5)).abs()
+            scale = (values * (cond_scale - min_cfg) + min_cfg).reshape((cond.shape[0], 1, 1, 1))
+
+            return uncond + scale * (cond - uncond)
+
+        m = model.clone()
+        m.set_model_sampler_cfg_function(linear_cfg)
+        return (m, )
+
 class ImageOnlyCheckpointSave(comfy_extras.nodes_model_merging.CheckpointSave):
     CATEGORY = "_for_testing"
 
@@ -98,6 +125,7 @@ NODE_CLASS_MAPPINGS = {
     "ImageOnlyCheckpointLoader": ImageOnlyCheckpointLoader,
     "SVD_img2vid_Conditioning": SVD_img2vid_Conditioning,
     "VideoLinearCFGGuidance": VideoLinearCFGGuidance,
+    "VideoTriangleCFGGuidance": VideoTriangleCFGGuidance,
     "ImageOnlyCheckpointSave": ImageOnlyCheckpointSave,
 }
 

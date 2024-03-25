@@ -10,7 +10,7 @@ class PerpNeg:
     def INPUT_TYPES(s):
         return {"required": {"model": ("MODEL", ),
                              "empty_conditioning": ("CONDITIONING", ),
-                             "neg_scale": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0}),
+                             "neg_scale": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01}),
                             }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
