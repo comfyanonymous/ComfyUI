@@ -145,7 +145,6 @@ prompt_text = """
       "strength_clip" => 1,
       "strength_model" => 0.5
     }
-  }
 }
 """
 
