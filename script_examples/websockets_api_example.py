@@ -65,7 +65,7 @@ prompt_text = """
                 0
             ],
             "model": [
-                "4",
+                "10",
                 0
             ],
             "negative": [
@@ -138,7 +138,14 @@ prompt_text = """
                 0
             ]
         }
+    },
+    "10" => { "class_type" => "LoraLoaderModelOnly", "inputs" => {
+      "lora_name" => "lora.safetensors",
+      "model" => ["4", 0],
+      "strength_clip" => 1,
+      "strength_model" => 0.5
     }
+  }
 }
 """
 
