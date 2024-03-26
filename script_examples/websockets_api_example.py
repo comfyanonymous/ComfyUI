@@ -139,11 +139,14 @@ prompt_text = """
             ]
         }
     },
-    "10" => { "class_type" => "LoraLoaderModelOnly", "inputs" => {
-      "lora_name" => "lora.safetensors",
-      "model" => ["4", 0],
-      "strength_clip" => 1,
-      "strength_model" => 0.5
+    "10" => {
+        "class_type" => "LoraLoaderModelOnly",
+        "inputs" => {
+            "lora_name" => "lora.safetensors",
+            "model" => ["4", 0],
+            "strength_clip" => 1,
+            "strength_model" => 0.5
+        }
     }
 }
 """
