@@ -12,9 +12,9 @@ class Example:
     Attributes
     ----------
     RETURN_TYPES (`tuple`): 
-        The type of each element in the output tulple.
+        The type of each element in the output tuple.
     RETURN_NAMES (`tuple`):
-        Optional: The name of each output in the output tulple.
+        Optional: The name of each output in the output tuple.
     FUNCTION (`str`):
         The name of the entry-point method. For example, if `FUNCTION = "execute"` then it will run Example().execute()
     OUTPUT_NODE ([`bool`]):
