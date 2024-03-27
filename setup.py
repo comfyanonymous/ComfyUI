@@ -174,7 +174,7 @@ setup(
     description="",
     author="",
     version=version,
-    python_requires=">=3.9,<3.13",
+    python_requires=">=3.10,<3.13",
     packages=find_packages(exclude=["tests"] + [] if is_editable else ['custom_nodes']),
     include_package_data=True,
     install_requires=dependencies(),

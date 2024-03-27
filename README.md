@@ -54,7 +54,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 You must have Python 3.10, 3.11 or 3.12 installed. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
 
-On macOS, install exactly Python 3.11 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.11`. Do not use 3.9 or older, and do not use 3.12 or newer. Its compatibility with Stable Diffusion in both directions is broken. 
+On macOS, install Python 3.10, 3.11 or 3.12 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.10`. Do not use 3.9 or older. Its compatibility with Stable Diffusion in both directions is broken. 
 
  1. Create a virtual environment:
       ```shell
