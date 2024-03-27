@@ -469,7 +469,7 @@ export const ComfyWidgets = {
 		const fileInput = document.createElement("input");
 		Object.assign(fileInput, {
 			type: "file",
-			accept: "image/jpeg,image/png,image/webp",
+			accept: "image/jpeg,image/png,image/webp,image/x-exr,.exr",
 			style: "display: none",
 			onchange: async () => {
 				if (fileInput.files.length) {

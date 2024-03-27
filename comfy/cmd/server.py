@@ -38,6 +38,7 @@ from ..component_model.file_output_path import file_output_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation
 from ..digest import digest
 from ..nodes.package_typing import ExportedNodes
+from ..images import open_image
 
 
 class HeuristicPath(NamedTuple):
@@ -289,9 +290,12 @@ class PromptServer(ExecutorToClientProgress):
                     return web.Response(status=400)
 
                 if os.path.isfile(file):
-                    if 'preview' in request.rel_url.query:
-                        with Image.open(file) as img:
-                            preview_info = request.rel_url.query['preview'].split(';')
+                    # todo: any image file we upload that browsers don't support, we should encode a preview
+                    # todo: image handling has to be a little bit more standardized, sometimes we want a Pillow Image, sometimes
+                    # we want something that will render to the user, sometimes we want tensors
+                    if 'preview' in request.rel_url.query or file.endswith(".exr"):
+                        with open_image(file) as img:
+                            preview_info = request.rel_url.query.get("preview", "jpeg;90").split(';')
                             image_format = preview_info[0]
                             if image_format not in ['webp', 'jpeg'] or 'a' in request.rel_url.query.get('channel', ''):
                                 image_format = 'webp'

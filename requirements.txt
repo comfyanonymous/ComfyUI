@@ -36,3 +36,4 @@ lazy-object-proxy
 can_ada
 fsspec
 natsort
+OpenEXR

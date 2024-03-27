@@ -16,12 +16,12 @@ import fsspec
 import numpy as np
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
-from fsspec.core import OpenFiles, OpenFile
+from fsspec.core import OpenFile
 from fsspec.generic import GenericFileSystem
 from fsspec.implementations.local import LocalFileSystem
 from joblib import Parallel, delayed
-from torch import Tensor
 from natsort import natsorted
+from torch import Tensor
 
 from comfy.cmd import folder_paths
 from comfy.digest import digest

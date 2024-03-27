@@ -334,7 +334,7 @@ def get_attr(obj, attr):
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
         '''slerps batches b1, b2 according to ratio r, batches should be flat e.g. NxC'''
-        
+
         c = b1.shape[-1]
 
         #norms
@@ -359,16 +359,16 @@ def bislerp(samples, width, height):
         res *= (b1_norms * (1.0-r) + b2_norms * r).expand(-1,c)
 
         #edge cases for same or polar opposites
-        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5] 
+        res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5]
         res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
         return res
-    
+
     def generate_bilinear_data(length_old, length_new, device):
         coords_1 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1))
         coords_1 = torch.nn.functional.interpolate(coords_1, size=(1, length_new), mode="bilinear")
         ratios = coords_1 - coords_1.floor()
         coords_1 = coords_1.to(torch.int64)
-        
+
         coords_2 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1)) + 1
         coords_2[:,:,:,-1] -= 1
         coords_2 = torch.nn.functional.interpolate(coords_2, size=(1, length_new), mode="bilinear")
@@ -379,7 +379,7 @@ def bislerp(samples, width, height):
     samples = samples.float()
     n,c,h,w = samples.shape
     h_new, w_new = (height, width)
-    
+
     #linear w
     ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new, samples.device)
     coords_1 = coords_1.expand((n, c, h, -1))
@@ -496,6 +496,17 @@ def set_progress_bar_global_hook(function):
     PROGRESS_BAR_HOOK = function
 
 
+class _DisabledProgressBar:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def update_absolute(self, *args, **kwargs):
+        pass
+
+
 class ProgressBar:
     def __init__(self, total: float):
         global PROGRESS_BAR_HOOK
@@ -545,3 +556,12 @@ def comfy_tqdm():
         # Restore original tqdm
         tqdm.__init__ = _original_init
         tqdm.update = _original_update
+
+
+@contextmanager
+def comfy_progress(total: float) -> ProgressBar:
+    global PROGRESS_BAR_ENABLED
+    if PROGRESS_BAR_ENABLED:
+        yield ProgressBar(total)
+    else:
+        yield _DisabledProgressBar()

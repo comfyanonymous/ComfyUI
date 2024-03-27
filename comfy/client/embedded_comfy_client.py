@@ -100,7 +100,7 @@ class EmbeddedComfyClient:
             if self._configuration is None:
                 options.enable_args_parsing()
             else:
-                from ..cli_args import args
+                from ..cmd.main_pre import args
                 args.clear()
                 args.update(self._configuration)
 

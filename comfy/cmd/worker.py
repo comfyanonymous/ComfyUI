@@ -4,11 +4,7 @@ import os
 import logging
 
 from .extra_model_paths import load_extra_path_config
-from .. import options
-
-options.enable_args_parsing()
-
-from ..cli_args import args
+from .main_pre import args
 
 
 async def main():
@@ -17,28 +13,19 @@ async def main():
     args.distributed_queue_frontend = False
     assert args.distributed_queue_connection_uri is not None, "Set the --distributed-queue-connection-uri argument to your RabbitMQ server"
 
-
-    if args.cuda_device is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        logging.info(f"Set cuda device to: {args.cuda_device}")
-
-    if args.deterministic:
-        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
-            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
-
     # configure paths
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         logging.info(f"Setting output directory to: {output_dir}")
         from ..cmd import folder_paths
-        
+
         folder_paths.set_output_directory(output_dir)
-    
+
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
         logging.info(f"Setting input directory to: {input_dir}")
         from ..cmd import folder_paths
-    
+
         folder_paths.set_input_directory(input_dir)
 
     if args.temp_directory:

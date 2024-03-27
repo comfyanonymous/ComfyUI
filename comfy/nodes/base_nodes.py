@@ -9,6 +9,7 @@ import logging
 
 from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
+from natsort import natsorted
 from pkg_resources import resource_filename
 import numpy as np
 import safetensors.torch
@@ -23,10 +24,13 @@ from .. import model_management
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
+from ..images import open_image
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
     KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
+from ..open_exr import load_exr
+
 
 class CLIPTextEncode:
     @classmethod
@@ -1454,38 +1458,49 @@ class PreviewImage(SaveImage):
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
+
 class LoadImage:
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        return {"required":
-                    {"image": (sorted(files), {"image_upload": True})},
-                }
+        return {
+            "required": {
+                "image": (natsorted(files), {"image_upload": True}),
+            },
+        }
 
     CATEGORY = "image"
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
-    def load_image(self, image):
+
+    def load_image(self, image: str):
         image_path = folder_paths.get_annotated_filepath(image)
-        img = Image.open(image_path)
         output_images = []
         output_masks = []
-        for i in ImageSequence.Iterator(img):
-            i = ImageOps.exif_transpose(i)
-            if i.mode == 'I':
-                i = i.point(lambda i: i * (1 / 255))
-            image = i.convert("RGB")
-            image = np.array(image).astype(np.float32) / 255.0
-            image = torch.from_numpy(image)[None,]
-            if 'A' in i.getbands():
-                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-                mask = 1. - torch.from_numpy(mask)
-            else:
-                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-            output_images.append(image)
-            output_masks.append(mask.unsqueeze(0))
+
+        # maintain the legacy path
+        # this will ultimately return a tensor, so we'd rather have the tensors directly
+        # from cv2 rather than get them out of a PIL image
+        _, ext = os.path.splitext(image)
+        if ext == ".exr":
+            return load_exr(image_path, srgb=False)
+        with open_image(image_path) as img:
+            for i in ImageSequence.Iterator(img):
+                i = ImageOps.exif_transpose(i)
+                if i.mode == 'I':
+                    i = i.point(lambda i: i * (1 / 255))
+                image = i.convert("RGB")
+                image = np.array(image).astype(np.float32) / 255.0
+                image = torch.from_numpy(image)[None,]
+                if 'A' in i.getbands():
+                    mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                    mask = 1. - torch.from_numpy(mask)
+                else:
+                    mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+                output_images.append(image)
+                output_masks.append(mask.unsqueeze(0))
 
         if len(output_images) > 1:
             output_image = torch.cat(output_images, dim=0)
@@ -1494,7 +1509,7 @@ class LoadImage:
             output_image = output_images[0]
             output_mask = output_masks[0]
 
-        return (output_image, output_mask)
+        return output_image, output_mask
 
     @classmethod
     def IS_CHANGED(s, image):

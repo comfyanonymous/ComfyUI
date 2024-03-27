@@ -1,4 +1,3 @@
-# Suppress warnings during import
 import asyncio
 import gc
 import itertools
@@ -8,9 +7,10 @@ import shutil
 import threading
 import time
 
+# main_pre must be the earliest import since it suppresses some spurious warnings
+from .main_pre import args
 from ..utils import hijack_progress
 from .extra_model_paths import load_extra_path_config
-from .main_pre import args
 from .. import model_management
 from ..analytics.analytics import initialize_event_tracking
 from ..cmd import cuda_malloc

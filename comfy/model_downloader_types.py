@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from os.path import split
-from typing import Optional, List
+from typing import Optional, List, Sequence
 from typing_extensions import TypedDict, NotRequired
 
 
@@ -15,10 +15,12 @@ class CivitFile:
         model_id (int): The ID of the model
         model_version_id (int): The version
         filename (str): The name of the file in the model
+        trigger_words (List[str]): Trigger words associated with the model
     """
     model_id: int
     model_version_id: int
     filename: str
+    trigger_words: Optional[Sequence[str]] = dataclasses.field(default_factory=tuple)
 
     def __str__(self):
         return self.filename

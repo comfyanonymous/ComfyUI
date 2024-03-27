@@ -51,7 +51,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                     else:
                         linked_filename = None
                     try:
-                        os.symlink(os.path.join(destination,known_file.filename), linked_filename)
+                        os.symlink(os.path.join(destination, known_file.filename), linked_filename)
                     except Exception as exc_info:
                         logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}", exc_info=exc_info)
                 else:
@@ -213,6 +213,7 @@ KNOWN_CONTROLNETS = [
     HuggingFile("lllyasviel/sd_control_collection", "sargezt_xl_depth_faid_vidit.safetensors"),
     HuggingFile("lllyasviel/sd_control_collection", "sargezt_xl_depth_zeed.safetensors"),
     HuggingFile("lllyasviel/sd_control_collection", "sargezt_xl_softedge.safetensors"),
+    HuggingFile("SargeZT/controlnet-sd-xl-1.0-depth-16bit-zoe", "depth-zoe-xl-v1.0-controlnet.safetensors"),
     HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_canny.safetensors"),
     HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_depth_midas.safetensors"),
     HuggingFile("lllyasviel/sd_control_collection", "t2i-adapter_diffusers_xl_depth_zoe.safetensors"),
