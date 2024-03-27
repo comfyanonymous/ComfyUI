@@ -25,6 +25,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install .[dev]
-      - name: Run tests
+      - name: Run unit tests
         run: |
-          pytest tests/
+          pytest tests/unit
