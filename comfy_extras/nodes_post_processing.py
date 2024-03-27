@@ -33,6 +33,7 @@ class Blend:
     CATEGORY = "image/postprocessing"
 
     def blend_images(self, image1: torch.Tensor, image2: torch.Tensor, blend_factor: float, blend_mode: str):
+        image2 = image2.to(image1.device)
         if image1.shape != image2.shape:
             image2 = image2.permute(0, 3, 1, 2)
             image2 = comfy.utils.common_upscale(image2, image1.shape[2], image1.shape[1], upscale_method='bicubic', crop='center')
@@ -226,7 +227,7 @@ class Sharpen:
         batch_size, height, width, channels = image.shape
 
         kernel_size = sharpen_radius * 2 + 1
-        kernel = gaussian_kernel(kernel_size, sigma) * -(alpha*10)
+        kernel = gaussian_kernel(kernel_size, sigma, device=image.device) * -(alpha*10)
         center = kernel_size // 2
         kernel[center, center] = kernel[center, center] - kernel.sum() + 1.0
         kernel = kernel.repeat(channels, 1, 1).unsqueeze(1)

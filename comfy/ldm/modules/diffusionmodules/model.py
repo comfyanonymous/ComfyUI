@@ -5,9 +5,11 @@ import torch.nn as nn
 import numpy as np
 from einops import rearrange
 from typing import Optional, Any
+import logging
 
 from comfy import model_management
 import comfy.ops
+ops = comfy.ops.disable_weight_init
 
 if model_management.xformers_enabled_vae():
     import xformers
@@ -40,7 +42,7 @@ def nonlinearity(x):
 
 
 def Normalize(in_channels, num_groups=32):
-    return torch.nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
+    return ops.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
 
 
 class Upsample(nn.Module):
@@ -48,7 +50,7 @@ class Upsample(nn.Module):
         super().__init__()
         self.with_conv = with_conv
         if self.with_conv:
-            self.conv = comfy.ops.Conv2d(in_channels,
+            self.conv = ops.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=3,
                                         stride=1,
@@ -78,7 +80,7 @@ class Downsample(nn.Module):
         self.with_conv = with_conv
         if self.with_conv:
             # no asymmetric padding in torch conv, must do it ourselves
-            self.conv = comfy.ops.Conv2d(in_channels,
+            self.conv = ops.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=3,
                                         stride=2,
@@ -105,30 +107,30 @@ class ResnetBlock(nn.Module):
 
         self.swish = torch.nn.SiLU(inplace=True)
         self.norm1 = Normalize(in_channels)
-        self.conv1 = comfy.ops.Conv2d(in_channels,
+        self.conv1 = ops.Conv2d(in_channels,
                                      out_channels,
                                      kernel_size=3,
                                      stride=1,
                                      padding=1)
         if temb_channels > 0:
-            self.temb_proj = comfy.ops.Linear(temb_channels,
+            self.temb_proj = ops.Linear(temb_channels,
                                              out_channels)
         self.norm2 = Normalize(out_channels)
         self.dropout = torch.nn.Dropout(dropout, inplace=True)
-        self.conv2 = comfy.ops.Conv2d(out_channels,
+        self.conv2 = ops.Conv2d(out_channels,
                                      out_channels,
                                      kernel_size=3,
                                      stride=1,
                                      padding=1)
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
-                self.conv_shortcut = comfy.ops.Conv2d(in_channels,
+                self.conv_shortcut = ops.Conv2d(in_channels,
                                                      out_channels,
                                                      kernel_size=3,
                                                      stride=1,
                                                      padding=1)
             else:
-                self.nin_shortcut = comfy.ops.Conv2d(in_channels,
+                self.nin_shortcut = ops.Conv2d(in_channels,
                                                     out_channels,
                                                     kernel_size=1,
                                                     stride=1,
@@ -189,7 +191,7 @@ def slice_attention(q, k, v):
             steps *= 2
             if steps > 128:
                 raise e
-            print("out of memory error, increasing steps and trying again", steps)
+            logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
 
     return r1
 
@@ -234,7 +236,7 @@ def pytorch_attention(q, k, v):
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(B, C, H, W)
     except model_management.OOM_EXCEPTION as e:
-        print("scaled_dot_product_attention OOMed: switched to slice attention")
+        logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
     return out
 
@@ -245,35 +247,35 @@ class AttnBlock(nn.Module):
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = comfy.ops.Conv2d(in_channels,
+        self.q = ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.k = comfy.ops.Conv2d(in_channels,
+        self.k = ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.v = comfy.ops.Conv2d(in_channels,
+        self.v = ops.Conv2d(in_channels,
                                  in_channels,
                                  kernel_size=1,
                                  stride=1,
                                  padding=0)
-        self.proj_out = comfy.ops.Conv2d(in_channels,
+        self.proj_out = ops.Conv2d(in_channels,
                                         in_channels,
                                         kernel_size=1,
                                         stride=1,
                                         padding=0)
 
         if model_management.xformers_enabled_vae():
-            print("Using xformers attention in VAE")
+            logging.info("Using xformers attention in VAE")
             self.optimized_attention = xformers_attention
         elif model_management.pytorch_attention_enabled():
-            print("Using pytorch attention in VAE")
+            logging.info("Using pytorch attention in VAE")
             self.optimized_attention = pytorch_attention
         else:
-            print("Using split attention in VAE")
+            logging.info("Using split attention in VAE")
             self.optimized_attention = normal_attention
 
     def forward(self, x):
@@ -312,14 +314,14 @@ class Model(nn.Module):
             # timestep embedding
             self.temb = nn.Module()
             self.temb.dense = nn.ModuleList([
-                comfy.ops.Linear(self.ch,
+                ops.Linear(self.ch,
                                 self.temb_ch),
-                comfy.ops.Linear(self.temb_ch,
+                ops.Linear(self.temb_ch,
                                 self.temb_ch),
             ])
 
         # downsampling
-        self.conv_in = comfy.ops.Conv2d(in_channels,
+        self.conv_in = ops.Conv2d(in_channels,
                                        self.ch,
                                        kernel_size=3,
                                        stride=1,
@@ -388,7 +390,7 @@ class Model(nn.Module):
 
         # end
         self.norm_out = Normalize(block_in)
-        self.conv_out = comfy.ops.Conv2d(block_in,
+        self.conv_out = ops.Conv2d(block_in,
                                         out_ch,
                                         kernel_size=3,
                                         stride=1,
@@ -461,7 +463,7 @@ class Encoder(nn.Module):
         self.in_channels = in_channels
 
         # downsampling
-        self.conv_in = comfy.ops.Conv2d(in_channels,
+        self.conv_in = ops.Conv2d(in_channels,
                                        self.ch,
                                        kernel_size=3,
                                        stride=1,
@@ -506,7 +508,7 @@ class Encoder(nn.Module):
 
         # end
         self.norm_out = Normalize(block_in)
-        self.conv_out = comfy.ops.Conv2d(block_in,
+        self.conv_out = ops.Conv2d(block_in,
                                         2*z_channels if double_z else z_channels,
                                         kernel_size=3,
                                         stride=1,
@@ -541,7 +543,7 @@ class Decoder(nn.Module):
     def __init__(self, *, ch, out_ch, ch_mult=(1,2,4,8), num_res_blocks,
                  attn_resolutions, dropout=0.0, resamp_with_conv=True, in_channels,
                  resolution, z_channels, give_pre_end=False, tanh_out=False, use_linear_attn=False,
-                 conv_out_op=comfy.ops.Conv2d,
+                 conv_out_op=ops.Conv2d,
                  resnet_op=ResnetBlock,
                  attn_op=AttnBlock,
                 **ignorekwargs):
@@ -561,11 +563,11 @@ class Decoder(nn.Module):
         block_in = ch*ch_mult[self.num_resolutions-1]
         curr_res = resolution // 2**(self.num_resolutions-1)
         self.z_shape = (1,z_channels,curr_res,curr_res)
-        print("Working with z of shape {} = {} dimensions.".format(
+        logging.debug("Working with z of shape {} = {} dimensions.".format(
             self.z_shape, np.prod(self.z_shape)))
 
         # z to block_in
-        self.conv_in = comfy.ops.Conv2d(z_channels,
+        self.conv_in = ops.Conv2d(z_channels,
                                        block_in,
                                        kernel_size=3,
                                        stride=1,

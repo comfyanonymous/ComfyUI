@@ -14,6 +14,7 @@ import torch
 from torch import Tensor
 from torch.utils.checkpoint import checkpoint
 import math
+import logging
 
 try:
 	from typing import Optional, NamedTuple, List, Protocol
@@ -61,6 +62,7 @@ def _summarize_chunk(
     value: Tensor,
     scale: float,
     upcast_attention: bool,
+    mask,
 ) -> AttnChunk:
     if upcast_attention:
         with torch.autocast(enabled=False, device_type = 'cuda'):
@@ -84,6 +86,8 @@ def _summarize_chunk(
     max_score, _ = torch.max(attn_weights, -1, keepdim=True)
     max_score = max_score.detach()
     attn_weights -= max_score
+    if mask is not None:
+        attn_weights += mask
     torch.exp(attn_weights, out=attn_weights)
     exp_weights = attn_weights.to(value.dtype)
     exp_values = torch.bmm(exp_weights, value)
@@ -96,11 +100,12 @@ def _query_chunk_attention(
     value: Tensor,
     summarize_chunk: SummarizeChunk,
     kv_chunk_size: int,
+    mask,
 ) -> Tensor:
     batch_x_heads, k_channels_per_head, k_tokens = key_t.shape
     _, _, v_channels_per_head = value.shape
 
-    def chunk_scanner(chunk_idx: int) -> AttnChunk:
+    def chunk_scanner(chunk_idx: int, mask) -> AttnChunk:
         key_chunk = dynamic_slice(
             key_t,
             (0, 0, chunk_idx),
@@ -111,10 +116,13 @@ def _query_chunk_attention(
             (0, chunk_idx, 0),
             (batch_x_heads, kv_chunk_size, v_channels_per_head)
         )
-        return summarize_chunk(query, key_chunk, value_chunk)
+        if mask is not None:
+            mask = mask[:,:,chunk_idx:chunk_idx + kv_chunk_size]
+
+        return summarize_chunk(query, key_chunk, value_chunk, mask=mask)
 
     chunks: List[AttnChunk] = [
-        chunk_scanner(chunk) for chunk in torch.arange(0, k_tokens, kv_chunk_size)
+        chunk_scanner(chunk, mask) for chunk in torch.arange(0, k_tokens, kv_chunk_size)
     ]
     acc_chunk = AttnChunk(*map(torch.stack, zip(*chunks)))
     chunk_values, chunk_weights, chunk_max = acc_chunk
@@ -135,6 +143,7 @@ def _get_attention_scores_no_kv_chunking(
     value: Tensor,
     scale: float,
     upcast_attention: bool,
+    mask,
 ) -> Tensor:
     if upcast_attention:
         with torch.autocast(enabled=False, device_type = 'cuda'):
@@ -156,11 +165,13 @@ def _get_attention_scores_no_kv_chunking(
             beta=0,
         )
 
+    if mask is not None:
+        attn_scores += mask
     try:
         attn_probs = attn_scores.softmax(dim=-1)
         del attn_scores
     except model_management.OOM_EXCEPTION:
-        print("ran out of memory while running softmax in  _get_attention_scores_no_kv_chunking, trying slower in place softmax instead")
+        logging.warning("ran out of memory while running softmax in  _get_attention_scores_no_kv_chunking, trying slower in place softmax instead")
         attn_scores -= attn_scores.max(dim=-1, keepdim=True).values
         torch.exp(attn_scores, out=attn_scores)
         summed = torch.sum(attn_scores, dim=-1, keepdim=True)
@@ -183,6 +194,7 @@ def efficient_dot_product_attention(
     kv_chunk_size_min: Optional[int] = None,
     use_checkpoint=True,
     upcast_attention=False,
+    mask = None,
 ):
     """Computes efficient dot-product attention given query, transposed key, and value.
       This is efficient version of attention presented in
@@ -209,13 +221,22 @@ def efficient_dot_product_attention(
     if kv_chunk_size_min is not None:
         kv_chunk_size = max(kv_chunk_size, kv_chunk_size_min)
 
+    if mask is not None and len(mask.shape) == 2:
+        mask = mask.unsqueeze(0)
+
     def get_query_chunk(chunk_idx: int) -> Tensor:
         return dynamic_slice(
             query,
             (0, chunk_idx, 0),
             (batch_x_heads, min(query_chunk_size, q_tokens), q_channels_per_head)
         )
-    
+
+    def get_mask_chunk(chunk_idx: int) -> Tensor:
+        if mask is None:
+            return None
+        chunk = min(query_chunk_size, q_tokens)
+        return mask[:,chunk_idx:chunk_idx + chunk]
+
     summarize_chunk: SummarizeChunk = partial(_summarize_chunk, scale=scale, upcast_attention=upcast_attention)
     summarize_chunk: SummarizeChunk = partial(checkpoint, summarize_chunk) if use_checkpoint else summarize_chunk
     compute_query_chunk_attn: ComputeQueryChunkAttn = partial(
@@ -237,6 +258,7 @@ def efficient_dot_product_attention(
             query=query,
             key_t=key_t,
             value=value,
+            mask=mask,
         )
     
     # TODO: maybe we should use torch.empty_like(query) to allocate storage in-advance,
@@ -246,6 +268,7 @@ def efficient_dot_product_attention(
             query=get_query_chunk(i * query_chunk_size),
             key_t=key_t,
             value=value,
+            mask=get_mask_chunk(i * query_chunk_size)
         ) for i in range(math.ceil(q_tokens / query_chunk_size))
     ], dim=1)
     return res

@@ -55,12 +55,18 @@ fp_group = parser.add_mutually_exclusive_group()
 fp_group.add_argument("--force-fp32", action="store_true", help="Force fp32 (If this makes your GPU work better please report it).")
 fp_group.add_argument("--force-fp16", action="store_true", help="Force fp16.")
 
-parser.add_argument("--bf16-unet", action="store_true", help="Run the UNET in bf16. This should only be used for testing stuff.")
+fpunet_group = parser.add_mutually_exclusive_group()
+fpunet_group.add_argument("--bf16-unet", action="store_true", help="Run the UNET in bf16. This should only be used for testing stuff.")
+fpunet_group.add_argument("--fp16-unet", action="store_true", help="Store unet weights in fp16.")
+fpunet_group.add_argument("--fp8_e4m3fn-unet", action="store_true", help="Store unet weights in fp8_e4m3fn.")
+fpunet_group.add_argument("--fp8_e5m2-unet", action="store_true", help="Store unet weights in fp8_e5m2.")
 
 fpvae_group = parser.add_mutually_exclusive_group()
 fpvae_group.add_argument("--fp16-vae", action="store_true", help="Run the VAE in fp16, might cause black images.")
 fpvae_group.add_argument("--fp32-vae", action="store_true", help="Run the VAE in full precision fp32.")
 fpvae_group.add_argument("--bf16-vae", action="store_true", help="Run the VAE in bf16.")
+
+parser.add_argument("--cpu-vae", action="store_true", help="Run the VAE on the CPU.")
 
 fpte_group = parser.add_mutually_exclusive_group()
 fpte_group.add_argument("--fp8_e4m3fn-text-enc", action="store_true", help="Store text encoder weights in fp8 (e4m3fn variant).")
@@ -98,13 +104,18 @@ vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for e
 
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
-
+parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
 parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
+
+parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
+
+parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
+
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
@@ -116,3 +127,10 @@ if args.windows_standalone_build:
 
 if args.disable_auto_launch:
     args.auto_launch = False
+
+import logging
+logging_level = logging.INFO
+if args.verbose:
+    logging_level = logging.DEBUG
+
+logging.basicConfig(format="%(message)s", level=logging_level)

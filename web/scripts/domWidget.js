@@ -120,6 +120,8 @@ function computeSize(size) {
 		freeSpace -= 220;
 	}
 
+	this.freeWidgetSpace = freeSpace;
+
 	if (freeSpace < 0) {
 		// Not enough space for all widgets so we need to grow
 		size[1] -= freeSpace;
@@ -175,6 +177,7 @@ LGraphCanvas.prototype.computeVisibleNodes = function () {
 			for (const w of node.widgets) {
 				if (w.element) {
 					w.element.hidden = hidden;
+					w.element.style.display = hidden ? "none" : undefined;
 					if (hidden) {
 						w.options.onHide?.(w);
 					}
@@ -236,7 +239,8 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 				node.flags?.collapsed ||
 				(!!options.hideOnZoom && app.canvas.ds.scale < 0.5) ||
 				widget.computedHeight <= 0 ||
-				widget.type === "converted-widget";
+				widget.type === "converted-widget"||
+				widget.type === "hidden";
 			element.hidden = hidden;
 			element.style.display = hidden ? "none" : null;
 			if (hidden) {

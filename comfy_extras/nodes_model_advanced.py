@@ -1,6 +1,7 @@
 import folder_paths
 import comfy.sd
 import comfy.model_sampling
+import comfy.latent_formats
 import torch
 
 class LCM(comfy.model_sampling.EPS):
@@ -17,41 +18,23 @@ class LCM(comfy.model_sampling.EPS):
 
         return c_out * x0 + c_skip * model_input
 
-class ModelSamplingDiscreteDistilled(torch.nn.Module):
+class X0(comfy.model_sampling.EPS):
+    def calculate_denoised(self, sigma, model_output, model_input):
+        return model_output
+
+class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
 
-    def __init__(self):
-        super().__init__()
-        self.sigma_data = 1.0
-        timesteps = 1000
-        beta_start = 0.00085
-        beta_end = 0.012
+    def __init__(self, model_config=None):
+        super().__init__(model_config)
 
-        betas = torch.linspace(beta_start**0.5, beta_end**0.5, timesteps, dtype=torch.float32) ** 2
-        alphas = 1.0 - betas
-        alphas_cumprod = torch.cumprod(alphas, dim=0)
+        self.skip_steps = self.num_timesteps // self.original_timesteps
 
-        self.skip_steps = timesteps // self.original_timesteps
-
-
-        alphas_cumprod_valid = torch.zeros((self.original_timesteps), dtype=torch.float32)
+        sigmas_valid = torch.zeros((self.original_timesteps), dtype=torch.float32)
         for x in range(self.original_timesteps):
-            alphas_cumprod_valid[self.original_timesteps - 1 - x] = alphas_cumprod[timesteps - 1 - x * self.skip_steps]
+            sigmas_valid[self.original_timesteps - 1 - x] = self.sigmas[self.num_timesteps - 1 - x * self.skip_steps]
 
-        sigmas = ((1 - alphas_cumprod_valid) / alphas_cumprod_valid) ** 0.5
-        self.set_sigmas(sigmas)
-
-    def set_sigmas(self, sigmas):
-        self.register_buffer('sigmas', sigmas)
-        self.register_buffer('log_sigmas', sigmas.log())
-
-    @property
-    def sigma_min(self):
-        return self.sigmas[0]
-
-    @property
-    def sigma_max(self):
-        return self.sigmas[-1]
+        self.set_sigmas(sigmas_valid)
 
     def timestep(self, sigma):
         log_sigma = sigma.log()
@@ -65,14 +48,6 @@ class ModelSamplingDiscreteDistilled(torch.nn.Module):
         w = t.frac()
         log_sigma = (1 - w) * self.log_sigmas[low_idx] + w * self.log_sigmas[high_idx]
         return log_sigma.exp().to(timestep.device)
-
-    def percent_to_sigma(self, percent):
-        if percent <= 0.0:
-            return 999999999.9
-        if percent >= 1.0:
-            return 0.0
-        percent = 1.0 - percent
-        return self.sigma(torch.tensor(percent * 999.0)).item()
 
 
 def rescale_zero_terminal_snr_sigmas(sigmas):
@@ -98,7 +73,7 @@ class ModelSamplingDiscrete:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["eps", "v_prediction", "lcm"],),
+                              "sampling": (["eps", "v_prediction", "lcm", "x0"],),
                               "zsnr": ("BOOLEAN", {"default": False}),
                               }}
 
@@ -118,14 +93,42 @@ class ModelSamplingDiscrete:
         elif sampling == "lcm":
             sampling_type = LCM
             sampling_base = ModelSamplingDiscreteDistilled
+        elif sampling == "x0":
+            sampling_type = X0
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
 
-        model_sampling = ModelSamplingAdvanced()
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
         if zsnr:
             model_sampling.set_sigmas(rescale_zero_terminal_snr_sigmas(model_sampling.sigmas))
 
+        m.add_object_patch("model_sampling", model_sampling)
+        return (m, )
+
+class ModelSamplingStableCascade:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "shift": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 100.0, "step":0.01}),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/model"
+
+    def patch(self, model, shift):
+        m = model.clone()
+
+        sampling_base = comfy.model_sampling.StableCascadeSampling
+        sampling_type = comfy.model_sampling.EPS
+
+        class ModelSamplingAdvanced(sampling_base, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_parameters(shift)
         m.add_object_patch("model_sampling", model_sampling)
         return (m, )
 
@@ -133,7 +136,7 @@ class ModelSamplingContinuousEDM:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["v_prediction", "eps"],),
+                              "sampling": (["v_prediction", "edm_playground_v2.5", "eps"],),
                               "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               }}
@@ -146,17 +149,25 @@ class ModelSamplingContinuousEDM:
     def patch(self, model, sampling, sigma_max, sigma_min):
         m = model.clone()
 
+        latent_format = None
+        sigma_data = 1.0
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
         elif sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
+        elif sampling == "edm_playground_v2.5":
+            sampling_type = comfy.model_sampling.EDM
+            sigma_data = 0.5
+            latent_format = comfy.latent_formats.SDXL_Playground_2_5()
 
         class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousEDM, sampling_type):
             pass
 
-        model_sampling = ModelSamplingAdvanced()
-        model_sampling.set_sigma_range(sigma_min, sigma_max)
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_parameters(sigma_min, sigma_max, sigma_data)
         m.add_object_patch("model_sampling", model_sampling)
+        if latent_format is not None:
+            m.add_object_patch("latent_format", latent_format)
         return (m, )
 
 class RescaleCFG:
@@ -201,5 +212,6 @@ class RescaleCFG:
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
+    "ModelSamplingStableCascade": ModelSamplingStableCascade,
     "RescaleCFG": RescaleCFG,
 }

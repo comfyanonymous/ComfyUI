@@ -1,4 +1,5 @@
 import { app } from "../../scripts/app.js";
+import { api } from "../../scripts/api.js"
 
 const MAX_HISTORY = 50;
 
@@ -15,6 +16,7 @@ function checkState() {
 		}
 		activeState = clone(currentState);
 		redo.length = 0;
+		api.dispatchEvent(new CustomEvent("graphChanged", { detail: activeState }));
 	}
 }
 
@@ -71,31 +73,28 @@ function graphEqual(a, b, root = true) {
 }
 
 const undoRedo = async (e) => {
+	const updateState = async (source, target) => {
+		const prevState = source.pop();
+		if (prevState) {
+			target.push(activeState);
+			isOurLoad = true;
+			await app.loadGraphData(prevState, false);
+			activeState = prevState;
+		}
+	}
 	if (e.ctrlKey || e.metaKey) {
 		if (e.key === "y") {
-			const prevState = redo.pop();
-			if (prevState) {
-				undo.push(activeState);
-				isOurLoad = true;
-				await app.loadGraphData(prevState);
-				activeState = prevState;
-			}
+			updateState(redo, undo);
 			return true;
 		} else if (e.key === "z") {
-			const prevState = undo.pop();
-			if (prevState) {
-				redo.push(activeState);
-				isOurLoad = true;
-				await app.loadGraphData(prevState);
-				activeState = prevState;
-			}
+			updateState(undo, redo);
 			return true;
 		}
 	}
 };
 
 const bindInput = (activeEl) => {
-	if (activeEl?.tagName !== "CANVAS" && activeEl?.tagName !== "BODY") {
+	if (activeEl && activeEl.tagName !== "CANVAS" && activeEl.tagName !== "BODY") {
 		for (const evt of ["change", "input", "blur"]) {
 			if (`on${evt}` in activeEl) {
 				const listener = () => {
@@ -109,15 +108,23 @@ const bindInput = (activeEl) => {
 	}
 };
 
+let keyIgnored = false;
 window.addEventListener(
 	"keydown",
 	(e) => {
 		requestAnimationFrame(async () => {
-			const activeEl = document.activeElement;
-			if (activeEl?.tagName === "INPUT" || activeEl?.type === "textarea") {
-				// Ignore events on inputs, they have their native history
-				return;
+			let activeEl;
+			// If we are auto queue in change mode then we do want to trigger on inputs
+			if (!app.ui.autoQueueEnabled || app.ui.autoQueueMode === "instant") {
+				activeEl = document.activeElement;
+				if (activeEl?.tagName === "INPUT" || activeEl?.type === "textarea") {
+					// Ignore events on inputs, they have their native history
+					return;
+				}
 			}
+		
+			keyIgnored = e.key === "Control" || e.key === "Shift" || e.key === "Alt" || e.key === "Meta";
+			if (keyIgnored) return;
 
 			// Check if this is a ctrl+z ctrl+y
 			if (await undoRedo(e)) return;
@@ -130,8 +137,20 @@ window.addEventListener(
 	true
 );
 
+window.addEventListener("keyup", (e) => {
+	if (keyIgnored) {
+		keyIgnored = false;
+		checkState();
+	}
+});
+
 // Handle clicking DOM elements (e.g. widgets)
 window.addEventListener("mouseup", () => {
+	checkState();
+});
+
+// Handle prompt queue event for dynamic widget changes
+api.addEventListener("promptQueued", () => {
 	checkState();
 });
 
@@ -148,3 +167,11 @@ LGraphCanvas.prototype.processMouseDown = function (e) {
 	checkState();
 	return v;
 };
+
+// Handle litegraph context menu for COMBO widgets
+const close = LiteGraph.ContextMenu.prototype.close;
+LiteGraph.ContextMenu.prototype.close = function(e) {
+	const v = close.apply(this, arguments);
+	checkState();
+	return v;
+}
