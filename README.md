@@ -140,11 +140,24 @@ After this you should have everything installed and can proceed to running Comfy
 You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
 
 1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
-1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
-1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
-1. Launch ComfyUI by running `python main.py --force-fp16`. Note that --force-fp16 will only work if you installed the latest pytorch nightly.
+2. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
+3. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
+4. Launch ComfyUI by running `python main.py --force-fp16`. Note that --force-fp16 will only work if you installed the latest pytorch nightly.
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
+
+#### Apple Mac Intel
+
+You can install ComfyUI in Apple Mac Intel with any recent macIS version.
+
+1. Install pytorch nightly. Go to pytorch.org and select your settings (Nightly(preview), MAC, Pip, Python, Default)
+```pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cpu```
+2. Install the dependencies by opening your terminal inside the ComfyUI folder and:
+```pip install -r requirements.txt```
+3. Launch ComfyUI by running `python3 main.py --use-split-cross-attention --force-fp16`. Note that --force-fp16 will only work if you installed the latest pytorch nightly.
+
+> **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
+
 
 #### DirectML (AMD Cards on Windows)
 
