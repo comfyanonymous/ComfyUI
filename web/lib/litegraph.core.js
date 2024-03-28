@@ -3663,13 +3663,31 @@
     LGraphNode.prototype.inResizeCorner = function(canvasX, canvasY) {
         var rows = this.outputs ? this.outputs.length : 1;
         var outputs_offset = (this.constructor.slot_start_y || 0) + rows * LiteGraph.NODE_SLOT_HEIGHT;
-        return isInsideRectangle(canvasX,
-            canvasY,
-            this.pos[0] + this.size[0] - 15,
-            this.pos[1] + Math.max(this.size[1] - 15, outputs_offset),
-            20,
-            20
-        );
+        
+        var inrc = false;
+        var c = 0;
+        var m = [
+            // bottom right
+            [this.pos[0] + this.size[0] - 15, this.pos[1] + Math.max(this.size[1] - 15, outputs_offset)],
+            // bottom left
+            [this.pos[0] - 5, this.pos[1] + Math.max(this.size[1] - 15, outputs_offset)],
+            // top left
+            [this.pos[0] - 5, this.pos[1] - LiteGraph.NODE_TITLE_HEIGHT - 5],
+            // top right
+            [this.pos[0] + this.size[0] - 15, this.pos[1] - LiteGraph.NODE_TITLE_HEIGHT - 5]
+        ];
+        
+        while (c < m.length && true != inrc) {
+            inrc = inrc || isInsideRectangle(canvasX, canvasY, m[c][0], m[c][1], 20, 20);
+            c += 1;
+        }
+        
+        return inrc;
+    }
+    
+    LGraphNode.prototype.setResizeHandle = function(canvasX, canvasY) {
+        this.resize_handle_x = (this.size[0] / 2.0 > canvasX - this.pos[0]) ? 'left' : 'right';
+        this.resize_handle_y = (this.size[1] / 2.0 > canvasY - this.pos[1]) ? 'top' : 'bottom';
     }
 
     /**
@@ -5959,6 +5977,7 @@ LGraphNode.prototype.executeAction = function(action)
                     ) {
 						this.graph.beforeChange();
                         this.resizing_node = node;
+                        this.resizing_node.setResizeHandle(e.canvasX, e.canvasY);
                         this.canvas.style.cursor = "se-resize";
                         skip_action = true;
                     } else {
@@ -6564,10 +6583,35 @@ LGraphNode.prototype.executeAction = function(action)
 
             if (this.resizing_node && !this.live_mode) {
                 //convert mouse to node space
-				var desired_size = [ e.canvasX - this.resizing_node.pos[0], e.canvasY - this.resizing_node.pos[1] ];
+				var desired_size = [ 0, 0 ];
 				var min_size = this.resizing_node.computeSize();
-				desired_size[0] = Math.max( min_size[0], desired_size[0] );
-				desired_size[1] = Math.max( min_size[1], desired_size[1] );
+				var move_node = true;
+				
+				desired_size[0] = Math.max( 
+					min_size[0], 
+					this.resizing_node.resize_handle_x == 'left' ? 
+						- e.canvasX + this.resizing_node.pos[0] + this.resizing_node.size[0]: 
+						e.canvasX - this.resizing_node.pos[0] 
+				);
+				desired_size[1] = Math.max( 
+					min_size[1], 
+					this.resizing_node.resize_handle_y == 'top'  ? 
+						- e.canvasY + this.resizing_node.pos[1] + this.resizing_node.size[1] - LiteGraph.NODE_TITLE_HEIGHT: 
+						e.canvasY - this.resizing_node.pos[1] 
+				);
+				
+				if (this.resizing_node.resize_handle_x == 'left' && desired_size[0] != this.resizing_node.size[0]) {
+					this.resizing_node.pos[0] = e.canvasX;
+					move_node = true;
+				}
+				if (this.resizing_node.resize_handle_y == 'top' && desired_size[1] != this.resizing_node.size[1]) {
+					this.resizing_node.pos[1] = e.canvasY + LiteGraph.NODE_TITLE_HEIGHT;
+					move_node = true;
+				}
+				
+				if (move_node) {
+					this.processNodeSelected(this.resizing_node, e);
+				}
 				this.resizing_node.setSize( desired_size );
 
                 this.canvas.style.cursor = "se-resize";
