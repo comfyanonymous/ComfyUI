@@ -1,12 +1,12 @@
 import nodes
 import folder_paths
 from comfy.cli_args import args
+import comfy.utils
 
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 import numpy as np
-import json
 import os
 
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
@@ -109,11 +109,11 @@ class SaveAnimatedWEBP:
         metadata = pil_images[0].getexif()
         if not args.disable_metadata:
             if prompt is not None:
-                metadata[0x0110] = "prompt:{}".format(json.dumps(prompt))
+                metadata[0x0110] = "prompt:{}".format(comfy.utils.dump_json(prompt))
             if extra_pnginfo is not None:
                 inital_exif = 0x010f
                 for x in extra_pnginfo:
-                    metadata[inital_exif] = "{}:{}".format(x, json.dumps(extra_pnginfo[x]))
+                    metadata[inital_exif] = "{}:{}".format(x, comfy.utils.dump_json(extra_pnginfo[x]))
                     inital_exif -= 1
 
         if num_frames == 0:
@@ -171,10 +171,10 @@ class SaveAnimatedPNG:
         if not args.disable_metadata:
             metadata = PngInfo()
             if prompt is not None:
-                metadata.add(b"comf", "prompt".encode("latin-1", "strict") + b"\0" + json.dumps(prompt).encode("latin-1", "strict"), after_idat=True)
+                metadata.add(b"comf", "prompt".encode("latin-1", "strict") + b"\0" + comfy.utils.dump_json(prompt).encode("latin-1", "strict"), after_idat=True)
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
-                    metadata.add(b"comf", x.encode("latin-1", "strict") + b"\0" + json.dumps(extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True)
+                    metadata.add(b"comf", x.encode("latin-1", "strict") + b"\0" + comfy.utils.dump_json(extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True)
 
         file = f"{filename}_{counter:05}_.png"
         pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])

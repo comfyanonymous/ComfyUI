@@ -6,6 +6,14 @@ import safetensors.torch
 import numpy as np
 from PIL import Image
 import logging
+import json
+
+
+def dump_json(data):
+    # Roundtrip once to get rid of NaN, Infinity and -Infinity
+    good_data = json.loads(json.dumps(data), parse_constant=lambda x: None)
+    return json.dumps(good_data, allow_nan=False)
+
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:

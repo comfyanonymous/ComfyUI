@@ -4,7 +4,6 @@ import comfy.model_base
 import comfy.model_management
 
 import folder_paths
-import json
 import os
 
 from comfy.cli_args import args
@@ -167,7 +166,7 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir)
     prompt_info = ""
     if prompt is not None:
-        prompt_info = json.dumps(prompt)
+        prompt_info = comfy.utils.dump_json(prompt)
 
     metadata = {}
 
@@ -198,7 +197,7 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
         metadata["prompt"] = prompt_info
         if extra_pnginfo is not None:
             for x in extra_pnginfo:
-                metadata[x] = json.dumps(extra_pnginfo[x])
+                metadata[x] = comfy.utils.dump_json(extra_pnginfo[x])
 
     output_checkpoint = f"{filename}_{counter:05}_.safetensors"
     output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
@@ -244,14 +243,14 @@ class CLIPSave:
     def save(self, clip, filename_prefix, prompt=None, extra_pnginfo=None):
         prompt_info = ""
         if prompt is not None:
-            prompt_info = json.dumps(prompt)
+            prompt_info = comfy.utils.dump_json(prompt)
 
         metadata = {}
         if not args.disable_metadata:
             metadata["prompt"] = prompt_info
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
-                    metadata[x] = json.dumps(extra_pnginfo[x])
+                    metadata[x] = comfy.utils.dump_json(extra_pnginfo[x])
 
         comfy.model_management.load_models_gpu([clip.load_model()])
         clip_sd = clip.get_sd()
@@ -301,14 +300,14 @@ class VAESave:
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         prompt_info = ""
         if prompt is not None:
-            prompt_info = json.dumps(prompt)
+            prompt_info = comfy.utils.dump_json(prompt)
 
         metadata = {}
         if not args.disable_metadata:
             metadata["prompt"] = prompt_info
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
-                    metadata[x] = json.dumps(extra_pnginfo[x])
+                    metadata[x] = comfy.utils.dump_json(extra_pnginfo[x])
 
         output_checkpoint = f"{filename}_{counter:05}_.safetensors"
         output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
