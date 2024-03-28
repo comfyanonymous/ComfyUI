@@ -70,8 +70,8 @@ class SD20(supported_models_base.BASE):
     def model_type(self, state_dict, prefix=""):
         if self.unet_config["in_channels"] == 4: #SD2.0 inpainting models are not v prediction
             k = "{}output_blocks.11.1.transformer_blocks.0.norm1.bias".format(prefix)
-            out = state_dict[k]
-            if torch.std(out, unbiased=False) > 0.09: # not sure how well this will actually work. I guess we will find out.
+            out = state_dict.get(k, None)
+            if out is not None and torch.std(out, unbiased=False) > 0.09: # not sure how well this will actually work. I guess we will find out.
                 return model_base.ModelType.V_PREDICTION
         return model_base.ModelType.EPS
 
