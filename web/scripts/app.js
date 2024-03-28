@@ -1578,15 +1578,16 @@ export class ComfyApp {
 
 					let widgetCreated = true;
 					const widgetType = self.getWidgetType(inputData, inputName);
+					const inputDisplayName = inputData?.[1]?.display_name || inputName;
 					if(widgetType) {
 						if(widgetType === "COMBO") {
-							Object.assign(config, self.widgets.COMBO(this, inputName, inputData, app) || {});
+							Object.assign(config, self.widgets.COMBO(this, inputDisplayName, inputData, app) || {});
 						} else {
-							Object.assign(config, self.widgets[widgetType](this, inputName, inputData, app) || {});
+							Object.assign(config, self.widgets[widgetType](this, inputDisplayName, inputData, app) || {});
 						}
 					} else {
 						// Node connection inputs
-						this.addInput(inputName, type);
+						this.addInput(inputDisplayName, type);
 						widgetCreated = false;
 					}
 
