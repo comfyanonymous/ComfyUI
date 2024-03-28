@@ -1,0 +1,101 @@
+name: Build and publish Docker images
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*.*.*"
+  pull_request:
+    branches:
+      - "main"
+
+jobs:
+  docker:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: cu118
+            name: CUDA 11.8
+            pytorch_install_args: "--index-url https://download.pytorch.org/whl/cu118"
+          - id: cu121
+            name: CUDA 12.1
+            pytorch_install_args: "--index-url https://download.pytorch.org/whl/cu121"
+          - id: rocm5.7
+            name: ROCm 5.7
+            pytorch_install_args: "--index-url https://download.pytorch.org/whl/rocm5.7"
+          - id: rocm6.0-nightly
+            name: ROCm 6.0 (nightly)
+            pytorch_install_args: "--pre --index-url https://download.pytorch.org/whl/nightly/rocm6.0"
+          - id: cpu
+            name: CPU only
+            pytorch_install_args: "--index-url https://download.pytorch.org/whl/cpu"
+            extra_args: --cpu
+
+
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check which repositories to use
+        id: repositories
+        run: |
+          echo "GHCR_IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER}/comfyui" >> "$GITHUB_ENV"
+          if [[ -n "${DOCKERHUB_USERNAME}" ]]; then
+            echo "DOCKERHUB_IMAGE_NAME=${DOCKERHUB_USERNAME}/comfyui" >> "$GITHUB_ENV"
+          else
+            echo "DOCKERHUB_IMAGE_NAME=" >> "$GITHUB_ENV"
+            echo "No Docker Hub username set, only deploying to GitHub Container Repository"
+          fi
+        env:
+            DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+            GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # list of Docker images to use as base name for tags
+          images: |
+            ${{ env.DOCKERHUB_IMAGE_NAME }}
+            ${{ env.GHCR_IMAGE_NAME }}
+          flavor: |
+            suffix=-${{ matrix.id }},onlatest=true
+          # generate Docker tags based on the following events/attributes
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            # set latest tag for default branch
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request' && env.DOCKERHUB_IMAGE_NAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PYTORCH_INSTALL_ARGS=${{ matrix.pytorch_install_args }}
+            EXTRA_ARGS=${{ matrix.extra_args }}
+          cache-from: type=gha,scope=${{ github.ref_name }}-${{ matrix.id }}
+          cache-to: type=gha,mode=max,scope=${{ github.ref_name }}-${{ matrix.id }}
