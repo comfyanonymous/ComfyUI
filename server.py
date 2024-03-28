@@ -38,6 +38,10 @@ async def send_socket_catch_exception(function, message):
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
+    # arbitrary file read vulnerability
+    if ".." in str(request.raw_path):
+        raise Exception("request path is invliad")
+    
     response: web.Response = await handler(request)
     if request.path.endswith('.js') or request.path.endswith('.css'):
         response.headers.setdefault('Cache-Control', 'no-cache')
