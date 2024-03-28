@@ -16,3 +16,4 @@ venv/
 !/web/extensions/core/
 /tests-ui/data/object_info.json
 /user/
+node_cache_config.yaml

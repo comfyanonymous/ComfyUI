@@ -1,3 +1,4 @@
+from contextlib import suppress
 import torch
 import math
 import struct
@@ -6,6 +7,10 @@ import safetensors.torch
 import numpy as np
 from PIL import Image
 import logging
+
+from cachetools import LRUCache, cachedmethod, keys
+from threading import Lock
+
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -481,3 +486,64 @@ class ProgressBar:
 
     def update(self, value):
         self.update_absolute(self.current + value)
+
+
+# Defualt cache size is 1, which is compatible with previous versions.
+DEFAULT_CACHE_SIZE = 1
+ENTRY_POINT_METHOD = "FUNCTION" # node entry point method name
+
+class BaseCachedNode(type):
+    """Metaclass for cached node: Used to add a class-level LRU cache to each class that uses this.
+
+    usage:
+    ```python
+    class NodeExample(metaclass=BaseCachedNode):
+        ...
+    # or
+    class NodeExampleSubclass(SomeBaseClass, metaclass=BaseCachedNode):
+        ...
+    ```
+
+    NOTE: Make sure that every args and kwargs of FUNCTION(entry point method) is hashable
+    """
+
+    def __new__(cls, name: str, bases: tuple, dct: dict):
+        def find_attr(name: str):
+            # find in attribute dict of the class to be created
+            attr = dct.get(name, None)
+            if attr:
+                return attr
+
+            # find in base class
+            for b in bases:
+                attr = getattr(b, name, None)
+                if attr:
+                    return attr
+            raise TypeError(f"No attribute {name} defined in class or it's baseclass")
+
+        fn_name = find_attr(ENTRY_POINT_METHOD)
+        fn = find_attr(fn_name)
+
+        key_fn = keys.methodkey
+        with suppress(Exception):
+            is_change_fn = find_attr("IS_CHANGED").__func__
+
+            def kf(self, *args, **kwargs):
+                return keys.hashkey(is_change_fn(self, *args, **kwargs))
+
+            key_fn = kf
+
+        from comfy.cli_args import args
+
+        maxsize = args.node_cache_config.get(name, DEFAULT_CACHE_SIZE)
+        dct["__node_cache__"] = LRUCache(maxsize)
+        dct["__node_cache_lock__"] = Lock()
+
+        # Set entry-point method
+        dct[ENTRY_POINT_METHOD] = fn_name
+        # Add cache decorator to entry-point method
+        dct[fn_name] = cachedmethod(
+            lambda self: self.__node_cache__, key=key_fn, lock=lambda self: self.__node_cache_lock__
+        )(fn)
+        logging.debug(f"decorator <class {name}> <FUNCTION {fn_name}> with cache<size: {maxsize}>")
+        return super().__new__(cls, name, bases, dct)
