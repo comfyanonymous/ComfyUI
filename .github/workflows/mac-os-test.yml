@@ -1,5 +1,5 @@
 name: Test ComfyUI Mac Action
-on: [push]
+on: [push, workflow_dispatch]
 
 jobs:
   test-action:
