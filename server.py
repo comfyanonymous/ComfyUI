@@ -245,6 +245,36 @@ class PromptServer():
 
             return image_upload(post, image_save_function)
 
+        @routes.get("/list-directory")
+        async def list_directory(request):
+            # Get the directory type (input, output, temp) from query parameters
+            dir_type = request.query.get("type", "").lower()
+
+            # Use the function to get the base directory path based on the type
+            base_dir = folder_paths.get_directory_by_type(dir_type)
+            if base_dir is None:
+                return web.Response(text="Invalid directory type.", status=400)
+
+            # Extract the requested subdirectory from query parameters, if any
+            sub_dir = request.query.get("subdir", "").strip()
+            
+            # Construct the full path ensuring it's within the base directory and avoids directory traversal attacks
+            full_path = os.path.normpath(os.path.join(base_dir, sub_dir))
+            if not os.path.abspath(full_path).startswith(os.path.abspath(base_dir)):
+                return web.Response(text="Access to the requested directory is forbidden.", status=403)
+
+            # Ensure the full path exists and is a directory
+            if not os.path.exists(full_path) or not os.path.isdir(full_path):
+                return web.Response(text="The requested directory does not exist.", status=404)
+            
+            # List the contents of the directory or subdirectory
+            try:
+                files = os.listdir(full_path)
+                files_info = [{"name": f, "is_dir": os.path.isdir(os.path.join(full_path, f))} for f in files]
+                return web.json_response(files_info)
+            except Exception as e:
+                return web.Response(text=f"Error listing directory: {str(e)}", status=500)        
+        
         @routes.get("/view")
         async def view_image(request):
             if "filename" in request.rel_url.query:
