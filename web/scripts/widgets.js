@@ -23,7 +23,7 @@ function getNumberDefaults(inputData, defaultStep, precision, enable_rounding) {
 	if (max == undefined) max = 2048;
 	if (step == undefined) step = defaultStep;
 	// precision is the number of decimal places to show.
-	// by default, display the the smallest number of decimal places such that changes of size step are visible.
+	// by default, display the smallest number of decimal places such that changes of size step are visible.
 	if (precision == undefined) {
 		precision = Math.max(-Math.floor(Math.log10(step)),0);
 	}
