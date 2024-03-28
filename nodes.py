@@ -1066,7 +1066,7 @@ class LatentFromBatch:
         else:
             s["batch_index"] = samples["batch_index"][batch_index:batch_index + length]
         return (s,)
-    
+
 class RepeatLatentBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -1081,7 +1081,7 @@ class RepeatLatentBatch:
     def repeat(self, samples, amount):
         s = samples.copy()
         s_in = samples["samples"]
-        
+
         s["samples"] = s_in.repeat((amount, 1,1,1))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
@@ -1411,7 +1411,7 @@ class SaveImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": 
+        return {"required":
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
@@ -1477,36 +1477,45 @@ class LoadImage:
 
     CATEGORY = "image"
 
-    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_TYPES = ("IMAGE", "MASK", "IMAGE")
+    RETURN_NAMES = ("IMAGE", "MASK", "RAW")
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
         img = Image.open(image_path)
         output_images = []
         output_masks = []
+        output_raws = []
         for i in ImageSequence.Iterator(img):
             i = ImageOps.exif_transpose(i)
             if i.mode == 'I':
                 i = i.point(lambda i: i * (1 / 255))
+            raw = i.convert("RGBA") if 'A' in i.getbands() else image.copy()
+            raw = np.array(raw).astype(np.float32) / 255.0
+            raw = torch.from_numpy(raw)[None,]
             image = i.convert("RGB")
             image = np.array(image).astype(np.float32) / 255.0
+            size = image.shape[:2]
             image = torch.from_numpy(image)[None,]
             if 'A' in i.getbands():
                 mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
                 mask = 1. - torch.from_numpy(mask)
             else:
-                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+                mask = torch.zeros(size, dtype=torch.float32, device="cpu")
             output_images.append(image)
             output_masks.append(mask.unsqueeze(0))
+            output_raws.append(raw)
 
         if len(output_images) > 1:
             output_image = torch.cat(output_images, dim=0)
             output_mask = torch.cat(output_masks, dim=0)
+            output_mask = torch.cat(output_raws, dim=0)
         else:
             output_image = output_images[0]
             output_mask = output_masks[0]
+            output_raw = output_raws[0]
 
-        return (output_image, output_mask)
+        return (output_image, output_mask, output_raw)
 
     @classmethod
     def IS_CHANGED(s, image):
