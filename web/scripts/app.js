@@ -2082,6 +2082,20 @@ export class ComfyApp {
 		api.dispatchEvent(new CustomEvent("promptQueued", { detail: { number, batchCount } }));
 	}
 
+	async stopPromptGeneration() {
+		await api.interrupt();
+	}
+
+	async clearPromptQueue() {
+		if (this.#processingQueue) {
+			return;
+		}
+
+		this.#processingQueue = true;
+		await api.clearItems("queue").then(() => api.interrupt());
+		this.#processingQueue = false;
+	}
+
 	/**
 	 * Loads workflow data from the specified file
 	 * @param {File} file
