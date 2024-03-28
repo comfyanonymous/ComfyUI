@@ -11,3 +11,4 @@ scipy
 tqdm
 psutil
 kornia>=0.7.1
+spandrel==0.3.1
