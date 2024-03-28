@@ -1,4 +1,5 @@
 import { $el } from "./ui.js";
+import { api } from "./api.js";
 
 // Simple date formatter
 const parts = {
@@ -23,6 +24,19 @@ function formatDate(text, date) {
 		}
 		return text;
 	});
+}
+
+
+export function clone(obj) {
+	try {
+		if (typeof structuredClone !== "undefined") {
+			return structuredClone(obj);
+		}
+	} catch (error) {
+		// structuredClone is stricter than using JSON.parse/stringify so fallback to that
+	}
+
+	return JSON.parse(JSON.stringify(obj));
 }
 
 export function applyTextReplacements(app, value) {
@@ -85,4 +99,58 @@ export async function addStylesheet(urlOrFile, relativeTo) {
 			onerror: rej,
 		});
 	});
+}
+
+/**
+ * @param { string } filename
+ * @param { Blob } blob
+ */
+export function downloadBlob(filename, blob) {
+	const url = URL.createObjectURL(blob);
+	const a = $el("a", {
+		href: url,
+		download: filename,
+		style: { display: "none" },
+		parent: document.body,
+	});
+	a.click();
+	setTimeout(function () {
+		a.remove();
+		window.URL.revokeObjectURL(url);
+	}, 0);
+}
+
+/**
+ * @template T
+ * @param {string} name
+ * @param {T} [defaultValue]
+ * @param {(currentValue: any, previousValue: any)=>void} [onChanged]
+ * @returns {T}
+ */
+export function prop(target, name, defaultValue, onChanged) {
+	let currentValue;
+	Object.defineProperty(target, name, {
+		get() {
+			return currentValue;
+		},
+		set(newValue) {
+			const prevValue = currentValue;
+			currentValue = newValue;
+			onChanged?.(currentValue, prevValue, target, name);
+		},
+	});
+	return defaultValue;
+}
+
+export function getStorageValue(id) {
+	const clientId = api.clientId ?? api.initialClientId;
+	return (clientId && sessionStorage.getItem(`${id}:${clientId}`)) ?? localStorage.getItem(id);
+}
+
+export function setStorageValue(id, value) {
+	const clientId = api.clientId ?? api.initialClientId;
+	if (clientId) {
+		sessionStorage.setItem(`${id}:${clientId}`, value);
+	}
+	localStorage.setItem(id, value);
 }

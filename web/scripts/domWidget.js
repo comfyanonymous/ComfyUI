@@ -33,8 +33,8 @@ function getClipPath(node, element, elRect) {
 		}
 
 		const widgetRect = element.getBoundingClientRect();
-		const clipX = intersection[0] - widgetRect.x / scale + "px";
-		const clipY = intersection[1] - widgetRect.y / scale + "px";
+		const clipX = elRect.left + intersection[0] - widgetRect.x / scale + "px";
+		const clipY = elRect.top + intersection[1] - widgetRect.y / scale + "px";
 		const clipWidth = intersection[2] + "px";
 		const clipHeight = intersection[3] + "px";
 		const path = `polygon(0% 0%, 0% 100%, ${clipX} 100%, ${clipX} ${clipY}, calc(${clipX} + ${clipWidth}) ${clipY}, calc(${clipX} + ${clipWidth}) calc(${clipY} + ${clipHeight}), ${clipX} calc(${clipY} + ${clipHeight}), ${clipX} 100%, 100% 100%, 100% 0%)`;
@@ -209,7 +209,9 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 	if (!element.parentElement) {
 		document.body.append(element);
 	}
-
+	element.hidden = true;
+	element.style.display = "none";
+	
 	let mouseDownHandler;
 	if (element.blur) {
 		mouseDownHandler = (event) => {
@@ -253,15 +255,15 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 			const transform = new DOMMatrix()
 				.scaleSelf(elRect.width / ctx.canvas.width, elRect.height / ctx.canvas.height)
 				.multiplySelf(ctx.getTransform())
-				.translateSelf(margin, margin + y);
+				.translateSelf(margin, margin + y );
 
 			const scale = new DOMMatrix().scaleSelf(transform.a, transform.d);
 
 			Object.assign(element.style, {
 				transformOrigin: "0 0",
 				transform: scale,
-				left: `${transform.a + transform.e}px`,
-				top: `${transform.d + transform.f}px`,
+				left: `${transform.a + transform.e + elRect.left}px`,
+				top: `${transform.d + transform.f + elRect.top}px`,
 				width: `${widgetWidth - margin * 2}px`,
 				height: `${(widget.computedHeight ?? 50) - margin * 2}px`,
 				position: "absolute",

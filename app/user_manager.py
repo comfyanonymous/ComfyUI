@@ -2,6 +2,8 @@ import json
 import os
 import re
 import uuid
+import glob
+import shutil
 from aiohttp import web
 from comfy.cli_args import args
 from folder_paths import user_directory
@@ -56,16 +58,16 @@ class UserManager():
         if os.path.commonpath((root_dir, user_root)) != root_dir:
             return None
 
-        parent = user_root
-
         if file is not None:
             # prevent leaving /{type}/{user}
             path = os.path.abspath(os.path.join(user_root, file))
             if os.path.commonpath((user_root, path)) != user_root:
                 return None
 
+        parent = os.path.split(path)[0]
+
         if create_dir and not os.path.exists(parent):
-            os.mkdir(parent)
+            os.makedirs(parent, exist_ok=True)
 
         return path
 
@@ -108,33 +110,96 @@ class UserManager():
             user_id = self.add_user(username)
             return web.json_response(user_id)
 
-        @routes.get("/userdata/{file}")
-        async def getuserdata(request):
-            file = request.match_info.get("file", None)
-            if not file:
+        @routes.get("/userdata")
+        async def listuserdata(request):
+            directory = request.rel_url.query.get('dir', '')
+            if not directory:
                 return web.Response(status=400)
                 
-            path = self.get_request_user_filepath(request, file)
+            path = self.get_request_user_filepath(request, directory)
             if not path:
                 return web.Response(status=403)
             
             if not os.path.exists(path):
                 return web.Response(status=404)
             
-            return web.FileResponse(path)
+            recurse = request.rel_url.query.get('recurse', '').lower() == "true"
+            results = glob.glob(os.path.join(
+                glob.escape(path), '**/*'), recursive=recurse)
+            results = [os.path.relpath(x, path) for x in results if os.path.isfile(x)]
+            
+            split_path = request.rel_url.query.get('split', '').lower() == "true"
+            if split_path:
+                results = [[x] + x.split(os.sep) for x in results]
 
-        @routes.post("/userdata/{file}")
-        async def post_userdata(request):
-            file = request.match_info.get("file", None)
+            return web.json_response(results)
+
+        def get_user_data_path(request, check_exists = False, param = "file"):
+            file = request.match_info.get(param, None)
             if not file:
                 return web.Response(status=400)
                 
             path = self.get_request_user_filepath(request, file)
             if not path:
                 return web.Response(status=403)
+            
+            if check_exists and not os.path.exists(path):
+                return web.Response(status=404)
+            
+            return path
+
+        @routes.get("/userdata/{file}")
+        async def getuserdata(request):
+            path = get_user_data_path(request, check_exists=True)
+            if not isinstance(path, str):
+                return path
+            
+            return web.FileResponse(path)
+
+        @routes.post("/userdata/{file}")
+        async def post_userdata(request):
+            path = get_user_data_path(request)
+            if not isinstance(path, str):
+                return path
+            
+            overwrite = request.query["overwrite"] != "false"
+            if not overwrite and os.path.exists(path):
+                return web.Response(status=409)
 
             body = await request.read()
+
             with open(path, "wb") as f:
                 f.write(body)
                 
-            return web.Response(status=200)
+            resp = os.path.relpath(path, self.get_request_user_filepath(request, None))
+            return web.json_response(resp)
+
+        @routes.delete("/userdata/{file}")
+        async def delete_userdata(request):
+            path = get_user_data_path(request, check_exists=True)
+            if not isinstance(path, str):
+                return path
+
+            os.remove(path)
+                
+            return web.Response(status=204)
+
+        @routes.post("/userdata/{file}/move/{dest}")
+        async def move_userdata(request):
+            source = get_user_data_path(request, check_exists=True)
+            if not isinstance(source, str):
+                return source
+            
+            dest = get_user_data_path(request, check_exists=False, param="dest")
+            if not isinstance(source, str):
+                return dest
+            
+            overwrite = request.query["overwrite"] != "false"
+            if not overwrite and os.path.exists(dest):
+                return web.Response(status=409)
+
+            print(f"moving '{source}' -> '{dest}'")
+            shutil.move(source, dest)
+                
+            resp = os.path.relpath(dest, self.get_request_user_filepath(request, None))
+            return web.json_response(resp)
