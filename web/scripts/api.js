@@ -173,6 +173,15 @@ class ComfyApi extends EventTarget {
 	}
 
 	/**
+	 * Gets a list of extension's CSS style urls
+	 * @returns An array of CSS urls to include
+	 */
+	async getExtensionsStyles() {
+		const resp = await this.fetchApi("/extensions/styles", { cache: "no-store" });
+		return await resp.json();
+	}
+
+	/**
 	 * Gets a list of embedding names
 	 * @returns An array of script urls to import
 	 */
