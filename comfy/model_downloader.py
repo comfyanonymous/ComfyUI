@@ -51,7 +51,8 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                     else:
                         linked_filename = None
                     try:
-                        os.symlink(os.path.join(destination, known_file.filename), linked_filename)
+                        if linked_filename is not None:
+                            os.symlink(os.path.join(destination, known_file.filename), linked_filename)
                     except Exception as exc_info:
                         logging.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}", exc_info=exc_info)
                 else:
