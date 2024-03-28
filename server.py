@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import traceback
+from typing import Optional
 
 import nodes
 import folder_paths
@@ -500,7 +501,12 @@ class PromptServer():
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            nodes.interrupt_processing()
+            prompt_id = None
+            # TODO: Remove condition next major version.
+            if request.can_read_body:
+                json_data = await request.json()
+                prompt_id = json_data.get("prompt_id", None)
+            nodes.interrupt_processing(current_key=prompt_id)
             return web.Response(status=200)
 
         @routes.post("/free")

@@ -249,7 +249,7 @@ class ComfyApi extends EventTarget {
 				// Running action uses a different endpoint for cancelling
 				Running: data.queue_running.map((prompt) => ({
 					prompt,
-					remove: { name: "Cancel", cb: () => api.interrupt() },
+					remove: { name: "Cancel", cb: () => api.interrupt(prompt[1]) },
 				})),
 				Pending: data.queue_pending.map((prompt) => ({ prompt })),
 			};
@@ -320,9 +320,10 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Interrupts the execution of the running prompt
+	 * @param {string} promptId The prompt id of the prompt/job to interrupt.
 	 */
-	async interrupt() {
-		await this.#postItem("interrupt", null);
+	async interrupt({promptId}) {
+		await this.#postItem("interrupt", {promptId});
 	}
 
 	/**

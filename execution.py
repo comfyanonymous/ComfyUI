@@ -40,7 +40,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [unique_id]
     return input_data_all
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
+def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, *, prompt_id: Optional[str]=None):
     # check if node wants the lists
     input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
@@ -61,24 +61,24 @@ def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     results = []
     if input_is_list:
         if allow_interrupt:
-            nodes.before_node_execution()
+            nodes.before_node_execution(current_key=prompt_id)
         results.append(getattr(obj, func)(**input_data_all))
     elif max_len_input == 0:
         if allow_interrupt:
-            nodes.before_node_execution()
+            nodes.before_node_execution(current_key=prompt_id)
         results.append(getattr(obj, func)())
     else:
         for i in range(max_len_input):
             if allow_interrupt:
-                nodes.before_node_execution()
+                nodes.before_node_execution(current_key=prompt_id)
             results.append(getattr(obj, func)(**slice_dict(input_data_all, i)))
     return results
 
-def get_output_data(obj, input_data_all):
+def get_output_data(obj, input_data_all, *, prompt_id: Optional[str]):
     
     results = []
     uis = []
-    return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True)
+    return_values = map_node_over_list(obj, input_data_all, obj.FUNCTION, allow_interrupt=True, prompt_id=prompt_id)
 
     for r in return_values:
         if isinstance(r, dict):
@@ -148,7 +148,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             obj = class_def()
             object_storage[(unique_id, class_type)] = obj
 
-        output_data, output_ui = get_output_data(obj, input_data_all)
+        output_data, output_ui = get_output_data(obj, input_data_all, prompt_id=prompt_id)
         outputs[unique_id] = output_data
         if len(output_ui) > 0:
             outputs_ui[unique_id] = output_ui
@@ -215,7 +215,7 @@ def recursive_will_execute(prompt, outputs, current_item, memo={}):
     memo[unique_id] = will_execute + [unique_id]
     return memo[unique_id]
 
-def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item):
+def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item, *, prompt_id=None):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -232,7 +232,8 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
             if input_data_all is not None:
                 try:
                     #is_changed = class_def.IS_CHANGED(**input_data_all)
-                    is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
+                    is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED",
+                                                    prompt_id=prompt_id)
                     prompt[unique_id]['is_changed'] = is_changed
                 except:
                     to_delete = True
@@ -328,7 +329,7 @@ class PromptExecutor:
             del d
 
     def execute(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
-        nodes.interrupt_processing(False)
+        nodes.interrupt_processing(False, current_key=prompt_id)
 
         if "client_id" in extra_data:
             self.server.client_id = extra_data["client_id"]
