@@ -5399,7 +5399,8 @@ LGraphNode.prototype.executeAction = function(action)
         this.connecting_node = null;
         this.highlighted_links = {};
 
-		this.dragging_canvas = false;
+		this.dragging_canvas = false; // Is dragging enabled?
+		this.canvas_dragged = false; // Did the mouse move while dragging enabled? Reset on mouse up
 
         this.dirty_canvas = true;
         this.dirty_bgcanvas = true;
@@ -5841,14 +5842,35 @@ LGraphNode.prototype.executeAction = function(action)
 		this.last_mouseclick = 0;
 	}
 	
-    LGraphCanvas.prototype.processMouseDown = function(e) {
-    	
-		if( this.set_canvas_dirty_on_mouse_event )
-			this.dirty_canvas = true;
-		
-		if (!this.graph) {
-            return;
+	LGraphCanvas.prototype.checkForDragCanvas = function() {
+        if (this.allow_dragcanvas) {
+            	//console.log("pointerevents: dragging_canvas start");
+            	this.dragging_canvas = true;
         }
+	}
+	
+	LGraphCanvas.prototype.processRightMouseButtonDown = function(e, node) {
+		if (this.allow_interaction && !this.read_only){
+			
+			// is a node being hovered ?
+			if (node){
+				if(Object.keys(this.selected_nodes).length
+				   && (this.selected_nodes[node.id] || e.shiftKey || e.ctrlKey || e.metaKey)
+				){
+					// is multiselected or using shift to include the now node
+					if (!this.selected_nodes[node.id]) this.selectNodes([node],true); // add this if not present
+				}else{
+					// update selection
+					this.selectNodes([node]);
+				}
+			}
+			
+			// show menu on node or background
+			this.processContextMenu(node, e);
+		}
+	}
+	
+    LGraphCanvas.prototype.processMouseDown = function(e) {
 
         this.adjustMouseEvent(e);
 
@@ -6197,9 +6219,8 @@ LGraphNode.prototype.executeAction = function(action)
 				}
             }
 
-            if (!skip_action && clicking_canvas_bg && this.allow_dragcanvas) {
-            	//console.log("pointerevents: dragging_canvas start");
-            	this.dragging_canvas = true;
+            if (!skip_action && clicking_canvas_bg) {
+	            	this.checkForDragCanvas();
             }
             
         } else if (e.which == 2) {
@@ -6267,34 +6288,15 @@ LGraphNode.prototype.executeAction = function(action)
 				}
 			}
 
-			if (!skip_action && this.allow_dragcanvas) {
-            	//console.log("pointerevents: dragging_canvas start from middle button");
-            	this.dragging_canvas = true;
+			if (!skip_action) {
+	            	this.checkForDragCanvas();
             }
 
         	
         } else if (e.which == 3 || this.pointer_is_double) {
 			
-            //right button
-			if (this.allow_interaction && !skip_action && !this.read_only){
-				
-				// is it hover a node ?
-				if (node){
-					if(Object.keys(this.selected_nodes).length
-					   && (this.selected_nodes[node.id] || e.shiftKey || e.ctrlKey || e.metaKey)
-					){
-						// is multiselected or using shift to include the now node
-						if (!this.selected_nodes[node.id]) this.selectNodes([node],true); // add this if not present
-					}else{
-						// update selection
-						this.selectNodes([node]);
-					}
-				}
-				
-				// show menu on this node
-				this.processContextMenu(node, e);
-			}
-			
+			// skip_action is always false in this circumstance, so we don't need to branch
+			this.checkForDragCanvas();
         }
 
         //TODO
@@ -6414,6 +6416,7 @@ LGraphNode.prototype.executeAction = function(action)
             this.ds.offset[1] += delta[1] / this.ds.scale;
             this.dirty_canvas = true;
             this.dirty_bgcanvas = true;
+            this.canvas_dragged = true;
         } else if ((this.allow_interaction || (node && node.flags.allow_interaction)) && !this.read_only) {
             if (this.connecting_node) {
                 this.dirty_canvas = true;
@@ -6588,15 +6591,15 @@ LGraphNode.prototype.executeAction = function(action)
 
 		var is_primary = ( e.isPrimary === undefined || e.isPrimary );
 
-    	//early exit for extra pointer
-    	if(!is_primary){
-    		/*e.stopPropagation();
-        	e.preventDefault();*/
-    		//console.log("pointerevents: processMouseUp pointerN_stop "+e.pointerId+" "+e.isPrimary);
-    		return false;
-    	}
-    	
-    	//console.log("pointerevents: processMouseUp "+e.pointerId+" "+e.isPrimary+" :: "+e.clientX+" "+e.clientY);
+	    	//early exit for extra pointer
+	    	if(!is_primary){
+	    		/*e.stopPropagation();
+	        	e.preventDefault();*/
+	    		//console.log("pointerevents: processMouseUp pointerN_stop "+e.pointerId+" "+e.isPrimary);
+	    		return false;
+	    	}
+	    	
+	    	//console.log("pointerevents: processMouseUp "+e.pointerId+" "+e.isPrimary+" :: "+e.clientX+" "+e.clientY);
     	
 		if( this.set_canvas_dirty_on_mouse_event )
 			this.dirty_canvas = true;
@@ -6632,13 +6635,13 @@ LGraphNode.prototype.executeAction = function(action)
 		//console.log("pointerevents: processMouseUp which: "+e.which);
 		
         if (e.which == 1) {
+            //left button
 
 			if( this.node_widget )
 			{
 				this.processNodeWidgets( this.node_widget[0], this.graph_mouse, e );
 			}
 
-            //left button
             this.node_widget = null;
 
             if (this.selected_group) {
@@ -6871,6 +6874,12 @@ LGraphNode.prototype.executeAction = function(action)
             //trace("right");
             this.dirty_canvas = true;
             this.dragging_canvas = false;
+            
+            // This checks to see if we have dragged since we don't want the context menu to open after a drag
+            	if (!this.canvas_dragged) {
+				var node = this.graph.getNodeOnPos( e.canvasX, e.canvasY, this.visible_nodes, 5 );
+				this.processRightMouseButtonDown(e, node);
+			}
         }
 
         /*
@@ -6883,6 +6892,8 @@ LGraphNode.prototype.executeAction = function(action)
 			this.pointer_is_down = false;
 			this.pointer_is_double = false;
 		}
+		
+		this.canvas_dragged = false;
 	  
         this.graph.change();
 
