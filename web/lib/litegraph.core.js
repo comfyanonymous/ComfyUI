@@ -5330,7 +5330,6 @@ LGraphNode.prototype.executeAction = function(action)
         this.onDrawOverlay = null; //to render foreground objects not affected by transform (for GUIs)
 		this.onDrawLinkTooltip = null; //called when rendering a tooltip
 		this.onNodeMoved = null; //called after moving a node
-		this.onSelectionChange = null; //called if the selection changes
 		this.onConnectingChange = null; //called before any link changes
 		this.onBeforeChange = null; //called before modifying the graph
 		this.onAfterChange = null; //called after modifying the graph
@@ -8866,6 +8865,9 @@ LGraphNode.prototype.executeAction = function(action)
         }
 
         ctx.globalAlpha = 1.0;
+
+        if (node.onDrawn)
+            node.onDrawn();
     };
 
 	//used by this.over_link_center
