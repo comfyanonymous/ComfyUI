@@ -36,6 +36,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - Starts up very fast.
 - Works fully offline: will never download anything.
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
+- Cache loaded models(node output) in memory between different workflows. And the cache size can be configured. Edit [node cache size config file](node_cache_config.yaml.example) to set the node's lrucache size.
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 

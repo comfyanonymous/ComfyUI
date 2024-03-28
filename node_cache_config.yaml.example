@@ -1,0 +1,6 @@
+# Rename this to node_cache_config.yaml and ComfyUI will load it
+# node_class_type: int(cache size)
+VAELoader: 2
+CheckpointLoaderSimple: 2
+UNETLoader: 1   # default is 1
+ControlNetLoader: 2
