@@ -1,14 +1,29 @@
 import {app} from "../../scripts/app.js";
+import { api } from "../../scripts/api.js";
 
 app.registerExtension({
 	name: "Comfy.Keybinds",
 	init() {
 		const keybindListener = function (event) {
 			const modifierPressed = event.ctrlKey || event.metaKey;
-
+			
 			// Queue prompt using ctrl or command + enter
+			let queueType = "queue";
 			if (modifierPressed && event.key === "Enter") {
-				app.queuePrompt(event.shiftKey ? -1 : 0).then();
+				switch (true) {
+					case event.altKey && event.shiftKey:
+						api.clearItems(queueType).then(() => api.interrupt()); // Clear queue and stop current prompt
+						break;
+					case event.altKey:
+						api.interrupt(); // Stop current prompt
+						break;
+					case event.shiftKey:
+						app.queuePrompt(-1); // Queue at start
+						break;
+					default:
+						app.queuePrompt(0); // Queue at end
+						break;
+				}
 				return;
 			}
 

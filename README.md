@@ -45,6 +45,8 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 |---------------------------|--------------------------------------------------------------------------------------------------------------------|
 | Ctrl + Enter              | Queue up current graph for generation                                                                              |
 | Ctrl + Shift + Enter      | Queue up current graph as first for generation                                                                     |
+| Ctrl + Alt + Enter        | Stop the current generation                                                                                        |
+| Ctrl + Shift + Alt + Enter| Clear the generation queue, then stop the current generation                                                      |
 | Ctrl + Z/Ctrl + Y         | Undo/Redo                                                                                                          |
 | Ctrl + S                  | Save workflow                                                                                                      |
 | Ctrl + O                  | Load workflow                                                                                                      |
