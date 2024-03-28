@@ -959,8 +959,8 @@ export class GroupNodeHandler {
 		const executed = handleEvent.call(
 			this,
 			"executed",
-			(d) => d?.node,
-			(d, id, node) => ({ ...d, node: id, merge: !node.resetExecution })
+			(d) => d?.display_node,
+			(d, id, node) => ({ ...d, node: id, display_node: id, merge: !node.resetExecution })
 		);
 
 		const onRemoved = node.onRemoved;
