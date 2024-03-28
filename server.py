@@ -445,6 +445,29 @@ class PromptServer():
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
 
+        @routes.get("/filepaths")
+        async def get_filepaths(request):
+            folder = request.rel_url.query.get("folder")
+            if folder is None:
+                return web.Response(status=404)
+            filepaths = folder_paths.get_filename_list(folder)
+            out = {
+                "filepaths": filepaths
+            }
+            return web.json_response(out)
+
+        @routes.get("/relative_path")
+        async def get_relative_path(request):
+            folder = request.rel_url.query.get("folder")
+            full_path = request.rel_url.query.get("full_path")
+            if folder is None or full_path is None:
+                return web.Response(status=404)
+            relpath = folder_paths.get_relative_path(folder, full_path)
+            out = {
+                "relative_path": relpath
+            }
+            return web.json_response(out)
+
         @routes.post("/prompt")
         async def post_prompt(request):
             logging.info("got prompt")
