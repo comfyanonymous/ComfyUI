@@ -337,6 +337,7 @@ class SamplerCustom:
         latent = latent_image
         latent_image = latent["samples"]
         if not add_noise:
+            torch.manual_seed(noise_seed)
             noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
         else:
             batch_inds = latent["batch_index"] if "batch_index" in latent else None
