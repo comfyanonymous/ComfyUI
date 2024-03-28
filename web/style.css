@@ -452,7 +452,7 @@ dialog::backdrop {
 }
 
 .litemenu-entry.has_submenu::after {
-	content: ">";
+	content: "▶";
 	position: absolute;
 	top: 0;
 	right: 2px;
