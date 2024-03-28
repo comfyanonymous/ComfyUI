@@ -368,6 +368,7 @@ class PromptExecutor:
                     d = self.outputs_ui.pop(x)
                     del d
 
+            comfy.model_management.cleanup_models(keep_clone_weights_loaded=True)
             self.add_message("execution_cached",
                           { "nodes": list(current_outputs) , "prompt_id": prompt_id},
                           broadcast=False)
