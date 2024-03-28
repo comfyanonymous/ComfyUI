@@ -11,5 +11,5 @@ jobs:
         ORG_KEY: "test-key"
         py_ver: '3.11'
         torch_ver: 'nightly'
-        models-json: '{"model_name": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
+        models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
         workflow: 'default'
