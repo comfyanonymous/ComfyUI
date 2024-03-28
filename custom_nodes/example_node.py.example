@@ -21,6 +21,8 @@ class Example:
         If this node is an output node that outputs a result/image from the graph. The SaveImage node is an example.
         The backend iterates on these output nodes and tries to execute all their parents if their parent graph is properly connected.
         Assumed to be False if not present.
+    DISPLAY_NAME (`str`):
+        A friendly/humanly readable title for the node.
     CATEGORY (`str`):
         The category the node should appear in the UI.
     execute(s) -> tuple || None:
@@ -78,6 +80,7 @@ class Example:
 
     #OUTPUT_NODE = False
 
+    DISPLAY_NAME = "Example Node"
     CATEGORY = "Example"
 
     def test(self, image, string_field, int_field, float_field, print_to_screen):
@@ -113,6 +116,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
+# NOTE: This is the same as using the DISPLAY_NAME property 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "Example": "Example Node"
 }
