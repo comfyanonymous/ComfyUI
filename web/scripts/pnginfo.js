@@ -290,6 +290,9 @@ export async function importA1111(graph, parameters) {
 				model(v) {
 					setWidgetValue(ckptNode, "ckpt_name", v, true);
 				},
+				"vae"(v) {
+					setWidgetValue(vaeLoaderNode, "vae_name", v, true);
+				},
 				"cfg scale"(v) {
 					setWidgetValue(samplerNode, "cfg", +v);
 				},
