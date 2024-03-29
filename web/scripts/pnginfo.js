@@ -170,9 +170,12 @@ export async function importA1111(graph, parameters) {
 		const opts = parameters
 			.substr(p)
 			.split("\n")[1]
-			.split(",")
+			.match(new RegExp("\\s*([^:]+:\\s*([^\"\\{].*?|\".*?\"|\\{.*?\\}))\\s*(,|$)", "g"))
 			.reduce((p, n) => {
 				const s = n.split(":");
+				if (s[1].endsWith(',')) {
+					s[1] = s[1].substr(0, s[1].length -1);
+				}
 				p[s[0].trim().toLowerCase()] = s[1].trim();
 				return p;
 			}, {});
@@ -418,7 +421,7 @@ export async function importA1111(graph, parameters) {
 
 			graph.arrange();
 
-			for (const opt of ["model hash", "ensd"]) {
+			for (const opt of ["model hash", "ensd", "version", "vae hash", "ti hashes", "lora hashes", "hashes"]) {
 				delete opts[opt];
 			}
 
