@@ -947,7 +947,7 @@ describe("group node", () => {
 		expect(p1.widgets.value.widget.options?.step).toBe(80); // width/height step * 10
 
 		expect(p2.widgets.value.widget.options?.min).toBe(16); // width/height min
-		expect(p2.widgets.value.widget.options?.max).toBe(8192); // width/height max
+		expect(p2.widgets.value.widget.options?.max).toBe(16384); // width/height max
 		expect(p2.widgets.value.widget.options?.step).toBe(80); // width/height step * 10
 
 		expect(p1.widgets.value.value).toBe(128);

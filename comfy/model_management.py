@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Literal
+
 import psutil
 import logging
 from enum import Enum
@@ -278,6 +282,7 @@ class LoadedModel:
         self.model = model
         self.device = model.load_device
         self.weights_loaded = False
+        self.real_model = None
 
     def model_memory(self):
         return self.model.model_size()
@@ -316,6 +321,7 @@ class LoadedModel:
         self.model.unpatch_model(self.model.offload_device, unpatch_weights=unpatch_weights)
         self.model.model_patches_to(self.model.offload_device)
         self.weights_loaded = self.weights_loaded and not unpatch_weights
+        self.real_model = None
 
     def __eq__(self, other):
         return self.model is other.model
@@ -323,7 +329,7 @@ class LoadedModel:
 def minimum_inference_memory():
     return (1024 * 1024 * 1024)
 
-def unload_model_clones(model, unload_weights_only=True, force_unload=True):
+def unload_model_clones(model, unload_weights_only=True, force_unload=True) -> bool | Literal[None]:
     with model_management_lock:
         to_unload = []
         for i in range(len(current_loaded_models)):
@@ -331,7 +337,7 @@ def unload_model_clones(model, unload_weights_only=True, force_unload=True):
                 to_unload = [i] + to_unload
 
         if len(to_unload) == 0:
-            return None
+            return True
 
         same_weights = 0
         for i in to_unload:
@@ -355,20 +361,27 @@ def unload_model_clones(model, unload_weights_only=True, force_unload=True):
 
 def free_memory(memory_required, device, keep_loaded=[]):
     with model_management_lock:
-        unloaded_model = False
+        unloaded_model = []
+        can_unload = []
+
         for i in range(len(current_loaded_models) -1, -1, -1):
-            if not DISABLE_SMART_MEMORY:
-                if get_free_memory(device) > memory_required:
-                    break
             shift_model = current_loaded_models[i]
             if shift_model.device == device:
                 if shift_model not in keep_loaded:
-                    m = current_loaded_models.pop(i)
-                    m.model_unload()
-                    del m
-                    unloaded_model = True
+                    can_unload.append((sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
 
-        if unloaded_model:
+        for x in sorted(can_unload):
+            i = x[-1]
+            if not DISABLE_SMART_MEMORY:
+                if get_free_memory(device) > memory_required:
+                    break
+            current_loaded_models[i].model_unload()
+            unloaded_model.append(i)
+
+        for i in sorted(unloaded_model, reverse=True):
+            current_loaded_models.pop(i)
+
+        if len(unloaded_model) > 0:
             soft_empty_cache()
         else:
             if vram_state != VRAMState.HIGH_VRAM:
@@ -408,8 +421,8 @@ def load_models_gpu(models, memory_required=0):
 
         total_memory_required = {}
         for loaded_model in models_to_load:
-            unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False) #unload clones where the weights are different
-            total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
+            if unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False):#unload clones where the weights are different
+                total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
 
         for device in total_memory_required:
             if device != torch.device("cpu"):
@@ -449,12 +462,16 @@ def load_model_gpu(model):
     with model_management_lock:
         return load_models_gpu([model])
 
-def cleanup_models():
+def cleanup_models(keep_clone_weights_loaded=False):
     with model_management_lock:
         to_delete = []
         for i in range(len(current_loaded_models)):
             if sys.getrefcount(current_loaded_models[i].model) <= 2:
-                to_delete = [i] + to_delete
+                if not keep_clone_weights_loaded:
+                    to_delete = [i] + to_delete
+                #TODO: find a less fragile way to do this.
+                elif sys.getrefcount(current_loaded_models[i].real_model) <= 3: #references from .real_model + the .model
+                    to_delete = [i] + to_delete
 
         for i in to_delete:
             x = current_loaded_models.pop(i)

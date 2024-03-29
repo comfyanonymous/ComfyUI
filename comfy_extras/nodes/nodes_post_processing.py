@@ -204,13 +204,13 @@ class Sharpen:
                     "default": 1.0,
                     "min": 0.1,
                     "max": 10.0,
-                    "step": 0.1
+                    "step": 0.01
                 }),
                 "alpha": ("FLOAT", {
                     "default": 1.0,
                     "min": 0.0,
                     "max": 5.0,
-                    "step": 0.1
+                    "step": 0.01
                 }),
             },
         }
