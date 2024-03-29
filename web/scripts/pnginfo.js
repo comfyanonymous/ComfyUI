@@ -194,6 +194,7 @@ export async function importA1111(graph, parameters) {
 			const vaeLoaderNode = LiteGraph.createNode("VAELoader");
 			const saveNode = LiteGraph.createNode("SaveImage");
 			let hrSamplerNode = null;
+			let hrSteps = null;
 
 			const ceil64 = (v) => Math.ceil(v / 64) * 64;
 
@@ -322,6 +323,7 @@ export async function importA1111(graph, parameters) {
 					const h = ceil64(+wxh[1]);
 					const hrUp = popOpt("hires upscale");
 					const hrSz = popOpt("hires resize");
+					hrSteps = popOpt("hires steps");
 					let hrMethod = popOpt("hires upscaler");
 
 					setWidgetValue(imageNode, "width", w);
@@ -404,7 +406,7 @@ export async function importA1111(graph, parameters) {
 			}
 
 			if (hrSamplerNode) {
-				setWidgetValue(hrSamplerNode, "steps", getWidget(samplerNode, "steps").value);
+				setWidgetValue(hrSamplerNode, "steps", hrSteps? +hrSteps : getWidget(samplerNode, "steps").value);
 				setWidgetValue(hrSamplerNode, "cfg", getWidget(samplerNode, "cfg").value);
 				setWidgetValue(hrSamplerNode, "scheduler", getWidget(samplerNode, "scheduler").value);
 				setWidgetValue(hrSamplerNode, "sampler_name", getWidget(samplerNode, "sampler_name").value);
