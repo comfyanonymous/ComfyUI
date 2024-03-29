@@ -17,8 +17,10 @@ class History:
                                                           outputs=outputs,
                                                           status=ExecutionStatus(*status)._asdict())
 
-    def copy(self, prompt_id: Optional[str | int] = None, max_items: int = MAXIMUM_HISTORY_SIZE,
-             offset: int = 0) -> Dict[str, HistoryEntry]:
+    def copy(self, prompt_id: Optional[str | int] = None, max_items: Optional[int] = None,
+             offset: Optional[int] = None) -> Dict[str, HistoryEntry]:
+        offset = offset or 0
+        max_items = max_items or MAXIMUM_HISTORY_SIZE
         if prompt_id in self.history:
             return {prompt_id: copy.deepcopy(self.history[prompt_id])}
         else:
