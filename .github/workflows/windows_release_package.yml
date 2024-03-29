@@ -32,7 +32,7 @@ jobs:
         pull-requests: "read"
     runs-on: windows-latest
     steps:
-        - uses: actions/cache/restore@v3
+        - uses: actions/cache/restore@v4
           id: cache
           with:
             path: |
@@ -48,7 +48,7 @@ jobs:
             pwd
             ls
 
-        - uses: actions/checkout@v3
+        - uses: actions/checkout@v4
           with:
             fetch-depth: 0
             persist-credentials: false
