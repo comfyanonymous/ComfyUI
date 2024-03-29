@@ -9,7 +9,7 @@ jobs:
       uses: drip-art/comfymac-action@main
       with:
         ORG_KEY: "test-key"
-        py_ver: '3.11'
+        py_ver: '3.11.0'
         torch_ver: 'nightly'
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
-        workflow: 'default'
+        workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
