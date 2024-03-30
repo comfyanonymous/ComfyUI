@@ -13,3 +13,4 @@ jobs:
         torch_ver: 'nightly'
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
+        timeout: 1000
