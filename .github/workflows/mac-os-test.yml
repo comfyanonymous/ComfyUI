@@ -3,7 +3,7 @@ on: [push, workflow_dispatch]
 
 jobs:
   test-action:
-    runs-on: macos-14
+    runs-on: macos-14-xlarge
     steps:
     - name: Use ComfyUI GitHub Action
       uses: drip-art/comfymac-action@main
