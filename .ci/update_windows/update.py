@@ -1,6 +1,9 @@
 import pygit2
 from datetime import datetime
 import sys
+import os
+import shutil
+import filecmp
 
 def pull(repo, remote_name='origin', branch='master'):
     for remote in repo.remotes:
@@ -42,7 +45,8 @@ def pull(repo, remote_name='origin', branch='master'):
                 raise AssertionError('Unknown merge analysis result')
 
 pygit2.option(pygit2.GIT_OPT_SET_OWNER_VALIDATION, 0)
-repo = pygit2.Repository(str(sys.argv[1]))
+repo_path = str(sys.argv[1])
+repo = pygit2.Repository(repo_path)
 ident = pygit2.Signature('comfyui', 'comfy@ui')
 try:
     print("stashing current changes")
@@ -51,7 +55,10 @@ except KeyError:
     print("nothing to stash")
 backup_branch_name = 'backup_branch_{}'.format(datetime.today().strftime('%Y-%m-%d_%H_%M_%S'))
 print("creating backup branch: {}".format(backup_branch_name))
-repo.branches.local.create(backup_branch_name, repo.head.peel())
+try:
+    repo.branches.local.create(backup_branch_name, repo.head.peel())
+except:
+    pass
 
 print("checking out master branch")
 branch = repo.lookup_branch('master')
@@ -63,3 +70,41 @@ pull(repo)
 
 print("Done!")
 
+self_update = True
+if len(sys.argv) > 2:
+    self_update = '--skip_self_update' not in sys.argv
+
+update_py_path = os.path.realpath(__file__)
+repo_update_py_path = os.path.join(repo_path, ".ci/update_windows/update.py")
+
+cur_path = os.path.dirname(update_py_path)
+
+
+req_path = os.path.join(cur_path, "current_requirements.txt")
+repo_req_path = os.path.join(repo_path, "requirements.txt")
+
+
+def files_equal(file1, file2):
+    try:
+        return filecmp.cmp(file1, file2, shallow=False)
+    except:
+        return False
+
+def file_size(f):
+    try:
+        return os.path.getsize(f)
+    except:
+        return 0
+
+
+if self_update and not files_equal(update_py_path, repo_update_py_path) and file_size(repo_update_py_path) > 10:
+    shutil.copy(repo_update_py_path, os.path.join(cur_path, "update_new.py"))
+    exit()
+
+if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
+    import subprocess
+    try:
+        subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', repo_req_path])
+        shutil.copy(repo_req_path, req_path)
+    except:
+        pass

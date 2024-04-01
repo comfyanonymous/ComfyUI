@@ -37,7 +37,7 @@ class RepeatImageBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",),
-                              "amount": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              "amount": ("INT", {"default": 1, "min": 1, "max": 4096}),
                               }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "repeat"
@@ -52,8 +52,8 @@ class ImageFromBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",),
-                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 63}),
-                              "length": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 4095}),
+                              "length": ("INT", {"default": 1, "min": 1, "max": 4096}),
                               }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "frombatch"

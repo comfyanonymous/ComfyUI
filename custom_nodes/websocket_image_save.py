@@ -10,10 +10,6 @@ import time
 #binary images on the websocket with a 8 byte header indicating the type
 #of binary message (first 4 bytes) and the image format (next 4 bytes).
 
-#The reason this node is disabled by default is because there is a small
-#issue when using it with the default ComfyUI web interface: When generating
-#batches only the last image will be shown in the UI.
-
 #Note that no metadata will be put in the images saved with this node.
 
 class SaveImageWebsocket:
@@ -28,7 +24,7 @@ class SaveImageWebsocket:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "image"
+    CATEGORY = "api/image"
 
     def save_images(self, images):
         pbar = comfy.utils.ProgressBar(images.shape[0])

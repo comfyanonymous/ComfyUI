@@ -1,5 +1,6 @@
 import re
 import torch
+import logging
 
 # conversion code from https://github.com/huggingface/diffusers/blob/main/scripts/convert_diffusers_to_original_stable_diffusion.py
 
@@ -177,7 +178,7 @@ def convert_vae_state_dict(vae_state_dict):
     for k, v in new_state_dict.items():
         for weight_name in weights_to_convert:
             if f"mid.attn_1.{weight_name}.weight" in k:
-                print(f"Reshaping {k} for SD format")
+                logging.debug(f"Reshaping {k} for SD format")
                 new_state_dict[k] = reshape_weight_for_sd(v)
     return new_state_dict
 
@@ -237,8 +238,12 @@ def convert_text_enc_state_dict_v20(text_enc_dict, prefix=""):
             capture_qkv_bias[k_pre][code2idx[k_code]] = v
             continue
 
-        relabelled_key = textenc_pattern.sub(lambda m: protected[re.escape(m.group(0))], k)
-        new_state_dict[relabelled_key] = v
+        text_proj = "transformer.text_projection.weight"
+        if k.endswith(text_proj):
+            new_state_dict[k.replace(text_proj, "text_projection")] = v.transpose(0, 1).contiguous()
+        else:
+            relabelled_key = textenc_pattern.sub(lambda m: protected[re.escape(m.group(0))], k)
+            new_state_dict[relabelled_key] = v
 
     for k_pre, tensors in capture_qkv_weight.items():
         if None in tensors:
