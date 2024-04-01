@@ -334,6 +334,11 @@ class Stable_Zero123(supported_models_base.BASE):
         "num_head_channels": -1,
     }
 
+    required_keys = {
+        "cc_projection.weight": None,
+        "cc_projection.bias": None,
+    }
+
     clip_vision_prefix = "cond_stage_model.model.visual."
 
     latent_format = latent_formats.SD15
@@ -439,6 +444,33 @@ class Stable_Cascade_B(Stable_Cascade_C):
         out = model_base.StableCascade_B(self, device=device)
         return out
 
+class SD15_instructpix2pix(SD15):
+    unet_config = {
+        "context_dim": 768,
+        "model_channels": 320,
+        "use_linear_in_transformer": False,
+        "adm_in_channels": None,
+        "use_temporal_attention": False,
+        "in_channels": 8,
+    }
 
-models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p]
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.SD15_instructpix2pix(self, device=device)
+
+class SDXL_instructpix2pix(SDXL):
+    unet_config = {
+        "model_channels": 320,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [0, 0, 2, 2, 10, 10],
+        "context_dim": 2048,
+        "adm_in_channels": 2816,
+        "use_temporal_attention": False,
+        "in_channels": 8,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.SDXL_instructpix2pix(self, device=device)
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p]
+
 models += [SVD_img2vid]
