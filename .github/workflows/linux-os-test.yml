@@ -3,15 +3,17 @@ on:
   pull_request:
     branches:
       - main
-    paths-ignore: 
-      - 'tests/**'
-      - 'tests-ui/**'
-      - '.github/workflows/mac-os-test.yml'
+    paths-ignore:
+      - "tests/**"
+      - "tests-ui/**"
+      - ".github/workflows/**"
+      - "!.github/workflows/linux-os-test.yml"
   push:
-    paths-ignore: 
-      - 'tests/**'
-      - 'tests-ui/**'
-      - '.github/workflows/mac-os-test.yml'
+    paths-ignore:
+      - "tests/**"
+      - "tests-ui/**"
+      - ".github/workflows/**"
+      - "!.github/workflows/linux-os-test.yml"
   workflow_dispatch:
 
 

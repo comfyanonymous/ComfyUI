@@ -6,12 +6,14 @@ on:
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'
-      - '.github/workflows/win-os-test.yml'
+      - ".github/workflows/**"
+      - "!.github/workflows/win-os-test.yml"
   push:
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'
-      - '.github/workflows/win-os-test.yml'
+      - ".github/workflows/**"
+      - "!.github/workflows/win-os-test.yml"
   workflow_dispatch:
 
 
