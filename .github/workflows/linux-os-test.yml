@@ -20,7 +20,7 @@ jobs:
     runs-on: nvidia-tesla-t4
     steps:
     - name: Use ComfyUI GitHub Action
-      uses: drip-art/comfy-action@rh-linux
+      uses: drip-art/comfy-action@main
       with:
         os: linux
         cuda_version: 12.1
