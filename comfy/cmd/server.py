@@ -553,6 +553,7 @@ class PromptServer(ExecutorToClientProgress):
         async def post_prompt(request: web.Request) -> web.Response | web.FileResponse:
             # check if the queue is too long
             accept = request.headers.get("accept", "application/json")
+            content_type = request.headers.get("content-type", "application/json")
             queue_size = self.prompt_queue.size()
             queue_too_busy_size = PromptServer.get_too_busy_queue_size()
             if queue_size > queue_too_busy_size:
@@ -560,9 +561,9 @@ class PromptServer(ExecutorToClientProgress):
                                     reason=f"the queue has {queue_size} elements and {queue_too_busy_size} is the limit for this worker")
             # read the request
             prompt_dict: dict = {}
-            if request.headers[aiohttp.hdrs.CONTENT_TYPE] == 'application/json':
+            if content_type == 'application/json':
                 prompt_dict = await request.json()
-            elif request.headers[aiohttp.hdrs.CONTENT_TYPE] == 'multipart/form-data':
+            elif content_type == 'multipart/form-data':
                 try:
                     reader = await request.multipart()
                     async for part in reader:
