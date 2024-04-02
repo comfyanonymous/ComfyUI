@@ -3,13 +3,15 @@ name: Test ComfyUI Mac With Default Workflow
 on:
   pull_request:
     branches:
-      - main
+      - master
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'
       - ".github/workflows/**"
       - "!.github/workflows/mac-os-test.yml"
   push:
+    branches:
+      - master
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'

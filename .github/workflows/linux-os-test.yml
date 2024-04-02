@@ -2,13 +2,15 @@ name: Test ComfyUI Linux with Default Workflow
 on:
   pull_request:
     branches:
-      - main
+      - master
     paths-ignore:
       - "tests/**"
       - "tests-ui/**"
       - ".github/workflows/**"
       - "!.github/workflows/linux-os-test.yml"
   push:
+    branches:
+      - master
     paths-ignore:
       - "tests/**"
       - "tests-ui/**"
