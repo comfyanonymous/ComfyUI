@@ -70,8 +70,8 @@ class SD20(supported_models_base.BASE):
     def model_type(self, state_dict, prefix=""):
         if self.unet_config["in_channels"] == 4: #SD2.0 inpainting models are not v prediction
             k = "{}output_blocks.11.1.transformer_blocks.0.norm1.bias".format(prefix)
-            out = state_dict[k]
-            if torch.std(out, unbiased=False) > 0.09: # not sure how well this will actually work. I guess we will find out.
+            out = state_dict.get(k, None)
+            if out is not None and torch.std(out, unbiased=False) > 0.09: # not sure how well this will actually work. I guess we will find out.
                 return model_base.ModelType.V_PREDICTION
         return model_base.ModelType.EPS
 
@@ -334,6 +334,11 @@ class Stable_Zero123(supported_models_base.BASE):
         "num_head_channels": -1,
     }
 
+    required_keys = {
+        "cc_projection.weight": None,
+        "cc_projection.bias": None,
+    }
+
     clip_vision_prefix = "cond_stage_model.model.visual."
 
     latent_format = latent_formats.SD15
@@ -439,6 +444,33 @@ class Stable_Cascade_B(Stable_Cascade_C):
         out = model_base.StableCascade_B(self, device=device)
         return out
 
+class SD15_instructpix2pix(SD15):
+    unet_config = {
+        "context_dim": 768,
+        "model_channels": 320,
+        "use_linear_in_transformer": False,
+        "adm_in_channels": None,
+        "use_temporal_attention": False,
+        "in_channels": 8,
+    }
 
-models = [Stable_Zero123, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p]
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.SD15_instructpix2pix(self, device=device)
+
+class SDXL_instructpix2pix(SDXL):
+    unet_config = {
+        "model_channels": 320,
+        "use_linear_in_transformer": True,
+        "transformer_depth": [0, 0, 2, 2, 10, 10],
+        "context_dim": 2048,
+        "adm_in_channels": 2816,
+        "use_temporal_attention": False,
+        "in_channels": 8,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.SDXL_instructpix2pix(self, device=device)
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p]
+
 models += [SVD_img2vid]
