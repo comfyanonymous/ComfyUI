@@ -1,5 +1,19 @@
 name: Test ComfyUI Linux with Default Workflow
-on: [push, pull_request, workflow_dispatch]
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore: 
+      - 'tests/**'
+      - 'tests-ui/**'
+      - '.github/workflows/mac-os-test.yml'
+  push:
+    paths-ignore: 
+      - 'tests/**'
+      - 'tests-ui/**'
+      - '.github/workflows/mac-os-test.yml'
+  workflow_dispatch:
+
 
 jobs:
   test-action:
