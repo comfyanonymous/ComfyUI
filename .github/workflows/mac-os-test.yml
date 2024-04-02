@@ -1,5 +1,5 @@
 name: Test ComfyUI Mac With Default Workflow
-on: [push, workflow_dispatch]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   test-action:
@@ -8,8 +8,7 @@ jobs:
     - name: Use ComfyUI GitHub Action
       uses: drip-art/comfy-action@main
       with:
-        ORG_KEY: "test-key"
-        py_ver: '3.11'
+        os: macos
         torch_ver: 'nightly'
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
