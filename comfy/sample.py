@@ -52,9 +52,16 @@ def convert_cond(cond):
         out.append(temp)
     return out
 
-def get_additional_models(positive, negative, dtype):
-    """loads additional models in positive and negative conditioning"""
-    control_nets = set(get_models_from_cond(positive, "control") + get_models_from_cond(negative, "control"))
+def get_additional_models(conds, dtype):
+    """loads additional models in conditioning"""
+    cnets = []
+    gligen = []
+
+    for i in range(len(conds)):
+        cnets += get_models_from_cond(conds[i], "control")
+        gligen += get_models_from_cond(conds[i], "gligen")
+
+    control_nets = set(cnets)
 
     inference_memory = 0
     control_models = []
@@ -62,7 +69,6 @@ def get_additional_models(positive, negative, dtype):
         control_models += m.get_models()
         inference_memory += m.inference_memory_requirements(dtype)
 
-    gligen = get_models_from_cond(positive, "gligen") + get_models_from_cond(negative, "gligen")
     gligen = [x[1] for x in gligen]
     models = control_models + gligen
     return models, inference_memory
@@ -73,24 +79,25 @@ def cleanup_additional_models(models):
         if hasattr(m, 'cleanup'):
             m.cleanup()
 
-def prepare_sampling(model, noise_shape, positive, negative, noise_mask):
+def prepare_sampling(model, noise_shape, conds, noise_mask):
     device = model.load_device
-    positive = convert_cond(positive)
-    negative = convert_cond(negative)
+    for i in range(len(conds)):
+        conds[i] = convert_cond(conds[i])
 
     if noise_mask is not None:
         noise_mask = prepare_mask(noise_mask, noise_shape, device)
 
     real_model = None
-    models, inference_memory = get_additional_models(positive, negative, model.model_dtype())
+    models, inference_memory = get_additional_models(conds, model.model_dtype())
     comfy.model_management.load_models_gpu([model] + models, model.memory_required([noise_shape[0] * 2] + list(noise_shape[1:])) + inference_memory)
     real_model = model.model
 
-    return real_model, positive, negative, noise_mask, models
+    return real_model, conds, noise_mask, models
 
 
 def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False, noise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
-    real_model, positive_copy, negative_copy, noise_mask, models = prepare_sampling(model, noise.shape, positive, negative, noise_mask)
+    real_model, conds_copy, noise_mask, models = prepare_sampling(model, noise.shape, [positive, negative], noise_mask)
+    positive_copy, negative_copy = conds_copy
 
     noise = noise.to(model.load_device)
     latent_image = latent_image.to(model.load_device)
@@ -105,14 +112,19 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     return samples
 
 def sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=None, callback=None, disable_pbar=False, seed=None):
-    real_model, positive_copy, negative_copy, noise_mask, models = prepare_sampling(model, noise.shape, positive, negative, noise_mask)
+    real_model, conds, noise_mask, models = prepare_sampling(model, noise.shape, [positive, negative], noise_mask)
     noise = noise.to(model.load_device)
     latent_image = latent_image.to(model.load_device)
     sigmas = sigmas.to(model.load_device)
 
-    samples = comfy.samplers.sample(real_model, noise, positive_copy, negative_copy, cfg, model.load_device, sampler, sigmas, model_options=model.model_options, latent_image=latent_image, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
+    samples = comfy.samplers.sample(real_model, noise, conds[0], conds[1], cfg, model.load_device, sampler, sigmas, model_options=model.model_options, latent_image=latent_image, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     samples = samples.to(comfy.model_management.intermediate_device())
     cleanup_additional_models(models)
-    cleanup_additional_models(set(get_models_from_cond(positive_copy, "control") + get_models_from_cond(negative_copy, "control")))
+
+    control_cleanup = []
+    for i in range(len(conds)):
+        control_cleanup += get_models_from_cond(conds[i], "control")
+
+    cleanup_additional_models(set(control_cleanup))
     return samples
 
