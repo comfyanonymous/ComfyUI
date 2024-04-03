@@ -29,6 +29,6 @@ jobs:
         os: windows
         cuda_version: 12.1
         torch_ver: 'stable'
-        models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
+        models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors?download=true", "directory": "checkpoints"}}'
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
         timeout: 50
