@@ -1,4 +1,4 @@
-name: Test ComfyUI Linux with Default Workflow
+name: Test ComfyUI Example Workflows
 on:
   pull_request:
     branches:
