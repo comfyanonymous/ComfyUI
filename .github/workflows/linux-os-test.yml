@@ -45,7 +45,7 @@ jobs:
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
         timeout: 50
   test-lora-workflow:
-    runs-on: $${{ matrix.runner_label }}
+    runs-on: ${{ matrix.runner_label }}
     if: ${{ github.event.inputs.runTests == 'All' }} || ${{ github.event.inputs.runTests == 'Lora' }}
     steps:
     - name: Use ComfyUI GitHub Action
