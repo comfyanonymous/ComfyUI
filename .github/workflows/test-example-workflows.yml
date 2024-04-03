@@ -11,11 +11,6 @@ on:
       - 'tests/**'
       - 'tests-ui/**'
   workflow_dispatch:
-    inputs:
-      runTests:
-        description: 'Specify which tests to run (e.g., "All", "Lora", "Default")'
-        required: true
-        default: 'All'  # Default to running all tests
 
 jobs:
   test-default-workflow:
@@ -31,27 +26,24 @@ jobs:
               torch_ver: 'stable'
               runner_label: [self-hosted, Linux, nvidia-tesla-t4]
     runs-on: ${{ matrix.runner_label }}
-    if: ${{ github.event.inputs.runTests == 'All' }} || ${{ github.event.inputs.runTests == 'Default' }}
     steps:
-    - name: Use ComfyUI GitHub Action
+    - name: Test Default Workflow
       uses: drip-art/comfy-action@main
       with:
         os: ${{ matrix.os }}
         cuda_version: ${{ matrix.cuda_version }}
         torch_ver: ${{ matrix.torch_ver }}
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
+        workflow_name: "default-workflow"
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
         timeout: 50
-  test-lora-workflow:
-    runs-on: ${{ matrix.runner_label }}
-    if: ${{ github.event.inputs.runTests == 'All' }} || ${{ github.event.inputs.runTests == 'Lora' }}
-    steps:
-    - name: Use ComfyUI GitHub Action
+    - name: Test Lora Workflow
       uses: drip-art/comfy-action@main
       with:
         os: ${{ matrix.os }}
         cuda_version: ${{ matrix.cuda_version }}
         torch_ver: ${{ matrix.torch_ver }}
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}, "epiNoiseoffset_v2.safetensors": {"url": "https://huggingface.co/adhikjoshi/epi_noiseoffset/resolve/main/epiNoiseoffset_v2.safetensors", "directory": "loras"}}'
+        workflow_name: "lora-workflow"
         workflow_json_path: '.github/workflows/json_examples/workflow_lora_api.json'
         timeout: 50
