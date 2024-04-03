@@ -1500,6 +1500,9 @@ export class ComfyApp {
 		function resizeCanvas() {
 			// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
 			const scale = Math.max(window.devicePixelRatio, 1);
+			
+			// Clear fixed width and height while calculating rect so it uses 100% instead
+			canvasEl.height = canvasEl.width = "";
 			const { width, height } = canvasEl.getBoundingClientRect();
 			canvasEl.width = Math.round(width * scale);
 			canvasEl.height = Math.round(height * scale);
