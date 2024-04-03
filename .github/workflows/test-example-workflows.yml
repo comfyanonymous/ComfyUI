@@ -6,12 +6,10 @@ on:
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'
-      - '.github/workflows/mac-os-test.yml'
   push:
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'
-      - '.github/workflows/mac-os-test.yml'
   workflow_dispatch:
     inputs:
       runTests:
