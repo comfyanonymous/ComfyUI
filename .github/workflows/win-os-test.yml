@@ -1,4 +1,4 @@
-name: Test ComfyUI Windows with Default Workflow
+name: Test ComfyUI Windows with Default Workflow 2
 on:
   pull_request:
     branches:
