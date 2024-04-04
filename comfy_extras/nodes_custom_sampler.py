@@ -397,7 +397,7 @@ class CFGGuider:
 
     def get_guider(self, model, positive, negative, cfg):
         guider = comfy.samplers.CFGGuider(model)
-        guider.set_conds({"positive": positive, "negative": negative})
+        guider.set_conds(positive, negative)
         guider.set_cfg(cfg)
         return (guider,)
 
