@@ -383,6 +383,28 @@ class SamplerCustom:
             out_denoised = out
         return (out, out_denoised)
 
+class Guider_Basic(comfy.samplers.CFGGuider):
+    def set_conds(self, positive):
+        self.inner_set_conds({"positive": positive})
+
+class BasicGuider:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                    "conditioning": ("CONDITIONING", ),
+                     }
+                }
+
+    RETURN_TYPES = ("GUIDER",)
+
+    FUNCTION = "get_guider"
+    CATEGORY = "sampling/custom_sampling/guiders"
+
+    def get_guider(self, model, conditioning):
+        guider = Guider_Basic(model)
+        guider.set_conds(conditioning)
+        return (guider,)
 
 class CFGGuider:
     @classmethod
@@ -496,6 +518,7 @@ NODE_CLASS_MAPPINGS = {
     "FlipSigmas": FlipSigmas,
 
     "CFGGuider": CFGGuider,
+    "BasicGuider": BasicGuider,
     "RandomNoise": RandomNoise,
     "DisableNoise": DisableNoise,
     "SamplerCustomAdvanced": SamplerCustomAdvanced,
