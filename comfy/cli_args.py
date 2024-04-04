@@ -1,5 +1,7 @@
 import argparse
+import base64
 import enum
+import json
 import comfy.options
 
 class EnumAction(argparse.Action):
@@ -107,8 +109,12 @@ parser.add_argument("--disable-smart-memory", action="store_true", help="Force C
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
-parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
 parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
+ci_group = parser.add_mutually_exclusive_group()
+ci_group.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
+ci_group.add_argument("--test-ci-with-prompts", action="store_true", help="Test CI with prompts and Comfy will stop running after prompts are complete.")
+parser.add_argument("--prompts-for-ci-test", nargs="+", default=[], type=lambda x: json.loads(base64.b64decode(x).decode("utf-8")), help="List of base64 encoded JSON strings for testing CI with prompts. Prompts to use for CI test when --test-ci-with-prompts is set.")
+
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 

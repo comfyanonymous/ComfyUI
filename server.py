@@ -73,6 +73,8 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
+        self.runner = None
+        self.site = None
 
         middlewares = [cache_control]
         if args.enable_cors_header:
@@ -475,6 +477,7 @@ class PromptServer():
                 if valid[0]:
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
+                    # TODO: refactor PromptQueue to take typed input
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
@@ -618,19 +621,55 @@ class PromptServer():
     async def publish_loop(self):
         while True:
             msg = await self.messages.get()
+            # Break the message loop with None message
+            if msg is None:
+                break
             await self.send(*msg)
 
     async def start(self, address, port, verbose=True, call_on_start=None):
-        runner = web.AppRunner(self.app, access_log=None)
-        await runner.setup()
-        site = web.TCPSite(runner, address, port)
-        await site.start()
+        self.runner = web.AppRunner(self.app, access_log=None)
+        await self.runner.setup()
+        self.site = web.TCPSite(self.runner, address, port)
+        await self.site.start()
 
         if verbose:
             logging.info("Starting server\n")
             logging.info("To see the GUI go to: http://{}:{}".format(address, port))
         if call_on_start is not None:
             call_on_start(address, port)
+
+    # TODO: accept stop API request
+    def stop(self):
+        """
+        Stop the server.
+
+        Call `async_stop` coroutine in a thread-safe manner
+        If the event loop is not running, the stop() is called too early
+        """
+        logging.info("Stopping server")
+        if self.loop.is_running():
+            asyncio.run_coroutine_threadsafe(self.async_stop(), self.loop)
+        else:
+            logging.error("Cannot stop server, loop is not running")
+
+       
+    async def async_stop(self):
+        """
+        Asynchronously stops the server.
+        This coroutine should be called to gracefully stop the server.
+        """
+        # Put breaking message for message queue
+        await self.messages.put(None)
+        # TODO: check if queue is not yet complete and conditional shutdown
+        # server
+        if not self.site or self.site._closed:  # Check if the site is already closed
+            logging.warning("Server is already stopped or was never started.")
+            return
+        if self.site:
+            await self.site.stop()
+        if self.runner:
+            await self.runner.cleanup()
+        logging.info("Stopped site upon request")
 
     def add_on_prompt_handler(self, handler):
         self.on_prompt_handlers.append(handler)
