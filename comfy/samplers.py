@@ -624,6 +624,9 @@ class CFGGuider:
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 
     def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+        if sigmas.shape[-1] == 0:
+            return latent_image
+
         self.conds = {}
         for k in self.original_conds:
             self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
@@ -722,9 +725,12 @@ class KSampler:
         if denoise is None or denoise > 0.9999:
             self.sigmas = self.calculate_sigmas(steps).to(self.device)
         else:
-            new_steps = int(steps/denoise)
-            sigmas = self.calculate_sigmas(new_steps).to(self.device)
-            self.sigmas = sigmas[-(steps + 1):]
+            if denoise <= 0.0:
+                self.sigmas = torch.FloatTensor([])
+            else:
+                new_steps = int(steps/denoise)
+                sigmas = self.calculate_sigmas(new_steps).to(self.device)
+                self.sigmas = sigmas[-(steps + 1):]
 
     def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
         if sigmas is None:

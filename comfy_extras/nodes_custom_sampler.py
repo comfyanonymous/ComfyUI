@@ -24,6 +24,8 @@ class BasicScheduler:
     def get_sigmas(self, model, scheduler, steps, denoise):
         total_steps = steps
         if denoise < 1.0:
+            if denoise <= 0.0:
+                return (torch.FloatTensor([]),)
             total_steps = int(steps/denoise)
 
         comfy.model_management.load_models_gpu([model])
@@ -160,6 +162,9 @@ class FlipSigmas:
     FUNCTION = "get_sigmas"
 
     def get_sigmas(self, sigmas):
+        if len(sigmas) == 0:
+            return (sigmas,)
+
         sigmas = sigmas.flip(0)
         if sigmas[0] == 0:
             sigmas[0] = 0.0001
