@@ -25,7 +25,7 @@ def execute_prestartup_script():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
+            if os.path.isfile(module_path) or module_path.endswith(".disabled") or possible_module == "__pycache__":
                 continue
 
             script_path = os.path.join(module_path, "prestartup_script.py")
