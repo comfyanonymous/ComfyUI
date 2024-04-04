@@ -3,6 +3,7 @@ on:
   pull_request:
     branches:
       - master
+      - dev
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'
