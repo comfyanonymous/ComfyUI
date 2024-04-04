@@ -721,6 +721,7 @@ class PromptQueue:
         self.history = {}
         self.flags = {}
         server.prompt_queue = self
+        self.stop_server_upon_completion = False
 
     def put(self, item):
         with self.mutex:
@@ -763,6 +764,8 @@ class PromptQueue:
                 'status': status_dict,
             }
             self.server.queue_updated()
+            if self.stop_server_upon_completion and len(self.queue) == 0 and len(self.currently_running) == 0:
+                self.server.stop()
 
     def get_current_queue(self):
         with self.mutex:
@@ -819,6 +822,10 @@ class PromptQueue:
     def delete_history_item(self, id_to_delete):
         with self.mutex:
             self.history.pop(id_to_delete, None)
+    
+    def set_stop_server_upon_completion(self, value):
+        with self.mutex:
+            self.stop_server_upon_completion = value
 
     def set_flag(self, name, data):
         with self.mutex:

@@ -1,3 +1,4 @@
+import uuid
 import comfy.options
 comfy.options.enable_args_parsing()
 
@@ -240,6 +241,14 @@ if __name__ == "__main__":
 
     if args.quick_test_for_ci:
         exit(0)
+
+    if args.test_ci_with_prompts:
+        q.set_stop_server_upon_completion(True)
+        for prompt_json in args.prompts_for_ci_test:
+            prompt_id = str(uuid.uuid4())
+            validation = execution.validate_prompt(prompt_json)
+            outputs_to_execute = validation[2]
+            q.put((0, prompt_id, prompt_json, {}, outputs_to_execute))
 
     call_on_start = None
     if args.auto_launch:
