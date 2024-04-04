@@ -596,12 +596,15 @@ class CFGGuider:
         self.original_conds = {}
         self.cfg = 1.0
 
-    def set_conds(self, conds):
-        for k in conds:
-            self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
+    def set_conds(self, positive, negative):
+        self.inner_set_conds({"positive": positive, "negative": negative})
 
     def set_cfg(self, cfg):
         self.cfg = cfg
+
+    def inner_set_conds(self, conds):
+        for k in conds:
+            self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
 
     def __call__(self, *args, **kwargs):
         return self.predict_noise(*args, **kwargs)
@@ -646,7 +649,7 @@ class CFGGuider:
 
 def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model_options={}, latent_image=None, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
     cfg_guider = CFGGuider(model)
-    cfg_guider.set_conds({"positive": positive, "negative": negative})
+    cfg_guider.set_conds(positive, negative)
     cfg_guider.set_cfg(cfg)
     return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
 
