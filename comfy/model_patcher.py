@@ -287,7 +287,7 @@ class ModelPatcher:
                 if weight_key in self.patches:
                     m.weight_function = LowVramPatch(weight_key, self)
                 if bias_key in self.patches:
-                    m.bias_function = LowVramPatch(weight_key, self)
+                    m.bias_function = LowVramPatch(bias_key, self)
 
                 m.prev_comfy_cast_weights = m.comfy_cast_weights
                 m.comfy_cast_weights = True
