@@ -154,7 +154,10 @@ class ModelPatcher:
         if name in self.object_patches:
             return self.object_patches[name]
         else:
-            return comfy.utils.get_attr(self.model, name)
+            if name in self.object_patches_backup:
+                return self.object_patches_backup[name]
+            else:
+                return comfy.utils.get_attr(self.model, name)
 
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]
