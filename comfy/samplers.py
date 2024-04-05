@@ -231,7 +231,7 @@ def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options): 
     logging.warning("WARNING: The comfy.samplers.calc_cond_uncond_batch function is deprecated please use the calc_cond_batch one instead.")
     return tuple(calc_cond_batch(model, [cond, uncond], x_in, timestep, model_options))
 
-def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_options={}):
+def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_options={}, cond=None, uncond=None):
     if "sampler_cfg_function" in model_options:
         args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
                 "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
@@ -256,7 +256,7 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
     conds = [cond, uncond_]
     out = calc_cond_batch(model, conds, x, timestep, model_options)
-    return cfg_function(model, out[0], out[1], cond_scale, x, timestep, model_options=model_options)
+    return cfg_function(model, out[0], out[1], cond_scale, x, timestep, model_options=model_options, cond=cond, uncond=uncond_)
 
 
 class KSamplerX0Inpaint:
