@@ -150,6 +150,12 @@ class ModelPatcher:
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 
+    def get_model_object(self, name):
+        if name in self.object_patches:
+            return self.object_patches[name]
+        else:
+            return comfy.utils.get_attr(self.model, name)
+
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]
         if "patches" in to:

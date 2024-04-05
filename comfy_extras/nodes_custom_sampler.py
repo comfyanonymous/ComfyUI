@@ -28,8 +28,7 @@ class BasicScheduler:
                 return (torch.FloatTensor([]),)
             total_steps = int(steps/denoise)
 
-        comfy.model_management.load_models_gpu([model])
-        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, total_steps).cpu()
+        sigmas = comfy.samplers.calculate_sigmas(model.get_model_object("model_sampling"), scheduler, total_steps).cpu()
         sigmas = sigmas[-(steps + 1):]
         return (sigmas, )
 
