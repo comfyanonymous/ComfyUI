@@ -471,4 +471,4 @@ class ModelPatcher:
         for k in keys:
             comfy.utils.set_attr(self.model, k, self.object_patches_backup[k])
 
-        self.object_patches_backup = {}
+        self.object_patches_backup.clear()
