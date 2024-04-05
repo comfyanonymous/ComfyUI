@@ -49,9 +49,11 @@ class HuggingFile:
     save_with_filename: Optional[str] = None
     alternate_filenames: List[str] = dataclasses.field(default_factory=list)
     show_in_ui: Optional[bool] = True
+    convert_to_16_bit: Optional[bool] = False
+    size: Optional[int] = None
 
     def __str__(self):
-        return split(self.filename)[-1]
+        return self.save_with_filename or split(self.filename)[-1]
 
 
 class CivitStats(TypedDict):

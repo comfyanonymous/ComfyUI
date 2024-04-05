@@ -276,6 +276,7 @@ class StringJoin(CustomNode):
 
     RETURN_TYPES = ("STRING",)
     CATEGORY = "api/openapi"
+    FUNCTION = "execute"
 
     def execute(self, separator: str = "_", *args: str, **kwargs) -> ValidatedNodeResult:
         sorted_keys = natsorted(kwargs.keys())
@@ -323,6 +324,7 @@ class UriFormat(CustomNode):
         }
 
     RETURN_TYPES = ("URIS", "URIS")
+    RETURN_NAMES = ("URIS (FILES)", "URIS (META)")
     FUNCTION = "execute"
     CATEGORY = "api/openapi"
 
