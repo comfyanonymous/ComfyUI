@@ -385,6 +385,8 @@ def load_models_gpu(models, memory_required=0):
     inference_memory = minimum_inference_memory()
     extra_mem = max(inference_memory, memory_required)
 
+    models = set(models)
+
     models_to_load = []
     models_already_loaded = []
     for x in models:

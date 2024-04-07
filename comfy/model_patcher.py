@@ -150,6 +150,15 @@ class ModelPatcher:
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 
+    def get_model_object(self, name):
+        if name in self.object_patches:
+            return self.object_patches[name]
+        else:
+            if name in self.object_patches_backup:
+                return self.object_patches_backup[name]
+            else:
+                return comfy.utils.get_attr(self.model, name)
+
     def model_patches_to(self, device):
         to = self.model_options["transformer_options"]
         if "patches" in to:
@@ -278,7 +287,7 @@ class ModelPatcher:
                 if weight_key in self.patches:
                     m.weight_function = LowVramPatch(weight_key, self)
                 if bias_key in self.patches:
-                    m.bias_function = LowVramPatch(weight_key, self)
+                    m.bias_function = LowVramPatch(bias_key, self)
 
                 m.prev_comfy_cast_weights = m.comfy_cast_weights
                 m.comfy_cast_weights = True
@@ -462,4 +471,4 @@ class ModelPatcher:
         for k in keys:
             comfy.utils.set_attr(self.model, k, self.object_patches_backup[k])
 
-        self.object_patches_backup = {}
+        self.object_patches_backup.clear()
