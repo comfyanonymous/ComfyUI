@@ -251,13 +251,8 @@ class ConditioningSetTimestepRange:
     CATEGORY = "advanced/conditioning"
 
     def set_range(self, conditioning, start, end):
-        c = []
-        for t in conditioning:
-            d = t[1].copy()
-            d['start_percent'] = start
-            d['end_percent'] = end
-            n = [t[0], d]
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"start_percent": start,
+                                                                "end_percent": end})
         return (c, )
 
 class VAEDecode:
@@ -398,13 +393,8 @@ class InpaintModelConditioning:
 
         out = []
         for conditioning in [positive, negative]:
-            c = []
-            for t in conditioning:
-                d = t[1].copy()
-                d["concat_latent_image"] = concat_latent
-                d["concat_mask"] = mask
-                n = [t[0], d]
-                c.append(n)
+            c = node_helpers.conditioning_set_values(conditioning, {"concat_latent_image": concat_latent,
+                                                                    "concat_mask": mask})
             out.append(c)
         return (out[0], out[1], out_latent)
 
