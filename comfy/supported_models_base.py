@@ -16,6 +16,8 @@ class BASE:
         "num_head_channels": 64,
     }
 
+    required_keys = {}
+
     clip_prefix = []
     clip_vision_prefix = None
     noise_aug_config = None
@@ -28,10 +30,14 @@ class BASE:
     manual_cast_dtype = None
 
     @classmethod
-    def matches(s, unet_config):
+    def matches(s, unet_config, state_dict=None):
         for k in s.unet_config:
             if k not in unet_config or s.unet_config[k] != unet_config[k]:
                 return False
+        if state_dict is not None:
+            for k in s.required_keys:
+                if k not in state_dict:
+                    return False
         return True
 
     def model_type(self, state_dict, prefix=""):

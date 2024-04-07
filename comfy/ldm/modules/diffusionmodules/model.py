@@ -5,6 +5,7 @@ import torch.nn as nn
 import numpy as np
 from einops import rearrange
 from typing import Optional, Any
+import logging
 
 from comfy import model_management
 import comfy.ops
@@ -190,7 +191,7 @@ def slice_attention(q, k, v):
             steps *= 2
             if steps > 128:
                 raise e
-            print("out of memory error, increasing steps and trying again", steps)
+            logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
 
     return r1
 
@@ -235,7 +236,7 @@ def pytorch_attention(q, k, v):
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(B, C, H, W)
     except model_management.OOM_EXCEPTION as e:
-        print("scaled_dot_product_attention OOMed: switched to slice attention")
+        logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
     return out
 
@@ -268,13 +269,13 @@ class AttnBlock(nn.Module):
                                         padding=0)
 
         if model_management.xformers_enabled_vae():
-            print("Using xformers attention in VAE")
+            logging.info("Using xformers attention in VAE")
             self.optimized_attention = xformers_attention
         elif model_management.pytorch_attention_enabled():
-            print("Using pytorch attention in VAE")
+            logging.info("Using pytorch attention in VAE")
             self.optimized_attention = pytorch_attention
         else:
-            print("Using split attention in VAE")
+            logging.info("Using split attention in VAE")
             self.optimized_attention = normal_attention
 
     def forward(self, x):
@@ -562,7 +563,7 @@ class Decoder(nn.Module):
         block_in = ch*ch_mult[self.num_resolutions-1]
         curr_res = resolution // 2**(self.num_resolutions-1)
         self.z_shape = (1,z_channels,curr_res,curr_res)
-        print("Working with z of shape {} = {} dimensions.".format(
+        logging.debug("Working with z of shape {} = {} dimensions.".format(
             self.z_shape, np.prod(self.z_shape)))
 
         # z to block_in

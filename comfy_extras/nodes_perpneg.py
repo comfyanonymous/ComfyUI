@@ -10,7 +10,7 @@ class PerpNeg:
     def INPUT_TYPES(s):
         return {"required": {"model": ("MODEL", ),
                              "empty_conditioning": ("CONDITIONING", ),
-                             "neg_scale": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0}),
+                             "neg_scale": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01}),
                             }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
@@ -31,7 +31,7 @@ class PerpNeg:
             model_options = args["model_options"]
             nocond_processed = comfy.samplers.encode_model_conds(model.extra_conds, nocond, x, x.device, "negative")
 
-            (noise_pred_nocond, _) = comfy.samplers.calc_cond_uncond_batch(model, nocond_processed, None, x, sigma, model_options)
+            (noise_pred_nocond,) = comfy.samplers.calc_cond_batch(model, [nocond_processed], x, sigma, model_options)
 
             pos = noise_pred_pos - noise_pred_nocond
             neg = noise_pred_neg - noise_pred_nocond

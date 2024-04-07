@@ -4,6 +4,7 @@ import torch
 import collections
 from comfy import model_management
 import math
+import logging
 
 def get_area_and_mult(conds, x_in, timestep_in):
     area = (x_in.shape[2], x_in.shape[3], 0, 0)
@@ -126,30 +127,23 @@ def cond_cat(c_list):
 
     return out
 
-def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options):
-    out_cond = torch.zeros_like(x_in)
-    out_count = torch.ones_like(x_in) * 1e-37
-
-    out_uncond = torch.zeros_like(x_in)
-    out_uncond_count = torch.ones_like(x_in) * 1e-37
-
-    COND = 0
-    UNCOND = 1
-
+def calc_cond_batch(model, conds, x_in, timestep, model_options):
+    out_conds = []
+    out_counts = []
     to_run = []
-    for x in cond:
-        p = get_area_and_mult(x, x_in, timestep)
-        if p is None:
-            continue
 
-        to_run += [(p, COND)]
-    if uncond is not None:
-        for x in uncond:
-            p = get_area_and_mult(x, x_in, timestep)
-            if p is None:
-                continue
+    for i in range(len(conds)):
+        out_conds.append(torch.zeros_like(x_in))
+        out_counts.append(torch.ones_like(x_in) * 1e-37)
 
-            to_run += [(p, UNCOND)]
+        cond = conds[i]
+        if cond is not None:
+            for x in cond:
+                p = get_area_and_mult(x, x_in, timestep)
+                if p is None:
+                    continue
+
+                to_run += [(p, i)]
 
     while len(to_run) > 0:
         first = to_run[0]
@@ -221,22 +215,20 @@ def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options):
             output = model_options['model_function_wrapper'](model.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
         else:
             output = model.apply_model(input_x, timestep_, **c).chunk(batch_chunks)
-        del input_x
 
         for o in range(batch_chunks):
-            if cond_or_uncond[o] == COND:
-                out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-                out_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
-            else:
-                out_uncond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-                out_uncond_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
-        del mult
+            cond_index = cond_or_uncond[o]
+            out_conds[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
+            out_counts[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
 
-    out_cond /= out_count
-    del out_count
-    out_uncond /= out_uncond_count
-    del out_uncond_count
-    return out_cond, out_uncond
+    for i in range(len(out_conds)):
+        out_conds[i] /= out_counts[i]
+
+    return out_conds
+
+def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options): #TODO: remove
+    logging.warning("WARNING: The comfy.samplers.calc_cond_uncond_batch function is deprecated please use the calc_cond_batch one instead.")
+    return tuple(calc_cond_batch(model, [cond, uncond], x_in, timestep, model_options))
 
 #The main sampling function shared by all the samplers
 #Returns denoised
@@ -246,7 +238,13 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
         else:
             uncond_ = uncond
 
-        cond_pred, uncond_pred = calc_cond_uncond_batch(model, cond, uncond_, x, timestep, model_options)
+
+        conds = [cond, uncond_]
+
+        out = calc_cond_batch(model, conds, x, timestep, model_options)
+        cond_pred = out[0]
+        uncond_pred = out[1]
+
         if "sampler_cfg_function" in model_options:
             args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
                     "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
@@ -545,6 +543,7 @@ class KSAMPLER(Sampler):
             k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
 
         samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
+        samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
         return samples
 
 
@@ -558,11 +557,11 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
             return k_diffusion_sampling.sample_dpm_fast(model, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=callback, disable=disable)
         sampler_function = dpm_fast_function
     elif sampler_name == "dpm_adaptive":
-        def dpm_adaptive_function(model, noise, sigmas, extra_args, callback, disable):
+        def dpm_adaptive_function(model, noise, sigmas, extra_args, callback, disable, **extra_options):
             sigma_min = sigmas[-1]
             if sigma_min == 0:
                 sigma_min = sigmas[-2]
-            return k_diffusion_sampling.sample_dpm_adaptive(model, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=callback, disable=disable)
+            return k_diffusion_sampling.sample_dpm_adaptive(model, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=callback, disable=disable, **extra_options)
         sampler_function = dpm_adaptive_function
     else:
         sampler_function = getattr(k_diffusion_sampling, "sample_{}".format(sampler_name))
@@ -625,7 +624,7 @@ def calculate_sigmas_scheduler(model, scheduler_name, steps):
     elif scheduler_name == "sgm_uniform":
         sigmas = normal_scheduler(model, steps, sgm=True)
     else:
-        print("error invalid scheduler", scheduler_name)
+        logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas
 
 def sampler_object(name):
