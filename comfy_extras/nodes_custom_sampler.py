@@ -4,6 +4,7 @@ from comfy.k_diffusion import sampling as k_diffusion_sampling
 import latent_preview
 import torch
 import comfy.utils
+import node_helpers
 
 
 class BasicScheduler:
@@ -433,6 +434,7 @@ class Guider_DualCFG(comfy.samplers.CFGGuider):
         self.cfg2 = cfg2
 
     def set_conds(self, positive, middle, negative):
+        middle = node_helpers.conditioning_set_values(middle, {"prompt_type": "negative"})
         self.inner_set_conds({"positive": positive, "middle": middle, "negative": negative})
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):
