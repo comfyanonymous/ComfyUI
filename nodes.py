@@ -34,6 +34,7 @@ import importlib
 
 import folder_paths
 import latent_preview
+import node_helpers
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -151,13 +152,9 @@ class ConditioningSetArea:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
-            n[1]['strength'] = strength
-            n[1]['set_area_to_bounds'] = False
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"area": (height // 8, width // 8, y // 8, x // 8),
+                                                                "strength": strength,
+                                                                "set_area_to_bounds": False})
         return (c, )
 
 class ConditioningSetAreaPercentage:
@@ -176,13 +173,9 @@ class ConditioningSetAreaPercentage:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['area'] = ("percentage", height, width, y, x)
-            n[1]['strength'] = strength
-            n[1]['set_area_to_bounds'] = False
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"area": ("percentage", height, width, y, x),
+                                                                "strength": strength,
+                                                                "set_area_to_bounds": False})
         return (c, )
 
 class ConditioningSetAreaStrength:
@@ -197,11 +190,7 @@ class ConditioningSetAreaStrength:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['strength'] = strength
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"strength": strength})
         return (c, )
 
 
@@ -219,19 +208,15 @@ class ConditioningSetMask:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, mask, set_cond_area, strength):
-        c = []
         set_area_to_bounds = False
         if set_cond_area != "default":
             set_area_to_bounds = True
         if len(mask.shape) < 3:
             mask = mask.unsqueeze(0)
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            _, h, w = mask.shape
-            n[1]['mask'] = mask
-            n[1]['set_area_to_bounds'] = set_area_to_bounds
-            n[1]['mask_strength'] = strength
-            c.append(n)
+
+        c = node_helpers.conditioning_set_values(conditioning, {"mask": mask,
+                                                                "set_area_to_bounds": set_area_to_bounds,
+                                                                "mask_strength": strength})
         return (c, )
 
 class ConditioningZeroOut:
