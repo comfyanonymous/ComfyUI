@@ -81,7 +81,7 @@ If you have trouble extracting it, right click the file -> properties -> unblock
 
 #### How do I share models between another UI and ComfyUI?
 
-See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
+See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.If you have this error `yaml.scanner.ScannerError: mapping values are not allowed here` then you need to make sure that `checkpoint` line in the yaml file needs to be in the same indent as `config` and other's below it.
 
 ## Jupyter Notebook
 
