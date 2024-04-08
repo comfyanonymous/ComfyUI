@@ -25,9 +25,7 @@ def _get_name(queue_name: str, user_id: str) -> str:
 
 
 class DistributedExecutorToClientProgress(ExecutorToClientProgress):
-    def __init__(self, rpc: RPC, queue_name: str, loop: AbstractEventLoop, receive_all_progress_notifications=False):
-        if receive_all_progress_notifications:
-            raise NotImplementedError("this release does not yet support sending all progress notifications from the hook over the network")
+    def __init__(self, rpc: RPC, queue_name: str, loop: AbstractEventLoop, receive_all_progress_notifications=True):
         self._rpc = rpc
         self._queue_name = queue_name
         self._loop = loop
