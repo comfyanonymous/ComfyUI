@@ -7247,7 +7247,7 @@ LGraphNode.prototype.executeAction = function(action)
         //create links
         for (var i = 0; i < clipboard_info.links.length; ++i) {
             var link_info = clipboard_info.links[i];
-            var origin_node;
+            var origin_node = undefined;
             var origin_node_relative_id = link_info[0];
             if (origin_node_relative_id != null) {
                 origin_node = nodes[origin_node_relative_id];
