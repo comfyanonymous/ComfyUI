@@ -204,7 +204,7 @@ class DistributedPromptQueue(AbstractPromptQueue):
         """
         return False
 
-    def get_history(self, prompt_id: Optional[int] = None, max_items=None, offset=-1) \
+    def get_history(self, prompt_id: Optional[int] = None, max_items=None, offset=None) \
             -> Mapping[str, HistoryEntry]:
         return self._caller_history.copy(prompt_id=prompt_id, max_items=max_items, offset=offset)
 

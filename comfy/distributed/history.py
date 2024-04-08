@@ -19,12 +19,16 @@ class History:
 
     def copy(self, prompt_id: Optional[str | int] = None, max_items: Optional[int] = None,
              offset: Optional[int] = None) -> Dict[str, HistoryEntry]:
-        offset = offset or 0
+        if offset is not None and offset < 0:
+            offset = max(len(self.history) + offset, 0)
         max_items = max_items or MAXIMUM_HISTORY_SIZE
         if prompt_id in self.history:
             return {prompt_id: copy.deepcopy(self.history[prompt_id])}
         else:
-            return dict(islice(self.history, offset, max_items))
+            ordered_dict = OrderedDict()
+            for k in islice(self.history, offset, max_items):
+                ordered_dict[k] = copy.deepcopy(self.history[k])
+            return ordered_dict
 
     def clear(self):
         self.history.clear()
