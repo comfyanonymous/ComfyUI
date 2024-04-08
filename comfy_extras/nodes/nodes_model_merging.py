@@ -1,8 +1,10 @@
 from comfy import sd, utils
 from comfy import model_base
 from comfy import model_management
-
+from comfy import model_sampling
 from comfy.cmd import folder_paths
+
+import torch
 import json
 import os
 
@@ -188,6 +190,13 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     # "stable-diffusion-v2-768-v", "stable-diffusion-v2-unclip-l", "stable-diffusion-v2-unclip-h",
     # "v2-inpainting"
 
+    extra_keys = {}
+    _model_sampling = model.get_model_object("model_sampling")
+    if isinstance(_model_sampling, model_sampling.ModelSamplingContinuousEDM):
+        if isinstance(_model_sampling, model_sampling.V_PREDICTION):
+            extra_keys["edm_vpred.sigma_max"] = torch.tensor(_model_sampling.sigma_max).float()
+            extra_keys["edm_vpred.sigma_min"] = torch.tensor(_model_sampling.sigma_min).float()
+
     if model.model.model_type == model_base.ModelType.EPS:
         metadata["modelspec.predict_key"] = "epsilon"
     elif model.model.model_type == model_base.ModelType.V_PREDICTION:
@@ -202,7 +211,7 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     output_checkpoint = f"{filename}_{counter:05}_.safetensors"
     output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
-    sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata)
+    sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata, extra_keys=extra_keys)
 
 class CheckpointSave:
     def __init__(self):

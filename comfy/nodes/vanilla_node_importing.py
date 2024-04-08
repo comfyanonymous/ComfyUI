@@ -8,14 +8,14 @@ import sys
 import time
 import types
 from contextlib import contextmanager
-from typing import Dict, List
+from typing import Dict, List, Iterable
 from os.path import join, basename, dirname, isdir, isfile, exists, abspath, split, splitext, realpath
 
 from . import base_nodes
 from .package_typing import ExportedNodes
 
 
-def _vanilla_load_importing_execute_prestartup_script(node_paths: List[str]) -> None:
+def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str]) -> None:
     def execute_script(script_path):
         module_name = splitext(script_path)[0]
         try:
@@ -121,7 +121,7 @@ def _vanilla_load_custom_nodes_1(module_path, ignore=set()) -> ExportedNodes:
         return exported_nodes
 
 
-def _vanilla_load_custom_nodes_2(node_paths: List[str]) -> ExportedNodes:
+def _vanilla_load_custom_nodes_2(node_paths: Iterable[str]) -> ExportedNodes:
     base_node_names = set(base_nodes.NODE_CLASS_MAPPINGS.keys())
     node_import_times = []
     exported_nodes = ExportedNodes()
@@ -191,6 +191,8 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     is_git_repository = exists(join(potential_git_dir_parent, ".git"))
     if is_git_repository:
         node_paths += [abspath(join(potential_git_dir_parent, "custom_nodes"))]
+
+    node_paths = frozenset(abspath(custom_node_path) for custom_node_path in node_paths)
 
     _vanilla_load_importing_execute_prestartup_script(node_paths)
     vanilla_custom_nodes = _vanilla_load_custom_nodes_2(node_paths)
