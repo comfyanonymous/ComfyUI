@@ -1,0 +1,34 @@
+name: Test ComfyUI Windows with Default Workflow 2
+on:
+  workflow_dispatch:
+
+
+jobs:
+  speed-test-runner:
+    strategy:
+        matrix:
+          os: [macos, linux]
+          include:
+            - os: macos
+              runner_label: [self-hosted, m2]
+            - os: linux
+              runner_label: [self-hosted, Linux, nvidia-tesla-t4]
+    runs-on: ${{ matrix.runner_label }}
+    steps:
+      - name: Install speedtest-cli for Linux
+        if : matrix.os == 'linux'
+        run: |
+          # For Ubuntu/Debian-based systems
+          sudo apt-get install -y speedtest-cli
+      
+      - name: Install speedtest-cli for MacOS
+        if : matrix.os == 'macos'
+        run: |
+          # For macOS
+          brew install speedtest-cli
+
+      - name: Check network speed
+        run: |
+          speedtest-cli
+
+
