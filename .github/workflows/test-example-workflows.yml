@@ -39,7 +39,7 @@ jobs:
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
         timeout: 50
     - name: Test Lora Workflow
-      uses: drip-art/comfy-action@main
+      uses: drip-art/comfy-action@rh
       with:
         os: ${{ matrix.os }}
         cuda_version: ${{ matrix.cuda_version }}
