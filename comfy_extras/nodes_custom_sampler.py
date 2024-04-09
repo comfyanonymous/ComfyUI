@@ -4,6 +4,7 @@ from comfy.k_diffusion import sampling as k_diffusion_sampling
 import latent_preview
 import torch
 import comfy.utils
+import node_helpers
 
 
 class BasicScheduler:
@@ -24,10 +25,11 @@ class BasicScheduler:
     def get_sigmas(self, model, scheduler, steps, denoise):
         total_steps = steps
         if denoise < 1.0:
+            if denoise <= 0.0:
+                return (torch.FloatTensor([]),)
             total_steps = int(steps/denoise)
 
-        comfy.model_management.load_models_gpu([model])
-        sigmas = comfy.samplers.calculate_sigmas_scheduler(model.model, scheduler, total_steps).cpu()
+        sigmas = comfy.samplers.calculate_sigmas(model.get_model_object("model_sampling"), scheduler, total_steps).cpu()
         sigmas = sigmas[-(steps + 1):]
         return (sigmas, )
 
@@ -160,6 +162,9 @@ class FlipSigmas:
     FUNCTION = "get_sigmas"
 
     def get_sigmas(self, sigmas):
+        if len(sigmas) == 0:
+            return (sigmas,)
+
         sigmas = sigmas.flip(0)
         if sigmas[0] == 0:
             sigmas[0] = 0.0001
@@ -310,6 +315,24 @@ class SamplerDPMAdaptative:
                                                               "s_noise":s_noise })
         return (sampler, )
 
+class Noise_EmptyNoise:
+    def __init__(self):
+        self.seed = 0
+
+    def generate_noise(self, input_latent):
+        latent_image = input_latent["samples"]
+        return torch.zeros(latent_image.shape, dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+
+
+class Noise_RandomNoise:
+    def __init__(self, seed):
+        self.seed = seed
+
+    def generate_noise(self, input_latent):
+        latent_image = input_latent["samples"]
+        batch_inds = input_latent["batch_index"] if "batch_index" in input_latent else None
+        return comfy.sample.prepare_noise(latent_image, self.seed, batch_inds)
+
 class SamplerCustom:
     @classmethod
     def INPUT_TYPES(s):
@@ -337,10 +360,9 @@ class SamplerCustom:
         latent = latent_image
         latent_image = latent["samples"]
         if not add_noise:
-            noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+            noise = Noise_EmptyNoise().generate_noise(latent)
         else:
-            batch_inds = latent["batch_index"] if "batch_index" in latent else None
-            noise = comfy.sample.prepare_noise(latent_image, noise_seed, batch_inds)
+            noise = Noise_RandomNoise(noise_seed).generate_noise(latent)
 
         noise_mask = None
         if "noise_mask" in latent:
@@ -357,6 +379,161 @@ class SamplerCustom:
         if "x0" in x0_output:
             out_denoised = latent.copy()
             out_denoised["samples"] = model.model.process_latent_out(x0_output["x0"].cpu())
+        else:
+            out_denoised = out
+        return (out, out_denoised)
+
+class Guider_Basic(comfy.samplers.CFGGuider):
+    def set_conds(self, positive):
+        self.inner_set_conds({"positive": positive})
+
+class BasicGuider:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                    "conditioning": ("CONDITIONING", ),
+                     }
+                }
+
+    RETURN_TYPES = ("GUIDER",)
+
+    FUNCTION = "get_guider"
+    CATEGORY = "sampling/custom_sampling/guiders"
+
+    def get_guider(self, model, conditioning):
+        guider = Guider_Basic(model)
+        guider.set_conds(conditioning)
+        return (guider,)
+
+class CFGGuider:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                    "positive": ("CONDITIONING", ),
+                    "negative": ("CONDITIONING", ),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
+                     }
+                }
+
+    RETURN_TYPES = ("GUIDER",)
+
+    FUNCTION = "get_guider"
+    CATEGORY = "sampling/custom_sampling/guiders"
+
+    def get_guider(self, model, positive, negative, cfg):
+        guider = comfy.samplers.CFGGuider(model)
+        guider.set_conds(positive, negative)
+        guider.set_cfg(cfg)
+        return (guider,)
+
+class Guider_DualCFG(comfy.samplers.CFGGuider):
+    def set_cfg(self, cfg1, cfg2):
+        self.cfg1 = cfg1
+        self.cfg2 = cfg2
+
+    def set_conds(self, positive, middle, negative):
+        middle = node_helpers.conditioning_set_values(middle, {"prompt_type": "negative"})
+        self.inner_set_conds({"positive": positive, "middle": middle, "negative": negative})
+
+    def predict_noise(self, x, timestep, model_options={}, seed=None):
+        negative_cond = self.conds.get("negative", None)
+        middle_cond = self.conds.get("middle", None)
+
+        out = comfy.samplers.calc_cond_batch(self.inner_model, [negative_cond, middle_cond, self.conds.get("positive", None)], x, timestep, model_options)
+        return comfy.samplers.cfg_function(self.inner_model, out[1], out[0], self.cfg2, x, timestep, model_options=model_options, cond=middle_cond, uncond=negative_cond) + (out[2] - out[1]) * self.cfg1
+
+class DualCFGGuider:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                    "cond1": ("CONDITIONING", ),
+                    "cond2": ("CONDITIONING", ),
+                    "negative": ("CONDITIONING", ),
+                    "cfg_conds": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
+                    "cfg_cond2_negative": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
+                     }
+                }
+
+    RETURN_TYPES = ("GUIDER",)
+
+    FUNCTION = "get_guider"
+    CATEGORY = "sampling/custom_sampling/guiders"
+
+    def get_guider(self, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative):
+        guider = Guider_DualCFG(model)
+        guider.set_conds(cond1, cond2, negative)
+        guider.set_cfg(cfg_conds, cfg_cond2_negative)
+        return (guider,)
+
+class DisableNoise:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":{
+                     }
+                }
+
+    RETURN_TYPES = ("NOISE",)
+    FUNCTION = "get_noise"
+    CATEGORY = "sampling/custom_sampling/noise"
+
+    def get_noise(self):
+        return (Noise_EmptyNoise(),)
+
+
+class RandomNoise(DisableNoise):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":{
+                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                     }
+                }
+
+    def get_noise(self, noise_seed):
+        return (Noise_RandomNoise(noise_seed),)
+
+
+class SamplerCustomAdvanced:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"noise": ("NOISE", ),
+                    "guider": ("GUIDER", ),
+                    "sampler": ("SAMPLER", ),
+                    "sigmas": ("SIGMAS", ),
+                    "latent_image": ("LATENT", ),
+                     }
+                }
+
+    RETURN_TYPES = ("LATENT","LATENT")
+    RETURN_NAMES = ("output", "denoised_output")
+
+    FUNCTION = "sample"
+
+    CATEGORY = "sampling/custom_sampling"
+
+    def sample(self, noise, guider, sampler, sigmas, latent_image):
+        latent = latent_image
+        latent_image = latent["samples"]
+
+        noise_mask = None
+        if "noise_mask" in latent:
+            noise_mask = latent["noise_mask"]
+
+        x0_output = {}
+        callback = latent_preview.prepare_callback(guider.model_patcher, sigmas.shape[-1] - 1, x0_output)
+
+        disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
+        samples = guider.sample(noise.generate_noise(latent), latent_image, sampler, sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise.seed)
+        samples = samples.to(comfy.model_management.intermediate_device())
+
+        out = latent.copy()
+        out["samples"] = samples
+        if "x0" in x0_output:
+            out_denoised = latent.copy()
+            out_denoised["samples"] = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
         else:
             out_denoised = out
         return (out, out_denoised)
@@ -378,4 +555,11 @@ NODE_CLASS_MAPPINGS = {
     "SamplerDPMAdaptative": SamplerDPMAdaptative,
     "SplitSigmas": SplitSigmas,
     "FlipSigmas": FlipSigmas,
+
+    "CFGGuider": CFGGuider,
+    "DualCFGGuider": DualCFGGuider,
+    "BasicGuider": BasicGuider,
+    "RandomNoise": RandomNoise,
+    "DisableNoise": DisableNoise,
+    "SamplerCustomAdvanced": SamplerCustomAdvanced,
 }
