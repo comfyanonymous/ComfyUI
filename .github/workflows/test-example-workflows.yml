@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.runner_label }}
     steps:
     - name: Test Default Workflow
-      uses: drip-art/comfy-action@rh
+      uses: drip-art/comfy-action@main
       with:
         os: ${{ matrix.os }}
         cuda_version: ${{ matrix.cuda_version }}
@@ -36,7 +36,7 @@ jobs:
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
         timeout: 50
     - name: Test Lora Workflow
-      uses: drip-art/comfy-action@rh
+      uses: drip-art/comfy-action@main
       with:
         os: ${{ matrix.os }}
         cuda_version: ${{ matrix.cuda_version }}
