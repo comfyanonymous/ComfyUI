@@ -115,6 +115,7 @@ class PromptServer():
                         logging.warning('ws connection closed with exception %s' % ws.exception())
             finally:
                 self.sockets.pop(sid, None)
+                self.cleanup_if_idle()
             return ws
 
         @routes.get("/")
@@ -614,6 +615,7 @@ class PromptServer():
 
     def queue_updated(self):
         self.send_sync("status", { "status": self.get_queue_info() })
+        self.cleanup_if_idle()
 
     async def publish_loop(self):
         while True:
@@ -644,3 +646,9 @@ class PromptServer():
                 logging.warning(traceback.format_exc())
 
         return json_data
+
+    def cleanup_if_idle(self):
+        if len(self.sockets) == 0:
+            with self.prompt_queue.mutex:
+                if len(self.prompt_queue.currently_running) == 0 and len(self.prompt_queue.queue) == 0:
+                    comfy.model_management.unload_all_models()
