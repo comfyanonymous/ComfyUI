@@ -16,12 +16,14 @@ jobs:
     steps:
       - name: Install speedtest-cli for Linux
         if : matrix.os == 'linux'
+        shell: bash
         run: |
           # For Ubuntu/Debian-based systems
           sudo apt-get install -y speedtest-cli
       
       - name: Install speedtest-cli for MacOS
         if : matrix.os == 'macos'
+        shell: zsh
         run: |
           # For macOS
           brew install speedtest-cli
