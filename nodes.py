@@ -34,6 +34,7 @@ import importlib
 
 import folder_paths
 import latent_preview
+import node_helpers
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -151,13 +152,9 @@ class ConditioningSetArea:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
-            n[1]['strength'] = strength
-            n[1]['set_area_to_bounds'] = False
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"area": (height // 8, width // 8, y // 8, x // 8),
+                                                                "strength": strength,
+                                                                "set_area_to_bounds": False})
         return (c, )
 
 class ConditioningSetAreaPercentage:
@@ -176,13 +173,9 @@ class ConditioningSetAreaPercentage:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['area'] = ("percentage", height, width, y, x)
-            n[1]['strength'] = strength
-            n[1]['set_area_to_bounds'] = False
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"area": ("percentage", height, width, y, x),
+                                                                "strength": strength,
+                                                                "set_area_to_bounds": False})
         return (c, )
 
 class ConditioningSetAreaStrength:
@@ -197,11 +190,7 @@ class ConditioningSetAreaStrength:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['strength'] = strength
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"strength": strength})
         return (c, )
 
 
@@ -219,19 +208,15 @@ class ConditioningSetMask:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, mask, set_cond_area, strength):
-        c = []
         set_area_to_bounds = False
         if set_cond_area != "default":
             set_area_to_bounds = True
         if len(mask.shape) < 3:
             mask = mask.unsqueeze(0)
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            _, h, w = mask.shape
-            n[1]['mask'] = mask
-            n[1]['set_area_to_bounds'] = set_area_to_bounds
-            n[1]['mask_strength'] = strength
-            c.append(n)
+
+        c = node_helpers.conditioning_set_values(conditioning, {"mask": mask,
+                                                                "set_area_to_bounds": set_area_to_bounds,
+                                                                "mask_strength": strength})
         return (c, )
 
 class ConditioningZeroOut:
@@ -266,13 +251,8 @@ class ConditioningSetTimestepRange:
     CATEGORY = "advanced/conditioning"
 
     def set_range(self, conditioning, start, end):
-        c = []
-        for t in conditioning:
-            d = t[1].copy()
-            d['start_percent'] = start
-            d['end_percent'] = end
-            n = [t[0], d]
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"start_percent": start,
+                                                                "end_percent": end})
         return (c, )
 
 class VAEDecode:
@@ -413,13 +393,8 @@ class InpaintModelConditioning:
 
         out = []
         for conditioning in [positive, negative]:
-            c = []
-            for t in conditioning:
-                d = t[1].copy()
-                d["concat_latent_image"] = concat_latent
-                d["concat_mask"] = mask
-                n = [t[0], d]
-                c.append(n)
+            c = node_helpers.conditioning_set_values(conditioning, {"concat_latent_image": concat_latent,
+                                                                    "concat_mask": mask})
             out.append(c)
         return (out[0], out[1], out_latent)
 
@@ -1965,6 +1940,7 @@ def init_custom_nodes():
         "nodes_morphology.py",
         "nodes_stable_cascade.py",
         "nodes_differential_diffusion.py",
+        "nodes_ip2p.py",
     ]
 
     import_failed = []

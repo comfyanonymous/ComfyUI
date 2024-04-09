@@ -1,10 +1,11 @@
 import torch
 import comfy.model_management
-import comfy.sample
+import comfy.sampler_helpers
 import comfy.samplers
 import comfy.utils
 
 
+#TODO: This node should be removed and replaced with one that uses the new Guider/SamplerCustomAdvanced.
 class PerpNeg:
     @classmethod
     def INPUT_TYPES(s):
@@ -19,7 +20,7 @@ class PerpNeg:
 
     def patch(self, model, empty_conditioning, neg_scale):
         m = model.clone()
-        nocond = comfy.sample.convert_cond(empty_conditioning)
+        nocond = comfy.sampler_helpers.convert_cond(empty_conditioning)
 
         def cfg_function(args):
             model = args["model"]

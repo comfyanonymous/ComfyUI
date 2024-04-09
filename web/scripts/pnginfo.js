@@ -170,9 +170,12 @@ export async function importA1111(graph, parameters) {
 		const opts = parameters
 			.substr(p)
 			.split("\n")[1]
-			.split(",")
+			.match(new RegExp("\\s*([^:]+:\\s*([^\"\\{].*?|\".*?\"|\\{.*?\\}))\\s*(,|$)", "g"))
 			.reduce((p, n) => {
 				const s = n.split(":");
+				if (s[1].endsWith(',')) {
+					s[1] = s[1].substr(0, s[1].length -1);
+				}
 				p[s[0].trim().toLowerCase()] = s[1].trim();
 				return p;
 			}, {});
@@ -191,6 +194,7 @@ export async function importA1111(graph, parameters) {
 			const vaeLoaderNode = LiteGraph.createNode("VAELoader");
 			const saveNode = LiteGraph.createNode("SaveImage");
 			let hrSamplerNode = null;
+			let hrSteps = null;
 
 			const ceil64 = (v) => Math.ceil(v / 64) * 64;
 
@@ -290,6 +294,9 @@ export async function importA1111(graph, parameters) {
 				model(v) {
 					setWidgetValue(ckptNode, "ckpt_name", v, true);
 				},
+				"vae"(v) {
+					setWidgetValue(vaeLoaderNode, "vae_name", v, true);
+				},
 				"cfg scale"(v) {
 					setWidgetValue(samplerNode, "cfg", +v);
 				},
@@ -316,6 +323,7 @@ export async function importA1111(graph, parameters) {
 					const h = ceil64(+wxh[1]);
 					const hrUp = popOpt("hires upscale");
 					const hrSz = popOpt("hires resize");
+					hrSteps = popOpt("hires steps");
 					let hrMethod = popOpt("hires upscaler");
 
 					setWidgetValue(imageNode, "width", w);
@@ -398,7 +406,7 @@ export async function importA1111(graph, parameters) {
 			}
 
 			if (hrSamplerNode) {
-				setWidgetValue(hrSamplerNode, "steps", getWidget(samplerNode, "steps").value);
+				setWidgetValue(hrSamplerNode, "steps", hrSteps? +hrSteps : getWidget(samplerNode, "steps").value);
 				setWidgetValue(hrSamplerNode, "cfg", getWidget(samplerNode, "cfg").value);
 				setWidgetValue(hrSamplerNode, "scheduler", getWidget(samplerNode, "scheduler").value);
 				setWidgetValue(hrSamplerNode, "sampler_name", getWidget(samplerNode, "sampler_name").value);
@@ -415,7 +423,7 @@ export async function importA1111(graph, parameters) {
 
 			graph.arrange();
 
-			for (const opt of ["model hash", "ensd"]) {
+			for (const opt of ["model hash", "ensd", "version", "vae hash", "ti hashes", "lora hashes", "hashes"]) {
 				delete opts[opt];
 			}
 
