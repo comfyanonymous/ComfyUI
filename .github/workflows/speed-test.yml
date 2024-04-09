@@ -1,7 +1,6 @@
-name: Test ComfyUI Windows with Default Workflow 2
+name: Speed Test runners
 on:
   workflow_dispatch:
-
 
 jobs:
   speed-test-runner:
