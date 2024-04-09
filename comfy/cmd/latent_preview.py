@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import torch
 from PIL import Image
 import numpy as np
 from ..cli_args import args
 from ..cli_args_types import LatentPreviewMethod
+from ..model_downloader import get_or_download, KNOWN_APPROX_VAES
 from ..taesd.taesd import TAESD
 from ..cmd import folder_paths
 from .. import utils
@@ -59,7 +62,7 @@ def get_previewer(device, latent_format):
                     if fn.startswith(latent_format.taesd_decoder_name)),
                 ""
             )
-            taesd_decoder_path = folder_paths.get_full_path("vae_approx", taesd_decoder_path)
+            taesd_decoder_path = get_or_download("vae_approx", taesd_decoder_path, KNOWN_APPROX_VAES)
 
         if method == LatentPreviewMethod.Auto:
             method = LatentPreviewMethod.Latent2RGB

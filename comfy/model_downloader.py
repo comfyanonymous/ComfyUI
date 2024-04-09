@@ -281,6 +281,11 @@ KNOWN_DIFF_CONTROLNETS = [
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_seg_fp16.safetensors"),
 ]
 
+KNOWN_APPROX_VAES = [
+    HuggingFile("madebyollin/taesd", "taesd_decoder.safetensors"),
+    HuggingFile("madebyollin/taesdxl", "taesdxl_decoder.safetensors")
+]
+
 
 def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:
     if args.disable_known_models:

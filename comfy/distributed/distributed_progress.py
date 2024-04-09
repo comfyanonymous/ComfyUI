@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from asyncio import AbstractEventLoop
+from enum import Enum
 from functools import partial
-
 from typing import Optional, Dict, Any
 
 from aio_pika.patterns import RPC
 
-from ..component_model.executor_types import SendSyncEvent, SendSyncData, ExecutorToClientProgress
+from ..component_model.executor_types import SendSyncEvent, SendSyncData, ExecutorToClientProgress, \
+    UnencodedPreviewImageMessage
 from ..component_model.queue_types import BinaryEventTypes
 from ..utils import hijack_progress
 
@@ -17,6 +19,8 @@ async def _progress(event: SendSyncEvent, data: SendSyncData, user_id: Optional[
                     caller_server: Optional[ExecutorToClientProgress] = None) -> None:
     assert caller_server is not None
     assert user_id is not None
+    if event == BinaryEventTypes.PREVIEW_IMAGE or event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE or isinstance(data, str):
+        data: bytes = base64.b64decode(data)
     caller_server.send_sync(event, data, sid=user_id)
 
 
@@ -39,11 +43,19 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
 
     async def send(self, event: SendSyncEvent, data: SendSyncData, user_id: Optional[str]) -> None:
         # for now, do not send binary data this way, since it cannot be json serialized / it's impractical
-        if event == BinaryEventTypes.PREVIEW_IMAGE or event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
-            return
+        if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
+            from ..cmd.latent_preview_image_encoding import encode_preview_image
+
+            # encode preview image
+            event = BinaryEventTypes.PREVIEW_IMAGE.value
+            data: UnencodedPreviewImageMessage
+            format, pil_image, max_size = data
+            data: bytes = encode_preview_image(pil_image, format, max_size)
 
         if isinstance(data, bytes) or isinstance(data, bytearray):
-            return
+            if isinstance(event, Enum):
+                event: int = event.value
+            data: str = base64.b64encode(data).decode()
 
         if user_id is None:
             # todo: user_id should never be none here

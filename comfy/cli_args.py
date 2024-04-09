@@ -111,7 +111,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--disable-ipex-optimize", action="store_true",
                         help="Disables ipex.optimize when loading models with Intel GPUs.")
 
-    parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.NoPreviews,
+    parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.Auto,
                         help="Default preview method for sampler nodes.", action=EnumAction)
 
     attn_group = parser.add_mutually_exclusive_group()

@@ -1,6 +1,6 @@
 # Define a class for your command-line arguments
 import enum
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Literal
 import configargparse as argparse
 
 ConfigurationExtender = Callable[[argparse.ArgParser], Optional[argparse.ArgParser]]
@@ -50,7 +50,7 @@ class Configuration(dict):
         fp32_text_enc (bool): Use FP32 precision for the text encoder.
         directml (Optional[int]): Use DirectML. -1 for auto-selection.
         disable_ipex_optimize (bool): Disable IPEX optimization for Intel GPUs.
-        preview_method (LatentPreviewMethod): Method for generating previews. Defaults to "none".
+        preview_method (LatentPreviewMethod): Method for generating previews. Defaults to "auto".
         use_split_cross_attention (bool): Use split cross-attention optimization.
         use_quad_cross_attention (bool): Use sub-quadratic cross-attention optimization.
         use_pytorch_cross_attention (bool): Use PyTorch's cross-attention function.
@@ -116,7 +116,7 @@ class Configuration(dict):
         self.fp32_text_enc: bool = False
         self.directml: Optional[int] = None
         self.disable_ipex_optimize: bool = False
-        self.preview_method: str = "none"
+        self.preview_method: LatentPreviewMethod = LatentPreviewMethod.Auto
         self.use_split_cross_attention: bool = False
         self.use_quad_cross_attention: bool = False
         self.use_pytorch_cross_attention: bool = False

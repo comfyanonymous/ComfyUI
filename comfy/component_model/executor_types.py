@@ -1,7 +1,8 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
+import PIL.Image
 from typing_extensions import NotRequired, TypedDict
-from typing import Optional, Literal, Protocol, TypeAlias, Union
+from typing import Optional, Literal, Protocol, TypeAlias, Union, NamedTuple
 
 from .queue_types import BinaryEventTypes
 
@@ -34,11 +35,17 @@ class ProgressMessage(TypedDict):
     sid: NotRequired[str]
 
 
+class UnencodedPreviewImageMessage(NamedTuple):
+    format: Literal["JPEG", "PNG"]
+    pil_image: PIL.Image.Image
+    max_size: int = 512
+
+
 ExecutedMessage: TypeAlias = ExecutingMessage
 
 SendSyncEvent: TypeAlias = Union[Literal["status", "executing", "progress", "executed"], BinaryEventTypes, None]
 
-SendSyncData: TypeAlias = Union[StatusMessage, ExecutingMessage, ProgressMessage, bytes, bytearray, None]
+SendSyncData: TypeAlias = Union[StatusMessage, ExecutingMessage, ProgressMessage, UnencodedPreviewImageMessage, bytes, bytearray, str, None]
 
 
 class ExecutorToClientProgress(Protocol):

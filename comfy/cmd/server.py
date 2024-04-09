@@ -11,21 +11,24 @@ import sys
 import traceback
 import uuid
 from asyncio import Future, AbstractEventLoop
+from enum import Enum
 from io import BytesIO
 from typing import List, Optional, Dict
 from urllib.parse import quote, urlencode
 from posixpath import join as urljoin
+
 from can_ada import URL, parse as urlparse
 
 import aiofiles
 import aiohttp
-from PIL import Image, ImageOps
+from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
 from pkg_resources import resource_filename
 from typing_extensions import NamedTuple
 
 import comfy.interruption
+from .latent_preview_image_encoding import encode_preview_image
 from .. import model_management
 from .. import utils
 from ..app.user_manager import UserManager
@@ -713,8 +716,15 @@ class PromptServer(ExecutorToClientProgress):
         else:
             await self.send_json(event, data, sid)
 
-    def encode_bytes(self, event, data):
-        if not isinstance(event, int):
+    def encode_bytes(self, event: int | Enum | str, data):
+        # todo: investigate what is propagating these spurious, string-repr'd previews
+        if event == repr(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE):
+            event = BinaryEventTypes.UNENCODED_PREVIEW_IMAGE.value
+        elif event == repr(BinaryEventTypes.PREVIEW_IMAGE):
+            event = BinaryEventTypes.PREVIEW_IMAGE.value
+        elif isinstance(event, Enum):
+            event: int = event.value
+        elif not isinstance(event, int):
             raise RuntimeError(f"Binary event types must be integers, got {event}")
 
         packed = struct.pack(">I", event)
@@ -726,24 +736,7 @@ class PromptServer(ExecutorToClientProgress):
         image_type = image_data[0]
         image = image_data[1]
         max_size = image_data[2]
-        if max_size is not None:
-            if hasattr(Image, 'Resampling'):
-                resampling = Image.Resampling.BILINEAR
-            else:
-                resampling = Image.Resampling.LANCZOS
-
-            image = ImageOps.contain(image, (max_size, max_size), resampling)
-        type_num = 1
-        if image_type == "JPEG":
-            type_num = 1
-        elif image_type == "PNG":
-            type_num = 2
-
-        bytesIO = BytesIO()
-        header = struct.pack(">I", type_num)
-        bytesIO.write(header)
-        image.save(bytesIO, format=image_type, quality=95, compress_level=1)
-        preview_bytes = bytesIO.getvalue()
+        preview_bytes = encode_preview_image(image, image_type, max_size)
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
     async def send_bytes(self, event, data, sid=None):

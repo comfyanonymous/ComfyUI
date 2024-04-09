@@ -15,13 +15,13 @@ from aio_pika.patterns import JsonRPC
 
 from .distributed_progress import ProgressHandlers
 from .distributed_types import RpcRequest, RpcReply
+from .history import History
 from .server_stub import ServerStub
 from ..auth.permissions import jwt_decode
+from ..cmd.server import PromptServer
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData
 from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation
-from .history import History
-from ..cmd.server import PromptServer
 
 
 class DistributedPromptQueue(AbstractPromptQueue):
