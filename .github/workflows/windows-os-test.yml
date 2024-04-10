@@ -8,9 +8,10 @@ on:
 jobs:
   test-action:
     if: >-
-      github.event_name == 'issue_comment' && 
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'issue_comment' && 
       contains(github.event.comment.body, 'run_test') && 
-      contains(fromJson('["WRITE", "MAINTAIN", "ADMIN"]'), github.event.comment.author_association)
+      contains(fromJson('["WRITE", "MAINTAIN", "ADMIN"]'), github.event.comment.author_association))
     runs-on: Windows
     steps:
     - name: Use ComfyUI GitHub Action
