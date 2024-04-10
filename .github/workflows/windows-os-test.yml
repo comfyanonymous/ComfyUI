@@ -10,8 +10,6 @@ on:
       - ".github/workflows/**"
       - "!.github/workflows/win-os-test.yml"
   push:
-    branches:
-      - master
     paths-ignore: 
       - 'tests/**'
       - 'tests-ui/**'
