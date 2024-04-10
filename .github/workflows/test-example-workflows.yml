@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.runner_label }}
     steps:
     - name: Test Default Workflow
-      uses: drip-art/comfy-action@main
+      uses: drip-art/comfy-action@rh-gcs
       with:
         os: ${{ matrix.os }}
         cuda_version: ${{ matrix.cuda_version }}
