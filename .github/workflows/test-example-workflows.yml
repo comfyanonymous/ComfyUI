@@ -32,8 +32,9 @@ jobs:
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
         gcs_bucket_name: 'comfy-ci-results'
         google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
-        timeout: 50
         output_prefix: 'ComfyUI'
+        timeout: 50
+
     - name: Test Lora Workflow
       uses: drip-art/comfy-action@main
       with:
@@ -42,5 +43,7 @@ jobs:
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}, "epiNoiseoffset_v2.safetensors": {"url": "https://huggingface.co/adhikjoshi/epi_noiseoffset/resolve/main/epiNoiseoffset_v2.safetensors", "directory": "loras"}}'
         workflow_name: "lora-workflow"
         workflow_json_path: '.github/workflows/json_examples/workflow_lora_api.json'
-        timeout: 50
+        gcs_bucket_name: 'comfy-ci-results'
+        google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
         output_prefix: 'ComfyUI'
+        timeout: 50

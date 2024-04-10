@@ -22,5 +22,7 @@ jobs:
         workflow_name: "default-workflow"
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors?download=true", "directory": "checkpoints"}}'
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
-        timeout: 50
+        gcs_bucket_name: 'comfy-ci-results'
+        google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
         output_prefix: 'ComfyUI'
+        timeout: 50
