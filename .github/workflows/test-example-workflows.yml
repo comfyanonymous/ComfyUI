@@ -1,20 +1,15 @@
 name: Test ComfyUI Example Workflows
 on:
-  pull_request:
-    branches:
-      - master
-      - dev
-    paths-ignore: 
-      - 'tests/**'
-      - 'tests-ui/**'
-  push:
-    paths-ignore: 
-      - 'tests/**'
-      - 'tests-ui/**'
+  issue_comment:
+    types: [created]
   workflow_dispatch:
 
 jobs:
   test-default-workflow:
+    if: >-
+      github.event_name == 'issue_comment' && 
+      contains(github.event.comment.body, 'run_test') && 
+      contains(fromJson('["WRITE", "MAINTAIN", "ADMIN"]'), github.event.comment.author_association)
     strategy:
         matrix:
           os: [macos, linux]
@@ -34,6 +29,8 @@ jobs:
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
         workflow_name: "default-workflow"
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
+        gcs_bucket_name: 'comfy-ci-results'
+        google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
         timeout: 50
     - name: Test Lora Workflow
       uses: drip-art/comfy-action@main
