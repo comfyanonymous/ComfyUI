@@ -23,7 +23,7 @@ jobs:
       
       - name: Install speedtest-cli for MacOS
         if : matrix.os == 'macos'
-        shell: zsh
+        shell: zsh {0}
         run: |
           # For macOS
           brew install speedtest-cli
