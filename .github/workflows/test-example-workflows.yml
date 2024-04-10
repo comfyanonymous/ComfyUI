@@ -33,6 +33,7 @@ jobs:
         gcs_bucket_name: 'comfy-ci-results'
         google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
         timeout: 50
+        output_prefix: 'ComfyUI'
     - name: Test Lora Workflow
       uses: drip-art/comfy-action@main
       with:
@@ -42,3 +43,4 @@ jobs:
         workflow_name: "lora-workflow"
         workflow_json_path: '.github/workflows/json_examples/workflow_lora_api.json'
         timeout: 50
+        output_prefix: 'ComfyUI'
