@@ -34,7 +34,7 @@ jobs:
         models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
         workflow_name: "default-workflow"
         workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
-        gcs_bucket_name: 'comfyui'
+        gcs_bucket_name: 'comfy-ci-results'
         google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
         timeout: 50
     - name: Test Lora Workflow
