@@ -48,7 +48,7 @@
 	list-style: none;
 }
 .comfy-group-manage-list-items {
-	max-height: 70vh;
+	max-height: calc(100% - 40px);
 	overflow-y: scroll;
 	overflow-x: hidden;
 }

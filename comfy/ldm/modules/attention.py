@@ -1,12 +1,10 @@
-from inspect import isfunction
 import math
 import torch
 import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange, repeat
 from typing import Optional, Any
-from functools import partial
-
+import logging
 
 from .diffusionmodules.util import checkpoint, AlphaBlender, timestep_embedding
 from .sub_quadratic_attention import efficient_dot_product_attention
@@ -23,7 +21,7 @@ ops = comfy.ops.disable_weight_init
 
 # CrossAttn precision handling
 if args.dont_upcast_attention:
-    print("disabling upcasting of attention")
+    logging.info("disabling upcasting of attention")
     _ATTN_PRECISION = "fp16"
 else:
     _ATTN_PRECISION = "fp32"
@@ -117,7 +115,12 @@ def attention_basic(q, k, v, heads, mask=None):
             mask = repeat(mask, 'b j -> (b h) () j', h=h)
             sim.masked_fill_(~mask, max_neg_value)
         else:
-            sim += mask
+            if len(mask.shape) == 2:
+                bs = 1
+            else:
+                bs = mask.shape[0]
+            mask = mask.reshape(bs, -1, mask.shape[-2], mask.shape[-1]).expand(b, heads, -1, -1).reshape(-1, mask.shape[-2], mask.shape[-1])
+            sim.add_(mask)
 
     # attention, what we cannot get enough of
     sim = sim.softmax(dim=-1)
@@ -167,6 +170,13 @@ def attention_sub_quad(query, key, value, heads, mask=None):
 
     if query_chunk_size is None:
         query_chunk_size = 512
+
+    if mask is not None:
+        if len(mask.shape) == 2:
+            bs = 1
+        else:
+            bs = mask.shape[0]
+        mask = mask.reshape(bs, -1, mask.shape[-2], mask.shape[-1]).expand(b, heads, -1, -1).reshape(-1, mask.shape[-2], mask.shape[-1])
 
     hidden_states = efficient_dot_product_attention(
         query,
@@ -226,6 +236,13 @@ def attention_split(q, k, v, heads, mask=None):
         raise RuntimeError(f'Not enough memory, use lower resolution (max approx. {max_res}x{max_res}). '
                             f'Need: {mem_required/64/gb:0.1f}GB free, Have:{mem_free_total/gb:0.1f}GB free')
 
+    if mask is not None:
+        if len(mask.shape) == 2:
+            bs = 1
+        else:
+            bs = mask.shape[0]
+        mask = mask.reshape(bs, -1, mask.shape[-2], mask.shape[-1]).expand(b, heads, -1, -1).reshape(-1, mask.shape[-2], mask.shape[-1])
+
     # print("steps", steps, mem_required, mem_free_total, modifier, q.element_size(), tensor_size)
     first_op_done = False
     cleared_cache = False
@@ -258,12 +275,12 @@ def attention_split(q, k, v, heads, mask=None):
                 model_management.soft_empty_cache(True)
                 if cleared_cache == False:
                     cleared_cache = True
-                    print("out of memory error, emptying cache and trying again")
+                    logging.warning("out of memory error, emptying cache and trying again")
                     continue
                 steps *= 2
                 if steps > 64:
                     raise e
-                print("out of memory error, increasing steps and trying again", steps)
+                logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
             else:
                 raise e
 
@@ -335,17 +352,17 @@ def attention_pytorch(q, k, v, heads, mask=None):
 optimized_attention = attention_basic
 
 if model_management.xformers_enabled():
-    print("Using xformers cross attention")
+    logging.info("Using xformers cross attention")
     optimized_attention = attention_xformers
 elif model_management.pytorch_attention_enabled():
-    print("Using pytorch cross attention")
+    logging.info("Using pytorch cross attention")
     optimized_attention = attention_pytorch
 else:
     if args.use_split_cross_attention:
-        print("Using split optimization for cross attention")
+        logging.info("Using split optimization for cross attention")
         optimized_attention = attention_split
     else:
-        print("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
+        logging.info("Using sub quadratic optimization for cross attention, if you have memory or speed issues try using: --use-split-cross-attention")
         optimized_attention = attention_sub_quad
 
 optimized_attention_masked = optimized_attention

@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/) and [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/) and [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
@@ -95,16 +95,15 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
-Note: pytorch stable does not support python 3.12 yet. If you have python 3.12 you will have to use the nightly version of pytorch. If you run into issues you should try python 3.11 instead.
 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.7```
 
-This is the command to install the nightly with ROCm 5.7 which has a python 3.12 package and might have some performance improvements:
+This is the command to install the nightly with ROCm 6.0 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.0```
 
 ### NVIDIA
 
@@ -112,7 +111,7 @@ Nvidia users should install stable pytorch using this command:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121```
 
-This is the command to install pytorch nightly instead which has a python 3.12 package and might have performance improvements:
+This is the command to install pytorch nightly instead which might have performance improvements:
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121```
 
@@ -143,7 +142,7 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
 1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
 1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
-1. Launch ComfyUI by running `python main.py --force-fp16`. Note that --force-fp16 will only work if you installed the latest pytorch nightly.
+1. Launch ComfyUI by running `python main.py`
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
 

@@ -184,6 +184,7 @@
     color: white;
     padding-left: 10px;
     margin-right: 5px;
+    max-width: 300px;
 }
 
 .litegraph.litesearchbox .name {
@@ -226,6 +227,18 @@
     background-color: white;
     color: black;
 }
+
+.litegraph.lite-search-item-type {
+    display: inline-block;
+    background: rgba(0,0,0,0.2);
+    margin-left: 5px;
+    font-size: 14px;
+    padding: 2px 5px;
+    position: relative;
+    top: -2px;
+    opacity: 0.8;
+    border-radius: 4px;
+ }
 
 /* DIALOGs ******/
 

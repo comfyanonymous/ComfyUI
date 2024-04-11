@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 from comfy.ldm.modules.diffusionmodules.util import make_beta_schedule
 import math
 
@@ -12,11 +11,27 @@ class EPS:
         sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
         return model_input - model_output * sigma
 
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        if max_denoise:
+            noise = noise * torch.sqrt(1.0 + sigma ** 2.0)
+        else:
+            noise = noise * sigma
+
+        noise += latent_image
+        return noise
+
+    def inverse_noise_scaling(self, sigma, latent):
+        return latent
 
 class V_PREDICTION(EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
         sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
         return model_input * self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2) - model_output * sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
+
+class EDM(V_PREDICTION):
+    def calculate_denoised(self, sigma, model_output, model_input):
+        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        return model_input * self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2) + model_output * sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
 
 class ModelSamplingDiscrete(torch.nn.Module):
@@ -42,8 +57,7 @@ class ModelSamplingDiscrete(torch.nn.Module):
         else:
             betas = make_beta_schedule(beta_schedule, timesteps, linear_start=linear_start, linear_end=linear_end, cosine_s=cosine_s)
         alphas = 1. - betas
-        alphas_cumprod = torch.tensor(np.cumprod(alphas, axis=0), dtype=torch.float32)
-        # alphas_cumprod_prev = np.append(1., alphas_cumprod[:-1])
+        alphas_cumprod = torch.cumprod(alphas, dim=0)
 
         timesteps, = betas.shape
         self.num_timesteps = int(timesteps)
@@ -58,8 +72,8 @@ class ModelSamplingDiscrete(torch.nn.Module):
         self.set_sigmas(sigmas)
 
     def set_sigmas(self, sigmas):
-        self.register_buffer('sigmas', sigmas)
-        self.register_buffer('log_sigmas', sigmas.log())
+        self.register_buffer('sigmas', sigmas.float())
+        self.register_buffer('log_sigmas', sigmas.log().float())
 
     @property
     def sigma_min(self):
@@ -94,8 +108,6 @@ class ModelSamplingDiscrete(torch.nn.Module):
 class ModelSamplingContinuousEDM(torch.nn.Module):
     def __init__(self, model_config=None):
         super().__init__()
-        self.sigma_data = 1.0
-
         if model_config is not None:
             sampling_settings = model_config.sampling_settings
         else:
@@ -103,9 +115,11 @@ class ModelSamplingContinuousEDM(torch.nn.Module):
 
         sigma_min = sampling_settings.get("sigma_min", 0.002)
         sigma_max = sampling_settings.get("sigma_max", 120.0)
-        self.set_sigma_range(sigma_min, sigma_max)
+        sigma_data = sampling_settings.get("sigma_data", 1.0)
+        self.set_parameters(sigma_min, sigma_max, sigma_data)
 
-    def set_sigma_range(self, sigma_min, sigma_max):
+    def set_parameters(self, sigma_min, sigma_max, sigma_data):
+        self.sigma_data = sigma_data
         sigmas = torch.linspace(math.log(sigma_min), math.log(sigma_max), 1000).exp()
 
         self.register_buffer('sigmas', sigmas) #for compatibility with some schedulers
@@ -134,3 +148,56 @@ class ModelSamplingContinuousEDM(torch.nn.Module):
 
         log_sigma_min = math.log(self.sigma_min)
         return math.exp((math.log(self.sigma_max) - log_sigma_min) * percent + log_sigma_min)
+
+class StableCascadeSampling(ModelSamplingDiscrete):
+    def __init__(self, model_config=None):
+        super().__init__()
+
+        if model_config is not None:
+            sampling_settings = model_config.sampling_settings
+        else:
+            sampling_settings = {}
+
+        self.set_parameters(sampling_settings.get("shift", 1.0))
+
+    def set_parameters(self, shift=1.0, cosine_s=8e-3):
+        self.shift = shift
+        self.cosine_s = torch.tensor(cosine_s)
+        self._init_alpha_cumprod = torch.cos(self.cosine_s / (1 + self.cosine_s) * torch.pi * 0.5) ** 2
+
+        #This part is just for compatibility with some schedulers in the codebase
+        self.num_timesteps = 10000
+        sigmas = torch.empty((self.num_timesteps), dtype=torch.float32)
+        for x in range(self.num_timesteps):
+            t = (x + 1) / self.num_timesteps
+            sigmas[x] = self.sigma(t)
+
+        self.set_sigmas(sigmas)
+
+    def sigma(self, timestep):
+        alpha_cumprod = (torch.cos((timestep + self.cosine_s) / (1 + self.cosine_s) * torch.pi * 0.5) ** 2 / self._init_alpha_cumprod)
+
+        if self.shift != 1.0:
+            var = alpha_cumprod
+            logSNR = (var/(1-var)).log()
+            logSNR += 2 * torch.log(1.0 / torch.tensor(self.shift))
+            alpha_cumprod = logSNR.sigmoid()
+
+        alpha_cumprod = alpha_cumprod.clamp(0.0001, 0.9999)
+        return ((1 - alpha_cumprod) / alpha_cumprod) ** 0.5
+
+    def timestep(self, sigma):
+        var = 1 / ((sigma * sigma) + 1)
+        var = var.clamp(0, 1.0)
+        s, min_var = self.cosine_s.to(var.device), self._init_alpha_cumprod.to(var.device)
+        t = (((var * min_var) ** 0.5).acos() / (torch.pi * 0.5)) * (1 + s) - s
+        return t
+
+    def percent_to_sigma(self, percent):
+        if percent <= 0.0:
+            return 999999999.9
+        if percent >= 1.0:
+            return 0.0
+
+        percent = 1.0 - percent
+        return self.sigma(torch.tensor(percent))

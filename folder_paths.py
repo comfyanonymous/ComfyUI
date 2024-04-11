@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 
 supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
 
@@ -29,6 +30,8 @@ folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
+folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
+
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
@@ -42,7 +45,7 @@ if not os.path.exists(input_directory):
     try:
         os.makedirs(input_directory)
     except:
-        print("Failed to create input directory")
+        logging.error("Failed to create input directory")
 
 def set_output_directory(output_dir):
     global output_directory
@@ -144,21 +147,23 @@ def recursive_search(directory, excluded_dir_names=None):
     try:
         dirs[directory] = os.path.getmtime(directory)
     except FileNotFoundError:
-        print(f"Warning: Unable to access {directory}. Skipping this path.")
-        
+        logging.warning(f"Warning: Unable to access {directory}. Skipping this path.")
+
+    logging.debug("recursive file list on directory {}".format(directory))
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
         for file_name in filenames:
             relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
             result.append(relative_path)
-        
+
         for d in subdirs:
             path = os.path.join(dirpath, d)
             try:
                 dirs[path] = os.path.getmtime(path)
             except FileNotFoundError:
-                print(f"Warning: Unable to access {path}. Skipping this path.")
+                logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
                 continue
+    logging.debug("found {} files".format(len(result)))
     return result, dirs
 
 def filter_files_extensions(files, extensions):
@@ -246,8 +251,8 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
         err = "**** ERROR: Saving image outside the output folder is not allowed." + \
               "\n full_output_folder: " + os.path.abspath(full_output_folder) + \
               "\n         output_dir: " + output_dir + \
-              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) 
-        print(err)
+              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))
+        logging.error(err)
         raise Exception(err)
 
     try:

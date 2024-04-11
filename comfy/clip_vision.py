@@ -1,8 +1,8 @@
-from .utils import load_torch_file, transformers_convert, common_upscale, state_dict_prefix_replace
+from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
 import os
 import torch
-import contextlib
 import json
+import logging
 
 import comfy.ops
 import comfy.model_patcher
@@ -100,7 +100,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     clip = ClipVisionModel(json_config)
     m, u = clip.load_sd(sd)
     if len(m) > 0:
-        print("missing clip vision:", m)
+        logging.warning("missing clip vision: {}".format(m))
     u = set(u)
     keys = list(sd.keys())
     for k in keys:

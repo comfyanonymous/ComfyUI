@@ -2,7 +2,9 @@ import comfy.sd
 import comfy.utils
 import comfy.model_base
 import comfy.model_management
+import comfy.model_sampling
 
+import torch
 import folder_paths
 import json
 import os
@@ -87,6 +89,50 @@ class CLIPMergeSimple:
             m.add_patches({k: kp[k]}, 1.0 - ratio, ratio)
         return (m, )
 
+
+class CLIPSubtract:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip1": ("CLIP",),
+                              "clip2": ("CLIP",),
+                              "multiplier": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "merge"
+
+    CATEGORY = "advanced/model_merging"
+
+    def merge(self, clip1, clip2, multiplier):
+        m = clip1.clone()
+        kp = clip2.get_key_patches()
+        for k in kp:
+            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
+                continue
+            m.add_patches({k: kp[k]}, - multiplier, multiplier)
+        return (m, )
+
+
+class CLIPAdd:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "clip1": ("CLIP",),
+                              "clip2": ("CLIP",),
+                              }}
+    RETURN_TYPES = ("CLIP",)
+    FUNCTION = "merge"
+
+    CATEGORY = "advanced/model_merging"
+
+    def merge(self, clip1, clip2):
+        m = clip1.clone()
+        kp = clip2.get_key_patches()
+        for k in kp:
+            if k.endswith(".position_ids") or k.endswith(".logit_scale"):
+                continue
+            m.add_patches({k: kp[k]}, 1.0, 1.0)
+        return (m, )
+
+
 class ModelMergeBlocks:
     @classmethod
     def INPUT_TYPES(s):
@@ -145,6 +191,13 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     # "stable-diffusion-v2-768-v", "stable-diffusion-v2-unclip-l", "stable-diffusion-v2-unclip-h",
     # "v2-inpainting"
 
+    extra_keys = {}
+    model_sampling = model.get_model_object("model_sampling")
+    if isinstance(model_sampling, comfy.model_sampling.ModelSamplingContinuousEDM):
+        if isinstance(model_sampling, comfy.model_sampling.V_PREDICTION):
+            extra_keys["edm_vpred.sigma_max"] = torch.tensor(model_sampling.sigma_max).float()
+            extra_keys["edm_vpred.sigma_min"] = torch.tensor(model_sampling.sigma_min).float()
+
     if model.model.model_type == comfy.model_base.ModelType.EPS:
         metadata["modelspec.predict_key"] = "epsilon"
     elif model.model.model_type == comfy.model_base.ModelType.V_PREDICTION:
@@ -159,7 +212,7 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
     output_checkpoint = f"{filename}_{counter:05}_.safetensors"
     output_checkpoint = os.path.join(full_output_folder, output_checkpoint)
 
-    comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata)
+    comfy.sd.save_checkpoint(output_checkpoint, model, clip, vae, clip_vision, metadata=metadata, extra_keys=extra_keys)
 
 class CheckpointSave:
     def __init__(self):
@@ -279,6 +332,8 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeAdd": ModelAdd,
     "CheckpointSave": CheckpointSave,
     "CLIPMergeSimple": CLIPMergeSimple,
+    "CLIPMergeSubtract": CLIPSubtract,
+    "CLIPMergeAdd": CLIPAdd,
     "CLIPSave": CLIPSave,
     "VAESave": VAESave,
 }
