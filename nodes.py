@@ -1946,6 +1946,7 @@ def init_custom_nodes():
         "nodes_stable_cascade.py",
         "nodes_differential_diffusion.py",
         "nodes_ip2p.py",
+        "nodes_model_merging_model_specific.py",
     ]
 
     import_failed = []
