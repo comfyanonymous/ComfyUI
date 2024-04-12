@@ -13,8 +13,10 @@ jobs:
       contains(fromJson('["WRITE", "MAINTAIN", "ADMIN"]'), github.event.comment.author_association))
     strategy:
         matrix:
-          os: [linux]
+          os: [macos, linux]
           include:
+            - os: macos
+              runner_label: [self-hosted, m2]
             - os: linux
               cuda_version: 12.1
               runner_label: [self-hosted, Linux, nvidia-tesla-t4]
