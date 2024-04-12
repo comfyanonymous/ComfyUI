@@ -24,13 +24,20 @@ def cast_bias_weight(s, input):
     non_blocking = comfy.model_management.device_supports_non_blocking(input.device)
     if s.bias is not None:
         bias = s.bias.to(device=input.device, dtype=input.dtype, non_blocking=non_blocking)
+        if s.bias_function is not None:
+            bias = s.bias_function(bias)
     weight = s.weight.to(device=input.device, dtype=input.dtype, non_blocking=non_blocking)
+    if s.weight_function is not None:
+        weight = s.weight_function(weight)
     return weight, bias
 
+class CastWeightBiasOp:
+    comfy_cast_weights = False
+    weight_function = None
+    bias_function = None
 
 class disable_weight_init:
-    class Linear(torch.nn.Linear):
-        comfy_cast_weights = False
+    class Linear(torch.nn.Linear, CastWeightBiasOp):
         def reset_parameters(self):
             return None
 
@@ -44,8 +51,7 @@ class disable_weight_init:
             else:
                 return super().forward(*args, **kwargs)
 
-    class Conv2d(torch.nn.Conv2d):
-        comfy_cast_weights = False
+    class Conv2d(torch.nn.Conv2d, CastWeightBiasOp):
         def reset_parameters(self):
             return None
 
@@ -59,8 +65,7 @@ class disable_weight_init:
             else:
                 return super().forward(*args, **kwargs)
 
-    class Conv3d(torch.nn.Conv3d):
-        comfy_cast_weights = False
+    class Conv3d(torch.nn.Conv3d, CastWeightBiasOp):
         def reset_parameters(self):
             return None
 
@@ -74,8 +79,7 @@ class disable_weight_init:
             else:
                 return super().forward(*args, **kwargs)
 
-    class GroupNorm(torch.nn.GroupNorm):
-        comfy_cast_weights = False
+    class GroupNorm(torch.nn.GroupNorm, CastWeightBiasOp):
         def reset_parameters(self):
             return None
 
@@ -90,8 +94,7 @@ class disable_weight_init:
                 return super().forward(*args, **kwargs)
 
 
-    class LayerNorm(torch.nn.LayerNorm):
-        comfy_cast_weights = False
+    class LayerNorm(torch.nn.LayerNorm, CastWeightBiasOp):
         def reset_parameters(self):
             return None
 
@@ -109,8 +112,7 @@ class disable_weight_init:
             else:
                 return super().forward(*args, **kwargs)
 
-    class ConvTranspose2d(torch.nn.ConvTranspose2d):
-        comfy_cast_weights = False
+    class ConvTranspose2d(torch.nn.ConvTranspose2d, CastWeightBiasOp):
         def reset_parameters(self):
             return None
 
