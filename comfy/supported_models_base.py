@@ -47,7 +47,8 @@ class BASE:
         return self.unet_config["in_channels"] > 4
 
     def __init__(self, unet_config):
-        self.unet_config = unet_config
+        self.unet_config = unet_config.copy()
+        self.sampling_settings = self.sampling_settings.copy()
         self.latent_format = self.latent_format()
         for x in self.unet_extra_config:
             self.unet_config[x] = self.unet_extra_config[x]

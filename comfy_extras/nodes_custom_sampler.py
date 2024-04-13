@@ -538,6 +538,52 @@ class SamplerCustomAdvanced:
             out_denoised = out
         return (out, out_denoised)
 
+class AddNoise:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"model": ("MODEL",),
+                     "noise": ("NOISE", ),
+                     "sigmas": ("SIGMAS", ),
+                     "latent_image": ("LATENT", ),
+                     }
+                }
+
+    RETURN_TYPES = ("LATENT",)
+
+    FUNCTION = "add_noise"
+
+    CATEGORY = "_for_testing/custom_sampling/noise"
+
+    def add_noise(self, model, noise, sigmas, latent_image):
+        if len(sigmas) == 0:
+            return latent_image
+
+        latent = latent_image
+        latent_image = latent["samples"]
+
+        noisy = noise.generate_noise(latent)
+
+        model_sampling = model.get_model_object("model_sampling")
+        process_latent_out = model.get_model_object("process_latent_out")
+        process_latent_in = model.get_model_object("process_latent_in")
+
+        if len(sigmas) > 1:
+            scale = torch.abs(sigmas[0] - sigmas[-1])
+        else:
+            scale = sigmas[0]
+
+        if torch.count_nonzero(latent_image) > 0: #Don't shift the empty latent image.
+            latent_image = process_latent_in(latent_image)
+        noisy = model_sampling.noise_scaling(scale, noisy, latent_image)
+        noisy = process_latent_out(noisy)
+        noisy = torch.nan_to_num(noisy, nan=0.0, posinf=0.0, neginf=0.0)
+
+        out = latent.copy()
+        out["samples"] = noisy
+        return (out,)
+
+
 NODE_CLASS_MAPPINGS = {
     "SamplerCustom": SamplerCustom,
     "BasicScheduler": BasicScheduler,
@@ -561,5 +607,6 @@ NODE_CLASS_MAPPINGS = {
     "BasicGuider": BasicGuider,
     "RandomNoise": RandomNoise,
     "DisableNoise": DisableNoise,
+    "AddNoise": AddNoise,
     "SamplerCustomAdvanced": SamplerCustomAdvanced,
 }
