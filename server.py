@@ -651,4 +651,5 @@ class PromptServer():
         if len(self.sockets) == 0:
             with self.prompt_queue.mutex:
                 if len(self.prompt_queue.currently_running) == 0 and len(self.prompt_queue.queue) == 0:
-                    comfy.model_management.unload_all_models()
+                    self.prompt_queue.set_flag("unload_models", True)
+                    self.prompt_queue.set_flag("free_memory", True)
