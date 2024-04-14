@@ -292,12 +292,23 @@ app.registerExtension({
 						}
 					}
 				}
+				
+				//Convert.. main menu
 				if (toInput.length) {
-					options.push(...toInput, null);
+					options.push({
+						content: `Convert input to 🔘..`,
+						submenu: {
+							options: toInput,
+						},
+					});
 				}
-
 				if (toWidget.length) {
-					options.push(...toWidget, null);
+					options.push({
+						content: `Convert 🔘 to widget..`,
+						submenu: {
+							options: toWidget,
+						},
+					});
 				}
 			}
 
