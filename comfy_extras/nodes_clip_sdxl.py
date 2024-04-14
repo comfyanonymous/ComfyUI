@@ -8,7 +8,7 @@ class CLIPTextEncodeSDXLRefiner:
             "ascore": ("FLOAT", {"default": 6.0, "min": 0.0, "max": 1000.0, "step": 0.01}),
             "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text": ("STRING", {"multiline": True}), "clip": ("CLIP", ),
+            "text": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
@@ -30,8 +30,8 @@ class CLIPTextEncodeSDXL:
             "crop_h": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
             "target_width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
             "target_height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text_g": ("STRING", {"multiline": True, "default": "CLIP_G"}), "clip": ("CLIP", ),
-            "text_l": ("STRING", {"multiline": True, "default": "CLIP_L"}), "clip": ("CLIP", ),
+            "text_g": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
+            "text_l": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
             }}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
