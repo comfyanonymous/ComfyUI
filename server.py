@@ -407,7 +407,7 @@ class PromptServer():
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
 
-        @routes.post("/fetch_weight/{}")
+        @routes.post("/fetch_weight")
         async def upload_weight(request):
             post = await request.post()
             return fetch_weight(post)
