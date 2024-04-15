@@ -286,7 +286,7 @@ class LoadedModel:
             return self.model_memory()
 
     def model_load(self, lowvram_model_memory=0):
-        patch_model_to = self.device
+        patch_model_to = get_torch_device()
 
         self.model.model_patches_to(self.device)
         self.model.model_patches_to(self.model.model_dtype())
@@ -304,7 +304,7 @@ class LoadedModel:
             raise e
 
         if is_intel_xpu() and not args.disable_ipex_optimize:
-            self.real_model = torch.xpu.optimize(self.real_model.to("xpu").eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
+            self.real_model = torch.xpu.optimize(self.real_model.eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
 
         self.weights_loaded = True
         return self.real_model
