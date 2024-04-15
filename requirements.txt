@@ -11,3 +11,6 @@ scipy
 tqdm
 psutil
 kornia>=0.7.1
+
+# treat-ai specific terms
+google-cloud-storage

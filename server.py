@@ -14,6 +14,8 @@ import struct
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
+from google.cloud import storage
+
 
 import aiohttp
 from aiohttp import web
@@ -25,6 +27,7 @@ import comfy.utils
 import comfy.model_management
 
 from app.user_manager import UserManager
+from gcs_utils import download_gcs_file
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -89,6 +92,13 @@ class PromptServer():
         self.client_id = None
 
         self.on_prompt_handlers = []
+        self.gcs_client = storage.Client()
+        self.weight_type2path = {
+            "lora": "./models/loras",
+            "base": "./models/checkpoints",
+            "controlnet": "./models/controlnet",
+        }
+
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -195,6 +205,46 @@ class PromptServer():
                 return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
             else:
                 return web.Response(status=400)
+
+        def fetch_weight(post):
+            weight_url = post.get("weight_url")
+            weight_type = post.get("weight_type")
+
+            if weight_type in self.weight_type2path:
+                target_path = self.weight_type2path[weight_type]
+                try:
+                    download_gcs_file(
+                        gcs_client=self.gcs_client,
+                        uri=weight_url,
+                        target_file_path=target_path,
+                    )
+                    return web.json_response(
+                        data = {
+                            "weight_type": weight_type,
+                            "weight_url": weight_url,
+                            "target_path": target_path,
+                            "download_status": "success",
+                        },
+                        status=200,
+                    )
+                except Exception as e:
+                    return web.json_response(
+                        data = {
+                            "weight_type": weight_type,
+                            "weight_url": weight_url,
+                            "target_path": target_path,
+                            "download_status": f"Failed with exception: {e}",
+                        },
+                        status=400,
+                    )
+            else:
+                return web.Response(
+                    status=400,
+                    text=f"Invalid weight_type: {weight_type}."
+                )
+
+
+
 
         @routes.post("/upload/image")
         async def upload_image(request):
@@ -355,6 +405,11 @@ class PromptServer():
             if not "__metadata__" in dt:
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
+
+        @routes.post("/fetch_weight/{}")
+        async def upload_weight(request):
+            post = await request.post()
+            return fetch_weight(post)
 
         @routes.get("/system_stats")
         async def get_queue(request):
