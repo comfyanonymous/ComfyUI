@@ -47,7 +47,7 @@ class PerturbedAttentionGuidance:
 
             return cfg_result + (cond_pred - pag) * scale
 
-        m.set_model_sampler_post_cfg_function(post_cfg_function, disable_cfg1_optimization=True)
+        m.set_model_sampler_post_cfg_function(post_cfg_function)
 
         return (m,)
 
