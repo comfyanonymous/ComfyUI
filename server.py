@@ -219,7 +219,7 @@ class PromptServer():
             if weight_type in self.weight_type2path:
                 target_path = self.weight_type2path[weight_type]
                 try:
-                    with tempfile.TemporaryDirectory as temp_dir:
+                    with tempfile.TemporaryDirectory() as temp_dir:
                         temp_save_path = os.path.join(temp_dir, local_file_name)
                         final_save_path = os.path.join(target_path, local_file_name)
                         logging.info(f"Downloading file to {temp_save_path}.")
