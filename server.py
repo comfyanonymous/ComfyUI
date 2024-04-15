@@ -209,6 +209,7 @@ class PromptServer():
         def fetch_weight(post):
             weight_url = post.get("weight_url")
             weight_type = post.get("weight_type")
+            local_file_name = post.get("local_file_name", "treat_weight.safetensors")
 
             if weight_type in self.weight_type2path:
                 target_path = self.weight_type2path[weight_type]
@@ -216,7 +217,7 @@ class PromptServer():
                     download_gcs_file(
                         gcs_client=self.gcs_client,
                         uri=weight_url,
-                        target_file_path=target_path,
+                        target_file_path=os.path.join(target_path, local_file_name),
                     )
                     return web.json_response(
                         data = {
