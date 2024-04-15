@@ -1,6 +1,8 @@
 import os
+import shutil
 import sys
 import asyncio
+import tempfile
 import traceback
 
 import nodes
@@ -27,6 +29,7 @@ import comfy.utils
 import comfy.model_management
 
 from app.user_manager import UserManager
+from conversion_utils import lora_convert_and_save
 from gcs_utils import download_gcs_file
 
 class BinaryEventTypes:
@@ -210,30 +213,50 @@ class PromptServer():
             weight_url = post.get("weight_url")
             weight_type = post.get("weight_type")
             local_file_name = post.get("local_file_name", "treat_weight.safetensors")
+            convert_weight = post.get("convert_weight", True)
+
 
             if weight_type in self.weight_type2path:
                 target_path = self.weight_type2path[weight_type]
                 try:
-                    download_gcs_file(
-                        gcs_client=self.gcs_client,
-                        uri=weight_url,
-                        target_file_path=os.path.join(target_path, local_file_name),
-                    )
-                    return web.json_response(
-                        data = {
-                            "weight_type": weight_type,
-                            "weight_url": weight_url,
-                            "target_path": target_path,
-                            "download_status": "success",
-                        },
-                        status=200,
-                    )
+                    with tempfile.TemporaryDirectory as temp_dir:
+                        temp_save_path = os.path.join(temp_dir, local_file_name)
+                        final_save_path = os.path.join(target_path, local_file_name)
+                        logging.info(f"Downloading file to {temp_save_path}.")
+                        logging.info(f"Final save path to {final_save_path}")
+                        download_gcs_file(
+                            gcs_client=self.gcs_client,
+                            uri=weight_url,
+                            target_file_path=temp_save_path,
+                        )
+                        if weight_type and convert_weight == "lora":
+                            lora_convert_and_save(
+                                input_lora=temp_save_path,
+                                output_lora=final_save_path,
+                            )
+                        else:
+                            shutil.move(
+                                src=temp_save_path,
+                                dst=final_save_path,
+                            )
+
+                        return web.json_response(
+                            data = {
+                                "weight_type": weight_type,
+                                "weight_url": weight_url,
+                                "target_path": target_path,
+                                "convert_weight": convert_weight,
+                                "download_status": "success",
+                            },
+                            status=200,
+                        )
                 except Exception as e:
                     return web.json_response(
                         data = {
                             "weight_type": weight_type,
                             "weight_url": weight_url,
                             "target_path": target_path,
+                            "convert_weight": convert_weight,
                             "download_status": f"Failed with exception: {e}",
                         },
                         status=400,
