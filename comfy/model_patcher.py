@@ -18,6 +18,26 @@ def apply_weight_decompose(dora_scale, weight):
 
     return weight * (dora_scale / weight_norm)
 
+def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
+    to = model_options["transformer_options"].copy()
+
+    if "patches_replace" not in to:
+        to["patches_replace"] = {}
+    else:
+        to["patches_replace"] = to["patches_replace"].copy()
+
+    if name not in to["patches_replace"]:
+        to["patches_replace"][name] = {}
+    else:
+        to["patches_replace"][name] = to["patches_replace"][name].copy()
+
+    if transformer_index is not None:
+        block = (block_name, number, transformer_index)
+    else:
+        block = (block_name, number)
+    to["patches_replace"][name][block] = patch
+    model_options["transformer_options"] = to
+    return model_options
 
 class ModelPatcher:
     def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
@@ -109,16 +129,7 @@ class ModelPatcher:
         to["patches"][name] = to["patches"].get(name, []) + [patch]
 
     def set_model_patch_replace(self, patch, name, block_name, number, transformer_index=None):
-        to = self.model_options["transformer_options"]
-        if "patches_replace" not in to:
-            to["patches_replace"] = {}
-        if name not in to["patches_replace"]:
-            to["patches_replace"][name] = {}
-        if transformer_index is not None:
-            block = (block_name, number, transformer_index)
-        else:
-            block = (block_name, number)
-        to["patches_replace"][name][block] = patch
+        self.model_options = set_model_options_patch_replace(self.model_options, patch, name, block_name, number, transformer_index=transformer_index)
 
     def set_model_attn1_patch(self, patch):
         self.set_model_patch(patch, "attn1_patch")
