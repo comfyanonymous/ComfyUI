@@ -267,8 +267,9 @@ class PromptServer():
                     text=f"Invalid weight_type: {weight_type}."
                 )
 
-
-
+        @routes.get("/health")
+        async def health(request):
+            return web.Response(status=200, text="Healthy")
 
         @routes.post("/upload/image")
         async def upload_image(request):
