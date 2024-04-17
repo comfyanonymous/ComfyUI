@@ -7,12 +7,22 @@ Use this instead of cli_args to import the args:
 
 It will enable command line argument parsing. If this isn't desired, you must author your own implementation of these fixes.
 """
+import logging
 import os
+import warnings
+
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
+from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.semconv.resource import ResourceAttributes as ResAttrs
 
 from .. import options
-
-import warnings
-import logging
+from ..tracing_compatibility import ProgressSpanSampler
+from ..tracing_compatibility import patch_spanbuilder_set_channel
 
 options.enable_args_parsing()
 if os.name == "nt":
@@ -32,4 +42,31 @@ if args.deterministic:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-__all__ = ["args"]
+
+
+def _create_tracer():
+    resource = Resource.create({
+        ResAttrs.SERVICE_NAME: args.otel_service_name,
+        ResAttrs.SERVICE_VERSION: args.otel_service_version,
+    })
+
+    # omit progress spans from aio pika
+    sampler = ProgressSpanSampler()
+    provider = TracerProvider(resource=resource, sampler=sampler)
+
+    otlp_exporter = OTLPSpanExporter() if args.otel_exporter_otlp_endpoint is not None else ConsoleSpanExporter()
+
+    processor = BatchSpanProcessor(otlp_exporter)
+    provider.add_span_processor(processor)
+
+    trace.set_tracer_provider(provider)
+
+    # enable instrumentation
+    patch_spanbuilder_set_channel()
+    AioPikaInstrumentor().instrument()
+    AioHttpServerInstrumentor().instrument()
+    return trace.get_tracer(args.otel_service_name)
+
+
+tracer = _create_tracer()
+__all__ = ["args", "tracer"]
