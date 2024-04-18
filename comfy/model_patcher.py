@@ -158,6 +158,14 @@ class ModelPatcher:
     def set_model_output_block_patch(self, patch):
         self.set_model_patch(patch, "output_block_patch")
 
+    def set_model_transformer_function(self, transformer_function):
+        self.model_options["transformer_options"]["transformer_function"] = transformer_function
+
+    def set_model_sampler_cfg_rescaler(self, cfg_rescaler_fn, disable_cfg1_optimization=False):
+        self.model_options["sampler_cfg_rescaler"] = cfg_rescaler_fn
+        if disable_cfg1_optimization:
+            self.model_options["disable_cfg1_optimization"] = True
+
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 

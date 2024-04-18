@@ -249,6 +249,8 @@ def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_o
 #The main sampling function shared by all the samplers
 #Returns denoised
 def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_options={}, seed=None):
+    if "sampler_cfg_rescaler" in model_options:
+        cond_scale = model_options["sampler_cfg_rescaler"]({"cond_scale": cond_scale, "timestep": timestep})
     if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
         uncond_ = None
     else:

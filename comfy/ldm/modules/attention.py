@@ -460,6 +460,8 @@ class BasicTransformerBlock(nn.Module):
         return checkpoint(self._forward, (x, context, transformer_options), self.parameters(), self.checkpoint)
 
     def _forward(self, x, context=None, transformer_options={}):
+        if "transformer_function" in transformer_options:
+            return transformer_options["transformer_function"](self, x, context, transformer_options)
         extra_options = {}
         block = transformer_options.get("block", None)
         block_index = transformer_options.get("block_index", 0)
