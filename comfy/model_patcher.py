@@ -7,7 +7,10 @@ import uuid
 import comfy.utils
 import comfy.model_management
 
-def apply_weight_decompose(dora_scale, weight):
+def apply_weight_decompose(dora_scale, weight, alpha, direction):
+    orig_weight = weight.clone()
+    dora_scale = comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32)
+    weight += direction
     weight_norm = (
         weight.transpose(0, 1)
         .reshape(weight.shape[1], -1)
@@ -15,8 +18,7 @@ def apply_weight_decompose(dora_scale, weight):
         .reshape(weight.shape[1], *[1] * (weight.dim() - 1))
         .transpose(0, 1)
     )
-
-    return weight * (dora_scale / weight_norm)
+    return orig_weight + alpha * (weight * (dora_scale / weight_norm) - orig_weight)
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -350,9 +352,11 @@ class ModelPatcher:
                     final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
                     mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
                 try:
-                    weight += (alpha * torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1))).reshape(weight.shape).type(weight.dtype)
+                    direction = (torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1))).reshape(weight.shape).type(weight.dtype)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = apply_weight_decompose(dora_scale, weight, alpha, direction)
+                    else:
+                        weight += alpha * direction
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "lokr":
@@ -392,9 +396,11 @@ class ModelPatcher:
                     alpha *= v[2] / dim
 
                 try:
-                    weight += alpha * torch.kron(w1, w2).reshape(weight.shape).type(weight.dtype)
+                    direction = torch.kron(w1, w2).reshape(weight.shape).type(weight.dtype)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = apply_weight_decompose(dora_scale, weight, alpha, direction)
+                    else:
+                        weight += alpha * direction
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "loha":
@@ -424,9 +430,11 @@ class ModelPatcher:
                                   comfy.model_management.cast_to_device(w2b, weight.device, torch.float32))
 
                 try:
-                    weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype)
+                    direction = (m1 * m2).reshape(weight.shape).type(weight.dtype)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = apply_weight_decompose(dora_scale, weight, alpha, direction)
+                    else:
+                        weight += alpha * direction
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "glora":
@@ -441,9 +449,11 @@ class ModelPatcher:
                 b2 = comfy.model_management.cast_to_device(v[3].flatten(start_dim=1), weight.device, torch.float32)
 
                 try:
-                    weight += ((torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)) * alpha).reshape(weight.shape).type(weight.dtype)
+                    direction = (torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)).reshape(weight.shape).type(weight.dtype)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = apply_weight_decompose(dora_scale, weight, alpha, direction)
+                    else:
+                        weight += alpha * direction
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             else:
