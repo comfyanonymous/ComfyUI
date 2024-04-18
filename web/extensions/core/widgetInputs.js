@@ -307,7 +307,7 @@ app.registerExtension({
 				if (toInput.length) {
 					if (useConversionSubmenusSetting.value) {
 						options.push({
-							content: `Convert input to 🔘..`,
+							content: "Convert Widget to Input",
 							submenu: {
 								options: toInput,
 							},
@@ -319,7 +319,7 @@ app.registerExtension({
 				if (toWidget.length) {
 					if (useConversionSubmenusSetting.value) {
 						options.push({
-							content: `Convert 🔘 to widget..`,
+							content: "Convert Input to Widget",
 							submenu: {
 								options: toWidget,
 							},
