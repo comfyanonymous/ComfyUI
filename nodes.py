@@ -1942,6 +1942,7 @@ def init_custom_nodes():
         "nodes_differential_diffusion.py",
         "nodes_ip2p.py",
         "nodes_model_merging_model_specific.py",
+        "nodes_pag.py",
     ]
 
     import_failed = []
