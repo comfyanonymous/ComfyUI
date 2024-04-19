@@ -90,6 +90,8 @@ class PromptServer():
 
         self.on_prompt_handlers = []
 
+        self.use_maximum_caching = False
+
         @routes.get('/ws')
         async def websocket_handler(request):
             ws = web.WebSocketResponse()
@@ -527,7 +529,14 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
-        
+
+        @routes.post("/set_maximum_caching")
+        async def set_maximum_caching(request):
+            json_data =  await request.json()
+            self.use_maximum_caching = bool(json_data["use_maximum_caching"])
+            logging.info(f"use_maximum_caching: {self.use_maximum_caching}")
+            return web.Response(status=200)
+
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
         self.app.add_routes(self.routes)
@@ -648,8 +657,10 @@ class PromptServer():
         return json_data
 
     def cleanup_if_idle(self):
-        if len(self.sockets) == 0:
-            with self.prompt_queue.mutex:
-                if len(self.prompt_queue.currently_running) == 0 and len(self.prompt_queue.queue) == 0:
-                    self.prompt_queue.set_flag("unload_models", True)
-                    self.prompt_queue.set_flag("free_memory", True)
+        if not self.use_maximum_caching:
+            if len(self.sockets) == 0:
+                with self.prompt_queue.mutex:
+                    if len(self.prompt_queue.currently_running) == 0 and len(self.prompt_queue.queue) == 0:
+                        self.prompt_queue.set_flag("unload_models", True)
+                        self.prompt_queue.set_flag("free_memory", True)
+                        logging.info("unload_models and free_memory")
