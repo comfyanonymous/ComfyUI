@@ -106,6 +106,11 @@ def queue_prompt(prompt):
     req =  request.Request("http://127.0.0.1:8188/prompt", data=data)
     request.urlopen(req)
 
+def set_maximum_caching(use_maximum_caching):
+    p = {"use_maximum_caching": use_maximum_caching}
+    data = json.dumps(p).encode('utf-8')
+    req =  request.Request("http://127.0.0.1:8188/set_maximum_caching", data=data)
+    request.urlopen(req)
 
 prompt = json.loads(prompt_text)
 #set the text prompt for our positive CLIPTextEncode
@@ -114,7 +119,7 @@ prompt["6"]["inputs"]["text"] = "masterpiece best quality man"
 #set the seed for our KSampler node
 prompt["3"]["inputs"]["seed"] = 5
 
-
+set_maximum_caching(True)
 queue_prompt(prompt)
 
 
