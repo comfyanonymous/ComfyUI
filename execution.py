@@ -176,7 +176,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         for node_id, node_outputs in outputs.items():
             output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
-        logging.error("!!! Exception during processing !!!")
+        logging.error(f"!!! Exception during processing!!! {ex}")
         logging.error(traceback.format_exc())
 
         error_details = {
