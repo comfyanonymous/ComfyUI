@@ -307,7 +307,9 @@ export const ComfyWidgets = {
 		return { widget: node.addWidget(widgetType, inputName, val,
 			function (v) {
 				if (config.round) {
-					this.value = Math.round(v/config.round)*config.round;
+					this.value = Math.round((v + Number.EPSILON)/config.round)*config.round;
+					if (this.value > config.max) this.value = config.max;
+					if (this.value < config.min) this.value = config.min;
 				} else {
 					this.value = v;
 				}
