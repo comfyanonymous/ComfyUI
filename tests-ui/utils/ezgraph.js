@@ -204,7 +204,7 @@ export class EzWidget {
 	convertToWidget() {
 		if (!this.isConvertedToInput)
 			throw new Error(`Widget ${this.widget.name} cannot be converted as it is already a widget.`);
-		var menu = this.node.menu["Convert 🔘 to widget.."].item.submenu.options;
+		var menu = this.node.menu["Convert Input to Widget"].item.submenu.options;
 		var index = menu.findIndex(a => a.content == `Convert ${this.widget.name} to widget`);
 		menu[index].callback.call();
 	}
@@ -212,7 +212,7 @@ export class EzWidget {
 	convertToInput() {
 		if (this.isConvertedToInput)
 			throw new Error(`Widget ${this.widget.name} cannot be converted as it is already an input.`);
-		var menu = this.node.menu["Convert input to 🔘.."].item.submenu.options;
+		var menu = this.node.menu["Convert Widget to Input"].item.submenu.options;
 		var index = menu.findIndex(a => a.content == `Convert ${this.widget.name} to input`);
 		menu[index].callback.call();
 	}
