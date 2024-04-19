@@ -229,7 +229,7 @@ class PromptServer():
                             uri=weight_url,
                             target_file_path=temp_save_path,
                         )
-                        if weight_type and convert_weight == "lora":
+                        if weight_type == "lora" and convert_weight:
                             lora_convert_and_save(
                                 input_lora=temp_save_path,
                                 output_lora=final_save_path,
