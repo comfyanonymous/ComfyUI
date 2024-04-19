@@ -431,6 +431,29 @@ class PromptServer():
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
 
+        @routes.get("/view_file/{folder_name}")
+        async def view_file(request):
+            folder_name = request.match_info.get("folder_name", None)
+            if folder_name is None:
+                return web.Response(status=404, text="Request pass in a valid folder name")
+            if not "filename" in request.rel_url.query:
+                return web.Response(status=404, text="Require filename in params")
+
+            filename = request.rel_url.query["filename"]
+            if not filename.endswith(".safetensors"):
+                return web.Response(status=404, text="target file isn't a .safetensors")
+
+            safetensors_path = folder_paths.get_full_path(folder_name, filename)
+            if safetensors_path is None:
+                return web.Response(
+                    status=404,
+                    text="File not found")
+            else:
+                return web.Response(
+                    status=200,
+                    text=f"File Exists: {folder_name}/{filename}"
+                )
+
         @routes.post("/fetch_weight")
         async def upload_weight(request):
             post = await request.post()
@@ -496,6 +519,14 @@ class PromptServer():
                     logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                     logging.error(traceback.format_exc())
             return web.json_response(out)
+
+        @routes.get("/available_models")
+        async def get_available_models(request):
+            out = {}
+
+
+
+
 
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
