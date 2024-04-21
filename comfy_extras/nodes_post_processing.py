@@ -227,6 +227,7 @@ class Sharpen:
             return (image,)
 
         batch_size, height, width, channels = image.shape
+        image = image.to(comfy.model_management.get_torch_device())
 
         kernel_size = sharpen_radius * 2 + 1
         kernel = gaussian_kernel(kernel_size, sigma, device=image.device) * -(alpha*10)
@@ -241,7 +242,7 @@ class Sharpen:
 
         result = torch.clamp(sharpened, 0, 1)
 
-        return (result,)
+        return (result.to(comfy.model_management.intermediate_device()),)
 
 class ImageScaleToTotalPixels:
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
