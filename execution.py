@@ -81,7 +81,7 @@ class CacheSet:
         }
         return result
 
-def get_input_data(inputs, class_def, unique_id, outputs=None, prompt={}, dynprompt=None, extra_data={}):
+def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     for x in inputs:
@@ -106,7 +106,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, prompt={}, dynpro
         h = valid_inputs["hidden"]
         for x in h:
             if h[x] == "PROMPT":
-                input_data_all[x] = [prompt]
+                input_data_all[x] = [dynprompt.get_original_prompt() if dynprompt is not None else {}]
             if h[x] == "DYNPROMPT":
                 input_data_all[x] = [dynprompt]
             if h[x] == "EXTRA_PNGINFO":
@@ -275,7 +275,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             output_ui = []
             has_subgraph = False
         else:
-            input_data_all = get_input_data(inputs, class_def, unique_id, caches.outputs, dynprompt.original_prompt, dynprompt, extra_data)
+            input_data_all = get_input_data(inputs, class_def, unique_id, caches.outputs, dynprompt, extra_data)
             if server.client_id is not None:
                 server.last_node_id = display_node_id
                 server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)

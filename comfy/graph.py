@@ -45,6 +45,9 @@ class DynamicPrompt:
     def all_node_ids(self):
         return set(self.original_prompt.keys()).union(set(self.ephemeral_prompt.keys()))
 
+    def get_original_prompt(self):
+        return self.original_prompt
+
 def get_input_info(class_def, input_name):
     valid_inputs = class_def.INPUT_TYPES()
     input_info = None
