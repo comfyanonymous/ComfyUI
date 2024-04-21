@@ -2,6 +2,12 @@ import nodes
 
 from comfy.graph_utils import is_link
 
+class DependencyCycleError(Exception):
+    pass
+
+class NodeInputError(Exception):
+    pass
+
 class DynamicPrompt:
     def __init__(self, original_prompt):
         # The original prompt provided by the user
@@ -76,10 +82,10 @@ class TopologicalSort:
     def make_input_strong_link(self, to_node_id, to_input):
         inputs = self.dynprompt.get_node(to_node_id)["inputs"]
         if to_input not in inputs:
-            raise Exception(f"Node {to_node_id} says it needs input {to_input}, but there is no input to that node at all")
+            raise NodeInputError(f"Node {to_node_id} says it needs input {to_input}, but there is no input to that node at all")
         value = inputs[to_input]
         if not is_link(value):
-            raise Exception(f"Node {to_node_id} says it needs input {to_input}, but that value is a constant")
+            raise NodeInputError(f"Node {to_node_id} says it needs input {to_input}, but that value is a constant")
         from_node_id, from_socket = value
         self.add_strong_link(from_node_id, from_socket, to_node_id)
 
@@ -141,7 +147,7 @@ class ExecutionList(TopologicalSort):
             return None
         available = self.get_ready_nodes()
         if len(available) == 0:
-            raise Exception("Dependency cycle detected")
+            raise DependencyCycleError("Dependency cycle detected")
         next_node = available[0]
         # If an output node is available, do that first.
         # Technically this has no effect on the overall length of execution, but it feels better as a user
