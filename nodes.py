@@ -13,8 +13,6 @@ import logging
 from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
 
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
 import numpy as np
 import safetensors.torch
 
@@ -1459,6 +1457,10 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
+        
+        if image_path.endswith(".png"):
+            ImageFile.LOAD_TRUNCATED_IMAGES = True
+        
         img = Image.open(image_path)
         output_images = []
         output_masks = []
