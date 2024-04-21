@@ -10,8 +10,11 @@ import time
 import random
 import logging
 
-from PIL import Image, ImageOps, ImageSequence
+from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 import numpy as np
 import safetensors.torch
 
