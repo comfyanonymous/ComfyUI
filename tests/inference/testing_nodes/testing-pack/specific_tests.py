@@ -18,7 +18,7 @@ class TestLazyMixImages:
 
     CATEGORY = "Testing/Nodes"
 
-    def check_lazy_status(self, mask, image1 = None, image2 = None):
+    def check_lazy_status(self, mask, image1, image2):
         mask_min = mask.min()
         mask_max = mask.max()
         needed = []
@@ -29,7 +29,7 @@ class TestLazyMixImages:
         return needed
 
     # Not trying to handle different batch sizes here just to keep the demo simple
-    def mix(self, mask, image1 = None, image2 = None):
+    def mix(self, mask, image1, image2):
         mask_min = mask.min()
         mask_max = mask.max()
         if mask_min == 0.0 and mask_max == 0.0:
@@ -45,7 +45,6 @@ class TestLazyMixImages:
             mask = mask.repeat(1, 1, 1, image1.shape[3])
 
         result = image1 * (1. - mask) + image2 * mask,
-        print(result[0])
         return (result[0],)
 
 class TestVariadicAverage:
@@ -192,6 +191,36 @@ class TestCustomValidation3:
             result = input1 * input2
         return (result,)
 
+class TestCustomValidation4:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input1": ("FLOAT",),
+                "input2": ("FLOAT",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "custom_validation4"
+
+    CATEGORY = "Testing/Nodes"
+
+    def custom_validation4(self, input1, input2):
+        result = torch.ones([1, 512, 512, 3]) * input1 * input2
+        return (result,)
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, input1, input2):
+        if input1 is not None:
+            if not isinstance(input1, float):
+                return f"Invalid type of input1: {type(input1)}"
+        if input2 is not None:
+            if not isinstance(input2, float):
+                return f"Invalid type of input2: {type(input2)}"
+
+        return True
+
 class TestDynamicDependencyCycle:
     @classmethod
     def INPUT_TYPES(cls):
@@ -228,6 +257,7 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestCustomValidation1": TestCustomValidation1,
     "TestCustomValidation2": TestCustomValidation2,
     "TestCustomValidation3": TestCustomValidation3,
+    "TestCustomValidation4": TestCustomValidation4,
     "TestDynamicDependencyCycle": TestDynamicDependencyCycle,
 }
 
@@ -238,5 +268,6 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestCustomValidation1": "Custom Validation 1",
     "TestCustomValidation2": "Custom Validation 2",
     "TestCustomValidation3": "Custom Validation 3",
+    "TestCustomValidation4": "Custom Validation 4",
     "TestDynamicDependencyCycle": "Dynamic Dependency Cycle",
 }

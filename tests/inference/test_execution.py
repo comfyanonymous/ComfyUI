@@ -299,6 +299,22 @@ class TestExecution:
         else:
             client.run(g)
 
+    @pytest.mark.parametrize("test_type, test_value, expect_error", [
+        ("StubInt", 5, True),
+        ("StubFloat", 5.0, False)
+    ])
+    def test_validation_error_edge4(self, test_type, test_value, expect_error, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        stub = g.node(test_type, value=test_value)
+        validation4 = g.node("TestCustomValidation4", input1=stub.out(0), input2=3.0)
+        g.node("SaveImage", images=validation4.out(0))
+
+        if expect_error:
+            with pytest.raises(urllib.error.HTTPError):
+                client.run(g)
+        else:
+            client.run(g)
+
     def test_cycle_error(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)

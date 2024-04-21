@@ -41,7 +41,7 @@ class IsChangedCache:
                 if "is_changed" in node:
                     self.is_changed[node_id] = node["is_changed"]
                 else:
-                    input_data_all = get_input_data(node["inputs"], class_def, node_id, self.outputs_cache)
+                    input_data_all, _ = get_input_data(node["inputs"], class_def, node_id, self.outputs_cache)
                     try:
                         is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
                         node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
@@ -84,18 +84,25 @@ class CacheSet:
 def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
+    missing_keys = {}
     for x in inputs:
         input_data = inputs[x]
         input_type, input_category, input_info = get_input_info(class_def, x)
+        def mark_missing():
+            missing_keys[x] = True
+            input_data_all[x] = (None,)
         if is_link(input_data) and (not input_info or not input_info.get("rawLink", False)):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if outputs is None:
+                mark_missing()
                 continue # This might be a lazily-evaluated input
             cached_output = outputs.get(input_unique_id)
             if cached_output is None:
+                mark_missing()
                 continue
             if output_index >= len(cached_output):
+                mark_missing()
                 continue
             obj = cached_output[output_index]
             input_data_all[x] = obj
@@ -113,7 +120,7 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, dynprompt=None, e
                 input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
-    return input_data_all
+    return input_data_all, missing_keys
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None):
     # check if node wants the lists
@@ -275,7 +282,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             output_ui = []
             has_subgraph = False
         else:
-            input_data_all = get_input_data(inputs, class_def, unique_id, caches.outputs, dynprompt, extra_data)
+            input_data_all, missing_keys = get_input_data(inputs, class_def, unique_id, caches.outputs, dynprompt, extra_data)
             if server.client_id is not None:
                 server.last_node_id = display_node_id
                 server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
@@ -288,7 +295,9 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             if hasattr(obj, "check_lazy_status"):
                 required_inputs = map_node_over_list(obj, input_data_all, "check_lazy_status", allow_interrupt=True)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
-                required_inputs = [x for x in required_inputs if isinstance(x,str) and x not in input_data_all]
+                required_inputs = [x for x in required_inputs if isinstance(x,str) and (
+                    x not in input_data_all or x in missing_keys
+                )]
                 if len(required_inputs) > 0:
                     for i in required_inputs:
                         execution_list.make_input_strong_link(unique_id, i)
@@ -685,7 +694,7 @@ def validate_inputs(prompt, item, validated):
                         continue
 
     if len(validate_function_inputs) > 0:
-        input_data_all = get_input_data(inputs, obj_class, unique_id)
+        input_data_all, _ = get_input_data(inputs, obj_class, unique_id)
         input_filtered = {}
         for x in input_data_all:
             if x in validate_function_inputs:
