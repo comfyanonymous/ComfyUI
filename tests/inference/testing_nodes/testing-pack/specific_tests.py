@@ -250,6 +250,39 @@ class TestDynamicDependencyCycle:
             "expand": g.finalize(),
         }
 
+class TestMixedExpansionReturns:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input1": ("FLOAT",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE","IMAGE")
+    FUNCTION = "mixed_expansion_returns"
+
+    CATEGORY = "Testing/Nodes"
+
+    def mixed_expansion_returns(self, input1):
+        white_image = torch.ones([1, 512, 512, 3])
+        if input1 <= 0.1:
+            return (torch.ones([1, 512, 512, 3]) * 0.1, white_image)
+        elif input1 <= 0.2:
+            return {
+                "result": (torch.ones([1, 512, 512, 3]) * 0.2, white_image),
+            }
+        else:
+            g = GraphBuilder()
+            mask = g.node("StubMask", value=0.3, height=512, width=512, batch_size=1)
+            black = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+            white = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+            mix = g.node("TestLazyMixImages", image1=black.out(0), image2=white.out(0), mask=mask.out(0))
+            return {
+                "result": (mix.out(0), white_image),
+                "expand": g.finalize(),
+            }
+
 TEST_NODE_CLASS_MAPPINGS = {
     "TestLazyMixImages": TestLazyMixImages,
     "TestVariadicAverage": TestVariadicAverage,
@@ -259,6 +292,7 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestCustomValidation3": TestCustomValidation3,
     "TestCustomValidation4": TestCustomValidation4,
     "TestDynamicDependencyCycle": TestDynamicDependencyCycle,
+    "TestMixedExpansionReturns": TestMixedExpansionReturns,
 }
 
 TEST_NODE_DISPLAY_NAME_MAPPINGS = {
@@ -270,4 +304,5 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestCustomValidation3": "Custom Validation 3",
     "TestCustomValidation4": "Custom Validation 4",
     "TestDynamicDependencyCycle": "Dynamic Dependency Cycle",
+    "TestMixedExpansionReturns": "Mixed Expansion Returns",
 }

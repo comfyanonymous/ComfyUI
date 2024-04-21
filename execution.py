@@ -224,6 +224,7 @@ def get_output_data(obj, input_data_all, execution_block_cb=None, pre_execute_cb
             if isinstance(r, ExecutionBlocker):
                 r = tuple([r] * len(obj.RETURN_TYPES))
             results.append(r)
+            subgraph_results.append((None, r))
     
     if has_subgraph:
         output = subgraph_results
