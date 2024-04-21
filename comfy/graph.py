@@ -76,10 +76,10 @@ class TopologicalSort:
     def make_input_strong_link(self, to_node_id, to_input):
         inputs = self.dynprompt.get_node(to_node_id)["inputs"]
         if to_input not in inputs:
-            raise Exception("Node %s says it needs input %s, but there is no input to that node at all" % (to_node_id, to_input))
+            raise Exception(f"Node {to_node_id} says it needs input {to_input}, but there is no input to that node at all")
         value = inputs[to_input]
         if not is_link(value):
-            raise Exception("Node %s says it needs input %s, but that value is a constant" % (to_node_id, to_input))
+            raise Exception(f"Node {to_node_id} says it needs input {to_input}, but that value is a constant")
         from_node_id, from_socket = value
         self.add_strong_link(from_node_id, from_socket, to_node_id)
 

@@ -38,7 +38,7 @@ class GraphBuilder:
             call_index = GraphBuilder._default_prefix_call_index
         if graph_index is None:
             graph_index = GraphBuilder._default_prefix_graph_index
-        result = "%s.%d.%d." % (root, call_index, graph_index)
+        result = f"{root}.{call_index}.{graph_index}."
         GraphBuilder._default_prefix_graph_index += 1
         return result
 

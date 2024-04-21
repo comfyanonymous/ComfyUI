@@ -242,7 +242,7 @@ class TestForLoopOpen:
                 "remaining": ("INT", {"default": 1, "min": 0, "max": 100000, "step": 1}),
             },
             "optional": {
-                "initial_value%d" % i: ("*",) for i in range(1, NUM_FLOW_SOCKETS)
+                f"initial_value{i}": ("*",) for i in range(1, NUM_FLOW_SOCKETS)
             },
             "hidden": {
                 "initial_value0": ("*",)
@@ -250,7 +250,7 @@ class TestForLoopOpen:
         }
 
     RETURN_TYPES = tuple(["FLOW_CONTROL", "INT",] + ["*"] * (NUM_FLOW_SOCKETS-1))
-    RETURN_NAMES = tuple(["flow_control", "remaining"] + ["value%d" % i for i in range(1, NUM_FLOW_SOCKETS)])
+    RETURN_NAMES = tuple(["flow_control", "remaining"] + [f"value{i}" for i in range(1, NUM_FLOW_SOCKETS)])
     FUNCTION = "for_loop_open"
 
     CATEGORY = "Testing/Flow"
@@ -259,8 +259,8 @@ class TestForLoopOpen:
         graph = GraphBuilder()
         if "initial_value0" in kwargs:
             remaining = kwargs["initial_value0"]
-        while_open = graph.node("TestWhileLoopOpen", condition=remaining, initial_value0=remaining, **{("initial_value%d" % i): kwargs.get("initial_value%d" % i, None) for i in range(1, NUM_FLOW_SOCKETS)})
-        outputs = [kwargs.get("initial_value%d" % i, None) for i in range(1, NUM_FLOW_SOCKETS)]
+        while_open = graph.node("TestWhileLoopOpen", condition=remaining, initial_value0=remaining, **{(f"initial_value{i}"): kwargs.get(f"initial_value{i}", None) for i in range(1, NUM_FLOW_SOCKETS)})
+        outputs = [kwargs.get(f"initial_value{i}", None) for i in range(1, NUM_FLOW_SOCKETS)]
         return {
             "result": tuple(["stub", remaining] + outputs),
             "expand": graph.finalize(),
@@ -278,12 +278,12 @@ class TestForLoopClose:
                 "flow_control": ("FLOW_CONTROL", {"rawLink": True}),
             },
             "optional": {
-                "initial_value%d" % i: ("*",{"rawLink": True}) for i in range(1, NUM_FLOW_SOCKETS)
+                f"initial_value{i}": ("*",{"rawLink": True}) for i in range(1, NUM_FLOW_SOCKETS)
             },
         }
 
     RETURN_TYPES = tuple(["*"] * (NUM_FLOW_SOCKETS-1))
-    RETURN_NAMES = tuple(["value%d" % i for i in range(1, NUM_FLOW_SOCKETS)])
+    RETURN_NAMES = tuple([f"value{i}" for i in range(1, NUM_FLOW_SOCKETS)])
     FUNCTION = "for_loop_close"
 
     CATEGORY = "Testing/Flow"
@@ -293,7 +293,7 @@ class TestForLoopClose:
         while_open = flow_control[0]
         sub = graph.node("TestIntMathOperation", operation="subtract", a=[while_open,1], b=1)
         cond = graph.node("TestToBoolNode", value=sub.out(0))
-        input_values = {("initial_value%d" % i): kwargs.get("initial_value%d" % i, None) for i in range(1, NUM_FLOW_SOCKETS)}
+        input_values = {f"initial_value{i}": kwargs.get(f"initial_value{i}", None) for i in range(1, NUM_FLOW_SOCKETS)}
         while_close = graph.node("TestWhileLoopClose",
                 flow_control=flow_control,
                 condition=cond.out(0),
@@ -317,7 +317,7 @@ class TestMakeListNode:
                 "value1": ("*",),
             },
             "optional": {
-                "value%d" % i: ("*",) for i in range(1, NUM_LIST_SOCKETS)
+                f"value{i}": ("*",) for i in range(1, NUM_LIST_SOCKETS)
             },
         }
 
@@ -330,8 +330,8 @@ class TestMakeListNode:
     def make_list(self, **kwargs):
         result = []
         for i in range(NUM_LIST_SOCKETS):
-            if "value%d" % i in kwargs:
-                result.append(kwargs["value%d" % i])
+            if f"value{i}" in kwargs:
+                result.append(kwargs[f"value{i}"])
         return (result,)
 
 UTILITY_NODE_CLASS_MAPPINGS = {

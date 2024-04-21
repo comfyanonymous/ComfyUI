@@ -269,12 +269,9 @@ class LRUCache(BasicCache):
         self.generation += 1
         for node_id in node_ids:
             self._mark_used(node_id)
-        print("LRUCache: Now at generation %d" % self.generation)
 
     def clean_unused(self):
-        print("LRUCache: Cleaning unused. Current size: %d/%d" % (len(self.cache), self.max_size))
         while len(self.cache) > self.max_size and self.min_generation < self.generation:
-            print("LRUCache: Evicting generation %d" % self.min_generation)
             self.min_generation += 1
             to_remove = [key for key in self.cache if self.used_generation[key] < self.min_generation]
             for key in to_remove:

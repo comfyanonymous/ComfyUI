@@ -18,11 +18,11 @@ class TestWhileLoopOpen:
             },
         }
         for i in range(NUM_FLOW_SOCKETS):
-            inputs["optional"]["initial_value%d" % i] = ("*",)
+            inputs["optional"][f"initial_value{i}"] = ("*",)
         return inputs
 
     RETURN_TYPES = tuple(["FLOW_CONTROL"] + ["*"] * NUM_FLOW_SOCKETS)
-    RETURN_NAMES = tuple(["FLOW_CONTROL"] + ["value%d" % i for i in range(NUM_FLOW_SOCKETS)])
+    RETURN_NAMES = tuple(["FLOW_CONTROL"] + [f"value{i}" for i in range(NUM_FLOW_SOCKETS)])
     FUNCTION = "while_loop_open"
 
     CATEGORY = "Testing/Flow"
@@ -30,7 +30,7 @@ class TestWhileLoopOpen:
     def while_loop_open(self, condition, **kwargs):
         values = []
         for i in range(NUM_FLOW_SOCKETS):
-            values.append(kwargs.get("initial_value%d" % i, None))
+            values.append(kwargs.get(f"initial_value{i}", None))
         return tuple(["stub"] + values)
 
 @VariantSupport()
@@ -53,11 +53,11 @@ class TestWhileLoopClose:
             }
         }
         for i in range(NUM_FLOW_SOCKETS):
-            inputs["optional"]["initial_value%d" % i] = ("*",)
+            inputs["optional"][f"initial_value{i}"] = ("*",)
         return inputs
 
     RETURN_TYPES = tuple(["*"] * NUM_FLOW_SOCKETS)
-    RETURN_NAMES = tuple(["value%d" % i for i in range(NUM_FLOW_SOCKETS)])
+    RETURN_NAMES = tuple([f"value{i}" for i in range(NUM_FLOW_SOCKETS)])
     FUNCTION = "while_loop_close"
 
     CATEGORY = "Testing/Flow"
@@ -89,7 +89,7 @@ class TestWhileLoopClose:
             # We're done with the loop
             values = []
             for i in range(NUM_FLOW_SOCKETS):
-                values.append(kwargs.get("initial_value%d" % i, None))
+                values.append(kwargs.get(f"initial_value{i}", None))
             return tuple(values)
 
         # We want to loop
@@ -124,7 +124,7 @@ class TestWhileLoopClose:
         new_open = graph.lookup_node(open_node)
         assert new_open is not None
         for i in range(NUM_FLOW_SOCKETS):
-            key = "initial_value%d" % i
+            key = f"initial_value{i}"
             new_open.set_input(key, kwargs.get(key, None))
         my_clone = graph.lookup_node("Recurse")
         assert my_clone is not None
