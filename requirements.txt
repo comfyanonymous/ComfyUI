@@ -11,6 +11,7 @@ lpips
 numba
 omegaconf
 onnxruntime-gpu
+packaging
 Pillow
 psutil
 pyyaml
@@ -18,9 +19,11 @@ safetensors>=0.3.0
 scikit-image
 scipy
 six
+sympy
 torch
 torchsde
 torchvision
 tqdm
 transformers>=4.25.1
 ultralytics
+urllib3
