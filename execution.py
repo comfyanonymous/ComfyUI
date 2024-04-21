@@ -21,7 +21,7 @@ from comfy.cli_args import args
 class ExecutionResult(Enum):
     SUCCESS = 0
     FAILURE = 1
-    SLEEPING = 2
+    PENDING = 2
 
 class DuplicateNodeError(Exception):
     pass
@@ -292,7 +292,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 if len(required_inputs) > 0:
                     for i in required_inputs:
                         execution_list.make_input_strong_link(unique_id, i)
-                    return (ExecutionResult.SLEEPING, None, None)
+                    return (ExecutionResult.PENDING, None, None)
 
             def execution_block_cb(block):
                 if block.message is not None:
@@ -363,7 +363,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             for link in new_output_links:
                 execution_list.add_strong_link(link[0], link[1], unique_id)
             pending_subgraph_results[unique_id] = cached_outputs
-            return (ExecutionResult.SLEEPING, None, None)
+            return (ExecutionResult.PENDING, None, None)
         caches.outputs.set(unique_id, output_data)
     except comfy.model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
@@ -482,7 +482,7 @@ class PromptExecutor:
                 if result == ExecutionResult.FAILURE:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
                     break
-                elif result == ExecutionResult.SLEEPING:
+                elif result == ExecutionResult.PENDING:
                     execution_list.unstage_node_execution()
                 else: # result == ExecutionResult.SUCCESS:
                     execution_list.complete_node_execution()
