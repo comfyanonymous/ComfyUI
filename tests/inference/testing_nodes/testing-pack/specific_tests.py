@@ -1,5 +1,6 @@
 import torch
 from .tools import VariantSupport
+from comfy.graph_utils import GraphBuilder
 
 class TestLazyMixImages:
     @classmethod
@@ -191,6 +192,35 @@ class TestCustomValidation3:
             result = input1 * input2
         return (result,)
 
+class TestDynamicDependencyCycle:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "input1": ("IMAGE",),
+                "input2": ("IMAGE",),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "dynamic_dependency_cycle"
+
+    CATEGORY = "Testing/Nodes"
+
+    def dynamic_dependency_cycle(self, input1, input2):
+        g = GraphBuilder()
+        mask = g.node("StubMask", value=0.5, height=512, width=512, batch_size=1)
+        mix1 = g.node("TestLazyMixImages", image1=input1, mask=mask.out(0))
+        mix2 = g.node("TestLazyMixImages", image1=mix1.out(0), image2=input2, mask=mask.out(0))
+
+        # Create the cyle
+        mix1.set_input("image2", mix2.out(0))
+
+        return {
+            "result": (mix2.out(0),),
+            "expand": g.finalize(),
+        }
+
 TEST_NODE_CLASS_MAPPINGS = {
     "TestLazyMixImages": TestLazyMixImages,
     "TestVariadicAverage": TestVariadicAverage,
@@ -198,6 +228,7 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestCustomValidation1": TestCustomValidation1,
     "TestCustomValidation2": TestCustomValidation2,
     "TestCustomValidation3": TestCustomValidation3,
+    "TestDynamicDependencyCycle": TestDynamicDependencyCycle,
 }
 
 TEST_NODE_DISPLAY_NAME_MAPPINGS = {
@@ -207,4 +238,5 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestCustomValidation1": "Custom Validation 1",
     "TestCustomValidation2": "Custom Validation 2",
     "TestCustomValidation3": "Custom Validation 3",
+    "TestDynamicDependencyCycle": "Dynamic Dependency Cycle",
 }

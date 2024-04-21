@@ -473,7 +473,11 @@ class PromptExecutor:
                 execution_list.add_node(node_id)
 
             while not execution_list.is_empty():
-                node_id = execution_list.stage_node_execution()
+                node_id, error, ex = execution_list.stage_node_execution()
+                if error is not None:
+                    self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
+                    break
+
                 result, error, ex = execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results)
                 if result == ExecutionResult.FAILURE:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)

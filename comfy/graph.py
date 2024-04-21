@@ -144,10 +144,27 @@ class ExecutionList(TopologicalSort):
     def stage_node_execution(self):
         assert self.staged_node_id is None
         if self.is_empty():
-            return None
+            return None, None, None
         available = self.get_ready_nodes()
         if len(available) == 0:
-            raise DependencyCycleError("Dependency cycle detected")
+            cycled_nodes = self.get_nodes_in_cycle()
+            # Because cycles composed entirely of static nodes are caught during initial validation,
+            # we will 'blame' the first node in the cycle that is not a static node.
+            blamed_node = cycled_nodes[0]
+            for node_id in cycled_nodes:
+                display_node_id = self.dynprompt.get_display_node_id(node_id)
+                if display_node_id != node_id:
+                    blamed_node = display_node_id
+                    break
+            ex = DependencyCycleError("Dependency cycle detected")
+            error_details = {
+                "node_id": blamed_node,
+                "exception_message": str(ex),
+                "exception_type": "graph.DependencyCycleError",
+                "traceback": [],
+                "current_inputs": []
+            }
+            return None, error_details, ex
         next_node = available[0]
         # If an output node is available, do that first.
         # Technically this has no effect on the overall length of execution, but it feels better as a user
@@ -160,7 +177,7 @@ class ExecutionList(TopologicalSort):
                 next_node = node_id
                 break
         self.staged_node_id = next_node
-        return self.staged_node_id
+        return self.staged_node_id, None, None
 
     def unstage_node_execution(self):
         assert self.staged_node_id is not None
@@ -170,6 +187,25 @@ class ExecutionList(TopologicalSort):
         node_id = self.staged_node_id
         self.pop_node(node_id)
         self.staged_node_id = None
+
+    def get_nodes_in_cycle(self):
+        # We'll dissolve the graph in reverse topological order to leave only the nodes in the cycle.
+        # We're skipping some of the performance optimizations from the original TopologicalSort to keep
+        # the code simple (and because having a cycle in the first place is a catastrophic error)
+        blocked_by = { node_id: {} for node_id in self.pendingNodes }
+        for from_node_id in self.blocking:
+            for to_node_id in self.blocking[from_node_id]:
+                if True in self.blocking[from_node_id][to_node_id].values():
+                    blocked_by[to_node_id][from_node_id] = True
+        to_remove = [node_id for node_id in blocked_by if len(blocked_by[node_id]) == 0]
+        while len(to_remove) > 0:
+            for node_id in to_remove:
+                for to_node_id in blocked_by:
+                    if node_id in blocked_by[to_node_id]:
+                        del blocked_by[to_node_id][node_id]
+                del blocked_by[node_id]
+            to_remove = [node_id for node_id in blocked_by if len(blocked_by[node_id]) == 0]
+        return list(blocked_by.keys())
 
 # Return this from a node and any users will be blocked with the given error message.
 class ExecutionBlocker:

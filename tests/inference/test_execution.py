@@ -234,6 +234,7 @@ class TestExecution:
 
         try:
             client.run(g)
+            assert False, "Should have raised an error"
         except Exception as e:
             assert 'prompt_id' in e.args[0], f"Did not get back a proper error message: {e}"
 
@@ -297,6 +298,35 @@ class TestExecution:
                 client.run(g)
         else:
             client.run(g)
+
+    def test_cycle_error(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        mask = g.node("StubMask", value=0.5, height=512, width=512, batch_size=1)
+
+        lazy_mix1 = g.node("TestLazyMixImages", image1=input1.out(0), mask=mask.out(0))
+        lazy_mix2 = g.node("TestLazyMixImages", image1=lazy_mix1.out(0), image2=input2.out(0), mask=mask.out(0))
+        g.node("SaveImage", images=lazy_mix2.out(0))
+
+        # When the cycle exists on initial submission, it should raise a validation error
+        with pytest.raises(urllib.error.HTTPError):
+            client.run(g)
+
+    def test_dynamic_cycle_error(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+        input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
+        generator = g.node("TestDynamicDependencyCycle", input1=input1.out(0), input2=input2.out(0))
+        g.node("SaveImage", images=generator.out(0))
+
+        # When the cycle is in a graph that is generated dynamically, it should raise a runtime error
+        try:
+            client.run(g)
+            assert False, "Should have raised an error"
+        except Exception as e:
+            assert 'prompt_id' in e.args[0], f"Did not get back a proper error message: {e}"
+            assert e.args[0]['node_id'] == generator.id, "Error should have been on the generator node"
 
     def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
