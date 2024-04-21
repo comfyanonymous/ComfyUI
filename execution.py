@@ -349,7 +349,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
                 else:
                     # Check for conflicts
                     for node_id in new_graph.keys():
-                        if dynprompt.get_node(node_id) is not None:
+                        if dynprompt.has_node(node_id):
                             raise DuplicateNodeError(f"Attempt to add duplicate node {node_id}. Ensure node ids are unique and deterministic or use graph_utils.GraphBuilder.")
                     for node_id, node_info in new_graph.items():
                         new_node_ids.append(node_id)

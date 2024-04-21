@@ -8,6 +8,9 @@ class DependencyCycleError(Exception):
 class NodeInputError(Exception):
     pass
 
+class NodeNotFoundError(Exception):
+    pass
+
 class DynamicPrompt:
     def __init__(self, original_prompt):
         # The original prompt provided by the user
@@ -22,7 +25,10 @@ class DynamicPrompt:
             return self.ephemeral_prompt[node_id]
         if node_id in self.original_prompt:
             return self.original_prompt[node_id]
-        return None
+        raise NodeNotFoundError(f"Node {node_id} not found")
+
+    def has_node(self, node_id):
+        return node_id in self.original_prompt or node_id in self.ephemeral_prompt
 
     def add_ephemeral_node(self, node_id, node_info, parent_id, display_id):
         self.ephemeral_prompt[node_id] = node_info
