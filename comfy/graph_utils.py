@@ -27,8 +27,7 @@ class GraphBuilder:
     def set_default_prefix(cls, prefix_root, call_index, graph_index = 0):
         cls._default_prefix_root = prefix_root
         cls._default_prefix_call_index = call_index
-        if graph_index is not None:
-            cls._default_prefix_graph_index = graph_index
+        cls._default_prefix_graph_index = graph_index
 
     @classmethod
     def alloc_prefix(cls, root=None, call_index=None, graph_index=None):
