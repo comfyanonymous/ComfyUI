@@ -33,24 +33,28 @@ class IsChangedCache:
         self.is_changed = {}
 
     def get(self, node_id):
-        if node_id not in self.is_changed:
-            node = self.dynprompt.get_node(node_id)
-            class_type = node["class_type"]
-            class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-            if hasattr(class_def, "IS_CHANGED"):
-                if "is_changed" in node:
-                    self.is_changed[node_id] = node["is_changed"]
-                else:
-                    input_data_all, _ = get_input_data(node["inputs"], class_def, node_id, self.outputs_cache)
-                    try:
-                        is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
-                        node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
-                        self.is_changed[node_id] = node["is_changed"]
-                    except:
-                        node["is_changed"] = float("NaN")
-                        self.is_changed[node_id] = node["is_changed"]
-            else:
-                self.is_changed[node_id] = False
+        if node_id in self.is_changed:
+            return self.is_changed[node_id]
+
+        node = self.dynprompt.get_node(node_id)
+        class_type = node["class_type"]
+        class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+        if not hasattr(class_def, "IS_CHANGED"):
+            self.is_changed[node_id] = False
+            return self.is_changed[node_id]
+
+        if "is_changed" in node:
+            self.is_changed[node_id] = node["is_changed"]
+            return self.is_changed[node_id]
+
+        input_data_all, _ = get_input_data(node["inputs"], class_def, node_id, self.outputs_cache)
+        try:
+            is_changed = map_node_over_list(class_def, input_data_all, "IS_CHANGED")
+            node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
+        except:
+            node["is_changed"] = float("NaN")
+        finally:
+            self.is_changed[node_id] = node["is_changed"]
         return self.is_changed[node_id]
 
 class CacheSet:
