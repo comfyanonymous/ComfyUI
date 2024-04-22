@@ -393,7 +393,7 @@ def execute(server, dynprompt, caches, current_item, extra_data, executed, promp
             for name, inputs in input_data_all.items():
                 input_data_formatted[name] = [format_value(x) for x in inputs]
 
-        logging.error("!!! Exception during processing !!!")
+        logging.error(f"!!! Exception during processing !!! {ex}")
         logging.error(traceback.format_exc())
 
         error_details = {
@@ -473,6 +473,7 @@ class PromptExecutor:
 
             current_outputs = self.caches.outputs.all_node_ids()
 
+            comfy.model_management.cleanup_models(keep_clone_weights_loaded=True)
             self.add_message("execution_cached",
                           { "nodes": list(current_outputs) , "prompt_id": prompt_id},
                           broadcast=False)
