@@ -141,7 +141,7 @@ class PhotoMakerEncode:
         return {"required": { "photomaker": ("PHOTOMAKER",),
                               "image": ("IMAGE",),
                               "clip": ("CLIP", ),
-                              "text": ("STRING", {"multiline": True, "default": "photograph of photomaker"}),
+                              "text": ("STRING", {"multiline": True, "dynamicPrompts": True, "default": "photograph of photomaker"}),
                              }}
 
     RETURN_TYPES = ("CONDITIONING",)

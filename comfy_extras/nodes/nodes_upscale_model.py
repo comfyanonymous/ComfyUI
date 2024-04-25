@@ -1,9 +1,9 @@
+import torch
+
+from comfy import model_management
+from comfy import utils
 from comfy.model_downloader import get_filename_list_with_downloadable, KNOWN_UPSCALERS, get_or_download
 from ..chainner_models import model_loading
-from comfy import model_management
-import torch
-from comfy import utils
-from comfy.cmd import folder_paths
 
 
 class UpscaleModelLoader:
@@ -40,9 +40,14 @@ class ImageUpscaleWithModel:
 
     def upscale(self, upscale_model, image):
         device = model_management.get_torch_device()
+
+        memory_required = model_management.module_size(upscale_model)
+        memory_required += (512 * 512 * 3) * image.element_size() * max(upscale_model.scale, 1.0) * 256.0  # The 256.0 is an estimate of how much some of these models take, TODO: make it more accurate
+        memory_required += image.nelement() * image.element_size()
+        model_management.free_memory(memory_required, device)
+
         upscale_model.to(device)
         in_img = image.movedim(-1, -3).to(device)
-        free_memory = model_management.get_free_memory(device)
 
         tile = 512
         overlap = 32
@@ -50,11 +55,9 @@ class ImageUpscaleWithModel:
         oom = True
         while oom:
             try:
-                steps = in_img.shape[0] * utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile,
-                                                                      tile_y=tile, overlap=overlap)
+                steps = in_img.shape[0] * utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
                 pbar = utils.ProgressBar(steps)
-                s = utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap,
-                                      upscale_amount=upscale_model.scale, pbar=pbar)
+                s = utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
                 oom = False
             except model_management.OOM_EXCEPTION as e:
                 tile //= 2
