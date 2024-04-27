@@ -10,14 +10,13 @@ import time
 import random
 import logging
 
-from PIL import Image, ImageOps, ImageSequence, ImageFile
+from PIL import Image, ImageOps, ImageSequence
 from PIL.PngImagePlugin import PngInfo
 
 import numpy as np
 import safetensors.torch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
-
 
 import comfy.diffusers_load
 import comfy.samplers
@@ -1458,10 +1457,8 @@ class LoadImage:
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
         
-        if image_path.endswith(".png"):
-            ImageFile.LOAD_TRUNCATED_IMAGES = True
+        img = node_helpers.open_image(image_path)
         
-        img = Image.open(image_path)
         output_images = []
         output_masks = []
         for i in ImageSequence.Iterator(img):
