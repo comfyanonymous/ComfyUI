@@ -25,6 +25,7 @@ class AlignYourStepsScheduler:
         return {"required":
                     {"model_type": (["SD1", "SDXL", "SVD"], ),
                      "steps": ("INT", {"default": 10, "min": 10, "max": 10000}),
+                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                       }
                }
     RETURN_TYPES = ("SIGMAS",)
@@ -32,11 +33,18 @@ class AlignYourStepsScheduler:
 
     FUNCTION = "get_sigmas"
 
-    def get_sigmas(self, model_type, steps):
+    def get_sigmas(self, model_type, steps, denoise):
+        total_steps = steps
+        if denoise < 1.0:
+            if denoise <= 0.0:
+                return (torch.FloatTensor([]),)
+            total_steps = round(steps * denoise)
+
         sigmas = NOISE_LEVELS[model_type][:]
         if (steps + 1) != len(sigmas):
             sigmas = loglinear_interp(sigmas, steps + 1)
 
+        sigmas = sigmas[-(total_steps + 1):]
         sigmas[-1] = 0
         return (torch.FloatTensor(sigmas), )
 
