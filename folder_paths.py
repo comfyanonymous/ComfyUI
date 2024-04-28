@@ -2,7 +2,7 @@ import os
 import time
 import logging
 
-supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
+supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
 folder_names_and_paths = {}
 
