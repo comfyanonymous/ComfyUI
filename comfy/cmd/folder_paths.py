@@ -10,7 +10,7 @@ from pkg_resources import resource_filename
 
 from ..cli_args import args
 
-supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
+supported_pt_extensions = frozenset(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
 
 @dataclasses.dataclass
