@@ -9,6 +9,7 @@ It will enable command line argument parsing. If this isn't desired, you must au
 """
 import logging
 import os
+import sys
 import warnings
 
 from opentelemetry import trace
@@ -17,7 +18,7 @@ from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
 from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
 from opentelemetry.semconv.resource import ResourceAttributes as ResAttrs
 
 from .. import options
@@ -54,7 +55,15 @@ def _create_tracer():
     sampler = ProgressSpanSampler()
     provider = TracerProvider(resource=resource, sampler=sampler)
 
-    otlp_exporter = OTLPSpanExporter() if args.otel_exporter_otlp_endpoint is not None else ConsoleSpanExporter()
+    is_debugging = hasattr(sys, 'gettrace') and sys.gettrace() is not None
+    has_endpoint = args.otel_exporter_otlp_endpoint is not None
+
+    if has_endpoint:
+        otlp_exporter = OTLPSpanExporter()
+    elif is_debugging:
+        otlp_exporter = ConsoleSpanExporter()
+    else:
+        otlp_exporter = SpanExporter()
 
     processor = BatchSpanProcessor(otlp_exporter)
     provider.add_span_processor(processor)

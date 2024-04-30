@@ -45,12 +45,12 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                 if isinstance(known_file, HuggingFile):
                     if known_file.save_with_filename is not None:
                         linked_filename = known_file.save_with_filename
-                    elif os.path.basename(known_file.filename) != known_file.filename:
+                    elif not known_file.force_save_in_repo_id and os.path.basename(known_file.filename) != known_file.filename:
                         linked_filename = os.path.basename(known_file.filename)
                     else:
                         linked_filename = None
 
-                    if linked_filename is not None and os.path.dirname(known_file.filename) == "":
+                    if known_file.force_save_in_repo_id or linked_filename is not None and os.path.dirname(known_file.filename) == "":
                         # if the known file has an overridden linked name, save it into a repo_id sub directory
                         # this deals with situations like
                         # jschoormans/controlnet-densepose-sdxl repo having diffusion_pytorch_model.safetensors
@@ -73,6 +73,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                     path = hf_hub_download(repo_id=known_file.repo_id,
                                            filename=known_file.filename,
                                            local_dir=hf_destination_dir,
+                                           repo_type=known_file.repo_type,
                                            resume_download=True)
 
                     if known_file.convert_to_16_bit and file_size is not None and file_size != 0:

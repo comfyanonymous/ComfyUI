@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import dataclasses
+import logging
 import os
-import posixpath
 import sys
 import time
-import logging
 from typing import Optional, List, Set, Dict, Any, Iterator, Sequence
 
 from pkg_resources import resource_filename
@@ -39,14 +40,17 @@ class FolderPathsTuple:
 
 
 class FolderNames:
-    def __init__(self):
+    def __init__(self, default_new_folder_path: str):
         self.contents: Dict[str, FolderPathsTuple] = dict()
+        self.default_new_folder_path = default_new_folder_path
 
     def __getitem__(self, item) -> FolderPathsTuple:
         if not isinstance(item, str):
             raise RuntimeError("expected folder path")
         if item not in self.contents:
-            self.contents[item] = FolderPathsTuple(item, paths=[], supported_extensions=set())
+            default_path = os.path.join(self.default_new_folder_path, item)
+            os.makedirs(default_path, exist_ok=True)
+            self.contents[item] = FolderPathsTuple(item, paths=[default_path], supported_extensions=set())
         return self.contents[item]
 
     def __setitem__(self, key: str, value: FolderPathsTuple):
@@ -62,8 +66,8 @@ class FolderNames:
         return len(self.contents)
 
     def __iter__(self):
-        return iter(self.contents)    
-    
+        return iter(self.contents)
+
     def items(self):
         return self.contents.items()
 
@@ -73,8 +77,6 @@ class FolderNames:
     def keys(self):
         return self.contents.keys()
 
-
-folder_names_and_paths = FolderNames()
 
 # todo: this should be initialized elsewhere
 if 'main.py' in sys.argv:
@@ -90,6 +92,7 @@ elif args.cwd is not None:
 else:
     base_path = os.getcwd()
 models_dir = os.path.join(base_path, "models")
+folder_names_and_paths = FolderNames(models_dir)
 folder_names_and_paths["checkpoints"] = FolderPathsTuple("checkpoints", [os.path.join(models_dir, "checkpoints")], set(supported_pt_extensions))
 folder_names_and_paths["configs"] = FolderPathsTuple("configs", [os.path.join(models_dir, "configs"), resource_filename("comfy", "configs/")], {".yaml"})
 folder_names_and_paths["loras"] = FolderPathsTuple("loras", [os.path.join(models_dir, "loras")], set(supported_pt_extensions))

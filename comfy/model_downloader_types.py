@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 from os.path import split
 from typing import Optional, List, Sequence
+
 from typing_extensions import TypedDict, NotRequired
 
 
@@ -51,6 +52,8 @@ class HuggingFile:
     show_in_ui: Optional[bool] = True
     convert_to_16_bit: Optional[bool] = False
     size: Optional[int] = None
+    force_save_in_repo_id: Optional[bool] = False
+    repo_type: Optional[str] = 'model'
 
     def __str__(self):
         return self.save_with_filename or split(self.filename)[-1]
