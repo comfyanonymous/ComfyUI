@@ -1945,6 +1945,7 @@ def init_custom_nodes():
         "nodes_pag.py",
         "nodes_align_your_steps.py",
         "nodes_attention_multiply.py",
+        "nodes_advanced_samplers.py",
     ]
 
     import_failed = []
