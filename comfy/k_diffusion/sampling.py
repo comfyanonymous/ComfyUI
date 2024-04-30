@@ -825,7 +825,7 @@ def sample_tcd(
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object("model_sampling")
-    timesteps_s = torch.floor((1 - eta) * model_sampling.timestep(sigmas)).to(dtype=torch.long).detach()
+    timesteps_s = torch.floor((1 - eta) * model_sampling.timestep(sigmas)).to(dtype=torch.long).detach().cpu()
     timesteps_s[-1] = 0
     alpha_prod_s = model_sampling.alphas_cumprod[timesteps_s]
     beta_prod_s = 1 - alpha_prod_s
