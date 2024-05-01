@@ -26,7 +26,7 @@ from ..cli_args import args
 from ..cmd import folder_paths, latent_preview
 from ..images import open_image
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
-    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS
+    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 from ..open_exr import load_exr
@@ -616,8 +616,8 @@ class LoraLoaderModelOnly(LoraLoader):
 class VAELoader:
     @staticmethod
     def vae_list():
-        vaes = folder_paths.get_filename_list("vae")
-        approx_vaes = folder_paths.get_filename_list("vae_approx")
+        vaes = get_filename_list_with_downloadable("vae", KNOWN_VAES)
+        approx_vaes = get_filename_list_with_downloadable("vae_approx", KNOWN_APPROX_VAES)
         sdxl_taesd_enc = False
         sdxl_taesd_dec = False
         sd1_taesd_enc = False
@@ -673,7 +673,7 @@ class VAELoader:
         if vae_name in ["taesd", "taesdxl"]:
             sd_ = self.load_taesd(vae_name)
         else:
-            vae_path = folder_paths.get_full_path("vae", vae_name)
+            vae_path = get_or_download("vae", vae_name, KNOWN_VAES)
             sd_ = utils.load_torch_file(vae_path)
         vae = sd.VAE(sd=sd_)
         return (vae,)

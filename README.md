@@ -1,14 +1,14 @@
-ComfyUI Distributed
+ComfyUI LTS
 =======
 
-A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui).
+A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui) intended for long term support (LTS) from [Hidden Switch](https://hiddenswitch.com).
 
 ### New Features
 
 - Run with `comfyui` in your command line.
 - [Installable](#installing) via `pip`: `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
-- [Installable custom nodes](#custom-nodes) via `pip`.
+- [Installable custom nodes](#custom-nodes) via `pip`, including LTS support for forked nodes from the community.
 - [New configuration options](#command-line-arguments) for directories, models and metrics.
 - [API](#using-comfyui-as-an-api--programmatically) support, using the vanilla ComfyUI API and new API endpoints.
 - [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
@@ -183,6 +183,12 @@ There are two kinds of custom nodes: vanilla custom nodes, which generally expec
 Clone the repository containing the custom nodes into `custom_nodes/` in your working directory. Currently, this is not known to be compatible with ComfyUI Node Manager.
 
 ### Installable Custom Nodes
+
+These packages have been adapted to be installable with `pip` and download models to the correct places, using the **Known Models** functionality:
+
+- **ControlNet Auxiliary Preprocessors**: `pip install git+https://github.com/AppMana/comfyui_controlnet_aux.git`.
+- **LayerDiffuse**: `pip install git+https://github.com/hiddenswitch/ComfyUI-layerdiffuse.git`.
+- **Extra Models**: `pip install git+https://github.com/AppMana/ComfyUI_ExtraModels.git`. You will need `xformers`.
 
 Run `pip install git+https://github.com/owner/repository`, replacing the `git` repository with the installable custom nodes URL. This is just the GitHub URL. 
 

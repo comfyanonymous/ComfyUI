@@ -284,7 +284,12 @@ KNOWN_DIFF_CONTROLNETS = [
 
 KNOWN_APPROX_VAES = [
     HuggingFile("madebyollin/taesd", "taesd_decoder.safetensors"),
-    HuggingFile("madebyollin/taesdxl", "taesdxl_decoder.safetensors")
+    HuggingFile("madebyollin/taesdxl", "taesdxl_decoder.safetensors"),
+]
+
+KNOWN_VAES = [
+    HuggingFile("stabilityai/sdxl-vae", "sdxl_vae.safetensors"),
+    HuggingFile("stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.safetensors"),
 ]
 
 

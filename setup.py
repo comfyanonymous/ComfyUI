@@ -41,8 +41,6 @@ The package index to torch built against CPU features.
 """
 cpu_torch_index = ("https://download.pytorch.org/whl/cpu", "https://download.pytorch.org/whl/nightly/cpu")
 
-# xformers not required for new torch
-
 """
 Indicates if this is installing an editable (develop) mode package
 """
