@@ -539,6 +539,9 @@ class KSAMPLER(Sampler):
 def ksampler(sampler_name, extra_options={}, inpaint_options={}):
     if sampler_name == "dpm_fast":
         def dpm_fast_function(model, noise, sigmas, extra_args, callback, disable):
+            if len(sigmas) <= 1:
+                return noise
+
             sigma_min = sigmas[-1]
             if sigma_min == 0:
                 sigma_min = sigmas[-2]
@@ -547,6 +550,9 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
         sampler_function = dpm_fast_function
     elif sampler_name == "dpm_adaptive":
         def dpm_adaptive_function(model, noise, sigmas, extra_args, callback, disable, **extra_options):
+            if len(sigmas) <= 1:
+                return noise
+
             sigma_min = sigmas[-1]
             if sigma_min == 0:
                 sigma_min = sigmas[-2]
