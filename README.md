@@ -103,6 +103,14 @@ On macOS, install Python 3.10, 3.11 or 3.12 using `brew`, which you can download
     comfyui --listen
     ```
 
+##### Running with TLS
+
+To serve with `https://` on Windows easily, use [Caddy](https://github.com/caddyserver/caddy/releases/download/v2.7.6/caddy_2.7.6_windows_amd64.zip). Extract `caddy.exe` to a directory, then run it:
+
+```shell
+caddy reverse-proxy --from localhost:443 --to localhost:8188 --tls self_signed
+```
+
 ### Known Models
 
 These models will be automatically downloaded when you queue prompts with workflows that use them:

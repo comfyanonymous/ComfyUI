@@ -229,7 +229,7 @@ function createIntWidget(node, inputName, inputData, app, isSeedInput) {
 			val,
 			function (v) {
 				const s = this.options.step / 10;
-				this.value = Math.round(v / s) * s;
+				this.value = Math.round((v - this.options.min) / s) * s + this.options.min;
 			},
 			config
 		),

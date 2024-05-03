@@ -23,7 +23,7 @@ _session = Session()
 
 def get_filename_list_with_downloadable(folder_name: str, known_files: List[Any]) -> List[str]:
     existing = frozenset(folder_paths.get_filename_list(folder_name))
-    downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files)
+    downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files if not isinstance(f, HuggingFile) or f.show_in_ui)
     return sorted(list(existing | downloadable))
 
 
@@ -150,7 +150,7 @@ KNOWN_CHECKPOINTS = [
     HuggingFile("stabilityai/sdxl-turbo", "sd_xl_turbo_1.0.safetensors", show_in_ui=False),
     HuggingFile("stabilityai/stable-cascade", "comfyui_checkpoints/stable_cascade_stage_b.safetensors"),
     HuggingFile("stabilityai/stable-cascade", "comfyui_checkpoints/stable_cascade_stage_c.safetensors"),
-    HuggingFile("stabilityai/stable-cascade", "comfyui_checkpoints/stage_a.safetensors"),
+    HuggingFile("stabilityai/stable-cascade", "comfyui_checkpoints/stage_a.safetensors", show_in_ui=False),
     HuggingFile("runwayml/stable-diffusion-v1-5", "v1-5-pruned-emaonly.safetensors"),
     HuggingFile("runwayml/stable-diffusion-v1-5", "v1-5-pruned-emaonly.ckpt", show_in_ui=False),
     HuggingFile("runwayml/stable-diffusion-v1-5", "v1-5-pruned.ckpt", show_in_ui=False),
@@ -161,6 +161,8 @@ KNOWN_CHECKPOINTS = [
     HuggingFile("jomcs/NeverEnding_Dream-Feb19-2023", "CarDos Anime/cardosAnime_v10.safetensors", show_in_ui=False),
     # from https://github.com/comfyanonymous/ComfyUI_examples/blob/master/area_composition/README.md
     HuggingFile("ckpt/anything-v3.0", "Anything-V3.0.ckpt", show_in_ui=False),
+    HuggingFile("stabilityai/cosxl", "cosxl.safetensors"),
+    HuggingFile("stabilityai/cosxl", "cosxl_edit.safetensors"),
     # latest, popular civitai models
     CivitFile(133005, 357609, filename="juggernautXL_v9Rundiffusionphoto2.safetensors"),
     CivitFile(112902, 351306, filename="dreamshaperXL_v21TurboDPMSDE.safetensors"),
@@ -182,7 +184,7 @@ KNOWN_UPSCALERS = [
 ]
 
 KNOWN_GLIGEN_MODELS = [
-    HuggingFile("comfyanonymous/GLIGEN_pruned_safetensors", "gligen_sd14_textbox_pruned.safetensors"),
+    HuggingFile("comfyanonymous/GLIGEN_pruned_safetensors", "gligen_sd14_textbox_pruned.safetensors", show_in_ui=False),
     HuggingFile("comfyanonymous/GLIGEN_pruned_safetensors", "gligen_sd14_textbox_pruned_fp16.safetensors"),
 ]
 
