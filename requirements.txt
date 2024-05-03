@@ -42,5 +42,8 @@ opentelemetry-exporter-otlp
 opentelemetry-exporter-otlp-proto-http
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-propagator-jaeger
+opentelemetry-instrumentation
+opentelemetry-util-http
 opentelemetry-instrumentation-aio-pika
-opentelemetry-instrumentation-aiohttp-server @ git+https://github.com/open-telemetry/opentelemetry-python-contrib.git@v0.45b0#subdirectory=instrumentation/opentelemetry-instrumentation-aiohttp-server
+opentelemetry-semantic-conventions
+wrapt>=1.16.0

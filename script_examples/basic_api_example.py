@@ -1,4 +1,5 @@
 # This sample shows how to execute a ComfyUI workflow, saving an image file to the location you specify.
+# It does not require the server to be run. It runs ComfyUI embedded, as a library. No process is started.
 #
 # This script does not need to run within a ComfyUI directory. Instead, this can be used inside your own
 # Python application or located elsewhere. It should **not** be in the Git repository directory.

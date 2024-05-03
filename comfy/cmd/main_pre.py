@@ -15,7 +15,6 @@ import warnings
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
-from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
@@ -24,6 +23,7 @@ from opentelemetry.semconv.resource import ResourceAttributes as ResAttrs
 from .. import options
 from ..tracing_compatibility import ProgressSpanSampler
 from ..tracing_compatibility import patch_spanbuilder_set_channel
+from ..vendor.aiohttp_server_instrumentation import AioHttpServerInstrumentor
 
 options.enable_args_parsing()
 if os.name == "nt":
