@@ -6,7 +6,7 @@ export class ComfyAsyncDialog extends ComfyDialog {
 
 	constructor(actions) {
 		super(
-			"dialog.comfy-dialog",
+			"dialog.comfy-dialog.comfyui-dialog",
 			actions?.map((opt) => {
 				if (typeof opt === "string") {
 					opt = { text: opt };

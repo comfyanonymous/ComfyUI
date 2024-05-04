@@ -403,6 +403,10 @@ dialog::backdrop {
 	background: rgba(0, 0, 0, 0.5);
 }
 
+.comfy-dialog.comfyui-dialog {
+	top: 0;
+}
+
 .comfy-dialog.comfy-modal {
 	font-family: Arial, sans-serif;
 	border-color: var(--bg-color);

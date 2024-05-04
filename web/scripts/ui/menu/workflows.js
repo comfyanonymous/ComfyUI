@@ -474,7 +474,7 @@ export class ComfyWorkflowsContent {
 						oninput: (e) => {
 							this.filterText = e.target["value"]?.trim();
 							clearTimeout(typingTimeout);
-							typingTimeout = setTimeout(() => this.filterTree(), 100);
+							typingTimeout = setTimeout(() => this.filterTree(), 250);
 						},
 					}),
 				]),
