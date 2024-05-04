@@ -20,6 +20,10 @@ const colorPalettes = {
 				"MODEL": "#B39DDB", // light lavender-purple
 				"STYLE_MODEL": "#C2FFAE", // light green-yellow
 				"VAE": "#FF6E6E", // bright red
+				"NOISE": "#B0B0B0", // gray
+				"GUIDER": "#66FFFF", // cyan
+				"SAMPLER": "#ECB4B4", // very soft red
+				"SIGMAS": "#CDFFCD", // soft lime green
 				"TAESD": "#DCC274", // cheesecake
 			},
 			"litegraph_base": {

@@ -2,7 +2,7 @@ import os
 import time
 import logging
 
-supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
+supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
 folder_names_and_paths = {}
 
@@ -181,6 +181,8 @@ def get_full_path(folder_name, filename):
         full_path = os.path.join(x, filename)
         if os.path.isfile(full_path):
             return full_path
+        elif os.path.islink(full_path):
+            logging.warning("WARNING path {} exists but doesn't link anywhere, skipping.".format(full_path))
 
     return None
 
