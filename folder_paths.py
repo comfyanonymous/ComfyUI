@@ -242,7 +242,7 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
         input = input.replace("%height%", str(image_height))
         return input
 
-    current_date = time.strftime("%m-%d-%Y")
+    current_date = time.strftime("%Y-%m-%d")
     filename_prefix = compute_vars(filename_prefix, image_width, image_height)
 
     subfolder = current_date
