@@ -74,7 +74,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                                            filename=known_file.filename,
                                            local_dir=hf_destination_dir,
                                            repo_type=known_file.repo_type,
-                                           resume_download=True)
+                                           )
 
                     if known_file.convert_to_16_bit and file_size is not None and file_size != 0:
                         tensors = {}
