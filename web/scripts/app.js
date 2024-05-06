@@ -1059,6 +1059,20 @@ export class ComfyApp {
 					// Trigger onPaste
 					return true;
 				}
+
+				if((e.key === '+') && e.altKey) {
+					block_default = true;
+					let scale = this.ds.scale * 1.1;
+					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.graph.change();
+				}
+
+				if((e.key === '-') && e.altKey) {
+					block_default = true;
+					let scale = this.ds.scale * 1 / 1.1;
+					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.graph.change();
+				}
 			}
 
 			this.graph.change();
