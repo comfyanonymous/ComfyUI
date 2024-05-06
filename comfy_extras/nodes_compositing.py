@@ -107,10 +107,24 @@ class PorterDuffImageComposite:
     CATEGORY = "mask/compositing"
 
     def composite(self, source: torch.Tensor, source_alpha: torch.Tensor, destination: torch.Tensor, destination_alpha: torch.Tensor, mode):
-        batch_size = min(len(source), len(source_alpha), len(destination), len(destination_alpha))
+        batch_size = min(len(source), len(destination))
+        if batch_size == 1:
+            if len(source) != 1:
+                batch_size = len(source)
+            elif len(destination) != 1:
+                batch_size = len(destination)
         out_images = []
         out_alphas = []
 
+        if batch_size != 1:
+            if len(source) == 1:
+                source = source.repeat(batch_size, 1, 1, 1)
+            if len(destination) == 1:
+                destination = destination.repeat(batch_size, 1, 1, 1)
+            if len(source_alpha) == 1:
+                source_alpha = source_alpha.repeat(batch_size, 1, 1)
+            if len(destination_alpha) == 1:
+                destination_alpha = destination_alpha.repeat(batch_size, 1, 1)
         for i in range(batch_size):
             src_image = source[i]
             dst_image = destination[i]
@@ -180,6 +194,8 @@ class JoinImageWithAlpha:
         batch_size = min(len(image), len(alpha))
         out_images = []
 
+        if len(alpha) == 1 and batch_size != 1:
+            alpha = alpha.repeat(batch_size, 1, 1, 1)
         alpha = 1.0 - resize_mask(alpha, image.shape[1:])
         for i in range(batch_size):
            out_images.append(torch.cat((image[i][:,:,:3], alpha[i].unsqueeze(2)), dim=2))
