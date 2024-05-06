@@ -953,6 +953,12 @@ export class ComfyApp {
 
 		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
 		LGraphCanvas.prototype.processMouseDown = function(e) {
+			// prepare for ctrl drag: zoom start
+			if(e.ctrlKey && e.buttons) {
+				self.ctrl_mouse_start = [e.x, e.y, this.ds.scale];
+				return;
+			}
+
 			const res = origProcessMouseDown.apply(this, arguments);
 
 			this.selected_group_moving = false;
@@ -973,6 +979,26 @@ export class ComfyApp {
 
 		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
 		LGraphCanvas.prototype.processMouseMove = function(e) {
+			// handle ctrl drag
+			if(e.ctrlKey && self.ctrl_mouse_start) {
+				// stop canvas zoom action
+				if(!e.buttons) {
+					self.ctrl_mouse_start = null;
+					return;
+				}
+
+				// calculate delta
+				let deltaY = e.y - self.ctrl_mouse_start[1];
+				let startScale = self.ctrl_mouse_start[2];
+
+				let scale = startScale - deltaY/100;
+
+				this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+				this.graph.change();
+
+				return;
+			}
+
 			const orig_selected_group = this.selected_group;
 
 			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
