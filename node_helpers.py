@@ -1,4 +1,4 @@
-from PIL import Image, ImageFile, UnidentifiedImageError
+from PIL import ImageFile, UnidentifiedImageError
 
 def conditioning_set_values(conditioning, values={}):
     c = []
