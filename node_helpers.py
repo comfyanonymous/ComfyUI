@@ -10,16 +10,15 @@ def conditioning_set_values(conditioning, values={}):
 
     return c
 
-def open_image(path):
+def pillow(fn, arg):
     prev_value = None
-
     try:
-        img = Image.open(path)
-    except (UnidentifiedImageError, ValueError): #PIL issues #4472 and #2445
+        x = fn(arg)
+    except (OSError, UnidentifiedImageError, ValueError): #PIL issues #4472 , #3416, and #2445
         prev_value = ImageFile.LOAD_TRUNCATED_IMAGES
         ImageFile.LOAD_TRUNCATED_IMAGES = True
-        img = Image.open(path)
+        x = fn(arg)
     finally:
         if prev_value is not None:
             ImageFile.LOAD_TRUNCATED_IMAGES = prev_value
-        return img
+        return x
