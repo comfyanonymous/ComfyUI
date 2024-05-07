@@ -128,12 +128,7 @@ export function getWebpMetadata(file) {
 					if (String.fromCharCode(...webp.slice(offset + 8, offset + 8 + 6)) == "Exif\0\0") {
 						offset += 6;
 					}
-					let data = parseExifData(webp.slice(offset + 8, offset + 8 + chunk_length));
-					for (var key in data) {
-						var value = data[key];
-						let index = value.indexOf(':');
-						txt_chunks[value.slice(0, index)] = value.slice(index + 1);
-					}
+					txt_chunks = parseExifData(webp.slice(offset + 8, offset + 8 + chunk_length));  // we get only 1 tag with the whole prompt already parsed
 				}
 
 				offset += 8 + chunk_length;
