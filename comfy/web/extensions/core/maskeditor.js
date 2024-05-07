@@ -164,6 +164,41 @@ class MaskEditorDialog extends ComfyDialog {
 		return divElement;
 	}
 
+	createOpacitySlider(self, name, callback) {
+		const divElement = document.createElement('div');
+		divElement.id = "maskeditor-opacity-slider";
+		divElement.style.cssFloat = "left";
+		divElement.style.fontFamily = "sans-serif";
+		divElement.style.marginRight = "4px";
+		divElement.style.color = "var(--input-text)";
+		divElement.style.backgroundColor = "var(--comfy-input-bg)";
+		divElement.style.borderRadius = "8px";
+		divElement.style.borderColor = "var(--border-color)";
+		divElement.style.borderStyle = "solid";
+		divElement.style.fontSize = "15px";
+		divElement.style.height = "21px";
+		divElement.style.padding = "1px 6px";
+		divElement.style.display = "flex";
+		divElement.style.position = "relative";
+		divElement.style.top = "2px";
+		divElement.style.pointerEvents = "auto";
+		self.opacity_slider_input = document.createElement('input');
+		self.opacity_slider_input.setAttribute('type', 'range');
+		self.opacity_slider_input.setAttribute('min', '0.1');
+		self.opacity_slider_input.setAttribute('max', '1.0');
+		self.opacity_slider_input.setAttribute('step', '0.01')
+		self.opacity_slider_input.setAttribute('value', '0.7');
+		const labelElement = document.createElement("label");
+		labelElement.textContent = name;
+
+		divElement.appendChild(labelElement);
+		divElement.appendChild(self.opacity_slider_input);
+
+		self.opacity_slider_input.addEventListener("input", callback);
+
+		return divElement;
+	}
+
 	setlayout(imgCanvas, maskCanvas) {
 		const self = this;
 
@@ -203,6 +238,13 @@ class MaskEditorDialog extends ComfyDialog {
 			self.updateBrushPreview(self, null, null);
 		});
 
+		this.brush_opacity_slider = this.createOpacitySlider(self, "Opacity", (event) => {
+			self.brush_opacity = event.target.value;
+			if (self.brush_color_mode !== "negative") {
+			    self.maskCanvas.style.opacity = self.brush_opacity;
+			}
+		});
+
 		this.colorButton = this.createLeftButton(this.getColorButtonText(), () => {
 			if (self.brush_color_mode === "black") {
 				self.brush_color_mode = "white";
@@ -237,6 +279,7 @@ class MaskEditorDialog extends ComfyDialog {
 		bottom_panel.appendChild(this.saveButton);
 		bottom_panel.appendChild(cancelButton);
 		bottom_panel.appendChild(this.brush_size_slider);
+		bottom_panel.appendChild(this.brush_opacity_slider);
 		bottom_panel.appendChild(this.colorButton);
 
 		imgCanvas.style.position = "absolute";
@@ -472,7 +515,7 @@ class MaskEditorDialog extends ComfyDialog {
 		else {
 			return {
 				mixBlendMode: "initial",
-				opacity: "0.7",
+				opacity: this.brush_opacity,
 			};
 		}
 	}
@@ -538,6 +581,7 @@ class MaskEditorDialog extends ComfyDialog {
 		this.maskCtx.putImageData(maskData, 0, 0);
 	}
 
+	brush_opacity = 0.7;
 	brush_size = 10;
 	brush_color_mode = "black";
 	drawing_mode = false;
