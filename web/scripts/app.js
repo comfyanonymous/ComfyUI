@@ -2099,16 +2099,16 @@ export class ComfyApp {
 				}
 			}
 		} else if (file.type === "image/webp") {
-			const pngInfo = await getWebpMetadata(file);
+			const pngInfo = await getWebpMetadata(file);	// getWebpMetadata returns parsed JSON, so much simpler
 			if (pngInfo) {
 				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
+					this.loadGraphData(pngInfo.workflow);
 				} else if (pngInfo.Workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
+					this.loadGraphData(pngInfo.Workflow); // Support loading workflows from that webp custom node.
 				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt));
+					this.loadApiJson(pngInfo.prompt);
 				} else if (pngInfo.Prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.Prompt)); // Support loading prompts from that webp custom node.
+					this.loadApiJson(pngInfo.Prompt); // Support loading prompts from that webp custom node.
 				}
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
