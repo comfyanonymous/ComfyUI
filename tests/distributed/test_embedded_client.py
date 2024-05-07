@@ -24,8 +24,7 @@ async def test_cuda_memory_usage():
         assert memory_after_workflow > starting_memory, "Expected CUDA memory to increase after running the workflow"
 
     ending_memory = torch.cuda.memory_allocated(device)
-    assert abs(
-        ending_memory - starting_memory) < 1e7, "Expected CUDA memory to return close to starting memory after cleanup"
+    assert abs(ending_memory - starting_memory) < 1e7, "Expected CUDA memory to return close to starting memory after cleanup"
 
 
 @pytest.mark.asyncio

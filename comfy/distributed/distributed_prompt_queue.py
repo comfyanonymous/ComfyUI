@@ -18,13 +18,14 @@ from .distributed_types import RpcRequest, RpcReply
 from .history import History
 from .server_stub import ServerStub
 from ..auth.permissions import jwt_decode
+from ..cmd.main_pre import tracer
 from ..cmd.server import PromptServer
-from ..component_model.abstract_prompt_queue import AbstractPromptQueue
+from ..component_model.abstract_prompt_queue import AsyncAbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData
 from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation
 
 
-class DistributedPromptQueue(AbstractPromptQueue):
+class DistributedPromptQueue(AsyncAbstractPromptQueue):
     """
     A distributed prompt queue for the ComfyUI web client and single-threaded worker.
     """
@@ -39,12 +40,13 @@ class DistributedPromptQueue(AbstractPromptQueue):
     async def progress(self, event: SendSyncEvent, data: SendSyncData, sid: Optional[str]) -> None:
         self._caller_server.send_sync(event, data, sid=sid)
 
-    async def put_async(self, queue_item: QueueItem):
+    @tracer.start_as_current_span("Put Async")
+    async def put_async(self, queue_item: QueueItem) -> TaskInvocation | None:
         assert self._is_caller
         assert self._rpc is not None
 
         if self._closing:
-            return
+            return None
         self._caller_local_in_progress[queue_item.prompt_id] = queue_item
         if self._caller_server is not None:
             self._caller_server.queue_updated()
@@ -88,9 +90,7 @@ class DistributedPromptQueue(AbstractPromptQueue):
             # if we have a completer, propoagate the exception to it
             if queue_item.completed is not None:
                 queue_item.completed.set_exception(e)
-            else:
-                # otherwise, this should raise in the event loop, which I suppose isn't handled
-                raise e
+            raise e
         finally:
             self._caller_local_in_progress.pop(queue_item.prompt_id)
             if self._caller_server is not None:

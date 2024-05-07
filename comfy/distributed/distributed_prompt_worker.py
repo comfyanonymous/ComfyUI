@@ -12,6 +12,7 @@ from aiormq import AMQPConnectionError
 from .distributed_progress import DistributedExecutorToClientProgress
 from .distributed_types import RpcRequest, RpcReply
 from ..client.embedded_comfy_client import EmbeddedComfyClient
+from ..cmd.main_pre import tracer
 from ..component_model.queue_types import ExecutionStatus
 
 
@@ -32,6 +33,7 @@ class DistributedPromptWorker:
         self._loop = loop or asyncio.get_event_loop()
         self._embedded_comfy_client = embedded_comfy_client
 
+    @tracer.start_as_current_span("Do Work Item")
     async def _do_work_item(self, request: dict) -> dict:
         await self.on_will_complete_work_item(request)
         try:
@@ -55,6 +57,7 @@ class DistributedPromptWorker:
         await self.on_did_complete_work_item(request_obj, reply)
         return asdict(reply)
 
+    @tracer.start_as_current_span("Initialize Prompt Worker")
     async def init(self):
         await self._exit_stack.__aenter__()
         try:

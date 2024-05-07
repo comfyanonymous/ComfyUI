@@ -7,13 +7,18 @@ from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
+from opentelemetry import context
+from opentelemetry.trace import Span, Status, StatusCode
+
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
-from ..component_model.make_mutable import make_mutable
+from ..cmd.main_pre import tracer
 from ..component_model.executor_types import ExecutorToClientProgress
+from ..component_model.make_mutable import make_mutable
 from ..distributed.server_stub import ServerStub
 
 _server_stub_instance = ServerStub()
+
 
 class EmbeddedComfyClient:
     """
@@ -110,30 +115,36 @@ class EmbeddedComfyClient:
 
         await self._loop.run_in_executor(self._executor, create_executor_in_thread)
 
+    @tracer.start_as_current_span("Queue Prompt")
     async def queue_prompt(self,
                            prompt: PromptDict | dict,
                            prompt_id: Optional[str] = None,
                            client_id: Optional[str] = None) -> dict:
         prompt_id = prompt_id or str(uuid.uuid4())
         client_id = client_id or self._progress_handler.client_id or None
+        span_context = context.get_current()
 
         def execute_prompt() -> dict:
-            from ..cmd.execution import PromptExecutor, validate_prompt
-            prompt_mut = make_mutable(prompt)
-            validation_tuple = validate_prompt(prompt_mut)
+            spam: Span
+            with tracer.start_as_current_span("Execute Prompt", context=span_context) as span:
+                from ..cmd.execution import PromptExecutor, validate_prompt
+                prompt_mut = make_mutable(prompt)
+                validation_tuple = validate_prompt(prompt_mut)
 
-            prompt_executor: PromptExecutor = self._prompt_executor
+                prompt_executor: PromptExecutor = self._prompt_executor
 
-            if client_id is None:
-                prompt_executor.server = _server_stub_instance
-            else:
-                prompt_executor.server = self._progress_handler
+                if client_id is None:
+                    prompt_executor.server = _server_stub_instance
+                else:
+                    prompt_executor.server = self._progress_handler
 
-            prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
-                                    execute_outputs=validation_tuple[2])
-            if prompt_executor.success:
-                return prompt_executor.outputs_ui
-            else:
-                raise RuntimeError("\n".join(event for (event, data) in self._prompt_executor.status_messages))
+                prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
+                                        execute_outputs=validation_tuple[2])
+                if prompt_executor.success:
+                    return prompt_executor.outputs_ui
+                else:
+                    span.set_status(Status(StatusCode.ERROR))
+                    error = RuntimeError("\n".join(event for (event, data) in self._prompt_executor.status_messages))
+                    span.record_exception(error)
 
         return await self._loop.run_in_executor(self._executor, execute_prompt)

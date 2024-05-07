@@ -1,4 +1,5 @@
 import os.path
+import threading
 from contextlib import contextmanager
 
 import torch
@@ -17,7 +18,7 @@ from .component_model.executor_types import ExecutorToClientProgress
 from .component_model.queue_types import BinaryEventTypes
 
 PROGRESS_BAR_ENABLED = True
-PROGRESS_BAR_HOOK = None
+_progress_bar_hook = threading.local()
 
 
 
@@ -479,7 +480,7 @@ def hijack_progress(server: ExecutorToClientProgress):
         if preview_image is not None:
             server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
 
-    set_progress_bar_global_hook(hook)
+    _progress_bar_hook.hook = hook
 
 
 def set_progress_bar_enabled(enabled):
@@ -489,11 +490,6 @@ def set_progress_bar_enabled(enabled):
 
 def get_progress_bar_enabled() -> bool:
     return PROGRESS_BAR_ENABLED
-
-
-def set_progress_bar_global_hook(function):
-    global PROGRESS_BAR_HOOK
-    PROGRESS_BAR_HOOK = function
 
 
 class _DisabledProgressBar:
@@ -509,10 +505,10 @@ class _DisabledProgressBar:
 
 class ProgressBar:
     def __init__(self, total: float):
-        global PROGRESS_BAR_HOOK
+        global _progress_bar_hook
         self.total: float = total
         self.current: float = 0.0
-        self.hook = PROGRESS_BAR_HOOK
+        self.hook = _progress_bar_hook.hook if hasattr(_progress_bar_hook, "hook") else None
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:

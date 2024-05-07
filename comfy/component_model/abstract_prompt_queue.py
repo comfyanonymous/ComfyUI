@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 from abc import ABCMeta, abstractmethod
 
-from .queue_types import QueueTuple, HistoryEntry, QueueItem, Flags, ExecutionStatus
+from .queue_types import QueueTuple, HistoryEntry, QueueItem, Flags, ExecutionStatus, TaskInvocation
 
 
 class AbstractPromptQueue(metaclass=ABCMeta):
@@ -117,4 +117,14 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         :param reset:
         :return:
         """
+        pass
+
+
+class AsyncAbstractPromptQueue(AbstractPromptQueue):
+    @abstractmethod
+    async def put_async(self, queue_item) -> TaskInvocation | None:
+        pass
+
+    @abstractmethod
+    async def get_async(self, timeout: float | None = None) -> typing.Optional[typing.Tuple[QueueTuple, str]]:
         pass

@@ -1,27 +1,26 @@
 import asyncio
 import logging
 import os
+import socket
+import subprocess
 import sys
 import time
 import uuid
-import subprocess
-import socket
-
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import jwt
 import pytest
 import requests
+from testcontainers.rabbitmq import RabbitMqContainer
 
 from comfy.client.aio_client import AsyncRemoteComfyClient
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
-from comfy.distributed.server_stub import ServerStub
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
 from comfy.component_model.make_mutable import make_mutable
 from comfy.component_model.queue_types import QueueItem, QueueTuple, TaskInvocation, NamedQueueTuple, ExecutionStatus
 from comfy.distributed.distributed_prompt_worker import DistributedPromptWorker
-from testcontainers.rabbitmq import RabbitMqContainer
+from comfy.distributed.server_stub import ServerStub
 
 # fixes issues with running the testcontainers rabbitmqcontainer on Windows
 os.environ["TC_HOST"] = "localhost"
@@ -55,8 +54,7 @@ async def test_basic_queue_worker() -> None:
             # this unfortunately does a bunch of initialization on the test thread
             from comfy.distributed.distributed_prompt_queue import DistributedPromptQueue
             # now submit some jobs
-            distributed_queue = DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True,
-                                                       connection_uri=f"amqp://guest:guest@127.0.0.1:{params.port}")
+            distributed_queue = DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True, connection_uri=f"amqp://guest:guest@127.0.0.1:{params.port}")
             await distributed_queue.init()
             queue_item = create_test_prompt()
             res: TaskInvocation = await distributed_queue.put_async(queue_item)
@@ -74,10 +72,8 @@ async def test_distributed_prompt_queues_same_process():
         connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
 
         from comfy.distributed.distributed_prompt_queue import DistributedPromptQueue
-        async with DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True,
-                                          connection_uri=connection_uri) as frontend:
-            async with DistributedPromptQueue(ServerStub(), is_callee=True, is_caller=False,
-                                              connection_uri=f"amqp://guest:guest@127.0.0.1:{params.port}") as worker:
+        async with DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True, connection_uri=connection_uri) as frontend:
+            async with DistributedPromptQueue(ServerStub(), is_callee=True, is_caller=False, connection_uri=connection_uri) as worker:
                 test_prompt = create_test_prompt()
                 test_prompt.completed = asyncio.Future()
 
@@ -117,6 +113,7 @@ async def test_frontend_backend_workers():
             frontend_command = [
                 "comfyui",
                 "--listen=0.0.0.0",
+                "--port=9001",
                 "--cpu",
                 "--distributed-queue-frontend",
                 f"--distributed-queue-connection-uri={connection_uri}",
@@ -125,6 +122,7 @@ async def test_frontend_backend_workers():
             processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr))
             backend_command = [
                 "comfyui-worker",
+                "--port=9002",
                 f"--distributed-queue-connection-uri={connection_uri}",
             ]
 
@@ -145,7 +143,7 @@ async def test_frontend_backend_workers():
             client = AsyncRemoteComfyClient(server_address=server_address)
             prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
             png_image_bytes = await client.queue_prompt(prompt)
-            assert len(png_image_bytes) > 1000
+            assert len(png_image_bytes) > 1000, "expected an image, but got nothing"
         finally:
             for process in processes_to_close:
                 process.terminate()

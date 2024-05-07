@@ -64,7 +64,7 @@ def comfy_background_server(args_pytest):
     if not success:
         raise Exception("Failed to start background server")
     yield
-    p.kill()
+    p.terminate()
     torch.cuda.empty_cache()
 
 

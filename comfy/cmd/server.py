@@ -13,17 +13,16 @@ import uuid
 from asyncio import Future, AbstractEventLoop
 from enum import Enum
 from io import BytesIO
+from posixpath import join as urljoin
 from typing import List, Optional, Dict
 from urllib.parse import quote, urlencode
-from posixpath import join as urljoin
-
-from can_ada import URL, parse as urlparse
 
 import aiofiles
 import aiohttp
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
+from can_ada import URL, parse as urlparse
 from pkg_resources import resource_filename
 from typing_extensions import NamedTuple
 
@@ -36,12 +35,13 @@ from ..cli_args import args
 from ..client.client_types import Output, FileOutput
 from ..cmd import execution
 from ..cmd import folder_paths
+from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.file_output_path import file_output_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation
 from ..digest import digest
-from ..nodes.package_typing import ExportedNodes
 from ..images import open_image
+from ..nodes.package_typing import ExportedNodes
 
 
 class HeuristicPath(NamedTuple):
@@ -95,7 +95,7 @@ class PromptServer(ExecutorToClientProgress):
         self.user_manager = UserManager()
         # todo: this is probably read by custom nodes elsewhere
         self.supports: List[str] = ["custom_nodes_from_web"]
-        self.prompt_queue: execution.AbstractPromptQueue | None = None
+        self.prompt_queue: AbstractPromptQueue | AsyncAbstractPromptQueue | None = None
         self.loop: AbstractEventLoop = loop
         self.messages: asyncio.Queue = asyncio.Queue()
         self.number: int = 0
@@ -599,22 +599,27 @@ class PromptServer(ExecutorToClientProgress):
                 return web.Response(status=400, content_type="application/json", body=json.dumps(valid[1]))
 
             # convert a valid prompt to the queue tuple this expects
-            completed: Future[TaskInvocation | dict] = self.loop.create_future()
             number = self.number
             self.number += 1
-            self.prompt_queue.put(
-                QueueItem(queue_tuple=(number, str(uuid.uuid4()), prompt_dict, {}, valid[2]),
-                          completed=completed))
 
-            try:
-                await completed
-            except Exception as ex:
-                return web.Response(body=str(ex), status=503)
-                # expect a single image
-            result: TaskInvocation | dict = completed.result()
+            completed: Future[TaskInvocation | dict] = self.loop.create_future()
+            item = QueueItem(queue_tuple=(number, str(uuid.uuid4()), prompt_dict, {}, valid[2]), completed=completed)
+
+            if hasattr(self.prompt_queue, "put_async") or isinstance(self.prompt_queue, AsyncAbstractPromptQueue):
+                # this enables span propagation seamlessly
+                result = await self.prompt_queue.put_async(item)
+                if result is None:
+                    return web.Response(body="the queue is shutting down", status=503)
+            else:
+                try:
+                    self.prompt_queue.put(item)
+                    await completed
+                except Exception as ex:
+                    return web.Response(body=str(ex), status=503)
+                    # expect a single image
+                result: TaskInvocation | dict = completed.result()
             outputs_dict: Dict[str, Output] = result.outputs if isinstance(result, TaskInvocation) else result
             # find images and read them
-
             output_images: List[FileOutput] = []
             for node_id, node in outputs_dict.items():
                 images: List[FileOutput] = []

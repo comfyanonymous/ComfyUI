@@ -9,21 +9,25 @@ import threading
 import traceback
 import typing
 from typing import List, Optional, Tuple, Union
-from typing_extensions import TypedDict
-import torch
-import lazy_object_proxy
 
+import lazy_object_proxy
+import torch
+from opentelemetry.trace import get_current_span, StatusCode, Status
+from typing_extensions import TypedDict
+
+from .main_pre import tracer
 from .. import interruption
-from ..component_model.abstract_prompt_queue import AbstractPromptQueue
-from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
-from ..component_model.executor_types import ExecutorToClientProgress
 from .. import model_management
-from ..nodes.package_typing import ExportedNodes
+from ..component_model.abstract_prompt_queue import AbstractPromptQueue
+from ..component_model.executor_types import ExecutorToClientProgress
+from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..nodes.package import import_all_nodes_in_workspace
+from ..nodes.package_typing import ExportedNodes
 
 # ideally this would be passed in from main, but the way this is authored, we can't easily pass nodes down to the
 # various functions that are declared here. It should have been a context in the first place.
 nodes: ExportedNodes = lazy_object_proxy.Proxy(import_all_nodes_in_workspace)
+
 
 def get_input_data(inputs, class_def, unique_id, outputs=None, prompt=None, extra_data=None):
     if extra_data is None:
@@ -139,6 +143,7 @@ def format_value(x):
         return str(x)
 
 
+@tracer.start_as_current_span("Recursive Execute")
 def recursive_execute(server: ExecutorToClientProgress,
                       prompt,
                       outputs,
@@ -324,6 +329,10 @@ class PromptExecutor:
             self.server.send_sync(event, data, self.server.client_id)
 
     def handle_execution_error(self, prompt_id, prompt, current_outputs, executed, error, ex):
+        current_span = get_current_span()
+        current_span.set_status(Status(StatusCode.ERROR))
+        current_span.record_exception(ex)
+
         node_id = error["node_id"]
         class_type = prompt[node_id]["class_type"]
 
@@ -430,7 +439,6 @@ class PromptExecutor:
                 # This call shouldn't raise anything if there's an error deep in
                 # the actual SD code, instead it will report the node where the
                 # error was raised
-                # todo: if we're using a distributed queue, we must wrap the server instance to correctly communicate back to the client via the exchange
                 self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id,
                                                             extra_data, executed, prompt_id, self.outputs_ui,
                                                             self.object_storage)
@@ -689,6 +697,7 @@ class ValidationErrorDict(TypedDict):
 ValidationTuple = typing.Tuple[bool, Optional[ValidationErrorDict], typing.List[str], Union[dict, list]]
 
 
+@tracer.start_as_current_span("Validate Prompt")
 def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
     outputs = set()
     for x in prompt:
