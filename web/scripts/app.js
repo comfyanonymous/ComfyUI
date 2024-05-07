@@ -953,9 +953,9 @@ export class ComfyApp {
 
 		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
 		LGraphCanvas.prototype.processMouseDown = function(e) {
-			// prepare for ctrl drag: zoom start
-			if(e.ctrlKey && e.buttons) {
-				self.ctrl_mouse_start = [e.x, e.y, this.ds.scale];
+			// prepare for ctrl+shift drag: zoom start
+			if(e.ctrlKey && e.shiftKey && e.buttons) {
+				self.zoom_drag_start = [e.x, e.y, this.ds.scale];
 				return;
 			}
 
@@ -979,17 +979,17 @@ export class ComfyApp {
 
 		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
 		LGraphCanvas.prototype.processMouseMove = function(e) {
-			// handle ctrl drag
-			if(e.ctrlKey && self.ctrl_mouse_start) {
+			// handle ctrl+shift drag
+			if(e.ctrlKey && e.shiftKey && self.zoom_drag_start) {
 				// stop canvas zoom action
 				if(!e.buttons) {
-					self.ctrl_mouse_start = null;
+					self.zoom_drag_start = null;
 					return;
 				}
 
 				// calculate delta
-				let deltaY = e.y - self.ctrl_mouse_start[1];
-				let startScale = self.ctrl_mouse_start[2];
+				let deltaY = e.y - self.zoom_drag_start[1];
+				let startScale = self.zoom_drag_start[2];
 
 				let scale = startScale - deltaY/100;
 
