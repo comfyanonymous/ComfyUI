@@ -87,20 +87,6 @@ class Configuration(dict):
         otel_service_name (str): The name of the service or application that is generating telemetry data. Default: "comfyui".
         otel_service_version (str): The version of the service or application that is generating telemetry data. Default: "0.0.1".
         otel_exporter_otlp_endpoint (Optional[str]): A base endpoint URL for any signal type, with an optionally-specified port number. Helpful for when you're sending more than one signal to the same endpoint and want one environment variable to control the endpoint.
-        otel_exporter_otlp_traces_endpoint (Optional[str]): Endpoint URL for trace data only, with an optionally-specified port number. Typically ends with v1/traces when using OTLP/HTTP.
-        otel_exporter_otlp_metrics_endpoint (Optional[str]): Endpoint URL for metric data only, with an optionally-specified port number. Typically ends with v1/metrics when using OTLP/HTTP.
-        otel_exporter_otlp_logs_endpoint (Optional[str]): Endpoint URL for log data only, with an optionally-specified port number. Typically ends with v1/logs when using OTLP/HTTP.
-        otel_exporter_otlp_headers (Optional[str]): A list of headers to apply to all outgoing data (traces, metrics, and logs).
-        otel_exporter_otlp_traces_headers (Optional[str]): A list of headers to apply to all outgoing traces.
-        otel_exporter_otlp_metrics_headers (Optional[str]): A list of headers to apply to all outgoing metrics.
-        otel_exporter_otlp_logs_headers (Optional[str]): A list of headers to apply to all outgoing logs.
-        otel_exporter_otlp_timeout (Optional[str]): The timeout value for all outgoing data (traces, metrics, and logs) in milliseconds.
-        otel_exporter_otlp_traces_timeout (Optional[str]): The timeout value for all outgoing traces in milliseconds.
-        otel_exporter_otlp_metrics_timeout (Optional[str]): The timeout value for all outgoing metrics in milliseconds.
-        otel_exporter_otlp_logs_timeout (Optional[str]): The timeout value for all outgoing logs in milliseconds.
-        otel_exporter_otlp_protocol (Optional[str]): Specifies the OTLP transport protocol to be used for all telemetry data.
-        otel_exporter_otlp_traces_protocol (Optional[str]): Specifies the OTLP transport protocol to be used for trace data.
-        otel_exporter_otlp_metrics_protocol (Optional[str]): Specifies the OTLP transport protocol to be used for metrics data.
     """
 
     def __init__(self, **kwargs):
@@ -171,20 +157,6 @@ class Configuration(dict):
         self.otel_service_name: str = "comfyui"
         self.otel_service_version: str = "0.0.1"
         self.otel_exporter_otlp_endpoint: Optional[str] = None
-        self.otel_exporter_otlp_traces_endpoint: Optional[str] = None
-        self.otel_exporter_otlp_metrics_endpoint: Optional[str] = None
-        self.otel_exporter_otlp_logs_endpoint: Optional[str] = None
-        self.otel_exporter_otlp_headers: Optional[str] = None
-        self.otel_exporter_otlp_traces_headers: Optional[str] = None
-        self.otel_exporter_otlp_metrics_headers: Optional[str] = None
-        self.otel_exporter_otlp_logs_headers: Optional[str] = None
-        self.otel_exporter_otlp_timeout: Optional[str] = None
-        self.otel_exporter_otlp_traces_timeout: Optional[str] = None
-        self.otel_exporter_otlp_metrics_timeout: Optional[str] = None
-        self.otel_exporter_otlp_logs_timeout: Optional[str] = None
-        self.otel_exporter_otlp_protocol: Optional[str] = None
-        self.otel_exporter_otlp_traces_protocol: Optional[str] = None
-        self.otel_exporter_otlp_metrics_protocol: Optional[str] = None
         for key, value in kwargs.items():
             self[key] = value
 

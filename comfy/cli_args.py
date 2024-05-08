@@ -184,20 +184,6 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--otel-service-name", type=str, default="comfyui", env_var="OTEL_SERVICE_NAME", help="The name of the service or application that is generating telemetry data.")
     parser.add_argument("--otel-service-version", type=str, default=__version__, env_var="OTEL_SERVICE_VERSION", help="The version of the service or application that is generating telemetry data.")
     parser.add_argument("--otel-exporter-otlp-endpoint", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_ENDPOINT", help="A base endpoint URL for any signal type, with an optionally-specified port number. Helpful for when you're sending more than one signal to the same endpoint and want one environment variable to control the endpoint.")
-    parser.add_argument("--otel-exporter-otlp-traces-endpoint", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", help="Endpoint URL for trace data only, with an optionally-specified port number. Typically ends with v1/traces when using OTLP/HTTP.")
-    parser.add_argument("--otel-exporter-otlp-metrics-endpoint", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", help="Endpoint URL for metric data only, with an optionally-specified port number. Typically ends with v1/metrics when using OTLP/HTTP.")
-    parser.add_argument("--otel-exporter-otlp-logs-endpoint", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", help="Endpoint URL for log data only, with an optionally-specified port number. Typically ends with v1/logs when using OTLP/HTTP.")
-    parser.add_argument("--otel-exporter-otlp-headers", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_HEADERS", help="A list of headers to apply to all outgoing data (traces, metrics, and logs). To add a username and password to your headers, set this field to ``")
-    parser.add_argument("--otel-exporter-otlp-traces-headers", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_TRACES_HEADERS", help="A list of headers to apply to all outgoing traces.")
-    parser.add_argument("--otel-exporter-otlp-metrics-headers", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_METRICS_HEADERS", help="A list of headers to apply to all outgoing metrics.")
-    parser.add_argument("--otel-exporter-otlp-logs-headers", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_LOGS_HEADERS", help="A list of headers to apply to all outgoing logs.")
-    parser.add_argument("--otel-exporter-otlp-timeout", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_TIMEOUT", help="The timeout value for all outgoing data (traces, metrics, and logs) in milliseconds.")
-    parser.add_argument("--otel-exporter-otlp-traces-timeout", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_TRACES_TIMEOUT", help="The timeout value for all outgoing traces in milliseconds.")
-    parser.add_argument("--otel-exporter-otlp-metrics-timeout", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_METRICS_TIMEOUT", help="The timeout value for all outgoing metrics in milliseconds.")
-    parser.add_argument("--otel-exporter-otlp-logs-timeout", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_LOGS_TIMEOUT", help="The timeout value for all outgoing logs in milliseconds.")
-    parser.add_argument("--otel-exporter-otlp-protocol", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_PROTOCOL", help="Specifies the OTLP transport protocol to be used for all telemetry data.")
-    parser.add_argument("--otel-exporter-otlp-traces-protocol", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", help="Specifies the OTLP transport protocol to be used for trace data.")
-    parser.add_argument("--otel-exporter-otlp-metrics-protocol", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", help="Specifies the OTLP transport protocol to be used for metrics data.")
 
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):

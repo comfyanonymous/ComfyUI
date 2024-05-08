@@ -39,8 +39,6 @@ natsort
 OpenEXR
 opentelemetry-distro
 opentelemetry-exporter-otlp
-opentelemetry-exporter-otlp-proto-http
-opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-propagator-jaeger
 opentelemetry-instrumentation
 opentelemetry-util-http
