@@ -4,6 +4,8 @@ from contextlib import contextmanager
 import cv2
 from PIL import Image
 
+from . import node_helpers
+
 
 def _open_exr(exr_path) -> Image.Image:
     return Image.fromarray(cv2.imread(exr_path, cv2.IMREAD_COLOR))
@@ -15,5 +17,5 @@ def open_image(file_path: str) -> Image.Image:
     if ext == ".exr":
         yield _open_exr(file_path)
     else:
-        with Image.open(file_path) as image:
+        with node_helpers.open_image(file_path) as image:
             yield image

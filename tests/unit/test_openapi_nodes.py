@@ -4,22 +4,36 @@ import re
 import uuid
 from datetime import datetime
 
+import numpy as np
 import pytest
 import torch
 from PIL import Image
 from freezegun import freeze_time
+
 from comfy.cmd import folder_paths
-from comfy_extras.nodes.nodes_open_api import SaveImagesResponse, IntRequestParameter, FloatRequestParameter, StringRequestParameter, HashImage, StringPosixPathJoin, LegacyOutputURIs, DevNullUris, StringJoin, StringToUri, UriFormat, ImageExifMerge, ImageExifCreationDateAndBatchNumber, ImageExif, ImageExifUncommon, StringEnumRequestParameter, ExifContainer, BooleanRequestParameter
+from comfy.nodes.base_nodes import LoadImage
+from comfy_extras.nodes.nodes_open_api import SaveImagesResponse, IntRequestParameter, FloatRequestParameter, \
+    StringRequestParameter, HashImage, StringPosixPathJoin, LegacyOutputURIs, DevNullUris, StringJoin, StringToUri, \
+    UriFormat, ImageExifMerge, ImageExifCreationDateAndBatchNumber, ImageExif, ImageExifUncommon, \
+    StringEnumRequestParameter, ExifContainer, BooleanRequestParameter, ImageRequestParameter
 
 _image_1x1 = torch.zeros((1, 1, 3), dtype=torch.float32, device="cpu")
 
 
 @pytest.fixture(scope="function", autouse=True)
-def use_tmp_path(tmp_path: pathlib.Path):
+def use_temporary_output_directory(tmp_path: pathlib.Path):
     orig_dir = folder_paths.get_output_directory()
     folder_paths.set_output_directory(tmp_path)
     yield tmp_path
     folder_paths.set_output_directory(orig_dir)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def use_temporary_input_directory(tmp_path: pathlib.Path):
+    orig_dir = folder_paths.get_input_directory()
+    folder_paths.set_input_directory(tmp_path)
+    yield tmp_path
+    folder_paths.set_input_directory(orig_dir)
 
 
 def test_save_image_response():
@@ -64,7 +78,7 @@ def test_save_image_response_remote_uris():
 def test_save_exif():
     n = SaveImagesResponse()
     filename = "with_prefix/2.png"
-    result = n.execute(images=[_image_1x1], uris=[filename], name="test", exif=[ExifContainer({
+    n.execute(images=[_image_1x1], uris=[filename], name="test", exif=[ExifContainer({
         "Title": "test title"
     })])
     filepath = os.path.join(folder_paths.get_output_directory(), filename)
@@ -108,6 +122,7 @@ def test_string_request_parameter():
     v, = n.execute(value="test", name="test")
     assert v == "test"
 
+
 def test_bool_request_parameter():
     nt = BooleanRequestParameter.INPUT_TYPES()
     assert nt is not None
@@ -146,14 +161,14 @@ def test_string_posix_path_join():
     assert joined_path == "a/b/c"
 
 
-def test_legacy_output_uris(use_tmp_path):
+def test_legacy_output_uris(use_temporary_output_directory):
     nt = LegacyOutputURIs.INPUT_TYPES()
     assert nt is not None
     n = LegacyOutputURIs()
     images_ = [_image_1x1, _image_1x1]
     output_paths, = n.execute(images=images_)
     # from SaveImage node
-    full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path("ComfyUI", str(use_tmp_path), images_[0].shape[1], images_[0].shape[0])
+    full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path("ComfyUI", str(use_temporary_output_directory), images_[0].shape[1], images_[0].shape[0])
     file1 = f"{filename}_{counter:05}_.png"
     file2 = f"{filename}_{counter + 1:05}_.png"
     files = [file1, file2]
@@ -183,7 +198,7 @@ def test_string_to_uri():
     assert res == ["x"] * 3
 
 
-def test_uri_format(use_tmp_path):
+def test_uri_format(use_temporary_output_directory):
     assert UriFormat.INPUT_TYPES() is not None
     n = UriFormat()
     images = [_image_1x1, _image_1x1]
@@ -191,11 +206,11 @@ def test_uri_format(use_tmp_path):
     uris, metadata_uris = n.execute(images=images, uri_template="{output}/{uuid}_{batch_index:05d}.png")
     for uri in uris:
         assert os.path.isabs(uri), "uri format returns absolute URIs when output appears"
-        assert os.path.commonpath([uri, use_tmp_path]) == str(use_tmp_path), "should be under output dir"
+        assert os.path.commonpath([uri, use_temporary_output_directory]) == str(use_temporary_output_directory), "should be under output dir"
     uris, metadata_uris = n.execute(images=images, uri_template="{output}/{uuid}.png")
     for uri in uris:
         assert os.path.isabs(uri)
-        assert os.path.commonpath([uri, use_tmp_path]) == str(use_tmp_path), "should be under output dir"
+        assert os.path.commonpath([uri, use_temporary_output_directory]) == str(use_temporary_output_directory), "should be under output dir"
 
     with pytest.raises(KeyError):
         n.execute(images=images, uri_template="{xyz}.png")
@@ -235,7 +250,25 @@ def test_image_exif_uncommon():
     assert "DigitalZoomRatio" in ImageExifUncommon.INPUT_TYPES()["required"]
     ImageExifUncommon().execute(images=[_image_1x1])
 
+
 def test_posix_join_curly_brackets():
     n = StringPosixPathJoin()
     joined_path, = n.execute(value2="c", value0="a_{test}", value1="b")
     assert joined_path == "a_{test}/b/c"
+
+
+def test_file_request_parameter(use_temporary_input_directory):
+    _image_1x1_px = np.array([[[255, 0, 0]]], dtype=np.uint8)
+    image_path = os.path.join(use_temporary_input_directory, "test_image.png")
+    image = Image.fromarray(_image_1x1_px)
+    image.save(image_path)
+
+    n = ImageRequestParameter()
+    loaded_image, = n.execute(uri=image_path)
+    assert loaded_image.shape == (1, 1, 1, 3)
+
+    load_image_node = LoadImage()
+    load_image_node_rgb, _ = load_image_node.load_image(image=os.path.basename(image_path))
+
+    assert loaded_image.shape == load_image_node_rgb.shape
+    assert torch.allclose(loaded_image, load_image_node_rgb)

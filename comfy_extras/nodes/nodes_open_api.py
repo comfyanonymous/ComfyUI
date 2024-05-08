@@ -14,7 +14,9 @@ from typing import Sequence, Optional, TypedDict, Dict, List, Literal, Callable,
 import PIL
 import fsspec
 import numpy as np
-from PIL import Image
+import torch
+from PIL import Image, ImageSequence, ImageOps
+from PIL.ImageFile import ImageFile
 from PIL.PngImagePlugin import PngInfo
 from fsspec.core import OpenFile
 from fsspec.generic import GenericFileSystem
@@ -626,6 +628,54 @@ class SaveImagesResponse(CustomNode):
         return os.path.dirname(os.path.relpath(os.path.abspath(local_uri), os.path.abspath(output_directory)))
 
 
+class ImageRequestParameter(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "uri": ("STRING", {"default": ""})
+            },
+            "optional": {
+                **_open_api_common_schema,
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "execute"
+    CATEGORY = "api/openapi"
+
+    def execute(self, uri: str = "", *args, **kwargs) -> ValidatedNodeResult:
+        output_images = []
+
+        with fsspec.open(uri, mode="rb") as f:
+            # from LoadImage
+            img = Image.open(f)
+            for i in ImageSequence.Iterator(img):
+                prev_value = None
+                try:
+                    i = ImageOps.exif_transpose(i)
+                except OSError:
+                    prev_value = ImageFile.LOAD_TRUNCATED_IMAGES
+                    ImageFile.LOAD_TRUNCATED_IMAGES = True
+                    i = ImageOps.exif_transpose(i)
+                finally:
+                    if prev_value is not None:
+                        ImageFile.LOAD_TRUNCATED_IMAGES = prev_value
+                    if i.mode == 'I':
+                        i = i.point(lambda i: i * (1 / 255))
+                    image = i.convert("RGB")
+                    image = np.array(image).astype(np.float32) / 255.0
+                    image = torch.from_numpy(image)[None,]
+                    output_images.append(image)
+
+        if len(output_images) > 1:
+            output_image = torch.cat(output_images, dim=0)
+        else:
+            output_image = output_images[0]
+
+        return (output_image,)
+
+
 NODE_CLASS_MAPPINGS = {}
 for cls in (
         IntRequestParameter,
@@ -645,6 +695,6 @@ for cls in (
         ImageExifUncommon,
         ImageExifCreationDateAndBatchNumber,
         SaveImagesResponse,
-
+        ImageRequestParameter
 ):
     NODE_CLASS_MAPPINGS[cls.__name__] = cls

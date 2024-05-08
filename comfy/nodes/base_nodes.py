@@ -10,7 +10,6 @@ import logging
 from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
 from natsort import natsorted
-from pkg_resources import resource_filename
 import numpy as np
 import safetensors.torch
 
@@ -25,8 +24,7 @@ from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
 from ..images import open_image
-from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
-    KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES
+from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 from ..open_exr import load_exr
@@ -1460,7 +1458,7 @@ class LoadImage:
         _, ext = os.path.splitext(image)
         if ext == ".exr":
             return load_exr(image_path, srgb=False)
-        with node_helpers.open_image(image_path)(image_path) as img:
+        with open_image(image_path) as img:
             for i in ImageSequence.Iterator(img):
                 prev_value = None
             try:
