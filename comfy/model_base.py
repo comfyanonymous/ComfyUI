@@ -162,7 +162,7 @@ class BaseModel(torch.nn.Module):
 
         c_concat = kwargs.get("noise_concat", None)
         if c_concat is not None:
-            out['c_concat'] = comfy.conds.CONDNoiseShape(data)
+            out['c_concat'] = comfy.conds.CONDNoiseShape(c_concat)
 
         return out
 
