@@ -210,12 +210,12 @@ def test_image_exif_merge():
     assert res[1].exif["a"] == "1"
 
 
-@freeze_time("2012-01-14 03:21:34", tz_offset=-4)
+@freeze_time("2024-01-14 03:21:34", tz_offset=-4)
 def test_image_exif_creation_date_and_batch_number():
     assert ImageExifCreationDateAndBatchNumber.INPUT_TYPES() is not None
     n = ImageExifCreationDateAndBatchNumber()
     res, = n.execute(images=[_image_1x1, _image_1x1])
-    mock_now = datetime(2012, 1, 13, 23, 21, 34)
+    mock_now = datetime(2024, 1, 13, 23, 21, 34)
 
     now_formatted = mock_now.strftime("%Y:%m:%d %H:%M:%S%z")
     assert res[0].exif["ImageNumber"] == "0"

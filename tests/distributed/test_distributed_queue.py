@@ -127,7 +127,7 @@ async def test_frontend_backend_workers():
             ]
 
             processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
-            server_address = f"http://{get_lan_ip()}:8188"
+            server_address = f"http://{get_lan_ip()}:9001"
             start_time = time.time()
             while time.time() - start_time < 60:
                 try:

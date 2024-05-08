@@ -483,14 +483,23 @@ paths:
         400:
           description: |
             The prompt is invalid.
+          content:
+            application/json:
+              description: A validation error dictionary from the ComfyUI frontend.
+              schema:
+                $ref: "#/components/schemas/ValidationErrorDict"
         429:
           description: |
             The queue is currently too long to process your request.
         500:
           description: |
-            An unexpected exception occurred and it is being passed to you.
-            
-            This can occur if file was referenced in a LoadImage / LoadImageMask that doesn't exist.
+            An execution error occurred while processing your prompt.
+          content:
+            application/json:
+              description:
+                An execution status directly from the workers
+              schema:
+                $ref: "#/components/schemas/ExecutionStatusAsDict"
         507:
           description: |
             The server had an IOError like running out of disk space.
@@ -804,3 +813,47 @@ components:
           type: string
         abs_path:
           type: string
+    ValidationErrorDict:
+      type: object
+      properties:
+        type:
+          type: string
+        message:
+          type: string
+        details:
+          type: string
+        extra_info:
+          type: object
+          required:
+            - exception_type
+            - traceback
+          properties:
+            exception_type:
+              type: string
+            traceback:
+              type: array
+              items:
+                type: string
+      required:
+        - type
+        - details
+        - extra_info
+        - message
+    ExecutionStatusAsDict:
+      type: object
+      required:
+        - status_str
+        - completed
+        - messages
+      properties:
+        status_str:
+          type: string
+          enum:
+            - "success"
+            - "error"
+        completed:
+          type: bool
+        messages:
+          type: array
+          items:
+            type: string

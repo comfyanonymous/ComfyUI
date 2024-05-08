@@ -14,7 +14,7 @@ from asyncio import Future, AbstractEventLoop
 from enum import Enum
 from io import BytesIO
 from posixpath import join as urljoin
-from typing import List, Optional, Dict
+from typing import List, Optional
 from urllib.parse import quote, urlencode
 
 import aiofiles
@@ -32,13 +32,14 @@ from .. import model_management
 from .. import utils
 from ..app.user_manager import UserManager
 from ..cli_args import args
-from ..client.client_types import Output, FileOutput
+from ..client.client_types import FileOutput
 from ..cmd import execution
 from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.file_output_path import file_output_path
-from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation
+from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
+    ExecutionStatus
 from ..digest import digest
 from ..images import open_image
 from ..nodes.package_typing import ExportedNodes
@@ -602,26 +603,34 @@ class PromptServer(ExecutorToClientProgress):
             number = self.number
             self.number += 1
 
+            result: TaskInvocation
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
             item = QueueItem(queue_tuple=(number, str(uuid.uuid4()), prompt_dict, {}, valid[2]), completed=completed)
 
-            if hasattr(self.prompt_queue, "put_async") or isinstance(self.prompt_queue, AsyncAbstractPromptQueue):
-                # this enables span propagation seamlessly
-                result = await self.prompt_queue.put_async(item)
-                if result is None:
-                    return web.Response(body="the queue is shutting down", status=503)
-            else:
-                try:
+            try:
+                if hasattr(self.prompt_queue, "put_async") or isinstance(self.prompt_queue, AsyncAbstractPromptQueue):
+                    # this enables span propagation seamlessly
+                    result = await self.prompt_queue.put_async(item)
+                    if result is None:
+                        return web.Response(body="the queue is shutting down", status=503)
+                else:
                     self.prompt_queue.put(item)
                     await completed
-                except Exception as ex:
-                    return web.Response(body=str(ex), status=503)
-                    # expect a single image
-                result: TaskInvocation | dict = completed.result()
-            outputs_dict: Dict[str, Output] = result.outputs if isinstance(result, TaskInvocation) else result
+                    task_invocation_or_dict: TaskInvocation | dict = completed.result()
+                    if isinstance(task_invocation_or_dict, dict):
+                        result = TaskInvocation(item_id=item.prompt_id, outputs=task_invocation_or_dict, status=ExecutionStatus("success", True, []))
+                    else:
+                        result = task_invocation_or_dict
+            except ExecutionError as exec_exc:
+                result = exec_exc.as_task_invocation()
+            except Exception as ex:
+                return web.Response(body=str(ex), status=500)
+
+            if result.status is not None and result.status.status_str == "error":
+                return web.Response(body=json.dumps(result.status._asdict()), status=500, content_type="application/json")
             # find images and read them
             output_images: List[FileOutput] = []
-            for node_id, node in outputs_dict.items():
+            for node_id, node in result.outputs.items():
                 images: List[FileOutput] = []
                 if 'images' in node:
                     images = node['images']
@@ -666,7 +675,7 @@ class PromptServer(ExecutorToClientProgress):
                                         headers=digest_headers_,
                                         body=json.dumps({
                                             'urls': urls_,
-                                            'outputs': outputs_dict
+                                            'outputs': result.outputs
                                         }))
                 elif accept == "image/png":
                     return web.FileResponse(main_image["abs_path"],

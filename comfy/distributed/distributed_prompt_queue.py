@@ -20,12 +20,13 @@ from .server_stub import ServerStub
 from ..auth.permissions import jwt_decode
 from ..cmd.main_pre import tracer
 from ..cmd.server import PromptServer
-from ..component_model.abstract_prompt_queue import AsyncAbstractPromptQueue
+from ..component_model.abstract_prompt_queue import AsyncAbstractPromptQueue, AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData
-from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation
+from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation, \
+    ExecutionError
 
 
-class DistributedPromptQueue(AsyncAbstractPromptQueue):
+class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
     """
     A distributed prompt queue for the ComfyUI web client and single-threaded worker.
     """
@@ -44,7 +45,7 @@ class DistributedPromptQueue(AsyncAbstractPromptQueue):
     async def put_async(self, queue_item: QueueItem) -> TaskInvocation | None:
         assert self._is_caller
         assert self._rpc is not None
-
+        reply: TaskInvocation
         if self._closing:
             return None
         self._caller_local_in_progress[queue_item.prompt_id] = queue_item
@@ -71,33 +72,31 @@ class DistributedPromptQueue(AsyncAbstractPromptQueue):
             assert self._caller_progress_handlers is not None
             await self._caller_progress_handlers.register_progress(user_id)
             request = RpcRequest(prompt_id=queue_item.prompt_id, user_token=user_token, prompt=queue_item.prompt)
-            res: TaskInvocation = RpcReply(
-                **(await self._rpc.call(self._queue_name, {"request": asdict(request)}))).as_task_invocation()
-            self._caller_history.put(queue_item, res.outputs, res.status)
+            reply = RpcReply(**(await self._rpc.call(self._queue_name, {"request": asdict(request)}))).as_task_invocation()
+            self._caller_history.put(queue_item, reply.outputs, reply.status)
             if self._caller_server is not None:
                 self._caller_server.queue_updated()
 
             # if this has a completion future, complete it
             if queue_item.completed is not None:
-                queue_item.completed.set_result(res)
-            return res
-        except Exception as e:
+                queue_item.completed.set_result(reply)
+        except Exception as exc:
             # if a caller-side error occurred, use the passed error for the messages
             # we didn't receive any outputs here
-            self._caller_history.put(queue_item, outputs={},
-                                     status=ExecutionStatus(status_str="error", completed=False, messages=[str(e)]))
+            as_exec_exc = ExecutionError(queue_item.prompt_id, exceptions=[exc])
+            self._caller_history.put(queue_item, outputs={}, status=as_exec_exc.status)
 
             # if we have a completer, propoagate the exception to it
             if queue_item.completed is not None:
-                queue_item.completed.set_exception(e)
-            raise e
+                queue_item.completed.set_exception(as_exec_exc)
+            raise as_exec_exc
         finally:
             self._caller_local_in_progress.pop(queue_item.prompt_id)
             if self._caller_server is not None:
                 # todo: this ensures that the web ui is notified about the completed task, but it should really be done by worker
-                self._caller_server.send_sync("executing", {"node": None, "prompt_id": queue_item.prompt_id},
-                                              self._caller_server.client_id)
+                self._caller_server.send_sync("executing", {"node": None, "prompt_id": queue_item.prompt_id}, self._caller_server.client_id)
                 self._caller_server.queue_updated()
+        return reply
 
     def put(self, item: QueueItem):
         # caller: execute on main thread

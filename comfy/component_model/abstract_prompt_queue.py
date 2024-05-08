@@ -26,7 +26,7 @@ class AbstractPromptQueue(metaclass=ABCMeta):
     @abstractmethod
     def put(self, item: QueueItem):
         """
-        Puts an item on the queue.
+        Puts an item on the queue. Does not block or wait
         :param item: a queue item
         :return:
         """
@@ -120,9 +120,15 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         pass
 
 
-class AsyncAbstractPromptQueue(AbstractPromptQueue):
+class AsyncAbstractPromptQueue(metaclass=ABCMeta):
     @abstractmethod
     async def put_async(self, queue_item) -> TaskInvocation | None:
+        """
+        Puts the item on the queue, and waits until it is complete
+        :param queue_item:
+        :return:
+        :raises: ExecutionException when the worker returns an error, which can be cast to a task invocation
+        """
         pass
 
     @abstractmethod

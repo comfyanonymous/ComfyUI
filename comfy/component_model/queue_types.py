@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from enum import Enum
-from typing import NamedTuple, Optional, List, Literal
-from typing_extensions import NotRequired, TypedDict
 from dataclasses import dataclass
+from enum import Enum
+from typing import NamedTuple, Optional, List, Literal, Sequence
 from typing import Tuple
+
+from typing_extensions import NotRequired, TypedDict
 
 QueueTuple = Tuple[float, str, dict, dict, list]
 MAXIMUM_HISTORY_SIZE = 10000
@@ -21,6 +22,28 @@ class ExecutionStatus(NamedTuple):
     status_str: Literal['success', 'error']
     completed: bool
     messages: List[str]
+
+
+class ExecutionError(RuntimeError):
+    def __init__(self, task_id: int | str, status: Optional[ExecutionStatus] = None, exceptions: Optional[Sequence[Exception]] = None, *args):
+        super().__init__(*args)
+        self._task_id = task_id
+        if status is not None:
+            self._status = status
+        elif exceptions is not None:
+            self._status = ExecutionStatus('error', False, [str(ex) for ex in exceptions])
+        else:
+            self._status = ExecutionStatus('error', False, [])
+
+    @property
+    def status(self) -> ExecutionStatus:
+        return self._status
+
+    def as_task_invocation(self) -> TaskInvocation:
+        return TaskInvocation(self._task_id, {}, self.status)
+
+    def __str__(self):
+        return ",".join(self._status.messages)
 
 
 class ExecutionStatusAsDict(TypedDict):
