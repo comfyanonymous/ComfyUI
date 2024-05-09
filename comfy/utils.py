@@ -1,26 +1,34 @@
-import os.path
-import threading
-from contextlib import contextmanager
-
-import torch
+import logging
 import math
+import os.path
 import struct
+import sys
+import warnings
+from contextlib import contextmanager
+from typing import Optional
 
+import numpy as np
+import safetensors.torch
+import torch
+from PIL import Image
 from tqdm import tqdm
 
 from . import checkpoint_pickle, interruption
-import safetensors.torch
-import numpy as np
-from PIL import Image
-import logging
-
-from .component_model.executor_types import ExecutorToClientProgress
 from .component_model.queue_types import BinaryEventTypes
-
-PROGRESS_BAR_ENABLED = True
-_progress_bar_hook = threading.local()
+from .execution_context import current_execution_context
 
 
+# deprecate PROGRESS_BAR_ENABLED
+def _get_progress_bar_enabled():
+    warnings.warn(
+        "The global variable 'PROGRESS_BAR_ENABLED' is deprecated and will be removed in a future version. Use current_execution_context().server.receive_all_progress_notifications instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return current_execution_context().server.receive_all_progress_notifications
+
+
+setattr(sys.modules[__name__], 'PROGRESS_BAR_ENABLED', property(_get_progress_bar_enabled))
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -46,11 +54,13 @@ def load_torch_file(ckpt, safe_load=False, device=None):
             sd = pl_sd
     return sd
 
+
 def save_torch_file(sd, ckpt, metadata=None):
     if metadata is not None:
         safetensors.torch.save_file(sd, ckpt, metadata=metadata)
     else:
         safetensors.torch.save_file(sd, ckpt)
+
 
 def calculate_parameters(sd, prefix=""):
     params = 0
@@ -59,11 +69,13 @@ def calculate_parameters(sd, prefix=""):
             params += sd[k].nelement()
     return params
 
+
 def state_dict_key_replace(state_dict, keys_to_replace):
     for x in keys_to_replace:
         if x in state_dict:
             state_dict[keys_to_replace[x]] = state_dict.pop(x)
     return state_dict
+
 
 def state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=False):
     if filter_keys:
@@ -115,9 +127,10 @@ def transformers_convert(sd, prefix_from, prefix_to, number):
                 for x in range(3):
                     p = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj"]
                     k_to = "{}encoder.layers.{}.{}.{}".format(prefix_to, resblock, p[x], y)
-                    sd[k_to] = weights[shape_from*x:shape_from*(x + 1)]
+                    sd[k_to] = weights[shape_from * x:shape_from * (x + 1)]
 
     return sd
+
 
 def clip_text_transformers_convert(sd, prefix_from, prefix_to):
     sd = transformers_convert(sd, prefix_from, "{}text_model.".format(prefix_to), 32)
@@ -200,6 +213,7 @@ UNET_MAP_BASIC = {
     ("time_embed.2.bias", "time_embedding.linear_2.bias")
 }
 
+
 def unet_to_diffusers(unet_config):
     if "num_res_blocks" not in unet_config:
         return {}
@@ -266,12 +280,14 @@ def unet_to_diffusers(unet_config):
 
     return diffusers_unet_map
 
+
 def repeat_to_batch_size(tensor, batch_size):
     if tensor.shape[0] > batch_size:
         return tensor[:batch_size]
     elif tensor.shape[0] < batch_size:
         return tensor.repeat([math.ceil(batch_size / tensor.shape[0])] + [1] * (len(tensor.shape) - 1))[:batch_size]
     return tensor
+
 
 def resize_to_batch_size(tensor, batch_size):
     in_batch_size = tensor.shape[0]
@@ -293,19 +309,22 @@ def resize_to_batch_size(tensor, batch_size):
 
     return output
 
+
 def convert_sd_to(state_dict, dtype):
     keys = list(state_dict.keys())
     for k in keys:
         state_dict[k] = state_dict[k].to(dtype)
     return state_dict
 
-def safetensors_header(safetensors_path, max_size=100*1024*1024):
+
+def safetensors_header(safetensors_path, max_size=100 * 1024 * 1024):
     with open(safetensors_path, "rb") as f:
         header = f.read(8)
         length_of_header = struct.unpack('<Q', header)[0]
         if length_of_header > max_size:
             return None
         return f.read(length_of_header)
+
 
 def set_attr(obj, attr, value):
     attrs = attr.split(".")
@@ -315,8 +334,10 @@ def set_attr(obj, attr, value):
     setattr(obj, attrs[-1], value)
     return prev
 
+
 def set_attr_param(obj, attr, value):
     return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
+
 
 def copy_to_param(obj, attr, value):
     # inplace update tensor instead of replacing it
@@ -326,11 +347,13 @@ def copy_to_param(obj, attr, value):
     prev = getattr(obj, attrs[-1])
     prev.data.copy_(value)
 
+
 def get_attr(obj, attr):
     attrs = attr.split(".")
     for name in attrs:
         obj = getattr(obj, name)
     return obj
+
 
 def bislerp(samples, width, height):
     def slerp(b1, b2, r):
@@ -338,75 +361,76 @@ def bislerp(samples, width, height):
 
         c = b1.shape[-1]
 
-        #norms
+        # norms
         b1_norms = torch.norm(b1, dim=-1, keepdim=True)
         b2_norms = torch.norm(b2, dim=-1, keepdim=True)
 
-        #normalize
+        # normalize
         b1_normalized = b1 / b1_norms
         b2_normalized = b2 / b2_norms
 
-        #zero when norms are zero
-        b1_normalized[b1_norms.expand(-1,c) == 0.0] = 0.0
-        b2_normalized[b2_norms.expand(-1,c) == 0.0] = 0.0
+        # zero when norms are zero
+        b1_normalized[b1_norms.expand(-1, c) == 0.0] = 0.0
+        b2_normalized[b2_norms.expand(-1, c) == 0.0] = 0.0
 
-        #slerp
-        dot = (b1_normalized*b2_normalized).sum(1)
+        # slerp
+        dot = (b1_normalized * b2_normalized).sum(1)
         omega = torch.acos(dot)
         so = torch.sin(omega)
 
-        #technically not mathematically correct, but more pleasing?
-        res = (torch.sin((1.0-r.squeeze(1))*omega)/so).unsqueeze(1)*b1_normalized + (torch.sin(r.squeeze(1)*omega)/so).unsqueeze(1) * b2_normalized
-        res *= (b1_norms * (1.0-r) + b2_norms * r).expand(-1,c)
+        # technically not mathematically correct, but more pleasing?
+        res = (torch.sin((1.0 - r.squeeze(1)) * omega) / so).unsqueeze(1) * b1_normalized + (torch.sin(r.squeeze(1) * omega) / so).unsqueeze(1) * b2_normalized
+        res *= (b1_norms * (1.0 - r) + b2_norms * r).expand(-1, c)
 
-        #edge cases for same or polar opposites
+        # edge cases for same or polar opposites
         res[dot > 1 - 1e-5] = b1[dot > 1 - 1e-5]
-        res[dot < 1e-5 - 1] = (b1 * (1.0-r) + b2 * r)[dot < 1e-5 - 1]
+        res[dot < 1e-5 - 1] = (b1 * (1.0 - r) + b2 * r)[dot < 1e-5 - 1]
         return res
 
     def generate_bilinear_data(length_old, length_new, device):
-        coords_1 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1))
+        coords_1 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1, 1, 1, -1))
         coords_1 = torch.nn.functional.interpolate(coords_1, size=(1, length_new), mode="bilinear")
         ratios = coords_1 - coords_1.floor()
         coords_1 = coords_1.to(torch.int64)
 
-        coords_2 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1,1,1,-1)) + 1
-        coords_2[:,:,:,-1] -= 1
+        coords_2 = torch.arange(length_old, dtype=torch.float32, device=device).reshape((1, 1, 1, -1)) + 1
+        coords_2[:, :, :, -1] -= 1
         coords_2 = torch.nn.functional.interpolate(coords_2, size=(1, length_new), mode="bilinear")
         coords_2 = coords_2.to(torch.int64)
         return ratios, coords_1, coords_2
 
     orig_dtype = samples.dtype
     samples = samples.float()
-    n,c,h,w = samples.shape
+    n, c, h, w = samples.shape
     h_new, w_new = (height, width)
 
-    #linear w
+    # linear w
     ratios, coords_1, coords_2 = generate_bilinear_data(w, w_new, samples.device)
     coords_1 = coords_1.expand((n, c, h, -1))
     coords_2 = coords_2.expand((n, c, h, -1))
     ratios = ratios.expand((n, 1, h, -1))
 
-    pass_1 = samples.gather(-1,coords_1).movedim(1, -1).reshape((-1,c))
-    pass_2 = samples.gather(-1,coords_2).movedim(1, -1).reshape((-1,c))
-    ratios = ratios.movedim(1, -1).reshape((-1,1))
+    pass_1 = samples.gather(-1, coords_1).movedim(1, -1).reshape((-1, c))
+    pass_2 = samples.gather(-1, coords_2).movedim(1, -1).reshape((-1, c))
+    ratios = ratios.movedim(1, -1).reshape((-1, 1))
 
     result = slerp(pass_1, pass_2, ratios)
     result = result.reshape(n, h, w_new, c).movedim(-1, 1)
 
-    #linear h
+    # linear h
     ratios, coords_1, coords_2 = generate_bilinear_data(h, h_new, samples.device)
-    coords_1 = coords_1.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
-    coords_2 = coords_2.reshape((1,1,-1,1)).expand((n, c, -1, w_new))
-    ratios = ratios.reshape((1,1,-1,1)).expand((n, 1, -1, w_new))
+    coords_1 = coords_1.reshape((1, 1, -1, 1)).expand((n, c, -1, w_new))
+    coords_2 = coords_2.reshape((1, 1, -1, 1)).expand((n, c, -1, w_new))
+    ratios = ratios.reshape((1, 1, -1, 1)).expand((n, 1, -1, w_new))
 
-    pass_1 = result.gather(-2,coords_1).movedim(1, -1).reshape((-1,c))
-    pass_2 = result.gather(-2,coords_2).movedim(1, -1).reshape((-1,c))
-    ratios = ratios.movedim(1, -1).reshape((-1,1))
+    pass_1 = result.gather(-2, coords_1).movedim(1, -1).reshape((-1, c))
+    pass_2 = result.gather(-2, coords_2).movedim(1, -1).reshape((-1, c))
+    ratios = ratios.movedim(1, -1).reshape((-1, 1))
 
     result = slerp(pass_1, pass_2, ratios)
     result = result.reshape(n, h_new, w_new, c).movedim(-1, 1)
     return result.to(orig_dtype)
+
 
 def lanczos(samples, width, height):
     images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
@@ -415,81 +439,95 @@ def lanczos(samples, width, height):
     result = torch.stack(images)
     return result.to(samples.device, samples.dtype)
 
-def common_upscale(samples, width, height, upscale_method, crop):
-        if crop == "center":
-            old_width = samples.shape[3]
-            old_height = samples.shape[2]
-            old_aspect = old_width / old_height
-            new_aspect = width / height
-            x = 0
-            y = 0
-            if old_aspect > new_aspect:
-                x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
-            elif old_aspect < new_aspect:
-                y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
-            s = samples[:,:,y:old_height-y,x:old_width-x]
-        else:
-            s = samples
 
-        if upscale_method == "bislerp":
-            return bislerp(s, width, height)
-        elif upscale_method == "lanczos":
-            return lanczos(s, width, height)
-        else:
-            return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+def common_upscale(samples, width, height, upscale_method, crop):
+    if crop == "center":
+        old_width = samples.shape[3]
+        old_height = samples.shape[2]
+        old_aspect = old_width / old_height
+        new_aspect = width / height
+        x = 0
+        y = 0
+        if old_aspect > new_aspect:
+            x = round((old_width - old_width * (new_aspect / old_aspect)) / 2)
+        elif old_aspect < new_aspect:
+            y = round((old_height - old_height * (old_aspect / new_aspect)) / 2)
+        s = samples[:, :, y:old_height - y, x:old_width - x]
+    else:
+        s = samples
+
+    if upscale_method == "bislerp":
+        return bislerp(s, width, height)
+    elif upscale_method == "lanczos":
+        return lanczos(s, width, height)
+    else:
+        return torch.nn.functional.interpolate(s, size=(height, width), mode=upscale_method)
+
 
 def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return math.ceil((height / (tile_y - overlap))) * math.ceil((width / (tile_x - overlap)))
 
+
 @torch.inference_mode()
-def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap=8, upscale_amount=4, out_channels=3, output_device="cpu", pbar=None):
     output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device=output_device)
     for b in range(samples.shape[0]):
-        s = samples[b:b+1]
+        s = samples[b:b + 1]
         out = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
         out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
         for y in range(0, s.shape[2], tile_y - overlap):
             for x in range(0, s.shape[3], tile_x - overlap):
                 x = max(0, min(s.shape[-1] - overlap, x))
                 y = max(0, min(s.shape[-2] - overlap, y))
-                s_in = s[:,:,y:y+tile_y,x:x+tile_x]
+                s_in = s[:, :, y:y + tile_y, x:x + tile_x]
 
                 ps = function(s_in).to(output_device)
                 mask = torch.ones_like(ps)
                 feather = round(overlap * upscale_amount)
                 for t in range(feather):
-                        mask[:,:,t:1+t,:] *= ((1.0/feather) * (t + 1))
-                        mask[:,:,mask.shape[2] -1 -t: mask.shape[2]-t,:] *= ((1.0/feather) * (t + 1))
-                        mask[:,:,:,t:1+t] *= ((1.0/feather) * (t + 1))
-                        mask[:,:,:,mask.shape[3]- 1 - t: mask.shape[3]- t] *= ((1.0/feather) * (t + 1))
-                out[:,:,round(y*upscale_amount):round((y+tile_y)*upscale_amount),round(x*upscale_amount):round((x+tile_x)*upscale_amount)] += ps * mask
-                out_div[:,:,round(y*upscale_amount):round((y+tile_y)*upscale_amount),round(x*upscale_amount):round((x+tile_x)*upscale_amount)] += mask
+                    mask[:, :, t:1 + t, :] *= ((1.0 / feather) * (t + 1))
+                    mask[:, :, mask.shape[2] - 1 - t: mask.shape[2] - t, :] *= ((1.0 / feather) * (t + 1))
+                    mask[:, :, :, t:1 + t] *= ((1.0 / feather) * (t + 1))
+                    mask[:, :, :, mask.shape[3] - 1 - t: mask.shape[3] - t] *= ((1.0 / feather) * (t + 1))
+                out[:, :, round(y * upscale_amount):round((y + tile_y) * upscale_amount), round(x * upscale_amount):round((x + tile_x) * upscale_amount)] += ps * mask
+                out_div[:, :, round(y * upscale_amount):round((y + tile_y) * upscale_amount), round(x * upscale_amount):round((x + tile_x) * upscale_amount)] += mask
                 if pbar is not None:
                     pbar.update(1)
 
-        output[b:b+1] = out/out_div
+        output[b:b + 1] = out / out_div
     return output
 
 
-def hijack_progress(server: ExecutorToClientProgress):
-    def hook(value: float, total: float, preview_image):
-        interruption.throw_exception_if_processing_interrupted()
-        progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+def _progress_bar_update(value: float, total: float, preview_image, client_id: Optional[str] = None):
+    server = current_execution_context().server
+    # todo: this should really be from the context. right now the server is behaving like a context
+    client_id = client_id or server.client_id
+    interruption.throw_exception_if_processing_interrupted()
+    progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
 
-        server.send_sync("progress", progress, server.client_id)
-        if preview_image is not None:
-            server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, server.client_id)
-
-    _progress_bar_hook.hook = hook
+    server.send_sync("progress", progress, client_id)
+    if preview_image is not None:
+        server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, client_id)
 
 
-def set_progress_bar_enabled(enabled):
-    global PROGRESS_BAR_ENABLED
-    PROGRESS_BAR_ENABLED = enabled
+def set_progress_bar_enabled(enabled: bool):
+    warnings.warn(
+        "The global method 'set_progress_bar_enabled' is deprecated and will be removed in a future version. Use current_execution_context().server.receive_all_progress_notifications instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+
+    current_execution_context().server.receive_all_progress_notifications = enabled
+    pass
 
 
 def get_progress_bar_enabled() -> bool:
-    return PROGRESS_BAR_ENABLED
+    warnings.warn(
+        "The global method 'get_progress_bar_enabled' is deprecated and will be removed in a future version. Use current_execution_context().server.receive_all_progress_notifications instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return current_execution_context().server.receive_all_progress_notifications
 
 
 class _DisabledProgressBar:
@@ -505,10 +543,8 @@ class _DisabledProgressBar:
 
 class ProgressBar:
     def __init__(self, total: float):
-        global _progress_bar_hook
         self.total: float = total
         self.current: float = 0.0
-        self.hook = _progress_bar_hook.hook if hasattr(_progress_bar_hook, "hook") else None
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
@@ -516,8 +552,7 @@ class ProgressBar:
         if value > self.total:
             value = self.total
         self.current = value
-        if self.hook is not None:
-            self.hook(self.current, self.total, preview)
+        _progress_bar_update(self.current, self.total, preview)
 
     def update(self, value):
         self.update_absolute(self.current + value)
@@ -556,8 +591,8 @@ def comfy_tqdm():
 
 @contextmanager
 def comfy_progress(total: float) -> ProgressBar:
-    global PROGRESS_BAR_ENABLED
-    if PROGRESS_BAR_ENABLED:
+    ctx = current_execution_context()
+    if ctx.server.receive_all_progress_notifications:
         yield ProgressBar(total)
     else:
         yield _DisabledProgressBar()

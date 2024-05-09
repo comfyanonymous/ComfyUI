@@ -23,6 +23,7 @@ from .. import model_management
 from ..cli_args import args
 
 from ..cmd import folder_paths, latent_preview
+from ..execution_context import current_execution_context
 from ..images import open_image
 from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES
 from ..nodes.common import MAX_RESOLUTION
@@ -1297,7 +1298,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
         noise_mask = latent["noise_mask"]
 
     callback = latent_preview.prepare_callback(model, steps)
-    disable_pbar = not utils.PROGRESS_BAR_ENABLED
+    disable_pbar = not current_execution_context().server.receive_all_progress_notifications
     samples = sample.sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative, latent_image,
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)

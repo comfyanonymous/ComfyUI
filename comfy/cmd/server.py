@@ -102,6 +102,7 @@ class PromptServer(ExecutorToClientProgress):
         self.number: int = 0
         self.port: int = 8188
         self._external_address: Optional[str] = None
+        self.receive_all_progress_notifications = True
 
         middlewares = [cache_control]
         if args.enable_cors_header:

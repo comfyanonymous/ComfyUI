@@ -61,6 +61,7 @@ class ExecutorToClientProgress(Protocol):
     client_id: Optional[str]
     last_node_id: Optional[str]
     last_prompt_id: Optional[str]
+    receive_all_progress_notifications: Optional[bool]
 
     def send_sync(self,
                   event: SendSyncEvent,

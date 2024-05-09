@@ -21,6 +21,7 @@ from .. import model_management
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
+from ..execution_context import new_execution_context, ExecutionContext
 from ..nodes.package import import_all_nodes_in_workspace
 from ..nodes.package_typing import ExportedNodes
 
@@ -153,9 +154,11 @@ def recursive_execute(server: ExecutorToClientProgress,
                       prompt_id,
                       outputs_ui,
                       object_storage):
+    span = get_current_span()
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
+    span.set_attribute("class_type", class_type)
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     if unique_id in outputs:
         return (True, None, None)
@@ -374,6 +377,10 @@ class PromptExecutor:
             del d
 
     def execute(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
+        with new_execution_context(ExecutionContext(self.server)):
+            self._execute_inner(prompt, prompt_id, extra_data, execute_outputs)
+
+    def _execute_inner(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
         if execute_outputs is None:
             execute_outputs = []
         if extra_data is None:

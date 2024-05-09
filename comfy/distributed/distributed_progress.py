@@ -12,7 +12,6 @@ from aio_pika.patterns import RPC
 from ..component_model.executor_types import SendSyncEvent, SendSyncData, ExecutorToClientProgress, \
     UnencodedPreviewImageMessage
 from ..component_model.queue_types import BinaryEventTypes
-from ..utils import hijack_progress
 
 
 async def _progress(event: SendSyncEvent, data: SendSyncData, user_id: Optional[str] = None,
@@ -38,8 +37,7 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
         self.node_id = None
         self.last_node_id = None
         self.last_prompt_id = None
-        if receive_all_progress_notifications:
-            hijack_progress(self)
+        self.receive_all_progress_notifications = receive_all_progress_notifications
 
     async def send(self, event: SendSyncEvent, data: SendSyncData, user_id: Optional[str]) -> None:
         # for now, do not send binary data this way, since it cannot be json serialized / it's impractical

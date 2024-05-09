@@ -162,7 +162,8 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     # found. we're in the middle of executing the import of execution and server, in all likelihood, so like all things,
     # the way community custom nodes is pretty radioactive
     from ..cmd import cuda_malloc, folder_paths, latent_preview
-    for module in (cuda_malloc, folder_paths, latent_preview):
+    from .. import node_helpers
+    for module in (cuda_malloc, folder_paths, latent_preview, node_helpers):
         module_short_name = module.__name__.split(".")[-1]
         sys.modules[module_short_name] = module
     sys.modules['nodes'] = base_nodes

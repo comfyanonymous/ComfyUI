@@ -2,6 +2,7 @@ import comfy.sampler_names
 from comfy import samplers
 from comfy import model_management
 from comfy import sample
+from comfy.execution_context import current_execution_context
 from comfy.k_diffusion import sampling as k_diffusion_sampling
 from comfy.cmd import latent_preview
 import torch
@@ -416,7 +417,7 @@ class SamplerCustom:
         x0_output = {}
         callback = latent_preview.prepare_callback(model, sigmas.shape[-1] - 1, x0_output)
 
-        disable_pbar = not utils.PROGRESS_BAR_ENABLED
+        disable_pbar = not current_execution_context().server.receive_all_progress_notifications
         samples = sample.sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise_seed)
 
         out = latent.copy()
@@ -570,7 +571,7 @@ class SamplerCustomAdvanced:
         x0_output = {}
         callback = latent_preview.prepare_callback(guider.model_patcher, sigmas.shape[-1] - 1, x0_output)
 
-        disable_pbar = not comfy.utils.PROGRESS_BAR_ENABLED
+        disable_pbar = not current_execution_context().server.receive_all_progress_notifications
         samples = guider.sample(noise.generate_noise(latent), latent_image, sampler, sigmas, denoise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise.seed)
         samples = samples.to(comfy.model_management.intermediate_device())
 

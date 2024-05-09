@@ -9,7 +9,6 @@ import time
 
 # main_pre must be the earliest import since it suppresses some spurious warnings
 from .main_pre import args
-from ..utils import hijack_progress
 from .extra_model_paths import load_extra_path_config
 from .. import model_management
 from ..analytics.analytics import initialize_event_tracking
@@ -167,7 +166,6 @@ async def main():
     server.prompt_queue = q
 
     server.add_routes()
-    hijack_progress(server)
     cuda_malloc_warning()
 
     # in a distributed setting, the default prompt worker will not be able to send execution events via the websocket
