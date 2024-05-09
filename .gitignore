@@ -16,3 +16,6 @@ venv/
 !/web/extensions/core/
 /tests-ui/data/object_info.json
 /user/
+desktop_shortcut
+comfyui.log
+comfyui.prev.log
