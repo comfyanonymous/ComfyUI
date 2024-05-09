@@ -17,5 +17,5 @@ def open_image(file_path: str) -> Image.Image:
     if ext == ".exr":
         yield _open_exr(file_path)
     else:
-        with node_helpers.open_image(file_path) as image:
+        with node_helpers.pillow(Image.open, file_path) as image:
             yield image
