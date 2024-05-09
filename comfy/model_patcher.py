@@ -6,6 +6,8 @@ import uuid
 
 from . import utils
 from . import model_management
+from .model_management_types import ModelManageable
+
 
 def apply_weight_decompose(dora_scale, weight):
     weight_norm = (
@@ -39,7 +41,7 @@ def set_model_options_patch_replace(model_options, patch, name, block_name, numb
     model_options["transformer_options"] = to
     return model_options
 
-class ModelPatcher:
+class ModelPatcher(ModelManageable):
     def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
         self.size = size
         self.model = model

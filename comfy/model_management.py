@@ -12,6 +12,8 @@ from threading import RLock
 import torch
 import sys
 
+from .model_management_types import ModelManageable
+
 model_management_lock = RLock()
 
 class VRAMState(Enum):
@@ -278,7 +280,7 @@ def module_size(module):
     return module_mem
 
 class LoadedModel:
-    def __init__(self, model):
+    def __init__(self, model: ModelManageable):
         self.model = model
         self.device = model.load_device
         self.weights_loaded = False
