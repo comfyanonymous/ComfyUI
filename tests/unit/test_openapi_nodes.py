@@ -11,7 +11,6 @@ from PIL import Image
 from freezegun import freeze_time
 
 from comfy.cmd import folder_paths
-from comfy.nodes.base_nodes import LoadImage
 from comfy_extras.nodes.nodes_open_api import SaveImagesResponse, IntRequestParameter, FloatRequestParameter, \
     StringRequestParameter, HashImage, StringPosixPathJoin, LegacyOutputURIs, DevNullUris, StringJoin, StringToUri, \
     UriFormat, ImageExifMerge, ImageExifCreationDateAndBatchNumber, ImageExif, ImageExifUncommon, \
@@ -257,6 +256,7 @@ def test_posix_join_curly_brackets():
     assert joined_path == "a_{test}/b/c"
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_file_request_parameter(use_temporary_input_directory):
     _image_1x1_px = np.array([[[255, 0, 0]]], dtype=np.uint8)
     image_path = os.path.join(use_temporary_input_directory, "test_image.png")
@@ -266,6 +266,7 @@ def test_file_request_parameter(use_temporary_input_directory):
     n = ImageRequestParameter()
     loaded_image, = n.execute(uri=image_path)
     assert loaded_image.shape == (1, 1, 1, 3)
+    from comfy.nodes.base_nodes import LoadImage
 
     load_image_node = LoadImage()
     load_image_node_rgb, _ = load_image_node.load_image(image=os.path.basename(image_path))
