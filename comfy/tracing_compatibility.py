@@ -46,4 +46,7 @@ class ProgressSpanSampler(Sampler):
     ) -> "SamplingResult":
         if attributes is not None and "messaging.destination" in attributes and attributes["messaging.destination"].endswith("progress"):
             return SamplingResult(Decision.DROP)
+        # the ephemeral reply channels are not required for correct span correlation
+        if name.startswith(",amq_") or name.startswith("amq"):
+            return SamplingResult(Decision.DROP)
         return SamplingResult(Decision.RECORD_AND_SAMPLE)
