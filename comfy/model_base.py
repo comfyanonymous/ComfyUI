@@ -162,7 +162,7 @@ class BaseModel(torch.nn.Module):
 
         c_concat = kwargs.get("noise_concat", None)
         if c_concat is not None:
-            out['c_concat'] = comfy.conds.CONDNoiseShape(data)
+            out['c_concat'] = comfy.conds.CONDNoiseShape(c_concat)
 
         return out
 
@@ -503,8 +503,10 @@ class SD15_instructpix2pix(IP2P, BaseModel):
 class SDXL_instructpix2pix(IP2P, SDXL):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
-        # self.process_ip2p_image_in = lambda image: comfy.latent_formats.SDXL().process_in(image)
-        self.process_ip2p_image_in = lambda image: image
+        if model_type == ModelType.V_PREDICTION_EDM:
+            self.process_ip2p_image_in = lambda image: comfy.latent_formats.SDXL().process_in(image) #cosxl ip2p
+        else:
+            self.process_ip2p_image_in = lambda image: image #diffusers ip2p
 
 
 class StableCascade_C(BaseModel):

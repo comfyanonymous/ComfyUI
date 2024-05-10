@@ -204,13 +204,17 @@ export class EzWidget {
 	convertToWidget() {
 		if (!this.isConvertedToInput)
 			throw new Error(`Widget ${this.widget.name} cannot be converted as it is already a widget.`);
-		this.node.menu[`Convert ${this.widget.name} to widget`].call();
+		var menu = this.node.menu["Convert Input to Widget"].item.submenu.options;
+		var index = menu.findIndex(a => a.content == `Convert ${this.widget.name} to widget`);
+		menu[index].callback.call();
 	}
 
 	convertToInput() {
 		if (this.isConvertedToInput)
 			throw new Error(`Widget ${this.widget.name} cannot be converted as it is already an input.`);
-		this.node.menu[`Convert ${this.widget.name} to input`].call();
+		var menu = this.node.menu["Convert Widget to Input"].item.submenu.options;
+		var index = menu.findIndex(a => a.content == `Convert ${this.widget.name} to input`);
+		menu[index].callback.call();
 	}
 }
 
