@@ -2313,6 +2313,12 @@ export class ComfyApp {
 		await this.#invokeExtensionsAsync("refreshComboInNodes", defs);
 	}
 
+	resetView() {
+		app.canvas.ds.scale = 1;
+		app.canvas.ds.offset = [0, 0]
+		app.graph.setDirtyCanvas(true, true);
+	}
+
 	/**
 	 * Clean current state
 	 */
