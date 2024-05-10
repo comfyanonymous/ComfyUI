@@ -117,6 +117,7 @@ This is the command to install the nightly with ROCm 6.0 which might have some p
 conda create -n comfyui python=3.10
 conda activate comfyui
 conda install libuv
+python -m pip install mkl mkl-dpcpp
 ```
 
 This is the command to install torch and Intel-extension-for-pytorch
