@@ -105,6 +105,22 @@ This is the command to install the nightly with ROCm 6.0 which might have some p
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.0```
 
+### Intel Arc Graphics
+
+#### Intel Extension For Pytorch (Intel Arc A-series Graphics on Windows/Linux)
+
+1. Download and Install Anaconda
+2. Launch anaconda prompt
+3. Create an anaconda environment
+```
+conda create -n comfyui python=3.10
+conda activate comfyui
+conda install libuv
+```
+This is the command to install torch and Intel-extension-for-pytorch
+```python -m pip install torch==2.1.0.post2 torchvision==0.16.0.post2 torchaudio==2.1.0.post2 intel-extension-for-pytorch==2.1.30 --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/``` 
+Then you can launch ComfyUI with: ```python main.py --bf16-unet```
+
 ### NVIDIA
 
 Nvidia users should install stable pytorch using this command:
@@ -130,10 +146,6 @@ Install the dependencies by opening your terminal inside the ComfyUI folder and:
 ```pip install -r requirements.txt```
 
 After this you should have everything installed and can proceed to running ComfyUI.
-
-### Others:
-
-#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
 
 #### Apple Mac silicon
 
