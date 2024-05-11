@@ -1,8 +1,11 @@
-
 from abc import ABC, abstractmethod
 
 
 class PromptQueueInterface(ABC):
+    @abstractmethod
+    def __init__(self, server):
+        pass
+
     @abstractmethod
     def put(self, item):
         pass

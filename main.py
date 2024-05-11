@@ -5,6 +5,8 @@ import os
 import importlib.util
 import folder_paths
 import time
+from prompt_queue_load import load_queues, create_prompt_queue
+
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -204,7 +206,8 @@ if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     server = server.PromptServer(loop)
-    q = execution.PromptQueue(server)
+    load_queues()
+    q = create_prompt_queue(server, args.queue_name)
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
     if os.path.isfile(extra_model_paths_config_path):

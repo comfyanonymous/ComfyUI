@@ -28,6 +28,8 @@ folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_m
 
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
 
+folder_names_and_paths["queues"] = ([os.path.join(base_path, "queues")], [])
+
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
 folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)

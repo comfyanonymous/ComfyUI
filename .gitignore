@@ -17,4 +17,4 @@ venv/
 /tests-ui/data/object_info.json
 /user/
 /queues/
-!queues/example_queue.py
+!queues/example_queue.py.example
