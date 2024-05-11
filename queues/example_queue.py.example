@@ -1,0 +1,30 @@
+import json
+import copy
+from execution import PromptQueue, MAXIMUM_HISTORY_SIZE
+from typing import Optional
+
+
+class ExamplePromptQueue(PromptQueue):  # Child类继承自Parent类
+    def task_done(self, item_id, outputs,
+                  status: Optional['PromptQueue.ExecutionStatus']):
+        with self.mutex:
+            prompt = self.currently_running.pop(item_id)
+            if len(self.history) > MAXIMUM_HISTORY_SIZE:
+                self.history.pop(next(iter(self.history)))
+
+            status_dict: Optional[dict] = None
+            if status is not None:
+                status_dict = copy.deepcopy(status._asdict())
+            record = {
+                "prompt": prompt,
+                "outputs": copy.deepcopy(outputs),
+                'status': status_dict,
+            }
+            print(record)
+            self.history[prompt[1]] = record
+            self.server.queue_updated()
+
+
+QUEUE_CLASS_MAPPINGS = {
+    "ExamplePromptQueue": ExamplePromptQueue
+}
