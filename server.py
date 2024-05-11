@@ -26,6 +26,8 @@ import comfy.utils
 import comfy.model_management
 
 from app.user_manager import UserManager
+from prompt_queue_interface import PromptQueueInterface
+
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -62,6 +64,7 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 class PromptServer():
+    prompt_queue: PromptQueueInterface
     def __init__(self, loop):
         PromptServer.instance = self
 
