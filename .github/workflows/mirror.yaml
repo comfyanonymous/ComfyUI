@@ -1,0 +1,27 @@
+name: Mirror to Master Branch
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Runs every hour, adjust to your needs
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for all branches and tags
+
+    - name: Set up Git
+      run: |
+        git config --global user.email "gitbot@drip.art"
+        git config --global user.name "Git Bot"
+
+    - name: Push to Master Branch Only
+      run: |
+        git remote set-url --push origin https://github.com/Comfy-Org/Comfyui.git
+        git fetch origin master
+        git checkout master
+        git merge --ff-only FETCH_HEAD
+        git push origin master
