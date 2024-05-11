@@ -1,6 +1,7 @@
 name: Mirror to Master Branch
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 * * * *'  # Runs every hour, adjust to your needs
 
