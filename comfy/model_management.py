@@ -253,7 +253,6 @@ def get_torch_device_name(device):
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-<<<<<<< HEAD
     torch_device_name = get_torch_device_name(get_torch_device())
 
     if "[ZLUDA]" in torch_device_name:
@@ -268,9 +267,6 @@ try:
         torch.backends.cuda.enable_mem_efficient_sdp(False)
 
     print("Device:", torch_device_name)
-=======
-    logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
->>>>>>> upstream/master
 except:
     logging.warning("Could not pick default device.")
 
