@@ -90,11 +90,14 @@ function dragElement(dragEl, settings) {
 	}).observe(dragEl);
 
 	function ensureInBounds() {
-		if (dragEl.classList.contains("comfy-menu-manual-pos")) {
+		try {
 			newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft));
 			newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop));
 
 			positionElement();
+		}
+		catch(exception){
+			// robust
 		}
 	}
 
@@ -594,14 +597,21 @@ export class ComfyUI {
 					if (!confirmClear.value || confirm("Clear workflow?")) {
 						app.clean();
 						app.graph.clear();
+						app.resetView();
 					}
 				}
 			}),
 			$el("button", {
 				id: "comfy-load-default-button", textContent: "Load Default", onclick: async () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
+						app.resetView();
 						await app.loadGraphData()
 					}
+				}
+			}),
+			$el("button", {
+				id: "comfy-reset-view-button", textContent: "Reset View", onclick: async () => {
+					app.resetView();
 				}
 			}),
 		]);

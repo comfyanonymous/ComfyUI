@@ -1,6 +1,7 @@
 import torch
 import math
 import os
+import logging
 import comfy.utils
 import comfy.model_management
 import comfy.model_detection
@@ -137,11 +138,13 @@ class ControlBase:
         return out
 
 class ControlNet(ControlBase):
-    def __init__(self, control_model, global_average_pooling=False, device=None, load_device=None, manual_cast_dtype=None):
+    def __init__(self, control_model=None, global_average_pooling=False, device=None, load_device=None, manual_cast_dtype=None):
         super().__init__(device)
         self.control_model = control_model
         self.load_device = load_device
-        self.control_model_wrapped = comfy.model_patcher.ModelPatcher(self.control_model, load_device=load_device, offload_device=comfy.model_management.unet_offload_device())
+        if control_model is not None:
+            self.control_model_wrapped = comfy.model_patcher.ModelPatcher(self.control_model, load_device=load_device, offload_device=comfy.model_management.unet_offload_device())
+
         self.global_average_pooling = global_average_pooling
         self.model_sampling_current = None
         self.manual_cast_dtype = manual_cast_dtype
@@ -182,7 +185,9 @@ class ControlNet(ControlBase):
         return self.control_merge(None, control, control_prev, output_dtype)
 
     def copy(self):
-        c = ControlNet(self.control_model, global_average_pooling=self.global_average_pooling, load_device=self.load_device, manual_cast_dtype=self.manual_cast_dtype)
+        c = ControlNet(None, global_average_pooling=self.global_average_pooling, load_device=self.load_device, manual_cast_dtype=self.manual_cast_dtype)
+        c.control_model = self.control_model
+        c.control_model_wrapped = self.control_model_wrapped
         self.copy_to(c)
         return c
 
@@ -200,7 +205,7 @@ class ControlNet(ControlBase):
         super().cleanup()
 
 class ControlLoraOps:
-    class Linear(torch.nn.Module):
+    class Linear(torch.nn.Module, comfy.ops.CastWeightBiasOp):
         def __init__(self, in_features: int, out_features: int, bias: bool = True,
                     device=None, dtype=None) -> None:
             factory_kwargs = {'device': device, 'dtype': dtype}
@@ -219,7 +224,7 @@ class ControlLoraOps:
             else:
                 return torch.nn.functional.linear(input, weight, bias)
 
-    class Conv2d(torch.nn.Module):
+    class Conv2d(torch.nn.Module, comfy.ops.CastWeightBiasOp):
         def __init__(
             self,
             in_channels,
@@ -367,7 +372,7 @@ def load_controlnet(ckpt_path, model=None):
 
         leftover_keys = controlnet_data.keys()
         if len(leftover_keys) > 0:
-            print("leftover keys:", leftover_keys)
+            logging.warning("leftover keys: {}".format(leftover_keys))
         controlnet_data = new_sd
 
     pth_key = 'control_model.zero_convs.0.0.weight'
@@ -382,7 +387,7 @@ def load_controlnet(ckpt_path, model=None):
     else:
         net = load_t2i_adapter(controlnet_data)
         if net is None:
-            print("error checkpoint does not contain controlnet or t2i adapter data", ckpt_path)
+            logging.error("error checkpoint does not contain controlnet or t2i adapter data {}".format(ckpt_path))
         return net
 
     if controlnet_config is None:
@@ -417,7 +422,7 @@ def load_controlnet(ckpt_path, model=None):
                             cd = controlnet_data[x]
                             cd += model_sd[sd_key].type(cd.dtype).to(cd.device)
             else:
-                print("WARNING: Loaded a diff controlnet without a model. It will very likely not work.")
+                logging.warning("WARNING: Loaded a diff controlnet without a model. It will very likely not work.")
 
         class WeightsLoader(torch.nn.Module):
             pass
@@ -426,7 +431,12 @@ def load_controlnet(ckpt_path, model=None):
         missing, unexpected = w.load_state_dict(controlnet_data, strict=False)
     else:
         missing, unexpected = control_model.load_state_dict(controlnet_data, strict=False)
-    print(missing, unexpected)
+
+    if len(missing) > 0:
+        logging.warning("missing controlnet keys: {}".format(missing))
+
+    if len(unexpected) > 0:
+        logging.debug("unexpected controlnet keys: {}".format(unexpected))
 
     global_average_pooling = False
     filename = os.path.splitext(ckpt_path)[0]
@@ -536,9 +546,9 @@ def load_t2i_adapter(t2i_data):
 
     missing, unexpected = model_ad.load_state_dict(t2i_data)
     if len(missing) > 0:
-        print("t2i missing", missing)
+        logging.warning("t2i missing {}".format(missing))
 
     if len(unexpected) > 0:
-        print("t2i unexpected", unexpected)
+        logging.debug("t2i unexpected {}".format(unexpected))
 
     return T2IAdapter(model_ad, model_ad.input_channels, compression_ratio, upscale_algorithm)

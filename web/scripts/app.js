@@ -262,6 +262,36 @@ export class ComfyApp {
 			})
 		);
 	}
+	
+	#addRestoreWorkflowView() {
+		const serialize = LGraph.prototype.serialize;
+		const self = this;
+		LGraph.prototype.serialize = function() {
+			const workflow = serialize.apply(this, arguments);
+
+			// Store the drag & scale info in the serialized workflow if the setting is enabled
+			if (self.enableWorkflowViewRestore.value) {
+				if (!workflow.extra) {
+					workflow.extra = {};
+				}
+				workflow.extra.ds = {
+					scale: self.canvas.ds.scale,
+					offset: self.canvas.ds.offset,
+				};
+			} else if (workflow.extra?.ds) {
+				// Clear any old view data
+				delete workflow.extra.ds;
+			}
+
+			return workflow;
+		}
+		this.enableWorkflowViewRestore = this.ui.settings.addSetting({
+			id: "Comfy.EnableWorkflowViewRestore",
+			name: "Save and restore canvas position and zoom level in workflows",
+			type: "boolean",
+			defaultValue: true
+		});
+	}
 
 	/**
 	 * Adds special context menu handling for nodes
@@ -953,6 +983,12 @@ export class ComfyApp {
 
 		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
 		LGraphCanvas.prototype.processMouseDown = function(e) {
+			// prepare for ctrl+shift drag: zoom start
+			if(e.ctrlKey && e.shiftKey && e.buttons) {
+				self.zoom_drag_start = [e.x, e.y, this.ds.scale];
+				return;
+			}
+
 			const res = origProcessMouseDown.apply(this, arguments);
 
 			this.selected_group_moving = false;
@@ -973,6 +1009,26 @@ export class ComfyApp {
 
 		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
 		LGraphCanvas.prototype.processMouseMove = function(e) {
+			// handle ctrl+shift drag
+			if(e.ctrlKey && e.shiftKey && self.zoom_drag_start) {
+				// stop canvas zoom action
+				if(!e.buttons) {
+					self.zoom_drag_start = null;
+					return;
+				}
+
+				// calculate delta
+				let deltaY = e.y - self.zoom_drag_start[1];
+				let startScale = self.zoom_drag_start[2];
+
+				let scale = startScale - deltaY/100;
+
+				this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+				this.graph.change();
+
+				return;
+			}
+
 			const orig_selected_group = this.selected_group;
 
 			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
@@ -1058,6 +1114,20 @@ export class ComfyApp {
 				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
 					// Trigger onPaste
 					return true;
+				}
+
+				if((e.key === '+') && e.altKey) {
+					block_default = true;
+					let scale = this.ds.scale * 1.1;
+					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.graph.change();
+				}
+
+				if((e.key === '-') && e.altKey) {
+					block_default = true;
+					let scale = this.ds.scale * 1 / 1.1;
+					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.graph.change();
 				}
 			}
 
@@ -1465,6 +1535,7 @@ export class ComfyApp {
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
 		this.#addApiUpdateHandlers();
+		this.#addRestoreWorkflowView();
 
 		this.graph = new LGraph();
 
@@ -1765,6 +1836,10 @@ export class ComfyApp {
 
 		try {
 			this.graph.configure(graphData);
+			if (this.enableWorkflowViewRestore.value && graphData.extra?.ds) {
+				this.canvas.ds.offset = graphData.extra.ds.offset;
+				this.canvas.ds.scale = graphData.extra.ds.scale;
+			}
 		} catch (error) {
 			let errorHint = [];
 			// Try extracting filename to see if it was caused by an extension script
@@ -2236,6 +2311,12 @@ export class ComfyApp {
 		}
 
 		await this.#invokeExtensionsAsync("refreshComboInNodes", defs);
+	}
+
+	resetView() {
+		app.canvas.ds.scale = 1;
+		app.canvas.ds.offset = [0, 0]
+		app.graph.setDirtyCanvas(true, true);
 	}
 
 	/**

@@ -35,8 +35,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
             if h[x] == "PROMPT":
                 input_data_all[x] = [prompt]
             if h[x] == "EXTRA_PNGINFO":
-                if "extra_pnginfo" in extra_data:
-                    input_data_all[x] = [extra_data['extra_pnginfo']]
+                input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
     return input_data_all
@@ -177,7 +176,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         for node_id, node_outputs in outputs.items():
             output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
-        logging.error("!!! Exception during processing !!!")
+        logging.error(f"!!! Exception during processing!!! {ex}")
         logging.error(traceback.format_exc())
 
         error_details = {
@@ -369,7 +368,7 @@ class PromptExecutor:
                     d = self.outputs_ui.pop(x)
                     del d
 
-            comfy.model_management.cleanup_models()
+            comfy.model_management.cleanup_models(keep_clone_weights_loaded=True)
             self.add_message("execution_cached",
                           { "nodes": list(current_outputs) , "prompt_id": prompt_id},
                           broadcast=False)
