@@ -6,7 +6,7 @@ transformers>=4.25.1
 safetensors>=0.3.0
 aiohttp
 pyyaml
-Pillow
+Pillow!=10.3.0
 scipy
 tqdm
 psutil
