@@ -84,6 +84,10 @@ parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE"
 
 parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize when loading models with Intel GPUs.")
 
+parser.add_argument("--disable-torchair-optimize", action="store_true", help="Disables torchair graph modee optimize when loading models with Ascend NPUs.")
+
+parser.add_argument("--use-npu", action="store_true", help="use Huawei Ascend NPUs backend.")
+
 class LatentPreviewMethod(enum.Enum):
     NoPreviews = "none"
     Auto = "auto"
