@@ -102,8 +102,8 @@ def get_total_memory(dev=None, torch_total_too=False):
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
-            mem_total = torch.xpu.get_device_properties(dev).total_memory
             mem_total_torch = mem_reserved
+            mem_total = torch.xpu.get_device_properties(dev).total_memory
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
@@ -701,10 +701,10 @@ def get_free_memory(dev=None, torch_free_too=False):
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
-            mem_allocated = stats['allocated_bytes.all.current']
             mem_reserved = stats['reserved_bytes.all.current']
             mem_free_torch = mem_reserved - mem_active
-            mem_free_total = torch.xpu.get_device_properties(dev).total_memory - mem_allocated
+            mem_free_xpu = torch.xpu.get_device_properties(dev).total_memory - mem_reserved
+            mem_free_total = mem_free_xpu + mem_free_torch
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
