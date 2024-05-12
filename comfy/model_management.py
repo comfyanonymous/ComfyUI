@@ -393,8 +393,6 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
         loaded_model = LoadedModel(x)
 
         if loaded_model in current_loaded_models:
-            index = current_loaded_models.index(loaded_model)
-            current_loaded_models.insert(0, current_loaded_models.pop(index))
             models_already_loaded.append(loaded_model)
         else:
             if hasattr(x, "model"):
