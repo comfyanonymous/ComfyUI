@@ -262,7 +262,7 @@ class CLIPSave:
                 for x in extra_pnginfo:
                     metadata[x] = json.dumps(extra_pnginfo[x])
 
-        comfy.model_management.load_models_gpu([clip.load_model()])
+        comfy.model_management.load_models_gpu([clip.load_model()], force_patch_weights=True)
         clip_sd = clip.get_sd()
 
         for prefix in ["clip_l.", "clip_g.", ""]:

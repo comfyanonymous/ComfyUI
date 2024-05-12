@@ -562,7 +562,7 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
         load_models.append(clip.load_model())
         clip_sd = clip.get_sd()
 
-    model_management.load_models_gpu(load_models)
+    model_management.load_models_gpu(load_models, force_patch_weights=True)
     clip_vision_sd = clip_vision.get_sd() if clip_vision is not None else None
     sd = model.model.state_dict_for_saving(clip_sd, vae.get_sd(), clip_vision_sd)
     for k in extra_keys:
