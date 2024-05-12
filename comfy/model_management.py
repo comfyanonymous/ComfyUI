@@ -309,6 +309,11 @@ class LoadedModel:
         self.weights_loaded = True
         return self.real_model
 
+    def should_reload_model(self, force_patch_weights=False):
+        if force_patch_weights and self.model.lowvram_patch_counter > 0:
+            return True
+        return False
+
     def model_unload(self, unpatch_weights=True):
         self.model.unpatch_model(self.model.offload_device, unpatch_weights=unpatch_weights)
         self.model.model_patches_to(self.model.offload_device)
@@ -391,10 +396,22 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
     models_already_loaded = []
     for x in models:
         loaded_model = LoadedModel(x)
+        loaded = None
 
-        if loaded_model in current_loaded_models:
-            models_already_loaded.append(loaded_model)
-        else:
+        try:
+            loaded_model_index = current_loaded_models.index(loaded_model)
+        except:
+            loaded_model_index = None
+
+        if loaded_model_index is not None:
+            loaded = current_loaded_models[loaded_model_index]
+            if loaded.should_reload_model(force_patch_weights=force_patch_weights): #TODO: cleanup this model reload logic
+                current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
+                loaded = None
+            else:
+                models_already_loaded.append(loaded)
+
+        if loaded is None:
             if hasattr(x, "model"):
                 logging.info(f"Requested to load {x.model.__class__.__name__}")
             models_to_load.append(loaded_model)
