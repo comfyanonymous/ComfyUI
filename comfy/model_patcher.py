@@ -272,7 +272,7 @@ class ModelPatcher:
 
         return self.model
 
-    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0):
+    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False):
         self.patch_model(device_to, patch_weights=False)
 
         logging.info("loading in lowvram mode {}".format(lowvram_model_memory/(1024 * 1024)))
@@ -296,9 +296,15 @@ class ModelPatcher:
 
             if lowvram_weight:
                 if weight_key in self.patches:
-                    m.weight_function = LowVramPatch(weight_key, self)
+                    if force_patch_weights:
+                        self.patch_weight_to_device(weight_key)
+                    else:
+                        m.weight_function = LowVramPatch(weight_key, self)
                 if bias_key in self.patches:
-                    m.bias_function = LowVramPatch(bias_key, self)
+                    if force_patch_weights:
+                        self.patch_weight_to_device(bias_key)
+                    else:
+                        m.bias_function = LowVramPatch(bias_key, self)
 
                 m.prev_comfy_cast_weights = m.comfy_cast_weights
                 m.comfy_cast_weights = True
