@@ -647,7 +647,17 @@ class ImageRequestParameter(CustomNode):
     def execute(self, uri: str = "", *args, **kwargs) -> ValidatedNodeResult:
         output_images = []
 
-        with fsspec.open(uri, mode="rb") as f:
+        f: OpenFile
+        kwargs_for_fsspec = {}
+        if uri.startswith('http'):
+            kwargs_for_fsspec.update({
+                "headers": {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.64 Safari/537.36'
+                }
+            })
+        # todo: additional security is needed here to prevent users from accessing local paths
+        # however this generally needs to be done with user accounts on all OSes
+        with fsspec.open(uri, mode="rb", **kwargs_for_fsspec) as f:
             # from LoadImage
             img = Image.open(f)
             for i in ImageSequence.Iterator(img):
