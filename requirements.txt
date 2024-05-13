@@ -43,5 +43,6 @@ opentelemetry-propagator-jaeger
 opentelemetry-instrumentation
 opentelemetry-util-http
 opentelemetry-instrumentation-aio-pika
+opentelemetry-instrumentation-requests
 opentelemetry-semantic-conventions
 wrapt>=1.16.0

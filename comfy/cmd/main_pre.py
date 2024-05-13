@@ -15,6 +15,7 @@ import warnings
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
@@ -74,6 +75,7 @@ def _create_tracer():
     patch_spanbuilder_set_channel()
     AioPikaInstrumentor().instrument()
     AioHttpServerInstrumentor().instrument()
+    RequestsInstrumentor().instrument()
     return trace.get_tracer(args.otel_service_name)
 
 

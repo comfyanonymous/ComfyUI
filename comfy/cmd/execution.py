@@ -66,7 +66,35 @@ def get_input_data(inputs, class_def, unique_id, outputs=None, prompt=None, extr
     return input_data_all
 
 
-def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
+@tracer.start_as_current_span("Execute Node")
+def map_node_over_list(obj, input_data_all: typing.Dict[str, typing.Any], func: str, allow_interrupt=False):
+    span = get_current_span()
+    class_type = obj.__class__.__name__
+    span.set_attribute("class_type", class_type)
+    if input_data_all is not None:
+        for kwarg_name, kwarg_value in input_data_all.items():
+            if isinstance(kwarg_value, str) or isinstance(kwarg_value, bool) or isinstance(kwarg_value, int) or isinstance(kwarg_value, float):
+                span.set_attribute(f"input_data_all.{kwarg_name}", kwarg_value)
+            else:
+                try:
+                    items_to_display = []
+                    if hasattr(kwarg_value, "shape"):
+                        # if the object has a shape attribute (likely a NumPy array or similar), get up to the first ten elements
+                        flat_values = kwarg_value.flatten() if hasattr(kwarg_value, "flatten") else kwarg_value
+                        items_to_display = [flat_values[i] for i in range(min(10, flat_values.size))]
+                    elif hasattr(kwarg_value, "__getitem__") and hasattr(kwarg_value, "__len__"):
+                        # If the object is indexable and has a length, get the first ten items
+                        items_to_display = [kwarg_value[i] for i in range(min(10, len(kwarg_value)))]
+
+                    filtered_items = [
+                        item for item in items_to_display if isinstance(item, (str, bool, int, float))
+                    ]
+
+                    if filtered_items:
+                        span.set_attribute(f"input_data_all.{kwarg_name}", filtered_items)
+                except TypeError:
+                    pass
+
     # check if node wants the lists
     input_is_list = False
     if hasattr(obj, "INPUT_IS_LIST"):
