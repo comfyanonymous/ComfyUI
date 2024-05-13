@@ -1910,7 +1910,7 @@ def load_custom_nodes():
         for possible_module in possible_modules:
 
             from colorama import Fore, Style
-            print(Fore.LIGHTMAGENTA_EX + "\nLOADING " + possible_module + Style.RESET_ALL)
+            print(Fore.YELLOW + "\nLOADING " + possible_module + Style.RESET_ALL)
 
             module_path = os.path.join(custom_node_path, possible_module)
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
