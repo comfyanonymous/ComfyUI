@@ -39,6 +39,14 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
 
+
+## Non-official 3rd party apps
+(Feel free to share your app/implementation/demo by creating an issue)
+
+https://comfyprompt.com - a simple search comfyui workflow, midjourney prompt.
+
+https://comfyworkflows.com - Shareing comfyui workflow and running tool
+
 ## Shortcuts
 
 | Keybind                            | Explanation                                                                                                        |
