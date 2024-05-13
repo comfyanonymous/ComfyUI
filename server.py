@@ -206,7 +206,7 @@ class PromptServer():
                         i += 1
 
                 if not image_is_duplicate: 
-                    if image_save_function is not None and 
+                    if image_save_function is not None:
                         image_save_function(image, post, filepath)
                     else:
                         with open(filepath, "wb") as f:
