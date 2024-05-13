@@ -270,6 +270,36 @@ export class ComfyApp {
 			})
 		);
 	}
+	
+	#addRestoreWorkflowView() {
+		const serialize = LGraph.prototype.serialize;
+		const self = this;
+		LGraph.prototype.serialize = function() {
+			const workflow = serialize.apply(this, arguments);
+
+			// Store the drag & scale info in the serialized workflow if the setting is enabled
+			if (self.enableWorkflowViewRestore.value) {
+				if (!workflow.extra) {
+					workflow.extra = {};
+				}
+				workflow.extra.ds = {
+					scale: self.canvas.ds.scale,
+					offset: self.canvas.ds.offset,
+				};
+			} else if (workflow.extra?.ds) {
+				// Clear any old view data
+				delete workflow.extra.ds;
+			}
+
+			return workflow;
+		}
+		this.enableWorkflowViewRestore = this.ui.settings.addSetting({
+			id: "Comfy.EnableWorkflowViewRestore",
+			name: "Save and restore canvas position and zoom level in workflows",
+			type: "boolean",
+			defaultValue: true
+		});
+	}
 
 	/**
 	 * Adds special context menu handling for nodes
@@ -1524,6 +1554,7 @@ export class ComfyApp {
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
 		this.#addApiUpdateHandlers();
+		this.#addRestoreWorkflowView();
 
 		this.graph = new LGraph();
 
@@ -1856,6 +1887,11 @@ export class ComfyApp {
 		try {
 			this.graph.configure(graphData);
 
+			if (this.enableWorkflowViewRestore.value && graphData.extra?.ds) {
+				this.canvas.ds.offset = graphData.extra.ds.offset;
+				this.canvas.ds.scale = graphData.extra.ds.scale;
+			}
+			
 			try {
 				this.workflowManager.activeWorkflow?.track()
 			} catch (error) {
@@ -2354,6 +2390,12 @@ export class ComfyApp {
 		}
 
 		await this.#invokeExtensionsAsync("refreshComboInNodes", defs);
+	}
+
+	resetView() {
+		app.canvas.ds.scale = 1;
+		app.canvas.ds.offset = [0, 0]
+		app.graph.setDirtyCanvas(true, true);
 	}
 
 	/**
