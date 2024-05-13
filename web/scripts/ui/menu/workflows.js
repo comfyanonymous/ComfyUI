@@ -284,6 +284,7 @@ export class ComfyWorkflowsContent {
 				action: () => {
 					popup.open = false;
 					app.loadGraphData();
+					app.resetView();
 				},
 			}).element,
 			new ComfyButton({

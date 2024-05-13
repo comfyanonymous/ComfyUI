@@ -78,6 +78,12 @@ export class ComfyAppMenu {
 				action: () => app["openClipspace"](),
 			}),
 			new ComfyButton({
+				icon: "fit-to-page-outline",
+				content: "Reset View",
+				tooltip: "Reset the canvas view",
+				action: () => app.resetView()
+			}),
+			new ComfyButton({
 				icon: "cancel",
 				content: "Clear",
 				tooltip: "Clears current workflow",

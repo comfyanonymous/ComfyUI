@@ -44,8 +44,8 @@ export class ChangeTracker {
 	}
 
 	checkState() {
-		if(!this.app.graph) return;
-		
+		if (!this.app.graph) return;
+
 		const currentState = this.app.graph.serialize();
 		if (!this.activeState) {
 			this.activeState = clone(currentState);
@@ -173,8 +173,8 @@ export class ChangeTracker {
 		// Store node outputs
 		api.addEventListener("executed", ({ detail }) => {
 			const prompt = app.workflowManager.queuedPrompts[detail.prompt_id];
-			if(!prompt.workflow) return;
-			const nodeOutputs = prompt.workflow.changeTracker.nodeOutputs ??= {};
+			if (!prompt.workflow) return;
+			const nodeOutputs = (prompt.workflow.changeTracker.nodeOutputs ??= {});
 			const output = nodeOutputs[detail.node];
 			if (detail.merge && output) {
 				for (const k in detail.output ?? {}) {
@@ -206,7 +206,7 @@ export class ChangeTracker {
 		}
 	}
 
-	static graphEqual(a, b, root = true) {
+	static graphEqual(a, b, path = "") {
 		if (a === b) return true;
 
 		if (typeof a == "object" && a && typeof b == "object" && b) {
@@ -219,12 +219,15 @@ export class ChangeTracker {
 			for (const key of keys) {
 				let av = a[key];
 				let bv = b[key];
-				if (root && key === "nodes") {
+				if (!path && key === "nodes") {
 					// Nodes need to be sorted as the order changes when selecting nodes
 					av = [...av].sort((a, b) => a.id - b.id);
 					bv = [...bv].sort((a, b) => a.id - b.id);
+				} else if (path === "extra.ds") {
+					// Ignore view changes
+					continue;
 				}
-				if (!ChangeTracker.graphEqual(av, bv, false)) {
+				if (!ChangeTracker.graphEqual(av, bv, path + (path ? "." : "") + key)) {
 					return false;
 				}
 			}
