@@ -19,14 +19,6 @@ from comfy.cli_args import args
 import comfy.ops
 ops = comfy.ops.disable_weight_init
 
-# CrossAttn precision handling
-if args.dont_upcast_attention:
-    logging.info("disabling upcasting of attention")
-    _ATTN_PRECISION = None
-else:
-    _ATTN_PRECISION = torch.float32
-
-
 def exists(val):
     return val is not None
 
@@ -386,10 +378,11 @@ def optimized_attention_for_device(device, mask=False, small_input=False):
 
 
 class CrossAttention(nn.Module):
-    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., dtype=None, device=None, operations=ops):
+    def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., attn_precision=None, dtype=None, device=None, operations=ops):
         super().__init__()
         inner_dim = dim_head * heads
         context_dim = default(context_dim, query_dim)
+        self.attn_precision = attn_precision
 
         self.heads = heads
         self.dim_head = dim_head
@@ -411,15 +404,15 @@ class CrossAttention(nn.Module):
             v = self.to_v(context)
 
         if mask is None:
-            out = optimized_attention(q, k, v, self.heads, attn_precision=_ATTN_PRECISION)
+            out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision)
         else:
-            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=_ATTN_PRECISION)
+            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision)
         return self.to_out(out)
 
 
 class BasicTransformerBlock(nn.Module):
     def __init__(self, dim, n_heads, d_head, dropout=0., context_dim=None, gated_ff=True, checkpoint=True, ff_in=False, inner_dim=None,
-                 disable_self_attn=False, disable_temporal_crossattention=False, switch_temporal_ca_to_sa=False, dtype=None, device=None, operations=ops):
+                 disable_self_attn=False, disable_temporal_crossattention=False, switch_temporal_ca_to_sa=False, attn_precision=None, dtype=None, device=None, operations=ops):
         super().__init__()
 
         self.ff_in = ff_in or inner_dim is not None
@@ -434,7 +427,7 @@ class BasicTransformerBlock(nn.Module):
 
         self.disable_self_attn = disable_self_attn
         self.attn1 = CrossAttention(query_dim=inner_dim, heads=n_heads, dim_head=d_head, dropout=dropout,
-                              context_dim=context_dim if self.disable_self_attn else None, dtype=dtype, device=device, operations=operations)  # is a self-attention if not self.disable_self_attn
+                              context_dim=context_dim if self.disable_self_attn else None, attn_precision=attn_precision, dtype=dtype, device=device, operations=operations)  # is a self-attention if not self.disable_self_attn
         self.ff = FeedForward(inner_dim, dim_out=dim, dropout=dropout, glu=gated_ff, dtype=dtype, device=device, operations=operations)
 
         if disable_temporal_crossattention:
@@ -448,7 +441,7 @@ class BasicTransformerBlock(nn.Module):
                 context_dim_attn2 = context_dim
 
             self.attn2 = CrossAttention(query_dim=inner_dim, context_dim=context_dim_attn2,
-                                heads=n_heads, dim_head=d_head, dropout=dropout, dtype=dtype, device=device, operations=operations)  # is self-attn if context is none
+                                heads=n_heads, dim_head=d_head, dropout=dropout, attn_precision=attn_precision, dtype=dtype, device=device, operations=operations)  # is self-attn if context is none
             self.norm2 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
 
         self.norm1 = operations.LayerNorm(inner_dim, dtype=dtype, device=device)
@@ -588,7 +581,7 @@ class SpatialTransformer(nn.Module):
     def __init__(self, in_channels, n_heads, d_head,
                  depth=1, dropout=0., context_dim=None,
                  disable_self_attn=False, use_linear=False,
-                 use_checkpoint=True, dtype=None, device=None, operations=ops):
+                 use_checkpoint=True, attn_precision=None, dtype=None, device=None, operations=ops):
         super().__init__()
         if exists(context_dim) and not isinstance(context_dim, list):
             context_dim = [context_dim] * depth
@@ -606,7 +599,7 @@ class SpatialTransformer(nn.Module):
 
         self.transformer_blocks = nn.ModuleList(
             [BasicTransformerBlock(inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim[d],
-                                   disable_self_attn=disable_self_attn, checkpoint=use_checkpoint, dtype=dtype, device=device, operations=operations)
+                                   disable_self_attn=disable_self_attn, checkpoint=use_checkpoint, attn_precision=attn_precision, dtype=dtype, device=device, operations=operations)
                 for d in range(depth)]
         )
         if not use_linear:
@@ -662,6 +655,7 @@ class SpatialVideoTransformer(SpatialTransformer):
         disable_self_attn=False,
         disable_temporal_crossattention=False,
         max_time_embed_period: int = 10000,
+        attn_precision=None,
         dtype=None, device=None, operations=ops
     ):
         super().__init__(
@@ -674,6 +668,7 @@ class SpatialVideoTransformer(SpatialTransformer):
             context_dim=context_dim,
             use_linear=use_linear,
             disable_self_attn=disable_self_attn,
+            attn_precision=attn_precision,
             dtype=dtype, device=device, operations=operations
         )
         self.time_depth = time_depth
@@ -703,6 +698,7 @@ class SpatialVideoTransformer(SpatialTransformer):
                     inner_dim=time_mix_inner_dim,
                     disable_self_attn=disable_self_attn,
                     disable_temporal_crossattention=disable_temporal_crossattention,
+                    attn_precision=attn_precision,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(self.depth)
