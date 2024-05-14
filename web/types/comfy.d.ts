@@ -58,6 +58,11 @@ export interface ComfyExtension {
 	 * @param app The ComfyUI app instance
 	 */
 	nodeCreated(node: LGraphNode, app: ComfyApp);
+	/**
+	 * Allows the extension to add custom extra_data to the prompt queue
+	 * @param app The ComfyUI app instance
+	 */
+	provideExtraData(app: ComfyApp): Promise<unknown>;
 }
 
 export type ComfyObjectInfo = {

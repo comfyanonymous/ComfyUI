@@ -34,10 +34,12 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
         for x in h:
             if h[x] == "PROMPT":
                 input_data_all[x] = [prompt]
-            if h[x] == "EXTRA_PNGINFO":
+            elif h[x] == "EXTRA_PNGINFO":
                 input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
-            if h[x] == "UNIQUE_ID":
+            elif h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
+            elif h[x] == "EXTRA_DATA":
+                input_data_all[x] = [extra_data.get(x, None)]
     return input_data_all
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):

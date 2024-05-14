@@ -25,6 +25,7 @@ describe("extensions", () => {
 			nodeCreated: jest.fn(),
 			beforeConfigureGraph: jest.fn(),
 			afterConfigureGraph: jest.fn(),
+			// provideExtraData not testable without prompt.
 		};
 
 		const { app, ez, graph } = await start({

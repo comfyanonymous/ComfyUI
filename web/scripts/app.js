@@ -2119,7 +2119,9 @@ export class ComfyApp {
 					const p = await this.graphToPrompt();
 
 					try {
-						const res = await api.queuePrompt(number, p);
+						const extra_datas = await this.#invokeExtensionsAsync("provideExtraData");
+						const extra_data = Object.assign({}, ...extra_datas)
+						const res = await api.queuePrompt(number, p, extra_data);
 						this.lastNodeErrors = res.node_errors;
 						if (this.lastNodeErrors.length > 0) {
 							this.canvas.draw(true, true);
