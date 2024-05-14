@@ -633,7 +633,7 @@ class ImageRequestParameter(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "uri": ("STRING", {"default": ""})
+                "value": ("STRING", {"default": ""})
             },
             "optional": {
                 **_open_api_common_schema,
@@ -644,12 +644,12 @@ class ImageRequestParameter(CustomNode):
     FUNCTION = "execute"
     CATEGORY = "api/openapi"
 
-    def execute(self, uri: str = "", *args, **kwargs) -> ValidatedNodeResult:
+    def execute(self, value: str = "", *args, **kwargs) -> ValidatedNodeResult:
         output_images = []
 
         f: OpenFile
         kwargs_for_fsspec = {}
-        if uri.startswith('http'):
+        if value.startswith('http'):
             kwargs_for_fsspec.update({
                 "headers": {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.64 Safari/537.36'
@@ -657,7 +657,7 @@ class ImageRequestParameter(CustomNode):
             })
         # todo: additional security is needed here to prevent users from accessing local paths
         # however this generally needs to be done with user accounts on all OSes
-        with fsspec.open(uri, mode="rb", **kwargs_for_fsspec) as f:
+        with fsspec.open(value, mode="rb", **kwargs_for_fsspec) as f:
             # from LoadImage
             img = Image.open(f)
             for i in ImageSequence.Iterator(img):
