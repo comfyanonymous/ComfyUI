@@ -7,7 +7,7 @@ from os.path import join
 from typing import List, Any, Optional, Union
 
 import tqdm
-from huggingface_hub import hf_hub_download
+from huggingface_hub import hf_hub_download, scan_cache_dir
 from requests import Session
 from safetensors import safe_open
 from safetensors.torch import save_file
@@ -167,6 +167,7 @@ KNOWN_CHECKPOINTS = [
     CivitFile(133005, 357609, filename="juggernautXL_v9Rundiffusionphoto2.safetensors"),
     CivitFile(112902, 351306, filename="dreamshaperXL_v21TurboDPMSDE.safetensors"),
     CivitFile(139562, 344487, filename="realvisxlV40_v40Bakedvae.safetensors"),
+
 ]
 
 KNOWN_UNCLIP_CHECKPOINTS = [
@@ -297,6 +298,12 @@ KNOWN_VAES = [
     HuggingFile("stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.safetensors"),
 ]
 
+KNOWN_HUGGINGFACE_MODEL_REPOS = {
+    "JingyeChen22/textdiffuser2_layout_planner",
+    'JingyeChen22/textdiffuser2-full-ft',
+    "microsoft/Phi-3-mini-4k-instruct",
+}
+
 
 def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:
     if args.disable_known_models:
@@ -304,3 +311,10 @@ def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile
     symbol += models
     folder_paths.invalidate_cache(folder_name)
     return symbol
+
+
+def huggingface_repos() -> List[str]:
+    cache_info = scan_cache_dir()
+    existing_repo_ids = frozenset(cache_item.repo_id for cache_item in cache_info.repos if cache_item.repo_type == "model")
+    known_repo_ids = frozenset(KNOWN_HUGGINGFACE_MODEL_REPOS)
+    return list(existing_repo_ids | known_repo_ids)

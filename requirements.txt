@@ -5,7 +5,11 @@ torchsde>=0.2.6
 einops>=0.6.0
 open-clip-torch>=2.16.0
 transformers>=4.29.1
+peft
+torchinfo
+fschat[model_worker]
 safetensors>=0.3.0
+bitsandbytes
 pytorch-lightning>=2.0.0
 aiohttp>=3.8.4
 accelerate>=0.25.0

@@ -1,11 +1,15 @@
+from __future__ import annotations
+
+import contextlib
 import logging
 import math
 import os.path
+import random
 import struct
 import sys
 import warnings
 from contextlib import contextmanager
-from typing import Optional
+from typing import Optional, Any
 
 import numpy as np
 import safetensors.torch
@@ -14,6 +18,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from . import checkpoint_pickle, interruption
+from .component_model.executor_types import ExecutorToClientProgress
 from .component_model.queue_types import BinaryEventTypes
 from .execution_context import current_execution_context
 
@@ -29,6 +34,7 @@ def _get_progress_bar_enabled():
 
 
 setattr(sys.modules[__name__], 'PROGRESS_BAR_ENABLED', property(_get_progress_bar_enabled))
+
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -498,8 +504,8 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap=8, upscale_amou
     return output
 
 
-def _progress_bar_update(value: float, total: float, preview_image, client_id: Optional[str] = None):
-    server = current_execution_context().server
+def _progress_bar_update(value: float, total: float, preview_image: Optional[Any] = None, client_id: Optional[str] = None, server: Optional[ExecutorToClientProgress] = None):
+    server = server or current_execution_context().server
     # todo: this should really be from the context. right now the server is behaving like a context
     client_id = client_id or server.client_id
     interruption.throw_exception_if_processing_interrupted()
@@ -570,15 +576,14 @@ def comfy_tqdm():
     """
     _original_init = tqdm.__init__
     _original_update = tqdm.update
+    server = current_execution_context().server
     try:
         def __init(self, *args, **kwargs):
             _original_init(self, *args, **kwargs)
-            self._progress_bar = ProgressBar(self.total)
 
         def __update(self, n=1):
-            assert self._progress_bar is not None
             _original_update(self, n)
-            self._progress_bar.update(n)
+            _progress_bar_update(n, self.total, server=server)
 
         tqdm.__init__ = __init
         tqdm.update = __update
@@ -596,3 +601,30 @@ def comfy_progress(total: float) -> ProgressBar:
         yield ProgressBar(total)
     else:
         yield _DisabledProgressBar()
+
+
+@contextlib.contextmanager
+def seed_for_block(seed):
+    # Save the current random state
+    torch_rng_state = torch.get_rng_state()
+    random_state = random.getstate()
+    numpy_rng_state = np.random.get_state()
+    if torch.cuda.is_available():
+        cuda_rng_state = torch.cuda.get_rng_state_all()
+
+    # Set the new seed
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    try:
+        yield
+    finally:
+        # Restore the previous random state
+        torch.set_rng_state(torch_rng_state)
+        random.setstate(random_state)
+        np.random.set_state(numpy_rng_state)
+        if torch.cuda.is_available():
+            torch.cuda.set_rng_state_all(cuda_rng_state)

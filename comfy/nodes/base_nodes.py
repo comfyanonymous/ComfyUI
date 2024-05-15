@@ -9,6 +9,7 @@ import logging
 
 from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
+from huggingface_hub import hf_hub_download, snapshot_download
 from natsort import natsorted
 import numpy as np
 import safetensors.torch
@@ -25,11 +26,13 @@ from ..cli_args import args
 from ..cmd import folder_paths, latent_preview
 from ..execution_context import current_execution_context
 from ..images import open_image
-from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES
+from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, huggingface_repos
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 from ..open_exr import load_exr
 from .. import node_helpers
+from ..utils import comfy_tqdm
+
 
 class CLIPTextEncode:
     @classmethod
@@ -513,11 +516,14 @@ class DiffusersLoader:
                     if "model_index.json" in files:
                         paths.append(os.path.relpath(root, start=search_path))
 
+        paths += huggingface_repos()
+        paths = list(frozenset(paths))
         return {"required": {"model_path": (paths,), }}
+
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_checkpoint"
 
-    CATEGORY = "advanced/loaders/deprecated"
+    CATEGORY = "advanced/loaders"
 
     def load_checkpoint(self, model_path, output_vae=True, output_clip=True):
         for search_path in folder_paths.get_folder_paths("diffusers"):
@@ -526,6 +532,9 @@ class DiffusersLoader:
                 if os.path.exists(path):
                     model_path = path
                     break
+        if not os.path.exists(model_path):
+            with comfy_tqdm():
+                model_path = snapshot_download(model_path)
 
         return diffusers_load.load_diffusers(model_path, output_vae=output_vae, output_clip=output_clip, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
@@ -1029,7 +1038,7 @@ class LatentFromBatch:
         else:
             s["batch_index"] = samples["batch_index"][batch_index:batch_index + length]
         return (s,)
-    
+
 class RepeatLatentBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -1044,7 +1053,7 @@ class RepeatLatentBatch:
     def repeat(self, samples, amount):
         s = samples.copy()
         s_in = samples["samples"]
-        
+
         s["samples"] = s_in.repeat((amount, 1,1,1))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
@@ -1374,7 +1383,7 @@ class SaveImage:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": 
+        return {"required":
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
@@ -1450,9 +1459,9 @@ class LoadImage:
 
     def load_image(self, image: str):
         image_path = folder_paths.get_annotated_filepath(image)
-        
+
         img = node_helpers.pillow(Image.open, image_path)
-        
+
         output_images = []
         output_masks = []
 

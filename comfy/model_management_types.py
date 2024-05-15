@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol, Optional
+from typing import Protocol, Optional, Any
 
 import torch
 
@@ -18,13 +18,12 @@ class ModelManageable(Protocol):
     load_device: torch.device
     offload_device: torch.device
     model: torch.nn.Module
-    current_device: torch.device
 
     @property
-    def dtype(self) -> torch.dtype:
+    def current_device(self) -> torch.device:
         ...
 
-    def is_clone(self, other: torch.nn.Module) -> bool:
+    def is_clone(self, other: Any) -> bool:
         ...
 
     def clone_has_same_weights(self, clone: torch.nn.Module) -> bool:

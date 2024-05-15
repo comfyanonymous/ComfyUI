@@ -1,11 +1,12 @@
-import torch
 import copy
 import inspect
 import logging
 import uuid
 
-from . import utils
+import torch
+
 from . import model_management
+from . import utils
 from .model_management_types import ModelManageable
 
 
@@ -19,6 +20,7 @@ def apply_weight_decompose(dora_scale, weight):
     )
 
     return weight * (dora_scale / weight_norm)
+
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -41,6 +43,7 @@ def set_model_options_patch_replace(model_options, patch, name, block_name, numb
     model_options["transformer_options"] = to
     return model_options
 
+
 class ModelPatcher(ModelManageable):
     def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
         self.size = size
@@ -49,14 +52,15 @@ class ModelPatcher(ModelManageable):
         self.backup = {}
         self.object_patches = {}
         self.object_patches_backup = {}
-        self.model_options = {"transformer_options":{}}
+        self.model_options = {"transformer_options": {}}
         self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
+        self._current_device: torch.device
         if current_device is None:
-            self.current_device = self.offload_device
+            self._current_device = self.offload_device
         else:
-            self.current_device = current_device
+            self._current_device = current_device
 
         self.weight_inplace_update = weight_inplace_update
         self.model_lowvram = False
@@ -71,7 +75,7 @@ class ModelPatcher(ModelManageable):
         return self.size
 
     def clone(self):
-        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self.current_device, weight_inplace_update=self.weight_inplace_update)
+        n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self._current_device, weight_inplace_update=self.weight_inplace_update)
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
@@ -107,7 +111,7 @@ class ModelPatcher(ModelManageable):
 
     def set_model_sampler_cfg_function(self, sampler_cfg_function, disable_cfg1_optimization=False):
         if len(inspect.signature(sampler_cfg_function).parameters) == 3:
-            self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"]) #Old way
+            self.model_options["sampler_cfg_function"] = lambda args: sampler_cfg_function(args["cond"], args["uncond"], args["cond_scale"])  # Old way
         else:
             self.model_options["sampler_cfg_function"] = sampler_cfg_function
         if disable_cfg1_optimization:
@@ -270,18 +274,20 @@ class ModelPatcher(ModelManageable):
 
             if device_to is not None:
                 self.model.to(device_to)
-                self.current_device = device_to
+                self._current_device = device_to
 
         return self.model
 
     def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0):
         self.patch_model(device_to, patch_weights=False)
 
-        logging.info("loading in lowvram mode {}".format(lowvram_model_memory/(1024 * 1024)))
+        logging.info("loading in lowvram mode {}".format(lowvram_model_memory / (1024 * 1024)))
+
         class LowVramPatch:
             def __init__(self, key, model_patcher):
                 self.key = key
                 self.model_patcher = model_patcher
+
             def __call__(self, weight):
                 return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
 
@@ -325,7 +331,7 @@ class ModelPatcher(ModelManageable):
                 weight *= strength_model
 
             if isinstance(v, list):
-                v = (self.calculate_weight(v[1:], v[0].clone(), key), )
+                v = (self.calculate_weight(v[1:], v[0].clone(), key),)
 
             if len(v) == 1:
                 patch_type = "diff"
@@ -340,14 +346,14 @@ class ModelPatcher(ModelManageable):
                         logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
                     else:
                         weight += alpha * model_management.cast_to_device(w1, weight.device, weight.dtype)
-            elif patch_type == "lora": #lora/locon
+            elif patch_type == "lora":  # lora/locon
                 mat1 = model_management.cast_to_device(v[0], weight.device, torch.float32)
                 mat2 = model_management.cast_to_device(v[1], weight.device, torch.float32)
                 dora_scale = v[4]
                 if v[2] is not None:
                     alpha *= v[2] / mat2.shape[0]
                 if v[3] is not None:
-                    #locon mid weights, hopefully the math is fine because I didn't properly test it
+                    # locon mid weights, hopefully the math is fine because I didn't properly test it
                     mat3 = model_management.cast_to_device(v[3], weight.device, torch.float32)
                     final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
                     mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
@@ -407,7 +413,7 @@ class ModelPatcher(ModelManageable):
                 w2a = v[3]
                 w2b = v[4]
                 dora_scale = v[7]
-                if v[5] is not None: #cp decomposition
+                if v[5] is not None:  # cp decomposition
                     t1 = v[5]
                     t2 = v[6]
                     m1 = torch.einsum('i j k l, j r, i p -> p r k l',
@@ -478,10 +484,14 @@ class ModelPatcher(ModelManageable):
 
             if device_to is not None:
                 self.model.to(device_to)
-                self.current_device = device_to
+                self._current_device = value = device_to
 
         keys = list(self.object_patches_backup.keys())
         for k in keys:
             utils.set_attr(self.model, k, self.object_patches_backup[k])
 
         self.object_patches_backup.clear()
+
+    @property
+    def current_device(self) -> torch.device:
+        return self._current_device
