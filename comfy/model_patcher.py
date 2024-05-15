@@ -16,7 +16,7 @@ def apply_weight_decompose(dora_scale, weight):
         .transpose(0, 1)
     )
 
-    return weight * (dora_scale / weight_norm)
+    return weight * (dora_scale / weight_norm).type(weight.dtype)
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
