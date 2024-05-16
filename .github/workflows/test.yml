@@ -27,4 +27,4 @@ jobs:
           pip install .[dev]
       - name: Run unit tests
         run: |
-          pytest tests/unit
+          pytest -v tests/unit

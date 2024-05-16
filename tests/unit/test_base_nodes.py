@@ -2,6 +2,16 @@ import numpy as np
 import pytest
 import torch
 
+from comfy import model_management
+from comfy.model_management import CPUState
+
+try:
+    has_gpu = torch.device(torch.cuda.current_device()) is not None
+except:
+    has_gpu = False
+
+model_management.cpu_state = CPUState.GPU if has_gpu else CPUState.CPU
+
 from comfy.nodes.base_nodes import ImagePadForOutpaint, ImageBatch, ImageInvert, ImageScaleBy, ImageScale, LatentCrop, \
     LatentComposite, LatentFlip, LatentRotate, LatentUpscaleBy, LatentUpscale, InpaintModelConditioning, CLIPTextEncode, \
     VAEEncodeForInpaint, VAEEncode, VAEDecode, ConditioningSetMask, ConditioningSetArea, ConditioningCombine, \
@@ -11,7 +21,7 @@ torch.set_grad_enabled(False)
 
 _image_1x1_px = np.array([[[255, 0, 0]]], dtype=np.uint8)
 _image_1x1 = torch.ones((1, 1, 1, 3), dtype=torch.float32, device="cpu")
-_image_512x512 = torch.randn((1,512,512,3) , dtype=torch.float32, device="cpu")
+_image_512x512 = torch.randn((1, 512, 512, 3), dtype=torch.float32, device="cpu")
 
 _cond = torch.randn((1, 4, 77, 768))
 _cond_with_pooled = (_cond, {"pooled_output": torch.zeros((1, 1, 768))})
@@ -71,12 +81,14 @@ def test_vae_decode(vae):
     assert decoded.shape == (1, 512, 512, 3)
 
 
+@pytest.mark.skipif(not has_gpu, reason="requires gpu for performant testing")
 def test_vae_encode(vae):
     latent, = VAEEncode().encode(vae, _image_512x512)
     assert "samples" in latent
     assert latent["samples"].shape == (1, 4, 64, 64)
 
 
+@pytest.mark.skipif(not has_gpu, reason="requires gpu for performant testing")
 def test_vae_encode_for_inpaint(vae):
     mask = torch.ones((1, 512, 512))
     latent, = VAEEncodeForInpaint().encode(vae, _image_512x512, mask)
@@ -86,6 +98,7 @@ def test_vae_encode_for_inpaint(vae):
     assert torch.allclose(latent["noise_mask"], mask)
 
 
+@pytest.mark.skipif(not has_gpu, reason="requires gpu for performant testing")
 def test_inpaint_model_conditioning(model, vae, clip):
     cond_pos, = CLIPTextEncode().encode(clip, "test prompt")
     cond_neg, = CLIPTextEncode().encode(clip, "test negative prompt")
