@@ -31,6 +31,7 @@ from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 from ..open_exr import load_exr
 from .. import node_helpers
+from ..sd import VAE
 from ..utils import comfy_tqdm
 
 
@@ -280,7 +281,7 @@ class VAEEncode:
 
     CATEGORY = "latent"
 
-    def encode(self, vae, pixels):
+    def encode(self, vae: VAE, pixels):
         t = vae.encode(pixels[:,:,:,:3])
         return ({"samples":t}, )
 

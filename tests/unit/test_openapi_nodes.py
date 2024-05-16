@@ -226,7 +226,7 @@ def test_image_exif_merge():
 
 
 @freeze_time("2024-01-14 03:21:34", tz_offset=-4)
-@pytest.mark.skipif(sys.platform == 'win32')
+@pytest.mark.skipif(sys.platform == 'win32', reason="Windows does not have reliable time freezing")
 def test_image_exif_creation_date_and_batch_number():
     assert ImageExifCreationDateAndBatchNumber.INPUT_TYPES() is not None
     n = ImageExifCreationDateAndBatchNumber()
