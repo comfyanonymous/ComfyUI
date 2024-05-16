@@ -37,6 +37,7 @@ class Configuration(dict):
         cuda_malloc (bool): Enable cudaMallocAsync. Defaults to True in applicable setups.
         disable_cuda_malloc (bool): Disable cudaMallocAsync.
         dont_upcast_attention (bool): Disable upcasting of attention.
+        force_upcast_attention (bool): Force upcasting of attention.
         force_fp32 (bool): Force using FP32 precision.
         force_fp16 (bool): Force using FP16 precision.
         bf16_unet (bool): Use BF16 precision for UNet.
@@ -106,6 +107,7 @@ class Configuration(dict):
         self.cuda_malloc: bool = True
         self.disable_cuda_malloc: bool = False
         self.dont_upcast_attention: bool = False
+        self.force_upcast_attention: bool = False
         self.force_fp32: bool = False
         self.force_fp16: bool = False
         self.bf16_unet: bool = False

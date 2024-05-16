@@ -1,6 +1,7 @@
 import os
 import pathlib
 import re
+import sys
 import uuid
 from datetime import datetime
 
@@ -225,6 +226,7 @@ def test_image_exif_merge():
 
 
 @freeze_time("2024-01-14 03:21:34", tz_offset=-4)
+@pytest.mark.skipif(sys.platform == 'win32')
 def test_image_exif_creation_date_and_batch_number():
     assert ImageExifCreationDateAndBatchNumber.INPUT_TYPES() is not None
     n = ImageExifCreationDateAndBatchNumber()
@@ -264,7 +266,7 @@ def test_file_request_parameter(use_temporary_input_directory):
     image.save(image_path)
 
     n = ImageRequestParameter()
-    loaded_image, = n.execute(uri=image_path)
+    loaded_image, = n.execute(value=image_path)
     assert loaded_image.shape == (1, 1, 1, 3)
     from comfy.nodes.base_nodes import LoadImage
 

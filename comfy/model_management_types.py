@@ -38,11 +38,15 @@ class ModelManageable(Protocol):
     def model_dtype(self) -> torch.dtype:
         ...
 
-    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int) -> torch.nn.Module:
+    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights: Optional[bool] = False) -> torch.nn.Module:
         ...
 
     def patch_model(self, device_to: torch.device, patch_weights: bool) -> torch.nn.Module:
         ...
 
     def unpatch_model(self, offload_device: torch.device, unpatch_weights: Optional[bool] = False) -> torch.nn.Module:
+        ...
+
+    @property
+    def lowvram_patch_counter(self) -> int:
         ...

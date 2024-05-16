@@ -19,7 +19,7 @@ def apply_weight_decompose(dora_scale, weight):
         .transpose(0, 1)
     )
 
-    return weight * (dora_scale / weight_norm)
+    return weight * (dora_scale / weight_norm).type(weight.dtype)
 
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
@@ -65,6 +65,15 @@ class ModelPatcher(ModelManageable):
         self.weight_inplace_update = weight_inplace_update
         self.model_lowvram = False
         self.patches_uuid = uuid.uuid4()
+        self._lowvram_patch_counter = 0
+
+    @property
+    def lowvram_patch_counter(self):
+        return self._lowvram_patch_counter
+
+    @lowvram_patch_counter.setter
+    def lowvram_patch_counter(self, value: int):
+        self._lowvram_patch_counter = value
 
     def model_size(self):
         if self.size > 0:
@@ -278,7 +287,7 @@ class ModelPatcher(ModelManageable):
 
         return self.model
 
-    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0):
+    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False):
         self.patch_model(device_to, patch_weights=False)
 
         logging.info("loading in lowvram mode {}".format(lowvram_model_memory / (1024 * 1024)))
@@ -292,6 +301,7 @@ class ModelPatcher(ModelManageable):
                 return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
 
         mem_counter = 0
+        patch_counter = 0
         for n, m in self.model.named_modules():
             lowvram_weight = False
             if hasattr(m, "comfy_cast_weights"):
@@ -304,9 +314,17 @@ class ModelPatcher(ModelManageable):
 
             if lowvram_weight:
                 if weight_key in self.patches:
-                    m.weight_function = LowVramPatch(weight_key, self)
+                    if force_patch_weights:
+                        self.patch_weight_to_device(weight_key)
+                    else:
+                        m.weight_function = LowVramPatch(weight_key, self)
+                        patch_counter += 1
                 if bias_key in self.patches:
-                    m.bias_function = LowVramPatch(bias_key, self)
+                    if force_patch_weights:
+                        self.patch_weight_to_device(bias_key)
+                    else:
+                        m.bias_function = LowVramPatch(bias_key, self)
+                        patch_counter += 1
 
                 m.prev_comfy_cast_weights = m.comfy_cast_weights
                 m.comfy_cast_weights = True
@@ -319,6 +337,7 @@ class ModelPatcher(ModelManageable):
                     logging.debug("lowvram: loaded module regularly {}".format(m))
 
         self.model_lowvram = True
+        self.lowvram_patch_counter = patch_counter
         return self.model
 
     def calculate_weight(self, patches, weight, key):
@@ -470,6 +489,7 @@ class ModelPatcher(ModelManageable):
                     m.bias_function = None
 
                 self.model_lowvram = False
+                self.lowvram_patch_counter = 0
 
             keys = list(self.backup.keys())
 

@@ -23,6 +23,15 @@ class TransformersManagedModel(ModelManageable):
         if model.device != self.offload_device:
             model.to(device=self.offload_device)
 
+    @property
+    def lowvram_patch_counter(self):
+        return 0
+
+    @lowvram_patch_counter.setter
+    def lowvram_patch_counter(self, value: int):
+        warnings.warn("Not supported")
+        pass
+
     load_device: torch.device
     offload_device: torch.device
     model: PreTrainedModel
@@ -57,7 +66,7 @@ class TransformersManagedModel(ModelManageable):
     def model_dtype(self) -> torch.dtype:
         return self.model.dtype
 
-    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int) -> torch.nn.Module:
+    def patch_model_lowvram(self, device_to: torch.device, lowvram_model_memory: int, force_patch_weights=False) -> torch.nn.Module:
         warnings.warn("Transformers models do not currently support adapters like LoRAs")
         return self.model.to(device=device_to)
 
