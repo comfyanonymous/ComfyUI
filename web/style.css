@@ -63,6 +63,7 @@ body {
 	width: 100%;
 	height: 100%;
 	order: 2;
+	grid-column: 1/-1;
 }
 
 .comfyui-body-right {

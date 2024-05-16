@@ -41,6 +41,7 @@ export class ComfyAppMenu {
 			{
 				primary: getSaveButton(),
 				mode: "hover",
+				position: "absolute"
 			},
 			getSaveButton("Save"),
 			new ComfyButton({
@@ -133,19 +134,22 @@ export class ComfyAppMenu {
 			showOnMobile(this.mobileMenuButton).element,
 		]);
 
-		document.body.prepend(this.element);
-
 		app.ui.settings.addSetting({
 			id: "Comfy.UseNewMenu",
 			defaultValue: false,
 			name: "[Beta] Use new menu and workflow management",
-			type: "boolean",
+			type: "combo",
+			options: ["Disabled", "Top", "Bottom"],
 			onChange: async (v) => {
 				if (v) {
 					document.body.style.display = "grid";
 					app.ui.menuContainer.style.display = "none";
 					this.element.style.removeProperty("display");
-
+					if (v === "Bottom") {
+						app.bodyBottom.append(this.element);
+					} else {
+						app.bodyTop.prepend(this.element);
+					}
 					this.calculateSizeBreak();
 				} else {
 					document.body.style.removeProperty("display");

@@ -55,11 +55,11 @@ export class ComfyApp {
 		this.ui = new ComfyUI(this);
 		this.logging = new ComfyLogging(this);
 		this.workflowManager = new ComfyWorkflowManager(this);
-		this.menu = new ComfyAppMenu(this);
 		this.bodyTop = $el("div.comfyui-body-top", { parent: document.body });
 		this.bodyLeft = $el("div.comfyui-body-left", { parent: document.body });
 		this.bodyRight = $el("div.comfyui-body-right", { parent: document.body });
-		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });
+		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });		  
+		this.menu = new ComfyAppMenu(this);
 
 		/**
 		 * List of extensions that are registered with the app
@@ -1560,7 +1560,7 @@ export class ComfyApp {
 
 		this.#addAfterConfigureHandler();
 
-		const canvas = (this.canvas = new LGraphCanvas(canvasEl, this.graph));
+		this.canvas = new LGraphCanvas(canvasEl, this.graph);
 		this.ctx = canvasEl.getContext("2d");
 
 		LiteGraph.release_link_on_empty_shows_menu = true;
@@ -1568,22 +1568,14 @@ export class ComfyApp {
 
 		this.graph.start();
 
-		function resizeCanvas() {
-			// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
-			const scale = Math.max(window.devicePixelRatio, 1);
-			
-			// Clear fixed width and height while calculating rect so it uses 100% instead
-			canvasEl.height = canvasEl.width = "";
-			const { width, height } = canvasEl.getBoundingClientRect();
-			canvasEl.width = Math.round(width * scale);
-			canvasEl.height = Math.round(height * scale);
-			canvasEl.getContext("2d").scale(scale, scale);
-			canvas.draw(true, true);
-		}
-
 		// Ensure the canvas fills the window
-		resizeCanvas();
-		window.addEventListener("resize", resizeCanvas);
+		this.resizeCanvas();
+		window.addEventListener("resize", () => this.resizeCanvas());
+		const ro = new ResizeObserver(() => this.resizeCanvas());
+		ro.observe(this.bodyTop);
+		ro.observe(this.bodyLeft);
+		ro.observe(this.bodyRight);
+		ro.observe(this.bodyBottom);
 
 		await this.#invokeExtensionsAsync("init");
 		await this.registerNodes();
@@ -1630,6 +1622,19 @@ export class ComfyApp {
 		this.#addKeyboardHandler();
 
 		await this.#invokeExtensionsAsync("setup");
+	}
+
+	resizeCanvas() {
+		// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
+		const scale = Math.max(window.devicePixelRatio, 1);
+		
+		// Clear fixed width and height while calculating rect so it uses 100% instead
+		this.canvasEl.height = this.canvasEl.width = "";
+		const { width, height } = this.canvasEl.getBoundingClientRect();
+		this.canvasEl.width = Math.round(width * scale);
+		this.canvasEl.height = Math.round(height * scale);
+		this.canvasEl.getContext("2d").scale(scale, scale);
+		this.canvas.draw(true, true);
 	}
 
 	/**

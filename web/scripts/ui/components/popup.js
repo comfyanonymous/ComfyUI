@@ -102,6 +102,7 @@ export class ComfyPopup extends EventTarget {
 
 	update = () => {
 		const rect = this.target.getBoundingClientRect();
+		this.element.style.setProperty("--bottom", "unset");
 		if (this.position === "absolute") {
 			if (this.horizontal === "left") {
 				this.element.style.setProperty("--left", rect.left + "px");
@@ -109,9 +110,19 @@ export class ComfyPopup extends EventTarget {
 				this.element.style.setProperty("--left", rect.right - this.element.clientWidth + "px");
 			}
 			this.element.style.setProperty("--top", rect.bottom + "px");
+			this.element.style.setProperty("--limit", rect.bottom + "px");
 		} else {
 			this.element.style.setProperty("--left", 0 + "px");
 			this.element.style.setProperty("--top", rect.height + "px");
+			this.element.style.setProperty("--limit", rect.height + "px");
+		}
+
+		const thisRect = this.element.getBoundingClientRect();
+		if (thisRect.height < 30) {
+			// Move up instead
+			this.element.style.setProperty("--top", "unset");
+			this.element.style.setProperty("--bottom", rect.height + 5 + "px");
+			this.element.style.setProperty("--limit", rect.height + 5 + "px");
 		}
 	};
 }

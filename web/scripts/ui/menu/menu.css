@@ -43,8 +43,9 @@
 	left: var(--left);
 	right: var(--right);
 	top: var(--top);
+	bottom: var(--bottom);
 	z-index: 2000;
-	max-height: calc(100vh - var(--top) - 10px);
+	max-height: calc(100vh - var(--limit) - 10px);
 	box-shadow: 3px 3px 5px 0px rgba(0, 0, 0, 0.3);
 }
 
@@ -133,6 +134,8 @@
 	z-index: 1000;
 	order: 0;
 	grid-column: 1/-1;
+	overflow: auto;
+	max-height: 90vh;
 }
 
 .comfyui-menu>* {
@@ -436,7 +439,7 @@
 	background-color: var(--content-bg);
 	color: var(--content-fg);
 	min-width: 170px;
-	min-height: 100px;
+	min-height: 435px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -622,6 +625,15 @@
 	width: 100%;
 }
 
+.comfyui-body-bottom .lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse {
+	order: -1;
+}
+
+.comfyui-body-bottom .lt-lg.comfyui-menu > .comfyui-menu-button {
+	top: unset;
+	bottom: 4px;
+}
+
 .lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse.comfyui-button-group {
 	flex-wrap: wrap;
 }
@@ -661,6 +673,10 @@
 	border-radius: 0;
 }
 
+.lt-lg.comfyui-menu .comfyui-workflows-popup {
+	width: 100vw;
+}
+
 /** Small */
 .lt-md .comfyui-workflows-button-inner {
 	width: unset !important;
@@ -679,4 +695,7 @@
 }
 .lt-sm .comfyui-interrupt-button {
 	margin-right: 45px;
+}
+.comfyui-body-bottom .lt-sm.comfyui-menu > .comfyui-menu-button{
+	bottom: 41px;
 }
