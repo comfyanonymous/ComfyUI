@@ -113,7 +113,8 @@ class CLIP:
         n = CLIP(no_init=True)
         n.patcher = self.patcher.clone()
         n.cond_stage_model = self.cond_stage_model
-        n.tokenizer = self.tokenizer
+        # cloning the tokenizer allows the vocab updates to work more idiomatically
+        n.tokenizer = self.tokenizer.clone()
         n.layer_idx = self.layer_idx
         return n
 

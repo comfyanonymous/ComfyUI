@@ -48,6 +48,7 @@ class TextDiffuserTokens(CustomNode):
     FUNCTION = "execute"
 
     def execute(self, clip: CLIP):
+        clip = clip.clone()
         if len(TextDiffuserTokens.TOKENS) == 0:
             for i in range(520):
                 TextDiffuserTokens.TOKENS.append(f'l{i}</w>')
