@@ -1,6 +1,5 @@
 import nodes
 import folder_paths
-import hashlib
 
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
