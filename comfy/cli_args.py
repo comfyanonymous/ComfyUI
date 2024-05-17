@@ -139,4 +139,24 @@ logging_level = logging.INFO
 if args.verbose:
     logging_level = logging.DEBUG
 
-logging.basicConfig(format="%(message)s", level=logging_level)
+logging.basicConfig(level=logging_level, format="%(message)s")
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+# Remove all handlers from the root logger
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+stdout_handler = logging.StreamHandler(sys.stdout)
+stdout_handler.setLevel(logging.INFO)
+
+stderr_handler = logging.StreamHandler(sys.stderr)
+stderr_handler.setLevel(logging.WARNING)
+
+formatter = logging.Formatter('%(message)s')
+stdout_handler.setFormatter(formatter)
+stderr_handler.setFormatter(formatter)
+
+logger.addHandler(stdout_handler)
+logger.addHandler(stderr_handler)
