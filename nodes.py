@@ -1961,6 +1961,7 @@ def init_custom_nodes():
         "nodes_align_your_steps.py",
         "nodes_attention_multiply.py",
         "nodes_advanced_samplers.py",
+        "nodes_webcam.py",
     ]
 
     import_failed = []
