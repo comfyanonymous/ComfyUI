@@ -31,18 +31,30 @@ _latent = {"samples": torch.randn((1, 4, 64, 64))}
 
 @pytest.fixture(scope="module")
 def vae():
-    vae, = VAELoader().load_vae("vae-ft-mse-840000-ema-pruned.safetensors")
+    vae_file = "vae-ft-mse-840000-ema-pruned.safetensors"
+    try:
+        vae, = VAELoader().load_vae(vae_file)
+    except FileNotFoundError:
+        pytest.skip(f"{vae_file} not present on machine")
     return vae
 
 
 @pytest.fixture(scope="module")
-def clip(vae):
-    return CheckpointLoaderSimple().load_checkpoint("v1-5-pruned-emaonly.safetensors")[1]
+def clip():
+    checkpoint = "v1-5-pruned-emaonly.safetensors"
+    try:
+        return CheckpointLoaderSimple().load_checkpoint(checkpoint)[1]
+    except FileNotFoundError:
+        pytest.skip(f"{checkpoint} not present on machine")
 
 
 @pytest.fixture(scope="module")
-def model(clip, vae):
-    return CheckpointLoaderSimple().load_checkpoint("v1-5-pruned-emaonly.safetensors")[0]
+def model(clip):
+    checkpoint = "v1-5-pruned-emaonly.safetensors"
+    try:
+        return CheckpointLoaderSimple().load_checkpoint(checkpoint)[0]
+    except FileNotFoundError:
+        pytest.skip(f"{checkpoint} not present on machine")
 
 
 def test_clip_text_encode(clip):
