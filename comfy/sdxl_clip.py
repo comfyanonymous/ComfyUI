@@ -1,3 +1,5 @@
+import copy
+
 import torch
 
 from . import sd1_clip
@@ -36,6 +38,12 @@ class SDXLTokenizer:
 
     def untokenize(self, token_weight_pair):
         return self.clip_g.untokenize(token_weight_pair)
+
+    def clone(self):
+        sdxl_tokenizer = copy.copy(self)
+        sdxl_tokenizer.clip_l = self.clip_l.clone()
+        sdxl_tokenizer.clip_g = self.clip_g.clone()
+        return sdxl_tokenizer
 
 
 class SDXLClipModel(torch.nn.Module):
