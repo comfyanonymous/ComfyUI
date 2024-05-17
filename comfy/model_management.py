@@ -477,8 +477,11 @@ def cleanup_models(keep_clone_weights_loaded=False):
             elif sys.getrefcount(current_loaded_models[i].real_model) <= 3: #references from .real_model + the .model
                 to_delete = [i] + to_delete
 
-    for i in to_delete:
-        x = current_loaded_models.pop(i)
+    to_delete_models = sorted([
+        current_loaded_models[i] for i in to_delete], 
+        key=lambda i: sys.getrefcount(current_loaded_models[i].real_model))
+    while len(to_delete_models) > 0 and psutil.virtual_memory().percent > 70:
+        x = to_delete_models.pop()
         x.model_unload()
         del x
 
