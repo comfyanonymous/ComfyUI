@@ -1929,13 +1929,13 @@ def load_custom_nodes():
 def load_custom_nodes_entry_points():
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
 
-    for ep in entry_points(group='comfyui.node_class_mappings'):
+    for ep in entry_points(group="comfyui.node_class_mappings"):
         class_mapping = ep.load()
         for name in class_mapping:
             if name not in base_node_names:
-                NODE_CLASS_MAPPINGS[name] = mapping[name]
+                NODE_CLASS_MAPPINGS[name] = class_mapping[name]
 
-    for ep in entry_points(group='comfyui.node_display_name_mappings'):
+    for ep in entry_points(group="comfyui.node_display_name_mappings"):
         display_name_mapping = ep.load()
         NODE_DISPLAY_NAME_MAPPINGS.update(display_name_mapping)
 
