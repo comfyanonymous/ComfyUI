@@ -33,7 +33,13 @@ app.registerExtension({
 						label.style.overflow = "auto";
 						label.style.maxHeight = "100%";
 						label.style.whiteSpace = "pre-wrap";
-						label.textContent = "Unable to load webcam, please ensure access is granted:\n" + error.message;
+
+						if (window.isSecureContext) {
+							label.textContent = "Unable to load webcam, please ensure access is granted:\n" + error.message;
+						} else {
+							label.textContent = "Unable to load webcam. A secure context is required, if you are not accessing ComfyUI on localhost (127.0.0.1) you will have to enable TLS (https)\n\n" + error.message;
+						}
+
 						container.replaceChildren(label);
 					}
 				};
