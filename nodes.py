@@ -31,6 +31,7 @@ import comfy.model_management
 from comfy.cli_args import args
 
 import importlib
+from importlib.metadata import entry_points
 
 import folder_paths
 import latent_preview
@@ -1925,6 +1926,19 @@ def load_custom_nodes():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
+def load_custom_nodes_entry_points():
+    base_node_names = set(NODE_CLASS_MAPPINGS.keys())
+
+    for ep in entry_points(group='comfyui.node_class_mappings'):
+        class_mapping = ep.load()
+        for name in class_mapping:
+            if name not in base_node_names:
+                NODE_CLASS_MAPPINGS[name] = mapping[name]
+
+    for ep in entry_points(group='comfyui.node_display_name_mappings'):
+        display_name_mapping = ep.load()
+        NODE_DISPLAY_NAME_MAPPINGS.update(display_name_mapping)
+
 def init_custom_nodes():
     extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
     extras_files = [
@@ -1970,6 +1984,7 @@ def init_custom_nodes():
             import_failed.append(node_file)
 
     load_custom_nodes()
+    load_custom_nodes_entry_points()
 
     if len(import_failed) > 0:
         logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
