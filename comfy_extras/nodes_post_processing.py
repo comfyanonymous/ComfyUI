@@ -243,7 +243,10 @@ class Sharpen:
 
         result = torch.clamp(sharpened, 0, 1)
 
-        return (result,) if comfy.model_management.mps_mode() else (result.to(comfy.model_management.intermediate_device()),)
+        if comfy.model_management.mps_mode():
+            return (result,)
+
+        return (result.to(comfy.model_management.intermediate_device()),)
 
 class ImageScaleToTotalPixels:
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
