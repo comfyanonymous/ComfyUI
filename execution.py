@@ -622,8 +622,17 @@ def full_type_name(klass):
 def validate_prompt(prompt):
     outputs = set()
     for x in prompt:
+        if 'class_type' not in prompt[x]:
+            error = {
+                "type": "invalid_prompt",
+                "message": f"Cannot execute due to a missing node",
+                "details": f"Node ID '#{x}'",
+                "extra_info": {}
+            }
+            return (False, error, [], [])
+
         class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
-        if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE == True:
+        if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
             outputs.add(x)
 
     if len(outputs) == 0:
