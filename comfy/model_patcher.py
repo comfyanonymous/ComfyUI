@@ -3,7 +3,7 @@ import copy
 import inspect
 import logging
 import uuid
-from typing import Callable, Protocol, TypedDict, Optional
+from typing import Callable, Protocol, TypedDict, Optional, List
 
 import comfy.utils
 import comfy.model_management
@@ -24,10 +24,14 @@ class UnetApplyConds(TypedDict):
 
 
 class UnetParams(TypedDict):
+    # Tensor of shape [B, C, H, W]
     input: torch.Tensor
+    # Tensor of shape [B]
     timestep: torch.Tensor
     c: UnetApplyConds
-    cond_or_uncond: torch.Tensor
+    # List of [0, 1], [0], [1], ...
+    # 0 means unconditional, 1 means conditional
+    cond_or_uncond: List[int]
 
 
 UnetWrapperFunction = Callable[[UnetApplyFunction, UnetParams], torch.Tensor]
