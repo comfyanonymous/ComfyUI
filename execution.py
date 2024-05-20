@@ -625,13 +625,23 @@ def validate_prompt(prompt):
         if 'class_type' not in prompt[x]:
             error = {
                 "type": "invalid_prompt",
-                "message": f"Cannot execute due to a missing node",
+                "message": f"Cannot execute because a node is missing the class_type property.",
                 "details": f"Node ID '#{x}'",
                 "extra_info": {}
             }
             return (False, error, [], [])
 
-        class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
+        class_type = prompt[x]['class_type']
+        class_ = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
+        if class_ is None:
+            error = {
+                "type": "invalid_prompt",
+                "message": f"Cannot execute because node {class_type} does not exist.",
+                "details": f"Node ID '#{x}'",
+                "extra_info": {}
+            }
+            return (False, error, [], [])
+
         if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
             outputs.add(x)
 
