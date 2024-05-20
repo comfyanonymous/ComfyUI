@@ -3,9 +3,35 @@ import copy
 import inspect
 import logging
 import uuid
+from typing import Callable, Protocol, TypedDict, Optional
 
 import comfy.utils
 import comfy.model_management
+
+
+class UnetApplyFunction(Protocol):
+    """Function signature protocol on comfy.model_base.BaseModel.apply_model"""
+    def __call__(self, x: torch.Tensor, t: torch.Tensor, **kwargs) -> torch.Tensor:
+        pass
+
+
+class UnetApplyConds(TypedDict):
+    """Optional conditions for unet apply function."""
+    c_concat: Optional[torch.Tensor]
+    c_crossattn: Optional[torch.Tensor]
+    control: Optional[torch.Tensor]
+    transformer_options: Optional[dict]
+
+
+class UnetParams(TypedDict):
+    input: torch.Tensor
+    timestep: torch.Tensor
+    c: UnetApplyConds
+    cond_or_uncond: torch.Tensor
+
+
+UnetWrapperFunction = Callable[[UnetApplyFunction, UnetParams], torch.Tensor]
+
 
 def apply_weight_decompose(dora_scale, weight):
     weight_norm = (
@@ -117,7 +143,7 @@ class ModelPatcher:
         if disable_cfg1_optimization:
             self.model_options["disable_cfg1_optimization"] = True
 
-    def set_model_unet_function_wrapper(self, unet_wrapper_function):
+    def set_model_unet_function_wrapper(self, unet_wrapper_function: UnetWrapperFunction):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
     def set_model_denoise_mask_function(self, denoise_mask_function):
