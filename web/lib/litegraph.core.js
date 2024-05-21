@@ -3758,6 +3758,7 @@
         var w = {
             type: type.toLowerCase(),
             name: name,
+            label: options?.label || name,
             value: value,
             callback: callback,
             options: options || {}

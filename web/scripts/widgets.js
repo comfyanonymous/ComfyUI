@@ -8,7 +8,7 @@ export function updateControlWidgetLabel(widget) {
 	if (controlValueRunBefore) {
 		[find, replacement] = [replacement, find]
 	}
-	widget.label = (widget.label ?? widget.name).replace(find, replacement);
+	widget.label = (widget.label ?? widget.name).replace(find, replacement).replace(/_/g, " ");
 }
 
 const IS_CONTROL_WIDGET = Symbol();
@@ -218,10 +218,12 @@ function createIntWidget(node, inputName, inputData, app, isSeedInput) {
 	if (!isSeedInput && control) {
 		return seedWidget(node, inputName, inputData, app, typeof control === "string" ? control : undefined);
 	}
-
+	
 	let widgetType = isSlider(inputData[1]["display"], app);
 	const { val, config } = getNumberDefaults(inputData, 1, 0, true);
 	Object.assign(config, { precision: 0 });
+	const inputLabel = inputData[1]?.label || inputName;
+	Object.assign(config, { label: inputLabel });
 	return {
 		widget: node.addWidget(
 			widgetType,
@@ -366,7 +368,8 @@ export const ComfyWidgets = {
 		if (inputData[1] && inputData[1].default) {
 			defaultValue = inputData[1].default;
 		}
-		const res = { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type }) };
+		const inputLabel = inputData[1]?.label || inputName
+		const res = { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type, label: inputLabel }) };
 		if (inputData[1]?.control_after_generate) {
 			res.widget.linkedWidgets = addValueControlWidgets(node, res.widget, undefined, undefined, inputData);
 		}

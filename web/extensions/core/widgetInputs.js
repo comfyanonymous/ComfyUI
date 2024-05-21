@@ -75,7 +75,7 @@ function convertToInput(node, widget, config) {
 	const sz = node.size;
 	node.addInput(widget.name, type, {
 		widget: { name: widget.name, [GET_CONFIG]: () => config },
-		label: widget.element?.placeholder ? widget.element?.placeholder : widget.name
+		label: widget.element?.placeholder || widget?.label || widget.name
 	});
 
 	for (const widget of node.widgets) {
@@ -290,14 +290,14 @@ app.registerExtension({
 					}
 					if (w.type === CONVERTED_TYPE) {
 						toWidget.push({
-							content: `Convert ${w.name} to widget`,
+							content: `Convert '${w?.label || w.name}' to widget`,
 							callback: () => convertToWidget(this, w),
 						});
 					} else {
 						const config = getConfig.call(this, w.name) ?? [w.type, w.options || {}];
 						if (isConvertableWidget(w, config)) {
 							toInput.push({
-								content: `Convert ${w.name} to input`,
+								content: `Convert '${w?.label || w.name}' to input`,
 								callback: () => convertToInput(this, w, config),
 							});
 						}

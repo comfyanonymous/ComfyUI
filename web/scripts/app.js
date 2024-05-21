@@ -1662,7 +1662,7 @@ export class ComfyApp {
 						this.addInput(inputName, type, { label: inputLabel });
 						widgetCreated = false;
 					}
-
+					
 					if(widgetCreated && inputData[1]?.forceInput && config?.widget) {
 						if (!config.widget.options) config.widget.options = {};
 						config.widget.options.forceInput = inputData[1].forceInput;
@@ -1676,15 +1676,8 @@ export class ComfyApp {
 				for (const o in nodeData["output"]) {
 					let output = nodeData["output"][o];
 					if(output instanceof Array) output = "COMBO";
-					let outputName = output;
-					let outputLabel = outputName;
-					if(nodeData["output_name"][o] instanceof Array) {
-						outputName = nodeData["output_name"][o][0] || output;
-						outputLabel = nodeData["output_name"][o][1]
-					} else {
-						outputName = nodeData["output_name"][o] || output;
-						outputLabel = outputName
-					}
+					const outputName = nodeData["output_name"][o] || output;
+					const outputLabel = nodeData["output_label"][o] || outputName;
 					const outputShape = nodeData["output_is_list"][o] ? LiteGraph.GRID_SHAPE : LiteGraph.CIRCLE_SHAPE ;
 					this.addOutput(outputName, output, { shape: outputShape, label: outputLabel });
 				}
