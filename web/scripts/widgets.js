@@ -346,6 +346,7 @@ export const ComfyWidgets = {
 	STRING(node, inputName, inputData, app) {
 		const defaultVal = inputData[1].default || "";
 		const multiline = !!inputData[1].multiline;
+		inputData[1].placeholder = inputData[1].placeholder || inputData[1].label || inputName;
 
 		let res;
 		if (multiline) {
