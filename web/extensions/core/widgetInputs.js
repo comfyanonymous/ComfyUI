@@ -4,6 +4,7 @@ import { applyTextReplacements } from "../../scripts/utils.js";
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
+const UNVALID_NAMES = ["control_after_generate"];
 const CONFIG = Symbol();
 const GET_CONFIG = Symbol();
 const TARGET = Symbol(); // Used for reroutes to specify the real target widget
@@ -18,7 +19,7 @@ function getConfig(widgetName) {
 }
 
 function isConvertableWidget(widget, config) {
-	return (VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0])) && !widget.options?.forceInput;
+	return (VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0])) && !UNVALID_NAMES.includes(widget.name) && !widget.options?.forceInput;
 }
 
 function hideWidget(node, widget, suffix = "") {

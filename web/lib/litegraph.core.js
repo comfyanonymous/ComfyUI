@@ -3379,7 +3379,7 @@
      * @param {Object} extra_info this can be used to have special properties of an output (label, special color, position, etc)
      */
     LGraphNode.prototype.addOutput = function(name, type, extra_info) {
-        var output = { name: name, label: extra_info.label, type: type, links: null };
+        var output = { name: name, label: extra_info?.label || name, type: type, links: null };
         if (extra_info) {
             for (var i in extra_info) {
                 output[i] = extra_info[i];

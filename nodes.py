@@ -1335,7 +1335,7 @@ class KSampler:
                     {"model": ("MODEL", { "label": "model" }),
                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "label": "seed"}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "label": "steps"}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "label": "steps"}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "label": "cfg"}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, { "label": "sampler name" } ),
                     "scheduler": (comfy.samplers.KSampler.SCHEDULERS, { "label": "scheduler" } ),
                     "positive": ("CONDITIONING", { "label": "positive" }),
