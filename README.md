@@ -477,6 +477,11 @@ The default installation includes a fast latent preview method that's low-resolu
 
 Ctrl can also be replaced with Cmd instead for macOS users
 
+# Configuration
+
+## Extra Model Paths
+
+
 ### Command Line Arguments
 
 ```
@@ -706,7 +711,7 @@ async with EmbeddedComfyClient() as client:
 # At this point, all the models have been unloaded from VRAM, and everything has been cleaned up.
 ```
 
-See [script_examples/basic_api_example.py](script_examples/basic_api_example.py) for a complete example.
+See [script_examples/basic_api_example.py](docs/examples/script_examples/basic_api_example.py) for a complete example.
 
 ### Remote
 
@@ -722,7 +727,7 @@ with open("image.png", "rb") as f:
     f.write(png_image_bytes)
 ```
 
-See [script_examples/remote_api_example.py](script_examples/remote_api_example.py) for a complete example.
+See [script_examples/remote_api_example.py](docs/examples/script_examples/remote_api_example.py) for a complete example.
 
 ### OpenAPI Spec for Vanilla API, Typed Clients
 
