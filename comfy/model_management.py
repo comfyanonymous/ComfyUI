@@ -5,6 +5,7 @@ from comfy.cli_args import args
 import comfy.utils
 import torch
 import sys
+import platform
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -684,6 +685,18 @@ def pytorch_attention_flash_attention():
         if is_nvidia(): #pytorch flash attention only works on Nvidia
             return True
     return False
+
+def force_upcast_attention_dtype():
+    upcast = args.force_upcast_attention
+    try:
+        if platform.mac_ver()[0] in ['14.5']: #black image bug on OSX Sonoma 14.5
+            upcast = True
+    except:
+        pass
+    if upcast:
+        return torch.float32
+    else:
+        return None
 
 def get_free_memory(dev=None, torch_free_too=False):
     global directml_enabled

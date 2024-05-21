@@ -19,12 +19,13 @@ from comfy.cli_args import args
 import comfy.ops
 ops = comfy.ops.disable_weight_init
 
+FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
 
 def get_attn_precision(attn_precision):
     if args.dont_upcast_attention:
         return None
-    if attn_precision is None and args.force_upcast_attention:
-        return torch.float32
+    if FORCE_UPCAST_ATTENTION_DTYPE is not None:
+        return FORCE_UPCAST_ATTENTION_DTYPE
     return attn_precision
 
 def exists(val):
