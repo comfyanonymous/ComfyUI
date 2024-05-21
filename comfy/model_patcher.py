@@ -3,38 +3,10 @@ import copy
 import inspect
 import logging
 import uuid
-from typing import Callable, Protocol, TypedDict, Optional, List
 
 import comfy.utils
 import comfy.model_management
-
-
-class UnetApplyFunction(Protocol):
-    """Function signature protocol on comfy.model_base.BaseModel.apply_model"""
-    def __call__(self, x: torch.Tensor, t: torch.Tensor, **kwargs) -> torch.Tensor:
-        pass
-
-
-class UnetApplyConds(TypedDict):
-    """Optional conditions for unet apply function."""
-    c_concat: Optional[torch.Tensor]
-    c_crossattn: Optional[torch.Tensor]
-    control: Optional[torch.Tensor]
-    transformer_options: Optional[dict]
-
-
-class UnetParams(TypedDict):
-    # Tensor of shape [B, C, H, W]
-    input: torch.Tensor
-    # Tensor of shape [B]
-    timestep: torch.Tensor
-    c: UnetApplyConds
-    # List of [0, 1], [0], [1], ...
-    # 0 means unconditional, 1 means conditional
-    cond_or_uncond: List[int]
-
-
-UnetWrapperFunction = Callable[[UnetApplyFunction, UnetParams], torch.Tensor]
+from comfy.types import UnetWrapperFunction
 
 
 def apply_weight_decompose(dora_scale, weight):
