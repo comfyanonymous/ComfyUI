@@ -374,7 +374,8 @@ export const ComfyWidgets = {
 			defaultValue = inputData[1].default;
 		}
 		const inputLabel = inputData[1]?.label || inputName
-		inputData[1].label = inputLabel;
+        if (typeof inputData[1] === "undefined") inputData[1] = {}
+        Object.assign(inputData[1], { label: inputLabel });
 		const res = { widget: node.addWidget("combo", inputName, defaultValue, () => {}, { values: type, label: inputLabel }) };
 		if (inputData[1]?.control_after_generate) {
 			res.widget.linkedWidgets = addValueControlWidgets(node, res.widget, undefined, undefined, inputData);
