@@ -3470,7 +3470,7 @@
      */
     LGraphNode.prototype.addInput = function(name, type, extra_info) {
         type = type || 0;
-        var input = { name: name, label: extra_info.label, type: type, link: null };
+        var input = { name: name, label: extra_info?.label || name, type: type, link: null };
         if (extra_info) {
             for (var i in extra_info) {
                 input[i] = extra_info[i];
