@@ -6,6 +6,8 @@ import uuid
 
 import comfy.utils
 import comfy.model_management
+from comfy.types import UnetWrapperFunction
+
 
 def apply_weight_decompose(dora_scale, weight):
     weight_norm = (
@@ -117,7 +119,7 @@ class ModelPatcher:
         if disable_cfg1_optimization:
             self.model_options["disable_cfg1_optimization"] = True
 
-    def set_model_unet_function_wrapper(self, unet_wrapper_function):
+    def set_model_unet_function_wrapper(self, unet_wrapper_function: UnetWrapperFunction):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
     def set_model_denoise_mask_function(self, denoise_mask_function):
