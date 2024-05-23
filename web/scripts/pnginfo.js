@@ -79,10 +79,11 @@ function parseExifData(exifData) {
 			let value;
 			if (type === 2) {
 				// ASCII string
-				value = String.fromCharCode(...exifData.slice(valueOffset, valueOffset + numValues - 1));
+				value = String.fromCharCode(...exifData.slice(valueOffset, valueOffset + numValues - 1)).replace("[NaN]", "[0]");
 			}
 
-			result[tag] = value;
+			// result[tag] = value; // with type 2, tag is a an integer = 37510
+      			Object.assign(result, JSON.parse(value));	// return parsed json immediately, it's already clean: "{prompt:{},workflow:{}}"
 		}
 
 		return result;
