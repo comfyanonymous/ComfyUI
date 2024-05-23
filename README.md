@@ -72,7 +72,7 @@ On macOS, install Python 3.10, 3.11 or 3.12 using `brew`, which you can download
    source ./venv/bin/activate
    ```
 
- 3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
+ 3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
     ```shell
     pip install git+https://github.com/hiddenswitch/ComfyUI.git
     ```
@@ -177,6 +177,12 @@ These models will be automatically downloaded when you queue prompts with workfl
     ```
 
 Because pip installs the package as editable with `pip install -e .`, any changes you make to the repository will affect the next launch of `comfy`. In IDEA based editors like PyCharm and IntelliJ, the Relodium plugin supports modifying your custom nodes or similar code while the server is running.
+
+## Linux Development Dependencies
+
+```shell
+apt install -y git build-essential clang python3-dev python3-venv
+```
 
 # Custom Nodes
 

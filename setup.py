@@ -4,7 +4,7 @@ import os.path
 import platform
 import subprocess
 import sys
-from typing import List, Literal, Union, Optional
+from typing import List, Optional
 
 from pip._internal.index.collector import LinkCollector
 from pip._internal.index.package_finder import PackageFinder
@@ -28,13 +28,13 @@ version = '0.0.1'
 """
 The package index to the torch built with AMD ROCm.
 """
-amd_torch_index = ("https://download.pytorch.org/whl/rocm5.7", "https://download.pytorch.org/whl/nightly/rocm6.0")
+amd_torch_index = ("https://download.pytorch.org/whl/rocm6.0", "https://download.pytorch.org/whl/nightly/rocm6.1")
 
 """
 The package index to torch built with CUDA.
 Observe the CUDA version is in this URL.
 """
-nvidia_torch_index = ("https://download.pytorch.org/whl/cu121", "https://download.pytorch.org/whl/nightly/cu121")
+nvidia_torch_index = ("https://download.pytorch.org/whl/cu121", "https://download.pytorch.org/whl/nightly/cu124")
 
 """
 The package index to torch built against CPU features.
@@ -80,14 +80,33 @@ def _is_amd() -> bool:
         rocminfo_paths.extend(["/opt/rocm/bin/rocminfo", "/usr/bin/rocminfo"])
 
     for rocminfo_path in rocminfo_paths:
+        output = None
         try:
             output = subprocess.check_output([rocminfo_path]).decode("utf-8")
-
-            if "Device" in output:
-                return True
         except:
             pass
 
+        if output is None:
+            return False
+        elif "Device" in output:
+            return True
+        elif "Permission Denied" in output:
+            msg = f"""
+{output}
+
+To resolve this issue on AMD:
+
+sudo -i
+usermod -a -G video $LOGNAME
+usermod -a -G render $LOGNAME
+
+You will need to reboot. Save your work, then:
+
+reboot
+
+"""
+            print(msg, file=sys.stderr)
+            raise RuntimeError(msg)
     return False
 
 
@@ -98,7 +117,7 @@ def _is_linux_arm64():
     return os_name == 'Linux' and architecture == 'aarch64'
 
 
-def dependencies() -> List[str]:
+def dependencies(force_nightly: bool = False) -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
     # If we're installing with no build isolation, we can check if torch is already installed in the environment, and if
     # so, go ahead and use the version that is already installed.
@@ -133,8 +152,9 @@ def dependencies() -> List[str]:
     if len(index_urls) == 1:
         return _dependencies
 
-    if sys.version_info >= (3, 12):
-        # use the nightlies
+    if sys.version_info >= (3, 13) or force_nightly:
+        # use the nightlies for python 3.13
+        print("Using nightlies for Python 3.13 or higher. PyTorch may not yet build for it", file=sys.stderr)
         index_urls_selected = [nightly for (_, nightly) in index_urls]
         _alternative_indices_selected = [nightly for (_, nightly) in _alternative_indices]
     else:
