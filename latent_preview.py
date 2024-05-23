@@ -4,6 +4,7 @@ import struct
 import numpy as np
 from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
+import comfy.model_management
 import folder_paths
 import comfy.utils
 import logging
@@ -37,12 +38,13 @@ class Latent2RGBPreviewer(LatentPreviewer):
         self.latent_rgb_factors = torch.tensor(latent_rgb_factors, device="cpu")
 
     def decode_latent_to_preview(self, x0):
-        latent_image = x0[0].permute(1, 2, 0).cpu() @ self.latent_rgb_factors
+        self.latent_rgb_factors = self.latent_rgb_factors.to(dtype=x0.dtype, device=x0.device)
+        latent_image = x0[0].permute(1, 2, 0) @ self.latent_rgb_factors
 
         latents_ubyte = (((latent_image + 1) / 2)
                             .clamp(0, 1)  # change scale from -1..1 to 0..1
                             .mul(0xFF)  # to 0..255
-                            .byte()).cpu()
+                            ).to(device="cpu", dtype=torch.uint8, non_blocking=comfy.model_management.device_supports_non_blocking(latent_image.device))
 
         return Image.fromarray(latents_ubyte.numpy())
 
@@ -63,8 +65,6 @@ def get_previewer(device, latent_format):
 
         if method == LatentPreviewMethod.Auto:
             method = LatentPreviewMethod.Latent2RGB
-            if taesd_decoder_path:
-                method = LatentPreviewMethod.TAESD
 
         if method == LatentPreviewMethod.TAESD:
             if taesd_decoder_path:
