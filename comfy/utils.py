@@ -298,6 +298,13 @@ def set_attr(obj, attr, value):
     setattr(obj, attrs[-1], value)
     return prev
 
+# ref: https://github.com/lllyasviel/stable-diffusion-webui-forge/commit/e48533bdcd08118c5cd7e2c1de14c91c3b7fc8ec#diff-7c5f4df48e8675674db0152893d57c9df52fd048df14e82d9f9c08154265e368
+def set_attr_raw(obj, attr, value):
+    attrs = attr.split(".")
+    for name in attrs[:-1]:
+        obj = getattr(obj, name)
+    setattr(obj, attrs[-1], value)
+
 def set_attr_param(obj, attr, value):
     return set_attr(obj, attr, torch.nn.Parameter(value, requires_grad=False))
 

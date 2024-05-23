@@ -256,9 +256,11 @@ class ModelPatcher:
 
     def patch_model(self, device_to=None, patch_weights=True):
         for k in self.object_patches:
-            old = comfy.utils.set_attr(self.model, k, self.object_patches[k])
+            # old = comfy.utils.set_attr(self.model, k, self.object_patches[k])
+            old = comfy.utils.get_attr(self.model, k)   # ref :https://github.com/lllyasviel/stable-diffusion-webui-forge/commit/e48533bdcd08118c5cd7e2c1de14c91c3b7fc8ec#diff-7c5f4df48e8675674db0152893d57c9df52fd048df14e82d9f9c08154265e368
             if k not in self.object_patches_backup:
                 self.object_patches_backup[k] = old
+            comfy.utils.set_attr_raw(self.model, k, self.object_patches[k])     # ref :https://github.com/lllyasviel/stable-diffusion-webui-forge/commit/e48533bdcd08118c5cd7e2c1de14c91c3b7fc8ec#diff-7c5f4df48e8675674db0152893d57c9df52fd048df14e82d9f9c08154265e368
 
         if patch_weights:
             model_sd = self.model_state_dict()
@@ -494,6 +496,7 @@ class ModelPatcher:
 
         keys = list(self.object_patches_backup.keys())
         for k in keys:
-            comfy.utils.set_attr(self.model, k, self.object_patches_backup[k])
+            # comfy.utils.set_attr(self.model, k, self.object_patches_backup[k])
+            comfy.utils.set_attr_raw(self.model, k, self.object_patches_backup[k])
 
         self.object_patches_backup.clear()
