@@ -146,6 +146,7 @@ def dependencies(force_nightly: bool = False) -> List[str]:
         index_urls += [nvidia_torch_index]
     elif _is_amd():
         index_urls += [amd_torch_index]
+        _dependencies += ["pytorch-triton-rocm"]
     else:
         index_urls += [cpu_torch_index]
 
