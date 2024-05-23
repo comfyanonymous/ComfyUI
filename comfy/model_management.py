@@ -189,6 +189,12 @@ def is_nvidia():
             return True
     return False
 
+def is_amd():
+    global cpu_state
+    if cpu_state == CPUState.GPU:
+        if torch.version.hip:
+            return True
+    return False
 
 ENABLE_PYTORCH_ATTENTION = False
 if args.use_pytorch_cross_attention:
@@ -198,7 +204,7 @@ if args.use_pytorch_cross_attention:
 VAE_DTYPE = torch.float32
 
 try:
-    if is_nvidia():
+    if is_nvidia() or is_amd():
         torch_version = torch.version.__version__
         if int(torch_version[0]) >= 2:
             if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
@@ -239,6 +245,7 @@ elif args.highvram or args.gpu_only:
 
 FORCE_FP32 = False
 FORCE_FP16 = False
+FORCE_BF16 = False
 if args.force_fp32:
     logging.info("Forcing FP32, if this improves things please report it.")
     FORCE_FP32 = True
@@ -246,6 +253,10 @@ if args.force_fp32:
 if args.force_fp16 or cpu_state == CPUState.MPS:
     logging.info("Forcing FP16.")
     FORCE_FP16 = True
+
+if args.force_bf16:
+    logging.info("Force BF16")
+    FORCE_BF16 = True
 
 if lowvram_available:
     if set_vram_to in (VRAMState.LOW_VRAM, VRAMState.NO_VRAM):
@@ -835,7 +846,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if is_intel_xpu():
         return True
 
-    if torch.version.hip:
+    if is_amd():
         return True
 
     props = torch.cuda.get_device_properties("cuda")
@@ -872,6 +883,9 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
 
 
 def should_use_bf16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
+    if FORCE_BF16:
+        return True
+
     if device is not None:
         if is_device_cpu(device):  # TODO ? bf16 works on CPU but is extremely slow
             return False

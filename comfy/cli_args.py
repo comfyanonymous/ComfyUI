@@ -80,6 +80,7 @@ def create_parser() -> argparse.ArgumentParser:
     fp_group.add_argument("--force-fp32", action="store_true",
                           help="Force fp32 (If this makes your GPU work better please report it).")
     fp_group.add_argument("--force-fp16", action="store_true", help="Force fp16.")
+    fp_group.add_argument("--force-bf16", action="store_true", help="Force bf16.")
 
     fpunet_group = parser.add_mutually_exclusive_group()
     fpunet_group.add_argument("--bf16-unet", action="store_true",

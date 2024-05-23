@@ -40,6 +40,7 @@ class Configuration(dict):
         force_upcast_attention (bool): Force upcasting of attention.
         force_fp32 (bool): Force using FP32 precision.
         force_fp16 (bool): Force using FP16 precision.
+        force_bf16 (bool): Force using BF16 precision.
         bf16_unet (bool): Use BF16 precision for UNet.
         fp16_unet (bool): Use FP16 precision for UNet.
         fp8_e4m3fn_unet (bool): Use FP8 precision (e4m3fn variant) for UNet.
@@ -110,6 +111,7 @@ class Configuration(dict):
         self.force_upcast_attention: bool = False
         self.force_fp32: bool = False
         self.force_fp16: bool = False
+        self.force_bf16: bool = False
         self.bf16_unet: bool = False
         self.fp16_unet: bool = False
         self.fp8_e4m3fn_unet: bool = False
