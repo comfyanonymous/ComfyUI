@@ -143,9 +143,9 @@ def dependencies(force_nightly: bool = False) -> List[str]:
     index_urls = [('https://pypi.org/simple', 'https://pypi.org/simple')]
     # prefer nvidia over AMD because AM5/iGPU systems will have a valid ROCm device
     if _is_nvidia():
-        index_urls += [nvidia_torch_index]
+        index_urls = [nvidia_torch_index] + index_urls
     elif _is_amd():
-        index_urls += [amd_torch_index]
+        index_urls = [amd_torch_index] + index_urls
         _dependencies += ["pytorch-triton-rocm"]
     else:
         index_urls += [cpu_torch_index]
@@ -169,7 +169,7 @@ def dependencies(force_nightly: bool = False) -> List[str]:
     except:
         try:
             # pip 22
-            finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls)),  # type: ignore
+            finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls_selected)),  # type: ignore
                                           SelectionPreferences(allow_yanked=False, prefer_binary=False,
                                                                allow_all_prereleases=True)
                                           , use_deprecated_html5lib=False)
