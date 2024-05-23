@@ -2,11 +2,13 @@ import torch
 import math
 import struct
 import comfy.checkpoint_pickle
+from comfy.node_cache import checkpoint_cache_decorator
 import safetensors.torch
 import numpy as np
 from PIL import Image
 import logging
 
+@checkpoint_cache_decorator
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
         device = torch.device("cpu")
