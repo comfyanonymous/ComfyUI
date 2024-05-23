@@ -42,7 +42,7 @@ class FreeU:
         on_cpu_devices = {}
 
         def output_block_patch(h, hsp, transformer_options):
-            scale = scale_dict.get(h.shape[1], None)
+            scale = scale_dict.get(int(h.shape[1]), None)
             if scale is not None:
                 h[:,:h.shape[1] // 2] = h[:,:h.shape[1] // 2] * scale[0]
                 if hsp.device not in on_cpu_devices:
@@ -81,7 +81,7 @@ class FreeU_V2:
         on_cpu_devices = {}
 
         def output_block_patch(h, hsp, transformer_options):
-            scale = scale_dict.get(h.shape[1], None)
+            scale = scale_dict.get(int(h.shape[1]), None)
             if scale is not None:
                 hidden_mean = h.mean(1).unsqueeze(1)
                 B = hidden_mean.shape[0]
