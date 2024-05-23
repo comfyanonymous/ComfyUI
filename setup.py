@@ -136,7 +136,8 @@ def dependencies(force_nightly: bool = False) -> List[str]:
                 _dependencies[i] = f"{stripped}=={existing_torch}"
                 break
         return _dependencies
-    _alternative_indices = [amd_torch_index, nvidia_torch_index]
+    # some torch packages redirect to https://download.pytorch.org/whl/
+    _alternative_indices = [amd_torch_index, nvidia_torch_index, ("https://download.pytorch.org/whl/", "https://download.pytorch.org/whl/")]
     session = PipSession()
 
     # (stable, nightly) tuple
