@@ -132,13 +132,15 @@ def get_total_memory(dev=None, torch_total_too=False):
             _, mem_total_cuda = torch.cuda.mem_get_info(dev)
             mem_total_torch = mem_reserved
             mem_total = mem_total_cuda
-
     if torch_total_too:
-        return (mem_total, mem_total_torch)
+        return mem_total, mem_total_torch
     else:
         return mem_total
 
 
+# we're required to call get_device_name early on to initialize the methods get_total_memory will call
+if torch.cuda.is_available() and hasattr(torch.version, "hip") and torch.version.hip is not None:
+    logging.info(f"Detected HIP device: {torch.cuda.get_device_name(torch.cuda.current_device())}")
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
 total_ram = psutil.virtual_memory().total / (1024 * 1024)
 logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))

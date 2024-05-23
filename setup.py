@@ -162,7 +162,7 @@ def dependencies(force_nightly: bool = False) -> List[str]:
         index_urls_selected = [stable for (stable, _) in index_urls]
         _alternative_indices_selected = [stable for (stable, _) in _alternative_indices]
     try:
-        # pip 23
+        # pip 23, 24
         finder = PackageFinder.create(LinkCollector(session, SearchScope([], index_urls_selected, no_index=False)),
                                       SelectionPreferences(allow_yanked=False, prefer_binary=False,
                                                            allow_all_prereleases=True))
