@@ -53,7 +53,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + M                           | Mute/unmute selected nodes                                                                                         |
 | Ctrl + B                           | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace                   | Delete selected nodes                                                                                              |
-| Ctrl + Delete/Backspace            | Delete the current graph                                                                                           |
+| Ctrl + Backspace                   | Delete the current graph                                                                                           |
 | Space                              | Move the canvas around when held and moving the cursor                                                             |
 | Ctrl/Shift + Click                 | Add clicked node to selection                                                                                      |
 | Ctrl + C/Ctrl + V                  | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
