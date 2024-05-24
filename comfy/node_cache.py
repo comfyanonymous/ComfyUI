@@ -28,7 +28,7 @@ class Cache:
             print(f"[==Cache==]  Removed {k} from cache.")
 
     def add_cache(self, k, item):
-        """模型patch会修改key的名字，缓存之前保留一份key的数据和值的引用"""
+        """model patch change the key name of tensor, cache the names here"""
         keys = list(item.keys())
         values = list(item.values())
         self._cache[k] = (keys, values)
