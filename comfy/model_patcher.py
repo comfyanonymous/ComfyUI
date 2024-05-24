@@ -6,7 +6,7 @@ import uuid
 
 import comfy.utils
 import comfy.model_management
-from comfy.types import UnetWrapperFunction
+from comfy.model_patcher_types import UnetWrapperFunction
 
 
 def apply_weight_decompose(dora_scale, weight):
