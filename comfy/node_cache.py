@@ -57,13 +57,13 @@ def checkpoint_cache_decorator(func):
         # get matched ckpt, vae, controlnet queue
         cache_mapper = caches_mapping.get(dir_name, None)
 
-        if cache_mapper is not None and device in (None, torch.device("cpu"), {}):
+        if cache_mapper is not None:
             if cache_mapper.get_cache(ckpt) is not None:
                 return cache_mapper.get_cache(ckpt)
 
         sd = func(ckpt, *args, device=device, **kwargs)
 
-        if cache_mapper is not None and device in (None, torch.device("cpu"), {}):
+        if cache_mapper is not None:
             cache_mapper.add_cache(ckpt, sd)
             print(f"[==Cache==] Add {dir_name}  {model_name} to cache")
             cache_mapper.clear_cache()
