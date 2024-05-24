@@ -52,6 +52,7 @@ class ControlNet(nn.Module):
         adm_in_channels=None,
         transformer_depth_middle=None,
         transformer_depth_output=None,
+        attn_precision=None,
         device=None,
         operations=comfy.ops.disable_weight_init,
         **kwargs,
@@ -202,7 +203,7 @@ class ControlNet(nn.Module):
                             SpatialTransformer(
                                 ch, num_heads, dim_head, depth=num_transformers, context_dim=context_dim,
                                 disable_self_attn=disabled_sa, use_linear=use_linear_in_transformer,
-                                use_checkpoint=use_checkpoint, dtype=self.dtype, device=device, operations=operations
+                                use_checkpoint=use_checkpoint, attn_precision=attn_precision, dtype=self.dtype, device=device, operations=operations
                             )
                         )
                 self.input_blocks.append(TimestepEmbedSequential(*layers))
@@ -262,7 +263,7 @@ class ControlNet(nn.Module):
             mid_block += [SpatialTransformer(  # always uses a self-attn
                             ch, num_heads, dim_head, depth=transformer_depth_middle, context_dim=context_dim,
                             disable_self_attn=disable_middle_self_attn, use_linear=use_linear_in_transformer,
-                            use_checkpoint=use_checkpoint, dtype=self.dtype, device=device, operations=operations
+                            use_checkpoint=use_checkpoint, attn_precision=attn_precision, dtype=self.dtype, device=device, operations=operations
                         ),
             ResBlock(
                 ch,

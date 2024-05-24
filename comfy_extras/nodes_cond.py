@@ -3,7 +3,7 @@
 class CLIPTextEncodeControlnet:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"clip": ("CLIP", ), "conditioning": ("CONDITIONING", ), "text": ("STRING", {"multiline": True})}}
+        return {"required": {"clip": ("CLIP", ), "conditioning": ("CONDITIONING", ), "text": ("STRING", {"multiline": True, "dynamicPrompts": True})}}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 

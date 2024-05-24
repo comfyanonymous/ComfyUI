@@ -21,7 +21,6 @@ app.registerExtension({
 				s: "#comfy-save-button",
 				o: "#comfy-file-input",
 				Backspace: "#comfy-clear-button",
-				Delete: "#comfy-clear-button",
 				d: "#comfy-load-default-button",
 			};
 

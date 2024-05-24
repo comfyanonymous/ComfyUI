@@ -176,7 +176,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
         for node_id, node_outputs in outputs.items():
             output_data_formatted[node_id] = [[format_value(x) for x in l] for l in node_outputs]
 
-        logging.error("!!! Exception during processing !!!")
+        logging.error(f"!!! Exception during processing!!! {ex}")
         logging.error(traceback.format_exc())
 
         error_details = {
@@ -622,8 +622,27 @@ def full_type_name(klass):
 def validate_prompt(prompt):
     outputs = set()
     for x in prompt:
-        class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
-        if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE == True:
+        if 'class_type' not in prompt[x]:
+            error = {
+                "type": "invalid_prompt",
+                "message": f"Cannot execute because a node is missing the class_type property.",
+                "details": f"Node ID '#{x}'",
+                "extra_info": {}
+            }
+            return (False, error, [], [])
+
+        class_type = prompt[x]['class_type']
+        class_ = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
+        if class_ is None:
+            error = {
+                "type": "invalid_prompt",
+                "message": f"Cannot execute because node {class_type} does not exist.",
+                "details": f"Node ID '#{x}'",
+                "extra_info": {}
+            }
+            return (False, error, [], [])
+
+        if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
             outputs.add(x)
 
     if len(outputs) == 0:

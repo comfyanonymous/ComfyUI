@@ -65,6 +65,12 @@ class SD20(supported_models_base.BASE):
         "use_temporal_attention": False,
     }
 
+    unet_extra_config = {
+        "num_heads": -1,
+        "num_head_channels": 64,
+        "attn_precision": torch.float32,
+    }
+
     latent_format = latent_formats.SD15
 
     def model_type(self, state_dict, prefix=""):
@@ -274,6 +280,12 @@ class SVD_img2vid(supported_models_base.BASE):
         "adm_in_channels": 768,
         "use_temporal_attention": True,
         "use_temporal_resblock": True
+    }
+
+    unet_extra_config = {
+        "num_heads": -1,
+        "num_head_channels": 64,
+        "attn_precision": torch.float32,
     }
 
     clip_vision_prefix = "conditioner.embedders.0.open_clip.model.visual."

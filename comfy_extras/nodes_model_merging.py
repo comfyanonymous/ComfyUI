@@ -175,9 +175,14 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
 
     enable_modelspec = True
     if isinstance(model.model, comfy.model_base.SDXL):
-        metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
+        if isinstance(model.model, comfy.model_base.SDXL_instructpix2pix):
+            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-edit"
+        else:
+            metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-base"
     elif isinstance(model.model, comfy.model_base.SDXLRefiner):
         metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
+    elif isinstance(model.model, comfy.model_base.SVD_img2vid):
+        metadata["modelspec.architecture"] = "stable-video-diffusion-img2vid-v1"
     else:
         enable_modelspec = False
 
@@ -262,7 +267,7 @@ class CLIPSave:
                 for x in extra_pnginfo:
                     metadata[x] = json.dumps(extra_pnginfo[x])
 
-        comfy.model_management.load_models_gpu([clip.load_model()])
+        comfy.model_management.load_models_gpu([clip.load_model()], force_patch_weights=True)
         clip_sd = clip.get_sd()
 
         for prefix in ["clip_l.", "clip_g.", ""]:
