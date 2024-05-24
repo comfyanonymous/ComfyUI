@@ -146,6 +146,115 @@ export function getWebpMetadata(file) {
 	});
 }
 
+/*
+https://aomediacodec.github.io/av1-avif/#brands-overview
+https://www.garykessler.net/library/file_sigs.html
+heic
+  [4 byte offset]
+  66 74 79 70 68 65 69 63
+  ftypheic
+avif
+  [4 byte offset]
+  66 74 79 70 61 76 69 66
+  ftypavif
+*/
+export function getAvifMetadata(file) {
+	return new Promise((r) => {
+		const reader = new FileReader();
+		reader.onload = (event) => {
+			const avif = new Uint8Array(event.target.result);
+			// console.log('event.target.result',event.target.result); // this is a decimal dump of the file: 0, 0, 0, 32, 102, == 00 00 00 20 ..
+			// console.log('avif',avif);
+			const dataView = new DataView(avif.buffer);
+			// console.log('dataView',dataView);
+
+			// Check that the AVIF signature is present: [4 byte offset] ftypheic or ftypavif
+			// console.log('avif dataView.getUint32(4)',dataView.getUint32(4));  // 1718909296 = 0x66747970 = ftyp
+			// console.log('avif dataView.getUint32(8)',dataView.getUint32(8));  // 1635150182 = 0x61766966 = avif
+			// console.log('avif dataView.getUint32(8)',dataView.getUint32(8));  // 1751476579 = 0x68656963 = heic
+			//                1718909296 = 0x66747970 = ftyp          1635150182 = 0x61766966 = avif         1751476579 = 0x68656963 = heic
+			if (!(dataView.getUint32(4) == 0x66747970 && (dataView.getUint32(8) == 0x61766966 || dataView.getUint32(8) == 0x68656963))) {
+				console.error("Not a valid AVIF file");
+				r();
+				return;
+			}
+
+			/*
+			dataView.getUint32() reads 4 bytes starting at the specified byte offset of DataView
+			dataView.getUint16() reads 2 bytes starting at the specified byte offset of DataView
+			dataView.getUint8()  reads 1 bytes starting at the specified byte offset of DataView
+			https://stackoverflow.com/questions/7555842/questions-about-exif-in-hexadecimal-form
+			The Exif APP1 Section is actually Exif\0\0 then followed by TIFF Header of 10-bytes length
+			therefore, we have at 0x15F: 6-bytes Exif\0\0 then 10-bytes Tiff Header
+			
+			Some Exif color data starts at 0xCA offset, but since we (we = save image custom nodes) add more Exif metadata, 
+			we have our own block starting at 0x15F. I generated many avif and they all start at 0x15F. 
+			We can assume valid avif should come from those custom nodes anyways. Don't you think?
+			45 78 69 66 00 00             starts at 0x15F: Exif + \0\0 = 6-bytes
+			E  x  i  f  00 00
+			Tiff header after is 0xA long (10 bytes) and contains information about byte-order of IFD sections and a pointer to the 0th IFD
+			Tiff header:
+			4D 4D 00 2A 00 00 00 08 00 02
+			-----|     |
+			49 49|     |                  (II for Intel) if the byte-order is little-endian
+			4D 4D|     |                  (MM for Motorola) for big-endian
+			     |00 2A|                  magic bytes 0x00 0x2A (42, haha...)
+			     |00 2A|           |      following 4 bytes will tell the offset to the 0th IFD from the start of the TIFF header.
+			
+			IFD Fields are 12-byte subsections of IFD sections
+			For example, if we are looking for only 2 IFD fields with 0x9286/UserComment/prompt and 0x010e/ImageDescription/workflow:
+			4D 4D 00 2A 00 00 00 08 00 02         0th IFD, 10-byte long, last 2 bytes give how many IFD fields there are
+			
+			01 0E 00 02 00 00 2F 15 00 00 00 26   010e/ImageDescription IFD1
+			92 86 00 02 00 00 0F 7C 00 00 2F 3C   9286/UserComment      IFD2
+			-----|                                tag ID
+			     |-----|                          type of the field data. 1 for byte, 2 for ascii, 3 for short (uint16), 4 for long (uint32), etc
+			           |-----------|              length in 4 bytes, only for ascii, which we only care about; max is 4GB of data
+			                       |-----------|  4-byte field value, no idea what that's for
+			                                      
+			00 00 00 00                           then 4-byte offset from the end of the TIFF header to the start of the first IFD value
+			Workflow: {"...0.4} 00                W starts at offset 0x18B  (don't care) and is length 0x2F15 including 1 last \0
+			00                                    00 separator
+			Prompt: {"...     } 00                P starts at offset 0x30A1 (don't care) and is length 0x0F7C including 1 last \0
+			
+			*/
+			
+			// Start searching for Exif chunks after the AVIF signature
+			// console.log('avif dataView.getUint32(0x15F)',dataView.getUint32(0x15F));  // 1165519206 = 0x45786966 = Exif
+			let offset = 0x15F;
+			let txt_chunks = {}
+			// Loop through the chunks in the AVIF file
+			// while (offset < avif.length) {
+			const chunk_length = dataView.getUint32(0x8A, true);
+			// console.log('chunk_length',chunk_length)   // 0x3EC0 and 0x3EC2 at 0x8A
+			// avif clearly are different beasts than webp, there is only one chunck of Exif data at the beginning.
+			// If we ever come across one that is different, surely it's not been produced by a custom node and surely, the metadata is invalid
+			// while (offset < (offset + chunk_length)) {
+				const chunk_type = String.fromCharCode(...avif.slice(offset, offset + 4));
+				// console.log('chunk_type',chunk_type)
+				if (chunk_type === "Exif") {
+					if (String.fromCharCode(...avif.slice(offset, offset + 6)) == "Exif\0\0") {
+						offset += 6;
+					}
+					// parseExifData must start at the Tiff Header: 0x4949 or 0x4D4D for Big-Endian
+					let data = parseExifData(avif.slice(offset, offset + chunk_length));
+					for (var key in data) {
+						var value = data[key];
+						let index = value.indexOf(':');
+						txt_chunks[value.slice(0, index)] = value.slice(index + 1);
+					}
+				}
+			
+			  // offset += chunk_length;
+			// }
+
+			r(txt_chunks);
+		};
+
+		reader.readAsArrayBuffer(file);
+	});
+}
+
 export function getLatentMetadata(file) {
 	return new Promise((r) => {
 		const reader = new FileReader();
