@@ -1,8 +1,8 @@
 #Rename this to extra_model_paths.yaml and ComfyUI will load it
 
 
-#config for a1111 ui
-#all you have to do is change the base_path to where yours is installed
+# Config for a1111 ui
+# All you have to do is change the base_path to where yours is installed
 a1111:
   base_path: path/to/stable-diffusion-webui/
   checkpoints: models/Stable-diffusion
@@ -19,8 +19,8 @@ a1111:
   hypernetworks: models/hypernetworks
   controlnet: models/ControlNet
 
-#config for comfyui
-#your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
+# Config for comfyui
+# Your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
 
 #comfyui:
 #     base_path: path/to/comfyui/
