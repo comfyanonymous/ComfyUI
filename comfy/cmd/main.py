@@ -213,11 +213,11 @@ async def main():
     try:
         await run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
                   call_on_start=call_on_start)
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, KeyboardInterrupt):
+        logging.debug("\nStopped server")
+    finally:
         if distributed:
             await q.close()
-        logging.debug("\nStopped server")
-
     cleanup_temp()
 
 
