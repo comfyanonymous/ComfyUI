@@ -111,6 +111,22 @@ To serve with `https://` on Windows easily, use [Caddy](https://github.com/caddy
 caddy reverse-proxy --from localhost:443 --to localhost:8188 --tls self_signed
 ```
 
+##### Notes for AMD Users
+
+Until a workaround is found, specify these variables:
+
+RDNA 3 (RX 7600 and later)
+```shell
+export HSA_OVERRIDE_GFX_VERSION=11.0.0
+comfyui
+```
+
+RDNA 2 (RX 6600 and others)
+```shell
+export HSA_OVERRIDE_GFX_VERSION=10.3.0
+comfyui
+```
+
 ### Known Models
 
 These models will be automatically downloaded when you queue prompts with workflows that use them:
