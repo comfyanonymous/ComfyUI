@@ -199,8 +199,71 @@ class MaskEditorDialog extends ComfyDialog {
 		return divElement;
 	}
 
+    createPointerTypeSelect(self) {
+
+        const divElement = document.createElement('div');
+		divElement.id = "maskeditor-pointer-type";
+        divElement.style.cssFloat = "left";
+		divElement.style.fontFamily = "sans-serif";
+		divElement.style.marginRight = "4px";
+		divElement.style.color = "var(--input-text)";
+		divElement.style.backgroundColor = "var(--comfy-input-bg)";
+		divElement.style.borderRadius = "8px";
+		divElement.style.borderColor = "var(--border-color)";
+		divElement.style.borderStyle = "solid";
+		divElement.style.fontSize = "15px";
+		divElement.style.height = "21px";
+		divElement.style.padding = "1px 6px";
+		divElement.style.display = "flex";
+		divElement.style.position = "relative";
+		divElement.style.top = "2px";
+		divElement.style.pointerEvents = "auto";
+
+        const labelElement = document.createElement("label");
+        labelElement.textContent = "Pointer Type:";
+
+        const selectElement = document.createElement("select");
+        selectElement.style.borderRadius = 0;
+        selectElement.style.borderColor = 'transparent';
+        selectElement.style.borderStyle = 'unset';
+        selectElement.style.fontSize = '0.9em';
+        const optionArc = document.createElement("option");
+        optionArc.value = "arc";
+        optionArc.text = "Circle";
+        optionArc.selected = "selected";
+        const optionRect = document.createElement("option");
+        optionRect.value = "rect";
+        optionRect.text = "Square";
+
+        selectElement.appendChild(optionArc);
+        selectElement.appendChild(optionRect);
+
+        selectElement.addEventListener("change", (event) => {
+            self.pointer_type = event.target.value;
+            this.setBrushBorderRadius(self)
+        });
+
+        divElement.appendChild(labelElement);
+        divElement.appendChild(selectElement);
+
+        return divElement;
+    }
+
+    setBrushBorderRadius(self) {
+        if (self.pointer_type === 'rect') {
+            this.brush.style.borderRadius = "0%";
+            this.brush.style.MozBorderRadius = "0%";
+            this.brush.style.WebkitBorderRadius = "0%";
+        } else {
+            this.brush.style.borderRadius = "50%";
+            this.brush.style.MozBorderRadius = "50%";
+            this.brush.style.WebkitBorderRadius = "50%";
+        }
+    }
+
 	setlayout(imgCanvas, maskCanvas) {
 		const self = this;
+        self.pointer_type = 'arc'; // Default pointer type
 
 		// If it is specified as relative, using it only as a hidden placeholder for padding is recommended
 		// to prevent anomalies where it exceeds a certain size and goes outside of the window.
@@ -217,13 +280,11 @@ class MaskEditorDialog extends ComfyDialog {
 		brush.style.backgroundColor = "transparent";
 		brush.style.outline = "1px dashed black";
 		brush.style.boxShadow = "0 0 0 1px white";
-		brush.style.borderRadius = "50%";
-		brush.style.MozBorderRadius = "50%";
-		brush.style.WebkitBorderRadius = "50%";
 		brush.style.position = "absolute";
 		brush.style.zIndex = 8889;
 		brush.style.pointerEvents = "none";
 		this.brush = brush;
+        this.setBrushBorderRadius(self)
 		this.element.appendChild(imgCanvas);
 		this.element.appendChild(maskCanvas);
 		this.element.appendChild(bottom_panel);
@@ -244,6 +305,8 @@ class MaskEditorDialog extends ComfyDialog {
 			    self.maskCanvas.style.opacity = self.brush_opacity;
 			}
 		});
+
+        this.brush_pointer_type_select = this.createPointerTypeSelect(self);
 
 		this.colorButton = this.createLeftButton(this.getColorButtonText(), () => {
 			if (self.brush_color_mode === "black") {
@@ -280,6 +343,7 @@ class MaskEditorDialog extends ComfyDialog {
 		bottom_panel.appendChild(cancelButton);
 		bottom_panel.appendChild(this.brush_size_slider);
 		bottom_panel.appendChild(this.brush_opacity_slider);
+        bottom_panel.appendChild(this.brush_pointer_type_select);
 		bottom_panel.appendChild(this.colorButton);
 
 		imgCanvas.style.position = "absolute";
@@ -294,6 +358,7 @@ class MaskEditorDialog extends ComfyDialog {
 		const maskCanvasStyle = this.getMaskCanvasStyle();
 		maskCanvas.style.mixBlendMode = maskCanvasStyle.mixBlendMode;
 		maskCanvas.style.opacity = maskCanvasStyle.opacity;
+
 	}
 
 	async show() {
@@ -743,7 +808,11 @@ class MaskEditorDialog extends ComfyDialog {
 					self.maskCtx.beginPath();
 					self.maskCtx.fillStyle = this.getMaskFillStyle();
 					self.maskCtx.globalCompositeOperation = "source-over";
-					self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+                    if (self.pointer_type === 'rect') {
+                        self.maskCtx.rect(x-brush_size, y-brush_size, brush_size*2, brush_size*2);
+                    } else {
+                        self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+                    }
 					self.maskCtx.fill();
 					self.lastx = x;
 					self.lasty = y;
@@ -764,8 +833,12 @@ class MaskEditorDialog extends ComfyDialog {
 					for (var i = 0; i < distance; i+=5) {
 						var px = self.lastx + (directionX * i);
 						var py = self.lasty + (directionY * i);
-						self.maskCtx.arc(px, py, brush_size, 0, Math.PI * 2, false);
-						self.maskCtx.fill();
+                        if (self.pointer_type === 'rect') {
+                            self.maskCtx.rect(px-brush_size, py-brush_size, brush_size*2, brush_size*2);
+                        } else {
+                            self.maskCtx.arc(px, py, brush_size, 0, Math.PI * 2, false);
+                        }
+                        self.maskCtx.fill();
 					}
 					self.lastx = x;
 					self.lasty = y;
@@ -794,7 +867,11 @@ class MaskEditorDialog extends ComfyDialog {
 				requestAnimationFrame(() => {
 					self.maskCtx.beginPath();
 					self.maskCtx.globalCompositeOperation = "destination-out";
-					self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+                    if (self.pointer_type === 'rect') {
+                        self.maskCtx.rect(x-brush_size, y-brush_size, brush_size*2, brush_size*2);
+                    } else {
+                        self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+                    }
 					self.maskCtx.fill();
 					self.lastx = x;
 					self.lasty = y;
@@ -814,7 +891,11 @@ class MaskEditorDialog extends ComfyDialog {
 					for (var i = 0; i < distance; i+=5) {
 						var px = self.lastx + (directionX * i);
 						var py = self.lasty + (directionY * i);
-						self.maskCtx.arc(px, py, brush_size, 0, Math.PI * 2, false);
+                        if (self.pointer_type === 'rect') {
+                            self.maskCtx.rect(px-brush_size, py-brush_size, brush_size*2, brush_size*2);
+                        } else {
+                            self.maskCtx.arc(px, py, brush_size, 0, Math.PI * 2, false);
+                        }
 						self.maskCtx.fill();
 					}
 					self.lastx = x;
@@ -865,7 +946,11 @@ class MaskEditorDialog extends ComfyDialog {
 			} else {
 				self.maskCtx.globalCompositeOperation = "destination-out";
 			}
-			self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+            if (self.pointer_type === 'rect') {
+                self.maskCtx.rect(x-brush_size, y-brush_size, brush_size*2, brush_size*2);
+            } else {
+                self.maskCtx.arc(x, y, brush_size, 0, Math.PI * 2, false);
+            }
 			self.maskCtx.fill();
 			self.lastx = x;
 			self.lasty = y;
