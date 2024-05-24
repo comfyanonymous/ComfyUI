@@ -3,7 +3,7 @@ import { ComfyWidgets, initWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { getPngMetadata, getWebpMetadata, getAvifMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js"
 
@@ -2183,6 +2183,19 @@ export class ComfyApp {
 			}
 		} else if (file.type === "image/webp") {
 			const pngInfo = await getWebpMetadata(file);
+			// Support loading workflows from that webp custom node.
+			const workflow = pngInfo?.workflow || pngInfo?.Workflow;
+			const prompt = pngInfo?.prompt || pngInfo?.Prompt;
+
+			if (workflow) {
+				this.loadGraphData(JSON.parse(workflow));
+			} else if (prompt) {
+				this.loadApiJson(JSON.parse(prompt));
+			} else {
+				this.showErrorOnFileLoad(file);
+			}
+		} else if (file.type === "image/avif") {
+			const pngInfo = await getAvifMetadata(file);
 			// Support loading workflows from that webp custom node.
 			const workflow = pngInfo?.workflow || pngInfo?.Workflow;
 			const prompt = pngInfo?.prompt || pngInfo?.Prompt;
