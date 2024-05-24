@@ -25,9 +25,8 @@ class TAESDPreviewerImpl(LatentPreviewer):
 
     def decode_latent_to_preview(self, x0):
         x_sample = self.taesd.decode(x0[:1])[0].detach()
-        x_sample = torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
-        x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
-        x_sample = x_sample.astype(np.uint8)
+        x_sample = 255. * torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
+        x_sample = np.moveaxis(x_sample.to(device="cpu", dtype=torch.uint8, non_blocking=comfy.model_management.device_supports_non_blocking(x_sample.device)).numpy(), 0, 2)
 
         preview_image = Image.fromarray(x_sample)
         return preview_image
