@@ -44,7 +44,7 @@ def set_model_options_patch_replace(model_options, patch, name, block_name, numb
     return model_options
 
 
-ModelType = TypeVar("ModelType", torch.nn.Module)
+ModelType = TypeVar("ModelType", bound=torch.nn.Module)
 
 
 class ModelPatcher(Generic[ModelType]):
