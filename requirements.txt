@@ -50,3 +50,4 @@ opentelemetry-instrumentation-aio-pika
 opentelemetry-instrumentation-requests
 opentelemetry-semantic-conventions
 wrapt>=1.16.0
+pip_system_certs
