@@ -1,8 +1,10 @@
+from __future__ import annotations
 import torch
 import copy
 import inspect
 import logging
 import uuid
+from typing import Generic, Optional, TypeVar
 
 import comfy.utils
 import comfy.model_management
@@ -41,27 +43,37 @@ def set_model_options_patch_replace(model_options, patch, name, block_name, numb
     model_options["transformer_options"] = to
     return model_options
 
-class ModelPatcher:
-    def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
-        self.size = size
-        self.model = model
+
+ModelType = TypeVar("ModelType", torch.nn.Module)
+
+
+class ModelPatcher(Generic[ModelType]):
+    def __init__(
+        self,
+        model: ModelType,
+        load_device: torch.device,
+        offload_device: torch.device,
+        size: int = 0,
+        current_device: Optional[torch.device] = None,
+        weight_inplace_update: bool = False
+    ):
+        self.size: int = size
+        self.model: ModelType = model
         self.patches = {}
         self.backup = {}
         self.object_patches = {}
         self.object_patches_backup = {}
         self.model_options = {"transformer_options":{}}
         self.model_size()
-        self.load_device = load_device
-        self.offload_device = offload_device
-        if current_device is None:
-            self.current_device = self.offload_device
-        else:
-            self.current_device = current_device
-
-        self.weight_inplace_update = weight_inplace_update
-        self.model_lowvram = False
-        self.lowvram_patch_counter = 0
-        self.patches_uuid = uuid.uuid4()
+        self.load_device: torch.device = load_device
+        self.offload_device: torch.device = offload_device
+        self.current_device: torch.device = (
+            current_device if current_device is not None else offload_device
+        )
+        self.weight_inplace_update: bool = weight_inplace_update
+        self.model_lowvram: bool = False
+        self.lowvram_patch_counter: int = 0
+        self.patches_uuid: uuid.UUID = uuid.uuid4()
 
     def model_size(self):
         if self.size > 0:
