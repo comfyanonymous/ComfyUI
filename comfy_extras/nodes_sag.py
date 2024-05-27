@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import math
 
 from einops import rearrange, repeat
-import os
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.samplers
 

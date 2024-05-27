@@ -1,10 +1,5 @@
-import math
-
-import torch
-import torch.nn.functional as F
-import comfy.model_management
-
 from kornia.filters import canny
+import comfy.model_management
 
 
 class Canny:
