@@ -2238,6 +2238,7 @@ export class ComfyApp {
 			const data = apiData[id];
 			const node = LiteGraph.createNode(data.class_type);
 			node.id = isNaN(+id) ? id : +id;
+			node.title = data._meta?.title ?? node.title
 			graph.add(node);
 		}
 
