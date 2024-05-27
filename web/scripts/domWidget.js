@@ -11,9 +11,10 @@ function intersect(a, b) {
 	else return null;
 }
 
-function getClipPath(node, element, elRect) {
+function getClipPath(node, element) {
 	const selectedNode = Object.values(app.canvas.selected_nodes)[0];
 	if (selectedNode && selectedNode !== node) {
+		const elRect = element.getBoundingClientRect();
 		const MARGIN = 7;
 		const scale = app.canvas.ds.scale;
 
@@ -269,7 +270,7 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 			});
 
 			if (enableDomClipping) {
-				element.style.clipPath = getClipPath(node, element, elRect);
+				element.style.clipPath = getClipPath(node, element);
 				element.style.willChange = "clip-path";
 			}
 
