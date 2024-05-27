@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange, repeat
-from typing import Optional, Any
+from typing import Optional
 import logging
 
 from .diffusionmodules.util import AlphaBlender, timestep_embedding

@@ -14,7 +14,6 @@ import comfy.utils
 from . import clip_vision
 from . import gligen
 from . import diffusers_convert
-from . import model_base
 from . import model_detection
 
 from . import sd1_clip
