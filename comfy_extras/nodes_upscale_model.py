@@ -1,9 +1,18 @@
 import os
+import logging
 from spandrel import ModelLoader, ImageModelDescriptor
 from comfy import model_management
 import torch
 import comfy.utils
 import folder_paths
+
+try:
+    from spandrel_extra_arches import EXTRA_REGISTRY
+    from spandrel import MAIN_REGISTRY
+    MAIN_REGISTRY.add(*EXTRA_REGISTRY)
+    logging.info("Successfully imported spandrel_extra_arches: support for non commercial upscale models.")
+except:
+    pass
 
 class UpscaleModelLoader:
     @classmethod
