@@ -1,7 +1,6 @@
 import os
 import pathlib
 import re
-import sys
 import uuid
 from datetime import datetime
 
@@ -275,3 +274,12 @@ def test_file_request_parameter(use_temporary_input_directory):
 
     assert loaded_image.shape == load_image_node_rgb.shape
     assert torch.allclose(loaded_image, load_image_node_rgb)
+
+
+def test_file_request_to_http_url_no_exceptions():
+    n = ImageRequestParameter()
+    loaded_image, = n.execute(value="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/A_rainbow_at_sunset_after_rain_in_Gaziantep%2C_Turkey.IMG_2448.jpg/484px-A_rainbow_at_sunset_after_rain_in_Gaziantep%2C_Turkey.IMG_2448.jpg")
+    _, height, width, channels = loaded_image.shape
+    assert width == 484
+    assert height == 480
+    assert channels == 3
