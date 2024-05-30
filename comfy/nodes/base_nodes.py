@@ -26,7 +26,7 @@ from ..cli_args import args
 from ..cmd import folder_paths, latent_preview
 from ..execution_context import current_execution_context
 from ..images import open_image
-from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, huggingface_repos
+from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, huggingface_repos, KNOWN_CLIP_MODELS, KNOWN_UNET_MODELS
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 from ..open_exr import load_exr
@@ -799,7 +799,7 @@ class ControlNetApplyAdvanced:
 class UNETLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "unet_name": (folder_paths.get_filename_list("unet"),),
+        return {"required": { "unet_name": (get_filename_list_with_downloadable("unet", KNOWN_UNET_MODELS),),
                              }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "load_unet"
@@ -807,14 +807,14 @@ class UNETLoader:
     CATEGORY = "advanced/loaders"
 
     def load_unet(self, unet_name):
-        unet_path = folder_paths.get_full_path("unet", unet_name)
+        unet_path = get_or_download("unet", unet_name, KNOWN_UNET_MODELS)
         model = sd.load_unet(unet_path)
         return (model,)
 
 class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name": (folder_paths.get_filename_list("clip"),),
+        return {"required": { "clip_name": (get_filename_list_with_downloadable("clip", KNOWN_CLIP_MODELS),),
                               "type": (["stable_diffusion", "stable_cascade"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
@@ -823,11 +823,14 @@ class CLIPLoader:
     CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name, type="stable_diffusion"):
-        clip_type = sd.CLIPType.STABLE_DIFFUSION
-        if type == "stable_cascade":
+        if type == "stable_diffusion":
+            clip_type = sd.CLIPType.STABLE_DIFFUSION
+        elif type == "stable_cascade":
             clip_type = sd.CLIPType.STABLE_CASCADE
+        else:
+            logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 
-        clip_path = folder_paths.get_full_path("clip", clip_name)
+        clip_path = get_or_download("clip", clip_name, KNOWN_CLIP_MODELS)
         clip = sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 

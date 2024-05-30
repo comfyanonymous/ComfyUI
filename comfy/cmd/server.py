@@ -23,7 +23,6 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
 from can_ada import URL, parse as urlparse
-from pkg_resources import resource_filename
 from typing_extensions import NamedTuple
 
 import comfy.interruption
@@ -38,6 +37,7 @@ from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.file_output_path import file_output_path
+from ..component_model.files import get_package_as_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
     ExecutionStatus
 from ..digest import digest
@@ -115,7 +115,7 @@ class PromptServer(ExecutorToClientProgress):
         self.sockets = dict()
         web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../web")
         if not os.path.exists(web_root_path):
-            web_root_path = resource_filename('comfy', 'web/')
+            web_root_path = get_package_as_path('comfy', 'web/')
         self.web_root = web_root_path
         routes = web.RouteTableDef()
         self.routes: web.RouteTableDef = routes

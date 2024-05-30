@@ -215,7 +215,7 @@ class StringPosixPathJoin(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                f"value{i}": ("STRING", {"default": "", "multiline": False}) for i in range(5)
+                f"value{i}": ("STRING", {"default": "", "multiline": False, "forceInput": True}) for i in range(5)
             }
         }
 
@@ -284,7 +284,7 @@ class DevNullUris(CustomNode):
 class StringJoin(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
-        required = {f"value{i}": ("STRING", {"default": "", "multiline": True}) for i in range(5)}
+        required = {f"value{i}": ("STRING", {"default": "", "multiline": True, "forceInput": True}) for i in range(5)}
         required["separator"] = ("STRING", {"default": "_"})
         return {
             "required": required
@@ -304,7 +304,7 @@ class StringToUri(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "value": ("STRING", {"default": "", "multiline": True}),
+                "value": ("STRING", {"default": "", "multiline": True, "forceInput": True}),
                 "batch": ("INT", {"default": 1})
             }
         }

@@ -3,7 +3,7 @@ import copy
 import torch
 
 from . import sd1_clip
-from .sd1_clip import get_clip_config_dict
+from .component_model.files import get_path_as_dict
 
 
 class SDXLClipG(sd1_clip.SDClipModel):
@@ -12,7 +12,7 @@ class SDXLClipG(sd1_clip.SDClipModel):
             layer = "hidden"
             layer_idx = -2
 
-        textmodel_json_config = get_clip_config_dict(textmodel_json_config, "clip_config_bigg.json")
+        textmodel_json_config = get_path_as_dict(textmodel_json_config, "clip_config_bigg.json")
         super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype,
                          special_tokens={"start": 49406, "end": 49407, "pad": 0}, layer_norm_hidden_state=False)
 
@@ -91,7 +91,7 @@ class StableCascadeTokenizer(sd1_clip.SD1Tokenizer):
 
 class StableCascadeClipG(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", max_length=77, freeze=True, layer="hidden", layer_idx=-1, dtype=None, textmodel_json_config=None):
-        textmodel_json_config = get_clip_config_dict(textmodel_json_config, "clip_config_bigg.json")
+        textmodel_json_config = get_path_as_dict(textmodel_json_config, "clip_config_bigg.json")
         super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype,
                          special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=False, enable_attention_masks=True)
 

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import copy
-import importlib.resources as resources
-import json
 import logging
 import os
 import traceback
@@ -10,36 +8,12 @@ import zipfile
 from typing import Tuple, Sequence, TypeVar
 
 import torch
-from pkg_resources import resource_filename
 from transformers import CLIPTokenizer, PreTrainedTokenizerBase
 
 from . import clip_model
 from . import model_management
 from . import ops
-
-
-def get_clip_config_dict(text_model_config_or_path: str | dict | None, text_model_config_path_in_comfy: str, package: str = 'comfy') -> dict:
-    config: dict | None = None
-
-    if text_model_config_or_path is None:
-        text_model_config_or_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), text_model_config_path_in_comfy)
-
-    if isinstance(text_model_config_or_path, str):
-        if text_model_config_or_path.startswith("{"):
-            config = json.loads(text_model_config_or_path)
-        else:
-            if not os.path.exists(text_model_config_or_path):
-                with resources.as_file(resources.files(package) / text_model_config_path_in_comfy) as config_path:
-                    with open(config_path) as f:
-                        config = json.load(f)
-            else:
-                with open(text_model_config_or_path) as f:
-                    config = json.load(f)
-    elif isinstance(text_model_config_or_path, dict):
-        config = text_model_config_or_path
-
-    assert config is not None
-    return config
+from .component_model.files import get_path_as_dict, get_package_as_path
 
 
 def gen_empty_tokens(special_tokens, length):
@@ -109,7 +83,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             special_tokens = {"start": 49406, "end": 49407, "pad": 49407}
         assert layer in self.LAYERS
 
-        config = get_clip_config_dict(textmodel_json_config, "sd1_clip_config.json")
+        config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json")
         self.transformer = model_class(config, dtype, device, ops.manual_cast)
         self.num_layers = self.transformer.num_layers
 
@@ -402,7 +376,7 @@ class SDTokenizer:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         if not os.path.exists(os.path.join(tokenizer_path, "tokenizer_config.json")):
             # package based
-            tokenizer_path = resource_filename('comfy', 'sd1_tokenizer/')
+            tokenizer_path = get_package_as_path('comfy.sd1_tokenizer')
         self.tokenizer_class = tokenizer_class
         self.tokenizer_path = tokenizer_path
         self.tokenizer: PreTrainedTokenizerBase = tokenizer_class.from_pretrained(tokenizer_path)

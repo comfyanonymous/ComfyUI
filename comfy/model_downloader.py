@@ -167,7 +167,6 @@ KNOWN_CHECKPOINTS = [
     CivitFile(133005, 357609, filename="juggernautXL_v9Rundiffusionphoto2.safetensors"),
     CivitFile(112902, 351306, filename="dreamshaperXL_v21TurboDPMSDE.safetensors"),
     CivitFile(139562, 344487, filename="realvisxlV40_v40Bakedvae.safetensors"),
-
 ]
 
 KNOWN_UNCLIP_CHECKPOINTS = [
@@ -303,6 +302,10 @@ KNOWN_HUGGINGFACE_MODEL_REPOS = {
     'JingyeChen22/textdiffuser2-full-ft',
     "microsoft/Phi-3-mini-4k-instruct",
 }
+
+KNOWN_UNET_MODELS: List[Union[CivitFile | HuggingFile]] = []
+
+KNOWN_CLIP_MODELS: List[Union[CivitFile | HuggingFile]] = []
 
 
 def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:

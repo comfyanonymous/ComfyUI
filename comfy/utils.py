@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import math
+import os
 import os.path
 import random
 import struct

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Dict
+from typing import Any, Dict, Optional
 
 import torch
 from fastchat.model import get_conversation_template
@@ -31,16 +31,20 @@ class TransformersLoader(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "ckpt_name": (huggingface_repos(),)
+                "ckpt_name": (huggingface_repos(),),
+                "subfolder": ("STRING", {})
             }
         }
 
     RETURN_TYPES = "MODEL",
     FUNCTION = "execute"
 
-    def execute(self, ckpt_name: str):
+    def execute(self, ckpt_name: str, subfolder: Optional[str] = None):
+        hub_kwargs = {}
+        if subfolder is not None and subfolder != "":
+            hub_kwargs["subfolder"] = subfolder
         with comfy_tqdm():
-            model = AutoModelForCausalLM.from_pretrained(ckpt_name, torch_dtype=unet_dtype(), device_map=get_torch_device_name(unet_offload_device()), low_cpu_mem_usage=True, trust_remote_code=True)
+            model = AutoModelForCausalLM.from_pretrained(ckpt_name, torch_dtype=unet_dtype(), device_map=get_torch_device_name(unet_offload_device()), low_cpu_mem_usage=True, trust_remote_code=True, **hub_kwargs)
             tokenizer = AutoTokenizer.from_pretrained(ckpt_name)
         model_managed = TransformersManagedModel(ckpt_name, model, tokenizer)
         return model_managed,
