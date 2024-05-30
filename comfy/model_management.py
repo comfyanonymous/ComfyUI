@@ -5,6 +5,7 @@ from comfy.cli_args import args
 import torch
 import sys
 import platform
+from comfy.cache import model_cache
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -466,14 +467,30 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
 def load_model_gpu(model):
     return load_models_gpu([model])
 
+
+def get_cpu_memory():
+    return round(get_free_memory(torch.device("cpu")) / 1024 ** 3, 2)
+
+
+def check_and_free_cpu_memory():
+    # set free cpu memory size threshold flag to make free action
+    current_free_memory_cpu = get_cpu_memory()
+    while (current_free_memory_cpu <= 8) and len(model_cache) > 0:
+        model_cache.free_one_model_cache()   
+        soft_empty_cache(force=True)
+        current_free_memory_cpu = get_cpu_memory()
+
+
 def cleanup_models(keep_clone_weights_loaded=False):
+    check_and_free_cpu_memory()
     to_delete = []
+
     for i in range(len(current_loaded_models)):
         if sys.getrefcount(current_loaded_models[i].model) <= 2:
             if not keep_clone_weights_loaded:
                 to_delete = [i] + to_delete
-            #TODO: find a less fragile way to do this.
-            elif sys.getrefcount(current_loaded_models[i].real_model) <= 3: #references from .real_model + the .model
+            # TODO: find a less fragile way to do this.
+            elif sys.getrefcount(current_loaded_models[i].real_model) <= 3:  # references from .real_model + the .model
                 to_delete = [i] + to_delete
 
     for i in to_delete:

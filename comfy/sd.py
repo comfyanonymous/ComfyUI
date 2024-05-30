@@ -19,6 +19,7 @@ from . import model_detection
 from . import sd1_clip
 from . import sd2_clip
 from . import sdxl_clip
+from .cache import model_cache
 
 import comfy.model_patcher
 import comfy.lora
@@ -464,48 +465,70 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
     if model_config.clip_vision_prefix is not None:
         if output_clipvision:
-            clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
+            if output_clipvision:
+                clipvision = model_cache.get_item(ckpt_path, 'clipvision')
+                if clipvision is None:
+                    clipvision = clip_vision.load_clipvision_from_sd(sd, model_config.clip_vision_prefix, True)
 
     if output_model:
+        model_patcher = model_cache.get_item(ckpt_path, 'model')
         inital_load_device = model_management.unet_inital_load_device(parameters, unet_dtype)
-        offload_device = model_management.unet_offload_device()
-        model = model_config.get_model(sd, "model.diffusion_model.", device=inital_load_device)
-        model.load_model_weights(sd, "model.diffusion_model.")
+        if model_patcher is None:
+            offload_device = model_management.unet_offload_device()
+            model = model_config.get_model(sd, "model.diffusion_model.", device=inital_load_device)
+            model.load_model_weights(sd, "model.diffusion_model.")
+            model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device, current_device=inital_load_device)
 
-    if output_vae:
-        vae_sd = comfy.utils.state_dict_prefix_replace(sd, {k: "" for k in model_config.vae_key_prefix}, filter_keys=True)
-        vae_sd = model_config.process_vae_state_dict(vae_sd)
-        vae = VAE(sd=vae_sd)
-
-    if output_clip:
-        clip_target = model_config.clip_target()
-        if clip_target is not None:
-            clip_sd = model_config.process_clip_state_dict(sd)
-            if len(clip_sd) > 0:
-                clip = CLIP(clip_target, embedding_directory=embedding_directory)
-                m, u = clip.load_sd(clip_sd, full_model=True)
-                if len(m) > 0:
-                    m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
-                    if len(m_filter) > 0:
-                        logging.warning("clip missing: {}".format(m))
-                    else:
-                        logging.debug("clip missing: {}".format(m))
-
-                if len(u) > 0:
-                    logging.debug("clip unexpected {}:".format(u))
-            else:
-                logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
-
-    left_over = sd.keys()
-    if len(left_over) > 0:
-        logging.debug("left over keys: {}".format(left_over))
-
-    if output_model:
-        model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded straight to GPU")
             model_management.load_model_gpu(model_patcher)
 
+    if output_vae:
+        vae = model_cache.get_item(ckpt_path, 'vae')
+        if vae is None:
+            vae_sd = comfy.utils.state_dict_prefix_replace(sd, {k: "" for k in model_config.vae_key_prefix}, filter_keys=True)
+            vae_sd = model_config.process_vae_state_dict(vae_sd)
+            vae = VAE(sd=vae_sd)
+
+    clip_key = f"clip_{embedding_directory}"
+    if output_clip:
+        clip = model_cache.get_item(ckpt_path, clip_key)
+        if clip is None:
+            clip_target = model_config.clip_target()
+            if clip_target is not None:
+                clip_sd = model_config.process_clip_state_dict(sd)
+                if len(clip_sd) > 0:
+                    clip = CLIP(clip_target, embedding_directory=embedding_directory)
+                    m, u = clip.load_sd(clip_sd, full_model=True)
+                    if len(m) > 0:
+                        m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
+                        if len(m_filter) > 0:
+                            logging.warning("clip missing: {}".format(m))
+                        else:
+                            logging.debug("clip missing: {}".format(m))
+
+                    if len(u) > 0:
+                        logging.debug("clip unexpected {}:".format(u))
+                else:
+                    logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
+
+    left_over = sd.keys()
+    if len(left_over) > 0:
+        logging.debug("left over keys: {}".format(left_over))
+    if model:
+        logging.debug(f"cache model of : {ckpt_path}")
+        model_cache.cache_model(ckpt_path, model_patcher)
+    if clip:
+        logging.debug(f"cache clip of : {ckpt_path}")
+        model_cache.cache_clip(ckpt_path, clip_key, clip)
+    if vae:
+        logging.debug(f"cache vae of : {ckpt_path}")
+        model_cache.cache_vae(ckpt_path, vae)
+    if clipvision:
+        logging.debug(f"cache clipvision of : {ckpt_path}")
+        model_cache.cache_clip_vision(ckpt_path, clipvision)
+
+    model_cache.refresh_cache(clipvision)
     return (model_patcher, clip, vae, clipvision)
 
 

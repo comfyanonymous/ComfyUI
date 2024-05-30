@@ -6,10 +6,17 @@ import safetensors.torch
 import numpy as np
 from PIL import Image
 import logging
+from comfy.cache import model_cache
 
 def load_torch_file(ckpt, safe_load=False, device=None):
+    # read the sd from cache
+    cache_sd = model_cache.get_item(ckpt, 'sd')
+    if cache_sd:
+        return cache_sd
+    
     if device is None:
         device = torch.device("cpu")
+   
     if ckpt.lower().endswith(".safetensors"):
         sd = safetensors.torch.load_file(ckpt, device=device.type)
     else:
@@ -27,6 +34,8 @@ def load_torch_file(ckpt, safe_load=False, device=None):
             sd = pl_sd["state_dict"]
         else:
             sd = pl_sd
+    # save the references of Tensor to cache
+    model_cache.cache_sd(ckpt, sd)
     return sd
 
 def save_torch_file(sd, ckpt, metadata=None):
