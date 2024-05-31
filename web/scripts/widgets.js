@@ -359,6 +359,22 @@ export const ComfyWidgets = {
 
 		return res;
 	},
+	PASSWORD(node, inputName, inputData, app) {
+		const defaultVal = inputData[1].default || "";
+		const multiline = !!inputData[1].multiline;
+
+		let res;
+		if (multiline) {
+			res = addMultilineWidget(node, inputName, { defaultVal, ...inputData[1] }, app);
+		} else {
+			res = { widget: node.addWidget("password", inputName, defaultVal, () => {}, {}) };
+		}
+
+		if(inputData[1].dynamicPrompts != undefined)
+			res.widget.dynamicPrompts = inputData[1].dynamicPrompts;
+
+		return res;
+	},
 	COMBO(node, inputName, inputData) {
 		const type = inputData[0];
 		let defaultValue = type[0];

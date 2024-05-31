@@ -9943,6 +9943,7 @@ LGraphNode.prototype.executeAction = function(action)
                     break;
                 case "string":
                 case "text":
+                case "password":
                     ctx.textAlign = "left";
                     ctx.strokeStyle = outline_color;
                     ctx.fillStyle = background_color;
@@ -9968,7 +9969,11 @@ LGraphNode.prototype.executeAction = function(action)
                         }
                         ctx.fillStyle = text_color;
                         ctx.textAlign = "right";
-                        ctx.fillText(String(w.value).substr(0,30), widget_width - margin * 2, y + H * 0.7); //30 chars max
+                        let value = w.value;
+                        if(w.type == "password") {
+                            value = value.replace(/./g, "*");
+                        }
+                        ctx.fillText(String(value).substr(0,30), widget_width - margin * 2, y + H * 0.7); //30 chars max
 						ctx.restore();
                     }
                     break;
@@ -10156,6 +10161,7 @@ LGraphNode.prototype.executeAction = function(action)
 					break;
 				case "string":
 				case "text":
+                case "password":
 					if (event.type == LiteGraph.pointerevents_method+"down") {
 						this.prompt("Value",w.value,function(v) {
 								inner_value_change(this, v);
