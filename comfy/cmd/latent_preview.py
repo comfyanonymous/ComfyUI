@@ -8,6 +8,7 @@ from ..cli_args_types import LatentPreviewMethod
 from ..model_downloader import get_or_download, KNOWN_APPROX_VAES
 from ..taesd.taesd import TAESD
 from ..cmd import folder_paths
+from .. import model_management
 from .. import utils
 import logging
 
@@ -27,9 +28,8 @@ class TAESDPreviewerImpl(LatentPreviewer):
 
     def decode_latent_to_preview(self, x0):
         x_sample = self.taesd.decode(x0[:1])[0].detach()
-        x_sample = torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
-        x_sample = 255. * np.moveaxis(x_sample.cpu().numpy(), 0, 2)
-        x_sample = x_sample.astype(np.uint8)
+        x_sample = 255. * torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
+        x_sample = np.moveaxis(x_sample.to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(x_sample.device)).numpy(), 0, 2)
 
         preview_image = Image.fromarray(x_sample)
         return preview_image
@@ -46,7 +46,7 @@ class Latent2RGBPreviewer(LatentPreviewer):
         latents_ubyte = (((latent_image + 1) / 2)
                             .clamp(0, 1)  # change scale from -1..1 to 0..1
                             .mul(0xFF)  # to 0..255
-                            ).to(device="cpu", dtype=torch.uint8, non_blocking=True)
+                            ).to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(latent_image.device))
 
         return Image.fromarray(latents_ubyte.numpy())
 

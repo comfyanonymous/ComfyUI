@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import platform
 import warnings
 from enum import Enum
 from threading import RLock
@@ -693,8 +694,18 @@ def supports_dtype(device, dtype):  # TODO
 def device_supports_non_blocking(device):
     if is_device_mps(device):
         return False  # pytorch bug? mps doesn't support non blocking
+    if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
+        return False
+    if directml_enabled:
+        return False
+    return True
+
+def device_should_use_non_blocking(device):
+    if not device_supports_non_blocking(device):
+        return False
     return False
-    # return True #TODO: figure out why this causes issues
+    # return True #TODO: figure out why this causes memory issues on Nvidia and possibly others
+
 
 
 def cast_to_device(tensor, device, dtype, copy=False):
@@ -708,7 +719,7 @@ def cast_to_device(tensor, device, dtype, copy=False):
             elif is_intel_xpu():
                 device_supports_cast = True
 
-        non_blocking = device_supports_non_blocking(device)
+        non_blocking = device_should_use_non_blocking(device)
 
         if device_supports_cast:
             if copy:
@@ -754,6 +765,17 @@ def pytorch_attention_flash_attention():
             return True
     return False
 
+def force_upcast_attention_dtype():
+    upcast = args.force_upcast_attention
+    try:
+        if platform.mac_ver()[0] in ['14.5']: #black image bug on OSX Sonoma 14.5
+            upcast = True
+    except:
+        pass
+    if upcast:
+        return torch.float32
+    else:
+        return None
 
 def get_free_memory(dev=None, torch_free_too=False):
     global directml_enabled

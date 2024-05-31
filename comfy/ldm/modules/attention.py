@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange, repeat
-from typing import Optional, Any
+from typing import Optional
 import logging
 
 from .diffusionmodules.util import AlphaBlender, timestep_embedding
@@ -18,12 +18,13 @@ from ...cli_args import args
 from ... import ops
 ops = ops.disable_weight_init
 
+FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
 
 def get_attn_precision(attn_precision):
     if args.dont_upcast_attention:
         return None
-    if attn_precision is None and args.force_upcast_attention:
-        return torch.float32
+    if FORCE_UPCAST_ATTENTION_DTYPE is not None:
+        return FORCE_UPCAST_ATTENTION_DTYPE
     return attn_precision
 
 def exists(val):

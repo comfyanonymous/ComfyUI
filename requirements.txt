@@ -51,3 +51,4 @@ opentelemetry-instrumentation-requests
 opentelemetry-semantic-conventions
 wrapt>=1.16.0
 certifi
+spandrel
