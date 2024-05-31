@@ -152,7 +152,7 @@ These models will be automatically downloaded when you queue prompts with workfl
 
 1. Clone this repo:
    ```shell
-   git clone https://github.com/comfyanonymous/ComfyUI.git
+   git clone https://github.com/hiddenswitch/ComfyUI.git
    cd ComfyUI
    ```
 2. Create a virtual environment:
