@@ -195,6 +195,8 @@ KNOWN_CLIP_VISION_MODELS = [
 KNOWN_LORAS = [
     CivitFile(model_id=211577, model_version_id=238349, filename="openxl_handsfix.safetensors"),
     CivitFile(model_id=324815, model_version_id=364137, filename="blur_control_xl_v1.safetensors"),
+    HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-12steps-CFG-lora.safetensors"),
+    HuggingFile("ByteDance/Hyper-SD", "Hyper-SD15-12steps-CFG-lora.safetensors")
 ]
 
 KNOWN_CONTROLNETS = [
@@ -303,7 +305,9 @@ KNOWN_HUGGINGFACE_MODEL_REPOS = {
     "microsoft/Phi-3-mini-4k-instruct",
 }
 
-KNOWN_UNET_MODELS: List[Union[CivitFile | HuggingFile]] = []
+KNOWN_UNET_MODELS: List[Union[CivitFile | HuggingFile]] = [
+    HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors")
+]
 
 KNOWN_CLIP_MODELS: List[Union[CivitFile | HuggingFile]] = []
 
