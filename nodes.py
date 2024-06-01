@@ -1871,7 +1871,7 @@ def load_custom_node(module_path, ignore=set()):
         module_name = sp[0]
 
     if module_name in EXTENSION_MODULES_LOADED:
-        logging.warning(f"Skip {module_path} module for custom nodes due to it already being loaded.")
+        logging.warning(f"Skip loading custom nodes from {module_path}. Module already loaded.")
         return False
     else:
         EXTENSION_MODULES_LOADED.add(module_name)
@@ -1902,7 +1902,7 @@ def load_custom_node(module_path, ignore=set()):
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
         else:
-            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
+            logging.warning(f"Skip loading custom nodes from {module_path}. No NODE_CLASS_MAPPINGS found in module.")
             return False
     except Exception as e:
         logging.warning(traceback.format_exc())
@@ -1942,7 +1942,7 @@ def load_custom_nodes_entry_points():
 
     for ep in entry_points(group="comfyui.web_directory"):
         if ep.module in EXTENSION_MODULES_LOADED:
-            logging.warning(f"Skip {ep.module} module for web_directory entry point due to it already being loaded.")
+            logging.warning(f"Skip loading web_directory entry point from {ep.module}. Module already loaded.")
             continue
         
         web_directory = ep.load()
@@ -1955,7 +1955,7 @@ def load_custom_nodes_entry_points():
 
     for ep in entry_points(group="comfyui.node_class_mappings"):
         if ep.module in EXTENSION_MODULES_LOADED:
-            logging.warning(f"Skip {ep.module} module for node_class_mappings entry point due to it already being loaded.")
+            logging.warning(f"Skip loading node_class_mappings entry point from {ep.module}. Module already loaded.")
             continue
         
         class_mapping = ep.load()
@@ -1967,7 +1967,7 @@ def load_custom_nodes_entry_points():
 
     for ep in entry_points(group="comfyui.node_display_name_mappings"):
         if ep.module in EXTENSION_MODULES_LOADED:
-            logging.warning(f"Skip {ep.module} module for node_display_name_mappings entry point due to it already being loaded.")
+            logging.warning(f"Skip loading node_display_name_mappings entry point from {ep.module}. Module already loaded.")
             continue
 
         display_name_mapping = ep.load()
