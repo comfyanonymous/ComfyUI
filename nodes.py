@@ -2022,8 +2022,8 @@ def init_custom_nodes():
         if not load_custom_node(os.path.join(extras_dir, node_file)):
             import_failed.append(node_file)
 
-    load_custom_nodes()
     load_custom_nodes_entry_points()
+    load_custom_nodes()
 
     if len(import_failed) > 0:
         logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
