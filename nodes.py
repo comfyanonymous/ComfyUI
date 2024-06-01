@@ -1,3 +1,4 @@
+import importlib.metadata
 import torch
 
 import os
@@ -1939,6 +1940,19 @@ def load_custom_nodes_entry_points():
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     extension_modules = set()
 
+    for ep in entry_points(group="comfyui.web_directory"):
+        if ep.module in EXTENSION_MODULES_LOADED:
+            logging.warning(f"Skip {ep.module} module for web_directory entry point due to it already being loaded.")
+            continue
+        
+        web_directory = ep.load()
+        EXTENSION_WEB_DIRS[module_name] = web_directory
+        for path in importlib.metadata.files(ep.module):
+            if path.parent.name == ep.module and path.name == web_directory:
+                EXTENSION_WEB_DIRS[ep.module] = str(path.locate())
+
+        extension_modules.add(ep.module)
+
     for ep in entry_points(group="comfyui.node_class_mappings"):
         if ep.module in EXTENSION_MODULES_LOADED:
             logging.warning(f"Skip {ep.module} module for node_class_mappings entry point due to it already being loaded.")
@@ -1948,6 +1962,7 @@ def load_custom_nodes_entry_points():
         for name in class_mapping:
             if name not in base_node_names:
                 NODE_CLASS_MAPPINGS[name] = class_mapping[name]
+
         extension_modules.add(ep.module)
 
     for ep in entry_points(group="comfyui.node_display_name_mappings"):
@@ -1957,6 +1972,7 @@ def load_custom_nodes_entry_points():
 
         display_name_mapping = ep.load()
         NODE_DISPLAY_NAME_MAPPINGS.update(display_name_mapping)
+        
         extension_modules.add(ep.module)
 
     # delay adding new module names to the guard set until after all possible entry_points are loaded
