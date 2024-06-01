@@ -1861,11 +1861,20 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 EXTENSION_WEB_DIRS = {}
 
+EXTENSION_MODULES_LOADED = set()
+
 def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
         module_name = sp[0]
+
+    if module_name in EXTENSION_MODULES_LOADED:
+        logging.warning(f"Skip {module_path} module for custom nodes due to it already being loaded.")
+        return False
+    else:
+        EXTENSION_MODULES_LOADED.add(module_name)
+    
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
         if os.path.isfile(module_path):
@@ -1928,16 +1937,30 @@ def load_custom_nodes():
 
 def load_custom_nodes_entry_points():
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
+    extension_modules = set()
 
     for ep in entry_points(group="comfyui.node_class_mappings"):
+        if ep.module in EXTENSION_MODULES_LOADED:
+            logging.warning(f"Skip {ep.module} module for node_class_mappings entry point due to it already being loaded.")
+            continue
+        
         class_mapping = ep.load()
         for name in class_mapping:
             if name not in base_node_names:
                 NODE_CLASS_MAPPINGS[name] = class_mapping[name]
+        extension_modules.add(ep.module)
 
     for ep in entry_points(group="comfyui.node_display_name_mappings"):
+        if ep.module in EXTENSION_MODULES_LOADED:
+            logging.warning(f"Skip {ep.module} module for node_display_name_mappings entry point due to it already being loaded.")
+            continue
+
         display_name_mapping = ep.load()
         NODE_DISPLAY_NAME_MAPPINGS.update(display_name_mapping)
+        extension_modules.add(ep.module)
+
+    # delay adding new module names to the guard set until after all possible entry_points are loaded
+    EXTENSION_MODULES_LOADED |= extension_modules
 
 def init_custom_nodes():
     extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
