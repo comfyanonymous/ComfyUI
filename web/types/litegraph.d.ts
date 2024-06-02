@@ -588,6 +588,7 @@ export type SerializedLGraphNode<T extends LGraphNode = LGraphNode> = {
     outputs: T["outputs"];
     title: T["title"];
     properties: T["properties"];
+    widgets_names?: IWidget["name"][];
     widgets_values?: IWidget["value"][];
 };
 

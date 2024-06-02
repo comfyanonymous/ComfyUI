@@ -13,6 +13,7 @@ export const defaultGraph = {
 			inputs: [{ name: "clip", type: "CLIP", link: 5 }],
 			outputs: [{ name: "CONDITIONING", type: "CONDITIONING", links: [6], slot_index: 0 }],
 			properties: {},
+			widget_names: ["text"],
 			widgets_values: ["text, watermark"],
 		},
 		{
@@ -26,6 +27,7 @@ export const defaultGraph = {
 			inputs: [{ name: "clip", type: "CLIP", link: 3 }],
 			outputs: [{ name: "CONDITIONING", type: "CONDITIONING", links: [4], slot_index: 0 }],
 			properties: {},
+			widget_names: ["text"],
 			widgets_values: ["beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"],
 		},
 		{
@@ -38,6 +40,7 @@ export const defaultGraph = {
 			mode: 0,
 			outputs: [{ name: "LATENT", type: "LATENT", links: [2], slot_index: 0 }],
 			properties: {},
+			widget_names: ["width","height","batch_size"],
 			widgets_values: [512, 512, 1],
 		},
 		{
@@ -56,6 +59,7 @@ export const defaultGraph = {
 			],
 			outputs: [{ name: "LATENT", type: "LATENT", links: [7], slot_index: 0 }],
 			properties: {},
+			widget_names: ["seed","","steps","cfg","sampler_name","scheduler","denoise"],
 			widgets_values: [156680208700286, true, 20, 8, "euler", "normal", 1],
 		},
 		{
@@ -98,6 +102,7 @@ export const defaultGraph = {
 				{ name: "VAE", type: "VAE", links: [8], slot_index: 2 },
 			],
 			properties: {},
+			widget_names: ["ckpt_name"],
 			widgets_values: ["v1-5-pruned-emaonly.ckpt"],
 		},
 	],

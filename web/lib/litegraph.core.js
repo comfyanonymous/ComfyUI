@@ -2593,8 +2593,10 @@
         }
 
         if (this.widgets && this.serialize_widgets) {
+            o.widgets_names = [];
             o.widgets_values = [];
             for (var i = 0; i < this.widgets.length; ++i) {
+                o.widgets_names[i] = this.widgets[i].name;
 				if(this.widgets[i])
 	                o.widgets_values[i] = this.widgets[i].value;
 				else
