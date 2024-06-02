@@ -76,9 +76,7 @@ class ModelPatcher:
     def model_size(self):
         if self.size > 0:
             return self.size
-        model_sd = self.model.state_dict()
         self.size = comfy.model_management.module_size(self.model)
-        self.model_keys = set(model_sd.keys())
         return self.size
 
     def clone(self):
@@ -90,7 +88,6 @@ class ModelPatcher:
 
         n.object_patches = self.object_patches.copy()
         n.model_options = copy.deepcopy(self.model_options)
-        n.model_keys = self.model_keys
         n.backup = self.backup
         n.object_patches_backup = self.object_patches_backup
         return n
@@ -210,8 +207,9 @@ class ModelPatcher:
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         p = set()
+        model_sd = self.model.state_dict()
         for k in patches:
-            if k in self.model_keys:
+            if k in model_sd:
                 p.add(k)
                 current_patches = self.patches.get(k, [])
                 current_patches.append((strength_patch, patches[k], strength_model))
