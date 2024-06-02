@@ -7,10 +7,24 @@
 		<link rel="stylesheet" type="text/css" href="./lib/litegraph.css" />
 		<link rel="stylesheet" type="text/css" href="./style.css" />
 		<link rel="stylesheet" type="text/css" href="./user.css" />
-		<script type="text/javascript" src="./lib/litegraph.core.js"></script>
+		<script type="module" src="./lib/litegraph.core.js"></script>
+		<script type="module">
+			// non-modular code shunt, this should deprecate as code is switched to modular
+			import { LiteGraph } from "./lib/litegraph.core.js";
+
+			window.LiteGraph = LiteGraph;
+			window.LGraph = LiteGraph.LGraph;
+			window.LLink = LiteGraph.LLink;
+			window.LGraphNode = LiteGraph.LGraphNode;
+			window.LGraphGroup = LiteGraph.LGraphGroup;
+			window.DragAndScale = LiteGraph.DragAndScale;
+			window.LGraphCanvas = LiteGraph.LGraphCanvas;
+			window.ContextMenu = LiteGraph.ContextMenu;
+		</script>
 		<script type="text/javascript" src="./lib/litegraph.extensions.js" defer></script>
 		<script type="module">
 			import { app } from "./scripts/app.js";
+
 			await app.setup();
 			window.app = app;
 			window.graph = app.graph;
