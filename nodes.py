@@ -8,9 +8,11 @@ import traceback
 import math
 import time
 import random
+import logging
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
+
 import numpy as np
 import safetensors.torch
 from io import BytesIO
@@ -18,7 +20,6 @@ import piexif
 import zipfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
-
 
 import comfy.diffusers_load
 import comfy.samplers
@@ -36,6 +37,7 @@ import importlib
 
 import folder_paths
 import latent_preview
+import node_helpers
 
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
@@ -43,12 +45,12 @@ def before_node_execution():
 def interrupt_processing(value=True):
     comfy.model_management.interrupt_current_processing(value)
 
-MAX_RESOLUTION=8192
+MAX_RESOLUTION=16384
 
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", {"multiline": True}), "clip": ("CLIP", )}}
+        return {"required": {"text": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", )}}
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
 
@@ -86,7 +88,7 @@ class ConditioningAverage :
         out = []
 
         if len(conditioning_from) > 1:
-            print("Warning: ConditioningAverage conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
+            logging.warning("Warning: ConditioningAverage conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
 
         cond_from = conditioning_from[0][0]
         pooled_output_from = conditioning_from[0][1].get("pooled_output", None)
@@ -125,7 +127,7 @@ class ConditioningConcat:
         out = []
 
         if len(conditioning_from) > 1:
-            print("Warning: ConditioningConcat conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
+            logging.warning("Warning: ConditioningConcat conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
 
         cond_from = conditioning_from[0][0]
 
@@ -153,13 +155,9 @@ class ConditioningSetArea:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['area'] = (height // 8, width // 8, y // 8, x // 8)
-            n[1]['strength'] = strength
-            n[1]['set_area_to_bounds'] = False
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"area": (height // 8, width // 8, y // 8, x // 8),
+                                                                "strength": strength,
+                                                                "set_area_to_bounds": False})
         return (c, )
 
 class ConditioningSetAreaPercentage:
@@ -178,14 +176,26 @@ class ConditioningSetAreaPercentage:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, width, height, x, y, strength):
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['area'] = ("percentage", height, width, y, x)
-            n[1]['strength'] = strength
-            n[1]['set_area_to_bounds'] = False
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"area": ("percentage", height, width, y, x),
+                                                                "strength": strength,
+                                                                "set_area_to_bounds": False})
         return (c, )
+
+class ConditioningSetAreaStrength:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"conditioning": ("CONDITIONING", ),
+                              "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             }}
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+
+    CATEGORY = "conditioning"
+
+    def append(self, conditioning, strength):
+        c = node_helpers.conditioning_set_values(conditioning, {"strength": strength})
+        return (c, )
+
 
 class ConditioningSetMask:
     @classmethod
@@ -201,19 +211,15 @@ class ConditioningSetMask:
     CATEGORY = "conditioning"
 
     def append(self, conditioning, mask, set_cond_area, strength):
-        c = []
         set_area_to_bounds = False
         if set_cond_area != "default":
             set_area_to_bounds = True
         if len(mask.shape) < 3:
             mask = mask.unsqueeze(0)
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            _, h, w = mask.shape
-            n[1]['mask'] = mask
-            n[1]['set_area_to_bounds'] = set_area_to_bounds
-            n[1]['mask_strength'] = strength
-            c.append(n)
+
+        c = node_helpers.conditioning_set_values(conditioning, {"mask": mask,
+                                                                "set_area_to_bounds": set_area_to_bounds,
+                                                                "mask_strength": strength})
         return (c, )
 
 class ConditioningZeroOut:
@@ -248,13 +254,8 @@ class ConditioningSetTimestepRange:
     CATEGORY = "advanced/conditioning"
 
     def set_range(self, conditioning, start, end):
-        c = []
-        for t in conditioning:
-            d = t[1].copy()
-            d['start_percent'] = 1.0 - start
-            d['end_percent'] = 1.0 - end
-            n = [t[0], d]
-            c.append(n)
+        c = node_helpers.conditioning_set_values(conditioning, {"start_percent": start,
+                                                                "end_percent": end})
         return (c, )
 
 class VAEDecode:
@@ -292,18 +293,7 @@ class VAEEncode:
 
     CATEGORY = "latent"
 
-    @staticmethod
-    def vae_encode_crop_pixels(pixels):
-        x = (pixels.shape[1] // 8) * 8
-        y = (pixels.shape[2] // 8) * 8
-        if pixels.shape[1] != x or pixels.shape[2] != y:
-            x_offset = (pixels.shape[1] % 8) // 2
-            y_offset = (pixels.shape[2] % 8) // 2
-            pixels = pixels[:, x_offset:x + x_offset, y_offset:y + y_offset, :]
-        return pixels
-
     def encode(self, vae, pixels):
-        pixels = self.vae_encode_crop_pixels(pixels)
         t = vae.encode(pixels[:,:,:,:3])
         return ({"samples":t}, )
 
@@ -319,7 +309,6 @@ class VAEEncodeTiled:
     CATEGORY = "_for_testing"
 
     def encode(self, vae, pixels, tile_size):
-        pixels = VAEEncode.vae_encode_crop_pixels(pixels)
         t = vae.encode_tiled(pixels[:,:,:,:3], tile_x=tile_size, tile_y=tile_size, )
         return ({"samples":t}, )
 
@@ -333,14 +322,14 @@ class VAEEncodeForInpaint:
     CATEGORY = "latent/inpaint"
 
     def encode(self, vae, pixels, mask, grow_mask_by=6):
-        x = (pixels.shape[1] // 8) * 8
-        y = (pixels.shape[2] // 8) * 8
+        x = (pixels.shape[1] // vae.downscale_ratio) * vae.downscale_ratio
+        y = (pixels.shape[2] // vae.downscale_ratio) * vae.downscale_ratio
         mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
 
         pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
-            x_offset = (pixels.shape[1] % 8) // 2
-            y_offset = (pixels.shape[2] % 8) // 2
+            x_offset = (pixels.shape[1] % vae.downscale_ratio) // 2
+            y_offset = (pixels.shape[2] % vae.downscale_ratio) // 2
             pixels = pixels[:,x_offset:x + x_offset, y_offset:y + y_offset,:]
             mask = mask[:,:,x_offset:x + x_offset, y_offset:y + y_offset]
 
@@ -361,6 +350,57 @@ class VAEEncodeForInpaint:
         t = vae.encode(pixels)
 
         return ({"samples":t, "noise_mask": (mask_erosion[:,:,:x,:y].round())}, )
+
+
+class InpaintModelConditioning:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "vae": ("VAE", ),
+                             "pixels": ("IMAGE", ),
+                             "mask": ("MASK", ),
+                             }}
+
+    RETURN_TYPES = ("CONDITIONING","CONDITIONING","LATENT")
+    RETURN_NAMES = ("positive", "negative", "latent")
+    FUNCTION = "encode"
+
+    CATEGORY = "conditioning/inpaint"
+
+    def encode(self, positive, negative, pixels, vae, mask):
+        x = (pixels.shape[1] // 8) * 8
+        y = (pixels.shape[2] // 8) * 8
+        mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
+
+        orig_pixels = pixels
+        pixels = orig_pixels.clone()
+        if pixels.shape[1] != x or pixels.shape[2] != y:
+            x_offset = (pixels.shape[1] % 8) // 2
+            y_offset = (pixels.shape[2] % 8) // 2
+            pixels = pixels[:,x_offset:x + x_offset, y_offset:y + y_offset,:]
+            mask = mask[:,:,x_offset:x + x_offset, y_offset:y + y_offset]
+
+        m = (1.0 - mask.round()).squeeze(1)
+        for i in range(3):
+            pixels[:,:,:,i] -= 0.5
+            pixels[:,:,:,i] *= m
+            pixels[:,:,:,i] += 0.5
+        concat_latent = vae.encode(pixels)
+        orig_latent = vae.encode(orig_pixels)
+
+        out_latent = {}
+
+        out_latent["samples"] = orig_latent
+        out_latent["noise_mask"] = mask
+
+        out = []
+        for conditioning in [positive, negative]:
+            c = node_helpers.conditioning_set_values(conditioning, {"concat_latent_image": concat_latent,
+                                                                    "concat_mask": mask})
+            out.append(c)
+        return (out[0], out[1], out_latent)
+
 
 class SaveLatent:
     def __init__(self):
@@ -666,8 +706,8 @@ class LoraLoader:
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
                               "lora_name": (folder_paths.get_filename_list("loras"), ),
-                              "strength_model": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
-                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -20.0, "max": 20.0, "step": 0.01}),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
+                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
@@ -695,10 +735,69 @@ class LoraLoader:
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
         return (model_lora, clip_lora)
 
-class VAELoader:
+class LoraLoaderModelOnly(LoraLoader):
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (folder_paths.get_filename_list("vae"), )}}
+        return {"required": { "model": ("MODEL",),
+                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "load_lora_model_only"
+
+    def load_lora_model_only(self, model, lora_name, strength_model):
+        return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
+
+class VAELoader:
+    @staticmethod
+    def vae_list():
+        vaes = folder_paths.get_filename_list("vae")
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+        sdxl_taesd_enc = False
+        sdxl_taesd_dec = False
+        sd1_taesd_enc = False
+        sd1_taesd_dec = False
+
+        for v in approx_vaes:
+            if v.startswith("taesd_decoder."):
+                sd1_taesd_dec = True
+            elif v.startswith("taesd_encoder."):
+                sd1_taesd_enc = True
+            elif v.startswith("taesdxl_decoder."):
+                sdxl_taesd_dec = True
+            elif v.startswith("taesdxl_encoder."):
+                sdxl_taesd_enc = True
+        if sd1_taesd_dec and sd1_taesd_enc:
+            vaes.append("taesd")
+        if sdxl_taesd_dec and sdxl_taesd_enc:
+            vaes.append("taesdxl")
+        return vaes
+
+    @staticmethod
+    def load_taesd(name):
+        sd = {}
+        approx_vaes = folder_paths.get_filename_list("vae_approx")
+
+        encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
+        decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
+
+        enc = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", encoder))
+        for k in enc:
+            sd["taesd_encoder.{}".format(k)] = enc[k]
+
+        dec = comfy.utils.load_torch_file(folder_paths.get_full_path("vae_approx", decoder))
+        for k in dec:
+            sd["taesd_decoder.{}".format(k)] = dec[k]
+
+        if name == "taesd":
+            sd["vae_scale"] = torch.tensor(0.18215)
+        elif name == "taesdxl":
+            sd["vae_scale"] = torch.tensor(0.13025)
+        return sd
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "vae_name": (s.vae_list(), )}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -706,8 +805,11 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        vae_path = folder_paths.get_full_path("vae", vae_name)
-        sd = comfy.utils.load_torch_file(vae_path)
+        if vae_name in ["taesd", "taesdxl"]:
+            sd = self.load_taesd(vae_name)
+        else:
+            vae_path = folder_paths.get_full_path("vae", vae_name)
+            sd = comfy.utils.load_torch_file(vae_path)
         vae = comfy.sd.VAE(sd=sd)
         return (vae,)
 
@@ -808,7 +910,7 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (1.0 - start_percent, 1.0 - end_percent))
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent))
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
@@ -839,15 +941,20 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
+                              "type": (["stable_diffusion", "stable_cascade"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
     CATEGORY = "advanced/loaders"
 
-    def load_clip(self, clip_name):
+    def load_clip(self, clip_name, type="stable_diffusion"):
+        clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        if type == "stable_cascade":
+            clip_type = comfy.sd.CLIPType.STABLE_CASCADE
+
         clip_path = folder_paths.get_full_path("clip", clip_name)
-        clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
 class DualCLIPLoader:
@@ -982,7 +1089,7 @@ class GLIGENTextBoxApply:
         return {"required": {"conditioning_to": ("CONDITIONING", ),
                               "clip": ("CLIP", ),
                               "gligen_textbox_model": ("GLIGEN", ),
-                              "text": ("STRING", {"multiline": True}),
+                              "text": ("STRING", {"multiline": True, "dynamicPrompts": True}),
                               "width": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 64, "min": 8, "max": MAX_RESOLUTION, "step": 8}),
                               "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 8}),
@@ -995,7 +1102,7 @@ class GLIGENTextBoxApply:
 
     def append(self, conditioning_to, clip, gligen_textbox_model, text, width, height, x, y):
         c = []
-        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled=True)
+        cond, cond_pooled = clip.encode_from_tokens(clip.tokenize(text), return_pooled="unprojected")
         for t in conditioning_to:
             n = [t[0], t[1].copy()]
             position_params = [(cond_pooled, height // 8, width // 8, y // 8, x // 8)]
@@ -1008,8 +1115,8 @@ class GLIGENTextBoxApply:
         return (c, )
 
 class EmptyLatentImage:
-    def __init__(self, device="cpu"):
-        self.device = device
+    def __init__(self):
+        self.device = comfy.model_management.intermediate_device()
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1022,7 +1129,7 @@ class EmptyLatentImage:
     CATEGORY = "latent"
 
     def generate(self, width, height, batch_size=1):
-        latent = torch.zeros([batch_size, 4, height // 8, width // 8])
+        latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
         return ({"samples":latent}, )
 
 
@@ -1341,7 +1448,7 @@ class KSampler:
                     {"model": ("MODEL",),
                     "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
                     "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
@@ -1367,7 +1474,7 @@ class KSamplerAdvanced:
                     "add_noise": (["enable", "disable"], ),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.5, "round": 0.01}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
                     "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
                     "positive": ("CONDITIONING", ),
@@ -1398,6 +1505,7 @@ class SaveImage:
         self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
+        self.compress_level = 4
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1418,7 +1526,7 @@ class SaveImage:
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
-        for image in images:
+        for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = None
@@ -1430,8 +1538,9 @@ class SaveImage:
                     for x in extra_pnginfo:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
-            file = f"{filename}_{counter:05}_.png"
-            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=4)
+            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+            file = f"{filename_with_batch_num}_{counter:05}_.png"
+            img.save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=self.compress_level)
             results.append({
                 "filename": file,
                 "subfolder": subfolder,
@@ -1446,6 +1555,7 @@ class PreviewImage(SaveImage):
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
+        self.compress_level = 1
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1469,17 +1579,47 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
-        i = Image.open(image_path)
-        i = ImageOps.exif_transpose(i)
-        image = i.convert("RGB")
-        image = np.array(image).astype(np.float32) / 255.0
-        image = torch.from_numpy(image)[None,]
-        if 'A' in i.getbands():
-            mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-            mask = 1. - torch.from_numpy(mask)
+
+        img = node_helpers.pillow(Image.open, image_path)
+
+        output_images = []
+        output_masks = []
+        w, h = None, None
+
+        excluded_formats = ['MPO']
+
+        for i in ImageSequence.Iterator(img):
+            i = node_helpers.pillow(ImageOps.exif_transpose, i)
+
+            if i.mode == 'I':
+                i = i.point(lambda i: i * (1 / 255))
+            image = i.convert("RGB")
+
+            if len(output_images) == 0:
+                w = image.size[0]
+                h = image.size[1]
+
+            if image.size[0] != w or image.size[1] != h:
+                continue
+
+            image = np.array(image).astype(np.float32) / 255.0
+            image = torch.from_numpy(image)[None,]
+            if 'A' in i.getbands():
+                mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                mask = 1. - torch.from_numpy(mask)
+            else:
+                mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
+            output_images.append(image)
+            output_masks.append(mask.unsqueeze(0))
+
+        if len(output_images) > 1 and img.format not in excluded_formats:
+            output_image = torch.cat(output_images, dim=0)
+            output_mask = torch.cat(output_masks, dim=0)
         else:
-            mask = torch.zeros((64,64), dtype=torch.float32, device="cpu")
-        return (image, mask.unsqueeze(0))
+            output_image = output_images[0]
+            output_mask = output_masks[0]
+
+        return (output_image, output_mask)
 
     @classmethod
     def IS_CHANGED(s, image):
@@ -1513,9 +1653,11 @@ class LoadImageMask:
     FUNCTION = "load_image"
     def load_image(self, image, channel):
         image_path = folder_paths.get_annotated_filepath(image)
-        i = Image.open(image_path)
-        i = ImageOps.exif_transpose(i)
+        i = node_helpers.pillow(Image.open, image_path)
+        i = node_helpers.pillow(ImageOps.exif_transpose, i)
         if i.getbands() != ("R", "G", "B", "A"):
+            if i.mode == 'I':
+                i = i.point(lambda i: i * (1 / 255))
             i = i.convert("RGBA")
         mask = None
         c = channel[0].upper()
@@ -1537,12 +1679,9 @@ class LoadImageMask:
         return m.digest().hex()
 
     @classmethod
-    def VALIDATE_INPUTS(s, image, channel):
+    def VALIDATE_INPUTS(s, image):
         if not folder_paths.exists_annotated_filepath(image):
             return "Invalid image file: {}".format(image)
-
-        if channel not in s._color_channels:
-            return "Invalid color channel: {}".format(channel)
 
         return True
 
@@ -1673,10 +1812,11 @@ class ImagePadForOutpaint:
     def expand_image(self, image, left, top, right, bottom, feathering):
         d1, d2, d3, d4 = image.size()
 
-        new_image = torch.zeros(
+        new_image = torch.ones(
             (d1, d2 + top + bottom, d3 + left + right, d4),
             dtype=torch.float32,
-        )
+        ) * 0.5
+
         new_image[:, top:top + d2, left:left + d3, :] = image
 
         mask = torch.ones(
@@ -1742,6 +1882,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningConcat": ConditioningConcat,
     "ConditioningSetArea": ConditioningSetArea,
     "ConditioningSetAreaPercentage": ConditioningSetAreaPercentage,
+    "ConditioningSetAreaStrength": ConditioningSetAreaStrength,
     "ConditioningSetMask": ConditioningSetMask,
     "KSamplerAdvanced": KSamplerAdvanced,
     "SetLatentNoiseMask": SetLatentNoiseMask,
@@ -1768,6 +1909,7 @@ NODE_CLASS_MAPPINGS = {
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "GLIGENLoader": GLIGENLoader,
     "GLIGENTextBoxApply": GLIGENTextBoxApply,
+    "InpaintModelConditioning": InpaintModelConditioning,
 
     "CheckpointLoader": CheckpointLoader,
     "DiffusersLoader": DiffusersLoader,
@@ -1777,6 +1919,7 @@ NODE_CLASS_MAPPINGS = {
 
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
+    "LoraLoaderModelOnly": LoraLoaderModelOnly,
     "SavePreviewLatent": SavePreviewLatent,
 }
 
@@ -1847,6 +1990,7 @@ def load_custom_node(module_path, ignore=set()):
         sp = os.path.splitext(module_path)
         module_name = sp[0]
     try:
+        logging.debug("Trying to load custom node {}".format(module_path))
         if os.path.isfile(module_path):
             module_spec = importlib.util.spec_from_file_location(module_name, module_path)
             module_dir = os.path.split(module_path)[0]
@@ -1871,11 +2015,11 @@ def load_custom_node(module_path, ignore=set()):
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
         else:
-            print(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
+            logging.warning(f"Skip {module_path} module for custom nodes due to the lack of NODE_CLASS_MAPPINGS.")
             return False
     except Exception as e:
-        print(traceback.format_exc())
-        print(f"Cannot import {module_path} module for custom nodes:", e)
+        logging.warning(traceback.format_exc())
+        logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
 def load_custom_nodes():
@@ -1883,7 +2027,7 @@ def load_custom_nodes():
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
 
@@ -1896,14 +2040,14 @@ def load_custom_nodes():
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
-        print("\nImport times for custom nodes:")
+        logging.info("\nImport times for custom nodes:")
         for n in sorted(node_import_times):
             if n[2]:
                 import_message = ""
             else:
                 import_message = " (IMPORT FAILED)"
-            print("{:6.1f} seconds{}:".format(n[0], import_message), n[1])
-        print()
+            logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
+        logging.info("")
 
 def init_custom_nodes():
     extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
@@ -1920,10 +2064,44 @@ def init_custom_nodes():
         "nodes_clip_sdxl.py",
         "nodes_canny.py",
         "nodes_freelunch.py",
-        "nodes_custom_sampler.py"
+        "nodes_custom_sampler.py",
+        "nodes_hypertile.py",
+        "nodes_model_advanced.py",
+        "nodes_model_downscale.py",
+        "nodes_images.py",
+        "nodes_video_model.py",
+        "nodes_sag.py",
+        "nodes_perpneg.py",
+        "nodes_stable3d.py",
+        "nodes_sdupscale.py",
+        "nodes_photomaker.py",
+        "nodes_cond.py",
+        "nodes_morphology.py",
+        "nodes_stable_cascade.py",
+        "nodes_differential_diffusion.py",
+        "nodes_ip2p.py",
+        "nodes_model_merging_model_specific.py",
+        "nodes_pag.py",
+        "nodes_align_your_steps.py",
+        "nodes_attention_multiply.py",
+        "nodes_advanced_samplers.py",
+        "nodes_webcam.py",
     ]
 
+    import_failed = []
     for node_file in extras_files:
-        load_custom_node(os.path.join(extras_dir, node_file))
+        if not load_custom_node(os.path.join(extras_dir, node_file)):
+            import_failed.append(node_file)
 
     load_custom_nodes()
+
+    if len(import_failed) > 0:
+        logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
+        for node in import_failed:
+            logging.warning("IMPORT FAILED: {}".format(node))
+        logging.warning("\nThis issue might be caused by new missing dependencies added the last time you updated ComfyUI.")
+        if args.windows_standalone_build:
+            logging.warning("Please run the update script: update/update_comfyui.bat")
+        else:
+            logging.warning("Please do a: pip install -r requirements.txt")
+        logging.warning("")

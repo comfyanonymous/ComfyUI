@@ -1,371 +1,316 @@
 from .k_diffusion import sampling as k_diffusion_sampling
-from .k_diffusion import external as k_diffusion_external
 from .extra_samplers import uni_pc
 import torch
+import collections
 from comfy import model_management
-from .ldm.models.diffusion.ddim import DDIMSampler
-from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
 import math
-from comfy import model_base
-import comfy.utils
+import logging
+import comfy.sampler_helpers
 
-def lcm(a, b): #TODO: eventually replace by math.lcm (added in python3.9)
-    return abs(a*b) // math.gcd(a, b)
+def get_area_and_mult(conds, x_in, timestep_in):
+    area = (x_in.shape[2], x_in.shape[3], 0, 0)
+    strength = 1.0
 
-#The main sampling function shared by all the samplers
-#Returns predicted noise
-def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, cond_concat=None, model_options={}, seed=None):
-        def get_area_and_mult(cond, x_in, cond_concat_in, timestep_in):
-            area = (x_in.shape[2], x_in.shape[3], 0, 0)
-            strength = 1.0
-            if 'timestep_start' in cond[1]:
-                timestep_start = cond[1]['timestep_start']
-                if timestep_in[0] > timestep_start:
-                    return None
-            if 'timestep_end' in cond[1]:
-                timestep_end = cond[1]['timestep_end']
-                if timestep_in[0] < timestep_end:
-                    return None
-            if 'area' in cond[1]:
-                area = cond[1]['area']
-            if 'strength' in cond[1]:
-                strength = cond[1]['strength']
+    if 'timestep_start' in conds:
+        timestep_start = conds['timestep_start']
+        if timestep_in[0] > timestep_start:
+            return None
+    if 'timestep_end' in conds:
+        timestep_end = conds['timestep_end']
+        if timestep_in[0] < timestep_end:
+            return None
+    if 'area' in conds:
+        area = conds['area']
+    if 'strength' in conds:
+        strength = conds['strength']
 
-            adm_cond = None
-            if 'adm_encoded' in cond[1]:
-                adm_cond = cond[1]['adm_encoded']
+    input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
+    if 'mask' in conds:
+        # Scale the mask to the size of the input
+        # The mask should have been resized as we began the sampling process
+        mask_strength = 1.0
+        if "mask_strength" in conds:
+            mask_strength = conds["mask_strength"]
+        mask = conds['mask']
+        assert(mask.shape[1] == x_in.shape[2])
+        assert(mask.shape[2] == x_in.shape[3])
+        mask = mask[:input_x.shape[0],area[2]:area[0] + area[2],area[3]:area[1] + area[3]] * mask_strength
+        mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
+    else:
+        mask = torch.ones_like(input_x)
+    mult = mask * strength
 
-            input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
-            if 'mask' in cond[1]:
-                # Scale the mask to the size of the input
-                # The mask should have been resized as we began the sampling process
-                mask_strength = 1.0
-                if "mask_strength" in cond[1]:
-                    mask_strength = cond[1]["mask_strength"]
-                mask = cond[1]['mask']
-                assert(mask.shape[1] == x_in.shape[2])
-                assert(mask.shape[2] == x_in.shape[3])
-                mask = mask[:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] * mask_strength
-                mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
-            else:
-                mask = torch.ones_like(input_x)
-            mult = mask * strength
+    if 'mask' not in conds:
+        rr = 8
+        if area[2] != 0:
+            for t in range(rr):
+                mult[:,:,t:1+t,:] *= ((1.0/rr) * (t + 1))
+        if (area[0] + area[2]) < x_in.shape[2]:
+            for t in range(rr):
+                mult[:,:,area[0] - 1 - t:area[0] - t,:] *= ((1.0/rr) * (t + 1))
+        if area[3] != 0:
+            for t in range(rr):
+                mult[:,:,:,t:1+t] *= ((1.0/rr) * (t + 1))
+        if (area[1] + area[3]) < x_in.shape[3]:
+            for t in range(rr):
+                mult[:,:,:,area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
 
-            if 'mask' not in cond[1]:
-                rr = 8
-                if area[2] != 0:
-                    for t in range(rr):
-                        mult[:,:,t:1+t,:] *= ((1.0/rr) * (t + 1))
-                if (area[0] + area[2]) < x_in.shape[2]:
-                    for t in range(rr):
-                        mult[:,:,area[0] - 1 - t:area[0] - t,:] *= ((1.0/rr) * (t + 1))
-                if area[3] != 0:
-                    for t in range(rr):
-                        mult[:,:,:,t:1+t] *= ((1.0/rr) * (t + 1))
-                if (area[1] + area[3]) < x_in.shape[3]:
-                    for t in range(rr):
-                        mult[:,:,:,area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
+    conditioning = {}
+    model_conds = conds["model_conds"]
+    for c in model_conds:
+        conditioning[c] = model_conds[c].process_cond(batch_size=x_in.shape[0], device=x_in.device, area=area)
 
-            conditionning = {}
-            conditionning['c_crossattn'] = cond[0]
-            if cond_concat_in is not None and len(cond_concat_in) > 0:
-                cropped = []
-                for x in cond_concat_in:
-                    cr = x[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
-                    cropped.append(cr)
-                conditionning['c_concat'] = torch.cat(cropped, dim=1)
+    control = conds.get('control', None)
 
-            if adm_cond is not None:
-                conditionning['c_adm'] = adm_cond
+    patches = None
+    if 'gligen' in conds:
+        gligen = conds['gligen']
+        patches = {}
+        gligen_type = gligen[0]
+        gligen_model = gligen[1]
+        if gligen_type == "position":
+            gligen_patch = gligen_model.model.set_position(input_x.shape, gligen[2], input_x.device)
+        else:
+            gligen_patch = gligen_model.model.set_empty(input_x.shape, input_x.device)
 
-            control = None
-            if 'control' in cond[1]:
-                control = cond[1]['control']
+        patches['middle_patch'] = [gligen_patch]
 
-            patches = None
-            if 'gligen' in cond[1]:
-                gligen = cond[1]['gligen']
-                patches = {}
-                gligen_type = gligen[0]
-                gligen_model = gligen[1]
-                if gligen_type == "position":
-                    gligen_patch = gligen_model.model.set_position(input_x.shape, gligen[2], input_x.device)
-                else:
-                    gligen_patch = gligen_model.model.set_empty(input_x.shape, input_x.device)
+    cond_obj = collections.namedtuple('cond_obj', ['input_x', 'mult', 'conditioning', 'area', 'control', 'patches'])
+    return cond_obj(input_x, mult, conditioning, area, control, patches)
 
-                patches['middle_patch'] = [gligen_patch]
+def cond_equal_size(c1, c2):
+    if c1 is c2:
+        return True
+    if c1.keys() != c2.keys():
+        return False
+    for k in c1:
+        if not c1[k].can_concat(c2[k]):
+            return False
+    return True
 
-            return (input_x, mult, conditionning, area, control, patches)
+def can_concat_cond(c1, c2):
+    if c1.input_x.shape != c2.input_x.shape:
+        return False
 
-        def cond_equal_size(c1, c2):
-            if c1 is c2:
-                return True
-            if c1.keys() != c2.keys():
+    def objects_concatable(obj1, obj2):
+        if (obj1 is None) != (obj2 is None):
+            return False
+        if obj1 is not None:
+            if obj1 is not obj2:
                 return False
-            if 'c_crossattn' in c1:
-                s1 = c1['c_crossattn'].shape
-                s2 = c2['c_crossattn'].shape
-                if s1 != s2:
-                    if s1[0] != s2[0] or s1[2] != s2[2]: #these 2 cases should not happen
-                        return False
+        return True
 
-                    mult_min = lcm(s1[1], s2[1])
-                    diff = mult_min // min(s1[1], s2[1])
-                    if diff > 4: #arbitrary limit on the padding because it's probably going to impact performance negatively if it's too much
-                        return False
-            if 'c_concat' in c1:
-                if c1['c_concat'].shape != c2['c_concat'].shape:
-                    return False
-            if 'c_adm' in c1:
-                if c1['c_adm'].shape != c2['c_adm'].shape:
-                    return False
-            return True
+    if not objects_concatable(c1.control, c2.control):
+        return False
 
-        def can_concat_cond(c1, c2):
-            if c1[0].shape != c2[0].shape:
-                return False
+    if not objects_concatable(c1.patches, c2.patches):
+        return False
 
-            #control
-            if (c1[4] is None) != (c2[4] is None):
-                return False
-            if c1[4] is not None:
-                if c1[4] is not c2[4]:
-                    return False
+    return cond_equal_size(c1.conditioning, c2.conditioning)
 
-            #patches
-            if (c1[5] is None) != (c2[5] is None):
-                return False
-            if (c1[5] is not None):
-                if c1[5] is not c2[5]:
-                    return False
+def cond_cat(c_list):
+    c_crossattn = []
+    c_concat = []
+    c_adm = []
+    crossattn_max_len = 0
 
-            return cond_equal_size(c1[2], c2[2])
+    temp = {}
+    for x in c_list:
+        for k in x:
+            cur = temp.get(k, [])
+            cur.append(x[k])
+            temp[k] = cur
 
-        def cond_cat(c_list):
-            c_crossattn = []
-            c_concat = []
-            c_adm = []
-            crossattn_max_len = 0
-            for x in c_list:
-                if 'c_crossattn' in x:
-                    c = x['c_crossattn']
-                    if crossattn_max_len == 0:
-                        crossattn_max_len = c.shape[1]
-                    else:
-                        crossattn_max_len = lcm(crossattn_max_len, c.shape[1])
-                    c_crossattn.append(c)
-                if 'c_concat' in x:
-                    c_concat.append(x['c_concat'])
-                if 'c_adm' in x:
-                    c_adm.append(x['c_adm'])
-            out = {}
-            c_crossattn_out = []
-            for c in c_crossattn:
-                if c.shape[1] < crossattn_max_len:
-                    c = c.repeat(1, crossattn_max_len // c.shape[1], 1) #padding with repeat doesn't change result
-                c_crossattn_out.append(c)
+    out = {}
+    for k in temp:
+        conds = temp[k]
+        out[k] = conds[0].concat(conds[1:])
 
-            if len(c_crossattn_out) > 0:
-                out['c_crossattn'] = torch.cat(c_crossattn_out)
-            if len(c_concat) > 0:
-                out['c_concat'] = torch.cat(c_concat)
-            if len(c_adm) > 0:
-                out['c_adm'] = torch.cat(c_adm)
-            return out
+    return out
 
-        def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in, model_options):
-            out_cond = torch.zeros_like(x_in)
-            out_count = torch.ones_like(x_in)/100000.0
+def calc_cond_batch(model, conds, x_in, timestep, model_options):
+    out_conds = []
+    out_counts = []
+    to_run = []
 
-            out_uncond = torch.zeros_like(x_in)
-            out_uncond_count = torch.ones_like(x_in)/100000.0
+    for i in range(len(conds)):
+        out_conds.append(torch.zeros_like(x_in))
+        out_counts.append(torch.ones_like(x_in) * 1e-37)
 
-            COND = 0
-            UNCOND = 1
-
-            to_run = []
+        cond = conds[i]
+        if cond is not None:
             for x in cond:
-                p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
+                p = get_area_and_mult(x, x_in, timestep)
                 if p is None:
                     continue
 
-                to_run += [(p, COND)]
-            if uncond is not None:
-                for x in uncond:
-                    p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
-                    if p is None:
-                        continue
+                to_run += [(p, i)]
 
-                    to_run += [(p, UNCOND)]
+    while len(to_run) > 0:
+        first = to_run[0]
+        first_shape = first[0][0].shape
+        to_batch_temp = []
+        for x in range(len(to_run)):
+            if can_concat_cond(to_run[x][0], first[0]):
+                to_batch_temp += [x]
 
-            while len(to_run) > 0:
-                first = to_run[0]
-                first_shape = first[0][0].shape
-                to_batch_temp = []
-                for x in range(len(to_run)):
-                    if can_concat_cond(to_run[x][0], first[0]):
-                        to_batch_temp += [x]
+        to_batch_temp.reverse()
+        to_batch = to_batch_temp[:1]
 
-                to_batch_temp.reverse()
-                to_batch = to_batch_temp[:1]
+        free_memory = model_management.get_free_memory(x_in.device)
+        for i in range(1, len(to_batch_temp) + 1):
+            batch_amount = to_batch_temp[:len(to_batch_temp)//i]
+            input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
+            if model.memory_required(input_shape) < free_memory:
+                to_batch = batch_amount
+                break
 
-                for i in range(1, len(to_batch_temp) + 1):
-                    batch_amount = to_batch_temp[:len(to_batch_temp)//i]
-                    if (len(batch_amount) * first_shape[0] * first_shape[2] * first_shape[3] < max_total_area):
-                        to_batch = batch_amount
-                        break
+        input_x = []
+        mult = []
+        c = []
+        cond_or_uncond = []
+        area = []
+        control = None
+        patches = None
+        for x in to_batch:
+            o = to_run.pop(x)
+            p = o[0]
+            input_x.append(p.input_x)
+            mult.append(p.mult)
+            c.append(p.conditioning)
+            area.append(p.area)
+            cond_or_uncond.append(o[1])
+            control = p.control
+            patches = p.patches
 
-                input_x = []
-                mult = []
-                c = []
-                cond_or_uncond = []
-                area = []
-                control = None
-                patches = None
-                for x in to_batch:
-                    o = to_run.pop(x)
-                    p = o[0]
-                    input_x += [p[0]]
-                    mult += [p[1]]
-                    c += [p[2]]
-                    area += [p[3]]
-                    cond_or_uncond += [o[1]]
-                    control = p[4]
-                    patches = p[5]
+        batch_chunks = len(cond_or_uncond)
+        input_x = torch.cat(input_x)
+        c = cond_cat(c)
+        timestep_ = torch.cat([timestep] * batch_chunks)
 
-                batch_chunks = len(cond_or_uncond)
-                input_x = torch.cat(input_x)
-                c = cond_cat(c)
-                timestep_ = torch.cat([timestep] * batch_chunks)
+        if control is not None:
+            c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond))
 
-                if control is not None:
-                    c['control'] = control.get_control(input_x, timestep_, c, len(cond_or_uncond))
+        transformer_options = {}
+        if 'transformer_options' in model_options:
+            transformer_options = model_options['transformer_options'].copy()
 
-                transformer_options = {}
-                if 'transformer_options' in model_options:
-                    transformer_options = model_options['transformer_options'].copy()
-
-                if patches is not None:
-                    if "patches" in transformer_options:
-                        cur_patches = transformer_options["patches"].copy()
-                        for p in patches:
-                            if p in cur_patches:
-                                cur_patches[p] = cur_patches[p] + patches[p]
-                            else:
-                                cur_patches[p] = patches[p]
+        if patches is not None:
+            if "patches" in transformer_options:
+                cur_patches = transformer_options["patches"].copy()
+                for p in patches:
+                    if p in cur_patches:
+                        cur_patches[p] = cur_patches[p] + patches[p]
                     else:
-                        transformer_options["patches"] = patches
+                        cur_patches[p] = patches[p]
+                transformer_options["patches"] = cur_patches
+            else:
+                transformer_options["patches"] = patches
 
-                transformer_options["cond_or_uncond"] = cond_or_uncond[:]
-                c['transformer_options'] = transformer_options
+        transformer_options["cond_or_uncond"] = cond_or_uncond[:]
+        transformer_options["sigmas"] = timestep
 
-                if 'model_function_wrapper' in model_options:
-                    output = model_options['model_function_wrapper'](model_function, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
-                else:
-                    output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
-                del input_x
+        c['transformer_options'] = transformer_options
 
-                for o in range(batch_chunks):
-                    if cond_or_uncond[o] == COND:
-                        out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-                        out_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
-                    else:
-                        out_uncond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-                        out_uncond_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
-                del mult
-
-            out_cond /= out_count
-            del out_count
-            out_uncond /= out_uncond_count
-            del out_uncond_count
-
-            return out_cond, out_uncond
-
-
-        max_total_area = model_management.maximum_batch_area()
-        if math.isclose(cond_scale, 1.0):
-            uncond = None
-
-        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
-        if "sampler_cfg_function" in model_options:
-            args = {"cond": cond, "uncond": uncond, "cond_scale": cond_scale, "timestep": timestep}
-            return model_options["sampler_cfg_function"](args)
+        if 'model_function_wrapper' in model_options:
+            output = model_options['model_function_wrapper'](model.apply_model, {"input": input_x, "timestep": timestep_, "c": c, "cond_or_uncond": cond_or_uncond}).chunk(batch_chunks)
         else:
-            return uncond + (cond - uncond) * cond_scale
+            output = model.apply_model(input_x, timestep_, **c).chunk(batch_chunks)
+
+        for o in range(batch_chunks):
+            cond_index = cond_or_uncond[o]
+            out_conds[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
+            out_counts[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
+
+    for i in range(len(out_conds)):
+        out_conds[i] /= out_counts[i]
+
+    return out_conds
+
+def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options): #TODO: remove
+    logging.warning("WARNING: The comfy.samplers.calc_cond_uncond_batch function is deprecated please use the calc_cond_batch one instead.")
+    return tuple(calc_cond_batch(model, [cond, uncond], x_in, timestep, model_options))
+
+def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_options={}, cond=None, uncond=None):
+    if "sampler_cfg_function" in model_options:
+        args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
+                "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
+        cfg_result = x - model_options["sampler_cfg_function"](args)
+    else:
+        cfg_result = uncond_pred + (cond_pred - uncond_pred) * cond_scale
+
+    for fn in model_options.get("sampler_post_cfg_function", []):
+        args = {"denoised": cfg_result, "cond": cond, "uncond": uncond, "model": model, "uncond_denoised": uncond_pred, "cond_denoised": cond_pred,
+                "sigma": timestep, "model_options": model_options, "input": x}
+        cfg_result = fn(args)
+
+    return cfg_result
+
+#The main sampling function shared by all the samplers
+#Returns denoised
+def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_options={}, seed=None):
+    if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
+        uncond_ = None
+    else:
+        uncond_ = uncond
+
+    conds = [cond, uncond_]
+    out = calc_cond_batch(model, conds, x, timestep, model_options)
+    return cfg_function(model, out[0], out[1], cond_scale, x, timestep, model_options=model_options, cond=cond, uncond=uncond_)
 
 
-class CompVisVDenoiser(k_diffusion_external.DiscreteVDDPMDenoiser):
-    def __init__(self, model, quantize=False, device='cpu'):
-        super().__init__(model, model.alphas_cumprod, quantize=quantize)
-
-    def get_v(self, x, t, cond, **kwargs):
-        return self.inner_model.apply_model(x, t, cond, **kwargs)
-
-
-class CFGNoisePredictor(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
+class KSamplerX0Inpaint:
+    def __init__(self, model, sigmas):
         self.inner_model = model
-        self.alphas_cumprod = model.alphas_cumprod
-    def apply_model(self, x, timestep, cond, uncond, cond_scale, cond_concat=None, model_options={}, seed=None):
-        out = sampling_function(self.inner_model.apply_model, x, timestep, uncond, cond, cond_scale, cond_concat, model_options=model_options, seed=seed)
-        return out
-
-
-class KSamplerX0Inpaint(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.inner_model = model
-    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, cond_concat=None, model_options={}, seed=None):
+        self.sigmas = sigmas
+    def __call__(self, x, sigma, denoise_mask, model_options={}, seed=None):
         if denoise_mask is not None:
+            if "denoise_mask_function" in model_options:
+                denoise_mask = model_options["denoise_mask_function"](sigma, denoise_mask, extra_options={"model": self.inner_model, "sigmas": self.sigmas})
             latent_mask = 1. - denoise_mask
-            x = x * denoise_mask + (self.latent_image + self.noise * sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1))) * latent_mask
-        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, cond_concat=cond_concat, model_options=model_options, seed=seed)
+            x = x * denoise_mask + self.inner_model.inner_model.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1)), self.noise, self.latent_image) * latent_mask
+        out = self.inner_model(x, sigma, model_options=model_options, seed=seed)
         if denoise_mask is not None:
-            out *= denoise_mask
-
-        if denoise_mask is not None:
-            out += self.latent_image * latent_mask
+            out = out * denoise_mask + self.latent_image * latent_mask
         return out
 
-def simple_scheduler(model, steps):
+def simple_scheduler(model_sampling, steps):
+    s = model_sampling
     sigs = []
-    ss = len(model.sigmas) / steps
+    ss = len(s.sigmas) / steps
     for x in range(steps):
-        sigs += [float(model.sigmas[-(1 + int(x * ss))])]
+        sigs += [float(s.sigmas[-(1 + int(x * ss))])]
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
-def ddim_scheduler(model, steps):
+def ddim_scheduler(model_sampling, steps):
+    s = model_sampling
     sigs = []
-    ddim_timesteps = make_ddim_timesteps(ddim_discr_method="uniform", num_ddim_timesteps=steps, num_ddpm_timesteps=model.inner_model.inner_model.num_timesteps, verbose=False)
-    for x in range(len(ddim_timesteps) - 1, -1, -1):
-        ts = ddim_timesteps[x]
-        if ts > 999:
-            ts = 999
-        sigs.append(model.t_to_sigma(torch.tensor(ts)))
+    ss = max(len(s.sigmas) // steps, 1)
+    x = 1
+    while x < len(s.sigmas):
+        sigs += [float(s.sigmas[x])]
+        x += ss
+    sigs = sigs[::-1]
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
-def sgm_scheduler(model, steps):
+def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
+    s = model_sampling
+    start = s.timestep(s.sigma_max)
+    end = s.timestep(s.sigma_min)
+
+    if sgm:
+        timesteps = torch.linspace(start, end, steps + 1)[:-1]
+    else:
+        timesteps = torch.linspace(start, end, steps)
+
     sigs = []
-    timesteps = torch.linspace(model.inner_model.inner_model.num_timesteps - 1, 0, steps + 1)[:-1].type(torch.int)
     for x in range(len(timesteps)):
         ts = timesteps[x]
-        if ts > 999:
-            ts = 999
-        sigs.append(model.t_to_sigma(torch.tensor(ts)))
+        sigs.append(s.sigma(ts))
     sigs += [0.0]
     return torch.FloatTensor(sigs)
-
-def blank_inpaint_image_like(latent_image):
-    blank_image = torch.ones_like(latent_image)
-    # these are the values for "zero" in pixel space translated to latent space
-    blank_image[:,0] *= 0.8223
-    blank_image[:,1] *= -0.6876
-    blank_image[:,2] *= 0.6364
-    blank_image[:,3] *= 0.1380
-    return blank_image
 
 def get_mask_aabb(masks):
     if masks.numel() == 0:
@@ -395,19 +340,19 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
     # While we're doing this, we can also resolve the mask device and scaling for performance reasons
     for i in range(len(conditions)):
         c = conditions[i]
-        if 'area' in c[1]:
-            area = c[1]['area']
+        if 'area' in c:
+            area = c['area']
             if area[0] == "percentage":
-                modified = c[1].copy()
+                modified = c.copy()
                 area = (max(1, round(area[1] * h)), max(1, round(area[2] * w)), round(area[3] * h), round(area[4] * w))
                 modified['area'] = area
-                c = [c[0], modified]
+                c = modified
                 conditions[i] = c
 
-        if 'mask' in c[1]:
-            mask = c[1]['mask']
+        if 'mask' in c:
+            mask = c['mask']
             mask = mask.to(device=device)
-            modified = c[1].copy()
+            modified = c.copy()
             if len(mask.shape) == 2:
                 mask = mask.unsqueeze(0)
             if mask.shape[1] != h or mask.shape[2] != w:
@@ -428,66 +373,70 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
                     modified['area'] = area
 
             modified['mask'] = mask
-            conditions[i] = [c[0], modified]
+            conditions[i] = modified
 
 def create_cond_with_same_area_if_none(conds, c):
-    if 'area' not in c[1]:
+    if 'area' not in c:
         return
 
-    c_area = c[1]['area']
+    c_area = c['area']
     smallest = None
     for x in conds:
-        if 'area' in x[1]:
-            a = x[1]['area']
+        if 'area' in x:
+            a = x['area']
             if c_area[2] >= a[2] and c_area[3] >= a[3]:
                 if a[0] + a[2] >= c_area[0] + c_area[2]:
                     if a[1] + a[3] >= c_area[1] + c_area[3]:
                         if smallest is None:
                             smallest = x
-                        elif 'area' not in smallest[1]:
+                        elif 'area' not in smallest:
                             smallest = x
                         else:
-                            if smallest[1]['area'][0] * smallest[1]['area'][1] > a[0] * a[1]:
+                            if smallest['area'][0] * smallest['area'][1] > a[0] * a[1]:
                                 smallest = x
         else:
             if smallest is None:
                 smallest = x
     if smallest is None:
         return
-    if 'area' in smallest[1]:
-        if smallest[1]['area'] == c_area:
+    if 'area' in smallest:
+        if smallest['area'] == c_area:
             return
-    n = c[1].copy()
-    conds += [[smallest[0], n]]
+
+    out = c.copy()
+    out['model_conds'] = smallest['model_conds'].copy() #TODO: which fields should be copied?
+    conds += [out]
 
 def calculate_start_end_timesteps(model, conds):
+    s = model.model_sampling
     for t in range(len(conds)):
         x = conds[t]
 
         timestep_start = None
         timestep_end = None
-        if 'start_percent' in x[1]:
-            timestep_start = model.sigma_to_t(model.t_to_sigma(torch.tensor(x[1]['start_percent'] * 999.0)))
-        if 'end_percent' in x[1]:
-            timestep_end = model.sigma_to_t(model.t_to_sigma(torch.tensor(x[1]['end_percent'] * 999.0)))
+        if 'start_percent' in x:
+            timestep_start = s.percent_to_sigma(x['start_percent'])
+        if 'end_percent' in x:
+            timestep_end = s.percent_to_sigma(x['end_percent'])
 
         if (timestep_start is not None) or (timestep_end is not None):
-            n = x[1].copy()
+            n = x.copy()
             if (timestep_start is not None):
                 n['timestep_start'] = timestep_start
             if (timestep_end is not None):
                 n['timestep_end'] = timestep_end
-            conds[t] = [x[0], n]
+            conds[t] = n
 
 def pre_run_control(model, conds):
+    s = model.model_sampling
     for t in range(len(conds)):
         x = conds[t]
 
         timestep_start = None
         timestep_end = None
-        percent_to_timestep_function = lambda a: model.sigma_to_t(model.t_to_sigma(torch.tensor(a) * 999.0))
-        if 'control' in x[1]:
-            x[1]['control'].pre_run(model.inner_model.inner_model, percent_to_timestep_function)
+        percent_to_timestep_function = lambda a: s.percent_to_sigma(a)
+        if 'control' in x:
+            x['control'].pre_run(model, percent_to_timestep_function)
 
 def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     cond_cnets = []
@@ -496,16 +445,16 @@ def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     uncond_other = []
     for t in range(len(conds)):
         x = conds[t]
-        if 'area' not in x[1]:
-            if name in x[1] and x[1][name] is not None:
-                cond_cnets.append(x[1][name])
+        if 'area' not in x:
+            if name in x and x[name] is not None:
+                cond_cnets.append(x[name])
             else:
                 cond_other.append((x, t))
     for t in range(len(uncond)):
         x = uncond[t]
-        if 'area' not in x[1]:
-            if name in x[1] and x[1][name] is not None:
-                uncond_cnets.append(x[1][name])
+        if 'area' not in x:
+            if name in x and x[name] is not None:
+                uncond_cnets.append(x[name])
             else:
                 uncond_other.append((x, t))
 
@@ -515,209 +464,232 @@ def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
     for x in range(len(cond_cnets)):
         temp = uncond_other[x % len(uncond_other)]
         o = temp[0]
-        if name in o[1] and o[1][name] is not None:
-            n = o[1].copy()
+        if name in o and o[name] is not None:
+            n = o.copy()
             n[name] = uncond_fill_func(cond_cnets, x)
-            uncond += [[o[0], n]]
+            uncond += [n]
         else:
-            n = o[1].copy()
+            n = o.copy()
             n[name] = uncond_fill_func(cond_cnets, x)
-            uncond[temp[1]] = [o[0], n]
+            uncond[temp[1]] = n
 
-def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
+def encode_model_conds(model_function, conds, noise, device, prompt_type, **kwargs):
     for t in range(len(conds)):
         x = conds[t]
-        adm_out = None
-        if 'adm' in x[1]:
-            adm_out = x[1]["adm"]
-        else:
-            params = x[1].copy()
-            params["width"] = params.get("width", width * 8)
-            params["height"] = params.get("height", height * 8)
-            params["prompt_type"] = params.get("prompt_type", prompt_type)
-            adm_out = model.encode_adm(device=device, **params)
+        params = x.copy()
+        params["device"] = device
+        params["noise"] = noise
+        params["width"] = params.get("width", noise.shape[3] * 8)
+        params["height"] = params.get("height", noise.shape[2] * 8)
+        params["prompt_type"] = params.get("prompt_type", prompt_type)
+        for k in kwargs:
+            if k not in params:
+                params[k] = kwargs[k]
 
-        if adm_out is not None:
-            x[1] = x[1].copy()
-            x[1]["adm_encoded"] = comfy.utils.repeat_to_batch_size(adm_out, batch_size).to(device)
-
+        out = model_function(**params)
+        x = x.copy()
+        model_conds = x['model_conds'].copy()
+        for k in out:
+            model_conds[k] = out[k]
+        x['model_conds'] = model_conds
+        conds[t] = x
     return conds
-
 
 class Sampler:
     def sample(self):
         pass
 
     def max_denoise(self, model_wrap, sigmas):
-        return math.isclose(float(model_wrap.sigma_max), float(sigmas[0]), rel_tol=1e-05)
+        max_sigma = float(model_wrap.inner_model.model_sampling.sigma_max)
+        sigma = float(sigmas[0])
+        return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
 
-class DDIM(Sampler):
-    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
-        timesteps = []
-        for s in range(sigmas.shape[0]):
-            timesteps.insert(0, model_wrap.sigma_to_discrete_timestep(sigmas[s]))
-        noise_mask = None
-        if denoise_mask is not None:
-            noise_mask = 1.0 - denoise_mask
-
-        ddim_callback = None
-        if callback is not None:
-            total_steps = len(timesteps) - 1
-            ddim_callback = lambda pred_x0, i: callback(i, pred_x0, None, total_steps)
-
-        max_denoise = self.max_denoise(model_wrap, sigmas)
-
-        ddim_sampler = DDIMSampler(model_wrap.inner_model.inner_model, device=noise.device)
-        ddim_sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
-        z_enc = ddim_sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(noise.device), noise=noise, max_denoise=max_denoise)
-        samples, _ = ddim_sampler.sample_custom(ddim_timesteps=timesteps,
-                                                batch_size=noise.shape[0],
-                                                shape=noise.shape[1:],
-                                                verbose=False,
-                                                eta=0.0,
-                                                x_T=z_enc,
-                                                x0=latent_image,
-                                                img_callback=ddim_callback,
-                                                denoise_function=model_wrap.predict_eps_discrete_timestep,
-                                                extra_args=extra_args,
-                                                mask=noise_mask,
-                                                to_zero=sigmas[-1]==0,
-                                                end_step=sigmas.shape[0] - 1,
-                                                disable_pbar=disable_pbar)
-        return samples
-
-class UNIPC(Sampler):
-    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
-        return uni_pc.sample_unipc(model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=self.max_denoise(model_wrap, sigmas), extra_args=extra_args, noise_mask=denoise_mask, callback=callback, disable=disable_pbar)
-
-class UNIPCBH2(Sampler):
-    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
-        return uni_pc.sample_unipc(model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=self.max_denoise(model_wrap, sigmas), extra_args=extra_args, noise_mask=denoise_mask, callback=callback, variant='bh2', disable=disable_pbar)
-
-KSAMPLER_NAMES = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
+KSAMPLER_NAMES = ["euler", "euler_ancestral", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
-                  "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm"]
+                  "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm"]
 
-def ksampler(sampler_name, extra_options={}):
-    class KSAMPLER(Sampler):
-        def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
-            extra_args["denoise_mask"] = denoise_mask
-            model_k = KSamplerX0Inpaint(model_wrap)
-            model_k.latent_image = latent_image
+class KSAMPLER(Sampler):
+    def __init__(self, sampler_function, extra_options={}, inpaint_options={}):
+        self.sampler_function = sampler_function
+        self.extra_options = extra_options
+        self.inpaint_options = inpaint_options
+
+    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
+        extra_args["denoise_mask"] = denoise_mask
+        model_k = KSamplerX0Inpaint(model_wrap, sigmas)
+        model_k.latent_image = latent_image
+        if self.inpaint_options.get("random", False): #TODO: Should this be the default?
+            generator = torch.manual_seed(extra_args.get("seed", 41) + 1)
+            model_k.noise = torch.randn(noise.shape, generator=generator, device="cpu").to(noise.dtype).to(noise.device)
+        else:
             model_k.noise = noise
 
-            if self.max_denoise(model_wrap, sigmas):
-                noise = noise * torch.sqrt(1.0 + sigmas[0] ** 2.0)
-            else:
-                noise = noise * sigmas[0]
+        noise = model_wrap.inner_model.model_sampling.noise_scaling(sigmas[0], noise, latent_image, self.max_denoise(model_wrap, sigmas))
 
-            k_callback = None
-            total_steps = len(sigmas) - 1
-            if callback is not None:
-                k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
+        k_callback = None
+        total_steps = len(sigmas) - 1
+        if callback is not None:
+            k_callback = lambda x: callback(x["i"], x["denoised"], x["x"], total_steps)
+
+        samples = self.sampler_function(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **self.extra_options)
+        samples = model_wrap.inner_model.model_sampling.inverse_noise_scaling(sigmas[-1], samples)
+        return samples
+
+
+def ksampler(sampler_name, extra_options={}, inpaint_options={}):
+    if sampler_name == "dpm_fast":
+        def dpm_fast_function(model, noise, sigmas, extra_args, callback, disable):
+            if len(sigmas) <= 1:
+                return noise
 
             sigma_min = sigmas[-1]
             if sigma_min == 0:
                 sigma_min = sigmas[-2]
+            total_steps = len(sigmas) - 1
+            return k_diffusion_sampling.sample_dpm_fast(model, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=callback, disable=disable)
+        sampler_function = dpm_fast_function
+    elif sampler_name == "dpm_adaptive":
+        def dpm_adaptive_function(model, noise, sigmas, extra_args, callback, disable, **extra_options):
+            if len(sigmas) <= 1:
+                return noise
 
-            if latent_image is not None:
-                noise += latent_image
-            if sampler_name == "dpm_fast":
-                samples = k_diffusion_sampling.sample_dpm_fast(model_k, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
-            elif sampler_name == "dpm_adaptive":
-                samples = k_diffusion_sampling.sample_dpm_adaptive(model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback, disable=disable_pbar)
-            else:
-                samples = getattr(k_diffusion_sampling, "sample_{}".format(sampler_name))(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **extra_options)
-            return samples
-    return KSAMPLER
-
-def wrap_model(model):
-    model_denoise = CFGNoisePredictor(model)
-    if model.model_type == model_base.ModelType.V_PREDICTION:
-        model_wrap = CompVisVDenoiser(model_denoise, quantize=True)
+            sigma_min = sigmas[-1]
+            if sigma_min == 0:
+                sigma_min = sigmas[-2]
+            return k_diffusion_sampling.sample_dpm_adaptive(model, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=callback, disable=disable, **extra_options)
+        sampler_function = dpm_adaptive_function
     else:
-        model_wrap = k_diffusion_external.CompVisDenoiser(model_denoise, quantize=True)
-    return model_wrap
+        sampler_function = getattr(k_diffusion_sampling, "sample_{}".format(sampler_name))
 
-def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model_options={}, latent_image=None, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
-    positive = positive[:]
-    negative = negative[:]
+    return KSAMPLER(sampler_function, extra_options, inpaint_options)
 
-    resolve_areas_and_cond_masks(positive, noise.shape[2], noise.shape[3], device)
-    resolve_areas_and_cond_masks(negative, noise.shape[2], noise.shape[3], device)
 
-    model_wrap = wrap_model(model)
+def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=None, seed=None):
+    for k in conds:
+        conds[k] = conds[k][:]
+        resolve_areas_and_cond_masks(conds[k], noise.shape[2], noise.shape[3], device)
 
-    calculate_start_end_timesteps(model_wrap, negative)
-    calculate_start_end_timesteps(model_wrap, positive)
+    for k in conds:
+        calculate_start_end_timesteps(model, conds[k])
+
+    if hasattr(model, 'extra_conds'):
+        for k in conds:
+            conds[k] = encode_model_conds(model.extra_conds, conds[k], noise, device, k, latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
 
     #make sure each cond area has an opposite one with the same area
-    for c in positive:
-        create_cond_with_same_area_if_none(negative, c)
-    for c in negative:
-        create_cond_with_same_area_if_none(positive, c)
+    for k in conds:
+        for c in conds[k]:
+            for kk in conds:
+                if k != kk:
+                    create_cond_with_same_area_if_none(conds[kk], c)
 
-    pre_run_control(model_wrap, negative + positive)
+    for k in conds:
+        pre_run_control(model, conds[k])
 
-    apply_empty_x_to_equal_area(list(filter(lambda c: c[1].get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
-    apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
+    if "positive" in conds:
+        positive = conds["positive"]
+        for k in conds:
+            if k != "positive":
+                apply_empty_x_to_equal_area(list(filter(lambda c: c.get('control_apply_to_uncond', False) == True, positive)), conds[k], 'control', lambda cond_cnets, x: cond_cnets[x])
+                apply_empty_x_to_equal_area(positive, conds[k], 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
-    if model.is_adm():
-        positive = encode_adm(model, positive, noise.shape[0], noise.shape[3], noise.shape[2], device, "positive")
-        negative = encode_adm(model, negative, noise.shape[0], noise.shape[3], noise.shape[2], device, "negative")
+    return conds
 
-    if latent_image is not None:
-        latent_image = model.process_latent_in(latent_image)
+class CFGGuider:
+    def __init__(self, model_patcher):
+        self.model_patcher = model_patcher
+        self.model_options = model_patcher.model_options
+        self.original_conds = {}
+        self.cfg = 1.0
 
-    extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": model_options, "seed":seed}
+    def set_conds(self, positive, negative):
+        self.inner_set_conds({"positive": positive, "negative": negative})
 
-    cond_concat = None
-    if hasattr(model, 'concat_keys'): #inpaint
-        cond_concat = []
-        for ck in model.concat_keys:
-            if denoise_mask is not None:
-                if ck == "mask":
-                    cond_concat.append(denoise_mask[:,:1])
-                elif ck == "masked_image":
-                    cond_concat.append(latent_image) #NOTE: the latent_image should be masked by the mask in pixel space
-            else:
-                if ck == "mask":
-                    cond_concat.append(torch.ones_like(noise)[:,:1])
-                elif ck == "masked_image":
-                    cond_concat.append(blank_inpaint_image_like(noise))
-        extra_args["cond_concat"] = cond_concat
+    def set_cfg(self, cfg):
+        self.cfg = cfg
 
-    samples = sampler.sample(model_wrap, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
-    return model.process_latent_out(samples.to(torch.float32))
+    def inner_set_conds(self, conds):
+        for k in conds:
+            self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
+
+    def __call__(self, *args, **kwargs):
+        return self.predict_noise(*args, **kwargs)
+
+    def predict_noise(self, x, timestep, model_options={}, seed=None):
+        return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)
+
+    def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed):
+        if latent_image is not None and torch.count_nonzero(latent_image) > 0: #Don't shift the empty latent image.
+            latent_image = self.inner_model.process_latent_in(latent_image)
+
+        self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
+
+        extra_args = {"model_options": self.model_options, "seed":seed}
+
+        samples = sampler.sample(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
+        return self.inner_model.process_latent_out(samples.to(torch.float32))
+
+    def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+        if sigmas.shape[-1] == 0:
+            return latent_image
+
+        self.conds = {}
+        for k in self.original_conds:
+            self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
+
+        self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds)
+        device = self.model_patcher.load_device
+
+        if denoise_mask is not None:
+            denoise_mask = comfy.sampler_helpers.prepare_mask(denoise_mask, noise.shape, device)
+
+        noise = noise.to(device)
+        latent_image = latent_image.to(device)
+        sigmas = sigmas.to(device)
+
+        output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+
+        comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
+        del self.inner_model
+        del self.conds
+        del self.loaded_models
+        return output
+
+
+def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model_options={}, latent_image=None, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+    cfg_guider = CFGGuider(model)
+    cfg_guider.set_conds(positive, negative)
+    cfg_guider.set_cfg(cfg)
+    return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+
 
 SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
 
-def calculate_sigmas_scheduler(model, scheduler_name, steps):
-    model_wrap = wrap_model(model)
+def calculate_sigmas(model_sampling, scheduler_name, steps):
     if scheduler_name == "karras":
-        sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_wrap.sigma_min), sigma_max=float(model_wrap.sigma_max))
+        sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     elif scheduler_name == "exponential":
-        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=float(model_wrap.sigma_min), sigma_max=float(model_wrap.sigma_max))
+        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     elif scheduler_name == "normal":
-        sigmas = model_wrap.get_sigmas(steps)
+        sigmas = normal_scheduler(model_sampling, steps)
     elif scheduler_name == "simple":
-        sigmas = simple_scheduler(model_wrap, steps)
+        sigmas = simple_scheduler(model_sampling, steps)
     elif scheduler_name == "ddim_uniform":
-        sigmas = ddim_scheduler(model_wrap, steps)
+        sigmas = ddim_scheduler(model_sampling, steps)
     elif scheduler_name == "sgm_uniform":
-        sigmas = sgm_scheduler(model_wrap, steps)
+        sigmas = normal_scheduler(model_sampling, steps, sgm=True)
     else:
-        print("error invalid scheduler", self.scheduler)
+        logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas
 
-def sampler_class(name):
+def sampler_object(name):
     if name == "uni_pc":
-        sampler = UNIPC
+        sampler = KSAMPLER(uni_pc.sample_unipc)
     elif name == "uni_pc_bh2":
-        sampler = UNIPCBH2
+        sampler = KSAMPLER(uni_pc.sample_unipc_bh2)
     elif name == "ddim":
-        sampler = DDIM
+        sampler = ksampler("euler", inpaint_options={"random": True})
     else:
         sampler = ksampler(name)
     return sampler
@@ -725,6 +697,7 @@ def sampler_class(name):
 class KSampler:
     SCHEDULERS = SCHEDULER_NAMES
     SAMPLERS = SAMPLER_NAMES
+    DISCARD_PENULTIMATE_SIGMA_SAMPLERS = set(('dpm_2', 'dpm_2_ancestral', 'uni_pc', 'uni_pc_bh2'))
 
     def __init__(self, model, steps, device, sampler=None, scheduler=None, denoise=None, model_options={}):
         self.model = model
@@ -743,11 +716,11 @@ class KSampler:
         sigmas = None
 
         discard_penultimate_sigma = False
-        if self.sampler in ['dpm_2', 'dpm_2_ancestral']:
+        if self.sampler in self.DISCARD_PENULTIMATE_SIGMA_SAMPLERS:
             steps += 1
             discard_penultimate_sigma = True
 
-        sigmas = calculate_sigmas_scheduler(self.model, self.scheduler, steps)
+        sigmas = calculate_sigmas(self.model.get_model_object("model_sampling"), self.scheduler, steps)
 
         if discard_penultimate_sigma:
             sigmas = torch.cat([sigmas[:-2], sigmas[-1:]])
@@ -758,9 +731,12 @@ class KSampler:
         if denoise is None or denoise > 0.9999:
             self.sigmas = self.calculate_sigmas(steps).to(self.device)
         else:
-            new_steps = int(steps/denoise)
-            sigmas = self.calculate_sigmas(new_steps).to(self.device)
-            self.sigmas = sigmas[-(steps + 1):]
+            if denoise <= 0.0:
+                self.sigmas = torch.FloatTensor([])
+            else:
+                new_steps = int(steps/denoise)
+                sigmas = self.calculate_sigmas(new_steps).to(self.device)
+                self.sigmas = sigmas[-(steps + 1):]
 
     def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
         if sigmas is None:
@@ -780,6 +756,6 @@ class KSampler:
                 else:
                     return torch.zeros_like(noise)
 
-        sampler = sampler_class(self.sampler)
+        sampler = sampler_object(self.sampler)
 
-        return sample(self.model, noise, positive, negative, cfg, self.device, sampler(), sigmas, self.model_options, latent_image=latent_image, denoise_mask=denoise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
+        return sample(self.model, noise, positive, negative, cfg, self.device, sampler, sigmas, self.model_options, latent_image=latent_image, denoise_mask=denoise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)

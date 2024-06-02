@@ -11,25 +11,21 @@ import urllib
 import json
 import glob
 import struct
+import ssl
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
 
-try:
-    import aiohttp
-    from aiohttp import web
-except ImportError:
-    print("Module 'aiohttp' not installed. Please install it via:")
-    print("pip install aiohttp")
-    print("or")
-    print("pip install -r requirements.txt")
-    sys.exit()
+import aiohttp
+from aiohttp import web
+import logging
 
 import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
 
+from app.user_manager import UserManager
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -39,7 +35,7 @@ async def send_socket_catch_exception(function, message):
     try:
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
-        print("send error:", err)
+        logging.warning("send error: {}".format(err))
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -72,6 +68,7 @@ class PromptServer():
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
 
+        self.user_manager = UserManager()
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = None
         self.loop = loop
@@ -82,7 +79,8 @@ class PromptServer():
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
 
-        self.app = web.Application(client_max_size=104857600, middlewares=middlewares)
+        max_upload_size = round(args.max_upload_size * 1024 * 1024)
+        self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
@@ -115,7 +113,7 @@ class PromptServer():
                     
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
-                        print('ws connection closed with exception %s' % ws.exception())
+                        logging.warning('ws connection closed with exception %s' % ws.exception())
             finally:
                 self.sockets.pop(sid, None)
             return ws
@@ -416,8 +414,8 @@ class PromptServer():
                 try:
                     out[x] = node_info(x)
                 except Exception as e:
-                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
-                    traceback.print_exc()
+                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                    logging.error(traceback.format_exc())
             return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
@@ -430,7 +428,10 @@ class PromptServer():
 
         @routes.get("/history")
         async def get_history(request):
-            return web.json_response(self.prompt_queue.get_history())
+            max_items = request.rel_url.query.get("max_items", None)
+            if max_items is not None:
+                max_items = int(max_items)
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
         async def get_history(request):
@@ -447,7 +448,7 @@ class PromptServer():
 
         @routes.post("/prompt")
         async def post_prompt(request):
-            print("got prompt")
+            logging.info("got prompt")
             resp_code = 200
             out_string = ""
             json_data =  await request.json()
@@ -479,7 +480,7 @@ class PromptServer():
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
-                    print("invalid prompt:", valid[1])
+                    logging.warning("invalid prompt: {}".format(valid[1]))
                     return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
                 return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
@@ -503,6 +504,17 @@ class PromptServer():
             nodes.interrupt_processing()
             return web.Response(status=200)
 
+        @routes.post("/free")
+        async def post_free(request):
+            json_data = await request.json()
+            unload_models = json_data.get("unload_models", False)
+            free_memory = json_data.get("free_memory", False)
+            if unload_models:
+                self.prompt_queue.set_flag("unload_models", unload_models)
+            if free_memory:
+                self.prompt_queue.set_flag("free_memory", free_memory)
+            return web.Response(status=200)
+
         @routes.post("/history")
         async def post_history(request):
             json_data =  await request.json()
@@ -517,15 +529,16 @@ class PromptServer():
             return web.Response(status=200)
         
     def add_routes(self):
+        self.user_manager.add_routes(self.routes)
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([
-                web.static('/extensions/' + urllib.parse.quote(name), dir, follow_symlinks=True),
+                web.static('/extensions/' + urllib.parse.quote(name), dir),
             ])
 
         self.app.add_routes([
-            web.static('/', self.web_root, follow_symlinks=True),
+            web.static('/', self.web_root),
         ])
 
     def get_queue_info(self):
@@ -572,7 +585,7 @@ class PromptServer():
         bytesIO = BytesIO()
         header = struct.pack(">I", type_num)
         bytesIO.write(header)
-        image.save(bytesIO, format=image_type, quality=95, compress_level=4)
+        image.save(bytesIO, format=image_type, quality=95, compress_level=1)
         preview_bytes = bytesIO.getvalue()
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
@@ -580,7 +593,8 @@ class PromptServer():
         message = self.encode_bytes(event, data)
 
         if sid is None:
-            for ws in self.sockets.values():
+            sockets = list(self.sockets.values())
+            for ws in sockets:
                 await send_socket_catch_exception(ws.send_bytes, message)
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_bytes, message)
@@ -589,7 +603,8 @@ class PromptServer():
         message = {"type": event, "data": data}
 
         if sid is None:
-            for ws in self.sockets.values():
+            sockets = list(self.sockets.values())
+            for ws in sockets:
                 await send_socket_catch_exception(ws.send_json, message)
         elif sid in self.sockets:
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
@@ -609,16 +624,22 @@ class PromptServer():
     async def start(self, address, port, verbose=True, call_on_start=None):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
-        site = web.TCPSite(runner, address, port)
+        ssl_ctx = None
+        scheme = "http"
+        if args.tls_keyfile and args.tls_certfile:
+                ssl_ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER, verify_mode=ssl.CERT_NONE)
+                ssl_ctx.load_cert_chain(certfile=args.tls_certfile,
+                                keyfile=args.tls_keyfile)
+                scheme = "https"
+
+        site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
         await site.start()
 
-        if address == '':
-            address = '0.0.0.0'
         if verbose:
-            print("Starting server\n")
-            print("To see the GUI go to: http://{}:{}".format(address, port))
+            logging.info("Starting server\n")
+            logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address, port))
         if call_on_start is not None:
-            call_on_start(address, port)
+            call_on_start(scheme, address, port)
 
     def add_on_prompt_handler(self, handler):
         self.on_prompt_handlers.append(handler)
@@ -628,7 +649,7 @@ class PromptServer():
             try:
                 json_data = handler(json_data)
             except Exception as e:
-                print(f"[ERROR] An error occurred during the on_prompt_handler processing")
-                traceback.print_exc()
+                logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
+                logging.warning(traceback.format_exc())
 
         return json_data

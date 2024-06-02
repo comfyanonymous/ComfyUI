@@ -6,6 +6,8 @@ class Example:
     -------------
     INPUT_TYPES (dict): 
         Tell the main program input parameters of nodes.
+    IS_CHANGED:
+        optional method to control when the node is re executed.
 
     Attributes
     ----------
@@ -89,6 +91,20 @@ class Example:
         image = 1.0 - image
         return (image,)
 
+    """
+        The node will always be re executed if any of the inputs change but
+        this method can be used to force the node to execute again even when the inputs don't change.
+        You can make this node return a number or a string. This value will be compared to the one returned the last time the node was
+        executed, if it is different the node will be executed again.
+        This method is used in the core repo for the LoadImage node where they return the image hash as a string, if the image hash
+        changes between executions the LoadImage node is executed again.
+    """
+    #@classmethod
+    #def IS_CHANGED(s, image, string_field, int_field, float_field, print_to_screen):
+    #    return ""
+
+# Set the web directory, any .js file in that directory will be loaded by the frontend as a frontend extension
+# WEB_DIRECTORY = "./somejs"
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique

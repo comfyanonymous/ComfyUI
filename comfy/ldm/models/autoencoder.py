@@ -1,6 +1,4 @@
 import torch
-# import pytorch_lightning as pl
-import torch.nn.functional as F
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -8,6 +6,7 @@ from comfy.ldm.modules.distributions.distributions import DiagonalGaussianDistri
 
 from comfy.ldm.util import instantiate_from_config
 from comfy.ldm.modules.ema import LitEma
+import comfy.ops
 
 class DiagonalGaussianRegularizer(torch.nn.Module):
     def __init__(self, sample: bool = True):
@@ -161,12 +160,12 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             },
             **kwargs,
         )
-        self.quant_conv = torch.nn.Conv2d(
+        self.quant_conv = comfy.ops.disable_weight_init.Conv2d(
             (1 + ddconfig["double_z"]) * ddconfig["z_channels"],
             (1 + ddconfig["double_z"]) * embed_dim,
             1,
         )
-        self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
+        self.post_quant_conv = comfy.ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
 
     def get_autoencoder_params(self) -> list:

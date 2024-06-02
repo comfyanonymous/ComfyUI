@@ -1,7 +1,8 @@
 import os
 import time
+import logging
 
-supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
+supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
 folder_names_and_paths = {}
 
@@ -29,16 +30,22 @@ folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
+folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
+
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
 output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
 temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
 input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
+user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
 
 filename_list_cache = {}
 
 if not os.path.exists(input_directory):
-    os.makedirs(input_directory)
+    try:
+        os.makedirs(input_directory)
+    except:
+        logging.error("Failed to create input directory")
 
 def set_output_directory(output_dir):
     global output_directory
@@ -134,15 +141,29 @@ def recursive_search(directory, excluded_dir_names=None):
         excluded_dir_names = []
 
     result = []
-    dirs = {directory: os.path.getmtime(directory)}
+    dirs = {}
+
+    # Attempt to add the initial directory to dirs with error handling
+    try:
+        dirs[directory] = os.path.getmtime(directory)
+    except FileNotFoundError:
+        logging.warning(f"Warning: Unable to access {directory}. Skipping this path.")
+
+    logging.debug("recursive file list on directory {}".format(directory))
     for dirpath, subdirs, filenames in os.walk(directory, followlinks=True, topdown=True):
         subdirs[:] = [d for d in subdirs if d not in excluded_dir_names]
         for file_name in filenames:
             relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
             result.append(relative_path)
+
         for d in subdirs:
             path = os.path.join(dirpath, d)
-            dirs[path] = os.path.getmtime(path)
+            try:
+                dirs[path] = os.path.getmtime(path)
+            except FileNotFoundError:
+                logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
+                continue
+    logging.debug("found {} files".format(len(result)))
     return result, dirs
 
 def filter_files_extensions(files, extensions):
@@ -160,6 +181,8 @@ def get_full_path(folder_name, filename):
         full_path = os.path.join(x, filename)
         if os.path.isfile(full_path):
             return full_path
+        elif os.path.islink(full_path):
+            logging.warning("WARNING path {} exists but doesn't link anywhere, skipping.".format(full_path))
 
     return None
 
@@ -181,8 +204,7 @@ def cached_filename_list_(folder_name):
     if folder_name not in filename_list_cache:
         return None
     out = filename_list_cache[folder_name]
-    if time.perf_counter() < (out[2] + 0.5):
-        return out
+
     for x in out[1]:
         time_modified = out[1][x]
         folder = x
@@ -228,11 +250,15 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
     full_output_folder = os.path.join(output_dir, subfolder)
 
     if os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) != output_dir:
-        print("Saving image outside the output folder is not allowed.")
-        return {}
+        err = "**** ERROR: Saving image outside the output folder is not allowed." + \
+              "\n full_output_folder: " + os.path.abspath(full_output_folder) + \
+              "\n         output_dir: " + output_dir + \
+              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))
+        logging.error(err)
+        raise Exception(err)
 
     try:
-        counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
+        counter = max(filter(lambda a: os.path.normcase(a[1][:-1]) == os.path.normcase(filename) and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
     except ValueError:
         counter = 1
     except FileNotFoundError:

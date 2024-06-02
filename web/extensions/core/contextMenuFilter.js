@@ -25,7 +25,7 @@ const ext = {
 				requestAnimationFrame(() => {
 					const currentNode = LGraphCanvas.active_canvas.current_node;
 					const clickedComboValue = currentNode.widgets
-						.filter(w => w.type === "combo" && w.options.values.length === values.length)
+						?.filter(w => w.type === "combo" && w.options.values.length === values.length)
 						.find(w => w.options.values.every((v, i) => v === values[i]))
 						?.value;
 
