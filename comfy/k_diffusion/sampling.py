@@ -841,5 +841,7 @@ def sample_tcd(
         if eta > 0 and sigmas[i + 1] > 0:
             noise = noise_sampler(sigmas[i], sigmas[i + 1])
             x = x / alpha_prod_s[i+1].sqrt() + noise * (sigmas[i+1]**2 + 1 - 1/alpha_prod_s[i+1]).sqrt()
+        else:
+            x *= torch.sqrt(1.0 + sigmas[i + 1] ** 2)
 
     return x
