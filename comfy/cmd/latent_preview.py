@@ -14,6 +14,15 @@ import logging
 
 MAX_PREVIEW_RESOLUTION = 512
 
+
+def preview_to_image(latent_image):
+    latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
+                        .mul(0xFF)  # to 0..255
+                        ).to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(latent_image.device))
+
+    return Image.fromarray(latents_ubyte.numpy())
+
+
 class LatentPreviewer:
     def decode_latent_to_preview(self, x0):
         pass
@@ -22,17 +31,14 @@ class LatentPreviewer:
         preview_image = self.decode_latent_to_preview(x0)
         return ("JPEG", preview_image, MAX_PREVIEW_RESOLUTION)
 
+
 class TAESDPreviewerImpl(LatentPreviewer):
     def __init__(self, taesd):
         self.taesd = taesd
 
     def decode_latent_to_preview(self, x0):
-        x_sample = self.taesd.decode(x0[:1])[0].detach()
-        x_sample = 255. * torch.clamp((x_sample + 1.0) / 2.0, min=0.0, max=1.0)
-        x_sample = np.moveaxis(x_sample.to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(x_sample.device)).numpy(), 0, 2)
-
-        preview_image = Image.fromarray(x_sample)
-        return preview_image
+        x_sample = self.taesd.decode(x0[:1])[0].movedim(0, 2)
+        return preview_to_image(x_sample)
 
 
 class Latent2RGBPreviewer(LatentPreviewer):
@@ -42,13 +48,7 @@ class Latent2RGBPreviewer(LatentPreviewer):
     def decode_latent_to_preview(self, x0):
         self.latent_rgb_factors = self.latent_rgb_factors.to(dtype=x0.dtype, device=x0.device)
         latent_image = x0[0].permute(1, 2, 0) @ self.latent_rgb_factors
-
-        latents_ubyte = (((latent_image + 1) / 2)
-                            .clamp(0, 1)  # change scale from -1..1 to 0..1
-                            .mul(0xFF)  # to 0..255
-                            ).to(device="cpu", dtype=torch.uint8, non_blocking=model_management.device_supports_non_blocking(latent_image.device))
-
-        return Image.fromarray(latents_ubyte.numpy())
+        return preview_to_image(latent_image)
 
 
 def get_previewer(device, latent_format):
@@ -88,6 +88,7 @@ def prepare_callback(model, steps, x0_output_dict=None):
     previewer = get_previewer(model.load_device, model.model.latent_format)
 
     pbar = utils.ProgressBar(steps)
+
     def callback(step, x0, x, total_steps):
         if x0_output_dict is not None:
             x0_output_dict["x0"] = x0
