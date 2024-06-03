@@ -105,8 +105,8 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None):
     )
 
     # force cast to fp32 to avoid overflowing if args.dont_upcast_attention is not set
-    sim = einsum('b i d, b j d -> b i j', q.to(dtype=cast_to_type), k.to(dtype=cast_to_type) * scale
-
+    sim = einsum('b i d, b j d -> b i j', q.to(dtype=cast_to_type), k.to(dtype=cast_to_type)) * scale
+    
     del q, k
 
     if exists(mask):
