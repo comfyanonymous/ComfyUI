@@ -260,7 +260,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None):
                 end = i + slice_size
                 if upcast:
                     with torch.autocast(enabled=False, device_type = 'cuda'):
-                        s1 = einsum('b i d, b j d -> b i j', q[:, i:end].to(dtype=torch.float32), k.to(dtype=torch.float32) * scale
+                        s1 = einsum('b i d, b j d -> b i j', q[:, i:end].to(dtype=torch.float32), k.to(dtype=torch.float32)) * scale
                 else:
                     s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k) * scale
 
