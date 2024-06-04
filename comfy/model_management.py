@@ -693,6 +693,8 @@ def pytorch_attention_flash_attention():
         #TODO: more reliable way of checking for flash attention?
         if is_nvidia(): #pytorch flash attention only works on Nvidia
             return True
+        if is_intel_xpu():
+            return True
     return False
 
 def force_upcast_attention_dtype():
