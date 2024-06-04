@@ -1,0 +1,6 @@
+[submodule "custom_nodes/MrG"]
+	path = custom_nodes/MrG
+	url = https://github.com/RazvanManolache/Mr.G-ComfyUI-Plugin.Backend
+[submodule "web/MrG"]
+	path = web/MrG
+	url = https://github.com/RazvanManolache/Mr.G-ComfyUI-Plugin.Web
