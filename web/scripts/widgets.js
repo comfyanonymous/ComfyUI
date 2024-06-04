@@ -81,6 +81,9 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 
 	const isCombo = targetWidget.type === "combo";
 	let comboFilter;
+	if (isCombo) {
+		valueControl.options.values.push("increment-wrap");
+	}
 	if (isCombo && options.addFilterList !== false) {
 		comboFilter = node.addWidget(
 			"string",
@@ -127,6 +130,12 @@ export function addValueControlWidgets(node, targetWidget, defaultValue = "rando
 			switch (v) {
 				case "increment":
 					current_index += 1;
+					break;
+				case "increment-wrap":
+					current_index += 1;
+					if ( current_index >= current_length ) {
+					    current_index = 0;
+					}
 					break;
 				case "decrement":
 					current_index -= 1;
@@ -220,7 +229,11 @@ function createIntWidget(node, inputName, inputData, app, isSeedInput) {
 			val,
 			function (v) {
 				const s = this.options.step / 10;
-				this.value = Math.round(v / s) * s;
+				let sh = this.options.min % s;
+				if (isNaN(sh)) {
+					sh = 0;
+				}
+				this.value = Math.round((v - sh) / s) * s + sh;
 			},
 			config
 		),
@@ -295,10 +308,12 @@ export const ComfyWidgets = {
 		let disable_rounding = app.ui.settings.getSettingValue("Comfy.DisableFloatRounding")
 		if (precision == 0) precision = undefined;
 		const { val, config } = getNumberDefaults(inputData, 0.5, precision, !disable_rounding);
-		return { widget: node.addWidget(widgetType, inputName, val, 
+		return { widget: node.addWidget(widgetType, inputName, val,
 			function (v) {
 				if (config.round) {
-					this.value = Math.round(v/config.round)*config.round;
+					this.value = Math.round((v + Number.EPSILON)/config.round)*config.round;
+					if (this.value > config.max) this.value = config.max;
+					if (this.value < config.min) this.value = config.min;
 				} else {
 					this.value = v;
 				}

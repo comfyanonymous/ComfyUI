@@ -262,6 +262,36 @@ export class ComfyApp {
 			})
 		);
 	}
+	
+	#addRestoreWorkflowView() {
+		const serialize = LGraph.prototype.serialize;
+		const self = this;
+		LGraph.prototype.serialize = function() {
+			const workflow = serialize.apply(this, arguments);
+
+			// Store the drag & scale info in the serialized workflow if the setting is enabled
+			if (self.enableWorkflowViewRestore.value) {
+				if (!workflow.extra) {
+					workflow.extra = {};
+				}
+				workflow.extra.ds = {
+					scale: self.canvas.ds.scale,
+					offset: self.canvas.ds.offset,
+				};
+			} else if (workflow.extra?.ds) {
+				// Clear any old view data
+				delete workflow.extra.ds;
+			}
+
+			return workflow;
+		}
+		this.enableWorkflowViewRestore = this.ui.settings.addSetting({
+			id: "Comfy.EnableWorkflowViewRestore",
+			name: "Save and restore canvas position and zoom level in workflows",
+			type: "boolean",
+			defaultValue: true
+		});
+	}
 
 	/**
 	 * Adds special context menu handling for nodes
@@ -269,6 +299,71 @@ export class ComfyApp {
 	 * @param {*} node The node to add the menu handler
 	 */
 	#addNodeContextMenuHandler(node) {
+		function getCopyImageOption(img) {
+			if (typeof window.ClipboardItem === "undefined") return [];
+			return [
+				{
+					content: "Copy Image",
+					callback: async () => {
+						const url = new URL(img.src);
+						url.searchParams.delete("preview");
+
+						const writeImage = async (blob) => {
+							await navigator.clipboard.write([
+								new ClipboardItem({
+									[blob.type]: blob,
+								}),
+							]);
+						};
+
+						try {
+							const data = await fetch(url);
+							const blob = await data.blob();
+							try {
+								await writeImage(blob);
+							} catch (error) {
+								// Chrome seems to only support PNG on write, convert and try again
+								if (blob.type !== "image/png") {
+									const canvas = $el("canvas", {
+										width: img.naturalWidth,
+										height: img.naturalHeight,
+									});
+									const ctx = canvas.getContext("2d");
+									let image;
+									if (typeof window.createImageBitmap === "undefined") {
+										image = new Image();
+										const p = new Promise((resolve, reject) => {
+											image.onload = resolve;
+											image.onerror = reject;
+										}).finally(() => {
+											URL.revokeObjectURL(image.src);
+										});
+										image.src = URL.createObjectURL(blob);
+										await p;
+									} else {
+										image = await createImageBitmap(blob);
+									}
+									try {
+										ctx.drawImage(image, 0, 0);
+										canvas.toBlob(writeImage, "image/png");
+									} finally {
+										if (typeof image.close === "function") {
+											image.close();
+										}
+									}
+
+									return;
+								}
+								throw error;
+							}
+						} catch (error) {
+							alert("Error copying image: " + (error.message ?? error));
+						}
+					},
+				},
+			];
+		}
+
 		node.prototype.getExtraMenuOptions = function (_, options) {
 			if (this.imgs) {
 				// If this node has images then we add an open in new tab item
@@ -286,16 +381,17 @@ export class ComfyApp {
 							content: "Open Image",
 							callback: () => {
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
-								window.open(url, "_blank")
+								url.searchParams.delete("preview");
+								window.open(url, "_blank");
 							},
 						},
+						...getCopyImageOption(img), 
 						{
 							content: "Save Image",
 							callback: () => {
 								const a = document.createElement("a");
 								let url = new URL(img.src);
-								url.searchParams.delete('preview');
+								url.searchParams.delete("preview");
 								a.href = url;
 								a.setAttribute("download", new URLSearchParams(url.search).get("filename"));
 								document.body.append(a);
@@ -308,33 +404,41 @@ export class ComfyApp {
 			}
 
 			options.push({
-					content: "Bypass",
-					callback: (obj) => { if (this.mode === 4) this.mode = 0; else this.mode = 4; this.graph.change(); }
-				});
+				content: "Bypass",
+				callback: (obj) => {
+					if (this.mode === 4) this.mode = 0;
+					else this.mode = 4;
+					this.graph.change();
+				},
+			});
 
 			// prevent conflict of clipspace content
-			if(!ComfyApp.clipspace_return_node) {
+			if (!ComfyApp.clipspace_return_node) {
 				options.push({
-						content: "Copy (Clipspace)",
-						callback: (obj) => { ComfyApp.copyToClipspace(this); }
-					});
+					content: "Copy (Clipspace)",
+					callback: (obj) => {
+						ComfyApp.copyToClipspace(this);
+					},
+				});
 
-				if(ComfyApp.clipspace != null) {
+				if (ComfyApp.clipspace != null) {
 					options.push({
-							content: "Paste (Clipspace)",
-							callback: () => { ComfyApp.pasteFromClipspace(this); }
-						});
+						content: "Paste (Clipspace)",
+						callback: () => {
+							ComfyApp.pasteFromClipspace(this);
+						},
+					});
 				}
 
-				if(ComfyApp.isImageNode(this)) {
+				if (ComfyApp.isImageNode(this)) {
 					options.push({
-							content: "Open in MaskEditor",
-							callback: (obj) => {
-								ComfyApp.copyToClipspace(this);
-								ComfyApp.clipspace_return_node = this;
-								ComfyApp.open_maskeditor();
-							}
-						});
+						content: "Open in MaskEditor",
+						callback: (obj) => {
+							ComfyApp.copyToClipspace(this);
+							ComfyApp.clipspace_return_node = this;
+							ComfyApp.open_maskeditor();
+						},
+					});
 				}
 			}
 		};
@@ -879,6 +983,12 @@ export class ComfyApp {
 
 		const origProcessMouseDown = LGraphCanvas.prototype.processMouseDown;
 		LGraphCanvas.prototype.processMouseDown = function(e) {
+			// prepare for ctrl+shift drag: zoom start
+			if(e.ctrlKey && e.shiftKey && e.buttons) {
+				self.zoom_drag_start = [e.x, e.y, this.ds.scale];
+				return;
+			}
+
 			const res = origProcessMouseDown.apply(this, arguments);
 
 			this.selected_group_moving = false;
@@ -899,6 +1009,26 @@ export class ComfyApp {
 
 		const origProcessMouseMove = LGraphCanvas.prototype.processMouseMove;
 		LGraphCanvas.prototype.processMouseMove = function(e) {
+			// handle ctrl+shift drag
+			if(e.ctrlKey && e.shiftKey && self.zoom_drag_start) {
+				// stop canvas zoom action
+				if(!e.buttons) {
+					self.zoom_drag_start = null;
+					return;
+				}
+
+				// calculate delta
+				let deltaY = e.y - self.zoom_drag_start[1];
+				let startScale = self.zoom_drag_start[2];
+
+				let scale = startScale - deltaY/100;
+
+				this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+				this.graph.change();
+
+				return;
+			}
+
 			const orig_selected_group = this.selected_group;
 
 			if (this.selected_group && !this.selected_group_resizing && !this.selected_group_moving) {
@@ -984,6 +1114,20 @@ export class ComfyApp {
 				if ((e.key === 'v' || e.key == 'V') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
 					// Trigger onPaste
 					return true;
+				}
+
+				if((e.key === '+') && e.altKey) {
+					block_default = true;
+					let scale = this.ds.scale * 1.1;
+					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.graph.change();
+				}
+
+				if((e.key === '-') && e.altKey) {
+					block_default = true;
+					let scale = this.ds.scale * 1 / 1.1;
+					this.ds.changeScale(scale, [this.ds.element.width/2, this.ds.element.height/2]);
+					this.graph.change();
 				}
 			}
 
@@ -1391,6 +1535,7 @@ export class ComfyApp {
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
 		this.#addApiUpdateHandlers();
+		this.#addRestoreWorkflowView();
 
 		this.graph = new LGraph();
 
@@ -1425,12 +1570,17 @@ export class ComfyApp {
 		// Load previous workflow
 		let restored = false;
 		try {
-			const json = localStorage.getItem("workflow");
-			if (json) {
-				const workflow = JSON.parse(json);
-				await this.loadGraphData(workflow);
-				restored = true;
-			}
+			const loadWorkflow = async (json) => {
+				if (json) {
+					const workflow = JSON.parse(json);
+					await this.loadGraphData(workflow);
+					return true;
+				}
+			};
+			const clientId = api.initialClientId ?? api.clientId;
+			restored =
+				(clientId && (await loadWorkflow(sessionStorage.getItem(`workflow:${clientId}`)))) ||
+				(await loadWorkflow(localStorage.getItem("workflow")));
 		} catch (err) {
 			console.error("Error loading previous workflow", err);
 		}
@@ -1441,7 +1591,13 @@ export class ComfyApp {
 		}
 
 		// Save current workflow automatically
-		setInterval(() => localStorage.setItem("workflow", JSON.stringify(this.graph.serialize())), 1000);
+		setInterval(() => {
+			const workflow = JSON.stringify(this.graph.serialize());
+			localStorage.setItem("workflow", workflow);
+			if (api.clientId) {
+				sessionStorage.setItem(`workflow:${api.clientId}`, workflow);
+			}
+		}, 1000);
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
@@ -1644,7 +1800,7 @@ export class ComfyApp {
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
 	 */
-	async loadGraphData(graphData, clean = true) {
+	async loadGraphData(graphData, clean = true, restore_view = true) {
 		if (clean !== false) {
 			this.clean();
 		}
@@ -1680,6 +1836,10 @@ export class ComfyApp {
 
 		try {
 			this.graph.configure(graphData);
+			if (restore_view && this.enableWorkflowViewRestore.value && graphData.extra?.ds) {
+				this.canvas.ds.offset = graphData.extra.ds.offset;
+				this.canvas.ds.scale = graphData.extra.ds.scale;
+			}
 		} catch (error) {
 			let errorHint = [];
 			// Try extracting filename to see if it was caused by an extension script
@@ -1994,6 +2154,15 @@ export class ComfyApp {
 		} finally {
 			this.#processingQueue = false;
 		}
+		api.dispatchEvent(new CustomEvent("promptQueued", { detail: { number, batchCount } }));
+	}
+
+	showErrorOnFileLoad(file) {
+		this.ui.dialog.show(
+			$el("div", [
+				$el("p", {textContent: `Unable to find workflow in ${file.name}`})
+			]).outerHTML
+		);
 	}
 
 	/**
@@ -2003,25 +2172,27 @@ export class ComfyApp {
 	async handleFile(file) {
 		if (file.type === "image/png") {
 			const pngInfo = await getPngMetadata(file);
-			if (pngInfo) {
-				if (pngInfo.workflow) {
-					await this.loadGraphData(JSON.parse(pngInfo.workflow));
-				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt));
-				} else if (pngInfo.parameters) {
-					importA1111(this.graph, pngInfo.parameters);
-				}
+			if (pngInfo?.workflow) {
+				await this.loadGraphData(JSON.parse(pngInfo.workflow));
+			} else if (pngInfo?.prompt) {
+				this.loadApiJson(JSON.parse(pngInfo.prompt));
+			} else if (pngInfo?.parameters) {
+				importA1111(this.graph, pngInfo.parameters);
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
 		} else if (file.type === "image/webp") {
 			const pngInfo = await getWebpMetadata(file);
-			if (pngInfo) {
-				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
-				} else if (pngInfo.Workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
-				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt));
-				}
+			// Support loading workflows from that webp custom node.
+			const workflow = pngInfo?.workflow || pngInfo?.Workflow;
+			const prompt = pngInfo?.prompt || pngInfo?.Prompt;
+
+			if (workflow) {
+				this.loadGraphData(JSON.parse(workflow));
+			} else if (prompt) {
+				this.loadApiJson(JSON.parse(prompt));
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
@@ -2042,7 +2213,11 @@ export class ComfyApp {
 				await this.loadGraphData(JSON.parse(info.workflow));
 			} else if (info.prompt) {
 				this.loadApiJson(JSON.parse(info.prompt));
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
+		} else {
+			this.showErrorOnFileLoad(file);
 		}
 	}
 
@@ -2063,6 +2238,7 @@ export class ComfyApp {
 			const data = apiData[id];
 			const node = LiteGraph.createNode(data.class_type);
 			node.id = isNaN(+id) ? id : +id;
+			node.title = data._meta?.title ?? node.title
 			graph.add(node);
 		}
 
@@ -2074,8 +2250,17 @@ export class ComfyApp {
 				if (value instanceof Array) {
 					const [fromId, fromSlot] = value;
 					const fromNode = app.graph.getNodeById(fromId);
-					const toSlot = node.inputs?.findIndex((inp) => inp.name === input);
-					if (toSlot !== -1) {
+					let toSlot = node.inputs?.findIndex((inp) => inp.name === input);
+					if (toSlot == null || toSlot === -1) {
+						try {
+							// Target has no matching input, most likely a converted widget
+							const widget = node.widgets?.find((w) => w.name === input);
+							if (widget && node.convertWidgetToInput?.(widget)) {
+								toSlot = node.inputs?.length - 1;
+							}
+						} catch (error) {}
+					}
+					if (toSlot != null || toSlot !== -1) {
 						fromNode.connect(fromSlot, node, toSlot);
 					}
 				} else {
@@ -2137,6 +2322,14 @@ export class ComfyApp {
 				}
 			}
 		}
+
+		await this.#invokeExtensionsAsync("refreshComboInNodes", defs);
+	}
+
+	resetView() {
+		app.canvas.ds.scale = 1;
+		app.canvas.ds.offset = [0, 0]
+		app.graph.setDirtyCanvas(true, true);
 	}
 
 	/**

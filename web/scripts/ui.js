@@ -1,5 +1,6 @@
 import { api } from "./api.js";
 import { ComfyDialog as _ComfyDialog } from "./ui/dialog.js";
+import { toggleSwitch } from "./ui/toggleSwitch.js";
 import { ComfySettingsDialog } from "./ui/settings.js";
 
 export const ComfyDialog = _ComfyDialog;
@@ -89,11 +90,14 @@ function dragElement(dragEl, settings) {
 	}).observe(dragEl);
 
 	function ensureInBounds() {
-		if (dragEl.classList.contains("comfy-menu-manual-pos")) {
+		try {
 			newPosX = Math.min(document.body.clientWidth - dragEl.clientWidth, Math.max(0, dragEl.offsetLeft));
 			newPosY = Math.min(document.body.clientHeight - dragEl.clientHeight, Math.max(0, dragEl.offsetTop));
 
 			positionElement();
+		}
+		catch(exception){
+			// robust
 		}
 	}
 
@@ -224,7 +228,7 @@ class ComfyList {
 							$el("button", {
 								textContent: "Load",
 								onclick: async () => {
-									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow, true, false);
 									if (item.outputs) {
 										app.nodeOutputs = item.outputs;
 									}
@@ -368,18 +372,67 @@ export class ComfyUI {
 			},
 		});
 
-		this.menuContainer = $el("div.comfy-menu", {parent: document.body}, [
-			$el("div.drag-handle", {
+		const autoQueueModeEl = toggleSwitch(
+			"autoQueueMode",
+			[
+				{ text: "instant", tooltip: "A new prompt will be queued as soon as the queue reaches 0" },
+				{ text: "change", tooltip: "A new prompt will be queued when the queue is at 0 and the graph is/has changed" },
+			],
+			{
+				onChange: (value) => {
+					this.autoQueueMode = value.item.value;
+				},
+			}
+		);
+		autoQueueModeEl.style.display = "none";
+
+		api.addEventListener("graphChanged", () => {
+			if (this.autoQueueMode === "change" && this.autoQueueEnabled === true) {
+				if (this.lastQueueSize === 0) {
+					this.graphHasChanged = false;
+					app.queuePrompt(0, this.batchCount);
+				} else {
+					this.graphHasChanged = true;
+				}
+			}
+		});
+
+		this.menuHamburger = $el(
+			"div.comfy-menu-hamburger",
+			{
+				parent: document.body,
+				onclick: () => {
+					this.menuContainer.style.display = "block";
+					this.menuHamburger.style.display = "none";
+				},
+			},
+			[$el("div"), $el("div"), $el("div")]
+		);
+
+		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
+			$el("div.drag-handle.comfy-menu-header", {
 				style: {
 					overflow: "hidden",
 					position: "relative",
 					width: "100%",
 					cursor: "default"
 				}
-			}, [
+			}, 	[
 				$el("span.drag-handle"),
-				$el("span", {$: (q) => (this.queueSize = q)}),
-				$el("button.comfy-settings-btn", {textContent: "⚙️", onclick: () => this.settings.show()}),
+				$el("span.comfy-menu-queue-size", { $: (q) => (this.queueSize = q) }),
+				$el("div.comfy-menu-actions", [
+					$el("button.comfy-settings-btn", {
+						textContent: "⚙️",
+						onclick: () => this.settings.show(),
+					}),
+					$el("button.comfy-close-menu-btn", {
+						textContent: "\u00d7",
+						onclick: () => {
+							this.menuContainer.style.display = "none";
+							this.menuHamburger.style.display = "flex";
+						},
+					}),
+				]),
 			]),
 			$el("button.comfy-queue-btn", {
 				id: "queue-button",
@@ -394,6 +447,7 @@ export class ComfyUI {
 							document.getElementById("extraOptions").style.display = i.srcElement.checked ? "block" : "none";
 							this.batchCount = i.srcElement.checked ? document.getElementById("batchCountInputRange").value : 1;
 							document.getElementById("autoQueueCheckbox").checked = false;
+							this.autoQueueEnabled = false;
 						},
 					}),
 				]),
@@ -425,20 +479,22 @@ export class ComfyUI {
 						},
 					}),		
 				]),
-
 				$el("div",[
 					$el("label",{
 						for:"autoQueueCheckbox",
 						innerHTML: "Auto Queue"
-						// textContent: "Auto Queue"
 					}),
 					$el("input", {
 						id: "autoQueueCheckbox",
 						type: "checkbox",
 						checked: false,
 						title: "Automatically queue prompt when the queue size hits 0",
-						
+						onchange: (e) => {
+							this.autoQueueEnabled = e.target.checked;
+							autoQueueModeEl.style.display = this.autoQueueEnabled ? "" : "none";
+						}
 					}),
+					autoQueueModeEl
 				])
 			]),
 			$el("div.comfy-menu-btns", [
@@ -541,14 +597,21 @@ export class ComfyUI {
 					if (!confirmClear.value || confirm("Clear workflow?")) {
 						app.clean();
 						app.graph.clear();
+						app.resetView();
 					}
 				}
 			}),
 			$el("button", {
 				id: "comfy-load-default-button", textContent: "Load Default", onclick: async () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
+						app.resetView();
 						await app.loadGraphData()
 					}
+				}
+			}),
+			$el("button", {
+				id: "comfy-reset-view-button", textContent: "Reset View", onclick: async () => {
+					app.resetView();
 				}
 			}),
 		]);
@@ -572,10 +635,13 @@ export class ComfyUI {
 			if (
 				this.lastQueueSize != 0 &&
 				status.exec_info.queue_remaining == 0 &&
-				document.getElementById("autoQueueCheckbox").checked &&
-				! app.lastExecutionError
+				this.autoQueueEnabled &&
+				(this.autoQueueMode === "instant" || this.graphHasChanged) &&
+				!app.lastExecutionError
 			) {
 				app.queuePrompt(0, this.batchCount);
+				status.exec_info.queue_remaining += this.batchCount;
+				this.graphHasChanged = false;
 			}
 			this.lastQueueSize = status.exec_info.queue_remaining;
 		}

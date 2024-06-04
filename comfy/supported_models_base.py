@@ -16,19 +16,28 @@ class BASE:
         "num_head_channels": 64,
     }
 
+    required_keys = {}
+
     clip_prefix = []
     clip_vision_prefix = None
     noise_aug_config = None
     sampling_settings = {}
     latent_format = latent_formats.LatentFormat
+    vae_key_prefix = ["first_stage_model."]
+    text_encoder_key_prefix = ["cond_stage_model."]
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
     manual_cast_dtype = None
 
     @classmethod
-    def matches(s, unet_config):
+    def matches(s, unet_config, state_dict=None):
         for k in s.unet_config:
-            if s.unet_config[k] != unet_config[k]:
+            if k not in unet_config or s.unet_config[k] != unet_config[k]:
                 return False
+        if state_dict is not None:
+            for k in s.required_keys:
+                if k not in state_dict:
+                    return False
         return True
 
     def model_type(self, state_dict, prefix=""):
@@ -38,7 +47,8 @@ class BASE:
         return self.unet_config["in_channels"] > 4
 
     def __init__(self, unet_config):
-        self.unet_config = unet_config
+        self.unet_config = unet_config.copy()
+        self.sampling_settings = self.sampling_settings.copy()
         self.latent_format = self.latent_format()
         for x in self.unet_extra_config:
             self.unet_config[x] = self.unet_extra_config[x]
@@ -53,6 +63,7 @@ class BASE:
         return out
 
     def process_clip_state_dict(self, state_dict):
+        state_dict = utils.state_dict_prefix_replace(state_dict, {k: "" for k in self.text_encoder_key_prefix}, filter_keys=True)
         return state_dict
 
     def process_unet_state_dict(self, state_dict):
@@ -62,7 +73,13 @@ class BASE:
         return state_dict
 
     def process_clip_state_dict_for_saving(self, state_dict):
-        replace_prefix = {"": "cond_stage_model."}
+        replace_prefix = {"": self.text_encoder_key_prefix[0]}
+        return utils.state_dict_prefix_replace(state_dict, replace_prefix)
+
+    def process_clip_vision_state_dict_for_saving(self, state_dict):
+        replace_prefix = {}
+        if self.clip_vision_prefix is not None:
+            replace_prefix[""] = self.clip_vision_prefix
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
     def process_unet_state_dict_for_saving(self, state_dict):
@@ -70,8 +87,9 @@ class BASE:
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
     def process_vae_state_dict_for_saving(self, state_dict):
-        replace_prefix = {"": "first_stage_model."}
+        replace_prefix = {"": self.vae_key_prefix[0]}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
-    def set_manual_cast(self, manual_cast_dtype):
+    def set_inference_dtype(self, dtype, manual_cast_dtype):
+        self.unet_config['dtype'] = dtype
         self.manual_cast_dtype = manual_cast_dtype

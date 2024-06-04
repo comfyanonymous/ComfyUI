@@ -35,6 +35,8 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0", help="Specify the IP address to listen on (default: 127.0.0.1). If --listen is provided without an argument, it defaults to 0.0.0.0. (listens on all)")
 parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
+parser.add_argument("--tls-keyfile", type=str, help="Path to TLS (SSL) key file. Enables TLS, makes app accessible at https://... requires --tls-certfile to function")
+parser.add_argument("--tls-certfile", type=str, help="Path to TLS (SSL) certificate file. Enables TLS, makes app accessible at https://... requires --tls-keyfile to function")
 parser.add_argument("--enable-cors-header", type=str, default=None, metavar="ORIGIN", nargs="?", const="*", help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
 parser.add_argument("--max-upload-size", type=float, default=100, help="Set the maximum upload size in MB.")
 
@@ -49,7 +51,6 @@ cm_group = parser.add_mutually_exclusive_group()
 cm_group.add_argument("--cuda-malloc", action="store_true", help="Enable cudaMallocAsync (enabled by default for torch 2.0 and up).")
 cm_group.add_argument("--disable-cuda-malloc", action="store_true", help="Disable cudaMallocAsync.")
 
-parser.add_argument("--dont-upcast-attention", action="store_true", help="Disable upcasting of attention. Can boost speed but increase the chances of black images.")
 
 fp_group = parser.add_mutually_exclusive_group()
 fp_group.add_argument("--force-fp32", action="store_true", help="Force fp32 (If this makes your GPU work better please report it).")
@@ -94,6 +95,11 @@ attn_group.add_argument("--use-pytorch-cross-attention", action="store_true", he
 
 parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
 
+upcast = parser.add_mutually_exclusive_group()
+upcast.add_argument("--force-upcast-attention", action="store_true", help="Force enable attention upcasting, please report if it fixes black images.")
+upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
+
+
 vram_group = parser.add_mutually_exclusive_group()
 vram_group.add_argument("--gpu-only", action="store_true", help="Store and run everything (text encoders/CLIP models, etc... on the GPU).")
 vram_group.add_argument("--highvram", action="store_true", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.")
@@ -114,6 +120,9 @@ parser.add_argument("--disable-metadata", action="store_true", help="Disable sav
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
+parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
+
+
 if comfy.options.args_parsing:
     args = parser.parse_args()
 else:
@@ -124,3 +133,10 @@ if args.windows_standalone_build:
 
 if args.disable_auto_launch:
     args.auto_launch = False
+
+import logging
+logging_level = logging.INFO
+if args.verbose:
+    logging_level = logging.DEBUG
+
+logging.basicConfig(format="%(message)s", level=logging_level)

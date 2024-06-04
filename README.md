@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/) and [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/) and [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
@@ -46,7 +46,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + Enter              | Queue up current graph for generation                                                                              |
 | Ctrl + Shift + Enter      | Queue up current graph as first for generation                                                                     |
 | Ctrl + Alt + Enter        | Stop the current generation                                                                                        |
-| Ctrl + Shift + Alt + Enter| Clear the generation queue, then stop the current generation                                                      |
+| Ctrl + Shift + Alt + Enter| Clear the generation queue, then stop the current generation                                                       |
 | Ctrl + Z/Ctrl + Y         | Undo/Redo                                                                                                          |
 | Ctrl + S                  | Save workflow                                                                                                      |
 | Ctrl + O                  | Load workflow                                                                                                      |
@@ -79,6 +79,8 @@ There is a portable standalone build for Windows that should work for running on
 
 Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
 
+If you have trouble extracting it, right click the file -> properties -> unblock
+
 #### How do I share models between another UI and ComfyUI?
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
@@ -95,16 +97,15 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
-Note: pytorch stable does not support python 3.12 yet. If you have python 3.12 you will have to use the nightly version of pytorch. If you run into issues you should try python 3.11 instead.
 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm5.6```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.0```
 
-This is the command to install the nightly with ROCm 5.7 which has a python 3.12 package and might have some performance improvements:
+This is the command to install the nightly with ROCm 6.0 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm5.7```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.1```
 
 ### NVIDIA
 
@@ -112,9 +113,9 @@ Nvidia users should install stable pytorch using this command:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121```
 
-This is the command to install pytorch nightly instead which has a python 3.12 package and might have performance improvements:
+This is the command to install pytorch nightly instead which might have performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124```
 
 #### Troubleshooting
 
@@ -134,7 +135,16 @@ After this you should have everything installed and can proceed to running Comfy
 
 ### Others:
 
-#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+#### Intel GPUs
+
+Intel GPU support is available for all Intel GPUs supported by Intel's Extension for Pytorch (IPEX) with the support requirements listed in the [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) page. Choose your platform and method of install and follow the instructions. The steps are as follows:
+
+1. Start by installing the drivers or kernel listed or newer in the Installation page of IPEX linked above for Windows and Linux if needed.
+1. Follow the instructions to install [Intel's oneAPI Basekit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html) for your platform.
+1. Install the packages for IPEX using the instructions provided in the Installation page for your platform.
+1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux and run ComfyUI normally as described above after everything is installed.
+
+Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
 
 #### Apple Mac silicon
 
@@ -143,7 +153,7 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
 1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
 1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
-1. Launch ComfyUI by running `python main.py --force-fp16`. Note that --force-fp16 will only work if you installed the latest pytorch nightly.
+1. Launch ComfyUI by running `python main.py`
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
 
@@ -196,19 +206,19 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 ```embedding:embedding_filename.pt```
 
 
-## How to increase generation speed?
-
-Make sure you use the regular loaders/Load Checkpoint node to load checkpoints. It will auto pick the right settings depending on your GPU.
-
-You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers or pytorch attention this option does not do anything.
-
-```--dont-upcast-attention```
-
 ## How to show high-quality previews?
 
 Use ```--preview-method auto``` to enable previews.
 
 The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with [TAESD](https://github.com/madebyollin/taesd), download the [taesd_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesd_decoder.pth) (for SD1.x and SD2.x) and [taesdxl_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesdxl_decoder.pth) (for SDXL) models and place them in the `models/vae_approx` folder. Once they're installed, restart ComfyUI to enable high-quality previews.
+
+## How to use TLS/SSL?
+Generate a self-signed certificate (not appropriate for shared/production use) and key by running the command: `openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 -nodes -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"`
+
+Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app will now be accessible with `https://...` instead of `http://...`.
+
+> Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above. 
+<br/><br/>If you use a container, note that the volume mount `-v` can be a relative path so `... -v ".\:/openssl-certs" ...` would create the key & cert files in the current directory of your command prompt or powershell terminal.
 
 ## Support and dev channel
 

@@ -1,6 +1,7 @@
 import folder_paths
 import comfy.sd
 import comfy.model_sampling
+import comfy.latent_formats
 import torch
 
 class LCM(comfy.model_sampling.EPS):
@@ -16,6 +17,10 @@ class LCM(comfy.model_sampling.EPS):
         c_out = scaled_timestep / (scaled_timestep**2 + sigma_data**2) ** 0.5
 
         return c_out * x0 + c_skip * model_input
+
+class X0(comfy.model_sampling.EPS):
+    def calculate_denoised(self, sigma, model_output, model_input):
+        return model_output
 
 class ModelSamplingDiscreteDistilled(comfy.model_sampling.ModelSamplingDiscrete):
     original_timesteps = 50
@@ -68,7 +73,7 @@ class ModelSamplingDiscrete:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["eps", "v_prediction", "lcm"],),
+                              "sampling": (["eps", "v_prediction", "lcm", "x0"],),
                               "zsnr": ("BOOLEAN", {"default": False}),
                               }}
 
@@ -88,6 +93,8 @@ class ModelSamplingDiscrete:
         elif sampling == "lcm":
             sampling_type = LCM
             sampling_base = ModelSamplingDiscreteDistilled
+        elif sampling == "x0":
+            sampling_type = X0
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass
@@ -99,11 +106,37 @@ class ModelSamplingDiscrete:
         m.add_object_patch("model_sampling", model_sampling)
         return (m, )
 
+class ModelSamplingStableCascade:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "shift": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 100.0, "step":0.01}),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/model"
+
+    def patch(self, model, shift):
+        m = model.clone()
+
+        sampling_base = comfy.model_sampling.StableCascadeSampling
+        sampling_type = comfy.model_sampling.EPS
+
+        class ModelSamplingAdvanced(sampling_base, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_parameters(shift)
+        m.add_object_patch("model_sampling", model_sampling)
+        return (m, )
+
 class ModelSamplingContinuousEDM:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["v_prediction", "eps"],),
+                              "sampling": (["v_prediction", "edm_playground_v2.5", "eps"],),
                               "sigma_max": ("FLOAT", {"default": 120.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               "sigma_min": ("FLOAT", {"default": 0.002, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
                               }}
@@ -116,17 +149,25 @@ class ModelSamplingContinuousEDM:
     def patch(self, model, sampling, sigma_max, sigma_min):
         m = model.clone()
 
+        latent_format = None
+        sigma_data = 1.0
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
         elif sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
+        elif sampling == "edm_playground_v2.5":
+            sampling_type = comfy.model_sampling.EDM
+            sigma_data = 0.5
+            latent_format = comfy.latent_formats.SDXL_Playground_2_5()
 
         class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousEDM, sampling_type):
             pass
 
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        model_sampling.set_sigma_range(sigma_min, sigma_max)
+        model_sampling.set_parameters(sigma_min, sigma_max, sigma_data)
         m.add_object_patch("model_sampling", model_sampling)
+        if latent_format is not None:
+            m.add_object_patch("latent_format", latent_format)
         return (m, )
 
 class RescaleCFG:
@@ -171,5 +212,6 @@ class RescaleCFG:
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
+    "ModelSamplingStableCascade": ModelSamplingStableCascade,
     "RescaleCFG": RescaleCFG,
 }
