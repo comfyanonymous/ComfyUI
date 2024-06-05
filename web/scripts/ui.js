@@ -614,6 +614,39 @@ export class ComfyUI {
 					app.resetView();
 				}
 			}),
+			$el("div", { style: { marginTop: "1em" } }, [
+				$el("label", { innerHTML: "Zoom" }),
+				$el("button", {
+					innerHTML: "-",
+					onclick: () => {
+						this.app.incrementScale(-0.1);
+					},
+					style: { marginLeft: "0.5em", padding: "2px 5px", fontSize: "12px" },
+				}),
+				$el("input", {
+					id: "scaleValue",
+					type: "text",
+					value: this.app.getZoomLevel(),
+					style: { marginLeft: "0.5em", paddingLeft: "0px", width: "50px", textAlign: "center" },
+					onchange: (e) => {
+						console.log(e.target.value)
+						const value = parseFloat(e.target.value.replace('%', ''));
+						if (!isNaN(value)) {
+							this.app.setScale(value / 100);
+						} else {
+							console.log('target')
+							e.target.value = this.app.getZoomLevel(); // Reset to the current zoom level if input is invalid
+						}
+					},
+				}),
+				$el("button", {
+					innerHTML: "+",
+					onclick: () => {
+						this.app.incrementScale(0.1);
+					},
+					style: { marginLeft: "0.5em", padding: "2px 5px", fontSize: "12px" },
+				}),
+			]),
 		]);
 
 		const devMode = this.settings.addSetting({

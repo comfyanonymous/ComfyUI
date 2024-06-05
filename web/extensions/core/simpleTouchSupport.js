@@ -52,6 +52,7 @@ app.registerExtension({
 				}
 				touchTime = null;
 			}
+			app.updateScaleValue()
 		});
 
 		app.canvasEl.addEventListener(

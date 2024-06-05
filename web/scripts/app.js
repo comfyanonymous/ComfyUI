@@ -76,6 +76,11 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+		/**
+		 * Cache the zoom scale to prevent unnecessary DOM Manipulations
+		 * @type {null}
+		 */
+		this.previousScale = null;
 	}
 
 	getPreviewFormatParam() {
@@ -1561,6 +1566,8 @@ export class ComfyApp {
 
 		// Ensure the canvas fills the window
 		resizeCanvas();
+		this.updateScaleValue()
+		this.monitorScaleChanges()
 		window.addEventListener("resize", resizeCanvas);
 
 		await this.#invokeExtensionsAsync("init");
@@ -1605,7 +1612,6 @@ export class ComfyApp {
 		this.#addCopyHandler();
 		this.#addPasteHandler();
 		this.#addKeyboardHandler();
-
 		await this.#invokeExtensionsAsync("setup");
 	}
 
@@ -2325,11 +2331,41 @@ export class ComfyApp {
 
 		await this.#invokeExtensionsAsync("refreshComboInNodes", defs);
 	}
-
+	monitorScaleChanges() {
+		if (this.canvas && this.canvas.ds) {
+			const currentScale = this.canvas.ds.scale;
+			if (currentScale !== this.previousScale) {
+				this.previousScale = currentScale;
+				this.updateScaleValue();
+			}
+		}
+		requestAnimationFrame(() => this.monitorScaleChanges());
+	}
 	resetView() {
 		app.canvas.ds.scale = 1;
 		app.canvas.ds.offset = [0, 0]
 		app.graph.setDirtyCanvas(true, true);
+	}
+	setScale(newScale) {
+		app.canvas.ds.changeScale(newScale)
+		app.canvas.setDirty(true, true);
+		this.updateScaleValue()
+	}
+	incrementScale(increment) {
+		let newScale = app.canvas.ds.scale += increment;
+		this.setScale(newScale)
+	}
+
+	getZoomLevel() {
+		if (this.canvas && this.canvas.ds && typeof this.canvas.ds.scale === 'number') {
+			return (this.canvas.ds.scale * 100).toFixed(0) + '%';
+		}
+	}
+	updateScaleValue() {
+		const scaleValueEl = document.getElementById("scaleValue");
+		if (scaleValueEl) {
+			scaleValueEl.value = app.getZoomLevel()
+		}
 	}
 
 	/**
