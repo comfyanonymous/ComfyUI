@@ -12,6 +12,12 @@ export function getWidgetConfig(slot) {
 	return slot.widget[CONFIG] ?? slot.widget[GET_CONFIG]();
 }
 
+export function addValidType(type) {
+    if (!VALID_TYPES.includes(type)) {
+        VALID_TYPES.push(type);
+    }
+}
+
 function getConfig(widgetName) {
 	const { nodeData } = this.constructor;
 	return nodeData?.input?.required[widgetName] ?? nodeData?.input?.optional?.[widgetName];
