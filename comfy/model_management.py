@@ -2,9 +2,9 @@ import psutil
 import logging
 from enum import Enum
 from comfy.cli_args import args
-import comfy.utils
 import torch
 import sys
+import platform
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -119,10 +119,11 @@ def get_total_memory(dev=None, torch_total_too=False):
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
 total_ram = psutil.virtual_memory().total / (1024 * 1024)
 logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
-if not args.normalvram and not args.cpu:
-    if lowvram_available and total_vram <= 4096:
-        logging.warning("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
-        set_vram_to = VRAMState.LOW_VRAM
+
+try:
+    logging.info("pytorch version: {}".format(torch.version.__version__))
+except:
+    pass
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
@@ -451,9 +452,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
             model_size = loaded_model.model_memory_required(torch_dev)
             current_free_mem = get_free_memory(torch_dev)
             lowvram_model_memory = int(max(64 * (1024 * 1024), (current_free_mem - 1024 * (1024 * 1024)) / 1.3 ))
-            if model_size > (current_free_mem - inference_memory): #only switch to lowvram if really necessary
-                vram_set_state = VRAMState.LOW_VRAM
-            else:
+            if model_size <= (current_free_mem - inference_memory): #only switch to lowvram if really necessary
                 lowvram_model_memory = 0
 
         if vram_set_state == VRAMState.NO_VRAM:
@@ -630,8 +629,18 @@ def supports_dtype(device, dtype): #TODO
 def device_supports_non_blocking(device):
     if is_device_mps(device):
         return False #pytorch bug? mps doesn't support non blocking
+    if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
+        return False
+    if directml_enabled:
+        return False
+    return True
+
+def device_should_use_non_blocking(device):
+    if not device_supports_non_blocking(device):
+        return False
     return False
-    # return True #TODO: figure out why this causes issues
+    # return True #TODO: figure out why this causes memory issues on Nvidia and possibly others
+
 
 def cast_to_device(tensor, device, dtype, copy=False):
     device_supports_cast = False
@@ -643,7 +652,7 @@ def cast_to_device(tensor, device, dtype, copy=False):
         elif is_intel_xpu():
             device_supports_cast = True
 
-    non_blocking = device_supports_non_blocking(device)
+    non_blocking = device_should_use_non_blocking(device)
 
     if device_supports_cast:
         if copy:
@@ -684,7 +693,21 @@ def pytorch_attention_flash_attention():
         #TODO: more reliable way of checking for flash attention?
         if is_nvidia(): #pytorch flash attention only works on Nvidia
             return True
+        if is_intel_xpu():
+            return True
     return False
+
+def force_upcast_attention_dtype():
+    upcast = args.force_upcast_attention
+    try:
+        if platform.mac_ver()[0] in ['14.5']: #black image bug on OSX Sonoma 14.5
+            upcast = True
+    except:
+        pass
+    if upcast:
+        return torch.float32
+    else:
+        return None
 
 def get_free_memory(dev=None, torch_free_too=False):
     global directml_enabled
@@ -858,6 +881,7 @@ def unload_all_models():
 
 
 def resolve_lowvram_weight(weight, model, key): #TODO: remove
+    print("WARNING: The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
     return weight
 
 #TODO: might be cleaner to put this somewhere else

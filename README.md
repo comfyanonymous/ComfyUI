@@ -53,7 +53,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + M                           | Mute/unmute selected nodes                                                                                         |
 | Ctrl + B                           | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace                   | Delete selected nodes                                                                                              |
-| Ctrl + Delete/Backspace            | Delete the current graph                                                                                           |
+| Ctrl + Backspace                   | Delete the current graph                                                                                           |
 | Space                              | Move the canvas around when held and moving the cursor                                                             |
 | Ctrl/Shift + Click                 | Add clicked node to selection                                                                                      |
 | Ctrl + C/Ctrl + V                  | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
@@ -106,7 +106,7 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 This is the command to install the nightly with ROCm 6.0 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.0```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.1```
 
 ### NVIDIA
 
@@ -116,7 +116,7 @@ Nvidia users should install stable pytorch using this command:
 
 This is the command to install pytorch nightly instead which might have performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124```
 
 #### Troubleshooting
 

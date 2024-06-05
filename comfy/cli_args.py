@@ -95,6 +95,11 @@ attn_group.add_argument("--use-pytorch-cross-attention", action="store_true", he
 
 parser.add_argument("--disable-xformers", action="store_true", help="Disable xformers.")
 
+upcast = parser.add_mutually_exclusive_group()
+upcast.add_argument("--force-upcast-attention", action="store_true", help="Force enable attention upcasting, please report if it fixes black images.")
+upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
+
+
 vram_group = parser.add_mutually_exclusive_group()
 vram_group.add_argument("--gpu-only", action="store_true", help="Store and run everything (text encoders/CLIP models, etc... on the GPU).")
 vram_group.add_argument("--highvram", action="store_true", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.")
