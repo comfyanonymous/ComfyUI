@@ -12,7 +12,7 @@ import nodes
 
 import comfy.model_management
 
-def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
+def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}, skipped={}):
     valid_inputs = class_def.INPUT_TYPES()
     input_data_all = {}
     for x in inputs:
@@ -20,6 +20,8 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             output_index = input_data[1]
+            if input_unique_id in skipped:
+                return {}, True
             if input_unique_id not in outputs:
                 input_data_all[x] = (None,)
                 continue
@@ -38,7 +40,7 @@ def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_da
                 input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
             if h[x] == "UNIQUE_ID":
                 input_data_all[x] = [unique_id]
-    return input_data_all
+    return input_data_all, False
 
 def map_node_over_list(obj, input_data_all, func, allow_interrupt=False):
     # check if node wants the lists
@@ -116,7 +118,7 @@ def format_value(x):
     else:
         return str(x)
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, skipped, prompt_id, outputs_ui, object_storage):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
@@ -131,14 +133,17 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if input_unique_id not in outputs:
-                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, object_storage)
+                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, skipped, prompt_id, outputs_ui, object_storage)
                 if result[0] is not True:
                     # Another node failed further upstream
                     return result
 
     input_data_all = None
     try:
-        input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
+        input_data_all, is_skipped = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data, skipped)
+        if is_skipped:
+            skipped.add(unique_id)
+            return (True, None, None)
         if server.client_id is not None:
             server.last_node_id = unique_id
             server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id }, server.client_id)
@@ -149,6 +154,15 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
             object_storage[(unique_id, class_type)] = obj
 
         output_data, output_ui = get_output_data(obj, input_data_all)
+
+        is_subsequent_skipped = False
+        for values in output_data:
+            for value in values:
+                if value == nodes.GraphControlSignal.SKIP:
+                    is_subsequent_skipped = True
+        if is_subsequent_skipped:
+            skipped.add(unique_id)
+
         outputs[unique_id] = output_data
         if len(output_ui) > 0:
             outputs_ui[unique_id] = output_ui
@@ -373,6 +387,7 @@ class PromptExecutor:
                           { "nodes": list(current_outputs) , "prompt_id": prompt_id},
                           broadcast=False)
             executed = set()
+            skipped = set()
             output_node_id = None
             to_execute = []
 
@@ -388,7 +403,7 @@ class PromptExecutor:
                 # This call shouldn't raise anything if there's an error deep in
                 # the actual SD code, instead it will report the node where the
                 # error was raised
-                self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.object_storage)
+                self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, skipped, prompt_id, self.outputs_ui, self.object_storage)
                 if self.success is not True:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
@@ -577,7 +592,7 @@ def validate_inputs(prompt, item, validated):
                         continue
 
     if len(validate_function_inputs) > 0:
-        input_data_all = get_input_data(inputs, obj_class, unique_id)
+        (input_data_all, _) = get_input_data(inputs, obj_class, unique_id)
         input_filtered = {}
         for x in input_data_all:
             if x in validate_function_inputs:
