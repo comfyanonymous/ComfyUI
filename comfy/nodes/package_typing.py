@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing_extensions import TypedDict, NotRequired, Generic
 from typing import Union, Optional, Sequence, Dict, ClassVar, Protocol, Tuple, TypeVar, Any, Literal, \
-    Callable, List
+    Callable, List, Type
 
 T = TypeVar('T')
 
@@ -71,6 +71,7 @@ class InputTypes(TypedDict, total=True):
 
 ValidateInputsMethod = Optional[Callable[..., Union[bool, str]]]
 
+IsChangedMethod = Callable[[Type[Any], ...], str]
 
 class FunctionReturnsUIVariables(TypedDict):
     ui: dict
@@ -119,6 +120,8 @@ class CustomNode(Protocol):
     FUNCTION: ClassVar[str]
     CATEGORY: ClassVar[str]
     OUTPUT_NODE: Optional[ClassVar[bool]]
+
+    IS_CHANGED: Optional[ClassVar[IsChangedMethod]]
 
 
 @dataclass

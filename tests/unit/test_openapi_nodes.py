@@ -1,5 +1,4 @@
 import os
-import pathlib
 import re
 import uuid
 from datetime import datetime
@@ -17,22 +16,6 @@ from comfy_extras.nodes.nodes_open_api import SaveImagesResponse, IntRequestPara
     StringEnumRequestParameter, ExifContainer, BooleanRequestParameter, ImageRequestParameter
 
 _image_1x1 = torch.zeros((1, 1, 3), dtype=torch.float32, device="cpu")
-
-
-@pytest.fixture(scope="function", autouse=True)
-def use_temporary_output_directory(tmp_path: pathlib.Path):
-    orig_dir = folder_paths.get_output_directory()
-    folder_paths.set_output_directory(tmp_path)
-    yield tmp_path
-    folder_paths.set_output_directory(orig_dir)
-
-
-@pytest.fixture(scope="function", autouse=True)
-def use_temporary_input_directory(tmp_path: pathlib.Path):
-    orig_dir = folder_paths.get_input_directory()
-    folder_paths.set_input_directory(tmp_path)
-    yield tmp_path
-    folder_paths.set_input_directory(orig_dir)
 
 
 def test_save_image_response():

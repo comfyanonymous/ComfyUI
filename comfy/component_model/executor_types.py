@@ -33,6 +33,7 @@ class ProgressMessage(TypedDict):
     prompt_id: Optional[str]
     node: Optional[str]
     sid: NotRequired[str]
+    output: NotRequired[dict]
 
 
 class UnencodedPreviewImageMessage(NamedTuple):

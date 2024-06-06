@@ -19,7 +19,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from . import checkpoint_pickle, interruption
-from .component_model.executor_types import ExecutorToClientProgress
+from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
 from .component_model.queue_types import BinaryEventTypes
 from .execution_context import current_execution_context
 
@@ -505,16 +505,20 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap=8, upscale_amou
     return output
 
 
-def _progress_bar_update(value: float, total: float, preview_image: Optional[Any] = None, client_id: Optional[str] = None, server: Optional[ExecutorToClientProgress] = None):
+def _progress_bar_update(value: float, total: float, preview_image_or_data: Optional[Any] = None, client_id: Optional[str] = None, server: Optional[ExecutorToClientProgress] = None):
     server = server or current_execution_context().server
     # todo: this should really be from the context. right now the server is behaving like a context
     client_id = client_id or server.client_id
     interruption.throw_exception_if_processing_interrupted()
-    progress = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+    progress: ProgressMessage = {"value": value, "max": total, "prompt_id": server.last_prompt_id, "node": server.last_node_id}
+    if isinstance(preview_image_or_data, dict):
+        progress["output"] = preview_image_or_data
 
     server.send_sync("progress", progress, client_id)
-    if preview_image is not None:
-        server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image, client_id)
+
+    # todo: investigate a better way to send the image data, since it needs the node ID
+    if preview_image_or_data is not None and not isinstance(preview_image_or_data, dict):
+        server.send_sync(BinaryEventTypes.UNENCODED_PREVIEW_IMAGE, preview_image_or_data, client_id)
 
 
 def set_progress_bar_enabled(enabled: bool):
@@ -553,13 +557,13 @@ class ProgressBar:
         self.total: float = total
         self.current: float = 0.0
 
-    def update_absolute(self, value, total=None, preview=None):
+    def update_absolute(self, value, total=None, preview_image_or_output=None):
         if total is not None:
             self.total = total
         if value > self.total:
             value = self.total
         self.current = value
-        _progress_bar_update(self.current, self.total, preview)
+        _progress_bar_update(self.current, self.total, preview_image_or_output)
 
     def update(self, value):
         self.update_absolute(self.current + value)

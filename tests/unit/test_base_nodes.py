@@ -15,7 +15,7 @@ model_management.cpu_state = CPUState.GPU if has_gpu else CPUState.CPU
 from comfy.nodes.base_nodes import ImagePadForOutpaint, ImageBatch, ImageInvert, ImageScaleBy, ImageScale, LatentCrop, \
     LatentComposite, LatentFlip, LatentRotate, LatentUpscaleBy, LatentUpscale, InpaintModelConditioning, CLIPTextEncode, \
     VAEEncodeForInpaint, VAEEncode, VAEDecode, ConditioningSetMask, ConditioningSetArea, ConditioningCombine, \
-    CheckpointLoaderSimple, VAELoader, EmptyImage
+    EmptyImage
 
 torch.set_grad_enabled(False)
 
@@ -27,34 +27,6 @@ _cond = torch.randn((1, 4, 77, 768))
 _cond_with_pooled = (_cond, {"pooled_output": torch.zeros((1, 1, 768))})
 
 _latent = {"samples": torch.randn((1, 4, 64, 64))}
-
-
-@pytest.fixture(scope="module")
-def vae():
-    vae_file = "vae-ft-mse-840000-ema-pruned.safetensors"
-    try:
-        vae, = VAELoader().load_vae(vae_file)
-    except FileNotFoundError:
-        pytest.skip(f"{vae_file} not present on machine")
-    return vae
-
-
-@pytest.fixture(scope="module")
-def clip():
-    checkpoint = "v1-5-pruned-emaonly.safetensors"
-    try:
-        return CheckpointLoaderSimple().load_checkpoint(checkpoint)[1]
-    except FileNotFoundError:
-        pytest.skip(f"{checkpoint} not present on machine")
-
-
-@pytest.fixture(scope="module")
-def model(clip):
-    checkpoint = "v1-5-pruned-emaonly.safetensors"
-    try:
-        return CheckpointLoaderSimple().load_checkpoint(checkpoint)[0]
-    except FileNotFoundError:
-        pytest.skip(f"{checkpoint} not present on machine")
 
 
 def test_clip_text_encode(clip):
