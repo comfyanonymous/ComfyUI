@@ -168,11 +168,11 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         attention_mask = None
         if self.enable_attention_masks:
             attention_mask = torch.zeros_like(tokens)
-            max_token = self.transformer.get_input_embeddings().weight.shape[0] - 1
+            end_token = self.special_tokens.get("end", -1)
             for x in range(attention_mask.shape[0]):
                 for y in range(attention_mask.shape[1]):
                     attention_mask[x, y] = 1
-                    if tokens[x, y] == max_token:
+                    if tokens[x, y] == end_token:
                         break
 
         outputs = self.transformer(tokens, attention_mask, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state)
