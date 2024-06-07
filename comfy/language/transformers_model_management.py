@@ -4,14 +4,14 @@ import warnings
 from typing import Optional, Any
 
 import torch
-from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from transformers import PreTrainedModel, PreTrainedTokenizerBase, PretrainedConfig
 
 from ..model_management import unet_offload_device, get_torch_device
 from ..model_management_types import ModelManageable
 
 
 class TransformersManagedModel(ModelManageable):
-    def __init__(self, repo_id: str, model: PreTrainedModel, tokenizer: Optional[PreTrainedTokenizerBase] = None):
+    def __init__(self, repo_id: str, model: PreTrainedModel, tokenizer: Optional[PreTrainedTokenizerBase] = None, config_dict: Optional[dict] = None):
         self.repo_id = repo_id
         self.model = model
         self.tokenizer = tokenizer
@@ -19,9 +19,24 @@ class TransformersManagedModel(ModelManageable):
         self._size = sum(param.nelement() * param.element_size() for param in self.model.state_dict().values())
         self.load_device = get_torch_device()
         self.offload_device = unet_offload_device()
-
+        self._config_dict = config_dict
         if model.device != self.offload_device:
             model.to(device=self.offload_device)
+
+    @property
+    def config_dict(self) -> dict:
+        """
+        The original configuration dictionary located in the Transformers model.
+
+        Many models derive from base models and should inherit their settings like a chat template. This
+        config_dict will have the base model's name in _name_or_path, enabling a lookup for the valid
+        chat template when it is not specified by the derived model (it almost never is).
+        :return: the dict value of the config.json in the HuggingFace model
+        """
+        if self._config_dict is not None:
+            return self._config_dict
+
+        return self.model.config.to_dict()
 
     @property
     def lowvram_patch_counter(self):

@@ -23,8 +23,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+from __future__ import annotations
+
 import string
-from typing import Optional
+from typing import Optional, List
 
 from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.nodes.package_typing import CustomNode, InputTypes, ValidatedNodeResult
@@ -32,7 +34,7 @@ from comfy.sd import CLIP
 from comfy.sd1_clip import SDTokenizer
 
 
-class TextDiffuserTokens(CustomNode):
+class TextDiffuserAddTokens(CustomNode):
     ALPHABET = string.digits + string.ascii_lowercase + string.ascii_uppercase + string.punctuation + ' '  # len(alphabet) = 95
     TOKENS = []
 
@@ -49,17 +51,17 @@ class TextDiffuserTokens(CustomNode):
 
     def execute(self, clip: CLIP):
         clip = clip.clone()
-        if len(TextDiffuserTokens.TOKENS) == 0:
+        if len(TextDiffuserAddTokens.TOKENS) == 0:
             for i in range(520):
-                TextDiffuserTokens.TOKENS.append(f'l{i}</w>')
-                TextDiffuserTokens.TOKENS.append(f't{i}</w>')
-                TextDiffuserTokens.TOKENS.append(f'r{i}</w>')
-                TextDiffuserTokens.TOKENS.append(f'b{i}</w>')
-            for c in TextDiffuserTokens.ALPHABET:
-                TextDiffuserTokens.TOKENS.append(f'[{c}]</w>')
+                TextDiffuserAddTokens.TOKENS.append(f'l{i}</w>')
+                TextDiffuserAddTokens.TOKENS.append(f't{i}</w>')
+                TextDiffuserAddTokens.TOKENS.append(f'r{i}</w>')
+                TextDiffuserAddTokens.TOKENS.append(f'b{i}</w>')
+            for c in TextDiffuserAddTokens.ALPHABET:
+                TextDiffuserAddTokens.TOKENS.append(f'[{c}]</w>')
         tokenizer: SDTokenizer = clip.tokenizer.sd_tokenizer
         existing_vocab = frozenset(tokenizer.tokenizer.get_vocab().keys())
-        tokens = [t for t in TextDiffuserTokens.TOKENS if t not in existing_vocab]
+        tokens = [t for t in TextDiffuserAddTokens.TOKENS if t not in existing_vocab]
         if len(tokens) != 0:
             tokenizer.add_tokens(tokens)
 
@@ -67,15 +69,15 @@ class TextDiffuserTokens(CustomNode):
         return clip,
 
 
-class TextDiffuserPrepare(CustomNode):
+class TextDiffuserPrepareInstructPrompt(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "prompt": ("STRING", {"default": "", "multiline": True}),
+                "text": ("STRING", {"default": "", "multiline": True}),
             },
             "optional": {
-                "text": ("STRING", {"default": "", "multiline": True})
+                "text_to_render": ("STRING", {"default": "", "multiline": True})
             }
         }
 
@@ -83,27 +85,27 @@ class TextDiffuserPrepare(CustomNode):
     RETURN_TYPES = "STRING",
     RETURN_NAMES = "INSTRUCT STRING",
 
-    def execute(self, prompt: str, text: Optional[str] = None, *args, **kwargs) -> ValidatedNodeResult:
-        keywords = text.split("\n")
+    def execute(self, text: str, text_to_render: Optional[str] = None, *args, **kwargs) -> ValidatedNodeResult:
+        keywords = text_to_render.split("\n")
         if len(keywords) > 0:
             # text diffusers does indeed format keywords as
             # ['some', 'word']
-            message = f'Given a prompt that will be used to generate an image, plan the layout of visual text for the image. The size of the image is 128x128. Therefore, all properties of the positions should not exceed 128, including the coordinates of top, left, right, and bottom. In addition, we also provide all keywords at random order for reference. You dont need to specify the details of font styles. At each line, the format should be keyword left, top, right, bottom. So let us begin. Prompt: {prompt}. Keywords: {str(keywords)}'
+            message = f'Given a prompt that will be used to generate an image, plan the layout of visual text for the image. The size of the image is 128x128. Therefore, all properties of the positions should not exceed 128, including the coordinates of top, left, right, and bottom. In addition, we also provide all keywords at random order for reference. You dont need to specify the details of font styles. At each line, the format should be keyword left, top, right, bottom. So let us begin. Prompt: {text}. Keywords: {str(keywords)}'
         else:
-            message = f'Given a prompt that will be used to generate an image, plan the layout of visual text for the image. The size of the image is 128x128. Therefore, all properties of the positions should not exceed 128, including the coordinates of top, left, right, and bottom. All keywords are included in the caption. You dont need to specify the details of font styles. At each line, the format should be keyword left, top, right, bottom. So let us begin. Prompt: {prompt}'
+            message = f'Given a prompt that will be used to generate an image, plan the layout of visual text for the image. The size of the image is 128x128. Therefore, all properties of the positions should not exceed 128, including the coordinates of top, left, right, and bottom. All keywords are included in the caption. You dont need to specify the details of font styles. At each line, the format should be keyword left, top, right, bottom. So let us begin. Prompt: {text}'
 
         return message,
 
 
-class TextDiffuserDecodeLayout(CustomNode):
+class TextDiffuserDecodeLayoutString2ClipString(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
                 "layout_model": ("MODEL", {}),
                 "clip": ("CLIP", {}),
-                "prompt": ("STRING", {}),
-                "instruct_response": ("STRING", {})
+                "prompt": ("STRING", {"forceInput": True}),
+                "instruct_response": ("STRING", {"forceInput": True})
             }
         }
 
@@ -111,7 +113,10 @@ class TextDiffuserDecodeLayout(CustomNode):
     RETURN_TYPES = "STRING",
     RETURN_NAMES = "CLIP STRING",
 
-    def execute(self, layout_model: TransformersManagedModel, clip: CLIP, prompt: str, instruct_response: str, *args, **kwargs) -> ValidatedNodeResult:
+    def execute(self, layout_model: TransformersManagedModel, clip: CLIP, prompt: str, instruct_response: str | List[str], *args, **kwargs) -> ValidatedNodeResult:
+        # todo: better support for batching
+        if isinstance(instruct_response, List):
+            instruct_response = instruct_response[0]
         current_ocr = instruct_response.split('\n')
         words = [clip.tokenizer.sd_tokenizer.tokenizer.eos_token, clip.tokenizer.sd_tokenizer.tokenizer.bos_token]
         for ocr in current_ocr:
@@ -136,8 +141,8 @@ class TextDiffuserDecodeLayout(CustomNode):
 
 NODE_CLASS_MAPPINGS = {}
 for cls in (
-        TextDiffuserDecodeLayout,
-        TextDiffuserPrepare,
-        TextDiffuserTokens,
+        TextDiffuserDecodeLayoutString2ClipString,
+        TextDiffuserPrepareInstructPrompt,
+        TextDiffuserAddTokens,
 ):
     NODE_CLASS_MAPPINGS[cls.__name__] = cls
