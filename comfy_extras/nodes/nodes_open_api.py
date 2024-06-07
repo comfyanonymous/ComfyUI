@@ -284,10 +284,11 @@ class DevNullUris(CustomNode):
 class StringJoin(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
-        required = {f"value{i}": ("STRING", {"default": "", "multiline": True, "forceInput": True}) for i in range(5)}
-        required["separator"] = ("STRING", {"default": "_"})
+        optional = {f"value{i}": ("STRING", {"default": "", "multiline": True, "forceInput": True}) for i in range(5)}
+        optional["separator"] = ("STRING", {"default": "_"})
         return {
-            "required": required
+            "required": {},
+            "optional": optional
         }
 
     RETURN_TYPES = ("STRING",)

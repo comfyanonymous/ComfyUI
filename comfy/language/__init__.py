@@ -1,0 +1,3 @@
+from .chat_templates import _update_known_chat_templates
+
+_update_known_chat_templates()

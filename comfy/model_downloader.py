@@ -303,6 +303,7 @@ KNOWN_HUGGINGFACE_MODEL_REPOS = {
     "JingyeChen22/textdiffuser2_layout_planner",
     'JingyeChen22/textdiffuser2-full-ft',
     "microsoft/Phi-3-mini-4k-instruct",
+    "llava-hf/llava-v1.6-mistral-7b-hf"
 }
 
 KNOWN_UNET_MODELS: List[Union[CivitFile | HuggingFile]] = [
