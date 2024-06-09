@@ -1,12 +1,14 @@
 ComfyUI LTS
 =======
 
-A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui) intended for long term support (LTS) from [Hidden Switch](https://hiddenswitch.com).
+A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui) intended for long term support (LTS) from [AppMana](https://appmana.com) and [Hidden Switch](https://hiddenswitch.com).
 
 ### New Features
 
-- Run with `comfyui` in your command line.
+- To run, just type `comfyui` in your command line and press enter.
 - [Installable](#installing) via `pip`: `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.
+- [Large Language Models]() with multi-modal support included.
+- [Automatic model downloading](#model-downloading) to save you disk space and time.
 - [Distributed](#distributed-multi-process-and-multi-gpu-comfy) with support for multiple GPUs, multiple backends and frontends, including in containers, using RabbitMQ.
 - [Installable custom nodes](#custom-nodes) via `pip`, including LTS support for forked nodes from the community.
 - [New configuration options](#command-line-arguments) for directories, models and metrics.
@@ -35,15 +37,25 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 [Most users are familiar with double clicking an .exe or a .msi file for installing things; or they install from Steam. This doens't work that way. Instead, the following steps install this package]: #
 
 [ 1. Install the latest Python. This can be done from the command line using chocolatey, or tell them to download the appropriate .exe and double click on it and follow the installer. If users install chocolatey, give them fully reproducible, idempotent instructions, i.e. stuff strictly in the command line for powershell or cmd.exe.]: #
+
 [ 2. Open a command line on Windows. This is usually cmd.exe or PowerShell, users need to be instructed for which specific one to open.]: #
+
 [ 3. Create a virtual environment on a disk with a lot of space. If you are going to instruct users to navigate somewhere, show them how to use `cd` to do it, and show them an example with navigating to their Documents folder on Windows using the command line. Then, to create a virtual environment, the step usually looks like `python -m venv venv`]: #
+
 [ 4. Activate the virtual environment. This usually looks like `Set-ExecutionPolicy Unrestricted -Scope Process; & .\venv\Scripts\activate.ps1` in PowerShell. Observe the caveat of the execution policy problem. Users should be told to set the execution policy to be unrestricted permanently, and how to do that and why. Remember, they need something ergonomic and easy.]: #
+
 [ 5. Install this package. Currently, that is done with `pip install git+https://github.com/hiddenswitch/ComfyUI.git`.]: #
+
 [ 6. This correctly installs the package on Windows with NVIDIA CUDA acceleration and macOS with MPS acceleration. However, users may have weird setups and need more help.]: #
+
 [ 7. Now users need a model. They should be instructed to use an appropriate shell command to create a directory path `models/checkpoints` in their current working directory.]: #
+
 [ 8. Then, they will not need to download models. Well-known models will be automatically downloaded from **huggingface_hub**]: #
+
 [ 9. Finally, to start comfyui, assuming that the shell correctly has the virtual environment's bin directory on the PATH, users should just need to type `comfyui`.]: #
+
 [ 10. The console should output a URL to visit. It is usually http://127.0.0.1:8188. Tell them to visit this URL in their browser.]: #
+
 [ 11. Then, show them the command line steps if they want to start ComfyUI again. Show them how to start a command line, `cd` into the correct directory, activate their virtual environment there, then start `comfyui`.]: #
 
 [Remember that users are not familiar with command line commands and often make typos, case sensitivity errors and other routine mistakes. Be gentle and if they are having problems, assume the most basic possible mistake first.]: #
@@ -52,56 +64,94 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 
 ## Installing
 
-You must have Python 3.10, 3.11 or 3.12 installed. On Windows, download the latest Python from their website. You can also [directly download 3.11.4 here](https://www.python.org/ftp/python/3.11.4/python-3.11.4-amd64.exe).
+You must have Python 3.10, 3.11 or 3.12 installed. On Windows, download the latest Python from the Python website.
 
-On macOS, install Python 3.10, 3.11 or 3.12 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.10`. Do not use 3.9 or older. Its compatibility with Stable Diffusion in both directions is broken. 
+On macOS, install Python 3.10, 3.11 or 3.12 using `brew`, which you can download from https://brew.sh, using this command: `brew install python@3.11`.
 
- 1. Create a virtual environment:
-      ```shell
-      python -m virtualenv venv
-      ```
- 2. Activate it on
+When using Windows, open the **Windows Powershell** app. Then observe you are at a command line, and it is printing "where" you are in your file system: your user directory (e.g., `C:\Users\doctorpangloss`). This is where a bunch of files will go. If you want files to go somewhere else, consult a chat bot for the basics of using command lines, because it is beyond the scope of this document. Then:
+
+1. Create a virtual environment:
+     ```shell
+     python -m venv venv
+     ```
+2. Activate it on
    **Windows (PowerShell):**
+
    ```pwsh
    Set-ExecutionPolicy Unrestricted -Scope Process
    & .\venv\Scripts\activate.ps1
    ```
-   
+
    **Linux and macOS**
+
    ```shell
    source ./venv/bin/activate
    ```
 
- 3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
-    ```shell
-    pip install git+https://github.com/hiddenswitch/ComfyUI.git
-    ```
-    **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you, disable build isolation, and the package will recognize your currently installed torch.
-    ```shell
-    # You will need wheel, which isn't included in Python 3.11 or later
-    pip install wheel
-    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
-    ```
- 4. Create the directories you can fill with checkpoints:
-    ```shell
-    comfyui --create-directories
-    ```
-    Your current working directory is wherever you started running `comfyui`. You don't need to clone this repository, observe it is omitted from the instructions.
-    You can `cd` into a different directory containing `models/`, or if the models are located somehwere else, like `C:/some directory/models`, do:
-    ```shell
-    comfyui --cwd="C:/some directory/"
-    ```
-    You can see all the command line options with hints using `comfyui --help`.
- 5. To run the web server:
-    ```shell
-    comfyui
-    ```
-    When you run workflows that use well-known models, this will download them automatically.
+3. Run the following command to install `comfyui` into your current environment. This will correctly select the version of `torch` that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA, Intel, AMD or CPU on Linux, CPU on macOS):
+   ```shell
+   pip install git+https://github.com/hiddenswitch/ComfyUI.git
+   ```
+   **Recommended**: Currently, `torch 2.1.2` is the last built with Flash Attention for Windows. Install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
+   ```shell
+   pip install xformers==0.0.23.post1
+   pip install torch==2.1.2+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
+   pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
+   ```
+   For `torch 2.3.0`, which does not have Flash Attention compiled for Windows, install a later version of `xformers`:
+   ```shell
+   pip install xformers==0.0.26.post1
+   pip install torch==2.3.0+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
+   pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
+   ```
+   `xformers` has not yet been built for `torch 2.3.1`, the latest version.
+   **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you, disable build isolation, and the package will recognize your currently installed torch.
+   ```shell
+   # You will need wheel, which isn't included in Python 3.11 or later
+   pip install wheel
+   pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
+   ```
     
-    To make it accessible over the network:
-    ```shell
-    comfyui --listen
-    ```
+4. Create the directories you can fill with checkpoints:
+   ```shell
+   comfyui --create-directories
+   ```
+   Your current working directory is wherever you started running `comfyui`. You don't need to clone this repository, observe it is omitted from the instructions.
+   You can `cd` into a different directory containing `models/`, or if the models are located somehwere else, like `C:/some directory/models`, do:
+   ```shell
+   comfyui --cwd="C:/some directory/"
+   ```
+   You can see all the command line options with hints using `comfyui --help`.
+5. To run the web server:
+   ```shell
+   comfyui
+   ```
+   When you run workflows that use well-known models, this will download them automatically.
+
+   To make it accessible over the network:
+   ```shell
+   comfyui --listen
+   ```
+
+On Windows, you will need to open PowerShell and activate your virtual environment whenever you want to run `comfyui`.
+
+```powershell
+& .\venv\Scripts\activate.ps1
+comfyui
+```
+
+### LTS Custom Nodes
+
+These packages have been adapted to be installable with `pip` and download models to the correct places:
+
+- **Extra Models like PixART E and HunYuanDiT**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-extramodels.git`.
+- **ControlNet Auxiliary Preprocessors**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git`.
+- **LayerDiffuse**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-layerdiffuse.git`.
+- **BRIA Background Removal**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-bria-bg-removal.git`
+
+Custom nodes are generally supported by this fork. Use these for a bug-free experience.
+
+Request first-class, LTS support for more nodes by [creating a new issue](https://github.com/hiddenswitch/ComfyUI/issues/new). Remember, ordinary custom nodes from the ComfyUI ecosystem work in this fork. Create an issue if you experience a bug or if you think something needs more attention.
 
 ##### Running with TLS
 
@@ -116,37 +166,28 @@ caddy reverse-proxy --from localhost:443 --to localhost:8188 --tls self_signed
 Until a workaround is found, specify these variables:
 
 RDNA 3 (RX 7600 and later)
+
 ```shell
 export HSA_OVERRIDE_GFX_VERSION=11.0.0
 comfyui
 ```
 
 RDNA 2 (RX 6600 and others)
+
 ```shell
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 comfyui
 ```
 
-### Known Models
+### Model Downloading
 
-These models will be automatically downloaded when you queue prompts with workflows that use them:
+ComfyUI LTS supports downloading models on demand. Its list of known models includes the most notable and common Stable Diffusion architecture checkpoints, slider LoRAs, all the notable ControlNets for SD1.5 and SDXL, and a small selection of LLM models. Additionally, all other supported LTS nodes will download models using the same mechanisms. This means that you will save storage space and time: you won't have to ever figure out the "right name" for a model, where to download it from, or where to put it ever again.
 
-- **Stable Diffusion XL (SDXL) Base**: `stabilityai/stable-diffusion-xl-base-1.0`
-- **Stable Diffusion XL (SDXL) Refiner**: `stabilityai/stable-diffusion-xl-refiner-1.0`
-- **SDXL Turbo**: `stabilityai/sdxl-turbo` (both FP16 and standard versions)
-- **Stable Cascade**: The stages from `stabilityai/stable-cascade` (Stage A, Stage B, and Stage C)
-- **Stable Diffusion 1.5**: From `runwayml/stable-diffusion-v1-5` (including pruned, EMA-only, and pruned versions)
-- **Stable Diffusion 2.1**: `stabilityai/stable-diffusion-2-1` (v2-1 768 EMA pruned version)
-- **Waifu Diffusion 1.5 Beta3**: `waifu-diffusion/wd-1-5-beta3` (Illusion FP16 version)
-- **NeverEnding Dream**: `jomcs/NeverEnding_Dream-Feb19-2023` (CarDos Anime version)
-- **Anything-V3.0**: The anime model `ckpt/anything-v3.0` 
-- **Stable Diffusion 2.1 Unclip**: `stabilityai/stable-diffusion-2-1-unclip` (both high and low versions)
-- **Stable Zero123**: `stabilityai/stable-zero123`
-- **Annotators (RealESRGAN Upscaler)**: `lllyasviel/Annotators` (RealESRGAN x4plus)
-- **GLIGEN Pruned Safetensors**: `comfyanonymous/GLIGEN_pruned_safetensors` (both standard and FP16 versions)
-- **CLIP Vision G**: `comfyanonymous/clip_vision_g`
+Known models will be downloaded from Hugging Face or CivitAI. Hugging Face has a thoughtful approach to file downloading and organization. This means you do not have to toil about having one, or many, files, or worry about where to put them.
 
+On Windows platforms, symbolic links should be enabled to minimize the amount of space used: Enable Developer Mode in the Windows Settings, then reboot your computer. This way, Hugging Face can download models into a common place for all your apps, and place small "link" files that ComfyUI and others can read instead of whole copies of models. 
 
+To disable model downloading, start with the command line argument `--disable-known-models`: `comfyui --disable-known-models`. However, this will generally only increase your toil for no return.
 
 ## Manual Install (Windows, Linux, macOS) For Development
 
@@ -156,22 +197,22 @@ These models will be automatically downloaded when you queue prompts with workfl
    cd ComfyUI
    ```
 2. Create a virtual environment:
-   1. Create an environment:
-      ```shell
-      python -m virtualenv venv
-      ```
-   2. Activate it:
-       
-      **Windows (PowerShell):**
-      ```pwsh
-      Set-ExecutionPolicy Unrestricted -Scope Process
-      & .\venv\Scripts\activate.ps1
-      ```
-       
-      **Linux and macOS**
-      ```shell
-      source ./venv/bin/activate
-      ```
+    1. Create an environment:
+       ```shell
+       python -m virtualenv venv
+       ```
+    2. Activate it:
+
+       **Windows (PowerShell):**
+       ```pwsh
+       Set-ExecutionPolicy Unrestricted -Scope Process
+       & .\venv\Scripts\activate.ps1
+       ```
+
+       **Linux and macOS**
+       ```shell
+       source ./venv/bin/activate
+       ```
 
 3. Then, run the following command to install `comfyui` into your current environment. This will correctly select the version of pytorch that matches the GPU on your machine (NVIDIA or CPU on Windows, NVIDIA AMD or CPU on Linux):
    ```shell
@@ -181,12 +222,12 @@ These models will be automatically downloaded when you queue prompts with workfl
     ```shell
     comfyui
     ```
-    To run tests:
+   To run tests:
     ```shell
     pytest tests/inference
     (cd tests-ui && npm ci && npm run test:generate && npm test)
     ```
-    You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
+   You can use `comfyui` as an API. Visit the [OpenAPI specification](comfy/api/openapi.yaml). This file can be used to generate typed clients for your preferred language.
 5. To create the standalone binary:
     ```shell
     python -m PyInstaller --onefile --noupx -n ComfyUI --add-data="comfy/;comfy/" --paths $(pwd) --paths comfy/cmd main.py
@@ -200,6 +241,14 @@ Because pip installs the package as editable with `pip install -e .`, any change
 apt install -y git build-essential clang python3-dev python3-venv
 ```
 
+# Large Language Models
+
+ComfyUI LTS supports text and multi-modal LLM models from the `transformers` ecosystem. This means all the LLaMA family models, LLAVA-NEXT, Phi-3, etc. are supported out-of-the-box with no configuration necessary. 
+
+![llava_example_01.gif](docs/assets/llava_example_01.gif)
+
+In this example, LLAVA-NEXT (LLAVA 1.6) is prompted to describe an image.
+
 # Custom Nodes
 
 Custom Nodes can be added to ComfyUI by copying and pasting Python files into your `./custom_nodes` directory.
@@ -212,22 +261,16 @@ There are two kinds of custom nodes: vanilla custom nodes, which generally expec
 
 Clone the repository containing the custom nodes into `custom_nodes/` in your working directory. Currently, this is not known to be compatible with ComfyUI Node Manager.
 
-### Installable Custom Nodes
-
-These packages have been adapted to be installable with `pip` and download models to the correct places, using the **Known Models** functionality:
-
-- **ControlNet Auxiliary Preprocessors**: `pip install git+https://github.com/AppMana/comfyui_controlnet_aux.git`.
-- **LayerDiffuse**: `pip install git+https://github.com/hiddenswitch/ComfyUI-layerdiffuse.git`.
-- **Extra Models**: `pip install git+https://github.com/AppMana/ComfyUI_ExtraModels.git`. You will need `xformers`.
-
-Run `pip install git+https://github.com/owner/repository`, replacing the `git` repository with the installable custom nodes URL. This is just the GitHub URL. 
+Run `pip install git+https://github.com/owner/repository`, replacing the `git` repository with the installable custom nodes URL. This is just the GitHub URL.
 
 ## Authoring Custom Nodes
 
 Create a `requirements.txt`:
+
 ```
 comfyui
 ```
+
 Observe `comfyui` is now a requirement for using your custom nodes. This will ensure you will be able to access `comfyui` as a library. For example, your code will now be able to import the folder paths using `from comfyui.cmd import folder_paths`. Because you will be using my fork, use this:
 
 ```
@@ -235,11 +278,13 @@ comfyui @ git+https://github.com/hiddenswitch/ComfyUI.git
 ```
 
 Additionally, create a `pyproject.toml`:
+
 ```
 [build-system]
 requires = ["setuptools", "wheel", "pip"]
 build-backend = "setuptools.build_meta"
 ```
+
 This ensures you will be compatible with later versions of Python.
 
 Finally, move your nodes to a directory with an empty `__init__.py`, i.e., a package. You should have a file structure like this:
@@ -252,9 +297,11 @@ Finally, move your nodes to a directory with an empty `__init__.py`, i.e., a pac
 /mypackage_custom_nodes/__init__.py
 /mypackage_custom_nodes/some_nodes.py
 ```
+
 Finally, create a `setup.py` at the root of your custom nodes package / repository. Here is an example:
 
 **setup.py**
+
 ```python
 from setuptools import setup, find_packages
 import os.path
@@ -278,11 +325,14 @@ setup(
 All `.py` files located in the package specified by the entrypoint with your package's name will be scanned for node class mappings declared like this:
 
 **some_nodes.py**:
+
 ```py
 from comfy.nodes.package_typing import CustomNode
 
+
 class Binary_Preprocessor(CustomNode):
-  ...
+    ...
+
 
 NODE_CLASS_MAPPINGS = {
     "BinaryPreprocessor": Binary_Preprocessor
@@ -291,6 +341,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "BinaryPreprocessor": "Binary Lines"
 }
 ```
+
 These packages will be scanned recursively.
 
 Extending the `comfy.nodes.package_typing.CustomNode` provides type hints for authoring nodes.
@@ -301,32 +352,34 @@ Declare an entry point for configuration hooks in your **setup.py** that defines
 `configargparser.ArgParser` object:
 
 **setup.py**
+
 ```python
 setup(
-  name="mypackage",
-  ...
-  entry_points={
+    name="mypackage",
+    ...
+entry_points = {
     'comfyui.custom_nodes': [
-      'mypackage = mypackage_custom_nodes',
+        'mypackage = mypackage_custom_nodes',
     ],
     'comfyui.custom_config': [
-      'mypackage = mypackage_custom_config:add_configuration',
+        'mypackage = mypackage_custom_config:add_configuration',
     ]
-  },
+},
 )
 ```
 
 **mypackage_custom_config.py**:
+
 ```python
 import configargparse
 
 
 def add_configuration(parser: configargparse.ArgParser) -> configargparse.ArgParser:
-  parser.add_argument("--openai-api-key",
-                      required=False,
-                      type=str,
-                      help="Configures the OpenAI API Key for the OpenAI nodes", env_var="OPENAI_API_KEY")
-  return parser
+    parser.add_argument("--openai-api-key",
+                        required=False,
+                        type=str,
+                        help="Configures the OpenAI API Key for the OpenAI nodes", env_var="OPENAI_API_KEY")
+    return parser
 
 ```
 
@@ -378,6 +431,7 @@ comfyui
 or add it to your config file:
 
 **config.yaml**:
+
 ```txt
 openapi-api-key: abcdefg12345
 ```
@@ -407,21 +461,20 @@ from typing import Optional
 
 # Add type hints when accessing args
 class CustomConfiguration(Configuration):
-  def __init__(self):
-    super().__init__()
-    self.openai_api_key: Optional[str] = None
+    def __init__(self):
+        super().__init__()
+        self.openai_api_key: Optional[str] = None
 
 
 args: CustomConfiguration
 
 
 class OpenAINode(CustomNode):
-  ...
+    ...
 
-  def execute(self):
-    openai_api_key = args.open_api_key
+    def execute(self):
+        openai_api_key = args.open_api_key
 ```
-
 
 # Troubleshooting
 
@@ -452,7 +505,6 @@ Dynamic prompts also support C-style comments, like `// comment` or `/* comment 
 To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
 
 ```embedding:embedding_filename.pt```
-
 
 ##### How to increase generation speed?
 
@@ -658,16 +710,17 @@ Start ComfyUI by creating an ordinary Python object. This does not create a web 
 
 ```python
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
+
 async with EmbeddedComfyClient() as client:
-  # This will run your prompt
-  outputs = await client.queue_prompt(prompt)
-  # At this point, your prompt is finished and all the outputs, like saving images, have been completed.
-  # Now the outputs will contain the same thing that the Web UI expresses: a file path for each output.
-  # Let's find the node ID of the first SaveImage node. This will work when you change your workflow JSON from
-  # the example above.
-  save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
-  # Now let's print the absolute path to the image.
-  print(outputs[save_image_node_id]["images"][0]["abs_path"])
+    # This will run your prompt
+    outputs = await client.queue_prompt(prompt)
+    # At this point, your prompt is finished and all the outputs, like saving images, have been completed.
+    # Now the outputs will contain the same thing that the Web UI expresses: a file path for each output.
+    # Let's find the node ID of the first SaveImage node. This will work when you change your workflow JSON from
+    # the example above.
+    save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
+    # Now let's print the absolute path to the image.
+    print(outputs[save_image_node_id]["images"][0]["abs_path"])
 # At this point, all the models have been unloaded from VRAM, and everything has been cleaned up.
 ```
 
@@ -679,6 +732,7 @@ Start ComfyUI as a remote server, then access it via an API. This requires you t
 
 ```python
 from comfy.client.aio_client import AsyncRemoteComfyClient
+
 client = AsyncRemoteComfyClient(server_address="http://localhost:8188")
 # Now let's get the bytes of the PNG image saved by the SaveImage node:
 png_image_bytes = await client.queue_prompt(prompt)
