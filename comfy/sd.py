@@ -25,6 +25,7 @@ from .ldm.cascade.stage_c_coder import StageC_coder
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .t2i_adapter import adapter
 from .taesd import taesd
+from . import sd3_clip
 
 
 def load_model_weights(model, sd):
@@ -409,9 +410,12 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         else:
             clip_target.clip = sd1_clip.SD1ClipModel
             clip_target.tokenizer = sd1_clip.SD1Tokenizer
-    else:
+    elif len(clip_data) == 2:
         clip_target.clip = sdxl_clip.SDXLClipModel
         clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+    elif len(clip_data) == 3:
+        clip_target.clip = sd3_clip.SD3ClipModel
+        clip_target.tokenizer = sd3_clip.SD3Tokenizer
 
     clip = CLIP(clip_target, embedding_directory=embedding_directory, textmodel_json_config=textmodel_json_config)
     for c in clip_data:

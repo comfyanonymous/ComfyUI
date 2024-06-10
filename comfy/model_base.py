@@ -3,6 +3,7 @@ import logging
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
+from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from . import model_management
 from . import conds
 from . import ops
@@ -18,9 +19,10 @@ class ModelType(Enum):
     V_PREDICTION_EDM = 3
     STABLE_CASCADE = 4
     EDM = 5
+    FLOW = 6
 
 
-from .model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
+from .model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, CONST, ModelSamplingDiscreteFlow
 
 
 def model_sampling(model_config, model_type):
@@ -33,6 +35,9 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.V_PREDICTION_EDM:
         c = V_PREDICTION
         s = ModelSamplingContinuousEDM
+    elif model_type == ModelType.FLOW:
+        c = CONST
+        s = ModelSamplingDiscreteFlow
     elif model_type == ModelType.STABLE_CASCADE:
         c = EPS
         s = StableCascadeSampling
@@ -557,3 +562,23 @@ class StableCascade_B(BaseModel):
         out["effnet"] = conds.CONDRegular(prior)
         out["sca"] = conds.CONDRegular(torch.zeros((1,)))
         return out
+
+
+class SD3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=OpenAISignatureMMDITWrapper)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def extra_conds(self, **kwargs):
+        out = {}
+        adm = self.encode_adm(**kwargs)
+        if adm is not None:
+            out['y'] = conds.CONDRegular(adm)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
+        return out
+
