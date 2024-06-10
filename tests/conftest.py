@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import pathlib
 import time
@@ -9,7 +10,7 @@ import pytest
 from comfy.cli_args_types import Configuration
 
 
-def run_server(server_arguments: dict):
+def run_server(server_arguments: Configuration):
     from comfy.cmd.main import main
     from comfy.cli_args import args
     import asyncio
@@ -18,18 +19,18 @@ def run_server(server_arguments: dict):
     asyncio.run(main())
 
 
-@pytest.fixture(scope="module", autouse=False)
-def comfy_background_server(use_temporary_output_directory, use_temporary_input_directory) -> Tuple[Configuration, multiprocessing.Process]:
+@pytest.fixture(scope="function", autouse=False)
+def comfy_background_server(tmp_path) -> Tuple[Configuration, multiprocessing.Process]:
     import torch
     # Start server
 
     configuration = Configuration()
-    configuration.listen = True
-    configuration.output_directory = str(use_temporary_output_directory)
-    configuration.input_directory = str(use_temporary_input_directory)
+    configuration.listen = "localhost"
+    configuration.output_directory = str(tmp_path)
+    configuration.input_directory = str(tmp_path)
 
-    p = multiprocessing.Process(target=run_server, args=(configuration,))
-    p.start()
+    server_process = multiprocessing.Process(target=run_server, args=(configuration,))
+    server_process.start()
     # wait for http url to be ready
     success = False
     for i in range(60):
@@ -43,8 +44,8 @@ def comfy_background_server(use_temporary_output_directory, use_temporary_input_
         time.sleep(1)
     if not success:
         raise Exception("Failed to start background server")
-    yield configuration, p
-    p.terminate()
+    yield configuration, server_process
+    server_process.terminate()
     torch.cuda.empty_cache()
 
 

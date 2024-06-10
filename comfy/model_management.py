@@ -6,7 +6,7 @@ import platform
 import warnings
 from enum import Enum
 from threading import RLock
-from typing import Literal
+from typing import Literal, List
 
 import psutil
 import torch
@@ -300,7 +300,7 @@ except:
 
 logging.info("VAE dtype: {}".format(VAE_DTYPE))
 
-current_loaded_models = []
+current_loaded_models: List["LoadedModel"] = []
 
 
 def module_size(module):
@@ -318,6 +318,7 @@ class LoadedModel:
         self.device = model.load_device
         self.weights_loaded = False
         self.real_model = None
+        self.currently_used = True
 
     def model_memory(self):
         return self.model.model_size()
@@ -412,6 +413,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
             if shift_model.device == device:
                 if shift_model not in keep_loaded:
                     can_unload.append((sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
+                shift_model.currently_used = False
 
         for x in sorted(can_unload):
             i = x[-1]
@@ -458,6 +460,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
                     current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
                     loaded = None
                 else:
+                    loaded.currently_used = True
                     models_already_loaded.append(loaded)
             if loaded is None:
                 if hasattr(x, "model"):
@@ -515,6 +518,16 @@ def load_model_gpu(model):
     with model_management_lock:
         return load_models_gpu([model])
 
+def loaded_models(only_currently_used=False):
+    with model_management_lock:
+        output = []
+        for m in current_loaded_models:
+            if only_currently_used:
+                if not m.currently_used:
+                    continue
+
+            output.append(m.model)
+        return output
 
 def cleanup_models(keep_clone_weights_loaded=False):
     with model_management_lock:
@@ -762,6 +775,8 @@ def pytorch_attention_flash_attention():
     if ENABLE_PYTORCH_ATTENTION:
         # TODO: more reliable way of checking for flash attention?
         if is_nvidia():  # pytorch flash attention only works on Nvidia
+            return True
+        if is_intel_xpu():
             return True
     return False
 

@@ -362,11 +362,11 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
 
     full_output_folder = str(os.path.join(output_dir, subfolder))
 
-    if os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) != output_dir:
-        err = "**** ERROR: Saving image outside the output folder is not allowed." + \
-              "\n full_output_folder: " + os.path.abspath(full_output_folder) + \
-              "\n         output_dir: " + output_dir + \
-              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))
+    if str(os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))) != str(output_dir):
+        err = f"""**** ERROR: Saving image outside the output folder is not allowed.
+                  full_output_folder: {os.path.abspath(full_output_folder)}
+                        output_dir: {output_dir}
+                        commonpath: {os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))}"""
         logging.error(err)
         raise Exception(err)
 

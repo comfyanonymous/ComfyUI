@@ -786,10 +786,10 @@ class PromptServer(ExecutorToClientProgress):
             msg = await self.messages.get()
             await self.send(*msg)
 
-    async def start(self, address, port, verbose=True, call_on_start=None):
+    async def start(self, address: str | None, port: int | None, verbose=True, call_on_start=None):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
-        site = web.TCPSite(runner, address, port)
+        site = web.TCPSite(runner, host=address, port=port)
         await site.start()
 
         if verbose:

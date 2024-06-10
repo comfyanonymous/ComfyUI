@@ -2,6 +2,7 @@ import torch
 
 class LatentFormat:
     scale_factor = 1.0
+    latent_channels = 4
     latent_rgb_factors = None
     taesd_decoder_name = None
 
@@ -72,6 +73,7 @@ class SD_X4(LatentFormat):
         ]
 
 class SC_Prior(LatentFormat):
+    latent_channels = 16
     def __init__(self):
         self.scale_factor = 1.0
         self.latent_rgb_factors = [
