@@ -148,6 +148,7 @@ These packages have been adapted to be installable with `pip` and download model
 - **ControlNet Auxiliary Preprocessors**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git`.
 - **LayerDiffuse**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-layerdiffuse.git`.
 - **BRIA Background Removal**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-bria-bg-removal.git`
+- **IP Adapter**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ipadapter-plus`
 
 Custom nodes are generally supported by this fork. Use these for a bug-free experience.
 
