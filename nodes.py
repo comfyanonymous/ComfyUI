@@ -1964,6 +1964,7 @@ def init_custom_nodes():
         "nodes_attention_multiply.py",
         "nodes_advanced_samplers.py",
         "nodes_webcam.py",
+        "nodes_sd3.py",
     ]
 
     import_failed = []
