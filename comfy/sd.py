@@ -19,6 +19,7 @@ from . import model_detection
 from . import sd1_clip
 from . import sd2_clip
 from . import sdxl_clip
+from . import sd3_clip
 
 import comfy.model_patcher
 import comfy.lora
@@ -395,9 +396,12 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         else:
             clip_target.clip = sd1_clip.SD1ClipModel
             clip_target.tokenizer = sd1_clip.SD1Tokenizer
-    else:
+    elif len(clip_data) == 2:
         clip_target.clip = sdxl_clip.SDXLClipModel
         clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+    elif len(clip_data) == 3:
+        clip_target.clip = sd3_clip.SD3ClipModel
+        clip_target.tokenizer = sd3_clip.SD3Tokenizer
 
     clip = CLIP(clip_target, embedding_directory=embedding_directory)
     for c in clip_data:

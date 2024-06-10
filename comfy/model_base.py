@@ -5,11 +5,13 @@ from comfy.ldm.cascade.stage_c import StageC
 from comfy.ldm.cascade.stage_b import StageB
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
+from comfy.ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 import comfy.model_management
 import comfy.conds
 import comfy.ops
 from enum import Enum
 from . import utils
+import comfy.latent_formats
 
 class ModelType(Enum):
     EPS = 1
@@ -17,6 +19,7 @@ class ModelType(Enum):
     V_PREDICTION_EDM = 3
     STABLE_CASCADE = 4
     EDM = 5
+    FLOW = 6
 
 
 from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
@@ -32,6 +35,9 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.V_PREDICTION_EDM:
         c = V_PREDICTION
         s = ModelSamplingContinuousEDM
+    elif model_type == ModelType.FLOW:
+        c = comfy.model_sampling.CONST
+        s = comfy.model_sampling.ModelSamplingDiscreteFlow
     elif model_type == ModelType.STABLE_CASCADE:
         c = EPS
         s = StableCascadeSampling
@@ -557,3 +563,23 @@ class StableCascade_B(BaseModel):
         out["effnet"] = comfy.conds.CONDRegular(prior)
         out["sca"] = comfy.conds.CONDRegular(torch.zeros((1,)))
         return out
+
+
+class SD3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=OpenAISignatureMMDITWrapper)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def extra_conds(self, **kwargs):
+        out = {}
+        adm = self.encode_adm(**kwargs)
+        if adm is not None:
+            out['y'] = comfy.conds.CONDRegular(adm)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
+
