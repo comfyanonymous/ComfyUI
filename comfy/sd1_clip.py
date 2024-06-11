@@ -9,6 +9,7 @@ from . import model_management
 import comfy.clip_model
 import json
 import logging
+import numbers
 
 def gen_empty_tokens(special_tokens, length):
     start_token = special_tokens.get("start", None)
@@ -130,10 +131,10 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         for x in tokens:
             tokens_temp = []
             for y in x:
-                if isinstance(y, int):
+                if isinstance(y, numbers.Integral):
                     if y == token_dict_size: #EOS token
                         y = -1
-                    tokens_temp += [y]
+                    tokens_temp += [int(y)]
                 else:
                     if y.shape[0] == current_embeds.weight.shape[1]:
                         embedding_weights += [y]
