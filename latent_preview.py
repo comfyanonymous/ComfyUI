@@ -2,6 +2,8 @@ import torch
 from PIL import Image
 import struct
 import numpy as np
+import comfy.latent_formats as latent_formats
+
 from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
 import comfy.model_management
@@ -45,10 +47,21 @@ class Latent2RGBPreviewer(LatentPreviewer):
         return preview_to_image(latent_image)
 
 
-def get_previewer(device, latent_format):
+def get_previewer(device, latent_format=None, latent=None, force=False):
+    # If the latent_format parameter is not provided, fallback to assuming SD15 format.
+    # Ultimately, it seems that the format information should be included in the latent itself.
+    if latent_format is None:
+        if latent is not None and 'format' in latent:
+            if latent['format'] == 'SDXL':
+                latent_format = latent_formats.SDXL()
+            else:
+                latent_format = latent_formats.SD15()
+        else:
+            latent_format = latent_formats.SD15()
+
     previewer = None
     method = args.preview_method
-    if method != LatentPreviewMethod.NoPreviews:
+    if method != LatentPreviewMethod.NoPreviews or force:
         # TODO previewer methods
         taesd_decoder_path = None
         if latent_format.taesd_decoder_name is not None:

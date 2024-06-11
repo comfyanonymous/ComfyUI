@@ -15,6 +15,9 @@ from PIL.PngImagePlugin import PngInfo
 
 import numpy as np
 import safetensors.torch
+from io import BytesIO
+import piexif
+import zipfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy"))
 
@@ -450,11 +453,112 @@ class SaveLatent:
         return { "ui": { "latents": results } }
 
 
+class SavePreviewLatent(SaveLatent):
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"samples": ("LATENT", ),
+                             "filename_prefix": ("STRING", {"default": "latents/ComfyUI"}), },
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                }
+    RETURN_TYPES = ()
+    FUNCTION = "save_preview_latent"
+
+    OUTPUT_NODE = True
+
+    CATEGORY = "_for_testing"
+
+    @staticmethod
+    def save_to_file(tensor_bytes, prompt, extra_pnginfo, image, image_path):
+        compressed_data = BytesIO()
+        with zipfile.ZipFile(compressed_data, mode='w') as archive:
+            archive.writestr("latent", tensor_bytes)
+        image = image.copy()
+        exif_data = {"Exif": {piexif.ExifIFD.UserComment: compressed_data.getvalue()}}
+
+        metadata = PngInfo()
+        if prompt is not None:
+            metadata.add_text("prompt", json.dumps(prompt))
+        if extra_pnginfo is not None:
+            for x in extra_pnginfo:
+                metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+
+        exif_bytes = piexif.dump(exif_data)
+        image.save(image_path, format='png', exif=exif_bytes, pnginfo=metadata, optimize=True)
+
+    @staticmethod
+    def prepare_preview(latent):
+        lower_bound = 128
+        upper_bound = 256
+
+        previewer = latent_preview.get_previewer("cpu", latent=latent, force=True)
+        image = previewer.decode_latent_to_preview(latent['samples'])
+        min_size = min(image.size[0], image.size[1])
+        max_size = max(image.size[0], image.size[1])
+
+        scale_factor = 1
+        if max_size > upper_bound:
+            scale_factor = upper_bound/max_size
+
+        # prevent too small preview
+        if min_size*scale_factor < lower_bound:
+            scale_factor = lower_bound/min_size
+
+        w = int(image.size[0] * scale_factor)
+        h = int(image.size[1] * scale_factor)
+
+        image = image.resize((w, h), resample=Image.NEAREST)
+
+        return SavePreviewLatent.attach_format_text(image)
+
+    @staticmethod
+    def attach_format_text(image):
+        width_a, height_a = image.size
+
+        letter_image = Image.open("misc/latent.png")
+        width_b, height_b = letter_image.size
+
+        new_width = max(width_a, width_b)
+        new_height = height_a + height_b
+
+        new_image = Image.new('RGB', (new_width, new_height), (0, 0, 0))
+
+        offset_x = (new_width - width_b) // 2
+        offset_y = (height_a + (new_height - height_a - height_b) // 2)
+        new_image.paste(letter_image, (offset_x, offset_y))
+
+        new_image.paste(image, (0, 0))
+
+        return new_image
+
+    def save_preview_latent(self, samples, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
+
+        # load preview
+        preview = SavePreviewLatent.prepare_preview(samples)
+
+        # support save metadata for latent sharing
+        file = f"{filename}_{counter:05}_.latent.png"
+        file = os.path.join(full_output_folder, file)
+
+        output = {"latent_tensor": samples["samples"]}
+
+        tensor_bytes = safetensors.torch.save(output)
+        SavePreviewLatent.save_to_file(tensor_bytes, prompt, extra_pnginfo, preview, file)
+
+        return {}
+
+
 class LoadLatent:
     @classmethod
     def INPUT_TYPES(s):
+        def check_file_extension(x):
+            return x.endswith(".latent") or x.endswith(".latent.png")
+
         input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".latent")]
+        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f)) and check_file_extension(f)]
         return {"required": {"latent": [sorted(files), ]}, }
 
     CATEGORY = "_for_testing"
@@ -462,13 +566,32 @@ class LoadLatent:
     RETURN_TYPES = ("LATENT", )
     FUNCTION = "load"
 
+    @staticmethod
+    def load_preview_latent(image_path):
+        image = Image.open(image_path)
+        exif_data = piexif.load(image.info["exif"])
+
+        if piexif.ExifIFD.UserComment in exif_data["Exif"]:
+            compressed_data = exif_data["Exif"][piexif.ExifIFD.UserComment]
+            compressed_data_io = BytesIO(compressed_data)
+            with zipfile.ZipFile(compressed_data_io, mode='r') as archive:
+                tensor_bytes = archive.read("latent")
+            tensor = safetensors.torch.load(tensor_bytes)
+            return {"samples": tensor['latent_tensor']}
+        return None
+
     def load(self, latent):
         latent_path = folder_paths.get_annotated_filepath(latent)
-        latent = safetensors.torch.load_file(latent_path, device="cpu")
-        multiplier = 1.0
-        if "latent_format_version_0" not in latent:
-            multiplier = 1.0 / 0.18215
-        samples = {"samples": latent["latent_tensor"].float() * multiplier}
+
+        if latent.endswith(".latent"):
+            latent = safetensors.torch.load_file(latent_path, device="cpu")
+            multiplier = 1.0
+            if "latent_format_version_0" not in latent:
+                multiplier = 1.0 / 0.18215
+            samples = {"samples": latent["latent_tensor"].float() * multiplier}
+        else:
+            samples = LoadLatent.load_preview_latent(latent_path)
+
         return (samples, )
 
     @classmethod
@@ -1458,15 +1581,15 @@ class LoadImage:
     FUNCTION = "load_image"
     def load_image(self, image):
         image_path = folder_paths.get_annotated_filepath(image)
-        
+
         img = node_helpers.pillow(Image.open, image_path)
-        
+
         output_images = []
         output_masks = []
         w, h = None, None
 
         excluded_formats = ['MPO']
-        
+
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
@@ -1477,10 +1600,10 @@ class LoadImage:
             if len(output_images) == 0:
                 w = image.size[0]
                 h = image.size[1]
-            
+
             if image.size[0] != w or image.size[1] != h:
                 continue
-            
+
             image = np.array(image).astype(np.float32) / 255.0
             image = torch.from_numpy(image)[None,]
             if 'A' in i.getbands():
@@ -1799,6 +1922,7 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
     "LoraLoaderModelOnly": LoraLoaderModelOnly,
+    "SavePreviewLatent": SavePreviewLatent,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
