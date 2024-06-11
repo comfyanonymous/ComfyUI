@@ -482,7 +482,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         vae = VAE(sd=vae_sd)
 
     if output_clip:
-        clip_target = model_config.clip_target()
+        clip_target = model_config.clip_target(state_dict=sd)
         if clip_target is not None:
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:
