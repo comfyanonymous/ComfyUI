@@ -167,6 +167,13 @@ KNOWN_CHECKPOINTS = [
     CivitFile(133005, 357609, filename="juggernautXL_v9Rundiffusionphoto2.safetensors"),
     CivitFile(112902, 351306, filename="dreamshaperXL_v21TurboDPMSDE.safetensors"),
     CivitFile(139562, 344487, filename="realvisxlV40_v40Bakedvae.safetensors"),
+    HuggingFile("SG161222/Realistic_Vision_V6.0_B1_noVAE","Realistic_Vision_V6.0_NV_B1_fp16.safetensors"),
+    HuggingFile("SG161222/Realistic_Vision_V5.1_noVAE","Realistic_Vision_V5.1_fp16-no-ema.safetensors"),
+    CivitFile(4384, 128713, filename="dreamshaper_8.safetensors"),
+    CivitFile(7371, 425083, filename="revAnimated_v2Rebirth.safetensors"),
+    CivitFile(4468, 57618, filename="counterfeitV30_v30.safetensors"),
+    CivitFile(241415, 272376, filename="picxReal_10.safetensors"),
+    CivitFile(23900, 95489, filename="anyloraCheckpoint_bakedvaeBlessedFp16.safetensors"),
 ]
 
 KNOWN_UNCLIP_CHECKPOINTS = [
@@ -195,8 +202,9 @@ KNOWN_CLIP_VISION_MODELS = [
 KNOWN_LORAS = [
     CivitFile(model_id=211577, model_version_id=238349, filename="openxl_handsfix.safetensors"),
     CivitFile(model_id=324815, model_version_id=364137, filename="blur_control_xl_v1.safetensors"),
+    CivitFile(model_id=47085, model_version_id=55199, filename="GoodHands-beta2.safetensors"),
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-12steps-CFG-lora.safetensors"),
-    HuggingFile("ByteDance/Hyper-SD", "Hyper-SD15-12steps-CFG-lora.safetensors")
+    HuggingFile("ByteDance/Hyper-SD", "Hyper-SD15-12steps-CFG-lora.safetensors"),
 ]
 
 KNOWN_CONTROLNETS = [

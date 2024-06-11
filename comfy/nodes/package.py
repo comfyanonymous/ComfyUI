@@ -44,9 +44,19 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
     exported_nodes = ExportedNodes()
     timings = []
     exceptions = []
-    if _import_nodes_in_module(exported_nodes, module):
-        pass
-    else:
+    with tracer.start_as_current_span("Load Node") as span:
+        time_before = time.perf_counter()
+        try:
+            module_decl = _import_nodes_in_module(exported_nodes, module)
+            full_name = module.__name__
+            span.set_attribute("full_name", full_name)
+            timings.append((time.perf_counter() - time_before, full_name, True, exported_nodes))
+        except Exception as exc:
+            logging.error(f"{full_name} import failed", exc_info=exc)
+            span.set_status(Status(StatusCode.ERROR))
+            span.record_exception(exc)
+            exceptions.append(exc)
+    if module_decl is None or not module_decl:
         # Iterate through all the submodules
         for _, name, is_pkg in pkgutil.iter_modules(module.__path__):
             span: Span
@@ -55,6 +65,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
                 time_before = time.perf_counter()
                 success = True
                 span.set_attribute("full_name", full_name)
+                new_nodes = ExportedNodes()
                 if full_name.endswith(".disabled"):
                     continue
                 try:
@@ -75,11 +86,11 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
                     exceptions.append(x)
                     span.set_status(Status(StatusCode.ERROR))
                     span.record_exception(x)
-                timings.append((time.perf_counter() - time_before, full_name, success))
+                timings.append((time.perf_counter() - time_before, full_name, success, new_nodes))
 
-    if print_import_times and len(timings) > 0 or any(not success for (_, _, success) in timings):
-        for (duration, module_name, success) in sorted(timings):
-            print(f"{duration:6.1f} seconds{'' if success else ' (IMPORT FAILED)'}, {module_name}")
+    if print_import_times and len(timings) > 0 or any(not success for (_, _, success, _) in timings):
+        for (duration, module_name, success, new_nodes) in sorted(timings):
+            logging.info(f"{duration:6.1f} seconds{'' if success else ' (IMPORT FAILED)'}, {module_name} ({len(new_nodes)} nodes loaded)")
     if raise_on_failure and len(exceptions) > 0:
         try:
             raise ExceptionGroup("Node import failed", exceptions)

@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, List, Callable, Union
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, LogitsProcessor, TextStreamer, \
     PreTrainedTokenizerBase, LogitsProcessorList, PretrainedConfig, AutoProcessor, BatchFeature, ProcessorMixin, \
-    LlavaNextForConditionalGeneration, LlavaNextProcessor
+    LlavaNextForConditionalGeneration, LlavaNextProcessor, T5EncoderModel, AutoModel
 from typing_extensions import TypedDict
 
 from comfy.language.chat_templates import KNOWN_CHAT_TEMPLATES
@@ -245,8 +245,9 @@ class TransformersLoader(CustomNode):
             }
 
             try:
-                model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs)
+                model = AutoModel.from_pretrained(**from_pretrained_kwargs)
             except:
+                # not yet supported by automodel
                 model = LlavaNextForConditionalGeneration.from_pretrained(**from_pretrained_kwargs)
 
             config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, trust_remote_code=True, **hub_kwargs)

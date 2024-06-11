@@ -159,12 +159,13 @@ class TransformersManagedModel(ModelManageable):
                 filename, chat_template = candidate_chat_templates[0]
                 logging.debug(f"Selected chat template filename={filename} for {self.model.name_or_path}")
         try:
-            # todo: this should come from node inputs
-            prompt = tokenizer.apply_chat_template([
-                {"role": "user", "content": prompt},
-            ], chat_template=chat_template, add_generation_prompt=True, tokenize=False)
+            if hasattr(tokenizer, "apply_chat_template"):
+                # todo: this should come from node inputs
+                prompt = tokenizer.apply_chat_template([
+                    {"role": "user", "content": prompt},
+                ], chat_template=chat_template, add_generation_prompt=True, tokenize=False)
         except Exception as exc:
-            logging.error("Could not apply chat template", exc_info=exc)
+            logging.debug("Could not apply chat template", exc_info=exc)
 
         if self.processor is None:
             batch_encoding = tokenizer(prompt, return_tensors="pt").to(device=self.load_device)

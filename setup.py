@@ -185,7 +185,12 @@ def dependencies(force_nightly: bool = False) -> List[str]:
     return _dependencies
 
 
-package_data = ['sd1_tokenizer/*', '**/*.json', '**/*.yaml']
+package_data = [
+    'sd1_tokenizer/*',
+    't5_tokenizer/*',
+    '**/*.json',
+    '**/*.yaml',
+]
 if not is_editable:
     package_data.append('comfy/web/**/*')
 dev_dependencies = open(os.path.join(os.path.dirname(__file__), "requirements-dev.txt")).readlines()
