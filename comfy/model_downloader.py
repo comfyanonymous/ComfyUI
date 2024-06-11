@@ -284,13 +284,11 @@ KNOWN_CONTROLNETS = [
     HuggingFile("stabilityai/stable-cascade", "controlnet/canny.safetensors", save_with_filename="stable_cascade_canny.safetensors"),
     HuggingFile("stabilityai/stable-cascade", "controlnet/inpainting.safetensors", save_with_filename="stable_cascade_inpainting.safetensors"),
     HuggingFile("stabilityai/stable-cascade", "controlnet/super_resolution.safetensors", save_with_filename="stable_cascade_super_resolution.safetensors"),
-    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/canny/controlnet/diffusion_pytorch_model.safetensors", save_with_filename="ft_controlnet_sd15_canny_res512_bs256_lr1e-5_warmup100_iter5k_fp16ft0-1000.safetensors"),
-    # not clear if this should use black to white or some other depth rendering
-    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/depth/controlnet/diffusion_pytorch_model.safetensors", save_with_filename="ft_controlnet_sd15_depth_res512_bs256_lr1e-5_warmup100_iter5k_fp16ft0-200.safetensors"),
-    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/hed/controlnet/diffusion_pytorch_model.bin", save_with_filename="reward_ft5k_controlnet_sd15_hed_res512_bs256_lr1e-5_warmup100_scale-1_iter5k_fp16_train0-1k_reward0-200.bin"),
-    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/lineart/controlnet/diffusion_pytorch_model.bin", save_with_filename="reward_ft5k_controlnet_sd15_lineart_res512_bs256_lr1e-5_warmup100_scale-10_iter5k_fp16_train0-1k_reward0-200.bin"),
-    # should be used with ADE20K
-    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/seg/controlnet/diffusion_pytorch_model.safetensors", save_with_filename="ft_controlnet_sd15_seg_res512_bs256_lr1e-5_warmup100_iter5k_fp16.safetensors"),
+    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/canny/controlnet/diffusion_pytorch_model.safetensors", save_with_filename="ControlNet-Plus-Plus_sd15_canny.safetensors", repo_type="space"),
+    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/depth/controlnet/diffusion_pytorch_model.safetensors", save_with_filename="ControlNet-Plus-Plus_sd15_grayscale_depth.safetensors", repo_type="space"),
+    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/hed/controlnet/diffusion_pytorch_model.bin", save_with_filename="ControlNet-Plus-Plus_sd15_hed.bin", repo_type="space"),
+    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/lineart/controlnet/diffusion_pytorch_model.bin", save_with_filename="ControlNet-Plus-Plus_sd15_lineart.bin", repo_type="space"),
+    HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/seg/controlnet/diffusion_pytorch_model.safetensors", save_with_filename="ControlNet-Plus-Plus_sd15_ade20k_seg.safetensors", repo_type="space"),
 ]
 
 KNOWN_DIFF_CONTROLNETS = [
