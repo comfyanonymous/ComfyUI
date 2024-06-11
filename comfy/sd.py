@@ -98,13 +98,19 @@ class CLIP:
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
         params['device'] = offload_device
-        params['dtype'] = model_management.text_encoder_dtype(load_device)
+        dtype = model_management.text_encoder_dtype(load_device)
+        params['dtype'] = dtype
 
         self.cond_stage_model = clip(**(params))
+
+        for dt in self.cond_stage_model.dtypes:
+            if not model_management.supports_cast(load_device, dt):
+                load_device = offload_device
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.layer_idx = None
+        logging.debug("CLIP model load device: {}, offload device: {}".format(load_device, offload_device))
 
     def clone(self):
         n = CLIP(no_init=True)

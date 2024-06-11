@@ -511,6 +511,10 @@ class SD1ClipModel(torch.nn.Module):
         self.clip = "clip_{}".format(self.clip_name)
         setattr(self, self.clip, clip_model(device=device, dtype=dtype, **kwargs))
 
+        self.dtypes = set()
+        if dtype is not None:
+            self.dtypes.add(dtype)
+
     def set_clip_options(self, options):
         getattr(self, self.clip).set_clip_options(options)
 
