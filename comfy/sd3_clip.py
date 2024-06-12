@@ -142,3 +142,9 @@ class SD3ClipModel(torch.nn.Module):
             return self.clip_l.load_sd(sd)
         else:
             return self.t5xxl.load_sd(sd)
+
+def sd3_clip(clip_l=True, clip_g=True, t5=True, dtype_t5=None):
+    class SD3ClipModel_(SD3ClipModel):
+        def __init__(self, device="cpu", dtype=None):
+            super().__init__(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5, device=device, dtype=dtype)
+    return SD3ClipModel_
