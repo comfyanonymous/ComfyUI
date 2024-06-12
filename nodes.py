@@ -2,7 +2,6 @@ import torch
 
 import os
 import sys
-import json
 import hashlib
 import traceback
 import math
@@ -422,14 +421,14 @@ class SaveLatent:
         # support save metadata for latent sharing
         prompt_info = ""
         if prompt is not None:
-            prompt_info = json.dumps(prompt)
+            prompt_info = comfy.utils.dump_json(prompt)
 
         metadata = None
         if not args.disable_metadata:
             metadata = {"prompt": prompt_info}
             if extra_pnginfo is not None:
                 for x in extra_pnginfo:
-                    metadata[x] = json.dumps(extra_pnginfo[x])
+                    metadata[x] = comfy.utils.dump_json(extra_pnginfo[x])
 
         file = f"{filename}_{counter:05}_.latent"
 
@@ -1421,10 +1420,10 @@ class SaveImage:
             if not args.disable_metadata:
                 metadata = PngInfo()
                 if prompt is not None:
-                    metadata.add_text("prompt", json.dumps(prompt))
+                    metadata.add_text("prompt", comfy.utils.dump_json(prompt))
                 if extra_pnginfo is not None:
                     for x in extra_pnginfo:
-                        metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+                        metadata.add_text(x, comfy.utils.dump_json(extra_pnginfo[x]))
 
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.png"
