@@ -1800,7 +1800,7 @@ export class ComfyApp {
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
 	 */
-	async loadGraphData(graphData, clean = true) {
+	async loadGraphData(graphData, clean = true, restore_view = true) {
 		if (clean !== false) {
 			this.clean();
 		}
@@ -1836,7 +1836,7 @@ export class ComfyApp {
 
 		try {
 			this.graph.configure(graphData);
-			if (this.enableWorkflowViewRestore.value && graphData.extra?.ds) {
+			if (restore_view && this.enableWorkflowViewRestore.value && graphData.extra?.ds) {
 				this.canvas.ds.offset = graphData.extra.ds.offset;
 				this.canvas.ds.scale = graphData.extra.ds.scale;
 			}
@@ -2157,6 +2157,14 @@ export class ComfyApp {
 		api.dispatchEvent(new CustomEvent("promptQueued", { detail: { number, batchCount } }));
 	}
 
+	showErrorOnFileLoad(file) {
+		this.ui.dialog.show(
+			$el("div", [
+				$el("p", {textContent: `Unable to find workflow in ${file.name}`})
+			]).outerHTML
+		);
+	}
+
 	/**
 	 * Loads workflow data from the specified file
 	 * @param {File} file
@@ -2164,27 +2172,27 @@ export class ComfyApp {
 	async handleFile(file) {
 		if (file.type === "image/png") {
 			const pngInfo = await getPngMetadata(file);
-			if (pngInfo) {
-				if (pngInfo.workflow) {
-					await this.loadGraphData(JSON.parse(pngInfo.workflow));
-				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt));
-				} else if (pngInfo.parameters) {
-					importA1111(this.graph, pngInfo.parameters);
-				}
+			if (pngInfo?.workflow) {
+				await this.loadGraphData(JSON.parse(pngInfo.workflow));
+			} else if (pngInfo?.prompt) {
+				this.loadApiJson(JSON.parse(pngInfo.prompt));
+			} else if (pngInfo?.parameters) {
+				importA1111(this.graph, pngInfo.parameters);
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
 		} else if (file.type === "image/webp") {
 			const pngInfo = await getWebpMetadata(file);
-			if (pngInfo) {
-				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow));
-				} else if (pngInfo.Workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.Workflow)); // Support loading workflows from that webp custom node.
-				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt));
-				} else if (pngInfo.Prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.Prompt)); // Support loading prompts from that webp custom node.
-				}
+			// Support loading workflows from that webp custom node.
+			const workflow = pngInfo?.workflow || pngInfo?.Workflow;
+			const prompt = pngInfo?.prompt || pngInfo?.Prompt;
+
+			if (workflow) {
+				this.loadGraphData(JSON.parse(workflow));
+			} else if (prompt) {
+				this.loadApiJson(JSON.parse(prompt));
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
@@ -2205,7 +2213,11 @@ export class ComfyApp {
 				await this.loadGraphData(JSON.parse(info.workflow));
 			} else if (info.prompt) {
 				this.loadApiJson(JSON.parse(info.prompt));
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
+		} else {
+			this.showErrorOnFileLoad(file);
 		}
 	}
 
@@ -2226,6 +2238,7 @@ export class ComfyApp {
 			const data = apiData[id];
 			const node = LiteGraph.createNode(data.class_type);
 			node.id = isNaN(+id) ? id : +id;
+			node.title = data._meta?.title ?? node.title
 			graph.add(node);
 		}
 

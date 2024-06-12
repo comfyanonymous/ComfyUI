@@ -228,7 +228,7 @@ class ComfyList {
 							$el("button", {
 								textContent: "Load",
 								onclick: async () => {
-									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow, true, false);
 									if (item.outputs) {
 										app.nodeOutputs = item.outputs;
 									}
