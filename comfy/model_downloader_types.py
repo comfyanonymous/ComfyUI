@@ -54,6 +54,7 @@ class HuggingFile:
     size: Optional[int] = None
     force_save_in_repo_id: Optional[bool] = False
     repo_type: Optional[str] = 'model'
+    revision: Optional[str] = None
 
     def __str__(self):
         return self.save_with_filename or split(self.filename)[-1]

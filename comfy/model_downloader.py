@@ -8,6 +8,7 @@ from typing import List, Any, Optional, Union
 
 import tqdm
 from huggingface_hub import hf_hub_download, scan_cache_dir
+from huggingface_hub.utils import GatedRepoError
 from requests import Session
 from safetensors import safe_open
 from safetensors.torch import save_file
@@ -74,6 +75,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                                            filename=known_file.filename,
                                            local_dir=hf_destination_dir,
                                            repo_type=known_file.repo_type,
+                                           revision=known_file.revision,
                                            )
 
                     if known_file.convert_to_16_bit and file_size is not None and file_size != 0:
@@ -134,8 +136,14 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                         assert path is not None
         except StopIteration:
             pass
-        except Exception as exc:
-            logging.error("Error while trying to download a file", exc_info=exc)
+        except GatedRepoError as exc_info:
+            exc_info.append_to_message(f"""
+Visit the repository, accept the terms, and then do one of the following:
+
+ - Set the HF_TOKEN environment variable to your Hugging Face token; or,
+ - Login to Hugging Face in your terminal using `huggingface-cli login`
+""")
+            raise exc_info
         finally:
             # a path was found for any reason, so we should invalidate the cache
             if path is not None:
@@ -167,13 +175,16 @@ KNOWN_CHECKPOINTS = [
     CivitFile(133005, 357609, filename="juggernautXL_v9Rundiffusionphoto2.safetensors"),
     CivitFile(112902, 351306, filename="dreamshaperXL_v21TurboDPMSDE.safetensors"),
     CivitFile(139562, 344487, filename="realvisxlV40_v40Bakedvae.safetensors"),
-    HuggingFile("SG161222/Realistic_Vision_V6.0_B1_noVAE","Realistic_Vision_V6.0_NV_B1_fp16.safetensors"),
-    HuggingFile("SG161222/Realistic_Vision_V5.1_noVAE","Realistic_Vision_V5.1_fp16-no-ema.safetensors"),
+    HuggingFile("SG161222/Realistic_Vision_V6.0_B1_noVAE", "Realistic_Vision_V6.0_NV_B1_fp16.safetensors"),
+    HuggingFile("SG161222/Realistic_Vision_V5.1_noVAE", "Realistic_Vision_V5.1_fp16-no-ema.safetensors"),
     CivitFile(4384, 128713, filename="dreamshaper_8.safetensors"),
     CivitFile(7371, 425083, filename="revAnimated_v2Rebirth.safetensors"),
     CivitFile(4468, 57618, filename="counterfeitV30_v30.safetensors"),
     CivitFile(241415, 272376, filename="picxReal_10.safetensors"),
     CivitFile(23900, 95489, filename="anyloraCheckpoint_bakedvaeBlessedFp16.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium_incl_clips.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium_incl_clips_t5xxlfp8.safetensors"),
 ]
 
 KNOWN_UNCLIP_CHECKPOINTS = [
@@ -323,7 +334,13 @@ KNOWN_UNET_MODELS: List[Union[CivitFile | HuggingFile]] = [
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors")
 ]
 
-KNOWN_CLIP_MODELS: List[Union[CivitFile | HuggingFile]] = []
+KNOWN_CLIP_MODELS: List[Union[CivitFile | HuggingFile]] = [
+    # todo: is this correct?
+    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/t5xxl_fp16.safetensors", save_with_filename="t5xxl_fp16.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/t5xxl_fp8_e4m3fn.safetensors", save_with_filename="t5xxl_fp8_e4m3fn.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_g.safetensors", save_with_filename="clip_g.safetensors"),
+    HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_l.safetensors", save_with_filename="clip_l.safetensors"),
+]
 
 
 def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:

@@ -8,7 +8,7 @@ import zipfile
 from typing import Tuple, Sequence, TypeVar
 
 import torch
-from transformers import CLIPTokenizer, PreTrainedTokenizerBase
+from transformers import CLIPTokenizer, PreTrainedTokenizerBase, SpecialTokensMixin
 
 from . import clip_model
 from . import model_management
@@ -410,7 +410,7 @@ class SDTokenizer:
     def clone(self) -> SDTokenizerT:
         sd_tokenizer = copy.copy(self)
         # correctly copy additional vocab
-        sd_tokenizer.tokenizer = self.tokenizer_class.from_pretrained(self.tokenizer_path)
+        sd_tokenizer.tokenizer = self.tokenizer_class.from_pretrained(self.tokenizer_path, legacy=True)
         sd_tokenizer.add_tokens(sd_tokenizer.additional_tokens)
         return sd_tokenizer
 
@@ -567,6 +567,10 @@ class SD1ClipModel(torch.nn.Module):
         self.clip_name = clip_name
         self.clip = "clip_{}".format(self.clip_name)
         setattr(self, self.clip, clip_model(device=device, dtype=dtype, textmodel_json_config=textmodel_json_config, **kwargs))
+
+        self.dtypes = set()
+        if dtype is not None:
+            self.dtypes.add(dtype)
 
     def set_clip_options(self, options):
         getattr(self, self.clip).set_clip_options(options)

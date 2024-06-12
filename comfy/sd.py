@@ -100,15 +100,21 @@ class CLIP:
         load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
         params['device'] = offload_device
-        params['dtype'] = model_management.text_encoder_dtype(load_device)
+        dtype = model_management.text_encoder_dtype(load_device)
+        params['dtype'] = dtype
         if "textmodel_json_config" not in params and textmodel_json_config is not None:
             params['textmodel_json_config'] = textmodel_json_config
 
         self.cond_stage_model = clip(**(params))
 
+        for dt in self.cond_stage_model.dtypes:
+            if not model_management.supports_cast(load_device, dt):
+                load_device = offload_device
+
         self.tokenizer: "sd1_clip.SD1Tokenizer" = tokenizer(embedding_directory=embedding_directory)
         self.patcher = model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.layer_idx = None
+        logging.debug("CLIP model load device: {}, offload device: {}".format(load_device, offload_device))
 
     def clone(self):
         n = CLIP(no_init=True)
@@ -372,6 +378,7 @@ def load_style_model(ckpt_path):
 class CLIPType(Enum):
     STABLE_DIFFUSION = 1
     STABLE_CASCADE = 2
+    SD3 = 3
 
 
 @dataclasses.dataclass
@@ -407,12 +414,20 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
         elif "text_model.encoder.layers.22.mlp.fc1.weight" in clip_data[0]:
             clip_target.clip = sd2_clip.SD2ClipModel
             clip_target.tokenizer = sd2_clip.SD2Tokenizer
+        elif "encoder.block.23.layer.1.DenseReluDense.wi_1.weight" in clip_data[0]:
+            dtype_t5 = clip_data[0]["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"].dtype
+            clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
+            clip_target.tokenizer = sd3_clip.SD3Tokenizer
         else:
             clip_target.clip = sd1_clip.SD1ClipModel
             clip_target.tokenizer = sd1_clip.SD1Tokenizer
     elif len(clip_data) == 2:
-        clip_target.clip = sdxl_clip.SDXLClipModel
-        clip_target.tokenizer = sdxl_clip.SDXLTokenizer
+        if clip_type == CLIPType.SD3:
+            clip_target.clip = sd3_clip.sd3_clip(clip_l=True, clip_g=True, t5=False)
+            clip_target.tokenizer = sd3_clip.SD3Tokenizer
+        else:
+            clip_target.clip = sdxl_clip.SDXLClipModel
+            clip_target.tokenizer = sdxl_clip.SDXLTokenizer
     elif len(clip_data) == 3:
         clip_target.clip = sd3_clip.SD3ClipModel
         clip_target.tokenizer = sd3_clip.SD3Tokenizer
@@ -501,7 +516,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         vae = VAE(sd=vae_sd)
 
     if output_clip:
-        clip_target = model_config.clip_target()
+        clip_target = model_config.clip_target(state_dict=sd)
         if clip_target is not None:
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:

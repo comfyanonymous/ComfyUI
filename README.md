@@ -18,6 +18,35 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - Automated tests for new features.
 - Automatic model downloading for well-known models.
 
+### Upstream Features
+
+- Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/) and [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
+- Asynchronous Queue system
+- Many optimizations: Only re-executes the parts of the workflow that changes between executions.
+- Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
+- Works even if you don't have a GPU with: ```--cpu``` (slow)
+- Can load ckpt, safetensors and diffusers models/checkpoints. Standalone VAEs and CLIP models.
+- Embeddings/Textual inversion
+- [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
+- [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
+- Loading full workflows (with seeds) from generated PNG files.
+- Saving/Loading workflows as Json files.
+- Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
+- [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
+- [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
+- [ControlNet and T2I-Adapter](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
+- [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
+- [unCLIP Models](https://comfyanonymous.github.io/ComfyUI_examples/unclip/)
+- [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
+- [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
+- [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
+- [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
+- Latent previews with [TAESD](#how-to-show-high-quality-previews)
+- Starts up very fast.
+- Works fully offline: will never download anything.
+- [Config file](extra_model_paths.yaml.example) to set the search paths for models.
+
 ### Table of Contents
 
 - [Workflows](https://comfyanonymous.github.io/ComfyUI_examples/)

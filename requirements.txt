@@ -8,7 +8,7 @@ transformers>=4.29.1
 peft
 torchinfo
 fschat[model_worker]
-safetensors>=0.3.0
+safetensors>=0.4.2
 bitsandbytes
 pytorch-lightning>=2.0.0
 aiohttp>=3.8.4
