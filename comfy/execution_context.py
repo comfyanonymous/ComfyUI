@@ -18,7 +18,10 @@ _empty_execution_context = ExecutionContext(ServerStub())
 
 
 def current_execution_context() -> ExecutionContext:
-    return _current_context.get()
+    try:
+        return _current_context.get()
+    except LookupError:
+        return _empty_execution_context
 
 
 @contextmanager
