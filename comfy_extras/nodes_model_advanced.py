@@ -136,7 +136,7 @@ class ModelSamplingSD3:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "shift": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01}),
+                              "shift": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 100.0, "step":0.01}),
                               }}
 
     RETURN_TYPES = ("MODEL",)
