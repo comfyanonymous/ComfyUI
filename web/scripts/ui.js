@@ -228,7 +228,7 @@ class ComfyList {
 							$el("button", {
 								textContent: "Load",
 								onclick: async () => {
-									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow);
+									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow, true, false);
 									if (item.outputs) {
 										app.nodeOutputs = item.outputs;
 									}
@@ -597,14 +597,21 @@ export class ComfyUI {
 					if (!confirmClear.value || confirm("Clear workflow?")) {
 						app.clean();
 						app.graph.clear();
+						app.resetView();
 					}
 				}
 			}),
 			$el("button", {
 				id: "comfy-load-default-button", textContent: "Load Default", onclick: async () => {
 					if (!confirmClear.value || confirm("Load default workflow?")) {
+						app.resetView();
 						await app.loadGraphData()
 					}
+				}
+			}),
+			$el("button", {
+				id: "comfy-reset-view-button", textContent: "Reset View", onclick: async () => {
+					app.resetView();
 				}
 			}),
 		]);

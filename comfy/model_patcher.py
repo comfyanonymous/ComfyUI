@@ -6,17 +6,29 @@ import uuid
 
 import comfy.utils
 import comfy.model_management
+from comfy.types import UnetWrapperFunction
 
-def apply_weight_decompose(dora_scale, weight):
+
+def weight_decompose(dora_scale, weight, lora_diff, alpha, strength):
+    dora_scale = comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32)
+    lora_diff *= alpha
+    weight_calc = weight + lora_diff.type(weight.dtype)
     weight_norm = (
-        weight.transpose(0, 1)
-        .reshape(weight.shape[1], -1)
+        weight_calc.transpose(0, 1)
+        .reshape(weight_calc.shape[1], -1)
         .norm(dim=1, keepdim=True)
-        .reshape(weight.shape[1], *[1] * (weight.dim() - 1))
+        .reshape(weight_calc.shape[1], *[1] * (weight_calc.dim() - 1))
         .transpose(0, 1)
     )
 
-    return weight * (dora_scale / weight_norm)
+    weight_calc *= (dora_scale / weight_norm).type(weight.dtype)
+    if strength != 1.0:
+        weight_calc -= weight
+        weight += strength * (weight_calc)
+    else:
+        weight[:] = weight_calc
+    return weight
+
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -58,14 +70,13 @@ class ModelPatcher:
 
         self.weight_inplace_update = weight_inplace_update
         self.model_lowvram = False
+        self.lowvram_patch_counter = 0
         self.patches_uuid = uuid.uuid4()
 
     def model_size(self):
         if self.size > 0:
             return self.size
-        model_sd = self.model.state_dict()
         self.size = comfy.model_management.module_size(self.model)
-        self.model_keys = set(model_sd.keys())
         return self.size
 
     def clone(self):
@@ -77,7 +88,6 @@ class ModelPatcher:
 
         n.object_patches = self.object_patches.copy()
         n.model_options = copy.deepcopy(self.model_options)
-        n.model_keys = self.model_keys
         n.backup = self.backup
         n.object_patches_backup = self.object_patches_backup
         return n
@@ -116,7 +126,7 @@ class ModelPatcher:
         if disable_cfg1_optimization:
             self.model_options["disable_cfg1_optimization"] = True
 
-    def set_model_unet_function_wrapper(self, unet_wrapper_function):
+    def set_model_unet_function_wrapper(self, unet_wrapper_function: UnetWrapperFunction):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
     def set_model_denoise_mask_function(self, denoise_mask_function):
@@ -197,8 +207,9 @@ class ModelPatcher:
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         p = set()
+        model_sd = self.model.state_dict()
         for k in patches:
-            if k in self.model_keys:
+            if k in model_sd:
                 p.add(k)
                 current_patches = self.patches.get(k, [])
                 current_patches.append((strength_patch, patches[k], strength_model))
@@ -272,7 +283,7 @@ class ModelPatcher:
 
         return self.model
 
-    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0):
+    def patch_model_lowvram(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False):
         self.patch_model(device_to, patch_weights=False)
 
         logging.info("loading in lowvram mode {}".format(lowvram_model_memory/(1024 * 1024)))
@@ -284,6 +295,7 @@ class ModelPatcher:
                 return self.model_patcher.calculate_weight(self.model_patcher.patches[self.key], weight, self.key)
 
         mem_counter = 0
+        patch_counter = 0
         for n, m in self.model.named_modules():
             lowvram_weight = False
             if hasattr(m, "comfy_cast_weights"):
@@ -296,9 +308,17 @@ class ModelPatcher:
 
             if lowvram_weight:
                 if weight_key in self.patches:
-                    m.weight_function = LowVramPatch(weight_key, self)
+                    if force_patch_weights:
+                        self.patch_weight_to_device(weight_key)
+                    else:
+                        m.weight_function = LowVramPatch(weight_key, self)
+                        patch_counter += 1
                 if bias_key in self.patches:
-                    m.bias_function = LowVramPatch(bias_key, self)
+                    if force_patch_weights:
+                        self.patch_weight_to_device(bias_key)
+                    else:
+                        m.bias_function = LowVramPatch(bias_key, self)
+                        patch_counter += 1
 
                 m.prev_comfy_cast_weights = m.comfy_cast_weights
                 m.comfy_cast_weights = True
@@ -311,11 +331,12 @@ class ModelPatcher:
                     logging.debug("lowvram: loaded module regularly {}".format(m))
 
         self.model_lowvram = True
+        self.lowvram_patch_counter = patch_counter
         return self.model
 
     def calculate_weight(self, patches, weight, key):
         for p in patches:
-            alpha = p[0]
+            strength = p[0]
             v = p[1]
             strength_model = p[2]
 
@@ -333,26 +354,31 @@ class ModelPatcher:
 
             if patch_type == "diff":
                 w1 = v[0]
-                if alpha != 0.0:
+                if strength != 0.0:
                     if w1.shape != weight.shape:
                         logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, w1.shape, weight.shape))
                     else:
-                        weight += alpha * comfy.model_management.cast_to_device(w1, weight.device, weight.dtype)
+                        weight += strength * comfy.model_management.cast_to_device(w1, weight.device, weight.dtype)
             elif patch_type == "lora": #lora/locon
                 mat1 = comfy.model_management.cast_to_device(v[0], weight.device, torch.float32)
                 mat2 = comfy.model_management.cast_to_device(v[1], weight.device, torch.float32)
                 dora_scale = v[4]
                 if v[2] is not None:
-                    alpha *= v[2] / mat2.shape[0]
+                    alpha = v[2] / mat2.shape[0]
+                else:
+                    alpha = 1.0
+
                 if v[3] is not None:
                     #locon mid weights, hopefully the math is fine because I didn't properly test it
                     mat3 = comfy.model_management.cast_to_device(v[3], weight.device, torch.float32)
                     final_shape = [mat2.shape[1], mat2.shape[0], mat3.shape[2], mat3.shape[3]]
                     mat2 = torch.mm(mat2.transpose(0, 1).flatten(start_dim=1), mat3.transpose(0, 1).flatten(start_dim=1)).reshape(final_shape).transpose(0, 1)
                 try:
-                    weight += (alpha * torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1))).reshape(weight.shape).type(weight.dtype)
+                    lora_diff = torch.mm(mat1.flatten(start_dim=1), mat2.flatten(start_dim=1)).reshape(weight.shape)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = weight_decompose(dora_scale, weight, lora_diff, alpha, strength)
+                    else:
+                        weight += ((strength * alpha) * lora_diff).type(weight.dtype)
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "lokr":
@@ -389,19 +415,26 @@ class ModelPatcher:
                 if len(w2.shape) == 4:
                     w1 = w1.unsqueeze(2).unsqueeze(2)
                 if v[2] is not None and dim is not None:
-                    alpha *= v[2] / dim
+                    alpha = v[2] / dim
+                else:
+                    alpha = 1.0
 
                 try:
-                    weight += alpha * torch.kron(w1, w2).reshape(weight.shape).type(weight.dtype)
+                    lora_diff = torch.kron(w1, w2).reshape(weight.shape)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = weight_decompose(dora_scale, weight, lora_diff, alpha, strength)
+                    else:
+                        weight += ((strength * alpha) * lora_diff).type(weight.dtype)
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "loha":
                 w1a = v[0]
                 w1b = v[1]
                 if v[2] is not None:
-                    alpha *= v[2] / w1b.shape[0]
+                    alpha = v[2] / w1b.shape[0]
+                else:
+                    alpha = 1.0
+
                 w2a = v[3]
                 w2b = v[4]
                 dora_scale = v[7]
@@ -424,14 +457,18 @@ class ModelPatcher:
                                   comfy.model_management.cast_to_device(w2b, weight.device, torch.float32))
 
                 try:
-                    weight += (alpha * m1 * m2).reshape(weight.shape).type(weight.dtype)
+                    lora_diff = (m1 * m2).reshape(weight.shape)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = weight_decompose(dora_scale, weight, lora_diff, alpha, strength)
+                    else:
+                        weight += ((strength * alpha) * lora_diff).type(weight.dtype)
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             elif patch_type == "glora":
                 if v[4] is not None:
-                    alpha *= v[4] / v[0].shape[0]
+                    alpha = v[4] / v[0].shape[0]
+                else:
+                    alpha = 1.0
 
                 dora_scale = v[5]
 
@@ -441,9 +478,11 @@ class ModelPatcher:
                 b2 = comfy.model_management.cast_to_device(v[3].flatten(start_dim=1), weight.device, torch.float32)
 
                 try:
-                    weight += ((torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)) * alpha).reshape(weight.shape).type(weight.dtype)
+                    lora_diff = (torch.mm(b2, b1) + torch.mm(torch.mm(weight.flatten(start_dim=1), a2), a1)).reshape(weight.shape)
                     if dora_scale is not None:
-                        weight = apply_weight_decompose(comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32), weight)
+                        weight = weight_decompose(dora_scale, weight, lora_diff, alpha, strength)
+                    else:
+                        weight += ((strength * alpha) * lora_diff).type(weight.dtype)
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             else:
@@ -462,6 +501,7 @@ class ModelPatcher:
                     m.bias_function = None
 
                 self.model_lowvram = False
+                self.lowvram_patch_counter = 0
 
             keys = list(self.backup.keys())
 

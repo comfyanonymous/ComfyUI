@@ -11,7 +11,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 
 ## Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/) and [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
+- Fully supports SD1.x, SD2.x, [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/), [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/) and [SD3](https://comfyanonymous.github.io/ComfyUI_examples/sd3/)
 - Asynchronous Queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Command line option: ```--lowvram``` to make it work on GPUs with less than 3GB vram (enabled automatically on GPUs with low vram)
@@ -53,7 +53,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 | Ctrl + M                           | Mute/unmute selected nodes                                                                                         |
 | Ctrl + B                           | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
 | Delete/Backspace                   | Delete selected nodes                                                                                              |
-| Ctrl + Delete/Backspace            | Delete the current graph                                                                                           |
+| Ctrl + Backspace                   | Delete the current graph                                                                                           |
 | Space                              | Move the canvas around when held and moving the cursor                                                             |
 | Ctrl/Shift + Click                 | Add clicked node to selection                                                                                      |
 | Ctrl + C/Ctrl + V                  | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
@@ -106,7 +106,7 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 This is the command to install the nightly with ROCm 6.0 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.0```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.1```
 
 ### NVIDIA
 
@@ -116,7 +116,7 @@ Nvidia users should install stable pytorch using this command:
 
 This is the command to install pytorch nightly instead which might have performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu124```
 
 #### Troubleshooting
 
@@ -136,7 +136,16 @@ After this you should have everything installed and can proceed to running Comfy
 
 ### Others:
 
-#### [Intel Arc](https://github.com/comfyanonymous/ComfyUI/discussions/476)
+#### Intel GPUs
+
+Intel GPU support is available for all Intel GPUs supported by Intel's Extension for Pytorch (IPEX) with the support requirements listed in the [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) page. Choose your platform and method of install and follow the instructions. The steps are as follows:
+
+1. Start by installing the drivers or kernel listed or newer in the Installation page of IPEX linked above for Windows and Linux if needed.
+1. Follow the instructions to install [Intel's oneAPI Basekit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html) for your platform.
+1. Install the packages for IPEX using the instructions provided in the Installation page for your platform.
+1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux and run ComfyUI normally as described above after everything is installed.
+
+Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
 
 #### Apple Mac silicon
 
@@ -197,12 +206,6 @@ To use a textual inversion concepts/embeddings in a text prompt put them in the 
 
 ```embedding:embedding_filename.pt```
 
-
-## How to increase generation speed?
-
-On non Nvidia hardware you can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers or pytorch attention this option does not do anything.
-
-```--dont-upcast-attention```
 
 ## How to show high-quality previews?
 
