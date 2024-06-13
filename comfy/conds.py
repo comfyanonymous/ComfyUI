@@ -29,7 +29,12 @@ class CONDRegular:
 
 class CONDNoiseShape(CONDRegular):
     def process_cond(self, batch_size, device, area, **kwargs):
-        data = self.cond[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
+        data = self.cond
+        if area is not None:
+            dims = len(area) // 2
+            for i in range(dims):
+                data = data.narrow(i + 2, area[i + dims], area[i])
+
         return self._copy_with(comfy.utils.repeat_to_batch_size(data, batch_size).to(device))
 
 

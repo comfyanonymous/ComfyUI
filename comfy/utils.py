@@ -249,11 +249,11 @@ def unet_to_diffusers(unet_config):
 
     return diffusers_unet_map
 
-def repeat_to_batch_size(tensor, batch_size):
-    if tensor.shape[0] > batch_size:
-        return tensor[:batch_size]
-    elif tensor.shape[0] < batch_size:
-        return tensor.repeat([math.ceil(batch_size / tensor.shape[0])] + [1] * (len(tensor.shape) - 1))[:batch_size]
+def repeat_to_batch_size(tensor, batch_size, dim=0):
+    if tensor.shape[dim] > batch_size:
+        return tensor.narrow(dim, 0, batch_size)
+    elif tensor.shape[dim] < batch_size:
+        return tensor.repeat(dim * [1] + [math.ceil(batch_size / tensor.shape[dim])] + [1] * (len(tensor.shape) - 1 - dim)).narrow(dim, 0, batch_size)
     return tensor
 
 def resize_to_batch_size(tensor, batch_size):
