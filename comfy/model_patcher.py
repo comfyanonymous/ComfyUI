@@ -360,11 +360,13 @@ class ModelPatcher(ModelManageable):
             if isinstance(v, list):
                 v = (self.calculate_weight(v[1:], v[0].clone(), key),)
 
-            if len(v) == 1:
-                patch_type = "diff"
-            elif len(v) == 2:
+            patch_type = "diff"
+            if len(v) == 2:
                 patch_type = v[0]
                 v = v[1]
+            elif len(v) != 1:
+                logging.warning("patch {} not recognized: {}".format(key, v))
+                continue
 
             if patch_type == "diff":
                 w1 = v[0]
