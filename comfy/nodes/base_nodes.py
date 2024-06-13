@@ -851,9 +851,9 @@ class DualCLIPLoader:
         clip_path1 = folder_paths.get_full_path("clip", clip_name1)
         clip_path2 = folder_paths.get_full_path("clip", clip_name2)
         if type == "sdxl":
-            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+            clip_type = sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
-            clip_type = comfy.sd.CLIPType.SD3
+            clip_type = sd.CLIPType.SD3
 
         clip = sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)

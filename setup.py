@@ -196,8 +196,8 @@ if not is_editable:
 dev_dependencies = open(os.path.join(os.path.dirname(__file__), "requirements-dev.txt")).readlines()
 setup(
     name=package_name,
-    description="",
-    author="",
+    description="An installable version of ComfyUI",
+    author="Contributors_of_ComfyUI",
     version=version,
     python_requires=">=3.10,<3.13",
     packages=find_packages(exclude=["tests"] + [] if is_editable else ['custom_nodes']),
