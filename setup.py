@@ -117,8 +117,10 @@ def _is_linux_arm64():
     return os_name == 'Linux' and architecture == 'aarch64'
 
 
-def dependencies(force_nightly: bool = False) -> List[str]:
+def dependencies(for_pypi=False, force_nightly: bool = False) -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
+    if for_pypi:
+        return [dep for dep in _dependencies if dep not in {"torch", "torchvision"} and "@" not in dep]
     # If we're installing with no build isolation, we can check if torch is already installed in the environment, and if
     # so, go ahead and use the version that is already installed.
     existing_torch: Optional[str]
@@ -202,7 +204,7 @@ setup(
     python_requires=">=3.10,<3.13",
     packages=find_packages(exclude=["tests"] + [] if is_editable else ['custom_nodes']),
     include_package_data=True,
-    install_requires=dependencies(),
+    install_requires=dependencies(for_pypi=False),
     setup_requires=["pip", "wheel"],
     entry_points={
         'console_scripts': [
