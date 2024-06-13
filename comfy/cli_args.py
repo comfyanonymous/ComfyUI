@@ -122,6 +122,7 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
+parser.add_argument("--node-smart-offload-level", type=int, default=0, choices=[0, 1, 2], help="automatically release unreferenced node outputs, helping to reduce peak VRAM/RAM usage during execution and mitigate out-of-memory issues. 0: Means disabling this feature; 1: Only release outputs that were never referenced; 2: Release all currently unreferenced outputs.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()

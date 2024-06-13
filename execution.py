@@ -9,7 +9,7 @@ from typing import List, Literal, NamedTuple, Optional
 
 import torch
 import nodes
-
+from comfy.cli_args import args
 import comfy.model_management
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
@@ -116,22 +116,66 @@ def format_value(x):
     else:
         return str(x)
 
-def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage):
+class InvalidCache(list):
+    pass
+
+def build_node_reference_map(prompt):
+    reference_map = {}
+    for node_id, node in prompt.items():
+        for intput_label, input_data in node['inputs'].items():
+            if isinstance(input_data, list):
+                input_unique_id = input_data[0]
+                output_index = input_data[1]
+                key = (input_unique_id, output_index)
+                if key not in reference_map:
+                    reference_map[key] = []
+                reference_map[key].append(node_id)
+    return reference_map
+
+def release_outputs_from_reference_map(outputs, reference_map, executed_node_id):
+    offload_level = args.node_smart_offload_level
+    if offload_level == 0:
+        return
+    for unique_key, output_reference in reference_map.items():
+        if executed_node_id in output_reference:
+            output_reference.remove(executed_node_id)
+    for node_id, node_outputs in outputs.items():
+        for i in range(len(node_outputs)):
+            key = (node_id, i)
+            releasable = key not in reference_map
+            if not releasable and offload_level == 2:
+                releasable = not reference_map[key]
+            if (not isinstance(node_outputs[i], InvalidCache)) and releasable:
+                node_outputs[i] = InvalidCache()
+
+def is_output_cached(outputs, node_unique_id, output_index=None):
+    if node_unique_id not in outputs:
+        return False
+    if output_index is not None:
+        if isinstance(outputs[node_unique_id][output_index], InvalidCache):
+            return False
+    else:
+        for item in outputs[node_unique_id]:
+            if isinstance(item, InvalidCache):
+                return False
+    return True
+
+def recursive_execute(server, prompt, outputs, current_item, extra_data, executed, prompt_id, outputs_ui, object_storage, reference_map):
     unique_id = current_item
     inputs = prompt[unique_id]['inputs']
     class_type = prompt[unique_id]['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-    if unique_id in outputs:
+    if is_output_cached(outputs, unique_id):
+        release_outputs_from_reference_map(outputs, reference_map, unique_id)
         return (True, None, None)
 
     for x in inputs:
         input_data = inputs[x]
-
         if isinstance(input_data, list):
             input_unique_id = input_data[0]
             output_index = input_data[1]
-            if input_unique_id not in outputs:
-                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, object_storage)
+            if not is_output_cached(outputs, input_unique_id, output_index):
+                result = recursive_execute(server, prompt, outputs, input_unique_id, extra_data, executed, prompt_id, outputs_ui, object_storage, reference_map)
                 if result[0] is not True:
                     # Another node failed further upstream
                     return result
@@ -191,6 +235,7 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
 
     executed.add(unique_id)
 
+    release_outputs_from_reference_map(outputs, reference_map, unique_id)
     return (True, None, None)
 
 def recursive_will_execute(prompt, outputs, current_item, memo={}):
@@ -379,6 +424,8 @@ class PromptExecutor:
             for node_id in list(execute_outputs):
                 to_execute += [(0, node_id)]
 
+            # key: (node_id, output_index), value: [node_id, ...]
+            reference_map = build_node_reference_map(prompt)
             while len(to_execute) > 0:
                 #always execute the output that depends on the least amount of unexecuted nodes first
                 memo = {}
@@ -388,7 +435,7 @@ class PromptExecutor:
                 # This call shouldn't raise anything if there's an error deep in
                 # the actual SD code, instead it will report the node where the
                 # error was raised
-                self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.object_storage)
+                self.success, error, ex = recursive_execute(self.server, prompt, self.outputs, output_node_id, extra_data, executed, prompt_id, self.outputs_ui, self.object_storage, reference_map)
                 if self.success is not True:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
