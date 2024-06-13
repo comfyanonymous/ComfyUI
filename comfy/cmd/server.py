@@ -25,7 +25,7 @@ from aiohttp import web
 from can_ada import URL, parse as urlparse
 from typing_extensions import NamedTuple
 
-import comfy.interruption
+from .. import interruption
 from .latent_preview_image_encoding import encode_preview_image
 from .. import model_management
 from .. import utils
@@ -527,7 +527,7 @@ class PromptServer(ExecutorToClientProgress):
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            comfy.interruption.interrupt_current_processing()
+            interruption.interrupt_current_processing()
             return web.Response(status=200)
 
         @routes.post("/free")
