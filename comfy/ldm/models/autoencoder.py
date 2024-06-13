@@ -1,4 +1,5 @@
 import torch
+import math
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple, Union
 import logging as logpy
@@ -113,7 +114,7 @@ class AutoencodingEngine(AbstractAutoencoder):
 
         self.encoder: torch.nn.Module = instantiate_from_config(encoder_config)
         self.decoder: torch.nn.Module = instantiate_from_config(decoder_config)
-        self.regularization: AbstractRegularizer = instantiate_from_config(
+        self.regularization: DiagonalGaussianRegularizer = instantiate_from_config(
             regularizer_config
         )
 
