@@ -132,7 +132,7 @@ class SDClipModel(torch.nn.Module):
         backup_embeds = self.transformer.get_input_embeddings()
         device = backup_embeds.weight.device
         tokens = self.set_up_textual_embeddings(tokens, backup_embeds)
-        tokens = torch.Tensor(tokens, dtype=torch.long).to(device)
+        tokens = torch.tensor(tokens, dtype=torch.long).to(device)
 
         attention_mask = None
         if self.enable_attention_masks:
