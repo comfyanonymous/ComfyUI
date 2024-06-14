@@ -28,3 +28,4 @@ jobs:
       - name: Run unit tests
         run: |
           pytest -v tests/unit
+          pylint comfy
