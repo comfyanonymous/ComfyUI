@@ -28,46 +28,7 @@ def gen_empty_tokens(special_tokens, length):
     output += [pad_token] * (length - len(output))
     return output
 
-
-class ClipTokenWeightEncoder:
-    def encode_token_weights(self, token_weight_pairs):
-        to_encode = list()
-        max_token_len = 0
-        has_weights = False
-        for x in token_weight_pairs:
-            tokens = list(map(lambda a: a[0], x))
-            max_token_len = max(len(tokens), max_token_len)
-            has_weights = has_weights or not all(map(lambda a: a[1] == 1.0, x))
-            to_encode.append(tokens)
-
-        sections = len(to_encode)
-        if has_weights or sections == 0:
-            to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))
-
-        out, pooled = self.encode(to_encode)
-        if pooled is not None:
-            first_pooled = pooled[0:1].to(model_management.intermediate_device())
-        else:
-            first_pooled = pooled
-
-        output = []
-        for k in range(0, sections):
-            z = out[k:k + 1]
-            if has_weights:
-                z_empty = out[-1]
-                for i in range(len(z)):
-                    for j in range(len(z[i])):
-                        weight = token_weight_pairs[k][j][1]
-                        if weight != 1.0:
-                            z[i][j] = (z[i][j] - z_empty[j]) * weight + z_empty[j]
-            output.append(z)
-
-        if (len(output) == 0):
-            return out[-1:].to(model_management.intermediate_device()), first_pooled
-        return torch.cat(output, dim=-2).to(model_management.intermediate_device()), first_pooled
-
-
-class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
+class SDClipModel(torch.nn.Module):
     """Uses the CLIP transformer encoder for text (from huggingface)"""
     LAYERS = [
         "last",
@@ -205,6 +166,42 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
     def encode(self, tokens):
         return self(tokens)
+
+    def encode_token_weights(self, token_weight_pairs):
+        to_encode = list()
+        max_token_len = 0
+        has_weights = False
+        for x in token_weight_pairs:
+            tokens = list(map(lambda a: a[0], x))
+            max_token_len = max(len(tokens), max_token_len)
+            has_weights = has_weights or not all(map(lambda a: a[1] == 1.0, x))
+            to_encode.append(tokens)
+
+        sections = len(to_encode)
+        if has_weights or sections == 0:
+            to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))
+
+        out, pooled = self.encode(to_encode)
+        if pooled is not None:
+            first_pooled = pooled[0:1].to(model_management.intermediate_device())
+        else:
+            first_pooled = pooled
+
+        output = []
+        for k in range(0, sections):
+            z = out[k:k + 1]
+            if has_weights:
+                z_empty = out[-1]
+                for i in range(len(z)):
+                    for j in range(len(z[i])):
+                        weight = token_weight_pairs[k][j][1]
+                        if weight != 1.0:
+                            z[i][j] = (z[i][j] - z_empty[j]) * weight + z_empty[j]
+            output.append(z)
+
+        if (len(output) == 0):
+            return out[-1:].to(model_management.intermediate_device()), first_pooled
+        return torch.cat(output, dim=-2).to(model_management.intermediate_device()), first_pooled
 
     def load_sd(self, sd):
         return self.transformer.load_state_dict(sd, strict=False)
