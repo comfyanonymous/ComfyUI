@@ -12,6 +12,7 @@ from ... import model_management
 
 if model_management.xformers_enabled():
     import xformers  # pylint: disable=import-error
+    import xformers.ops # pylint: disable=import-error
 
 from ...cli_args import args
 from ... import ops

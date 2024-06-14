@@ -11,8 +11,8 @@ from .... import ops
 ops = ops.disable_weight_init
 
 if model_management.xformers_enabled_vae():
-    import xformers
-    import xformers.ops
+    import xformers  # pylint: disable=import-error
+    import xformers.ops # pylint: disable=import-error
 
 def get_timestep_embedding(timesteps, embedding_dim):
     """

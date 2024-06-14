@@ -158,7 +158,8 @@ if args.disable_xformers:
     XFORMERS_IS_AVAILABLE = False
 else:
     try:
-        import xformers # pylint: disable=import-error 
+        import xformers # pylint: disable=import-error
+        import xformers.ops # pylint: disable=import-error
 
         XFORMERS_IS_AVAILABLE = True
         try:
