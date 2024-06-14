@@ -216,10 +216,10 @@ def xformers_attention(q, k, v):
         (q, k, v),
     )
 
-    try:
+    if model_management.xformers_enabled_vae():
         out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=None)
         out = out.transpose(1, 2).reshape(B, C, H, W)
-    except NotImplementedError as e:
+    else:
         out = slice_attention(q.view(B, -1, C), k.view(B, -1, C).transpose(1, 2), v.view(B, -1, C).transpose(1, 2)).reshape(B, C, H, W)
     return out
 

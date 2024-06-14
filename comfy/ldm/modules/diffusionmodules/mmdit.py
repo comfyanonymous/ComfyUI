@@ -837,9 +837,9 @@ class MMDiT(nn.Module):
 
         self.final_layer = FinalLayer(self.hidden_size, patch_size, self.out_channels, dtype=dtype, device=device, operations=operations)
 
+        self.compile_core = compile_core
         if compile_core:
-            assert False
-            self.forward_core_with_concat = torch.compile(self.forward_core_with_concat)
+            self.forward_core_with_concat_compiled = torch.compile(self.forward_core_with_concat)
 
     def cropped_pos_embed(self, hw, device=None):
         p = self.x_embedder.patch_size[0]
@@ -895,6 +895,8 @@ class MMDiT(nn.Module):
         c_mod: torch.Tensor,
         context: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if self.compile_core:
+            return self.forward_core_with_concat_compiled(x, c_mod, context)
         if self.register_length > 0:
             context = torch.cat(
                 (
