@@ -335,7 +335,7 @@ class ModelPatcher:
                     self.patch_weight_to_device(bias_key, device_to)
                     m.to(device_to)
                     mem_counter += comfy.model_management.module_size(m)
-                    logging.debug("lowvram: loaded module regularly {}".format(m))
+                    logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
 
         self.model_lowvram = True
         self.lowvram_patch_counter = patch_counter
