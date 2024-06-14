@@ -13,18 +13,21 @@ from comfy.api.shared_imports.schema_imports import *  # pyright: ignore [report
 
 
 class SchemaEnums:
-
-    @schemas.classproperty
-    def OUTPUT(cls) -> typing.Literal["output"]:
+    @classmethod
+    def output(cls) -> typing.Literal["output"]:
         return Schema.validate("output")
 
-    @schemas.classproperty
-    def INPUT(cls) -> typing.Literal["input"]:
+    @classmethod
+    def input(cls) -> typing.Literal["input"]:
         return Schema.validate("input")
 
-    @schemas.classproperty
-    def TEMP(cls) -> typing.Literal["temp"]:
+    @classmethod
+    def temp(cls) -> typing.Literal["temp"]:
         return Schema.validate("temp")
+
+    OUTPUT = property(output)
+    INPUT = property(input)
+    TEMP = property(temp)
 
 
 @dataclasses.dataclass(frozen=True)
