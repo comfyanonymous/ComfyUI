@@ -37,7 +37,7 @@ from ..cli_args import args
 
 if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-    logging.info("Set cuda device to:", args.cuda_device)
+    logging.info("Set cuda device to: {}".format(args.cuda_device))
 
 if args.deterministic:
     if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
