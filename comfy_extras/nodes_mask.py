@@ -312,8 +312,12 @@ class GrowMask:
         return {
             "required": {
                 "mask": ("MASK",),
-                "expand": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION, "step": 1}),
                 "tapered_corners": ("BOOLEAN", {"default": True}),
+                "expand_by": (["iteration_range", "factor"], {"default": "iteration_range"}),
+            },
+            "optional": {
+                "iteration_range": ("INT", {"default": 0, "min": -MAX_RESOLUTION, "max": MAX_RESOLUTION, "step": 1}),
+                "factor": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 5.0, "step": 0.01}),
             },
         }
     
@@ -323,21 +327,63 @@ class GrowMask:
 
     FUNCTION = "expand_mask"
 
-    def expand_mask(self, mask, expand, tapered_corners):
+    def convert_area_factor_to_iterations(mask, factor, kernel):
+    eroded_once = cv2.erode(mask.astype(np.uint8), kernel, iterations=1)
+    dilated_once = cv2.dilate(mask.astype(np.uint8), kernel, iterations=1)
+    
+    original_area = np.sum(mask > 0)
+    dilated_once_area = np.sum(dilated_once > 0)
+    eroded_once_area = np.sum(eroded_once > 0)
+    
+    expansion_rate = (dilated_once_area - original_area) / original_area if original_area != 0 else 0
+    erosion_rate = (original_area - eroded_once_area) / original_area if original_area != 0 else 0
+    
+    iterations = 0
+    if factor > 1:
+        if expansion_rate > 0:
+            iterations = max(1, int(np.ceil(np.log(factor) / np.log(1 + expansion_rate))))
+        else:
+            iterations = 1
+    else:
+        if erosion_rate > 0:
+            iterations = max(1, int(np.ceil(np.log(1 / factor) / np.log(1 - erosion_rate))))
+        else:
+            iterations = 1
+    
+    return iterations
+
+    def expand_mask(self, mask, expand_by, tapered_corners, iteration_range=None, factor=None):
         c = 0 if tapered_corners else 1
         kernel = np.array([[c, 1, c],
                            [1, 1, 1],
-                           [c, 1, c]])
+                           [c, 1, c]], dtype=np.uint8)
+        mask = mask.cpu().numpy()
         mask = mask.reshape((-1, mask.shape[-2], mask.shape[-1]))
         out = []
+        
         for m in mask:
-            output = m.numpy()
-            for _ in range(abs(expand)):
-                if expand < 0:
-                    output = scipy.ndimage.grey_erosion(output, footprint=kernel)
+            output = (m * 255).astype(np.uint8)
+            foreground = np.sum(output > 0)
+            if expand_by == "factor":
+                actual_factor = factor if factor is not None else 1
+                if actual_factor != 0:
+                    iterations = convert_area_factor_to_iterations(output, actual_factor, kernel)
                 else:
-                    output = scipy.ndimage.grey_dilation(output, footprint=kernel)
-            output = torch.from_numpy(output)
+                    output = np.zeros_like(output)
+                    
+            elif expand_by == "iteration_range":
+                iterations = iteration_range if iteration_range is not None else 0
+            
+            if expand_by != "factor" or (expand_by == "factor" and factor != 0):
+                iterations = min(max(iterations, -MAX_RESOLUTION), MAX_RESOLUTION)
+                for _ in range(abs(iterations)):
+                    if iterations < 0:
+                        output = cv2.erode(output, kernel, iterations=1)
+                    else:
+                        output = cv2.dilate(output, kernel, iterations=1)
+                    
+            output = output.astype(np.float32) / 255
+            output = torch.from_numpy(output)                
             out.append(output)
         return (torch.stack(out, dim=0),)
 
