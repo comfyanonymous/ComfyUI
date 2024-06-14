@@ -170,10 +170,6 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
         self.post_quant_conv = ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
 
-    def get_autoencoder_params(self) -> list:
-        params = super().get_autoencoder_params()
-        return params
-
     def encode(
         self, x: torch.Tensor, return_reg_log: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
