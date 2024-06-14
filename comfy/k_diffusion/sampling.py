@@ -612,7 +612,6 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
 
     old_denoised = None
     h_last = None
-    h = None
 
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
@@ -621,6 +620,7 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
         if sigmas[i + 1] == 0:
             # Denoising step
             x = denoised
+            h = None
         else:
             # DPM-Solver++(2M) SDE
             t, s = -sigmas[i].log(), -sigmas[i + 1].log()
@@ -640,7 +640,7 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
                 x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * sigmas[i + 1] * (-2 * eta_h).expm1().neg().sqrt() * s_noise
 
         old_denoised = denoised
-        h_last = h
+        h_last = h if h is not None else h_last
     return x
 
 @torch.no_grad()
