@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from importlib.abc import Traversable
+from importlib.abc import Traversable  # pylint: disable=no-name-in-module
 from importlib.resources import files
 from pathlib import Path
 
