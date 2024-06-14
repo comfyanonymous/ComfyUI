@@ -177,9 +177,10 @@ class TestInference:
     # The "graph" is the default graph
     @fixture(scope="function", params=comfy_graph_list, ids=comfy_graph_ids, autouse=False)
     def _client_graph(self, request, comfy_background_server) -> (ComfyClient, ComfyGraph):
+        configuration, _ = comfy_background_server
         comfy_graph = request.param
         # Start client
-        comfy_client = self.start_client(comfy_background_server.listen, comfy_background_server.port)
+        comfy_client = self.start_client(configuration.listen, configuration.port)
 
         # Warm up pipeline
         comfy_client.get_images(graph=comfy_graph.graph, save=False)
