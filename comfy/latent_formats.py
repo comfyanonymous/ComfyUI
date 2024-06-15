@@ -135,3 +135,6 @@ class SD3(LatentFormat):
 
     def process_out(self, latent):
         return (latent / self.scale_factor) + self.shift_factor
+
+class StableAudio1(LatentFormat):
+    latent_channels = 64
