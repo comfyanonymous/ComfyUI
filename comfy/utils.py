@@ -253,7 +253,9 @@ def repeat_to_batch_size(tensor, batch_size, dim=0):
     if tensor.shape[dim] > batch_size:
         return tensor.narrow(dim, 0, batch_size)
     elif tensor.shape[dim] < batch_size:
-        return tensor.repeat(dim * [1] + [math.ceil(batch_size / tensor.shape[dim])] + [1] * (len(tensor.shape) - 1 - dim)).narrow(dim, 0, batch_size)
+        expand_shape = list(tensor.shape)
+        expand_shape[dim] = batch_size
+        return tensor.expand(expand_shape)
     return tensor
 
 def resize_to_batch_size(tensor, batch_size):
