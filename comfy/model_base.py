@@ -66,6 +66,9 @@ class BaseModel(torch.nn.Module):
             else:
                 operations = comfy.ops.disable_weight_init
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
+            if comfy.model_management.force_channels_last():
+                self.diffusion_model.to(memory_format=torch.channels_last)
+                logging.debug("using channels last mode for diffusion model")
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
