@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34714.143
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "Mr.G-ComfyUI", "Mr.G-ComfyUI.pyproj", "{590B44C4-8F3E-461E-9956-4E26BF8599C9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{590B44C4-8F3E-461E-9956-4E26BF8599C9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{590B44C4-8F3E-461E-9956-4E26BF8599C9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {468B1660-7B63-410F-B1E8-B9EB3D3AD248}
+	EndGlobalSection
+EndGlobal
