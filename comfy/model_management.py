@@ -672,6 +672,8 @@ def supports_cast(device, dtype): #TODO
 def device_supports_non_blocking(device):
     if is_device_mps(device):
         return False #pytorch bug? mps doesn't support non blocking
+    if is_intel_xpu():
+        return False
     if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
         return False
     if directml_enabled:
@@ -684,6 +686,12 @@ def device_should_use_non_blocking(device):
     return False
     # return True #TODO: figure out why this causes memory issues on Nvidia and possibly others
 
+def force_channels_last():
+    if args.force_channels_last:
+        return True
+
+    #TODO
+    return False
 
 def cast_to_device(tensor, device, dtype, copy=False):
     device_supports_cast = False
