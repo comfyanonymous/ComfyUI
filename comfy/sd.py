@@ -166,7 +166,7 @@ class CLIP:
         return self.patcher.get_key_patches()
 
 class VAE:
-    def __init__(self, sd=None, device=None, config=None, dtype=None):
+    def __init__(self, sd=None, device=None, config=None, dtype=None, latent_channels=4):
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
             sd = diffusers_convert.convert_vae_state_dict(sd)
 
@@ -174,7 +174,7 @@ class VAE:
         self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype)
         self.downscale_ratio = 8
         self.upscale_ratio = 8
-        self.latent_channels = 4
+        self.latent_channels = latent_channels
         self.output_channels = 3
         self.process_input = lambda image: image * 2.0 - 1.0
         self.process_output = lambda image: torch.clamp((image + 1.0) / 2.0, min=0.0, max=1.0)
@@ -189,7 +189,7 @@ class VAE:
                                                             encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': encoder_config},
                                                             decoder_config={'target': "comfy.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
             elif "taesd_decoder.1.weight" in sd:
-                self.first_stage_model = comfy.taesd.taesd.TAESD()
+                self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels)
             elif "vquantizer.codebook.weight" in sd: #VQGan: stage a of stable cascade
                 self.first_stage_model = StageA()
                 self.downscale_ratio = 4
