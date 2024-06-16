@@ -676,10 +676,13 @@ class VAELoader:
 
         if name == "taesd":
             sd["vae_scale"] = torch.tensor(0.18215)
+            sd["vae_shift"] = torch.tensor(0.0)
         elif name == "taesdxl":
             sd["vae_scale"] = torch.tensor(0.13025)
+            sd["vae_shift"] = torch.tensor(0.0)
         elif name == "taesd3":
             sd["vae_scale"] = torch.tensor(1.5305)
+            sd["vae_shift"] = torch.tensor(0.0609)
         return sd
 
     @classmethod
@@ -697,10 +700,7 @@ class VAELoader:
         else:
             vae_path = folder_paths.get_full_path("vae", vae_name)
             sd = comfy.utils.load_torch_file(vae_path)
-
-        latent_channels = 16 if vae_name == 'taesd3' else 4
-
-        vae = comfy.sd.VAE(sd=sd, latent_channels=latent_channels)
+        vae = comfy.sd.VAE(sd=sd)
         return (vae,)
 
 class ControlNetLoader:
