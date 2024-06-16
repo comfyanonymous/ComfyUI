@@ -237,8 +237,8 @@ class VAE:
                                                                 decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
             elif "decoder.layers.0.weight_v" in sd:
                 self.first_stage_model = AudioOobleckVAE()
-                self.memory_used_encode = lambda shape, dtype: (1767 * shape[2]) * model_management.dtype_size(dtype) #TODO: tweak for the audio VAE
-                self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * 64) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * 2048) * model_management.dtype_size(dtype)
                 self.latent_channels = 64
                 self.output_channels = 2
                 self.upscale_ratio = 2048
