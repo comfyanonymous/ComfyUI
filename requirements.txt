@@ -53,3 +53,4 @@ huggingface_extra_chat_templates @ git+https://github.com/AppMana/appmana-comfyu
 wrapt>=1.16.0
 certifi
 spandrel
+numpy>=1.26.3,<2.0.0
