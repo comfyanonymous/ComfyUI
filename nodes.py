@@ -496,7 +496,7 @@ class CheckpointLoader:
 
     CATEGORY = "advanced/loaders"
 
-    def load_checkpoint(self, config_name, ckpt_name, output_vae=True, output_clip=True):
+    def load_checkpoint(self, config_name, ckpt_name):
         config_path = folder_paths.get_full_path("configs", config_name)
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
@@ -511,7 +511,7 @@ class CheckpointLoaderSimple:
 
     CATEGORY = "loaders"
 
-    def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
+    def load_checkpoint(self, ckpt_name):
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out[:3]
@@ -634,6 +634,8 @@ class VAELoader:
         sdxl_taesd_dec = False
         sd1_taesd_enc = False
         sd1_taesd_dec = False
+        sd3_taesd_enc = False
+        sd3_taesd_dec = False
 
         for v in approx_vaes:
             if v.startswith("taesd_decoder."):
@@ -644,10 +646,16 @@ class VAELoader:
                 sdxl_taesd_dec = True
             elif v.startswith("taesdxl_encoder."):
                 sdxl_taesd_enc = True
+            elif v.startswith("taesd3_decoder."):
+                sd3_taesd_dec = True
+            elif v.startswith("taesd3_encoder."):
+                sd3_taesd_enc = True
         if sd1_taesd_dec and sd1_taesd_enc:
             vaes.append("taesd")
         if sdxl_taesd_dec and sdxl_taesd_enc:
             vaes.append("taesdxl")
+        if sd3_taesd_dec and sd3_taesd_enc:
+            vaes.append("taesd3")
         return vaes
 
     @staticmethod
@@ -668,8 +676,13 @@ class VAELoader:
 
         if name == "taesd":
             sd["vae_scale"] = torch.tensor(0.18215)
+            sd["vae_shift"] = torch.tensor(0.0)
         elif name == "taesdxl":
             sd["vae_scale"] = torch.tensor(0.13025)
+            sd["vae_shift"] = torch.tensor(0.0)
+        elif name == "taesd3":
+            sd["vae_scale"] = torch.tensor(1.5305)
+            sd["vae_shift"] = torch.tensor(0.0609)
         return sd
 
     @classmethod
@@ -682,7 +695,7 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name in ["taesd", "taesdxl"]:
+        if vae_name in ["taesd", "taesdxl", "taesd3"]:
             sd = self.load_taesd(vae_name)
         else:
             vae_path = folder_paths.get_full_path("vae", vae_name)
@@ -818,7 +831,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("clip"), ),
-                              "type": (["stable_diffusion", "stable_cascade"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -826,9 +839,14 @@ class CLIPLoader:
     CATEGORY = "advanced/loaders"
 
     def load_clip(self, clip_name, type="stable_diffusion"):
-        clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
         if type == "stable_cascade":
             clip_type = comfy.sd.CLIPType.STABLE_CASCADE
+        elif type == "sd3":
+            clip_type = comfy.sd.CLIPType.SD3
+        elif type == "stable_audio":
+            clip_type = comfy.sd.CLIPType.STABLE_AUDIO
+        else:
+            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
 
         clip_path = folder_paths.get_full_path("clip", clip_name)
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
@@ -837,17 +855,24 @@ class CLIPLoader:
 class DualCLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"), ), "clip_name2": (folder_paths.get_filename_list("clip"), ),
+        return {"required": { "clip_name1": (folder_paths.get_filename_list("clip"), ),
+                              "clip_name2": (folder_paths.get_filename_list("clip"), ),
+                              "type": (["sdxl", "sd3"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
 
     CATEGORY = "advanced/loaders"
 
-    def load_clip(self, clip_name1, clip_name2):
+    def load_clip(self, clip_name1, clip_name2, type):
         clip_path1 = folder_paths.get_full_path("clip", clip_name1)
         clip_path2 = folder_paths.get_full_path("clip", clip_name2)
-        clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        if type == "sdxl":
+            clip_type = comfy.sd.CLIPType.STABLE_DIFFUSION
+        elif type == "sd3":
+            clip_type = comfy.sd.CLIPType.SD3
+
+        clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)
 
 class CLIPVisionLoader:
@@ -1299,6 +1324,8 @@ class SetLatentNoiseMask:
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
+    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
     else:
@@ -1962,6 +1989,8 @@ def init_custom_nodes():
         "nodes_attention_multiply.py",
         "nodes_advanced_samplers.py",
         "nodes_webcam.py",
+        "nodes_audio.py",
+        "nodes_sd3.py",
     ]
 
     import_failed = []

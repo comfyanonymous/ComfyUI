@@ -5,11 +5,16 @@ from comfy.ldm.cascade.stage_c import StageC
 from comfy.ldm.cascade.stage_b import StageB
 from comfy.ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
 from comfy.ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
+from comfy.ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
+import comfy.ldm.audio.dit
+import comfy.ldm.audio.embedders
 import comfy.model_management
 import comfy.conds
 import comfy.ops
 from enum import Enum
 from . import utils
+import comfy.latent_formats
+import math
 
 class ModelType(Enum):
     EPS = 1
@@ -17,9 +22,11 @@ class ModelType(Enum):
     V_PREDICTION_EDM = 3
     STABLE_CASCADE = 4
     EDM = 5
+    FLOW = 6
+    V_PREDICTION_CONTINUOUS = 7
 
 
-from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling
+from comfy.model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, ModelSamplingContinuousEDM, StableCascadeSampling, ModelSamplingContinuousV
 
 
 def model_sampling(model_config, model_type):
@@ -32,12 +39,18 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.V_PREDICTION_EDM:
         c = V_PREDICTION
         s = ModelSamplingContinuousEDM
+    elif model_type == ModelType.FLOW:
+        c = comfy.model_sampling.CONST
+        s = comfy.model_sampling.ModelSamplingDiscreteFlow
     elif model_type == ModelType.STABLE_CASCADE:
         c = EPS
         s = StableCascadeSampling
     elif model_type == ModelType.EDM:
         c = EDM
         s = ModelSamplingContinuousEDM
+    elif model_type == ModelType.V_PREDICTION_CONTINUOUS:
+        c = V_PREDICTION
+        s = ModelSamplingContinuousV
 
     class ModelSampling(s, c):
         pass
@@ -60,6 +73,9 @@ class BaseModel(torch.nn.Module):
             else:
                 operations = comfy.ops.disable_weight_init
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
+            if comfy.model_management.force_channels_last():
+                self.diffusion_model.to(memory_format=torch.channels_last)
+                logging.debug("using channels last mode for diffusion model")
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -201,9 +217,6 @@ class BaseModel(torch.nn.Module):
         unet_state_dict = self.diffusion_model.state_dict()
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
 
-        if self.get_dtype() == torch.float16:
-            extra_sds = map(lambda sd: utils.convert_sd_to(sd, torch.float16), extra_sds)
-
         if self.model_type == ModelType.V_PREDICTION:
             unet_state_dict["v_pred"] = torch.tensor([])
 
@@ -230,11 +243,11 @@ class BaseModel(torch.nn.Module):
             if self.manual_cast_dtype is not None:
                 dtype = self.manual_cast_dtype
             #TODO: this needs to be tweaked
-            area = input_shape[0] * input_shape[2] * input_shape[3]
+            area = input_shape[0] * math.prod(input_shape[2:])
             return (area * comfy.model_management.dtype_size(dtype) / 50) * (1024 * 1024)
         else:
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
-            area = input_shape[0] * input_shape[2] * input_shape[3]
+            area = input_shape[0] * math.prod(input_shape[2:])
             return (((area * 0.6) / 0.9) + 1024) * (1024 * 1024)
 
 
@@ -556,4 +569,61 @@ class StableCascade_B(BaseModel):
 
         out["effnet"] = comfy.conds.CONDRegular(prior)
         out["sca"] = comfy.conds.CONDRegular(torch.zeros((1,)))
+        return out
+
+
+class SD3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=OpenAISignatureMMDITWrapper)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
+
+    def memory_required(self, input_shape):
+        if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
+            dtype = self.get_dtype()
+            if self.manual_cast_dtype is not None:
+                dtype = self.manual_cast_dtype
+            #TODO: this probably needs to be tweaked
+            area = input_shape[0] * input_shape[2] * input_shape[3]
+            return (area * comfy.model_management.dtype_size(dtype) * 0.012) * (1024 * 1024)
+        else:
+            area = input_shape[0] * input_shape[2] * input_shape[3]
+            return (area * 0.3) * (1024 * 1024)
+
+
+class StableAudio1(BaseModel):
+    def __init__(self, model_config, seconds_start_embedder_weights, seconds_total_embedder_weights, model_type=ModelType.V_PREDICTION_CONTINUOUS, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.audio.dit.AudioDiffusionTransformer)
+        self.seconds_start_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=512)
+        self.seconds_total_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=512)
+        self.seconds_start_embedder.load_state_dict(seconds_start_embedder_weights)
+        self.seconds_total_embedder.load_state_dict(seconds_total_embedder_weights)
+
+    def extra_conds(self, **kwargs):
+        out = {}
+
+        noise = kwargs.get("noise", None)
+        device = kwargs["device"]
+
+        seconds_start = kwargs.get("seconds_start", 0)
+        seconds_total = kwargs.get("seconds_total", int(noise.shape[-1] / 21.53))
+
+        seconds_start_embed = self.seconds_start_embedder([seconds_start])[0].to(device)
+        seconds_total_embed = self.seconds_total_embedder([seconds_total])[0].to(device)
+
+        global_embed = torch.cat([seconds_start_embed, seconds_total_embed], dim=-1).reshape((1, -1))
+        out['global_embed'] = comfy.conds.CONDRegular(global_embed)
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            cross_attn = torch.cat([cross_attn.to(device), seconds_start_embed.repeat((cross_attn.shape[0], 1, 1)), seconds_total_embed.repeat((cross_attn.shape[0], 1, 1))], dim=1)
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out

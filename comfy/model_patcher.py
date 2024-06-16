@@ -209,11 +209,18 @@ class ModelPatcher:
         p = set()
         model_sd = self.model.state_dict()
         for k in patches:
-            if k in model_sd:
+            offset = None
+            if isinstance(k, str):
+                key = k
+            else:
+                offset = k[1]
+                key = k[0]
+
+            if key in model_sd:
                 p.add(k)
-                current_patches = self.patches.get(k, [])
-                current_patches.append((strength_patch, patches[k], strength_model))
-                self.patches[k] = current_patches
+                current_patches = self.patches.get(key, [])
+                current_patches.append((strength_patch, patches[k], strength_model, offset))
+                self.patches[key] = current_patches
 
         self.patches_uuid = uuid.uuid4()
         return list(p)
@@ -328,7 +335,7 @@ class ModelPatcher:
                     self.patch_weight_to_device(bias_key, device_to)
                     m.to(device_to)
                     mem_counter += comfy.model_management.module_size(m)
-                    logging.debug("lowvram: loaded module regularly {}".format(m))
+                    logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
 
         self.model_lowvram = True
         self.lowvram_patch_counter = patch_counter
@@ -339,6 +346,12 @@ class ModelPatcher:
             strength = p[0]
             v = p[1]
             strength_model = p[2]
+            offset = p[3]
+
+            old_weight = None
+            if offset is not None:
+                old_weight = weight
+                weight = weight.narrow(offset[0], offset[1], offset[2])
 
             if strength_model != 1.0:
                 weight *= strength_model
@@ -487,6 +500,9 @@ class ModelPatcher:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
             else:
                 logging.warning("patch type not recognized {} {}".format(patch_type, key))
+
+            if old_weight is not None:
+                weight = old_weight
 
         return weight
 
