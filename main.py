@@ -203,7 +203,7 @@ if __name__ == "__main__":
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    server = server.PromptServer(loop)
+    server = server.PromptServer(loop, url_prefix=args.url_prefix)
     q = execution.PromptQueue(server)
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
@@ -247,7 +247,7 @@ if __name__ == "__main__":
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0':
                 address = '127.0.0.1'
-            webbrowser.open(f"{scheme}://{address}:{port}")
+            webbrowser.open(f"{scheme}://{address}:{port}/{args.url_prefix}/")
         call_on_start = startup_server
 
     try:

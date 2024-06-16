@@ -62,8 +62,9 @@ def create_cors_middleware(allowed_origin: str):
     return cors_middleware
 
 class PromptServer():
-    def __init__(self, loop):
+    def __init__(self, loop, url_prefix=""):
         PromptServer.instance = self
+        self.url_prefix = url_prefix
 
         mimetypes.init()
         mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
@@ -81,6 +82,8 @@ class PromptServer():
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
+        if self.url_prefix:
+            self.sub_app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
         self.web_root = os.path.join(os.path.dirname(
             os.path.realpath(__file__)), "web")
@@ -529,17 +532,22 @@ class PromptServer():
             return web.Response(status=200)
         
     def add_routes(self):
+        app = self.sub_app if self.url_prefix else self.app
+
         self.user_manager.add_routes(self.routes)
-        self.app.add_routes(self.routes)
+        app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
-            self.app.add_routes([
-                web.static('/extensions/' + urllib.parse.quote(name), dir),
+            app.add_routes([
+                web.static(f'/extensions/' + urllib.parse.quote(name), dir),
             ])
 
-        self.app.add_routes([
-            web.static('/', self.web_root),
+        app.add_routes([
+            web.static(f'/', self.web_root),
         ])
+
+        if self.url_prefix:
+            self.app.add_subapp(f'/{self.url_prefix}', self.sub_app)
 
     def get_queue_info(self):
         prompt_info = {}
@@ -637,7 +645,10 @@ class PromptServer():
 
         if verbose:
             logging.info("Starting server\n")
-            logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address, port))
+            prefix = self.url_prefix
+            if self.url_prefix:
+                prefix = f"{self.url_prefix}/"
+            logging.info("To see the GUI go to: {}://{}:{}/{}".format(scheme, address, port, prefix))
         if call_on_start is not None:
             call_on_start(scheme, address, port)
 
