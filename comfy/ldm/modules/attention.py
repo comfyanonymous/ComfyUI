@@ -11,8 +11,8 @@ from .sub_quadratic_attention import efficient_dot_product_attention
 from ... import model_management
 
 if model_management.xformers_enabled():
-    import xformers
-    import xformers.ops
+    import xformers  # pylint: disable=import-error
+    import xformers.ops # pylint: disable=import-error
 
 from ...cli_args import args
 from ... import ops
@@ -303,12 +303,10 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None):
     return r1
 
 BROKEN_XFORMERS = False
-try:
+if model_management.xformers_enabled():
     x_vers = xformers.__version__
     # XFormers bug confirmed on all versions from 0.0.21 to 0.0.26 (q with bs bigger than 65535 gives CUDA error)
     BROKEN_XFORMERS = x_vers.startswith("0.0.2") and not x_vers.startswith("0.0.20")
-except:
-    pass
 
 def attention_xformers(q, k, v, heads, mask=None, attn_precision=None):
     b, _, dim_head = q.shape

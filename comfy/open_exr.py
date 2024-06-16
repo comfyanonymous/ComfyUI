@@ -36,6 +36,8 @@ from torch import Tensor
 from .component_model.images_types import RgbMaskTuple
 
 
+read_exr = lambda fp: cv.imread(fp, cv.IMREAD_UNCHANGED).astype(np.float32) # pylint: disable=no-member
+
 def mut_srgb_to_linear(np_array) -> None:
     less = np_array <= 0.0404482362771082
     np_array[less] = np_array[less] / 12.92
@@ -49,7 +51,7 @@ def mut_linear_to_srgb(np_array) -> None:
 
 
 def load_exr(file_path: str, srgb: bool) -> RgbMaskTuple:
-    image = cv.imread(file_path, cv.IMREAD_UNCHANGED).astype(np.float32)
+    image = read_exr(file_path)
     rgb = np.flip(image[:, :, :3], 2).copy()
     if srgb:
         mut_linear_to_srgb(rgb)
@@ -64,7 +66,7 @@ def load_exr(file_path: str, srgb: bool) -> RgbMaskTuple:
 
 
 def load_exr_latent(file_path: str) -> Tuple[Tensor]:
-    image = cv.imread(file_path, cv.IMREAD_UNCHANGED).astype(np.float32)
+    image = read_exr(file_path)
     image = image[:, :, np.array([2, 1, 0, 3])]
     image = torch.unsqueeze(torch.from_numpy(image), 0)
     image = torch.movedim(image, -1, 1)
@@ -83,4 +85,4 @@ def save_exr(images: Tensor, filepaths_batched: Sequence[str], colorspace="linea
         bgr[:, :, :, 3] = np.clip(1 - linear[:, :, :, 3], 0, 1)  # invert alpha
 
     for i in range(len(linear.shape[0])):
-        cv.imwrite(filepaths_batched[i], bgr[i])
+        cv.imwrite(filepaths_batched[i], bgr[i]) # pylint: disable=no-member

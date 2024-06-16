@@ -3,6 +3,8 @@ from .ldm.modules.diffusionmodules.util import make_beta_schedule
 import math
 
 class EPS:
+    sigma_data: float
+
     def calculate_input(self, sigma, noise):
         sigma = sigma.view(sigma.shape[:1] + (1,) * (noise.ndim - 1))
         return noise / (sigma ** 2 + self.sigma_data ** 2) ** 0.5

@@ -19,11 +19,6 @@ __version_info__ = tuple(int(segment) for segment in __version__.split("."))
 import sys
 import os
 
-PY3 = sys.version_info[0] == 3
-
-if PY3:
-    unicode = str
-
 if sys.platform.startswith('java'):
     import platform
     os_name = platform.java_ver()[3][0]
@@ -464,10 +459,7 @@ def _get_win_folder_from_registry(csidl_name):
     registry for this guarantees us the correct answer for all CSIDL_*
     names.
     """
-    if PY3:
-        import winreg as _winreg
-    else:
-        import _winreg
+    import winreg  # pylint: disable=import-error
 
     shell_folder_name = {
         "CSIDL_APPDATA": "AppData",
@@ -475,11 +467,11 @@ def _get_win_folder_from_registry(csidl_name):
         "CSIDL_LOCAL_APPDATA": "Local AppData",
     }[csidl_name]
 
-    key = _winreg.OpenKey(
-        _winreg.HKEY_CURRENT_USER,
+    key = winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER,
         r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"
     )
-    dir, type = _winreg.QueryValueEx(key, shell_folder_name)
+    dir, type = winreg.QueryValueEx(key, shell_folder_name)
     return dir
 
 
@@ -509,32 +501,6 @@ def _get_win_folder_with_ctypes(csidl_name):
 
     return buf.value
 
-def _get_win_folder_with_jna(csidl_name):
-    import array
-    from com.sun import jna
-    from com.sun.jna.platform import win32
-
-    buf_size = win32.WinDef.MAX_PATH * 2
-    buf = array.zeros('c', buf_size)
-    shell = win32.Shell32.INSTANCE
-    shell.SHGetFolderPath(None, getattr(win32.ShlObj, csidl_name), None, win32.ShlObj.SHGFP_TYPE_CURRENT, buf)
-    dir = jna.Native.toString(buf.tostring()).rstrip("\0")
-
-    # Downgrade to short path name if have highbit chars. See
-    # <http://bugs.activestate.com/show_bug.cgi?id=85099>.
-    has_high_char = False
-    for c in dir:
-        if ord(c) > 255:
-            has_high_char = True
-            break
-    if has_high_char:
-        buf = array.zeros('c', buf_size)
-        kernel = win32.Kernel32.INSTANCE
-        if kernel.GetShortPathName(dir, buf, buf_size):
-            dir = jna.Native.toString(buf.tostring()).rstrip("\0")
-
-    return dir
-
 def _get_win_folder_from_environ(csidl_name):
     env_var_name = {
         "CSIDL_APPDATA": "APPDATA",
@@ -547,23 +513,12 @@ def _get_win_folder_from_environ(csidl_name):
 if system == "win32":
     try:
         from ctypes import windll
+        _get_win_folder = _get_win_folder_with_ctypes
     except ImportError:
         try:
-            import com.sun.jna
+            _get_win_folder = _get_win_folder_from_registry
         except ImportError:
-            try:
-                if PY3:
-                    import winreg as _winreg
-                else:
-                    import _winreg
-            except ImportError:
-                _get_win_folder = _get_win_folder_from_environ
-            else:
-                _get_win_folder = _get_win_folder_from_registry
-        else:
-            _get_win_folder = _get_win_folder_with_jna
-    else:
-        _get_win_folder = _get_win_folder_with_ctypes
+            _get_win_folder = _get_win_folder_from_environ
 
 
 #---- self test code

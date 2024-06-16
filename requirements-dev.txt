@@ -7,3 +7,4 @@ testcontainers-rabbitmq
 mypy>=1.6.0
 freezegun
 coverage
+pylint

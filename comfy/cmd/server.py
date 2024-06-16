@@ -22,7 +22,7 @@ import aiohttp
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
-from can_ada import URL, parse as urlparse
+from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
 from .. import interruption
@@ -382,7 +382,7 @@ class PromptServer(ExecutorToClientProgress):
             return web.json_response(dt["__metadata__"])
 
         @routes.get("/system_stats")
-        async def get_queue(request):
+        async def get_system_stats(request):
             device = model_management.get_torch_device()
             device_name = model_management.get_torch_device_name(device)
             vram_total, torch_vram_total = model_management.get_total_memory(device, torch_total_too=True)
@@ -458,7 +458,7 @@ class PromptServer(ExecutorToClientProgress):
             return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
-        async def get_history(request):
+        async def get_history_prompt(request):
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
@@ -555,7 +555,7 @@ class PromptServer(ExecutorToClientProgress):
             return web.Response(status=200)
 
         @routes.post("/api/v1/prompts")
-        async def post_prompt(request: web.Request) -> web.Response | web.FileResponse:
+        async def post_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
             # check if the queue is too long
             accept = request.headers.get("accept", "application/json")
             content_type = request.headers.get("content-type", "application/json")
@@ -685,7 +685,7 @@ class PromptServer(ExecutorToClientProgress):
                 return web.Response(status=204)
 
         @routes.get("/api/v1/prompts")
-        async def get_prompt(_: web.Request) -> web.Response:
+        async def get_api_prompt(_: web.Request) -> web.Response:
             history = self.prompt_queue.get_history()
             history_items = list(history.values())
             if len(history_items) == 0:

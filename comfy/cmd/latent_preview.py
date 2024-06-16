@@ -25,7 +25,7 @@ def preview_to_image(latent_image):
 
 class LatentPreviewer:
     def decode_latent_to_preview(self, x0):
-        pass
+        raise NotImplementedError
 
     def decode_latent_to_preview_image(self, preview_format, x0):
         preview_image = self.decode_latent_to_preview(x0)

@@ -14,7 +14,6 @@ import typing_extensions
 from .schema import (
     get_class,
     none_type_,
-    classproperty,
     Bool,
     FileIO,
     Schema,
@@ -104,7 +103,6 @@ def raise_if_key_known(
 __all__ = [
     'get_class',
     'none_type_',
-    'classproperty',
     'Bool',
     'FileIO',
     'Schema',

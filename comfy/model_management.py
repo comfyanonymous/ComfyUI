@@ -47,11 +47,10 @@ if args.deterministic:
     logging.info("Using deterministic algorithms for pytorch")
     torch.use_deterministic_algorithms(True, warn_only=True)
 
-directml_enabled = False
+directml_device = None
 if args.directml is not None:
-    import torch_directml
+    import torch_directml # pylint: disable=import-error
 
-    directml_enabled = True
     device_index = args.directml
     if device_index < 0:
         directml_device = torch_directml.device()
@@ -62,7 +61,7 @@ if args.directml is not None:
     lowvram_available = False  # TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
 try:
-    import intel_extension_for_pytorch as ipex
+    import intel_extension_for_pytorch as ipex # pylint: disable=import-error
 
     if torch.xpu.is_available():
         xpu_available = True
@@ -90,10 +89,9 @@ def is_intel_xpu():
 
 
 def get_torch_device():
-    global directml_enabled
+    global directml_device
     global cpu_state
-    if directml_enabled:
-        global directml_device
+    if directml_device:
         return directml_device
     if cpu_state == CPUState.MPS:
         return torch.device("mps")
@@ -111,7 +109,7 @@ def get_torch_device():
 
 
 def get_total_memory(dev=None, torch_total_too=False):
-    global directml_enabled
+    global directml_device
     if dev is None:
         dev = get_torch_device()
 
@@ -119,14 +117,12 @@ def get_total_memory(dev=None, torch_total_too=False):
         mem_total = psutil.virtual_memory().total
         mem_total_torch = mem_total
     else:
-        if directml_enabled:
+        if directml_device:
             mem_total = 1024 * 1024 * 1024  # TODO
             mem_total_torch = mem_total
         elif is_intel_xpu():
-            stats = torch.xpu.memory_stats(dev)
-            mem_reserved = stats['reserved_bytes.all.current']
-            mem_total_torch = mem_reserved
             mem_total = torch.xpu.get_device_properties(dev).total_memory
+            mem_total_torch = mem_total
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
@@ -162,8 +158,8 @@ if args.disable_xformers:
     XFORMERS_IS_AVAILABLE = False
 else:
     try:
-        import xformers
-        import xformers.ops
+        import xformers # pylint: disable=import-error
+        import xformers.ops # pylint: disable=import-error
 
         XFORMERS_IS_AVAILABLE = True
         try:
@@ -710,7 +706,7 @@ def supports_cast(device, dtype): #TODO
         return True
     if is_device_mps(device):
         return False
-    if directml_enabled: #TODO: test this
+    if directml_device: #TODO: test this
         return False
     if dtype == torch.bfloat16:
         return True
@@ -725,7 +721,7 @@ def device_supports_non_blocking(device):
         return False  # pytorch bug? mps doesn't support non blocking
     if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
         return False
-    if directml_enabled:
+    if directml_device:
         return False
     return True
 
@@ -762,13 +758,13 @@ def cast_to_device(tensor, device, dtype, copy=False):
 
 
 def xformers_enabled():
-    global directml_enabled
+    global directml_device
     global cpu_state
     if cpu_state != CPUState.GPU:
         return False
     if is_intel_xpu():
         return False
-    if directml_enabled:
+    if directml_device:
         return False
     return XFORMERS_IS_AVAILABLE
 
@@ -809,7 +805,7 @@ def force_upcast_attention_dtype():
         return None
 
 def get_free_memory(dev=None, torch_free_too=False):
-    global directml_enabled
+    global directml_device
     if dev is None:
         dev = get_torch_device()
 
@@ -817,16 +813,12 @@ def get_free_memory(dev=None, torch_free_too=False):
         mem_free_total = psutil.virtual_memory().available
         mem_free_torch = mem_free_total
     else:
-        if directml_enabled:
+        if directml_device:
             mem_free_total = 1024 * 1024 * 1024  # TODO
             mem_free_torch = mem_free_total
         elif is_intel_xpu():
-            stats = torch.xpu.memory_stats(dev)
-            mem_active = stats['active_bytes.all.current']
-            mem_reserved = stats['reserved_bytes.all.current']
-            mem_free_torch = mem_reserved - mem_active
-            mem_free_xpu = torch.xpu.get_device_properties(dev).total_memory - mem_reserved
-            mem_free_total = mem_free_xpu + mem_free_torch
+            mem_free_total = torch.xpu.get_device_properties(dev).total_memory
+            mem_free_torch = mem_free_total
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
@@ -871,7 +863,7 @@ def is_device_cuda(device):
 
 
 def should_use_fp16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
-    global directml_enabled
+    global directml_device
 
     if device is not None:
         if is_device_cpu(device):
@@ -887,7 +879,7 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     if FORCE_FP32:
         return False
 
-    if directml_enabled:
+    if directml_device:
         return False
 
     if mps_mode():
@@ -950,7 +942,7 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
     if FORCE_FP32:
         return False
 
-    if directml_enabled:
+    if directml_device:
         return False
 
     if cpu_mode() or mps_mode():

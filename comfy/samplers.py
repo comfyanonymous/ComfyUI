@@ -701,6 +701,8 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
 
 
 def calculate_sigmas(model_sampling, scheduler_name, steps):
+    sigmas = None
+    
     if scheduler_name == "karras":
         sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     elif scheduler_name == "exponential":
@@ -713,8 +715,10 @@ def calculate_sigmas(model_sampling, scheduler_name, steps):
         sigmas = ddim_scheduler(model_sampling, steps)
     elif scheduler_name == "sgm_uniform":
         sigmas = normal_scheduler(model_sampling, steps, sgm=True)
-    else:
+    
+    if sigmas is None:
         logging.error("error invalid scheduler {}".format(scheduler_name))
+
     return sigmas
 
 def sampler_object(name):

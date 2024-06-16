@@ -96,17 +96,6 @@ class FileIO(io.FileIO):
         pass
 
 
-class classproperty(typing.Generic[W]):
-    def __init__(self, method: typing.Callable[..., W]):
-        self.__method = method
-        functools.update_wrapper(self, method) # type: ignore
-
-    def __get__(self, obj, cls=None) -> W:
-        if cls is None:
-            cls = type(obj)
-        return self.__method(cls)
-
-
 class Bool:
     _instances: typing.Dict[typing.Tuple[type, bool], Bool] = {}
     """
@@ -139,13 +128,16 @@ class Bool:
             return f'<Bool: True>'
         return f'<Bool: False>'
 
-    @classproperty
-    def TRUE(cls):
+    @classmethod
+    def true(cls):
         return cls(True) # type: ignore
 
-    @classproperty
-    def FALSE(cls):
+    @classmethod
+    def false(cls):
         return cls(False) # type: ignore
+    
+    TRUE = property(true)
+    FALSE = property(false)
 
     @functools.lru_cache()
     def __bool__(self) -> bool:
@@ -403,11 +395,11 @@ class Schema(typing.Generic[T, U], validation.SchemaValidator, metaclass=Singlet
             return used_arg
         output_cls = type_to_output_cls[arg_type]
         if arg_type is tuple:
-            inst = super(output_cls, output_cls).__new__(output_cls, used_arg) # type: ignore
+            inst = tuple.__new__(output_cls, used_arg) # type: ignore
             inst = typing.cast(U, inst)
             return inst
         assert issubclass(output_cls, validation.immutabledict)
-        inst = super(output_cls, output_cls).__new__(output_cls, used_arg) # type: ignore
+        inst = validation.immutabledict.__new__(output_cls, used_arg) # type: ignore
         inst = typing.cast(T, inst)
         return inst
 

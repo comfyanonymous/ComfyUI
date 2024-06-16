@@ -11,6 +11,7 @@ from aiohttp import WSMessage, ClientResponse
 from typing_extensions import Dict
 
 from .client_types import V1QueuePromptResponse
+from ..api.schemas import immutabledict
 from ..api.components.schema.prompt import PromptDict
 from ..api.api_client import JSONEncoder
 from ..api.components.schema.prompt_request import PromptRequest
@@ -106,7 +107,9 @@ class AsyncRemoteComfyClient:
                         break
             async with session.get(urljoin(self.server_address, "/history")) as response:
                 if response.status == 200:
-                    history_json = GetHistoryDict.validate(await response.json())
+                    history_json = immutabledict(GetHistoryDict.validate(await response.json()))
+                else:
+                    raise RuntimeError("Couldn't get history")
 
             # images have filename, subfolder, type keys
             # todo: use the OpenAPI spec for this when I get around to updating it

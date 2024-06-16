@@ -854,6 +854,8 @@ class DualCLIPLoader:
             clip_type = sd.CLIPType.STABLE_DIFFUSION
         elif type == "sd3":
             clip_type = sd.CLIPType.SD3
+        else:
+            raise ValueError(f"Unknown clip type argument passed: {type} for model {clip_name1} and {clip_name2}")
 
         clip = sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
         return (clip,)

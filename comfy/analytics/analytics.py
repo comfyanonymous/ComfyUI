@@ -6,7 +6,8 @@ from typing import Optional
 
 from .multi_event_tracker import MultiEventTracker
 from .plausible import PlausibleTracker
-from ..api.components.schema.prompt import Prompt
+from ..api.components.schema.prompt import Prompt, PromptDict
+from ..api.schemas.validation import immutabledict
 
 _event_tracker: MultiEventTracker
 
@@ -44,7 +45,7 @@ def initialize_event_tracking(loop: Optional[asyncio.AbstractEventLoop] = None):
     prompt_queue_put = PromptQueue.put
 
     def prompt_queue_put_tracked(self: PromptQueue, item: QueueItem):
-        prompt = Prompt.validate(item.prompt)
+        prompt: PromptDict = immutabledict(Prompt.validate(item.prompt))
 
         samplers = [v for _, v in prompt.items() if
                     "positive" in v.inputs and "negative" in v.inputs]

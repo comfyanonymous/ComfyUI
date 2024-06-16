@@ -26,6 +26,7 @@ from .model_sampling import EPS, V_PREDICTION, EDM, ModelSamplingDiscrete, Model
 
 
 def model_sampling(model_config, model_type):
+    c = EPS
     s = ModelSamplingDiscrete
 
     if model_type == ModelType.EPS:
@@ -35,15 +36,15 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.V_PREDICTION_EDM:
         c = V_PREDICTION
         s = ModelSamplingContinuousEDM
-    elif model_type == ModelType.FLOW:
-        c = CONST
-        s = ModelSamplingDiscreteFlow
     elif model_type == ModelType.STABLE_CASCADE:
         c = EPS
         s = StableCascadeSampling
     elif model_type == ModelType.EDM:
         c = EDM
         s = ModelSamplingContinuousEDM
+    elif model_type == ModelType.FLOW:
+        c = CONST
+        s = ModelSamplingDiscreteFlow
 
     class ModelSampling(s, c):
         pass
@@ -110,7 +111,7 @@ class BaseModel(torch.nn.Module):
         return self.adm_channels > 0
 
     def encode_adm(self, **kwargs):
-        return None
+        raise NotImplementedError
 
     def extra_conds(self, **kwargs):
         out = {}
@@ -153,6 +154,7 @@ class BaseModel(torch.nn.Module):
                         cond_concat.append(self.blank_inpaint_image_like(noise))
             data = torch.cat(cond_concat, dim=1)
             out['c_concat'] = conds.CONDNoiseShape(data)
+
         adm = self.encode_adm(**kwargs)
         if adm is not None:
             out['y'] = conds.CONDRegular(adm)
@@ -475,7 +477,10 @@ class SD_X4Upscaler(BaseModel):
         out['y'] = conds.CONDRegular(noise_level)
         return out
 
-class IP2P:
+class IP2P(BaseModel):
+    def process_ip2p_image_in(self, image):
+        raise NotImplementedError
+
     def extra_conds(self, **kwargs):
         out = {}
 

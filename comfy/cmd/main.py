@@ -134,7 +134,7 @@ async def main():
     if args.windows_standalone_build:
         folder_paths.create_directories()
         try:
-            import new_updater
+            from . import new_updater
             new_updater.update_windows_updater()
         except:
             pass
@@ -161,7 +161,7 @@ async def main():
         await q.init()
     else:
         distributed = False
-        from execution import PromptQueue
+        from .execution import PromptQueue
         q = PromptQueue(server)
     server.prompt_queue = q
 

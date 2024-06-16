@@ -1,4 +1,5 @@
 import torch
+import math
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple, Union
 import logging as logpy
@@ -113,7 +114,7 @@ class AutoencodingEngine(AbstractAutoencoder):
 
         self.encoder: torch.nn.Module = instantiate_from_config(encoder_config)
         self.decoder: torch.nn.Module = instantiate_from_config(decoder_config)
-        self.regularization: AbstractRegularizer = instantiate_from_config(
+        self.regularization: DiagonalGaussianRegularizer = instantiate_from_config(
             regularizer_config
         )
 
@@ -168,10 +169,6 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
         )
         self.post_quant_conv = ops.disable_weight_init.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
-
-    def get_autoencoder_params(self) -> list:
-        params = super().get_autoencoder_params()
-        return params
 
     def encode(
         self, x: torch.Tensor, return_reg_log: bool = False
