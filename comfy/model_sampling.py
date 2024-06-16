@@ -169,6 +169,14 @@ class ModelSamplingContinuousEDM(torch.nn.Module):
         return math.exp((math.log(self.sigma_max) - log_sigma_min) * percent + log_sigma_min)
 
 
+class ModelSamplingContinuousV(ModelSamplingContinuousEDM):
+    def timestep(self, sigma):
+        return sigma.atan() / math.pi * 2
+
+    def sigma(self, timestep):
+        return (timestep * math.pi / 2).tan()
+
+
 def time_snr_shift(alpha, t):
     if alpha == 1.0:
         return t
