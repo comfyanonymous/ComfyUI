@@ -64,7 +64,7 @@ def get_previewer(device, latent_format):
 
         if method == LatentPreviewMethod.TAESD:
             if taesd_decoder_path:
-                taesd = TAESD(None, taesd_decoder_path).to(device)
+                taesd = TAESD(None, taesd_decoder_path, latent_channels=latent_format.latent_channels).to(device)
                 previewer = TAESDPreviewerImpl(taesd)
             else:
                 logging.warning("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
