@@ -1,0 +1,449 @@
+{
+  "6": {
+    "inputs": {
+      "ckpt": "remove_bg.pth",
+      "image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "FavorfitRemoveBg",
+    "_meta": {
+      "title": "Favorfit Remove Background"
+    }
+  },
+  "7": {
+    "inputs": {
+      "image": "i2i_example.jpg",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image",
+      "Favorfitinput": "image"
+    }
+  },
+  "8": {
+    "inputs": {
+      "target_size": -1,
+      "max_size": 2048,
+      "min_size": 512,
+      "image": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "FavorfitResizeDiffusionAvailable",
+    "_meta": {
+      "title": "Favorfit Resize Dif Avail"
+    }
+  },
+  "10": {
+    "inputs": {
+      "image": [
+        "8",
+        0
+      ],
+      "mask": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "FavorfitMakeOutpaintCondition",
+    "_meta": {
+      "title": "Favorfit Make Outpaint Condition"
+    }
+  },
+  "11": {
+    "inputs": {
+      "controlnet_name": "kandinsky_controlnet/outpaint"
+    },
+    "class_type": "KandinskyControlnetLoader",
+    "_meta": {
+      "title": "Kandinsky Controlnet Loader"
+    }
+  },
+  "12": {
+    "inputs": {
+      "ckpt": "kandinsky-prior"
+    },
+    "class_type": "comfy-kandinsky22-prior-loader",
+    "_meta": {
+      "title": "Kandinsky2.2 Prior Loader"
+    }
+  },
+  "13": {
+    "inputs": {
+      "ckpt": "kandinsky-decoder"
+    },
+    "class_type": "comfy-kandinsky22-decoder-loader",
+    "_meta": {
+      "title": "Kandinsky2.2 Decoder Loader"
+    }
+  },
+  "15": {
+    "inputs": {
+      "num_inference_steps": 20,
+      "guidance_scale": 8,
+      "seed": 550370223430666,
+      "prompt": "product photo, professional photography, beautiful landscape, natural materials :: high detail, behance. polished, trending on textures. com, clean 3 d render, raytraced 3d set design, raytracing shadows, image on the store website",
+      "negative_prior": "low quality, worst quality, wrinkled, deformed, distorted, jpeg artifacts,nsfw, paintings, sketches, text, watermark, username, spikey",
+      "text_encoder": [
+        "12",
+        1
+      ]
+    },
+    "class_type": "comfy-kandinsky22-text-encoder",
+    "_meta": {
+      "title": "Kandinsky2.2 Text Encoder",
+      "Favorfitinput": "seed,prompt,negative_prior"
+    }
+  },
+  "16": {
+    "inputs": {
+      "strength": 1,
+      "latents": [
+        "19",
+        0
+      ],
+      "control_net": [
+        "11",
+        0
+      ],
+      "control_image": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "KandinskyControlNetApply",
+    "_meta": {
+      "title": "Kandinsky Controlnet Apply"
+    }
+  },
+  "19": {
+    "inputs": {
+      "batch_size": 1,
+      "height": [
+        "8",
+        1
+      ],
+      "width": [
+        "8",
+        2
+      ],
+      "seed": 539365995819067,
+      "movq": [
+        "13",
+        0
+      ],
+      "image": [
+        "8",
+        0
+      ],
+      "lat_info": [
+        "13",
+        2
+      ]
+    },
+    "class_type": "comfy-kandinsky22-img-latents",
+    "_meta": {
+      "title": "Kandinsky2.2 Image Latents"
+    }
+  },
+  "20": {
+    "inputs": {
+      "strength": 1,
+      "num_inference_steps": 20,
+      "guidance_scale": 2,
+      "seed": 118431456914217,
+      "decoder": [
+        "13",
+        1
+      ],
+      "latents": [
+        "27",
+        0
+      ],
+      "image_embeds": [
+        "15",
+        0
+      ],
+      "negative_image_embeds": [
+        "15",
+        1
+      ]
+    },
+    "class_type": "KandinskyControlUnetDecoder",
+    "_meta": {
+      "title": "Kandinsky Control Unet Decoder"
+    }
+  },
+  "21": {
+    "inputs": {
+      "movq": [
+        "13",
+        0
+      ],
+      "latents": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "comfy-kandinsky22-movq-decoder",
+    "_meta": {
+      "title": "Kandinsky2.2 MovQ Decoder"
+    }
+  },
+  "27": {
+    "inputs": {
+      "latents": [
+        "16",
+        0
+      ],
+      "inject_image_embed": [
+        "28",
+        0
+      ],
+      "inject_mask": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "KandinskyImageInject",
+    "_meta": {
+      "title": "Kandinsky Image Inject Apply"
+    }
+  },
+  "28": {
+    "inputs": {
+      "movq": [
+        "13",
+        0
+      ],
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "Kandinsky22MovqEncoder",
+    "_meta": {
+      "title": "Kandinsky Movq Encoder"
+    }
+  },
+  "29": {
+    "inputs": {
+      "ckpt_name": "juggernaut_reborn.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "30": {
+    "inputs": {
+      "control_net_name": "control_v11f1e_sd15_tile.pth"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "31": {
+    "inputs": {
+      "strength": 1,
+      "conditioning": [
+        "41",
+        0
+      ],
+      "control_net": [
+        "30",
+        0
+      ],
+      "image": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "ControlNetApply",
+    "_meta": {
+      "title": "Apply ControlNet"
+    }
+  },
+  "32": {
+    "inputs": {
+      "seed": 842477950861808,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "dpmpp_2m_sde",
+      "scheduler": "karras",
+      "denoise": 0.5,
+      "model": [
+        "29",
+        0
+      ],
+      "positive": [
+        "31",
+        0
+      ],
+      "negative": [
+        "36",
+        0
+      ],
+      "latent_image": [
+        "33",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "33": {
+    "inputs": {
+      "pixels": [
+        "21",
+        0
+      ],
+      "vae": [
+        "29",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "36": {
+    "inputs": {
+      "text": "bright, blur, lowres, bad anatomy, bad hands, cropped, worst quality",
+      "clip": [
+        "29",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "40": {
+    "inputs": {
+      "dir_name": "clip",
+      "image": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "FavorfitImageToText",
+    "_meta": {
+      "title": "Favorfit Image To Text"
+    }
+  },
+  "41": {
+    "inputs": {
+      "text": [
+        "40",
+        0
+      ],
+      "clip": [
+        "29",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "42": {
+    "inputs": {
+      "samples": [
+        "32",
+        0
+      ],
+      "vae": [
+        "29",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "44": {
+    "inputs": {
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "destination": [
+        "42",
+        0
+      ],
+      "source": [
+        "21",
+        0
+      ],
+      "mask": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ImageCompositeMasked",
+    "_meta": {
+      "title": "ImageCompositeMasked"
+    }
+  },
+  "53": {
+    "inputs": {
+      "model_name": "RealESRGAN_x2.pth"
+    },
+    "class_type": "Upscale Model Loader",
+    "_meta": {
+      "title": "Upscale Model Loader"
+    }
+  },
+  "54": {
+    "inputs": {
+      "upscale_model": [
+        "53",
+        0
+      ],
+      "image": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image (using Model)"
+    }
+  },
+  "55": {
+    "inputs": {
+      "images": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "56": {
+    "inputs": {
+      "filename_prefix": "favorfit_text_",
+      "images": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

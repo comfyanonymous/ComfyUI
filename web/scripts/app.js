@@ -2040,7 +2040,12 @@ export class ComfyApp {
 				if (this.ui.settings.getSettingValue("Comfy.DevMode")) {
 					// Ignored by the backend.
 					node_data["_meta"] = {
-						title: node.title,
+						title: node.title
+					};
+					
+					// Favorfitinput이 존재하고 길이가 0이 아닌 경우 추가
+					if (node.Favorfitinput && node.Favorfitinput.length > 0) {
+						node_data["_meta"].Favorfitinput = node.Favorfitinput; // middlek
 					}
 				}
 
@@ -2239,6 +2244,7 @@ export class ComfyApp {
 			const node = LiteGraph.createNode(data.class_type);
 			node.id = isNaN(+id) ? id : +id;
 			node.title = data._meta?.title ?? node.title
+			node.Favorfitinput = data._meta?.Favorfitinput ?? node.Favorfitinput // middlek
 			graph.add(node);
 		}
 

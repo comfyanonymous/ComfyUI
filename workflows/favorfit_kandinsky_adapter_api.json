@@ -1,0 +1,316 @@
+{
+  "27": {
+    "inputs": {
+      "ckpt": "kandinsky-prior"
+    },
+    "class_type": "comfy-kandinsky22-prior-loader",
+    "_meta": {
+      "title": "Kandinsky2.2 Prior Loader"
+    }
+  },
+  "32": {
+    "inputs": {
+      "ckpt": "kandinsky-decoder"
+    },
+    "class_type": "comfy-kandinsky22-decoder-loader",
+    "_meta": {
+      "title": "Kandinsky2.2 Decoder Loader"
+    }
+  },
+  "33": {
+    "inputs": {
+      "movq": [
+        "32",
+        0
+      ],
+      "latents": [
+        "98",
+        0
+      ]
+    },
+    "class_type": "comfy-kandinsky22-movq-decoder",
+    "_meta": {
+      "title": "Kandinsky2.2 MovQ Decoder"
+    }
+  },
+  "67": {
+    "inputs": {
+      "batch_size": 1,
+      "height": [
+        "88",
+        2
+      ],
+      "width": [
+        "88",
+        1
+      ],
+      "seed": 238094222304379,
+      "lat_info": [
+        "32",
+        2
+      ]
+    },
+    "class_type": "comfy-kandinsky22-latents",
+    "_meta": {
+      "title": "Kandinsky2.2 Latents"
+    }
+  },
+  "72": {
+    "inputs": {
+      "image": "i2i_example.jpg",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image",
+      "Favorfitinput": "image"
+    }
+  },
+  "73": {
+    "inputs": {
+      "encoder": [
+        "27",
+        0
+      ],
+      "image": [
+        "89",
+        0
+      ]
+    },
+    "class_type": "comfy-kandinsky22-image-encoder",
+    "_meta": {
+      "title": "Kandinsky2.2 Image Encoder"
+    }
+  },
+  "78": {
+    "inputs": {
+      "controlnet_name": "kandinsky_controlnet/outpaint"
+    },
+    "class_type": "KandinskyControlnetLoader",
+    "_meta": {
+      "title": "Kandinsky Controlnet Loader"
+    }
+  },
+  "87": {
+    "inputs": {
+      "strength": 1,
+      "latents": [
+        "67",
+        0
+      ],
+      "control_net": [
+        "78",
+        0
+      ],
+      "control_image": [
+        "91",
+        0
+      ]
+    },
+    "class_type": "KandinskyControlNetApply",
+    "_meta": {
+      "title": "Kandinsky Controlnet Apply"
+    }
+  },
+  "88": {
+    "inputs": {
+      "image": [
+        "100",
+        0
+      ]
+    },
+    "class_type": "GetImageSizeAndCount",
+    "_meta": {
+      "title": "Get Image Size & Count"
+    }
+  },
+  "89": {
+    "inputs": {
+      "image": "style_example.jpg",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image",
+      "Favorfitinput": "image"
+    }
+  },
+  "90": {
+    "inputs": {
+      "ckpt": "remove_bg.pth",
+      "image": [
+        "100",
+        0
+      ]
+    },
+    "class_type": "FavorfitRemoveBg",
+    "_meta": {
+      "title": "Favorfit Remove Background"
+    }
+  },
+  "91": {
+    "inputs": {
+      "image": [
+        "100",
+        0
+      ],
+      "mask": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "FavorfitMakeOutpaintCondition",
+    "_meta": {
+      "title": "Favorfit Make Outpaint Condition"
+    }
+  },
+  "92": {
+    "inputs": {
+      "images": [
+        "91",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "98": {
+    "inputs": {
+      "strength": 1,
+      "num_inference_steps": 20,
+      "guidance_scale": 1.5,
+      "seed": 485573436624520,
+      "decoder": [
+        "32",
+        1
+      ],
+      "latents": [
+        "106",
+        0
+      ],
+      "image_embeds": [
+        "107",
+        0
+      ],
+      "negative_image_embeds": [
+        "99",
+        0
+      ]
+    },
+    "class_type": "KandinskyControlUnetDecoder",
+    "_meta": {
+      "title": "Kandinsky Control Unet Decoder",
+      "Favorfitinput": "seed"
+    }
+  },
+  "99": {
+    "inputs": {
+      "file_name": "negative_embedding.npy"
+    },
+    "class_type": "FavorfitLoadEmbedTensor",
+    "_meta": {
+      "title": "Favorfit Load Embed Tensor"
+    }
+  },
+  "100": {
+    "inputs": {
+      "target_size": -1,
+      "max_size": 2048,
+      "min_size": 512,
+      "image": [
+        "72",
+        0
+      ]
+    },
+    "class_type": "FavorfitResizeDiffusionAvailable",
+    "_meta": {
+      "title": "Favorfit Resize Dif Avail"
+    }
+  },
+  "102": {
+    "inputs": {
+      "movq": [
+        "32",
+        0
+      ],
+      "images": [
+        "100",
+        0
+      ]
+    },
+    "class_type": "Kandinsky22MovqEncoder",
+    "_meta": {
+      "title": "Kandinsky Movq Encoder"
+    }
+  },
+  "106": {
+    "inputs": {
+      "latents": [
+        "87",
+        0
+      ],
+      "inject_image_embed": [
+        "102",
+        0
+      ],
+      "inject_mask": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "KandinskyImageInject",
+    "_meta": {
+      "title": "Kandinsky Image Inject Apply"
+    }
+  },
+  "107": {
+    "inputs": {
+      "w1": 0.7000000000000001,
+      "w2": 0.3,
+      "in1": [
+        "73",
+        0
+      ],
+      "in2": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "comfy-kandinsky22-prior-averaging-2",
+    "_meta": {
+      "title": "Kandinsky2.2 Prior 2-Averaging"
+    }
+  },
+  "110": {
+    "inputs": {
+      "num_inference_steps": 20,
+      "guidance_scale": 8,
+      "seed": 920369955893834,
+      "prompt": "product background, masterpiece",
+      "text_encoder": [
+        "27",
+        1
+      ]
+    },
+    "class_type": "comfy-kandinsky22-positive-text-encoder",
+    "_meta": {
+      "title": "Kandinsky2.2 Positive Text Encoder",
+      "Favorfitinput": "prompt"
+    }
+  },
+  "111": {
+    "inputs": {
+      "filename_prefix": "favorfit_adapter_",
+      "images": [
+        "33",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

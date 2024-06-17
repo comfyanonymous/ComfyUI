@@ -1,0 +1,54 @@
+{
+  "1": {
+    "inputs": {
+      "video": "video/vfi_example.gif",
+      "frame_start": 0,
+      "frame_limit": 500,
+      "$$comfy_animation_preview": {
+        "height": 200
+      }
+    },
+    "class_type": "LoadVideo",
+    "_meta": {
+      "title": "Load Video",
+      "Favorfitinput": "video"
+    }
+  },
+  "3": {
+    "inputs": {
+      "ckpt_name": "GMFSS_fortuna_union",
+      "clear_cache_after_n_frames": 10,
+      "multiplier": 2,
+      "frames": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "GMFSS Fortuna VFI",
+    "_meta": {
+      "title": "GMFSS Fortuna VFI"
+    }
+  },
+  "5": {
+    "inputs": {
+      "frame_rate": 60,
+      "loop_count": 0,
+      "filename_prefix": "vfi_",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢",
+      "Favorfitinput": "frame_rate"
+    }
+  }
+}

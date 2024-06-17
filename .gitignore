@@ -2,7 +2,8 @@ __pycache__/
 *.py[cod]
 /output/
 /input/
-!/input/example.png
+# !/input/example.png # middlek
+!/input/**/*example*
 /models/
 /temp/
 /custom_nodes/
@@ -15,4 +16,8 @@ venv/
 !/web/extensions/logging.js.example
 !/web/extensions/core/
 /tests-ui/data/object_info.json
-/user/
+# /user/ # middlek
+*.log
+/client_app/
+!client_app/test_wf/
+!client_app/client.py
