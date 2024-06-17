@@ -68,7 +68,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     ]
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
                  freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=comfy.clip_model.CLIPTextModel,
-                 special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False, return_projected_pooled=True):  # clip-vit-base-patch32
+                 special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False,
+                 return_projected_pooled=True):  # clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS
 
@@ -90,6 +91,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
         self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
         self.enable_attention_masks = enable_attention_masks
+        self.zero_out_masked = zero_out_masked
 
         self.layer_norm_hidden_state = layer_norm_hidden_state
         self.return_projected_pooled = return_projected_pooled
@@ -168,20 +170,23 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         attention_mask = None
         if self.enable_attention_masks:
             attention_mask = torch.zeros_like(tokens)
-            max_token = self.transformer.get_input_embeddings().weight.shape[0] - 1
+            end_token = self.special_tokens.get("end", -1)
             for x in range(attention_mask.shape[0]):
                 for y in range(attention_mask.shape[1]):
                     attention_mask[x, y] = 1
-                    if tokens[x, y] == max_token:
+                    if tokens[x, y] == end_token:
                         break
 
         outputs = self.transformer(tokens, attention_mask, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state)
         self.transformer.set_input_embeddings(backup_embeds)
 
         if self.layer == "last":
-            z = outputs[0]
+            z = outputs[0].float()
         else:
-            z = outputs[1]
+            z = outputs[1].float()
+
+        if self.zero_out_masked and attention_mask is not None:
+            z *= attention_mask.unsqueeze(-1).float()
 
         pooled_output = None
         if len(outputs) >= 3:
@@ -190,7 +195,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             elif outputs[2] is not None:
                 pooled_output = outputs[2].float()
 
-        return z.float(), pooled_output
+        return z, pooled_output
 
     def encode(self, tokens):
         return self(tokens)
@@ -505,6 +510,10 @@ class SD1ClipModel(torch.nn.Module):
         self.clip_name = clip_name
         self.clip = "clip_{}".format(self.clip_name)
         setattr(self, self.clip, clip_model(device=device, dtype=dtype, **kwargs))
+
+        self.dtypes = set()
+        if dtype is not None:
+            self.dtypes.add(dtype)
 
     def set_clip_options(self, options):
         getattr(self, self.clip).set_clip_options(options)
