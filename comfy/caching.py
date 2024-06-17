@@ -122,13 +122,6 @@ class CacheKeySetInputSignature(CacheKeySet):
                     order_mapping[ancestor_id] = len(ancestors) - 1
                     self.get_ordered_ancestry_internal(dynprompt, ancestor_id, ancestors, order_mapping)
 
-class CacheKeySetInputSignatureWithID(CacheKeySetInputSignature):
-    def __init__(self, dynprompt, node_ids, is_changed_cache):
-        super().__init__(dynprompt, node_ids, is_changed_cache)
-
-    def include_node_id_in_input(self):
-        return True
-
 class BasicCache:
     def __init__(self, key_class):
         self.key_class = key_class
@@ -151,10 +144,8 @@ class BasicCache:
             node_ids = node_ids.union(subcache.all_node_ids())
         return node_ids
 
-    def clean_unused(self):
-        assert self.initialized
+    def _clean_cache(self):
         preserve_keys = set(self.cache_key_set.get_used_keys())
-        preserve_subcaches = set(self.cache_key_set.get_used_subcache_keys())
         to_remove = []
         for key in self.cache:
             if key not in preserve_keys:
@@ -162,12 +153,20 @@ class BasicCache:
         for key in to_remove:
             del self.cache[key]
 
+    def _clean_subcaches(self):
+        preserve_subcaches = set(self.cache_key_set.get_used_subcache_keys())
+
         to_remove = []
         for key in self.subcaches:
             if key not in preserve_subcaches:
                 to_remove.append(key)
         for key in to_remove:
             del self.subcaches[key]
+
+    def clean_unused(self):
+        assert self.initialized
+        self._clean_cache()
+        self._clean_subcaches()
 
     def _set_immediate(self, node_id, value):
         assert self.initialized
@@ -246,15 +245,6 @@ class HierarchicalCache(BasicCache):
         assert cache is not None
         return cache._ensure_subcache(node_id, children_ids)
 
-    def all_active_values(self):
-        active_nodes = self.all_node_ids()
-        result = []
-        for node_id in active_nodes:
-            value = self.get(node_id)
-            if value is not None:
-                result.append(value)
-        return result
-
 class LRUCache(BasicCache):
     def __init__(self, key_class, max_size=100):
         super().__init__(key_class)
@@ -279,6 +269,7 @@ class LRUCache(BasicCache):
                 del self.used_generation[key]
                 if key in self.children:
                     del self.children[key]
+        self._clean_subcaches()
 
     def get(self, node_id):
         self._mark_used(node_id)
@@ -294,6 +285,9 @@ class LRUCache(BasicCache):
         return self._set_immediate(node_id, value)
 
     def ensure_subcache_for(self, node_id, children_ids):
+        # Just uses subcaches for tracking 'live' nodes
+        super()._ensure_subcache(node_id, children_ids)
+
         self.cache_key_set.add_keys(children_ids)
         self._mark_used(node_id)
         cache_key = self.cache_key_set.get_data_key(node_id)
@@ -302,16 +296,4 @@ class LRUCache(BasicCache):
             self._mark_used(child_id)
             self.children[cache_key].append(self.cache_key_set.get_data_key(child_id))
         return self
-
-    def all_active_values(self):
-        explored = set()
-        to_explore = set(self.cache_key_set.get_used_keys())
-        while len(to_explore) > 0:
-            cache_key = to_explore.pop()
-            if cache_key not in explored:
-                self.used_generation[cache_key] = self.generation
-                explored.add(cache_key)
-                if cache_key in self.children:
-                    to_explore.update(self.children[cache_key])
-        return [self.cache[key] for key in explored if key in self.cache]
 

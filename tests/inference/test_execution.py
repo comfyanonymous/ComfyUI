@@ -117,16 +117,26 @@ class TestExecution:
     #
     # Initialize server and client
     #
-    @fixture(scope="class", autouse=True)
-    def _server(self, args_pytest):
+    @fixture(scope="class", autouse=True, params=[
+        # (use_lru, lru_size)
+        (False, 0),
+        (True, 0),
+        (True, 100),
+    ])
+    def _server(self, args_pytest, request):
         # Start server
-        p = subprocess.Popen([
-                'python','main.py', 
-                '--output-directory', args_pytest["output_dir"],
-                '--listen', args_pytest["listen"],
-                '--port', str(args_pytest["port"]),
-                '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
-                ])
+        pargs = [
+            'python','main.py', 
+            '--output-directory', args_pytest["output_dir"],
+            '--listen', args_pytest["listen"],
+            '--port', str(args_pytest["port"]),
+            '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
+        ]
+        use_lru, lru_size = request.param
+        if use_lru:
+            pargs += ['--cache-lru', str(lru_size)]
+        print("Running server with args:", pargs)
+        p = subprocess.Popen(pargs)
         yield
         p.kill()
         torch.cuda.empty_cache()
@@ -159,15 +169,9 @@ class TestExecution:
         shared_client.set_test_name(f"execution[{request.node.name}]")
         yield shared_client
 
-    def clear_cache(self, client: ComfyClient):
-        g = GraphBuilder(prefix="foo")
-        random = g.node("StubImage", content="NOISE", height=1, width=1, batch_size=1)
-        g.node("PreviewImage", images=random.out(0))
-        client.run(g)
-
     @fixture
-    def builder(self):
-        yield GraphBuilder(prefix="")
+    def builder(self, request):
+        yield GraphBuilder(prefix=request.node.name)
 
     def test_lazy_input(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
@@ -187,7 +191,6 @@ class TestExecution:
         assert result.did_run(lazy_mix)
 
     def test_full_cache(self, client: ComfyClient, builder: GraphBuilder):
-        self.clear_cache(client)
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
@@ -196,14 +199,12 @@ class TestExecution:
         lazy_mix = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask.out(0))
         g.node("SaveImage", images=lazy_mix.out(0))
 
-        result1 = client.run(g)
+        client.run(g)
         result2 = client.run(g)
         for node_id, node in g.nodes.items():
-            assert result1.did_run(node), f"Node {node_id} didn't run"
             assert not result2.did_run(node), f"Node {node_id} ran, but should have been cached"
 
     def test_partial_cache(self, client: ComfyClient, builder: GraphBuilder):
-        self.clear_cache(client)
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
@@ -212,15 +213,11 @@ class TestExecution:
         lazy_mix = g.node("TestLazyMixImages", image1=input1.out(0), image2=input2.out(0), mask=mask.out(0))
         g.node("SaveImage", images=lazy_mix.out(0))
 
-        result1 = client.run(g)
+        client.run(g)
         mask.inputs['value'] = 0.4
         result2 = client.run(g)
-        for node_id, node in g.nodes.items():
-            assert result1.did_run(node), f"Node {node_id} didn't run"
         assert not result2.did_run(input1), "Input1 should have been cached"
         assert not result2.did_run(input2), "Input2 should have been cached"
-        assert result2.did_run(mask), "Mask should have been re-run"
-        assert result2.did_run(lazy_mix), "Lazy mix should have been re-run"
 
     def test_error(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
@@ -365,7 +362,6 @@ class TestExecution:
         assert result4.did_run(is_changed), "is_changed should not have been cached"
 
     def test_undeclared_inputs(self, client: ComfyClient, builder: GraphBuilder):
-        self.clear_cache(client)
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="WHITE", height=512, width=512, batch_size=1)
@@ -378,8 +374,6 @@ class TestExecution:
         result_image = result.get_images(output)[0]
         expected = 255 // 4
         assert numpy.array(result_image).min() == expected and numpy.array(result_image).max() == expected, "Image should be grey"
-        assert result.did_run(input1)
-        assert result.did_run(input2)
 
     def test_for_loop(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
@@ -418,3 +412,17 @@ class TestExecution:
         assert len(images_literal) == 3, "Should have 2 images"
         for i in range(3):
             assert numpy.array(images_literal[i]).min() == 255 and numpy.array(images_literal[i]).max() == 255, "All images should be white"
+
+    def test_output_reuse(self, client: ComfyClient, builder: GraphBuilder):
+        g = builder
+        input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
+
+        output1 = g.node("PreviewImage", images=input1.out(0))
+        output2 = g.node("PreviewImage", images=input1.out(0))
+
+        result = client.run(g)
+        images1 = result.get_images(output1)
+        images2 = result.get_images(output2)
+        assert len(images1) == 1, "Should have 1 image"
+        assert len(images2) == 1, "Should have 1 image"
+

@@ -15,7 +15,7 @@ import comfy.model_management
 import comfy.graph_utils
 from comfy.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
 from comfy.graph_utils import is_link, GraphBuilder
-from comfy.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetInputSignatureWithID, CacheKeySetID
+from comfy.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID
 from comfy.cli_args import args
 
 class ExecutionResult(Enum):
@@ -69,13 +69,13 @@ class CacheSet:
     # blowing away the cache every time
     def init_lru_cache(self, cache_size):
         self.outputs = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
-        self.ui = LRUCache(CacheKeySetInputSignatureWithID, max_size=cache_size)
+        self.ui = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
         self.objects = HierarchicalCache(CacheKeySetID)
 
     # Performs like the old cache -- dump data ASAP
     def init_classic_cache(self):
         self.outputs = HierarchicalCache(CacheKeySetInputSignature)
-        self.ui = HierarchicalCache(CacheKeySetInputSignatureWithID)
+        self.ui = HierarchicalCache(CacheKeySetInputSignature)
         self.objects = HierarchicalCache(CacheKeySetID)
 
     def recursive_debug_dump(self):
@@ -486,10 +486,12 @@ class PromptExecutor:
 
             ui_outputs = {}
             meta_outputs = {}
-            for ui_info in self.caches.ui.all_active_values():
-                node_id = ui_info["meta"]["node_id"]
-                ui_outputs[node_id] = ui_info["output"]
-                meta_outputs[node_id] = ui_info["meta"]
+            all_node_ids = self.caches.ui.all_node_ids()
+            for node_id in all_node_ids:
+                ui_info = self.caches.ui.get(node_id)
+                if ui_info is not None:
+                    ui_outputs[node_id] = ui_info["output"]
+                    meta_outputs[node_id] = ui_info["meta"]
             self.history_result = {
                 "outputs": ui_outputs,
                 "meta": meta_outputs,
