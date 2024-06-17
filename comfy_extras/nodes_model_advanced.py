@@ -196,6 +196,36 @@ class ModelSamplingContinuousEDM:
             m.add_object_patch("latent_format", latent_format)
         return (m, )
 
+class ModelSamplingContinuousV:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "sampling": (["v_prediction"],),
+                              "sigma_max": ("FLOAT", {"default": 500.0, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
+                              "sigma_min": ("FLOAT", {"default": 0.03, "min": 0.0, "max": 1000.0, "step":0.001, "round": False}),
+                              }}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/model"
+
+    def patch(self, model, sampling, sigma_max, sigma_min):
+        m = model.clone()
+
+        latent_format = None
+        sigma_data = 1.0
+        if sampling == "v_prediction":
+            sampling_type = comfy.model_sampling.V_PREDICTION
+
+        class ModelSamplingAdvanced(comfy.model_sampling.ModelSamplingContinuousV, sampling_type):
+            pass
+
+        model_sampling = ModelSamplingAdvanced(model.model.model_config)
+        model_sampling.set_parameters(sigma_min, sigma_max, sigma_data)
+        m.add_object_patch("model_sampling", model_sampling)
+        return (m, )
+
 class RescaleCFG:
     @classmethod
     def INPUT_TYPES(s):
@@ -238,6 +268,7 @@ class RescaleCFG:
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
+    "ModelSamplingContinuousV": ModelSamplingContinuousV,
     "ModelSamplingStableCascade": ModelSamplingStableCascade,
     "ModelSamplingSD3": ModelSamplingSD3,
     "RescaleCFG": RescaleCFG,

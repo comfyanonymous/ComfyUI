@@ -129,9 +129,13 @@ class SD3(LatentFormat):
             [-0.0749, -0.0634, -0.0456],
             [-0.1418, -0.1457, -0.1259]
         ]
+        self.taesd_decoder_name = "taesd3_decoder"
 
     def process_in(self, latent):
         return (latent - self.shift_factor) * self.scale_factor
 
     def process_out(self, latent):
         return (latent / self.scale_factor) + self.shift_factor
+
+class StableAudio1(LatentFormat):
+    latent_channels = 64

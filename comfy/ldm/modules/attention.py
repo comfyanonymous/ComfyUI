@@ -86,22 +86,32 @@ class FeedForward(nn.Module):
 def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
 
-def attention_basic(q, k, v, heads, mask=None, attn_precision=None):
+def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
     attn_precision = get_attn_precision(attn_precision)
 
-    b, _, dim_head = q.shape
-    dim_head //= heads
+    if skip_reshape:
+        b, _, _, dim_head = q.shape
+    else:
+        b, _, dim_head = q.shape
+        dim_head //= heads
+
     scale = dim_head ** -0.5
 
     h = heads
-    q, k, v = map(
-        lambda t: t.unsqueeze(3)
-        .reshape(b, -1, heads, dim_head)
-        .permute(0, 2, 1, 3)
-        .reshape(b * heads, -1, dim_head)
-        .contiguous(),
-        (q, k, v),
-    )
+    if skip_reshape:
+         q, k, v = map(
+            lambda t: t.reshape(b * heads, -1, dim_head),
+            (q, k, v),
+        )
+    else:
+        q, k, v = map(
+            lambda t: t.unsqueeze(3)
+            .reshape(b, -1, heads, dim_head)
+            .permute(0, 2, 1, 3)
+            .reshape(b * heads, -1, dim_head)
+            .contiguous(),
+            (q, k, v),
+        )
 
     # force cast to fp32 to avoid overflowing
     if attn_precision == torch.float32:
@@ -138,17 +148,26 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None):
     return out
 
 
-def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None):
+def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None, skip_reshape=False):
     attn_precision = get_attn_precision(attn_precision)
 
-    b, _, dim_head = query.shape
-    dim_head //= heads
+    if skip_reshape:
+        b, _, _, dim_head = query.shape
+    else:
+        b, _, dim_head = query.shape
+        dim_head //= heads
 
     scale = dim_head ** -0.5
-    query = query.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 1, 3).reshape(b * heads, -1, dim_head)
-    value = value.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 1, 3).reshape(b * heads, -1, dim_head)
 
-    key = key.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 3, 1).reshape(b * heads, dim_head, -1)
+    if skip_reshape:
+        query = query.reshape(b * heads, -1, dim_head)
+        value = value.reshape(b * heads, -1, dim_head)
+        key = key.reshape(b * heads, -1, dim_head).movedim(1, 2)
+    else:
+        query = query.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 1, 3).reshape(b * heads, -1, dim_head)
+        value = value.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 1, 3).reshape(b * heads, -1, dim_head)
+        key = key.unsqueeze(3).reshape(b, -1, heads, dim_head).permute(0, 2, 3, 1).reshape(b * heads, dim_head, -1)
+
 
     dtype = query.dtype
     upcast_attention = attn_precision == torch.float32 and query.dtype != torch.float32
@@ -200,22 +219,32 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None)
     hidden_states = hidden_states.unflatten(0, (-1, heads)).transpose(1,2).flatten(start_dim=2)
     return hidden_states
 
-def attention_split(q, k, v, heads, mask=None, attn_precision=None):
+def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
     attn_precision = get_attn_precision(attn_precision)
 
-    b, _, dim_head = q.shape
-    dim_head //= heads
+    if skip_reshape:
+        b, _, _, dim_head = q.shape
+    else:
+        b, _, dim_head = q.shape
+        dim_head //= heads
+
     scale = dim_head ** -0.5
 
     h = heads
-    q, k, v = map(
-        lambda t: t.unsqueeze(3)
-        .reshape(b, -1, heads, dim_head)
-        .permute(0, 2, 1, 3)
-        .reshape(b * heads, -1, dim_head)
-        .contiguous(),
-        (q, k, v),
-    )
+    if skip_reshape:
+         q, k, v = map(
+            lambda t: t.reshape(b * heads, -1, dim_head),
+            (q, k, v),
+        )
+    else:
+        q, k, v = map(
+            lambda t: t.unsqueeze(3)
+            .reshape(b, -1, heads, dim_head)
+            .permute(0, 2, 1, 3)
+            .reshape(b * heads, -1, dim_head)
+            .contiguous(),
+            (q, k, v),
+        )
 
     r1 = torch.zeros(q.shape[0], q.shape[1], v.shape[2], device=q.device, dtype=q.dtype)
 
@@ -311,9 +340,12 @@ try:
 except:
     pass
 
-def attention_xformers(q, k, v, heads, mask=None, attn_precision=None):
-    b, _, dim_head = q.shape
-    dim_head //= heads
+def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
+    if skip_reshape:
+        b, _, _, dim_head = q.shape
+    else:
+        b, _, dim_head = q.shape
+        dim_head //= heads
 
     disabled_xformers = False
 
@@ -328,10 +360,16 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None):
     if disabled_xformers:
         return attention_pytorch(q, k, v, heads, mask)
 
-    q, k, v = map(
-        lambda t: t.reshape(b, -1, heads, dim_head),
-        (q, k, v),
-    )
+    if skip_reshape:
+         q, k, v = map(
+            lambda t: t.reshape(b * heads, -1, dim_head),
+            (q, k, v),
+        )
+    else:
+        q, k, v = map(
+            lambda t: t.reshape(b, -1, heads, dim_head),
+            (q, k, v),
+        )
 
     if mask is not None:
         pad = 8 - q.shape[1] % 8
@@ -341,18 +379,30 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None):
 
     out = xformers.ops.memory_efficient_attention(q, k, v, attn_bias=mask)
 
-    out = (
-        out.reshape(b, -1, heads * dim_head)
-    )
+    if skip_reshape:
+        out = (
+            out.unsqueeze(0)
+            .reshape(b, heads, -1, dim_head)
+            .permute(0, 2, 1, 3)
+            .reshape(b, -1, heads * dim_head)
+        )
+    else:
+        out = (
+            out.reshape(b, -1, heads * dim_head)
+        )
+
     return out
 
-def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None):
-    b, _, dim_head = q.shape
-    dim_head //= heads
-    q, k, v = map(
-        lambda t: t.view(b, -1, heads, dim_head).transpose(1, 2),
-        (q, k, v),
-    )
+def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False):
+    if skip_reshape:
+        b, _, _, dim_head = q.shape
+    else:
+        b, _, dim_head = q.shape
+        dim_head //= heads
+        q, k, v = map(
+            lambda t: t.view(b, -1, heads, dim_head).transpose(1, 2),
+            (q, k, v),
+        )
 
     out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
     out = (
