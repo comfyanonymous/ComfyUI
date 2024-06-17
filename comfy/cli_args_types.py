@@ -89,6 +89,7 @@ class Configuration(dict):
         otel_service_name (str): The name of the service or application that is generating telemetry data. Default: "comfyui".
         otel_service_version (str): The version of the service or application that is generating telemetry data. Default: "0.0.1".
         otel_exporter_otlp_endpoint (Optional[str]): A base endpoint URL for any signal type, with an optionally-specified port number. Helpful for when you're sending more than one signal to the same endpoint and want one environment variable to control the endpoint.
+        force_channels_last (bool): Force channels last format when inferencing the models.
     """
 
     def __init__(self, **kwargs):
@@ -156,6 +157,7 @@ class Configuration(dict):
         self.external_address: Optional[str] = None
         self.disable_known_models: bool = False
         self.max_queue_size: int = 65536
+        self.force_channels_last: bool = False
 
         # from opentracing docs
         self.otel_service_name: str = "comfyui"

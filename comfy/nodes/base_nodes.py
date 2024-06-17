@@ -631,6 +631,8 @@ class VAELoader:
         sdxl_taesd_dec = False
         sd1_taesd_enc = False
         sd1_taesd_dec = False
+        sd3_taesd_enc = False
+        sd3_taesd_dec = False
 
         for v in approx_vaes:
             if v.startswith("taesd_decoder."):
@@ -641,10 +643,16 @@ class VAELoader:
                 sdxl_taesd_dec = True
             elif v.startswith("taesdxl_encoder."):
                 sdxl_taesd_enc = True
+            elif v.startswith("taesd3_decoder."):
+                sd3_taesd_dec = True
+            elif v.startswith("taesd3_encoder."):
+                sd3_taesd_enc = True
         if sd1_taesd_dec and sd1_taesd_enc:
             vaes.append("taesd")
         if sdxl_taesd_dec and sdxl_taesd_enc:
             vaes.append("taesdxl")
+        if sd3_taesd_dec and sd3_taesd_enc:
+            vaes.append("taesd3")
         return vaes
 
     @staticmethod
@@ -665,8 +673,13 @@ class VAELoader:
 
         if name == "taesd":
             sd_["vae_scale"] = torch.tensor(0.18215)
+            sd_["vae_shift"] = torch.tensor(0.0)
         elif name == "taesdxl":
             sd_["vae_scale"] = torch.tensor(0.13025)
+            sd_["vae_shift"] = torch.tensor(0.0)
+        elif name == "taesd3":
+            sd_["vae_scale"] = torch.tensor(1.5305)
+            sd_["vae_shift"] = torch.tensor(0.0609)
         return sd_
 
     @classmethod
@@ -679,7 +692,7 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name in ["taesd", "taesdxl"]:
+        if vae_name in ["taesd", "taesdxl", "taesd3"]:
             sd_ = self.load_taesd(vae_name)
         else:
             vae_path = get_or_download("vae", vae_name, KNOWN_VAES)
@@ -815,7 +828,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (get_filename_list_with_downloadable("clip", KNOWN_CLIP_MODELS),),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio"], ),
                              }}
     RETURN_TYPES = ("CLIP",)
     FUNCTION = "load_clip"
@@ -828,6 +841,8 @@ class CLIPLoader:
             clip_type = sd.CLIPType.STABLE_CASCADE
         elif type == "sd3":
             clip_type = sd.CLIPType.SD3
+        elif type == "stable_audio":
+            clip_type = sd.CLIPType.STABLE_AUDIO
         else:
             logging.warning(f"Unknown clip type argument passed: {type} for model {clip_name}")
 

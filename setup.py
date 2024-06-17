@@ -120,7 +120,7 @@ def _is_linux_arm64():
 def dependencies(for_pypi=False, force_nightly: bool = False) -> List[str]:
     _dependencies = open(os.path.join(os.path.dirname(__file__), "requirements.txt")).readlines()
     if for_pypi:
-        return [dep for dep in _dependencies if dep not in {"torch", "torchvision"} and "@" not in dep]
+        return [dep for dep in _dependencies if dep not in {"torch", "torchvision", "torchaudio"} and "@" not in dep]
     # If we're installing with no build isolation, we can check if torch is already installed in the environment, and if
     # so, go ahead and use the version that is already installed.
     existing_torch: Optional[str]

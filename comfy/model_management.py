@@ -198,7 +198,7 @@ if args.use_pytorch_cross_attention:
     ENABLE_PYTORCH_ATTENTION = True
     XFORMERS_IS_AVAILABLE = False
 
-VAE_DTYPE = torch.float32
+VAE_DTYPES = [torch.float32]
 
 try:
     if is_nvidia() or is_amd():
@@ -207,7 +207,7 @@ try:
             if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
             if torch.cuda.is_bf16_supported() and torch.cuda.get_device_properties(torch.cuda.current_device()).major >= 8:
-                VAE_DTYPE = torch.bfloat16
+                VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
     if is_intel_xpu():
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             ENABLE_PYTORCH_ATTENTION = True
@@ -215,17 +215,10 @@ except:
     pass
 
 if is_intel_xpu():
-    VAE_DTYPE = torch.bfloat16
+    VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
 
 if args.cpu_vae:
-    VAE_DTYPE = torch.float32
-
-if args.fp16_vae:
-    VAE_DTYPE = torch.float16
-elif args.bf16_vae:
-    VAE_DTYPE = torch.bfloat16
-elif args.fp32_vae:
-    VAE_DTYPE = torch.float32
+    VAE_DTYPES = [torch.float32]
 
 if ENABLE_PYTORCH_ATTENTION:
     torch.backends.cuda.enable_math_sdp(True)
@@ -294,7 +287,6 @@ try:
 except:
     logging.warning("Could not pick default device.")
 
-logging.info("VAE dtype: {}".format(VAE_DTYPE))
 
 current_loaded_models: List["LoadedModel"] = []
 
@@ -677,9 +669,22 @@ def vae_offload_device():
         return torch.device("cpu")
 
 
-def vae_dtype():
-    global VAE_DTYPE
-    return VAE_DTYPE
+def vae_dtype(device=None, allowed_dtypes=[]):
+    global VAE_DTYPES
+    if args.fp16_vae:
+        return torch.float16
+    elif args.bf16_vae:
+        return torch.bfloat16
+    elif args.fp32_vae:
+        return torch.float32
+
+    for d in allowed_dtypes:
+        if d == torch.float16 and should_use_fp16(device, prioritize_performance=False):
+            return d
+        if d in VAE_DTYPES:
+            return d
+
+    return VAE_DTYPES[0]
 
 
 def get_autocast_device(dev):
@@ -719,6 +724,8 @@ def supports_cast(device, dtype): #TODO
 def device_supports_non_blocking(device):
     if is_device_mps(device):
         return False  # pytorch bug? mps doesn't support non blocking
+    if is_intel_xpu():
+        return False
     if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
         return False
     if directml_device:
@@ -731,6 +738,12 @@ def device_should_use_non_blocking(device):
     return False
     # return True #TODO: figure out why this causes memory issues on Nvidia and possibly others
 
+def force_channels_last():
+    if args.force_channels_last:
+        return True
+
+    #TODO
+    return False
 
 
 def cast_to_device(tensor, device, dtype, copy=False):
@@ -987,7 +1000,7 @@ def unload_all_models():
 
 
 def resolve_lowvram_weight(weight, model, key):  # TODO: remove
-    print("WARNING: The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
+    warnings.warn("The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.", category=DeprecationWarning)
     return weight
 
 
