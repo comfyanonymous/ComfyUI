@@ -30,6 +30,7 @@ def load_lora(lora, to_load):
         regular_lora = "{}.lora_up.weight".format(x)
         diffusers_lora = "{}_lora.up.weight".format(x)
         diffusers2_lora = "{}.lora_B.weight".format(x)
+        diffusers3_lora = "{}.lora.up.weight".format(x)
         transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
         A_name = None
 
@@ -44,6 +45,10 @@ def load_lora(lora, to_load):
         elif diffusers2_lora in lora.keys():
             A_name = diffusers2_lora
             B_name = "{}.lora_A.weight".format(x)
+            mid_name = None
+        elif diffusers3_lora in lora.keys():
+            A_name = diffusers3_lora
+            B_name = "{}.lora.down.weight".format(x)
             mid_name = None
         elif transformers_lora in lora.keys():
             A_name = transformers_lora
