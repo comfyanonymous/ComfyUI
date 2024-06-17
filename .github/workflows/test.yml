@@ -31,6 +31,7 @@ jobs:
           pip uninstall -y $(pip list --format=freeze | grep opencv) &&
               rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.11/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.12/dist-packages/cv2/
           ln -s `which python3` /usr/bin/python || true
+          ln -s `which pip3` /usr/bin/pip || true
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
