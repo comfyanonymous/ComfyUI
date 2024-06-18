@@ -311,6 +311,7 @@ button.comfy-queue-btn {
 		left: auto !important;
 		right: 0 !important;
 		border-radius: 0;
+        max-height: 100vh !important;
 	}
 
 	.comfy-menu span.drag-handle {
