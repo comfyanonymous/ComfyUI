@@ -265,7 +265,7 @@ class ComfyList {
 	}
 
 	async show() {
-		this.element.style.display = "block";
+		this.element.style.display = "flex";
 		this.button.textContent = "Close";
 
 		await this.load();
@@ -412,7 +412,6 @@ export class ComfyUI {
 		this.menuContainer = $el("div.comfy-menu", { parent: document.body }, [
 			$el("div.drag-handle.comfy-menu-header", {
 				style: {
-					overflow: "hidden",
 					position: "relative",
 					width: "100%",
 					cursor: "default"
