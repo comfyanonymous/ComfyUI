@@ -420,7 +420,7 @@ export class ComfyUI {
 			{
 				parent: document.body,
 				onclick: () => {
-					this.menuContainer.style.display = "block";
+					this.menuContainer.style.display = "flex";
 					this.menuHamburger.style.display = "none";
 				},
 			},
