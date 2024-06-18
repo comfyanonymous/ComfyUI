@@ -204,6 +204,7 @@ class ComfyList {
 		this.#reverse = reverse || false;
 		this.element = $el("div.comfy-list");
 		this.element.style.display = "none";
+        this.last_keys = null;
 	}
 
 	get visible() {
@@ -212,50 +213,67 @@ class ComfyList {
 
 	async load() {
 		const items = await api.getItems(this.#type);
-		this.element.replaceChildren(
-			...Object.keys(items).flatMap((section) => [
-				$el("h4", {
-					textContent: section,
-				}),
-				$el("div.comfy-list-items", [
-					...(this.#reverse ? items[section].reverse() : items[section]).map((item) => {
-						// Allow items to specify a custom remove action (e.g. for interrupt current prompt)
-						const removeAction = item.remove || {
-							name: "Delete",
-							cb: () => api.deleteItem(this.#type, item.prompt[1]),
-						};
-						return $el("div", {textContent: item.prompt[0] + ": "}, [
-							$el("button", {
-								textContent: "Load",
-								onclick: async () => {
-									await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow, true, false);
-									if (item.outputs) {
-										app.nodeOutputs = item.outputs;
-									}
-								},
-							}),
-							$el("button", {
-								textContent: removeAction.name,
-								onclick: async () => {
-									await removeAction.cb();
-									await this.update();
-								},
-							}),
-						]);
-					}),
-				]),
-			]),
-			$el("div.comfy-list-actions", [
-				$el("button", {
-					textContent: "Clear " + this.#text,
-					onclick: async () => {
-						await api.clearItems(this.#type);
-						await this.load();
-					},
-				}),
-				$el("button", {textContent: "Refresh", onclick: () => this.load()}),
-			])
-		);
+        const keys = Object.keys(items);
+        var entry = (item) => {
+            // Allow items to specify a custom remove action (e.g. for interrupt current prompt)
+            const removeAction = item.remove || {
+                name: "Delete",
+                cb: () => api.deleteItem(this.#type, item.prompt[1]),
+            };
+            return $el("div", {textContent: item.prompt[0] + ": "}, [
+                $el("button", {
+                    textContent: "Load",
+                    onclick: async () => {
+                        await app.loadGraphData(item.prompt[3].extra_pnginfo.workflow, true, false);
+                        if (item.outputs) {
+                            app.nodeOutputs = item.outputs;
+                        }
+                    },
+                }),
+                $el("button", {
+                    textContent: removeAction.name,
+                    onclick: async () => {
+                        await removeAction.cb();
+                        await this.update();
+                    },
+                }),
+            ]);
+					
+        };
+
+        if (JSON.stringify(keys) === JSON.stringify(this.last_keys)) {
+            // we can replace inside the container elements instead of recreating them
+            // this will preserve the scroll position approximately
+            // to truely preserve the scroll position, we would need to do something react-like
+            // in the sense of preserving the DOM nodes and reusing them
+            Array.from(this.element.getElementsByClassName("comfy-list-items")).forEach((section, i) => 
+                section.replaceChildren(...(this.#reverse ? items[keys[i]].reverse() : items[keys[i]]).map(entry))
+            );
+            
+        } else {
+            this.last_keys = keys;
+            // rebuild the list of lists
+            this.element.replaceChildren(
+                ...keys.flatMap((section) => [
+                    $el("h4", {
+                        textContent: section,
+                    }),
+                    $el("div.comfy-list-items", [
+                        ...(this.#reverse ? items[section].reverse() : items[section]).map(entry),
+                    ]),
+                ]),
+                $el("div.comfy-list-actions", [
+                    $el("button", {
+                        textContent: "Clear " + this.#text,
+                        onclick: async () => {
+                            await api.clearItems(this.#type);
+                            await this.load();
+                        },
+                    }),
+                    $el("button", {textContent: "Refresh", onclick: () => this.load()}),
+                ])
+            );
+        }
 	}
 
 	async update() {
