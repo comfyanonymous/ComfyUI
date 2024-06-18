@@ -1,4 +1,3 @@
-import torchaudio
 import torch
 import comfy.model_management
 from comfy.cmd import folder_paths
@@ -69,6 +68,8 @@ class SaveAudio:
     CATEGORY = "_for_testing/audio"
 
     def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+        import torchaudio
+
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
         results = list()
@@ -99,6 +100,8 @@ class LoadAudio:
     FUNCTION = "load"
 
     def load(self, audio):
+        import torchaudio
+
         audio_path = folder_paths.get_annotated_filepath(audio)
         waveform, sample_rate = torchaudio.load(audio_path)
         multiplier = 1.0
