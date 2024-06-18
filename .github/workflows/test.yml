@@ -35,9 +35,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install wheel setuptools pip --upgrade
+          pip install setuptools pip --upgrade --break-system-packages
           pip install --no-build-isolation .[dev]
       - name: Run unit tests
         run: |
