@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
-          pip install setuptools pip --upgrade --break-system-packages
+          python -m pip install setuptools pip --upgrade --break-system-packages || python -m pip install pip --upgrade || true
           pip install --no-build-isolation .[dev]
       - name: Run unit tests
         run: |
