@@ -123,7 +123,7 @@ class BaseModel(torch.nn.Module):
         return self.adm_channels > 0
 
     def encode_adm(self, **kwargs):
-        raise NotImplementedError
+        return None
 
     def extra_conds(self, **kwargs):
         out = {}
@@ -491,7 +491,7 @@ class SD_X4Upscaler(BaseModel):
 
 class IP2P(BaseModel):
     def process_ip2p_image_in(self, image):
-        raise NotImplementedError
+        return None
 
     def extra_conds(self, **kwargs):
         out = {}
