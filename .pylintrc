@@ -878,3 +878,13 @@ init-import=no
 # List of qualified module names which can have objects that can redefine
 # builtins.
 redefining-builtins-modules=six.moves,past.builtins,future.builtins,builtins,io
+
+# Disable specific messages for specific files
+[file:paths/view/get/query_parameters.py]
+disable=duplicate-bases
+
+[file:paths/view/get/parameters/parameter_1/schema.py]
+disable=no-self-argument
+
+[file:schemas/schema.py]
+disable=no-self-argument,bad-super-call

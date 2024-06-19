@@ -15,19 +15,32 @@ AdditionalProperties: typing_extensions.TypeAlias = schemas.NotAnyTypeSchema
 from comfy.api.paths.view.get.parameters.parameter_0 import schema
 from comfy.api.paths.view.get.parameters.parameter_1 import schema as schema_3
 from comfy.api.paths.view.get.parameters.parameter_2 import schema as schema_2
-
-
-class Properties(typing.TypedDict):
-    filename: typing.Type[schema.Schema]
-    subfolder: typing.Type[schema_2.Schema]
-    type: typing.Type[schema_3.Schema]
-
-class QueryParametersRequiredDictInput(typing.TypedDict):
-    filename: str
-
-class QueryParametersOptionalDictInput(typing.TypedDict, total=False):
-    subfolder: str
-    type: typing.Literal["output", "input", "temp"]
+Properties = typing.TypedDict(
+    'Properties',
+    {
+        "filename": typing.Type[schema.Schema],
+        "subfolder": typing.Type[schema_2.Schema],
+        "type": typing.Type[schema_3.Schema],
+    }
+)
+QueryParametersRequiredDictInput = typing.TypedDict(
+    'QueryParametersRequiredDictInput',
+    {
+        "filename": str,
+    }
+)
+QueryParametersOptionalDictInput = typing.TypedDict(
+    'QueryParametersOptionalDictInput',
+    {
+        "subfolder": str,
+        "type": typing.Literal[
+            "output",
+            "input",
+            "temp"
+        ],
+    },
+    total=False
+)
 
 
 class QueryParametersDict(schemas.immutabledict[str, schemas.OUTPUT_BASE_TYPES]):
