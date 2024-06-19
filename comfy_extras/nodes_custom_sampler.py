@@ -336,6 +336,23 @@ class SamplerDPMAdaptative:
                                                               "s_noise":s_noise })
         return (sampler, )
 
+class SamplerTCD:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "eta": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.01}),
+            }
+        }
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta=0.3):
+        sampler = comfy.samplers.ksampler("tcd", {"eta": eta})
+        return (sampler, )
+
 class Noise_EmptyNoise:
     def __init__(self):
         self.seed = 0
@@ -627,6 +644,7 @@ NODE_CLASS_MAPPINGS = {
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "SamplerDPMAdaptative": SamplerDPMAdaptative,
+    "SamplerTCD": SamplerTCD,
     "SplitSigmas": SplitSigmas,
     "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,

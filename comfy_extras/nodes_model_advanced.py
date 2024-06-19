@@ -73,7 +73,7 @@ class ModelSamplingDiscrete:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
-                              "sampling": (["eps", "v_prediction", "lcm", "x0"],),
+                              "sampling": (["eps", "v_prediction", "lcm", "x0", "tcd"],),
                               "zsnr": ("BOOLEAN", {"default": False}),
                               }}
 
@@ -95,6 +95,9 @@ class ModelSamplingDiscrete:
             sampling_base = ModelSamplingDiscreteDistilled
         elif sampling == "x0":
             sampling_type = X0
+        elif sampling == "tcd":
+            sampling_type = comfy.model_sampling.EPS
+            sampling_base= ModelSamplingDiscreteDistilled
 
         class ModelSamplingAdvanced(sampling_base, sampling_type):
             pass

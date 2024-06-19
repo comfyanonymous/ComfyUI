@@ -841,3 +841,40 @@ def sample_heunpp2(model, x, sigmas, extra_args=None, callback=None, disable=Non
             d_prime = w1 * d + w2 * d_2 + w3 * d_3
             x = x + d_prime * dt
     return x
+
+@torch.no_grad()
+def sample_tcd(
+    model,
+    x,
+    sigmas,
+    extra_args=None,
+    callback=None,
+    disable=None,
+    noise_sampler=None,
+    eta=0.3,
+):
+    extra_args = {} if extra_args is None else extra_args
+    noise_sampler = default_noise_sampler(x) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+
+    model_sampling = model.inner_model.model_patcher.get_model_object("model_sampling")
+    timesteps_s = torch.floor((1 - eta) * model_sampling.timestep(sigmas)).to(dtype=torch.long).detach().cpu()
+    timesteps_s[-1] = 0
+    alpha_prod_s = model_sampling.alphas_cumprod[timesteps_s]
+    beta_prod_s = 1 - alpha_prod_s
+    for i in trange(len(sigmas) - 1, disable=disable):
+        denoised = model(x, sigmas[i] * s_in, **extra_args)  # predicted_original_sample
+        eps = (x - denoised) / sigmas[i]
+        denoised = alpha_prod_s[i + 1].sqrt() * denoised + beta_prod_s[i + 1].sqrt() * eps
+
+        if callback is not None:
+            callback({"x": x, "i": i, "sigma": sigmas[i], "sigma_hat": sigmas[i], "denoised": denoised})
+
+        x = denoised
+        if eta > 0 and sigmas[i + 1] > 0:
+            noise = noise_sampler(sigmas[i], sigmas[i + 1])
+            x = x / alpha_prod_s[i+1].sqrt() + noise * (sigmas[i+1]**2 + 1 - 1/alpha_prod_s[i+1]).sqrt()
+        else:
+            x *= torch.sqrt(1.0 + sigmas[i + 1] ** 2)
+
+    return x
