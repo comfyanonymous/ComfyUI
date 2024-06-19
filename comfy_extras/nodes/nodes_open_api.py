@@ -214,7 +214,8 @@ class StringPosixPathJoin(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
-            "required": {
+            "required": {},
+            "optional": {
                 f"value{i}": ("STRING", {"default": "", "multiline": False, "forceInput": True}) for i in range(5)
             }
         }
@@ -391,7 +392,8 @@ class ImageExifMerge(CustomNode):
     @classmethod
     def INPUT_TYPES(cls) -> InputTypes:
         return {
-            "required": {
+            "required": {},
+            "optional": {
                 f"value{i}": ("EXIF",) for i in range(5)
             }
         }

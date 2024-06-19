@@ -11,7 +11,8 @@ class FloatAdd(CustomNode):
         range_.update({f"value{i}": ("FLOAT", {"default": 0.0, "step": 0.01, "round": 0.000001}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -47,7 +48,8 @@ class FloatMultiply(CustomNode):
         range_.update({f"value{i}": ("FLOAT", {"default": 1.0}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -101,7 +103,8 @@ class IntAdd(CustomNode):
         range_.update({f"value{i}": ("INT", {"default": 0}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -137,7 +140,8 @@ class IntMultiply(CustomNode):
         range_.update({f"value{i}": ("INT", {"default": 1}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -209,7 +213,8 @@ class FloatMin(CustomNode):
         range_.update({f"value{i}": ("FLOAT", {"default": 0.0, "step": 0.01, "round": 0.000001}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -227,7 +232,8 @@ class FloatMax(CustomNode):
         range_.update({f"value{i}": ("FLOAT", {"default": 0.0, "step": 0.01, "round": 0.000001}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -262,7 +268,8 @@ class FloatAverage(CustomNode):
         range_.update({f"value{i}": ("FLOAT", {"default": 0.0, "step": 0.01, "round": 0.000001}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -280,7 +287,8 @@ class IntMin(CustomNode):
         range_.update({f"value{i}": ("INT", {"default": 0}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -298,7 +306,8 @@ class IntMax(CustomNode):
         range_.update({f"value{i}": ("INT", {"default": 0}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
@@ -333,7 +342,8 @@ class IntAverage(CustomNode):
         range_.update({f"value{i}": ("INT", {"default": 0}) for i in range(1, 5)})
 
         return {
-            "required": range_
+            "required": {},
+            "optional": range_
         }
 
     CATEGORY = "arithmetic"
