@@ -1,9 +1,18 @@
 import os
-from comfy_extras.chainner_models import model_loading
+import logging
+from spandrel import ModelLoader, ImageModelDescriptor
 from comfy import model_management
 import torch
 import comfy.utils
 import folder_paths
+
+try:
+    from spandrel_extra_arches import EXTRA_REGISTRY
+    from spandrel import MAIN_REGISTRY
+    MAIN_REGISTRY.add(*EXTRA_REGISTRY)
+    logging.info("Successfully imported spandrel_extra_arches: support for non commercial upscale models.")
+except:
+    pass
 
 class UpscaleModelLoader:
     @classmethod
@@ -20,7 +29,11 @@ class UpscaleModelLoader:
         sd = comfy.utils.load_torch_file(model_path, safe_load=True)
         if "module.layers.0.residual_group.blocks.0.norm1.weight" in sd:
             sd = comfy.utils.state_dict_prefix_replace(sd, {"module.":""})
-        out = model_loading.load_state_dict(sd).eval()
+        out = ModelLoader().load_from_state_dict(sd).eval()
+
+        if not isinstance(out, ImageModelDescriptor):
+            raise Exception("Upscale model must be a single-image model.")
+
         return (out, )
 
 
@@ -38,7 +51,7 @@ class ImageUpscaleWithModel:
     def upscale(self, upscale_model, image):
         device = model_management.get_torch_device()
 
-        memory_required = model_management.module_size(upscale_model)
+        memory_required = model_management.module_size(upscale_model.model)
         memory_required += (512 * 512 * 3) * image.element_size() * max(upscale_model.scale, 1.0) * 384.0 #The 384.0 is an estimate of how much some of these models take, TODO: make it more accurate
         memory_required += image.nelement() * image.element_size()
         model_management.free_memory(memory_required, device)
@@ -61,7 +74,7 @@ class ImageUpscaleWithModel:
                 if tile < 128:
                     raise e
 
-        upscale_model.cpu()
+        upscale_model.to("cpu")
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         return (s,)
 

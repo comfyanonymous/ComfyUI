@@ -1844,14 +1844,10 @@ export class ComfyApp {
 	 * Populates the graph with the specified workflow data
 	 * @param {*} graphData A serialized graph object
 	 * @param { boolean } clean If the graph state, e.g. images, should be cleared
+	 * @param { boolean } restore_view If the graph position should be restored
 	 * @param { import("./workflows.js").ComfyWorkflowInstance | null } workflow The workflow
 	 */
-	async loadGraphData(graphData, clean = true, workflow = null) {
-		try {
-			this.workflowManager.activeWorkflow?.changeTracker?.store()
-		} catch (error) {
-		}
-
+	async loadGraphData(graphData, clean = true, restore_view = true, workflow = null) {
 		if (clean !== false) {
 			this.clean();
 		}
@@ -1893,8 +1889,7 @@ export class ComfyApp {
 
 		try {
 			this.graph.configure(graphData);
-
-			if (this.enableWorkflowViewRestore.value && graphData.extra?.ds) {
+			if (restore_view && this.enableWorkflowViewRestore.value && graphData.extra?.ds) {
 				this.canvas.ds.offset = graphData.extra.ds.offset;
 				this.canvas.ds.scale = graphData.extra.ds.scale;
 			}
@@ -2233,6 +2228,14 @@ export class ComfyApp {
 		return !this.lastNodeErrors;
 	}
 
+	showErrorOnFileLoad(file) {
+		this.ui.dialog.show(
+			$el("div", [
+				$el("p", {textContent: `Unable to find workflow in ${file.name}`})
+			]).outerHTML
+		);
+	}
+
 	/**
 	 * Loads workflow data from the specified file
 	 * @param {File} file
@@ -2248,29 +2251,29 @@ export class ComfyApp {
 		const fileName = removeExt(file.name);
 		if (file.type === "image/png") {
 			const pngInfo = await getPngMetadata(file);
-			if (pngInfo) {
-				if (pngInfo.workflow) {
-					await this.loadGraphData(JSON.parse(pngInfo.workflow), true, fileName);
-				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt), fileName);
-				} else if (pngInfo.parameters) {
-					this.changeWorkflow(() => {
-						importA1111(this.graph, pngInfo.parameters);
-					}, fileName)
-				}
+			if (pngInfo?.workflow) {
+				await this.loadGraphData(JSON.parse(pngInfo.workflow), true, true, fileName);
+			} else if (pngInfo?.prompt) {
+				this.loadApiJson(JSON.parse(pngInfo.prompt), fileName);
+			} else if (pngInfo?.parameters) {
+				this.changeWorkflow(() => {
+					importA1111(this.graph, pngInfo.parameters);
+				}, fileName)
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
 		} else if (file.type === "image/webp") {
 			const pngInfo = await getWebpMetadata(file);
-			if (pngInfo) {
-				if (pngInfo.workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.workflow), true, fileName);
-				} else if (pngInfo.Workflow) {
-					this.loadGraphData(JSON.parse(pngInfo.Workflow), true, fileName); // Support loading workflows from that webp custom node.
-				} else if (pngInfo.prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.prompt), fileName);
-				} else if (pngInfo.Prompt) {
-					this.loadApiJson(JSON.parse(pngInfo.Prompt), fileName); // Support loading prompts from that webp custom node.
-				}
+			// Support loading workflows from that webp custom node.
+			const workflow = pngInfo?.workflow || pngInfo?.Workflow;
+			const prompt = pngInfo?.prompt || pngInfo?.Prompt;
+
+			if (workflow) {
+				this.loadGraphData(JSON.parse(workflow), true, true, fileName);
+			} else if (prompt) {
+				this.loadApiJson(JSON.parse(prompt), fileName);
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
@@ -2291,7 +2294,11 @@ export class ComfyApp {
 				await this.loadGraphData(JSON.parse(info.workflow), true, fileName);
 			} else if (info.prompt) {
 				this.loadApiJson(JSON.parse(info.prompt));
+			} else {
+				this.showErrorOnFileLoad(file);
 			}
+		} else {
+			this.showErrorOnFileLoad(file);
 		}
 	}
 
@@ -2305,15 +2312,17 @@ export class ComfyApp {
 			this.showMissingNodesError(missingNodeTypes.map(t => t.class_type), false);
 			return;
 		}
-		this.changeWorkflow(() => {
-			const ids = Object.keys(apiData);
-			app.graph.clear();
-			for (const id of ids) {
-				const data = apiData[id];
-				const node = LiteGraph.createNode(data.class_type);
-				node.id = isNaN(+id) ? id : +id;
-				graph.add(node);
-			}
+
+		const ids = Object.keys(apiData);
+		app.graph.clear();
+		for (const id of ids) {
+			const data = apiData[id];
+			const node = LiteGraph.createNode(data.class_type);
+			node.id = isNaN(+id) ? id : +id;
+			node.title = data._meta?.title ?? node.title
+			app.graph.add(node);
+			graph.add(node);
+		}
 
 			for (const id of ids) {
 				const data = apiData[id];
