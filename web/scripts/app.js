@@ -2324,6 +2324,7 @@ export class ComfyApp {
 			graph.add(node);
 		}
 
+		this.changeWorkflow(() => {
 			for (const id of ids) {
 				const data = apiData[id];
 				const node = app.graph.getNodeById(id);
