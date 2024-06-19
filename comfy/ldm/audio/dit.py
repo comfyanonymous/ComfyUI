@@ -1,6 +1,7 @@
 # code adapted from: https://github.com/Stability-AI/stable-audio-tools
+from einops.layers.torch import Rearrange
 
-from comfy.ldm.modules.attention import optimized_attention
+from ..modules.attention import optimized_attention
 import typing as tp
 
 import torch
@@ -153,6 +154,8 @@ class RotaryEmbedding(nn.Module):
         return self.forward(t)
 
     def forward(self, t):
+        # todo: ???
+        seq_len = 0
         # device = self.inv_freq.device
         device = t.device
         dtype = t.dtype
@@ -343,16 +346,13 @@ class Attention(nn.Module):
 
         # determine masking
         masks = []
-        final_attn_mask = None # The mask that will be applied to the attention matrix, taking all masks into account
+        # todo: ???
 
         if input_mask is not None:
             input_mask = rearrange(input_mask, 'b j -> b 1 1 j')
             masks.append(~input_mask)
 
         # Other masks will be added here later
-
-        if len(masks) > 0:
-            final_attn_mask = ~or_reduce(masks)
 
         n, device = q.shape[-2], q.device
 
