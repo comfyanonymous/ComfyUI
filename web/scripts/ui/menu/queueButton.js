@@ -11,9 +11,10 @@ export class ComfyQueueButton {
 	element = $el("div.comfyui-queue-button");
 	#internalQueueSize = 0;
 
-	queuePrompt = async () => {
+	queuePrompt = async (e) => {
 		this.#internalQueueSize += this.queueOptions.batchCount;
-		await this.app.queuePrompt(-1, this.queueOptions.batchCount);
+		// Hold shift to queue front
+		await this.app.queuePrompt(-e.shiftKey, this.queueOptions.batchCount);
 	};
 
 	constructor(app) {

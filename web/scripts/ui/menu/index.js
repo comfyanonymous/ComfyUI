@@ -21,6 +21,17 @@ const showOnMobile = (t) => {
 };
 
 export class ComfyAppMenu {
+	#sizeBreak = "lg";
+	#lastSizeBreaks = {
+		lg: null,
+		md: null,
+		sm: null,
+		xs: null,
+	};
+	#sizeBreaks = Object.keys(this.#lastSizeBreaks);
+	#cachedInnerSize = null;
+	#cacheTimeout = null;
+
 	/**
 	 * @param { import("../../app.js").ComfyApp } app
 	 */
@@ -41,7 +52,7 @@ export class ComfyAppMenu {
 			{
 				primary: getSaveButton(),
 				mode: "hover",
-				position: "absolute"
+				position: "absolute",
 			},
 			getSaveButton("Save"),
 			new ComfyButton({
@@ -54,7 +65,7 @@ export class ComfyAppMenu {
 				icon: "download",
 				content: "Export",
 				tooltip: "Export the current workflow as JSON",
-				action: () => this.exportWorkflow( "workflow", "workflow"),
+				action: () => this.exportWorkflow("workflow", "workflow"),
 			}),
 			new ComfyButton({
 				icon: "api",
@@ -82,7 +93,7 @@ export class ComfyAppMenu {
 				icon: "fit-to-page-outline",
 				content: "Reset View",
 				tooltip: "Reset the canvas view",
-				action: () => app.resetView()
+				action: () => app.resetView(),
 			}),
 			new ComfyButton({
 				icon: "cancel",
@@ -134,47 +145,49 @@ export class ComfyAppMenu {
 			showOnMobile(this.mobileMenuButton).element,
 		]);
 
-		app.ui.settings.addSetting({
+		let resizeHandler;
+		this.menuPositionSetting = app.ui.settings.addSetting({
 			id: "Comfy.UseNewMenu",
-			defaultValue: false,
-			name: "[Beta] Use new menu and workflow management",
+			defaultValue: "Disabled",
+			name: "[Beta] Use new menu and workflow management. Note: On small screens the menu will always be at the top.",
 			type: "combo",
 			options: ["Disabled", "Top", "Bottom"],
 			onChange: async (v) => {
-				if (v) {
-					document.body.style.display = "grid";
-					app.ui.menuContainer.style.display = "none";
-					this.element.style.removeProperty("display");
-					if (v === "Bottom") {
-						app.bodyBottom.append(this.element);
-					} else {
-						app.bodyTop.prepend(this.element);
+				if (v && v !== "Disabled") {
+					if (!resizeHandler) {
+						resizeHandler = () => {
+							this.calculateSizeBreak();
+						};
+						window.addEventListener("resize", resizeHandler);
 					}
-					this.calculateSizeBreak();
+					this.updatePosition(v);
 				} else {
+					if (resizeHandler) {
+						window.removeEventListener("resize", resizeHandler);
+						resizeHandler = null;
+					}
 					document.body.style.removeProperty("display");
 					app.ui.menuContainer.style.removeProperty("display");
 					this.element.style.display = "none";
+					app.ui.restoreMenuPosition();
 				}
 				window.dispatchEvent(new Event("resize"));
 			},
 		});
-
-		window.addEventListener("resize", () => {
-			this.calculateSizeBreak();
-		});
 	}
 
-	#sizeBreak = "lg";
-	#lastSizeBreaks = {
-		lg: null,
-		md: null,
-		sm: null,
-		xs: null,
-	};
-	#sizeBreaks = Object.keys(this.#lastSizeBreaks);
-	#cachedInnerSize = null;
-	#cacheTimeout = null;
+	updatePosition(v) {
+		document.body.style.display = "grid";
+		this.app.ui.menuContainer.style.display = "none";
+		this.element.style.removeProperty("display");
+		this.position = v;
+		if (v === "Bottom") {
+			this.app.bodyBottom.append(this.element);
+		} else {
+			this.app.bodyTop.prepend(this.element);
+		}
+		this.calculateSizeBreak();
+	}
 
 	updateSizeBreak(idx, prevIdx, direction) {
 		const newSize = this.#sizeBreaks[idx];
@@ -197,7 +210,17 @@ export class ComfyAppMenu {
 			}
 		}
 
-		// Allow multiple updates, but prevent bouncing 
+		if (idx) {
+			// We're on a small screen, force the menu at the top
+			if (this.position !== "Top") {
+				this.updatePosition("Top");
+			}
+		} else if (this.position != this.menuPositionSetting.value) {
+			// Restore user position
+			this.updatePosition(this.menuPositionSetting.value);
+		}
+
+		// Allow multiple updates, but prevent bouncing
 		if (!direction) {
 			direction = prevIdx - idx;
 		} else if (direction != prevIdx - idx) {
@@ -266,14 +289,14 @@ export class ComfyAppMenu {
 	 * @param { "workflow" | "output" } [promptProperty]
 	 */
 	async exportWorkflow(filename, promptProperty) {
-		if(this.app.workflowManager.activeWorkflow?.path) {
+		if (this.app.workflowManager.activeWorkflow?.path) {
 			filename = this.app.workflowManager.activeWorkflow.name;
 		}
 		const p = await this.app.graphToPrompt();
 		const json = JSON.stringify(p[promptProperty], null, 2);
 		const blob = new Blob([json], { type: "application/json" });
 		const file = this.getFilename(filename);
-		if(!file) return;
+		if (!file) return;
 		downloadBlob(file, blob);
 	}
 }

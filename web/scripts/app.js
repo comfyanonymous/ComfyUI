@@ -1539,8 +1539,6 @@ export class ComfyApp {
 	 */
 	async setup() {
 		await this.#setUser();
-		await Promise.all([this.workflowManager.loadWorkflows(), this.ui.settings.load()]);
-		await this.#loadExtensions();
 
 		// Create and mount the LiteGraph in the DOM
 		const mainCanvas = document.createElement("canvas")
@@ -1548,6 +1546,10 @@ export class ComfyApp {
 		const canvasEl = (this.canvasEl = Object.assign(mainCanvas, { id: "graph-canvas" }));
 		canvasEl.tabIndex = "1";
 		document.body.append(canvasEl);
+		this.resizeCanvas();
+
+		await Promise.all([this.workflowManager.loadWorkflows(), this.ui.settings.load()]);
+		await this.#loadExtensions();
 
 		addDomClippingSetting();
 		this.#addProcessMouseHandler();
@@ -1634,7 +1636,7 @@ export class ComfyApp {
 		this.canvasEl.width = Math.round(width * scale);
 		this.canvasEl.height = Math.round(height * scale);
 		this.canvasEl.getContext("2d").scale(scale, scale);
-		this.canvas.draw(true, true);
+		this.canvas?.draw(true, true);
 	}
 
 	/**

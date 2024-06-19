@@ -196,6 +196,8 @@ function dragElement(dragEl, settings) {
 		document.onmouseup = null;
 		document.onmousemove = null;
 	}
+
+	return restorePos;
 }
 
 class ComfyList {
@@ -632,7 +634,7 @@ export class ComfyUI {
 			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "flex" : "none"},
 		});
 
-		dragElement(this.menuContainer, this.settings);
+		this.restoreMenuPosition = dragElement(this.menuContainer, this.settings);
 
 		this.setStatus({exec_info: {queue_remaining: "X"}});
 	}
