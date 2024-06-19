@@ -96,8 +96,9 @@ def get_activation(activation: Literal["elu", "snake", "none"], antialias=False,
     else:
         raise ValueError(f"Unknown activation {activation}")
 
-    if antialias:
-        act = Activation1d(act)
+    # todo: ??? Not existing
+    # if antialias:
+    #     act = Activation1d(act)
 
     return act
 

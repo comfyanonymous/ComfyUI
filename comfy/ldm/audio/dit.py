@@ -775,6 +775,8 @@ class AudioDiffusionTransformer(nn.Module):
         return_info=False,
         **kwargs):
 
+        info = None
+        output = None
         if cross_attn_cond is not None:
             cross_attn_cond = self.to_cond_embed(cross_attn_cond)
 
@@ -871,8 +873,10 @@ class AudioDiffusionTransformer(nn.Module):
         mask=None,
         return_info=False,
         control=None,
-        transformer_options={},
+        transformer_options=None,
         **kwargs):
+            if transformer_options is None:
+                transformer_options = {}
             return self._forward(
                 x,
                 timestep,
