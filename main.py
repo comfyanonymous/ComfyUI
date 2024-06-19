@@ -184,6 +184,8 @@ def load_extra_path_config(yaml_path):
                 if base_path is not None:
                     full_path = os.path.join(base_path, full_path)
                 logging.info("Adding extra search path {} {}".format(x, full_path))
+                full_path = full_path.replace("\\", "\\")
+                full_path = full_path.replace("\\", "/")
                 folder_paths.add_model_folder_path(x, full_path)
 
 

@@ -126,9 +126,19 @@ def exists_annotated_filepath(name):
 def add_model_folder_path(folder_name, full_folder_path):
     global folder_names_and_paths
     if folder_name in folder_names_and_paths:
-        folder_names_and_paths[folder_name][0].append(full_folder_path)
+        subdirs =  list_files(full_folder_path)
+        if len(subdirs) == 0:
+            folder_names_and_paths[folder_name][0].append(full_folder_path)
+        else:
+            for subdir in subdirs:
+                folder_names_and_paths[folder_name][0].append(subdir)
+
     else:
         folder_names_and_paths[folder_name] = ([full_folder_path], set())
+
+def list_files(dir):
+    r = []
+    return [x[0] for x in os.walk(dir)]
 
 def get_folder_paths(folder_name):
     return folder_names_and_paths[folder_name][0][:]
