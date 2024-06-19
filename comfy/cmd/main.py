@@ -195,7 +195,7 @@ async def main():
 
     if args.quick_test_for_ci:
         # for CI purposes, try importing all the nodes
-        import_all_nodes_in_workspace()
+        import_all_nodes_in_workspace(raise_on_failure=True)
         exit(0)
 
     call_on_start = None
