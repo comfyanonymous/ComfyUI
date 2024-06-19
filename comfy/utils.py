@@ -556,6 +556,7 @@ class ProgressBar:
     def __init__(self, total: float):
         self.total: float = total
         self.current: float = 0.0
+        self.server = current_execution_context().server
 
     def update_absolute(self, value, total=None, preview_image_or_output=None):
         if total is not None:
@@ -563,7 +564,7 @@ class ProgressBar:
         if value > self.total:
             value = self.total
         self.current = value
-        _progress_bar_update(self.current, self.total, preview_image_or_output)
+        _progress_bar_update(self.current, self.total, preview_image_or_output, server=self.server)
 
     def update(self, value):
         self.update_absolute(self.current + value)
@@ -581,14 +582,15 @@ def comfy_tqdm():
     """
     _original_init = tqdm.__init__
     _original_update = tqdm.update
-    server = current_execution_context().server
     try:
         def __init(self, *args, **kwargs):
             _original_init(self, *args, **kwargs)
+            self._progress_bar = ProgressBar(self.total)
 
         def __update(self, n=1):
+            assert self._progress_bar is not None
             _original_update(self, n)
-            _progress_bar_update(n, self.total, server=server)
+            self._progress_bar.update(n)
 
         tqdm.__init__ = __init
         tqdm.update = __update
