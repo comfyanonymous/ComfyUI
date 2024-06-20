@@ -286,7 +286,6 @@ MMDIT_MAP_BLOCK = {
     ("x_block.mlp.fc1.weight", "ff.net.0.proj.weight"),
     ("x_block.mlp.fc2.bias", "ff.net.2.bias"),
     ("x_block.mlp.fc2.weight", "ff.net.2.weight"),
-    ("", ""),
 }
 
 def mmdit_to_diffusers(mmdit_config, output_prefix=""):
