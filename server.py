@@ -538,8 +538,10 @@ class PromptServer():
         # prefix are supported.
         api_routes = web.RouteTableDef()
         for route in self.routes:
-            assert isinstance(route, web.RouteDef)
-            api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
+            # Custom nodes might add extra static routes. Only process non-static
+            # routes to add /api prefix.
+            if isinstance(route, web.RouteDef):
+                api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
 
