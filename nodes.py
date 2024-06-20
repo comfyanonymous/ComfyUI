@@ -9,6 +9,7 @@ import math
 import time
 import random
 import logging
+import re
 
 from PIL import Image, ImageOps, ImageSequence, ImageFile
 from PIL.PngImagePlugin import PngInfo
@@ -1863,53 +1864,59 @@ EXTENSION_WEB_DIRS = {}
 
 EXTENSION_MODULES_LOADED = set()
 
-def load_custom_node(module_path, ignore=set()):
-    module_name = os.path.basename(module_path)
-    if os.path.isfile(module_path):
-        sp = os.path.splitext(module_path)
-        module_name = sp[0]
+_mod_name_re = re.compile("-")
+NORMALIZE_MOD_NAME = lambda x: _mod_name_re.sub("_", x.strip().lower())
 
-    if module_name in EXTENSION_MODULES_LOADED:
-        logging.warning(f"Skip loading custom nodes from {module_path}. Module already loaded.")
+def _load_custom_node(ext_mod, ext_mod_name, ignore, ext_mod_dir=None):
+    #TODO factor out optionality of ext_mod_dir
+    if ext_mod_dir is not None and hasattr(ext_mod, "WEB_DIRECTORY") and getattr(ext_mod, "WEB_DIRECTORY") is not None:
+        web_dir = os.path.abspath(os.path.join(ext_mod_dir, getattr(ext_mod, "WEB_DIRECTORY")))
+        if os.path.isdir(web_dir):
+            EXTENSION_WEB_DIRS[ext_mod_name] = web_dir
+
+    if hasattr(ext_mod, "NODE_CLASS_MAPPINGS") and getattr(ext_mod, "NODE_CLASS_MAPPINGS") is not None:
+        for node_class_name in ext_mod.NODE_CLASS_MAPPINGS:
+            if node_class_name not in ignore:
+                NODE_CLASS_MAPPINGS[node_class_name] = ext_mod.NODE_CLASS_MAPPINGS[node_class_name]
+        if hasattr(ext_mod, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(ext_mod, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
+            NODE_DISPLAY_NAME_MAPPINGS.update(ext_mod.NODE_DISPLAY_NAME_MAPPINGS)
+        return True
+    else:
+        logging.warning(f"Skip loading custom nodes from {ext_mod_name}. No NODE_CLASS_MAPPINGS found in module.")
+        return False
+
+def load_custom_node(ext_mod_path, ignore):
+    ext_mod_name = os.path.basename(ext_mod_path)
+    if os.path.isfile(ext_mod_path):
+        ext_mod_name, *_ = os.path.splitext(ext_mod_path)
+        ext_mod_name = NORMALIZE_MOD_NAME(ext_mod_name)
+
+    if ext_mod_name in EXTENSION_MODULES_LOADED:
+        logging.warning(f"Skip loading custom nodes from {ext_mod_path}. Module already loaded.")
         return False
     else:
-        EXTENSION_MODULES_LOADED.add(module_name)
+        EXTENSION_MODULES_LOADED.add(ext_mod_name)
     
     try:
-        logging.debug("Trying to load custom node {}".format(module_path))
-        if os.path.isfile(module_path):
-            module_spec = importlib.util.spec_from_file_location(module_name, module_path)
-            module_dir = os.path.split(module_path)[0]
+        logging.debug("Trying to load custom node {}".format(ext_mod_path))
+        if os.path.isfile(ext_mod_path):
+            ext_mod_spec = importlib.util.spec_from_file_location(ext_mod_name, ext_mod_path)
+            ext_mod_dir = os.path.split(ext_mod_path)[0]
         else:
-            module_spec = importlib.util.spec_from_file_location(module_name, os.path.join(module_path, "__init__.py"))
-            module_dir = module_path
+            ext_mod_spec = importlib.util.spec_from_file_location(ext_mod_name, os.path.join(ext_mod_path, "__init__.py"))
+            ext_mod_dir = ext_mod_path
 
-        module = importlib.util.module_from_spec(module_spec)
-        sys.modules[module_name] = module
-        module_spec.loader.exec_module(module)
-
-        if hasattr(module, "WEB_DIRECTORY") and getattr(module, "WEB_DIRECTORY") is not None:
-            web_dir = os.path.abspath(os.path.join(module_dir, getattr(module, "WEB_DIRECTORY")))
-            if os.path.isdir(web_dir):
-                EXTENSION_WEB_DIRS[module_name] = web_dir
-
-        if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
-            for name in module.NODE_CLASS_MAPPINGS:
-                if name not in ignore:
-                    NODE_CLASS_MAPPINGS[name] = module.NODE_CLASS_MAPPINGS[name]
-            if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
-                NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
-            return True
-        else:
-            logging.warning(f"Skip loading custom nodes from {module_path}. No NODE_CLASS_MAPPINGS found in module.")
-            return False
+        ext_mod = importlib.util.module_from_spec(ext_mod_spec)
+        sys.modules[ext_mod_name] = ext_mod
+        ext_mod_spec.loader.exec_module(ext_mod)
+        return _load_custom_node(ext_mod=ext_mod, ext_mod_name=ext_mod_name, ext_mod_dir=ext_mod_dir, ignore=ignore)
+    
     except Exception as e:
         logging.warning(traceback.format_exc())
-        logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
+        logging.warning(f"Cannot import {ext_mod_path} module for custom nodes: {e}")
         return False
 
-def load_custom_nodes():
-    base_node_names = set(NODE_CLASS_MAPPINGS.keys())
+def load_custom_nodes(ignore=set()):
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
     for custom_node_path in node_paths:
@@ -1918,12 +1925,12 @@ def load_custom_nodes():
             possible_modules.remove("__pycache__")
 
         for possible_module in possible_modules:
-            module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-            if module_path.endswith(".disabled"): continue
+            ext_mod_path = os.path.join(custom_node_path, possible_module)
+            if os.path.isfile(ext_mod_path) and os.path.splitext(ext_mod_path)[1] != ".py": continue
+            if ext_mod_path.endswith(".disabled"): continue
             time_before = time.perf_counter()
-            success = load_custom_node(module_path, base_node_names)
-            node_import_times.append((time.perf_counter() - time_before, module_path, success))
+            success = load_custom_node(ext_mod_path, ignore)
+            node_import_times.append((time.perf_counter() - time_before, ext_mod_path, success))
 
     if len(node_import_times) > 0:
         logging.info("\nImport times for custom nodes:")
@@ -1935,47 +1942,32 @@ def load_custom_nodes():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
-def load_custom_nodes_entry_points():
-    base_node_names = set(NODE_CLASS_MAPPINGS.keys())
-    extension_modules = set()
+def load_custom_nodes_entry_points(ignore=set()):
+    for ep in entry_points(group="comfyui.extension_module"):
+        ext_mod_name = NORMALIZE_MOD_NAME(ep.module)
 
-    for ep in entry_points(group="comfyui.web_directory"):
-        if ep.module in EXTENSION_MODULES_LOADED:
-            logging.warning(f"Skip loading web_directory entry point from {ep.module}. Module already loaded.")
+        if ext_mod_name in EXTENSION_MODULES_LOADED:
+            logging.warning(f"Skip loading custom nodes from {ext_mod_name}. Module already loaded.")
             continue
+        else:
+            EXTENSION_MODULES_LOADED.add(ext_mod_name)
         
-        web_directory = ep.load()
-        EXTENSION_WEB_DIRS[module_name] = web_directory
-        for path in importlib.metadata.files(ep.module):
-            if path.parent.name == ep.module and path.name == web_directory:
-                EXTENSION_WEB_DIRS[ep.module] = str(path.locate())
+        try:
+            ext_mod = ep.load()
+            
+            # web_directory = ep.load()
+            # EXTENSION_WEB_DIRS[module_name] = web_directory
+            # for path in importlib.metadata.files(ep.module):
+            #     if path.parent.name == ep.module and path.name == web_directory:
+            #         EXTENSION_WEB_DIRS[ep.module] = str(path.locate())
 
-        extension_modules.add(ep.module)
+            #TODO make ext_mod_dir a real value
+            _load_custom_node(ext_mod=ext_mod, ext_mod_name=ext_mod_name, ext_mod_dir=None, ignore=ignore)
 
-    for ep in entry_points(group="comfyui.node_class_mappings"):
-        if ep.module in EXTENSION_MODULES_LOADED:
-            logging.warning(f"Skip loading node_class_mappings entry point from {ep.module}. Module already loaded.")
+        except Exception as e:
+            logging.warning(traceback.format_exc())
+            logging.warning(f"Cannot import custom nodes from {ext_mod_name}: {e}")
             continue
-        
-        class_mapping = ep.load()
-        for name in class_mapping:
-            if name not in base_node_names:
-                NODE_CLASS_MAPPINGS[name] = class_mapping[name]
-
-        extension_modules.add(ep.module)
-
-    for ep in entry_points(group="comfyui.node_display_name_mappings"):
-        if ep.module in EXTENSION_MODULES_LOADED:
-            logging.warning(f"Skip loading node_display_name_mappings entry point from {ep.module}. Module already loaded.")
-            continue
-
-        display_name_mapping = ep.load()
-        NODE_DISPLAY_NAME_MAPPINGS.update(display_name_mapping)
-        
-        extension_modules.add(ep.module)
-
-    # delay adding new module names to the guard set until after all possible entry_points are loaded
-    EXTENSION_MODULES_LOADED |= extension_modules
 
 def init_custom_nodes():
     extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
@@ -2021,8 +2013,9 @@ def init_custom_nodes():
         if not load_custom_node(os.path.join(extras_dir, node_file)):
             import_failed.append(node_file)
 
-    load_custom_nodes_entry_points()
-    load_custom_nodes()
+    base_node_names = set(NODE_CLASS_MAPPINGS.keys())
+    load_custom_nodes_entry_points(ignore=base_node_names)
+    load_custom_nodes(ignore=base_node_names)
 
     if len(import_failed) > 0:
         logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
