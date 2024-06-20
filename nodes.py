@@ -1867,8 +1867,7 @@ EXTENSION_MODULES_LOADED = set()
 _mod_name_re = re.compile("-")
 NORMALIZE_MOD_NAME = lambda x: _mod_name_re.sub("_", x.strip().lower())
 
-def _load_custom_node(ext_mod, ext_mod_name, ignore, ext_mod_dir=None):
-    #TODO factor out optionality of ext_mod_dir
+def _load_custom_node(ext_mod, ext_mod_name, ext_mod_dir, ignore):
     if ext_mod_dir is not None and hasattr(ext_mod, "WEB_DIRECTORY") and getattr(ext_mod, "WEB_DIRECTORY") is not None:
         web_dir = os.path.abspath(os.path.join(ext_mod_dir, getattr(ext_mod, "WEB_DIRECTORY")))
         if os.path.isdir(web_dir):
@@ -1954,15 +1953,9 @@ def load_custom_nodes_entry_points(ignore=set()):
         
         try:
             ext_mod = ep.load()
+            ext_mod_dir = os.path.dirname(os.path.realpath(ext_mod.__file__))
             
-            # web_directory = ep.load()
-            # EXTENSION_WEB_DIRS[module_name] = web_directory
-            # for path in importlib.metadata.files(ep.module):
-            #     if path.parent.name == ep.module and path.name == web_directory:
-            #         EXTENSION_WEB_DIRS[ep.module] = str(path.locate())
-
-            #TODO make ext_mod_dir a real value
-            _load_custom_node(ext_mod=ext_mod, ext_mod_name=ext_mod_name, ext_mod_dir=None, ignore=ignore)
+            _load_custom_node(ext_mod=ext_mod, ext_mod_name=ext_mod_name, ext_mod_dir=ext_mod_dir, ignore=ignore)
 
         except Exception as e:
             logging.warning(traceback.format_exc())
