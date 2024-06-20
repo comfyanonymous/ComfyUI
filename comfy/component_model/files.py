@@ -27,10 +27,10 @@ def get_path_as_dict(config_dict_or_path: str | dict | None, config_path_inside_
         else:
             if not os.path.exists(config_dict_or_path):
                 with resources.as_file(resources.files(package) / config_path_inside_package) as config_path:
-                    with open(config_path) as f:
+                    with open(config_path, mode="rt", encoding="utf-8") as f:
                         config = json.load(f)
             else:
-                with open(config_dict_or_path) as f:
+                with open(config_dict_or_path, mode="rt", encoding="utf-8") as f:
                     config = json.load(f)
     elif isinstance(config_dict_or_path, dict):
         config = config_dict_or_path
