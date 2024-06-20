@@ -6,7 +6,7 @@ from comfy import model_management
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
-
+from .ldm.audio.autoencoder import AudioOobleckVAE
 import yaml
 
 import comfy.utils
@@ -20,6 +20,7 @@ from . import sd1_clip
 from . import sd2_clip
 from . import sdxl_clip
 from . import sd3_clip
+from . import sa_t5
 
 import comfy.model_patcher
 import comfy.lora
@@ -174,8 +175,10 @@ class VAE:
         self.downscale_ratio = 8
         self.upscale_ratio = 8
         self.latent_channels = 4
+        self.output_channels = 3
         self.process_input = lambda image: image * 2.0 - 1.0
         self.process_output = lambda image: torch.clamp((image + 1.0) / 2.0, min=0.0, max=1.0)
+        self.working_dtypes = [torch.bfloat16, torch.float32]
 
         if config is None:
             if "decoder.mid.block_1.mix_factor" in sd:
@@ -187,7 +190,8 @@ class VAE:
                                                             encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': encoder_config},
                                                             decoder_config={'target': "comfy.ldm.modules.temporal_ae.VideoDecoder", 'params': decoder_config})
             elif "taesd_decoder.1.weight" in sd:
-                self.first_stage_model = comfy.taesd.taesd.TAESD()
+                self.latent_channels = sd["taesd_decoder.1.weight"].shape[1]
+                self.first_stage_model = comfy.taesd.taesd.TAESD(latent_channels=self.latent_channels)
             elif "vquantizer.codebook.weight" in sd: #VQGan: stage a of stable cascade
                 self.first_stage_model = StageA()
                 self.downscale_ratio = 4
@@ -232,6 +236,17 @@ class VAE:
                     self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
                                                                 encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
                                                                 decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
+            elif "decoder.layers.0.weight_v" in sd:
+                self.first_stage_model = AudioOobleckVAE()
+                self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * 2048) * model_management.dtype_size(dtype)
+                self.latent_channels = 64
+                self.output_channels = 2
+                self.upscale_ratio = 2048
+                self.downscale_ratio =  2048
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -252,20 +267,21 @@ class VAE:
         self.device = device
         offload_device = model_management.vae_offload_device()
         if dtype is None:
-            dtype = model_management.vae_dtype()
+            dtype = model_management.vae_dtype(self.device, self.working_dtypes)
         self.vae_dtype = dtype
         self.first_stage_model.to(self.vae_dtype)
         self.output_device = model_management.intermediate_device()
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
+        logging.debug("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
 
     def vae_encode_crop_pixels(self, pixels):
-        x = (pixels.shape[1] // self.downscale_ratio) * self.downscale_ratio
-        y = (pixels.shape[2] // self.downscale_ratio) * self.downscale_ratio
-        if pixels.shape[1] != x or pixels.shape[2] != y:
-            x_offset = (pixels.shape[1] % self.downscale_ratio) // 2
-            y_offset = (pixels.shape[2] % self.downscale_ratio) // 2
-            pixels = pixels[:, x_offset:x + x_offset, y_offset:y + y_offset, :]
+        dims = pixels.shape[1:-1]
+        for d in range(len(dims)):
+            x = (dims[d] // self.downscale_ratio) * self.downscale_ratio
+            x_offset = (dims[d] % self.downscale_ratio) // 2
+            if x != dims[d]:
+                pixels = pixels.narrow(d + 1, x_offset, x)
         return pixels
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap = 16):
@@ -280,6 +296,17 @@ class VAE:
             comfy.utils.tiled_scale(samples, decode_fn, tile_x * 2, tile_y // 2, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar) +
              comfy.utils.tiled_scale(samples, decode_fn, tile_x, tile_y, overlap, upscale_amount = self.upscale_ratio, output_device=self.output_device, pbar = pbar))
             / 3.0)
+        return output
+
+    def decode_tiled_1d(self, samples, tile_x=128, overlap=64):
+        output = torch.empty((samples.shape[0], self.output_channels) + tuple(map(lambda a: a * self.upscale_ratio, samples.shape[2:])), device=self.output_device)
+
+        for j in range(samples.shape[0]):
+            for i in range(0, samples.shape[-1], tile_x - overlap):
+                f = i
+                t = i + tile_x
+                output[j:j+1,:,f * self.upscale_ratio:t * self.upscale_ratio] = self.first_stage_model.decode(samples[j:j+1,:,f:t].to(self.vae_dtype).to(self.device)).float()
+
         return output
 
     def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
@@ -303,13 +330,16 @@ class VAE:
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
 
-            pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * self.upscale_ratio), round(samples_in.shape[3] * self.upscale_ratio)), device=self.output_device)
+            pixel_samples = torch.empty((samples_in.shape[0], self.output_channels) + tuple(map(lambda a: a * self.upscale_ratio, samples_in.shape[2:])), device=self.output_device)
             for x in range(0, samples_in.shape[0], batch_number):
                 samples = samples_in[x:x+batch_number].to(self.vae_dtype).to(self.device)
                 pixel_samples[x:x+batch_number] = self.process_output(self.first_stage_model.decode(samples).to(self.output_device).float())
         except model_management.OOM_EXCEPTION as e:
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
-            pixel_samples = self.decode_tiled_(samples_in)
+            if len(samples_in.shape) == 3:
+                pixel_samples = self.decode_tiled_1d(samples_in)
+            else:
+                pixel_samples = self.decode_tiled_(samples_in)
 
         pixel_samples = pixel_samples.to(self.output_device).movedim(1,-1)
         return pixel_samples
@@ -328,7 +358,7 @@ class VAE:
             free_memory = model_management.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
-            samples = torch.empty((pixel_samples.shape[0], self.latent_channels, round(pixel_samples.shape[2] // self.downscale_ratio), round(pixel_samples.shape[3] // self.downscale_ratio)), device=self.output_device)
+            samples = torch.empty((pixel_samples.shape[0], self.latent_channels) + tuple(map(lambda a: a // self.downscale_ratio, pixel_samples.shape[2:])), device=self.output_device)
             for x in range(0, pixel_samples.shape[0], batch_number):
                 pixels_in = self.process_input(pixel_samples[x:x+batch_number]).to(self.vae_dtype).to(self.device)
                 samples[x:x+batch_number] = self.first_stage_model.encode(pixels_in).to(self.output_device).float()
@@ -371,6 +401,7 @@ class CLIPType(Enum):
     STABLE_DIFFUSION = 1
     STABLE_CASCADE = 2
     SD3 = 3
+    STABLE_AUDIO = 4
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION):
     clip_data = []
@@ -404,6 +435,9 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
             dtype_t5 = clip_data[0]["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"].dtype
             clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
             clip_target.tokenizer = sd3_clip.SD3Tokenizer
+        elif "encoder.block.0.layer.0.SelfAttention.k.weight" in clip_data[0]:
+            clip_target.clip = sa_t5.SAT5Model
+            clip_target.tokenizer = sa_t5.SAT5Tokenizer
         else:
             clip_target.clip = sd1_clip.SD1ClipModel
             clip_target.tokenizer = sd1_clip.SD1Tokenizer
@@ -470,10 +504,11 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     model_patcher = None
     clip_target = None
 
-    parameters = comfy.utils.calculate_parameters(sd, "model.diffusion_model.")
+    diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
+    parameters = comfy.utils.calculate_parameters(sd, diffusion_model_prefix)
     load_device = model_management.get_torch_device()
 
-    model_config = model_detection.model_config_from_unet(sd, "model.diffusion_model.")
+    model_config = model_detection.model_config_from_unet(sd, diffusion_model_prefix)
     unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=model_config.supported_inference_dtypes)
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
@@ -488,8 +523,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     if output_model:
         inital_load_device = model_management.unet_inital_load_device(parameters, unet_dtype)
         offload_device = model_management.unet_offload_device()
-        model = model_config.get_model(sd, "model.diffusion_model.", device=inital_load_device)
-        model.load_model_weights(sd, "model.diffusion_model.")
+        model = model_config.get_model(sd, diffusion_model_prefix, device=inital_load_device)
+        model.load_model_weights(sd, diffusion_model_prefix)
 
     if output_vae:
         vae_sd = comfy.utils.state_dict_prefix_replace(sd, {k: "" for k in model_config.vae_key_prefix}, filter_keys=True)
@@ -533,7 +568,14 @@ def load_unet_state_dict(sd): #load unet in diffusers format
     unet_dtype = model_management.unet_dtype(model_params=parameters)
     load_device = model_management.get_torch_device()
 
-    if "input_blocks.0.0.weight" in sd or 'clf.1.weight' in sd: #ldm or stable cascade
+    if 'transformer_blocks.0.attn.add_q_proj.weight' in sd: #MMDIT SD3
+        new_sd = model_detection.convert_diffusers_mmdit(sd, "")
+        if new_sd is None:
+            return None
+        model_config = model_detection.model_config_from_unet(new_sd, "")
+        if model_config is None:
+            return None
+    elif "input_blocks.0.0.weight" in sd or 'clf.1.weight' in sd: #ldm or stable cascade
         model_config = model_detection.model_config_from_unet(sd, "")
         if model_config is None:
             return None

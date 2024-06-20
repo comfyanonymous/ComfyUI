@@ -1,7 +1,9 @@
 import comfy.supported_models
 import comfy.supported_models_base
+import comfy.utils
 import math
 import logging
+import torch
 
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
@@ -94,6 +96,11 @@ def detect_unet_config(state_dict, key_prefix):
                 unet_config['nhead'] = [-1, 9, 18, 18]
                 unet_config['blocks'] = [[2, 4, 14, 4], [4, 14, 4, 2]]
                 unet_config['block_repeat'] = [[1, 1, 1, 1], [2, 2, 2, 2]]
+        return unet_config
+
+    if '{}transformer.rotary_pos_emb.inv_freq'.format(key_prefix) in state_dict_keys: #stable audio dit
+        unet_config = {}
+        unet_config["audio_model"] = "dit1.0"
         return unet_config
 
     unet_config = {
@@ -235,6 +242,13 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
         return comfy.supported_models_base.BASE(unet_config)
     else:
         return model_config
+
+def unet_prefix_from_state_dict(state_dict):
+    if "model.model.postprocess_conv.weight" in state_dict: #audio models
+        unet_key_prefix = "model.model."
+    else:
+        unet_key_prefix = "model.diffusion_model."
+    return unet_key_prefix
 
 def convert_config(unet_config):
     new_config = unet_config.copy()
@@ -419,3 +433,38 @@ def model_config_from_diffusers_unet(state_dict):
     if unet_config is not None:
         return model_config_from_unet_config(unet_config)
     return None
+
+def convert_diffusers_mmdit(state_dict, output_prefix=""):
+    depth = count_blocks(state_dict, 'transformer_blocks.{}.')
+    if depth > 0:
+        out_sd = {}
+        sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth}, output_prefix=output_prefix)
+        for k in sd_map:
+            weight = state_dict.get(k, None)
+            if weight is not None:
+                t = sd_map[k]
+
+                if not isinstance(t, str):
+                    if len(t) > 2:
+                        fun = t[2]
+                    else:
+                        fun = lambda a: a
+                    offset = t[1]
+                    if offset is not None:
+                        old_weight = out_sd.get(t[0], None)
+                        if old_weight is None:
+                            old_weight = torch.empty_like(weight)
+                            old_weight = old_weight.repeat([3] + [1] * (len(old_weight.shape) - 1))
+
+                        w = old_weight.narrow(offset[0], offset[1], offset[2])
+                    else:
+                        old_weight = weight
+                        w = weight
+                    w[:] = fun(weight)
+                    t = t[0]
+                    out_sd[t] = old_weight
+                else:
+                    out_sd[t] = weight
+                state_dict.pop(k)
+
+    return out_sd
