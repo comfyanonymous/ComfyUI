@@ -1885,8 +1885,7 @@ def _load_custom_node(ext_mod, ext_mod_name, ignore, ext_mod_dir=None):
         logging.warning(f"Skip loading custom nodes from {ext_mod_name}. No NODE_CLASS_MAPPINGS found in module.")
         return False
 
-def load_custom_node(ext_mod_path, ignore):
-    ext_mod_name = os.path.basename(ext_mod_path)
+def load_custom_node(ext_mod_path, ignore=set()):
     if os.path.isfile(ext_mod_path):
         ext_mod_name, *_ = os.path.splitext(ext_mod_path)
         ext_mod_name = NORMALIZE_MOD_NAME(ext_mod_name)
