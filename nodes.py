@@ -1887,8 +1887,9 @@ def _load_custom_node(ext_mod, ext_mod_name, ignore, ext_mod_dir=None):
 
 def load_custom_node(ext_mod_path, ignore=set()):
     if os.path.isfile(ext_mod_path):
-        ext_mod_name, *_ = os.path.splitext(ext_mod_path)
-        ext_mod_name = NORMALIZE_MOD_NAME(ext_mod_name)
+        ext_mod_name = NORMALIZE_MOD_NAME(os.path.splitext(ext_mod_path)[0])
+    else:
+        ext_mod_name = NORMALIZE_MOD_NAME(os.path.basename(ext_mod_path))
 
     if ext_mod_name in EXTENSION_MODULES_LOADED:
         logging.warning(f"Skip loading custom nodes from {ext_mod_path}. Module already loaded.")
