@@ -169,6 +169,7 @@ class BaseModel(torch.nn.Module):
             data = torch.cat(cond_concat, dim=1)
             out['c_concat'] = conds.CONDNoiseShape(data)
 
+        # pylint: disable=assignment-from-none
         adm = self.encode_adm(**kwargs)
         if adm is not None:
             out['y'] = conds.CONDRegular(adm)
@@ -522,6 +523,8 @@ class IP2P(BaseModel):
         image = utils.resize_to_batch_size(image, noise.shape[0])
 
         out['c_concat'] = conds.CONDNoiseShape(self.process_ip2p_image_in(image))
+
+        # pylint: disable=assignment-from-none
         adm = self.encode_adm(**kwargs)
         if adm is not None:
             out['y'] = conds.CONDRegular(adm)
