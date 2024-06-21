@@ -52,7 +52,7 @@ class ModelMergeSDXL(comfy_extras.nodes_model_merging.ModelMergeBlocks):
 
         return {"required": arg_dict}
 
-class ModelMergeSD3(comfy_extras.nodes_model_merging.ModelMergeBlocks):
+class ModelMergeSD3_2B(comfy_extras.nodes_model_merging.ModelMergeBlocks):
     CATEGORY = "advanced/model_merging/model_specific"
 
     @classmethod
@@ -68,7 +68,7 @@ class ModelMergeSD3(comfy_extras.nodes_model_merging.ModelMergeBlocks):
         arg_dict["y_embedder."] = argument
         arg_dict["t_embedder."] = argument
 
-        for i in range(38):
+        for i in range(24):
             arg_dict["joint_blocks.{}.".format(i)] = argument
 
         arg_dict["final_layer."] = argument
@@ -79,5 +79,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelMergeSD1": ModelMergeSD1,
     "ModelMergeSD2": ModelMergeSD1, #SD1 and SD2 have the same blocks
     "ModelMergeSDXL": ModelMergeSDXL,
-    "ModelMergeSD3": ModelMergeSD3,
+    "ModelMergeSD3_2B": ModelMergeSD3_2B,
 }
