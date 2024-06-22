@@ -121,26 +121,19 @@ When using Windows, open the **Windows Powershell** app. Then observe you are at
    ```shell
    pip install git+https://github.com/hiddenswitch/ComfyUI.git
    ```
-   **Recommended**: Currently, `torch 2.1.2` is the last built with Flash Attention for Windows. Install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
+   **Recommended**: Currently, `torch 2.3.0` is the last version that `xformers` is compatible with. On Windows, install it first, along with `xformers`, for maximum compatibility and the best performance without advanced techniques in ComfyUI:
    ```shell
-   pip install xformers==0.0.23.post1
-   pip install torch==2.1.2+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
-   pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
-   ```
-   For `torch 2.3.0`, which does not have Flash Attention compiled for Windows, install a later version of `xformers`:
-   ```shell
-   pip install xformers==0.0.26.post1
    pip install torch==2.3.0+cu121 torchvision --index-url https://download.pytorch.org/whl/cu121
+   pip install xformers==0.0.26.post1
    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
    ```
-   `xformers` has not yet been built for `torch 2.3.1`, the latest version.
+   Flash Attention as implemented in PyTorch is not functional on any version of Windows. ComfyUI will always run with "memory efficient attention" in practice on this platform. This is distinct from the `flash-attn` package. <br />
    **Advanced**: If you are running in Google Collab or another environment which has already installed `torch` for you, disable build isolation, and the package will recognize your currently installed torch.
-   ```shell
-   # You will need wheel, which isn't included in Python 3.11 or later
-   pip install wheel
-   pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
-   ```
-    
+    ```shell
+    # You will need wheel, which isn't included in Python 3.11 or later
+    pip install wheel
+    pip install --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
+    ```
 4. Create the directories you can fill with checkpoints:
    ```shell
    comfyui --create-directories
