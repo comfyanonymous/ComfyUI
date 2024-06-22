@@ -107,6 +107,8 @@ function dragElement(dragEl, settings) {
 	}
 
 	function positionElement() {
+		if(dragEl.style.display === "none") return;
+
 		const halfWidth = document.body.clientWidth / 2;
 		const anchorRight = newPosX + dragEl.clientWidth / 2 > halfWidth;
 
