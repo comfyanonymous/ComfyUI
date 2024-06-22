@@ -1188,6 +1188,8 @@ export class GroupNodeHandler {
 		await config.registerType();
 
 		const groupNode = LiteGraph.createNode(`workflow/${name}`);
+		groupNode.title = name;
+		
 		// Reuse the existing nodes for this instance
 		groupNode.setInnerNodes(builder.nodes);
 		groupNode[GROUP].populateWidgets();

@@ -1960,6 +1960,7 @@ export class ComfyApp {
 		for (const outerNode of this.graph.computeExecutionOrder(false)) {
 			const skipNode = outerNode.mode === 2 || outerNode.mode === 4;
 			const innerNodes = (!skipNode && outerNode.getInnerNodes) ? outerNode.getInnerNodes() : [outerNode];
+			const groupTitle = outerNode.getInnerNodes ? outerNode.title : undefined;
 			for (const node of innerNodes) {
 				if (node.isVirtualNode) {
 					continue;
@@ -2041,6 +2042,7 @@ export class ComfyApp {
 					// Ignored by the backend.
 					node_data["_meta"] = {
 						title: node.title,
+						groupTitle
 					}
 				}
 
