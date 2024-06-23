@@ -298,16 +298,9 @@ class VAE:
             / 3.0)
         return output
 
-    def decode_tiled_1d(self, samples, tile_x=128, overlap=64):
-        output = torch.empty((samples.shape[0], self.output_channels) + tuple(map(lambda a: a * self.upscale_ratio, samples.shape[2:])), device=self.output_device)
-
-        for j in range(samples.shape[0]):
-            for i in range(0, samples.shape[-1], tile_x - overlap):
-                f = i
-                t = i + tile_x
-                output[j:j+1,:,f * self.upscale_ratio:t * self.upscale_ratio] = self.first_stage_model.decode(samples[j:j+1,:,f:t].to(self.vae_dtype).to(self.device)).float()
-
-        return output
+    def decode_tiled_1d(self, samples, tile_x=128, overlap=32):
+        decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
+        return comfy.utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device)
 
     def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
         steps = pixel_samples.shape[0] * comfy.utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
@@ -321,6 +314,10 @@ class VAE:
         samples += comfy.utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
         samples /= 3.0
         return samples
+
+    def encode_tiled_1d(self, samples, tile_x=128 * 2048, overlap=32 * 2048):
+        encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).float()
+        return comfy.utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device)
 
     def decode(self, samples_in):
         try:
@@ -365,7 +362,10 @@ class VAE:
 
         except model_management.OOM_EXCEPTION as e:
             logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
-            samples = self.encode_tiled_(pixel_samples)
+            if len(pixel_samples.shape) == 3:
+                samples = self.encode_tiled_1d(pixel_samples)
+            else:
+                samples = self.encode_tiled_(pixel_samples)
 
         return samples
 
@@ -568,7 +568,14 @@ def load_unet_state_dict(sd): #load unet in diffusers format
     unet_dtype = model_management.unet_dtype(model_params=parameters)
     load_device = model_management.get_torch_device()
 
-    if "input_blocks.0.0.weight" in sd or 'clf.1.weight' in sd: #ldm or stable cascade
+    if 'transformer_blocks.0.attn.add_q_proj.weight' in sd: #MMDIT SD3
+        new_sd = model_detection.convert_diffusers_mmdit(sd, "")
+        if new_sd is None:
+            return None
+        model_config = model_detection.model_config_from_unet(new_sd, "")
+        if model_config is None:
+            return None
+    elif "input_blocks.0.0.weight" in sd or 'clf.1.weight' in sd: #ldm or stable cascade
         model_config = model_detection.model_config_from_unet(sd, "")
         if model_config is None:
             return None
