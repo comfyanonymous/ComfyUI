@@ -53,7 +53,15 @@ app.registerExtension({
 					tooltipEl.style.display = "block";
 					tooltipEl.style.left = app.canvas.mouse[0] + "px";
 					tooltipEl.style.top = app.canvas.mouse[1] + "px";
-				}, 300);
+					const rect = tooltipEl.getBoundingClientRect();
+					if(rect.right > window.innerWidth) {
+						tooltipEl.style.left = (app.canvas.mouse[0] - rect.width) + "px";
+					}
+
+					if(rect.top < 0) {
+						tooltipEl.style.top = (app.canvas.mouse[1] + rect.height) + "px";
+					}
+				}, 500);
 			}
 		};
 
