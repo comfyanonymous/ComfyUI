@@ -140,6 +140,11 @@ class PromptServer():
                     name) + "/" + os.path.relpath(f, dir).replace("\\", "/"), files)))
 
             return web.json_response(extensions)
+        
+        @routes.get("/extensions/styles")
+        async def get_extensions_styles(request):
+            files = glob.glob(os.path.join(self.web_root, 'extensions/**/*.css'), recursive=True)
+            return web.json_response(list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files)))
 
         def get_dir_by_type(dir_type):
             if dir_type is None:

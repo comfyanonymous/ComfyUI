@@ -1433,6 +1433,15 @@ export class ComfyApp {
 	    });
 	
 	    await Promise.all(extensionPromises);
+
+		const styles = await api.getExtensionsStyles();
+		function loadCSS(url) {
+			var link = document.createElement('link');
+			link.rel = 'stylesheet';
+			link.href = url;
+			document.head.appendChild(link);
+		}
+		styles.forEach(loadCSS);
 	}
 
 	async #migrateSettings() {
