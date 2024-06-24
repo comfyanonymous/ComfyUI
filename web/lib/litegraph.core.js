@@ -5924,7 +5924,24 @@ LGraphNode.prototype.executeAction = function(action)
             // clone node ALT dragging
             if (LiteGraph.alt_drag_do_clone_nodes && e.altKey && node && this.allow_interaction && !skip_action && !this.read_only)
             {
-                if (cloned = node.clone()){
+                // nodes already selected
+                if (Object.keys(this.selected_nodes).length) {
+                    var clipboard_info = this.prepareDataForClipboard()
+
+                    var isConnectUnselected = e.shiftKey
+
+                    this.graph.beforeChange();
+                    //create nodes
+                    this.pasteFromClipboardWithData(clipboard_info, isConnectUnselected, false);
+                    skip_action = true;
+
+                    // drag newly duplicated node under the cursor
+                    node = this.graph.getNodeOnPos( e.canvasX, e.canvasY, this.visible_nodes, 5 );
+                    this.node_dragged = node;
+
+                    this.graph.afterChange();
+                }
+                else if (cloned = node.clone()){
                     cloned.pos[0] += 5;
                     cloned.pos[1] += 5;
                     this.graph.add(cloned,false,{doCalcSize: false});
@@ -7136,7 +7153,7 @@ LGraphNode.prototype.executeAction = function(action)
         }
     };
 
-    LGraphCanvas.prototype.copyToClipboard = function(nodes) {
+    LGraphCanvas.prototype.prepareDataForClipboard = function(nodes) {
         var clipboard_info = {
             nodes: [],
             links: []
@@ -7188,45 +7205,50 @@ LGraphNode.prototype.executeAction = function(action)
                 }
             }
         }
+        return clipboard_info;
+    }
+
+    LGraphCanvas.prototype.copyToClipboard = function(nodes) {
+        var clipboard_info = this.prepareDataForClipboard(nodes);        
         localStorage.setItem(
             "litegrapheditor_clipboard",
             JSON.stringify(clipboard_info)
         );
     };
 
-    LGraphCanvas.prototype.pasteFromClipboard = function(isConnectUnselected = false) {
-        // if ctrl + shift + v is off, return when isConnectUnselected is true (shift is pressed) to maintain old behavior
-        if (!LiteGraph.ctrl_shift_v_paste_connect_unselected_outputs && isConnectUnselected) {
-            return;
-        }
-        var data = localStorage.getItem("litegrapheditor_clipboard");
-        if (!data) {
-            return;
-        }
-
-		this.graph.beforeChange();
-
-        //create nodes
-        var clipboard_info = JSON.parse(data);
+    LGraphCanvas.prototype.pasteFromClipboardWithData = function(clipboard_info, isConnectUnselected = false, calculatePasteOffset = true) {
         // calculate top-left node, could work without this processing but using diff with last node pos :: clipboard_info.nodes[clipboard_info.nodes.length-1].pos
         var posMin = false;
         var posMinIndexes = false;
-        for (var i = 0; i < clipboard_info.nodes.length; ++i) {
-            if (posMin){
-                if(posMin[0]>clipboard_info.nodes[i].pos[0]){
-                    posMin[0] = clipboard_info.nodes[i].pos[0];
-                    posMinIndexes[0] = i;
+        
+
+        var constantPasteOffset = 5;
+        var pasteOffsetX = constantPasteOffset;
+        var pasteOffsetY = constantPasteOffset;
+
+        if (calculatePasteOffset)
+        {
+            for (var i = 0; i < clipboard_info.nodes.length; ++i) {
+                if (posMin){
+                    if(posMin[0]>clipboard_info.nodes[i].pos[0]){
+                        posMin[0] = clipboard_info.nodes[i].pos[0];
+                        posMinIndexes[0] = i;
+                    }
+                    if(posMin[1]>clipboard_info.nodes[i].pos[1]){
+                        posMin[1] = clipboard_info.nodes[i].pos[1];
+                        posMinIndexes[1] = i;
+                    }
                 }
-                if(posMin[1]>clipboard_info.nodes[i].pos[1]){
-                    posMin[1] = clipboard_info.nodes[i].pos[1];
-                    posMinIndexes[1] = i;
+                else{
+                    posMin = [clipboard_info.nodes[i].pos[0], clipboard_info.nodes[i].pos[1]];
+                    posMinIndexes = [i, i];
                 }
             }
-            else{
-                posMin = [clipboard_info.nodes[i].pos[0], clipboard_info.nodes[i].pos[1]];
-                posMinIndexes = [i, i];
-            }
+
+            pasteOffsetX = this.graph_mouse[0] - posMin[0];
+            pasteOffsetY = this.graph_mouse[1] - posMin[1];
         }
+
         var nodes = [];
         for (var i = 0; i < clipboard_info.nodes.length; ++i) {
             var node_data = clipboard_info.nodes[i];
@@ -7235,8 +7257,8 @@ LGraphNode.prototype.executeAction = function(action)
                 node.configure(node_data);
         
 				//paste in last known mouse position
-                node.pos[0] += this.graph_mouse[0] - posMin[0]; //+= 5;
-                node.pos[1] += this.graph_mouse[1] - posMin[1]; //+= 5;
+                node.pos[0] += pasteOffsetX; //+= 5;
+                node.pos[1] += pasteOffsetY; //+= 5;
 
                 this.graph.add(node,{doProcessChange:false});
                 
@@ -7265,6 +7287,23 @@ LGraphNode.prototype.executeAction = function(action)
         }
 
         this.selectNodes(nodes);
+    }
+    LGraphCanvas.prototype.pasteFromClipboard = function(isConnectUnselected = false) {
+        // if ctrl + shift + v is off, return when isConnectUnselected is true (shift is pressed) to maintain old behavior
+        if (!LiteGraph.ctrl_shift_v_paste_connect_unselected_outputs && isConnectUnselected) {
+            return;
+        }
+        var data = localStorage.getItem("litegrapheditor_clipboard");
+
+        if (!data) {
+            return;
+        }
+
+        this.graph.beforeChange();
+
+        //create nodes
+        var clipboard_info = JSON.parse(data);
+        this.pasteFromClipboardWithData(clipboard_info, isConnectUnselected);
 
 		this.graph.afterChange();
     };
