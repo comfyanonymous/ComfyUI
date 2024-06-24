@@ -31,7 +31,13 @@ class VAEEncodeAudio:
     CATEGORY = "_for_testing/audio"
 
     def encode(self, vae, audio):
-        t = vae.encode(audio["waveform"].movedim(1, -1))
+        sample_rate = audio["sample_rate"]
+        if 44100 != sample_rate:
+            waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, 44100)
+        else:
+            waveform = audio["waveform"]
+
+        t = vae.encode(waveform.movedim(1, -1))
         return ({"samples":t}, )
 
 class VAEDecodeAudio:
