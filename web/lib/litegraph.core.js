@@ -7559,11 +7559,11 @@ LGraphNode.prototype.executeAction = function(action)
         this.ds.offset[0] =
             -node.pos[0] -
             node.size[0] * 0.5 +
-            (this.canvas.width * 0.5) / this.ds.scale;
+            (this.canvas.width * 0.5) / (this.ds.scale * window.devicePixelRatio);
         this.ds.offset[1] =
             -node.pos[1] -
             node.size[1] * 0.5 +
-            (this.canvas.height * 0.5) / this.ds.scale;
+            (this.canvas.height * 0.5) / (this.ds.scale * window.devicePixelRatio);
         this.setDirty(true, true);
     };
 
