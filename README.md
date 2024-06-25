@@ -188,6 +188,15 @@ For 6700, 6600 and maybe other RDNA2 or older: ```HSA_OVERRIDE_GFX_VERSION=10.3.
 
 For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 python main.py```
 
+### Using tcmalloc to solve memory leakage problems
+View the tcmalloc_start.sh logic, execute it, render LD_PRELOAD and load TCMALLOC
+#### For Example
+```shell
+# According to the operating system, install tcmalloc
+# Execute: sh tcmalloc_start.sh  | sh tcmalloc_start.sh --force-fp16 ...
+sh tcmalloc_start.sh
+```
+
 # Notes
 
 Only parts of the graph that have an output with all the correct inputs will be executed.
