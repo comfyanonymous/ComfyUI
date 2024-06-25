@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*.egg-info/
 /output/
 /input/
 !/input/example.png
@@ -16,3 +17,6 @@ venv/
 !/web/extensions/core/
 /tests-ui/data/object_info.json
 /user/
+.history/
+.vscode/
+*.code-workspace
