@@ -312,7 +312,7 @@ class VAEEncodeTiled:
 class VAEEncodeForInpaint:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", ), "mask": ("MASK", ), "grow_mask_by": ("INT", {"default": 6, "min": 0, "max": 64, "step": 1}),}}
+        return {"required": { "pixels": ("IMAGE", ), "vae": ("VAE", ), "mask": ("MASK", ), "grow_mask_by": ("INT", {"default": 6, "min": 0, "max": 1024, "step": 1}),}}
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
