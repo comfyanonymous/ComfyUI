@@ -24,7 +24,7 @@ jobs:
       with:
         repository: "huchenlei/ComfyUI_frontend"
         path: "ComfyUI_frontend"
-        ref: "23a4ee83144d9bf22e7218b9c78c71f8544c8b27"
+        ref: "577aea9dfb680a14b3ae4fa626a85098c3207030"
     - uses: actions/setup-node@v3
       with:
         node-version: lts/*
