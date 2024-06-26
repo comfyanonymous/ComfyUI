@@ -10,7 +10,7 @@ jobs:
     runs-on: [self-hosted, Linux, t4] 
     steps:
     - name: Test ComfyUI Workflows
-      uses: comfy-org/comfy-action@rh-featu
+      uses: comfy-org/comfy-action@main
       with:
         os: linux
         cuda_version: 12.1
