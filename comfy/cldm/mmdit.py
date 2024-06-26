@@ -1,7 +1,6 @@
 import torch
 from typing import Dict, Optional
 import comfy.ldm.modules.diffusionmodules.mmdit
-import comfy.latent_formats
 
 class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
     def __init__(
@@ -30,8 +29,6 @@ class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
             operations=operations
         )
 
-        self.latent_format = comfy.latent_formats.SD3()
-
     def forward(
         self,
         x: torch.Tensor,
@@ -42,9 +39,7 @@ class ControlNet(comfy.ldm.modules.diffusionmodules.mmdit.MMDiT):
     ) -> torch.Tensor:
 
         #weird sd3 controlnet specific stuff
-        hint = hint * self.latent_format.scale_factor # self.latent_format.process_in(hint)
         y = torch.zeros_like(y)
-
 
         if self.context_processor is not None:
             context = self.context_processor(context)
