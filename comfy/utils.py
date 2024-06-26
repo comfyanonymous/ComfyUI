@@ -298,7 +298,8 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
     key_map = {}
 
     depth = mmdit_config.get("depth", 0)
-    for i in range(depth):
+    num_blocks = mmdit_config.get("num_blocks", depth)
+    for i in range(num_blocks):
         block_from = "transformer_blocks.{}".format(i)
         block_to = "{}joint_blocks.{}".format(output_prefix, i)
 
