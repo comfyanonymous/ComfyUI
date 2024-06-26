@@ -2321,7 +2321,6 @@ export class ComfyApp {
 			node.id = isNaN(+id) ? id : +id;
 			node.title = data._meta?.title ?? node.title
 			app.graph.add(node);
-			graph.add(node);
 		}
 
 		this.changeWorkflow(() => {
