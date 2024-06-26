@@ -1,5 +1,5 @@
-import { app } from "../../scripts/app"
-import { api } from "../../scripts/api"
+import { app } from "../../scripts/app.js"
+import { api } from "../../scripts/api.js"
 
 function splitFilePath(path) {
   const folder_separator = path.lastIndexOf("/")
@@ -12,7 +12,7 @@ function splitFilePath(path) {
   ]
 }
 
-function getResourceURL(filename, subfolder, type = "input") {
+function getResourceURL(subfolder, filename, type = "input") {
   const params = [
     "filename=" + encodeURIComponent(filename),
     "type=" + type,
@@ -87,10 +87,15 @@ app.registerExtension({
           /* name=*/ "audioUI",
           audio
         )
+        // @ts-ignore
+        // TODO: Sort out the DOMWidget type.
         audioUIWidget.serialize = false
 
         const isOutputNode = node.constructor.nodeData.output_node
         if (isOutputNode) {
+          // Hide the audio widget when there is no audio initially.
+          audioUIWidget.element.classList.add("empty-audio-widget")
+          // Populate the audio widget UI on node execution.
           const onExecuted = node.onExecuted
           node.onExecuted = function(message) {
             onExecuted?.apply(this, arguments)
@@ -98,8 +103,9 @@ app.registerExtension({
             if (!audios) return
             const audio = audios[0]
             audioUIWidget.element.src = api.apiURL(
-              getResourceURL(audio.filename, audio.subfolder, "output")
+              getResourceURL(audio.subfolder, audio.filename, "output")
             )
+            audioUIWidget.element.classList.remove("empty-audio-widget")
           }
         }
         return { widget: audioUIWidget }
@@ -122,11 +128,14 @@ app.registerExtension({
         const audioWidget = node.widgets.find(w => w.name === "audio")
         const audioUIWidget = node.widgets.find(w => w.name === "audioUI")
 
-        audioWidget.callback = function() {
+        const onAudioWidgetUpdate = () => {
           audioUIWidget.element.src = api.apiURL(
             getResourceURL(...splitFilePath(audioWidget.value))
           )
         }
+        // Initially load default audio file to audioUIWidget.
+        onAudioWidgetUpdate()
+        audioWidget.callback = onAudioWidgetUpdate
 
         const fileInput = document.createElement("input")
         fileInput.type = "file"
