@@ -1,0 +1,26 @@
+name: comfyui
+channels:
+  - pytorch-nightly
+  - defaults
+dependencies:
+  - python>=3.9
+  - pytorch-nightly::pytorch
+  - torchvision
+  - torchaudio
+  - pip:
+    - pip
+    # comfyui requirements
+    - einops
+    - transformers>=4.25.1
+    - safetensors>=0.4.2
+    - aiohttp
+    - pyyaml
+    - Pillow
+    - scipy
+    - tqdm
+    - psutil
+    # comfy-action requirements
+    - requests
+    - google-cloud-storage
+    - comfy-cli
+    - charset-normalizer
