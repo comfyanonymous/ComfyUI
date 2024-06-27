@@ -24,9 +24,9 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
-from comfy.frontend_management import FrontendManager
-
+from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
+
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1

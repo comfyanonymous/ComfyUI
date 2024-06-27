@@ -5,7 +5,8 @@ import tempfile
 import zipfile
 import logging
 from functools import cached_property
-from typing import NamedTuple, TypedDict
+from typing import TypedDict
+from dataclasses import dataclass
 from typing_extensions import NotRequired
 from pathlib import Path
 
@@ -27,7 +28,8 @@ class Release(TypedDict):
     assets: NotRequired[list[Asset]]
 
 
-class FrontEndProvider(NamedTuple):
+@dataclass
+class FrontEndProvider:
     name: str
     owner: str
     repo: str
@@ -107,6 +109,9 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
+    DEFAULT_FRONTEND_PATH = str(Path(__file__).parent / "web")
+    CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parent / "web_custom_versions")
+
     PROVIDERS = [
         FrontEndProvider(
             name="main",
@@ -121,12 +126,6 @@ class FrontendManager:
             stable_version="1.0.0",
         ),
     ]
-    # Define regex pattern to match version strings with optional prefixes
-    VERSION_PATTERN = (
-        r"^("
-        + "".join([provider.name + "@" for provider in PROVIDERS])
-        + r")(\d+\.\d+\.\d+|latest|stable)$"
-    )
 
     @classmethod
     def parse_version_string(cls, value: str) -> tuple[str, str]:
@@ -140,11 +139,16 @@ class FrontendManager:
         Raises:
             argparse.ArgumentTypeError: If the version string is invalid.
         """
-        match_result = re.match(cls.VERSION_PATTERN, value)
+        VERSION_PATTERN = (
+            r"^("
+            + "|".join([provider.name for provider in cls.PROVIDERS])
+            + r")@(\d+\.\d+\.\d+|latest|stable)$"
+        )
+        match_result = re.match(VERSION_PATTERN, value)
         if match_result is None:
             raise argparse.ArgumentTypeError(f"Invalid version string: {value}")
 
-        return match_result.group(0), match_result.group(1)
+        return match_result.group(1), match_result.group(2)
 
     @classmethod
     def add_argument(cls, parser: argparse.ArgumentParser):
@@ -177,17 +181,18 @@ class FrontendManager:
             ValueError: If the provider name is not found in the list of providers.
         """
         if version_string == "main@stable":
-            return str(Path(__file__).parent / "web")
+            return cls.DEFAULT_FRONTEND_PATH
 
         provider_name, version = cls.parse_version_string(version_string)
         provider = next(
             provider for provider in cls.PROVIDERS if provider.name == provider_name
         )
         release = provider.get_release(version)
-        web_root = str(
-            Path(__file__).parent / "web_custom_versions" / provider.name / version
-        )
+
+        semantic_version = release["tag_name"].lstrip("v")
+        web_root = str(Path(cls.CUSTOM_FRONTENDS_ROOT) / provider.name / semantic_version)
         if not os.path.exists(web_root):
-            logging.info(f"Downloading {provider.name} frontend version {version}")
+            os.makedirs(web_root, exist_ok=True)
+            logging.info(f"Downloading {provider.name} frontend version {semantic_version}")
             download_release_asset_zip(release, destination_path=web_root)
         return web_root
