@@ -117,6 +117,5 @@ def get_deis_coeff_list(t_steps, max_order, N=10000, deis_mode='tab'):
                     coeff_prev3 = get_def_intergral_3(t_cur, prev_t[1], prev_t[2], t_cur, t_next, prev_t[3])
                     coeff_temp = [coeff_cur, coeff_prev1, coeff_prev2, coeff_prev3]
                 C.append(coeff_temp)
-    print(C)
     return C
 
