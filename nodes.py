@@ -52,6 +52,13 @@ class CLIPTextEncode:
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
+    TOOLTIPS = {
+        "input": { 
+            "text": "The text to be encoded",
+            "clip": "The CLIP model used for encoding the text.",
+        },
+        "output": ("A conditioning containing the embedded text used to guide the diffusion model.",)
+    }
 
     def encode(self, clip, text):
         tokens = clip.tokenize(text)
@@ -590,6 +597,16 @@ class LoraLoader:
     FUNCTION = "load_lora"
 
     CATEGORY = "loaders"
+    TOOLTIPS = {
+        "input": { 
+            "model": "The diffusion model the LoRA will be applied to.",
+            "clip": "The CLIP model the LoRA will be applied to.",
+            "lora_name": "The name of the LoRA.",
+            "strength_model": "How strongly to modify the diffusion model. This value can be negative.",
+            "strength_clip": "How strongly to modify the CLIP model. This value can be negative.",
+        },
+        "output": ("The modified diffusion model.", "The modified CLIP model.")
+    }
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         if strength_model == 0 and strength_clip == 0:

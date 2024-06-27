@@ -223,6 +223,11 @@ LGraphNode.prototype.addDOMWidget = function (name, type, element, options) {
 		document.addEventListener("mousedown", mouseDownHandler);
 	}
 
+	const tooltip = this.constructor.nodeData?.tooltips?.input[name];
+	if (tooltip && !element.title) {
+		element.title = tooltip;
+	}
+
 	const widget = {
 		type,
 		name,
