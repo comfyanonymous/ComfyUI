@@ -71,7 +71,7 @@ export class ComfyApp {
 		 * Stores the execution output data for each node
 		 * @type {Record<string, any>}
 		 */
-		this.nodeOutputs = {};
+		this._nodeOutputs = {};
 
 		/**
 		 * Stores the preview image data for each node
@@ -84,6 +84,15 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+	}
+
+	get nodeOutputs() {
+		return this._nodeOutputs;
+	}
+
+	set nodeOutputs(value) {
+		this._nodeOutputs = value;
+		this.#invokeExtensions("onNodeOutputsUpdated", value);
 	}
 
 	getPreviewFormatParam() {

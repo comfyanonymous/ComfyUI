@@ -93,11 +93,18 @@ class SaveAudio:
         return { "ui": { "audio": results } }
 
 class LoadAudio:
+    SUPPORTED_FORMATS = ('.wav', '.mp3', '.ogg', '.flac', '.aiff', '.aif')
+
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
-        files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
-        return {"required": {"audio": [sorted(files), ]}, }
+        files = [
+            f for f in os.listdir(input_dir)
+            if (os.path.isfile(os.path.join(input_dir, f))
+                and f.endswith(LoadAudio.SUPPORTED_FORMATS)
+            )
+        ]
+        return {"required": {"audio": (sorted(files), {"audio_upload": True})}}
 
     CATEGORY = "_for_testing/audio"
 
