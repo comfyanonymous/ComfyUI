@@ -632,3 +632,7 @@ dialog::backdrop {
 		border-top: none;
 	}
 }
+
+audio.comfy-audio.empty-audio-widget {
+	display: none;
+}
