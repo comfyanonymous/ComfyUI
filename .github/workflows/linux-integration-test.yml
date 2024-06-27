@@ -46,5 +46,5 @@ jobs:
         gcs_bucket_name: 'comfy-ci-results'
         google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
         output_prefix: 'ComfyUI'
-        conda_env_file: '.github/workflows/conda-environments/linux-environment.yml'
+        conda_env_file: '.github/conda-environments/linux-environment.yml'
         timeout: 50
