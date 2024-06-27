@@ -25,5 +25,4 @@ jobs:
         npm test -- --verbose
       working-directory: ./tests-ui
     - name: Run Unit Tests
-      run: /
-        python -m pytest tests-unit
+      run: python -m pytest tests-unit
