@@ -1,0 +1,50 @@
+name: (macOS) ComfyUI Integration Tests
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - 'app/**'
+      - 'input/**'
+      - 'output/**'
+      - 'model/**'
+      - 'notebook/**'
+      - 'script_example/**'
+      - 'tests/**'
+      - 'tests-ui/**'
+      - '.github/**'
+      - '.ci/**'
+      - 'web/**'
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - 'app/**'
+      - 'input/**'
+      - 'output/**'
+      - 'model/**'
+      - 'notebook/**'
+      - 'script_example/**'
+      - 'tests/**'
+      - 'tests-ui/**'
+      - '.github/**'
+      - '.ci/**'
+      - 'web/**'
+
+jobs:
+  test-workflows:
+    runs-on: [self-hosted, m2] 
+    steps:
+    - name: Test ComfyUI Workflows
+      uses: comfy-org/comfy-action@main
+      with:
+        os: mac
+        models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt", "directory": "checkpoints"}}'
+        workflow_filenames: "default.json"
+        gcs_bucket_name: 'comfy-ci-results'
+        google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
+        output_prefix: 'ComfyUI'
+        conda_env_file: '.github/conda-environments/mac-environment.yml'
+        timeout: 50
+
