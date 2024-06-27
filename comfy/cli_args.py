@@ -1,7 +1,7 @@
 import argparse
 import enum
 import comfy.options
-from comfy.frontend_management import FrontendManager
+from app.frontend_management import FrontendManager
 
 
 class EnumAction(argparse.Action):
