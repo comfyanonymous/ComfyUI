@@ -109,8 +109,8 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
-    DEFAULT_FRONTEND_PATH = str(Path(__file__).parent / "web")
-    CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parent / "web_custom_versions")
+    DEFAULT_FRONTEND_PATH = str(Path(__file__).parents[1] / "web")
+    CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
     PROVIDERS = [
         FrontEndProvider(
