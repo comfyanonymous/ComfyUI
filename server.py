@@ -25,6 +25,7 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+from comfy.frontend_management import FrontendManager
 
 from app.user_manager import UserManager
 
@@ -83,8 +84,7 @@ class PromptServer():
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
-        self.web_root = os.path.join(os.path.dirname(
-            os.path.realpath(__file__)), "web")
+        self.web_root = FrontendManager.init_frontend(args.front_end_version)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None

@@ -1,6 +1,8 @@
 import argparse
 import enum
 import comfy.options
+from comfy.frontend_management import FrontendManager
+
 
 class EnumAction(argparse.Action):
     """
@@ -124,6 +126,7 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
+FrontendManager.add_argument(parser)
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
