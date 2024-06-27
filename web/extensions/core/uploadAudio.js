@@ -111,7 +111,18 @@ app.registerExtension({
         return { widget: audioUIWidget }
       }
     }
-  }
+  },
+  onNodeOutputsUpdated(nodeOutputs) {
+    for (const [nodeId, output] of Object.entries(nodeOutputs)) {
+      const node = app.graph.getNodeById(Number.parseInt(nodeId));
+      if ("audio" in output) {
+        const audioUIWidget = node.widgets.find((w) => w.name === "audioUI");
+        const audio = output.audio[0];
+        audioUIWidget.element.src = api.apiURL(getResourceURL(audio.subfolder, audio.filename, "output"));
+        audioUIWidget.element.classList.remove("empty-audio-widget");
+      }
+    }
+  },
 })
 
 app.registerExtension({
