@@ -301,11 +301,11 @@ export class ComfyWorkflow {
 
 	load = async () => {
 		if (this.isOpen) {
-			await this.manager.app.loadGraphData(this.changeTracker.activeState, true, this);
+			await this.manager.app.loadGraphData(this.changeTracker.activeState, true, true, this);
 		} else {
 			const data = await this.getWorkflowData();
 			if (!data) return;
-			await this.manager.app.loadGraphData(data, true, this);
+			await this.manager.app.loadGraphData(data, true, true, this);
 		}
 	};
 
