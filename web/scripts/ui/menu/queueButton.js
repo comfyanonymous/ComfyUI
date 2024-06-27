@@ -13,8 +13,8 @@ export class ComfyQueueButton {
 
 	queuePrompt = async (e) => {
 		this.#internalQueueSize += this.queueOptions.batchCount;
-		// Hold shift to queue front
-		await this.app.queuePrompt(-e.shiftKey, this.queueOptions.batchCount);
+		// Hold shift to queue front, event is undefined when auto-queue is enabled
+		await this.app.queuePrompt(e?.shiftKey ? -1 : 0, this.queueOptions.batchCount);
 	};
 
 	constructor(app) {
