@@ -3,7 +3,7 @@ import { ComfyWidgets, initWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { getPngMetadata, getWebpMetadata, getFlacMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js";
 import { ComfyAppMenu } from "./ui/menu/index.js";
@@ -2276,6 +2276,19 @@ export class ComfyApp {
 			// Support loading workflows from that webp custom node.
 			const workflow = pngInfo?.workflow || pngInfo?.Workflow;
 			const prompt = pngInfo?.prompt || pngInfo?.Prompt;
+
+			if (workflow) {
+				this.loadGraphData(JSON.parse(workflow), true, true, fileName);
+			} else if (prompt) {
+				this.loadApiJson(JSON.parse(prompt), fileName);
+			} else {
+				this.showErrorOnFileLoad(file);
+			}
+		} else if (file.type === "audio/flac") {
+			const pngInfo = await getFlacMetadata(file);
+			// Support loading workflows from that webp custom node.
+			const workflow = pngInfo?.workflow;
+			const prompt = pngInfo?.prompt;
 
 			if (workflow) {
 				this.loadGraphData(JSON.parse(workflow), true, true, fileName);
