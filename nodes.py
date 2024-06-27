@@ -1992,6 +1992,7 @@ def init_custom_nodes():
         "nodes_audio.py",
         "nodes_sd3.py",
         "nodes_gits.py",
+        "nodes_constant_values.py"
     ]
 
     import_failed = []
