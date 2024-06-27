@@ -996,7 +996,8 @@ def sample_euler_ancestral_pp(model, x, sigmas, extra_args=None, callback=None, 
         dt = sigma_down - sigmas[i]
         x = x + d * dt
         if sigmas[i + 1] > 0:
-
+            x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
+    return x
 @torch.no_grad()
 def sample_dpmpp_2s_ancestral_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
