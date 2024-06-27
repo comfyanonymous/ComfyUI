@@ -3,7 +3,6 @@
 import { api } from "./api.js";
 import { clone } from "./utils.js";
 
-
 export class ChangeTracker {
 	static MAX_HISTORY = 50;
 	#app;
@@ -167,6 +166,17 @@ export class ChangeTracker {
 		LiteGraph.ContextMenu.prototype.close = function (e) {
 			const v = close.apply(this, arguments);
 			changeTracker().checkState();
+			return v;
+		};
+
+		// Detects nodes being added via the node search dialog
+		const onNodeAdded = LiteGraph.LGraph.prototype.onNodeAdded;
+		LiteGraph.LGraph.prototype.onNodeAdded = function () {
+			const v = onNodeAdded?.apply(this, arguments);
+			const ct = changeTracker();
+			if (!ct.isOurLoad) {
+				ct.checkState();
+			}
 			return v;
 		};
 
