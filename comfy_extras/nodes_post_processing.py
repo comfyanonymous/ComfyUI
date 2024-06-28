@@ -222,12 +222,13 @@ class Sharpen:
 
     CATEGORY = "image/postprocessing"
 
-    def sharpen(self, image: torch.Tensor, sharpen_radius: int, sigma:float, alpha: float):
+    def sharpen(self, image: torch.Tensor, sharpen_radius: int, sigma: float, alpha: float):
         if sharpen_radius == 0:
             return (image,)
 
         batch_size, height, width, channels = image.shape
-        image = image.to(comfy.model_management.get_torch_device())
+        if not comfy.model_management.mps_mode():
+            image = image.to(comfy.model_management.get_torch_device())
 
         kernel_size = sharpen_radius * 2 + 1
         kernel = gaussian_kernel(kernel_size, sigma, device=image.device) * -(alpha*10)
@@ -241,6 +242,9 @@ class Sharpen:
         sharpened = sharpened.permute(0, 2, 3, 1)
 
         result = torch.clamp(sharpened, 0, 1)
+
+        if comfy.model_management.mps_mode():
+            return (result,)
 
         return (result.to(comfy.model_management.intermediate_device()),)
 
