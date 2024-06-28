@@ -33,8 +33,6 @@ class FrontEndProvider:
     name: str
     owner: str
     repo: str
-    # Semantic version number, e.g. 1.0.0
-    stable_version: str
 
     @property
     def release_url(self) -> str:
@@ -62,18 +60,9 @@ class FrontEndProvider:
         response.raise_for_status()  # Raises an HTTPError if the response was an error
         return response.json()
 
-    @cached_property
-    def stable_release(self) -> Release:
-        for release in self.all_releases:
-            if release["tag_name"] in (self.stable_version, f"v{self.stable_version}"):
-                return release
-        raise ValueError(f"Stable version {self.stable_version} not found in releases")
-
     def get_release(self, version: str) -> Release:
         if version == "latest":
             return self.latest_release
-        elif version == "stable":
-            return self.stable_release
         else:
             for release in self.all_releases:
                 if release["tag_name"] in [version, f"v{version}"]:
@@ -110,6 +99,8 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
+    # The default built-in provider hosted under web/
+    DEFAULT_VERSION_STRING = "legacy@latest"
     DEFAULT_FRONTEND_PATH = str(Path(__file__).parents[1] / "web")
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
@@ -143,7 +134,7 @@ class FrontendManager:
         VERSION_PATTERN = (
             r"^("
             + "|".join([provider.name for provider in cls.PROVIDERS])
-            + r")@(\d+\.\d+\.\d+|latest|stable)$"
+            + r")@(\d+\.\d+\.\d+|latest)$"
         )
         match_result = re.match(VERSION_PATTERN, value)
         if match_result is None:
@@ -157,13 +148,13 @@ class FrontendManager:
         The version string should be in the format of:
         [provider]@[version]
         where provider is one of: {", ".join([provider.name for provider in cls.PROVIDERS])}
-        and version is one of: a valid version number, latest, stable
+        and version is one of: a valid version number, latest
         """
 
         parser.add_argument(
             "--front-end-version",
             type=str,
-            default="main@stable",
+            default=cls.DEFAULT_VERSION_STRING,
             help=help_string,
         )
 
@@ -181,7 +172,7 @@ class FrontendManager:
         Raises:
             ValueError: If the provider name is not found in the list of providers.
         """
-        if version_string == "main@stable":
+        if version_string == cls.DEFAULT_VERSION_STRING:
             return cls.DEFAULT_FRONTEND_PATH
 
         provider_name, version = cls.parse_version_string(version_string)
