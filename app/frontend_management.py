@@ -142,18 +142,32 @@ class FrontendManager:
 
     @classmethod
     def add_argument(cls, parser: argparse.ArgumentParser):
-        help_string = f"""
-        The version string should be in the format of:
-        [provider]@[version]
-        where provider is one of: {", ".join([provider.name for provider in cls.PROVIDERS])}
-        and version is one of: a valid version number, latest
-        """
-
         parser.add_argument(
             "--front-end-version",
             type=str,
             default=cls.DEFAULT_VERSION_STRING,
-            help=help_string,
+            help=f"""
+            The version string should be in the format of:
+            [provider]@[version]
+            where provider is one of: {", ".join([provider.name for provider in cls.PROVIDERS])}
+            and version is one of: a valid version number, latest
+            """,
+        )
+
+        def is_valid_directory(path: str | None) -> str | None:
+            """Validate if the given path is a directory."""
+            if path is None:
+                return None
+
+            if not os.path.isdir(path):
+                raise argparse.ArgumentTypeError(f"{path} is not a valid directory.")
+            return path
+
+        parser.add_argument(
+            "--web-root",
+            type=is_valid_directory,
+            default=None,
+            help="The path to the directory where the frontend is located. Overrides --front-end-version.",
         )
 
     @classmethod
@@ -180,10 +194,14 @@ class FrontendManager:
         release = provider.get_release(version)
 
         semantic_version = release["tag_name"].lstrip("v")
-        web_root = str(Path(cls.CUSTOM_FRONTENDS_ROOT) / provider.name / semantic_version)
+        web_root = str(
+            Path(cls.CUSTOM_FRONTENDS_ROOT) / provider.name / semantic_version
+        )
         if not os.path.exists(web_root):
             os.makedirs(web_root, exist_ok=True)
-            logging.info(f"Downloading frontend({provider_name}) version({semantic_version})")
+            logging.info(
+                f"Downloading frontend({provider_name}) version({semantic_version})"
+            )
             logging.debug(release)
             download_release_asset_zip(release, destination_path=web_root)
         return web_root
