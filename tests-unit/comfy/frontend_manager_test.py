@@ -42,7 +42,6 @@ def mock_provider(mock_releases):
         name="test",
         owner="test-owner",
         repo="test-repo",
-        stable_version="1.0.0",
     )
     provider.all_releases = mock_releases
     provider.latest_release = mock_releases[1]
@@ -62,26 +61,20 @@ def test_get_release_latest(mock_provider, mock_releases):
     assert release == mock_releases[1]
 
 
-def test_get_release_stable(mock_provider, mock_releases):
-    version = "stable"
-    release = mock_provider.get_release(version)
-    assert release == mock_releases[0]
-
-
 def test_get_release_invalid_version(mock_provider):
     version = "invalid"
     with pytest.raises(ValueError):
         mock_provider.get_release(version)
 
 
-def test_init_frontend_main_stable():
-    version_string = "main@stable"
+def test_init_frontend_default():
+    version_string = FrontendManager.DEFAULT_VERSION_STRING
     frontend_path = FrontendManager.init_frontend(version_string)
     assert frontend_path == FrontendManager.DEFAULT_FRONTEND_PATH
 
 
-def test_init_frontend_provider_stable(mock_provider, mock_releases):
-    version_string = f"{mock_provider.name}@stable"
+def test_init_frontend_provider_version(mock_provider, mock_releases):
+    version_string = f"{mock_provider.name}@1.0.0"
     with patch("app.frontend_management.download_release_asset_zip") as mock_download:
         with patch("os.makedirs") as mock_makedirs:
             frontend_path = FrontendManager.init_frontend(version_string)
@@ -94,8 +87,8 @@ def test_init_frontend_provider_stable(mock_provider, mock_releases):
             )
 
 
-def test_init_frontend_provider_version(mock_provider, mock_releases):
-    version_string = f"{mock_provider.name}@2.0.0"
+def test_init_frontend_provider_latest(mock_provider, mock_releases):
+    version_string = f"{mock_provider.name}@latest"
     with patch("app.frontend_management.download_release_asset_zip") as mock_download:
         with patch("os.makedirs") as mock_makedirs:
             frontend_path = FrontendManager.init_frontend(version_string)
@@ -109,7 +102,7 @@ def test_init_frontend_provider_version(mock_provider, mock_releases):
 
 
 def test_init_frontend_invalid_provider():
-    version_string = "invalid@stable"
+    version_string = "invalid@latest"
     with pytest.raises(argparse.ArgumentTypeError):
         FrontendManager.init_frontend(version_string)
 
