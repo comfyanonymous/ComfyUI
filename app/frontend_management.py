@@ -109,13 +109,11 @@ class FrontendManager:
             name="main",
             owner="Comfy-Org",
             repo="ComfyUI_frontend",
-            stable_version="1.0.0",
         ),
         FrontEndProvider(
             name="legacy",
             owner="Comfy-Org",
             repo="ComfyUI_frontend_legacy",
-            stable_version="1.0.0",
         ),
     ]
 
