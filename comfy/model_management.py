@@ -426,6 +426,9 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
         if unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False) == True:#unload clones where the weights are different
             total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
 
+    if loaded_model.model.load_device == loaded_model.model.current_device:
+        loaded_model.model_unload()
+
     for device in total_memory_required:
         if device != torch.device("cpu"):
             free_memory(total_memory_required[device] * 1.3 + extra_mem, device, models_already_loaded)
