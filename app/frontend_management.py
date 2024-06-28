@@ -94,7 +94,8 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
     # Use a temporary file to download the zip content
     with tempfile.TemporaryFile() as tmp_file:
-        response = requests.get(asset_url)
+        headers = {"Accept": "application/octet-stream"}
+        response = requests.get(asset_url, headers=headers, allow_redirects=True)
         response.raise_for_status()  # Ensure we got a successful response
 
         # Write the content to the temporary file
@@ -193,6 +194,7 @@ class FrontendManager:
         web_root = str(Path(cls.CUSTOM_FRONTENDS_ROOT) / provider.name / semantic_version)
         if not os.path.exists(web_root):
             os.makedirs(web_root, exist_ok=True)
-            logging.info(f"Downloading {provider.name} frontend version {semantic_version}")
+            logging.info(f"Downloading frontend({provider_name}) version({semantic_version})")
+            logging.debug(release)
             download_release_asset_zip(release, destination_path=web_root)
         return web_root
