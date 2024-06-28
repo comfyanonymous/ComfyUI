@@ -98,15 +98,17 @@ class SelfAttentionGuidance:
         return {"required": { "model": ("MODEL",),
                              "scale": ("FLOAT", {"default": 0.5, "min": -2.0, "max": 5.0, "step": 0.1}),
                              "blur_sigma": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 10.0, "step": 0.1}),
+                             "activation_proportion": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.05, "round": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
     CATEGORY = "_for_testing"
 
-    def patch(self, model, scale, blur_sigma):
+    def patch(self, model, scale, blur_sigma, activation_proportion):
         m = model.clone()
-
+        sigma_start = m.model.model_sampling.percent_to_sigma(activation_proportion)
+        
         attn_scores = None
 
         # TODO: make this work properly with chunked batches
@@ -144,7 +146,8 @@ class SelfAttentionGuidance:
             x = args["input"]
             if min(cfg_result.shape[2:]) <= 4: #skip when too small to add padding
                 return cfg_result
-
+            if sigma > sigma_start:
+                return cfg_result
             # create the adversarially blurred image
             degraded = create_blur_map(uncond_pred, uncond_attn, sag_sigma, sag_threshold)
             degraded_noised = degraded + x - uncond_pred
