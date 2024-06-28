@@ -25,4 +25,6 @@ jobs:
         npm test -- --verbose
       working-directory: ./tests-ui
     - name: Run Unit Tests
-      run: python -m pytest tests-unit
+      run: |
+        pip install -r tests-unit/requirements.txt
+        python -m pytest tests-unit
