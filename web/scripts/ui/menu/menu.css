@@ -19,8 +19,12 @@
 	padding: 4px 8px;
 	box-sizing: border-box;
 	margin: 0;
+	transition: box-shadow 0.1s;
 }
 
+.comfyui-button:active {
+	box-shadow: inset 1px 1px 10px rgba(0, 0, 0, 0.5);
+}
 .comfyui-button:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
