@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/pytorch:24.04-py3
+FROM nvcr.io/nvidia/pytorch:24.03-py3
 RUN pip install --no-cache --no-build-isolation git+https://github.com/hiddenswitch/ComfyUI.git
 EXPOSE 8188
 WORKDIR /workspace
