@@ -12,7 +12,7 @@ Have a question? Instead of opening an issue, please ask on [Discord](https://co
 
 Your comments and feedback are welcome, and the development team is available via a handful of different channels.
 
-See the [Bug Report Channel](https://discord.com/channels/1218270712402415686/1244085343905648691) and [Feedback Channel](https://discord.com/channels/1218270712402415686/1256733671675789433) on Discord.
+See the [Bug Report Channel](https://discord.com/channels/1218270712402415686/1244085343905648691), [Feature Request Channel](https://discord.com/channels/1218270712402415686/1243609826299220039) and [Feedback Channel](https://discord.com/channels/1218270712402415686/1256733671675789433) on Discord.
 
 ## Reporting Issues
 
