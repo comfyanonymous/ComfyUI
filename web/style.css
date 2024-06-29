@@ -49,7 +49,7 @@ body {
 }
 
 .comfyui-body-top {
-	order: 0;
+	order: -5;
 	grid-column: 1/-1;
 	z-index: 10;
 	display: flex;
@@ -57,7 +57,7 @@ body {
 }
 
 .comfyui-body-left {
-	order: 1;
+	order: -4;
 	z-index: 10;
 	display: flex;
 }
@@ -65,17 +65,17 @@ body {
 #graph-canvas {
 	width: 100%;
 	height: 100%;
-	order: 2;
+	order: -3;
 }
 
 .comfyui-body-right {
-	order: 3;
+	order: -2;
 	z-index: 10;
 	display: flex;
 }
 
 .comfyui-body-bottom {
-	order: 4;
+	order: -1;
 	grid-column: 1/-1;
 	z-index: 10;
 	display: flex;
