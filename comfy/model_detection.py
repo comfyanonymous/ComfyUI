@@ -41,7 +41,9 @@ def detect_unet_config(state_dict, key_prefix):
         unet_config["in_channels"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[1]
         patch_size = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[2]
         unet_config["patch_size"] = patch_size
-        unet_config["out_channels"] = state_dict['{}final_layer.linear.weight'.format(key_prefix)].shape[0] // (patch_size * patch_size)
+        final_layer = '{}final_layer.linear.weight'.format(key_prefix)
+        if final_layer in state_dict:
+            unet_config["out_channels"] = state_dict[final_layer].shape[0] // (patch_size * patch_size)
 
         unet_config["depth"] = state_dict['{}x_embedder.proj.weight'.format(key_prefix)].shape[0] // 64
         unet_config["input_size"] = None
@@ -435,10 +437,11 @@ def model_config_from_diffusers_unet(state_dict):
     return None
 
 def convert_diffusers_mmdit(state_dict, output_prefix=""):
-    depth = count_blocks(state_dict, 'transformer_blocks.{}.')
-    if depth > 0:
+    num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
+    if num_blocks > 0:
+        depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
         out_sd = {}
-        sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth}, output_prefix=output_prefix)
+        sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)
         for k in sd_map:
             weight = state_dict.get(k, None)
             if weight is not None:

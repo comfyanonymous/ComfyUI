@@ -7,6 +7,8 @@
 name: Playwright Browser Tests CI
 
 on:
+  push:
+    branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
 
@@ -24,7 +26,7 @@ jobs:
       with:
         repository: "huchenlei/ComfyUI_frontend"
         path: "ComfyUI_frontend"
-        ref: "23a4ee83144d9bf22e7218b9c78c71f8544c8b27"
+        ref: "fcc54d803e5b6a9b08a462a1d94899318c96dcbb"
     - uses: actions/setup-node@v3
       with:
         node-version: lts/*

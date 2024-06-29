@@ -3,7 +3,7 @@ import { ComfyWidgets, initWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
 import { defaultGraph } from "./defaultGraph.js";
-import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
+import { getPngMetadata, getWebpMetadata, getFlacMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
 import { createImageHost, calculateImageGrid } from "./ui/imagePreview.js";
 import { ComfyAppMenu } from "./ui/menu/index.js";
@@ -71,7 +71,7 @@ export class ComfyApp {
 		 * Stores the execution output data for each node
 		 * @type {Record<string, any>}
 		 */
-		this.nodeOutputs = {};
+		this._nodeOutputs = {};
 
 		/**
 		 * Stores the preview image data for each node
@@ -84,6 +84,15 @@ export class ComfyApp {
 		 * @type {boolean}
 		 */
 		this.shiftDown = false;
+	}
+
+	get nodeOutputs() {
+		return this._nodeOutputs;
+	}
+
+	set nodeOutputs(value) {
+		this._nodeOutputs = value;
+		this.#invokeExtensions("onNodeOutputsUpdated", value);
 	}
 
 	getPreviewFormatParam() {
@@ -1957,6 +1966,14 @@ export class ComfyApp {
 							if (widget.value.startsWith("sample_")) {
 								widget.value = widget.value.slice(7);
 							}
+							if (widget.value === "euler_pp" || widget.value === "euler_ancestral_pp") {
+								widget.value = widget.value.slice(0, -3);
+								for (let w of node.widgets) {
+									if (w.name == "cfg") {
+										w.value *= 2.0;
+									}
+								}
+							}
 						}
 					}
 					if (node.type == "KSampler" || node.type == "KSamplerAdvanced" || node.type == "PrimitiveNode") {
@@ -2275,6 +2292,19 @@ export class ComfyApp {
 			} else {
 				this.showErrorOnFileLoad(file);
 			}
+		} else if (file.type === "audio/flac") {
+			const pngInfo = await getFlacMetadata(file);
+			// Support loading workflows from that webp custom node.
+			const workflow = pngInfo?.workflow;
+			const prompt = pngInfo?.prompt;
+
+			if (workflow) {
+				this.loadGraphData(JSON.parse(workflow), true, true, fileName);
+			} else if (prompt) {
+				this.loadApiJson(JSON.parse(prompt), fileName);
+			} else {
+				this.showErrorOnFileLoad(file);
+			}
 		} else if (file.type === "application/json" || file.name?.endsWith(".json")) {
 			const reader = new FileReader();
 			reader.onload = async () => {
@@ -2321,7 +2351,6 @@ export class ComfyApp {
 			node.id = isNaN(+id) ? id : +id;
 			node.title = data._meta?.title ?? node.title
 			app.graph.add(node);
-			graph.add(node);
 		}
 
 		this.changeWorkflow(() => {

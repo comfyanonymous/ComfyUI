@@ -373,7 +373,7 @@ export class ComfyUI {
 		const fileInput = $el("input", {
 			id: "comfy-file-input",
 			type: "file",
-			accept: ".json,image/png,.latent,.safetensors,image/webp",
+			accept: ".json,image/png,.latent,.safetensors,image/webp,audio/flac",
 			style: {display: "none"},
 			parent: document.body,
 			onchange: () => {
@@ -603,7 +603,6 @@ export class ComfyUI {
 				onclick: () => app.refreshComboInNodes()
 			}),
 			$el("button", {id: "comfy-clipspace-button", textContent: "Clipspace", onclick: () => app.openClipspace()}),
-			$el("button", {id: "comfy-reset-view-button", textContent: "Reset View", onclick: () => app.resetView()}),
 			$el("button", {
 				id: "comfy-clear-button", textContent: "Clear", onclick: () => {
 					if (!confirmClear.value || confirm("Clear workflow?")) {

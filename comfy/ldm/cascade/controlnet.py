@@ -90,4 +90,4 @@ class ControlNet(nn.Module):
         proj_outputs = [None for _ in range(max(self.proj_blocks) + 1)]
         for i, idx in enumerate(self.proj_blocks):
             proj_outputs[idx] = self.projections[i](x)
-        return proj_outputs
+        return {"input": proj_outputs[::-1]}
