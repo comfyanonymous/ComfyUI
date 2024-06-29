@@ -1966,6 +1966,14 @@ export class ComfyApp {
 							if (widget.value.startsWith("sample_")) {
 								widget.value = widget.value.slice(7);
 							}
+							if (widget.value === "euler_pp" || widget.value === "euler_ancestral_pp") {
+								widget.value = widget.value.slice(0, -3);
+								for (let w of node.widgets) {
+									if (w.name == "cfg") {
+										w.value *= 2.0;
+									}
+								}
+							}
 						}
 					}
 					if (node.type == "KSampler" || node.type == "KSamplerAdvanced" || node.type == "PrimitiveNode") {
