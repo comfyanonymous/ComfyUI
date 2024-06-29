@@ -16,7 +16,7 @@ model_management.cpu_state = CPUState.GPU if has_gpu else CPUState.CPU
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 
 
-@pytest.mark.skipif(not has_gpu, reason="requires gpu for performant testing")
+@pytest.mark.skipif(not has_gpu, reason="Expects GPU device")
 @pytest.mark.asyncio
 async def test_lora_workflow():
     prompt = Prompt.validate({
