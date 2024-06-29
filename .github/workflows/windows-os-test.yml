@@ -1,0 +1,28 @@
+name: Test ComfyUI Windows with Default Workflow
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+
+jobs:
+  test-action:
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (github.event_name == 'issue_comment' && 
+      contains(github.event.comment.body, 'run_test') && 
+      contains(fromJson('["WRITE", "MAINTAIN", "ADMIN"]'), github.event.comment.author_association))
+    runs-on: Windows
+    steps:
+    - name: Use ComfyUI GitHub Action
+      uses: drip-art/comfy-action@main
+      with:
+        os: windows
+        cuda_version: 12.1
+        workflow_name: "default-workflow"
+        models-json: '{"v1-5-pruned-emaonly.ckpt": {"url": "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors?download=true", "directory": "checkpoints"}}'
+        workflow_json_path: '.github/workflows/json_examples/workflow_api.json'
+        gcs_bucket_name: 'comfy-ci-results'
+        google_credentials: ${{ secrets.GCS_SERVICE_ACCOUNT_JSON }}
+        output_prefix: 'ComfyUI'
+        timeout: 50
