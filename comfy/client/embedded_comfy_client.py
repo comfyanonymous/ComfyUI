@@ -130,6 +130,12 @@ class EmbeddedComfyClient:
                 from ..cmd.execution import PromptExecutor, validate_prompt
                 prompt_mut = make_mutable(prompt)
                 validation_tuple = validate_prompt(prompt_mut)
+                if not validation_tuple[0]:
+                    span.set_status(Status(StatusCode.ERROR))
+                    validation_error_dict = validation_tuple[1] or {"message": "Unknown", "details": ""}
+                    error = ValueError("\n".join([validation_error_dict["message"], validation_error_dict["details"]]))
+                    span.record_exception(error)
+                    return {}
 
                 prompt_executor: PromptExecutor = self._prompt_executor
 

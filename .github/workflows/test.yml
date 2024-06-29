@@ -41,6 +41,10 @@ jobs:
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
           pytest -v tests/unit
+      - name: Run lora workflow
+        run: |
+          export HSA_OVERRIDE_GFX_VERSION=11.0.0
+          pytest -v tests/workflows
       - name: Lint for errors
         run: |
           pylint comfy

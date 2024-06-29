@@ -24,7 +24,7 @@ _session = Session()
 
 def get_filename_list_with_downloadable(folder_name: str, known_files: List[Any]) -> List[str]:
     existing = frozenset(folder_paths.get_filename_list(folder_name))
-    downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files if not isinstance(f, HuggingFile) or f.show_in_ui)
+    downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files)
     return sorted(list(existing | downloadable))
 
 
