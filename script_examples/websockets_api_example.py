@@ -6,6 +6,7 @@ import uuid
 import json
 import urllib.request
 import urllib.parse
+import asyncio
 
 server_address = "127.0.0.1:8188"
 client_id = str(uuid.uuid4())
@@ -26,17 +27,23 @@ def get_history(prompt_id):
     with urllib.request.urlopen("http://{}/history/{}".format(server_address, prompt_id)) as response:
         return json.loads(response.read())
 
-def get_images(ws, prompt):
+async def receive(ws):
+    return ws.recv()
+    
+async def get_images(ws, prompt):
     prompt_id = queue_prompt(prompt)['prompt_id']
     output_images = {}
     while True:
-        out = ws.recv()
+        out = await receive(ws)
         if isinstance(out, str):
             message = json.loads(out)
             if message['type'] == 'executing':
                 data = message['data']
                 if data['node'] is None and data['prompt_id'] == prompt_id:
                     break #Execution is done
+            elif message['type'] == 'progress':
+                data = message['data']
+                print("Processed step " + str(data['value']) + " out of " + str(data['max']))
         else:
             continue #previews are binary data
 
@@ -141,24 +148,26 @@ prompt_text = """
     }
 }
 """
+async def api_example():
+    prompt = json.loads(prompt_text)
+    #set the text prompt for our positive CLIPTextEncode
+    prompt["6"]["inputs"]["text"] = "masterpiece best quality man"
+    
+    #set the seed for our KSampler node
+    prompt["3"]["inputs"]["seed"] = 5
+    
+    ws = websocket.WebSocket()
+    ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
+    images = await get_images(ws, prompt)
 
-prompt = json.loads(prompt_text)
-#set the text prompt for our positive CLIPTextEncode
-prompt["6"]["inputs"]["text"] = "masterpiece best quality man"
+    #Commented out code to display the output images:
 
-#set the seed for our KSampler node
-prompt["3"]["inputs"]["seed"] = 5
+    # for node_id in images:
+    #     for image_data in images[node_id]:
+    #         from PIL import Image
+    #         import io
+    #         image = Image.open(io.BytesIO(image_data))
+    #         image.show()
 
-ws = websocket.WebSocket()
-ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
-images = get_images(ws, prompt)
-
-#Commented out code to display the output images:
-
-# for node_id in images:
-#     for image_data in images[node_id]:
-#         from PIL import Image
-#         import io
-#         image = Image.open(io.BytesIO(image_data))
-#         image.show()
-
+loop=asyncio.get_event_loop()
+loop.run_until_complete(api_example())
