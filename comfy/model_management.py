@@ -987,7 +987,7 @@ def soft_empty_cache(force=False):
         if cpu_state == CPUState.MPS:
             torch.mps.empty_cache()
         elif is_intel_xpu():
-            torch.xpu.empty_cache()
+            torch.xpu.empty_cache()  # pylint: disable=no-member
         elif torch.cuda.is_available():
             if force or is_nvidia():  # This seems to make things worse on ROCm so I only do it for cuda
                 torch.cuda.empty_cache()
