@@ -2292,7 +2292,7 @@ export class ComfyApp {
 			} else {
 				this.showErrorOnFileLoad(file);
 			}
-		} else if (file.type === "audio/flac") {
+		} else if (file.type === "audio/flac" || file.type === "audio/x-flac") {
 			const pngInfo = await getFlacMetadata(file);
 			// Support loading workflows from that webp custom node.
 			const workflow = pngInfo?.workflow;
