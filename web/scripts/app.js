@@ -1084,7 +1084,7 @@ export class ComfyApp {
 			if (e.type == "keydown" && !e.repeat) {
 
 				// Ctrl + M mute/unmute
-				if (e.key === 'm' && e.ctrlKey) {
+				if (e.key === 'm' && (e.metaKey || e.ctrlKey)) {
 					if (this.selected_nodes) {
 						for (var i in this.selected_nodes) {
 							if (this.selected_nodes[i].mode === 2) { // never
@@ -1098,7 +1098,7 @@ export class ComfyApp {
 				}
 
 				// Ctrl + B bypass
-				if (e.key === 'b' && e.ctrlKey) {
+				if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
 					if (this.selected_nodes) {
 						for (var i in this.selected_nodes) {
 							if (this.selected_nodes[i].mode === 4) { // never
