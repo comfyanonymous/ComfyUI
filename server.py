@@ -403,6 +403,23 @@ class PromptServer():
             else:
                 info['output_node'] = False
 
+            # In litegraph horizontal controls the orientation of the inputs/outputs
+            # In comfy horizontal controls the orientation of the node, so we need to invert it
+            if hasattr(obj_class, 'DEFAULT_ORIENTATION') and obj_class.DEFAULT_ORIENTATION is not None:
+                if obj_class.DEFAULT_ORIENTATION in ['vertical', 'horizontal']:
+                    info['default_orientation'] = obj_class.DEFAULT_ORIENTATION
+                else:
+                    raise Exception("Invalid DEFAULT_ORIENTATION - must be 'vertical' or 'horizontal'")
+
+            if hasattr(obj_class, 'FORCED_ORIENTATION'):
+                if obj_class.FORCED_ORIENTATION in ['vertical', 'horizontal']:
+                    info['forced_orientation'] = obj_class.FORCED_ORIENTATION
+                else:
+                    raise Exception("Invalid FORCED_ORIENTATION - must be 'vertical' or 'horizontal'")
+
+            if 'default_orientation' in info and 'forced_orientation' in info and info['default_orientation'] != info['forced_orientation']:
+                raise Exception("FORCED_ORIENTATION and DEFAULT_ORIENTATION must be the same if both are set")
+
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
             return info
