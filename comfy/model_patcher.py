@@ -11,7 +11,6 @@ from comfy.types import UnetWrapperFunction
 
 def weight_decompose(dora_scale, weight, lora_diff, alpha, strength):
     dora_scale = comfy.model_management.cast_to_device(dora_scale, weight.device, torch.float32)
-    lora_diff *= alpha
     weight_calc = weight + lora_diff.type(weight.dtype)
     weight_norm = (
         weight_calc.transpose(0, 1)
@@ -22,9 +21,9 @@ def weight_decompose(dora_scale, weight, lora_diff, alpha, strength):
     )
 
     weight_calc *= (dora_scale / weight_norm).type(weight.dtype)
-    if strength != 1.0:
+    if strength != 1.0 or alpha != 1.0:
         weight_calc -= weight
-        weight += strength * (weight_calc)
+        weight += strength * alpha * weight_calc
     else:
         weight[:] = weight_calc
     return weight
