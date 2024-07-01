@@ -1925,7 +1925,16 @@ def load_custom_node(module_path, ignore=set()):
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-def load_custom_nodes():
+def init_external_custom_nodes():
+    """
+    Initializes the external custom nodes.
+
+    This function loads custom nodes from the specified folder paths and imports them into the application.
+    It measures the import times for each custom node and logs the results.
+
+    Returns:
+        None
+    """
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -1952,7 +1961,16 @@ def load_custom_nodes():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
-def init_custom_nodes():
+def init_builtin_extra_nodes():
+    """
+    Initializes the built-in extra nodes in ComfyUI.
+
+    This function loads the extra node files located in the "comfy_extras" directory and imports them into ComfyUI.
+    If any of the extra node files fail to import, a warning message is logged.
+
+    Returns:
+        None
+    """
     extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
     extras_files = [
         "nodes_latent.py",
@@ -1998,8 +2016,6 @@ def init_custom_nodes():
     for node_file in extras_files:
         if not load_custom_node(os.path.join(extras_dir, node_file)):
             import_failed.append(node_file)
-
-    load_custom_nodes()
 
     if len(import_failed) > 0:
         logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")

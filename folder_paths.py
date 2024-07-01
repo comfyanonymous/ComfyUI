@@ -2,9 +2,11 @@ import os
 import time
 import logging
 
-supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
+supported_pt_extensions: set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
-folder_names_and_paths = {}
+SupportedFileExtensionsType = set[str]
+ScanPathType = list[str]
+folder_names_and_paths: dict[str, tuple[ScanPathType, SupportedFileExtensionsType]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
@@ -26,7 +28,7 @@ folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], suppor
 
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
-folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
+folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
