@@ -90,6 +90,10 @@ See the [Config file](extra_model_paths.yaml.example) to set the search paths fo
 
 To run it on services like paperspace, kaggle or colab you can use my [Jupyter Notebook](notebooks/comfyui_colab.ipynb)
 
+## Docker (cloud & local)
+
+A third-party [docker image](https://github.com/ai-dock/comfyui) is available for use with RunPod, Vast, Paperspace etc. A docker-compose.yaml is included for local use.
+
 ## Manual Install (Windows, Linux)
 
 Git clone this repo.
