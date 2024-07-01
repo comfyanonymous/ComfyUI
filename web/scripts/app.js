@@ -2314,14 +2314,14 @@ export class ComfyApp {
 				} else if(this.isApiJson(jsonContent)) {
 					this.loadApiJson(jsonContent, fileName);
 				} else {
-					await this.loadGraphData(jsonContent, true, fileName);
+					await this.loadGraphData(jsonContent, true, true, fileName);
 				}
 			};
 			reader.readAsText(file);
 		} else if (file.name?.endsWith(".latent") || file.name?.endsWith(".safetensors")) {
 			const info = await getLatentMetadata(file);
 			if (info.workflow) {
-				await this.loadGraphData(JSON.parse(info.workflow), true, fileName);
+				await this.loadGraphData(JSON.parse(info.workflow), true, true, fileName);
 			} else if (info.prompt) {
 				this.loadApiJson(JSON.parse(info.prompt));
 			} else {
