@@ -20,7 +20,7 @@ def execute_prestartup_script():
             print(f"Failed to execute startup-script: {script_path} / {e}")
         return False
 
-    if args.no_custom_node:
+    if args.disable_all_custom_nodes:
         return
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -81,7 +81,7 @@ import yaml
 import execution
 import server
 from server import BinaryEventTypes
-from nodes import init_builtin_custom_nodes, init_external_custom_nodes
+from nodes import init_builtin_extra_nodes, init_external_custom_nodes
 import comfy.model_management
 
 def cuda_malloc_warning():
@@ -219,8 +219,8 @@ if __name__ == "__main__":
         for config_path in itertools.chain(*args.extra_model_paths_config):
             load_extra_path_config(config_path)
 
-    init_builtin_custom_nodes()
-    if not args.no_custom_node:
+    init_builtin_extra_nodes()
+    if not args.disable_all_custom_nodes:
         init_external_custom_nodes()
     else:
         logging.info("Skipping loading of custom nodes")

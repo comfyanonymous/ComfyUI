@@ -1961,12 +1961,12 @@ def init_external_custom_nodes():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
-def init_builtin_custom_nodes():
+def init_builtin_extra_nodes():
     """
-    Initializes the built-in custom nodes in ComfyUI.
+    Initializes the built-in extra nodes in ComfyUI.
 
-    This function loads the custom node files located in the "comfy_extras" directory and imports them into ComfyUI.
-    If any of the custom node files fail to import, a warning message is logged.
+    This function loads the extra node files located in the "comfy_extras" directory and imports them into ComfyUI.
+    If any of the extra node files fail to import, a warning message is logged.
 
     Returns:
         None
