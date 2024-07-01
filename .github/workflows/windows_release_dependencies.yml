@@ -33,8 +33,8 @@ jobs:
   build_dependencies:
     runs-on: windows-latest
     steps:
-        - uses: actions/checkout@v3
-        - uses: actions/setup-python@v4
+        - uses: actions/checkout@v4
+        - uses: actions/setup-python@v5
           with:
             python-version: 3.${{ inputs.python_minor }}.${{ inputs.python_patch }}
 
@@ -58,7 +58,7 @@ jobs:
             mv temp_wheel_dir cu${{ inputs.cu }}_python_deps
             tar cf cu${{ inputs.cu }}_python_deps.tar cu${{ inputs.cu }}_python_deps
 
-        - uses: actions/cache/save@v3
+        - uses: actions/cache/save@v4
           with:
             path: |
               cu${{ inputs.cu }}_python_deps.tar
