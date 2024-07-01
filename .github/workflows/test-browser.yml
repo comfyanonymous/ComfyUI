@@ -21,6 +21,7 @@ jobs:
       with:
         repository: "comfyanonymous/ComfyUI"
         path: "ComfyUI"
+        ref: ${{ github.head_ref }}
     - name: Checkout ComfyUI_frontend
       uses: actions/checkout@v4
       with:
