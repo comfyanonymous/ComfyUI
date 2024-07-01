@@ -139,9 +139,9 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
     input_data_all = None
     try:
         input_data_all = get_input_data(inputs, class_def, unique_id, outputs, prompt, extra_data)
+        server.last_node_id = unique_id
         if server.client_id is not None:
-            server.last_node_id = unique_id
-            server.send_sync("executing", { "node": unique_id, "prompt_id": prompt_id }, server.client_id)
+            server.send_sync("executing", {"node": unique_id, "prompt_id": prompt_id}, server.client_id)
 
         obj = object_storage.get((unique_id, class_type), None)
         if obj is None:

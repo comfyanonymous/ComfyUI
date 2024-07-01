@@ -438,6 +438,23 @@ class PromptServer():
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
+        @routes.get("/output/{prompt_id}")
+        async def get_output_id(request):
+            str = request.match_info.get("prompt_id", None)
+            output = {}
+            if str is None:
+                return web.json_response(output)
+            prompt_ids = str.split(",")
+            for prompt_id in prompt_ids:
+                the_result = self.prompt_queue.get_history(prompt_id=prompt_id)
+                if len(the_result) == 0:
+                    return web.json_response(output)
+
+                result_info = {'outputs': the_result[prompt_id]['outputs']}
+                output[prompt_id] = result_info
+
+            return web.json_response(output)
+
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
@@ -445,6 +462,29 @@ class PromptServer():
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
+
+        @routes.get("/queue_summary")
+        async def get_queue_summary(request):
+            queue_info = {}
+            current_queue = self.prompt_queue.get_current_queue()
+
+            running_queue = current_queue[0]
+            running_ids = list()
+            for queue in running_queue:
+                prompt_id = queue[1]
+                running_ids.append(prompt_id)
+                running_info = {'prompt_id': prompt_id, 'current_node_id': self.last_node_id}
+                queue_info['running_status'] = running_info
+
+            pending_queue = current_queue[1]
+            pending_ids = list()
+            for queue in pending_queue:
+                pending_ids.append(queue[1])
+
+            queue_info['queue_running'] = running_ids
+            queue_info['queue_pending'] = pending_ids
+            return web.json_response(queue_info)
+
 
         @routes.post("/prompt")
         async def post_prompt(request):
