@@ -90,6 +90,8 @@ class PromptServer():
         self.client_id = None
 
         self.on_prompt_handlers = []
+        self.node_info_cache = None
+
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -409,14 +411,16 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            out = {}
-            for x in nodes.NODE_CLASS_MAPPINGS:
-                try:
-                    out[x] = node_info(x)
-                except Exception as e:
-                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
-                    logging.error(traceback.format_exc())
-            return web.json_response(out)
+            if self.node_info_cache is None:
+                self.node_info_cache = {}
+                for x in nodes.NODE_CLASS_MAPPINGS:
+                    try:
+                        self.node_info_cache[x] = node_info(x)
+                    except Exception as e:
+                        logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                        logging.error(traceback.format_exc())
+
+            return web.json_response(self.node_info_cache)
 
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
