@@ -173,9 +173,11 @@ export class ChangeTracker {
 		const onNodeAdded = LiteGraph.LGraph.prototype.onNodeAdded;
 		LiteGraph.LGraph.prototype.onNodeAdded = function () {
 			const v = onNodeAdded?.apply(this, arguments);
-			const ct = changeTracker();
-			if (!ct.isOurLoad) {
-				ct.checkState();
+			if (!app?.configuringGraph) {
+				const ct = changeTracker();
+				if (!ct.isOurLoad) {
+					ct.checkState();
+				}
 			}
 			return v;
 		};
