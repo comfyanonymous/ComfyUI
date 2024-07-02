@@ -111,7 +111,7 @@ class PromptServer():
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
                     await self.send("executing", { "node": self.last_node_id }, sid)
-                    
+
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
                         logging.warning('ws connection closed with exception %s' % ws.exception())
@@ -132,9 +132,9 @@ class PromptServer():
         async def get_extensions(request):
             files = glob.glob(os.path.join(
                 glob.escape(self.web_root), 'extensions/**/*.js'), recursive=True)
-            
+
             extensions = list(map(lambda f: "/" + os.path.relpath(f, self.web_root).replace("\\", "/"), files))
-            
+
             for name, dir in nodes.EXTENSION_WEB_DIRS.items():
                 files = glob.glob(os.path.join(glob.escape(dir), '**/*.js'), recursive=True)
                 extensions.extend(list(map(lambda f: "/extensions/" + urllib.parse.quote(
@@ -154,7 +154,7 @@ class PromptServer():
                 type_dir = folder_paths.get_output_directory()
 
             return type_dir, dir_type
-            
+
         def compare_image_hash(filepath, image):
             # function to compare hashes of two images to see if it already exists, fix to #3465
             if os.path.exists(filepath):
@@ -167,7 +167,7 @@ class PromptServer():
                     f.close()
                 return a.hexdigest() == b.hexdigest()
             return False
-                    
+
         def image_upload(post, image_save_function=None):
             image = post.get("image")
             overwrite = post.get("overwrite")
@@ -205,7 +205,7 @@ class PromptServer():
                         filepath = os.path.join(full_output_folder, filename)
                         i += 1
 
-                if not image_is_duplicate: 
+                if not image_is_duplicate:
                     if image_save_function is not None:
                         image_save_function(image, post, filepath)
                     else:
