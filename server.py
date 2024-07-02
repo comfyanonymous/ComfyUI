@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+import time
 import traceback
 
 import nodes
@@ -29,6 +30,7 @@ import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
 
+from custom_nodes.comfy_scheduler.redis_client import RedisClient
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
@@ -97,6 +99,8 @@ class PromptServer():
         self.client_id = None
 
         self.on_prompt_handlers = []
+
+        self.redis_op = RedisClient()
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -651,6 +655,18 @@ class PromptServer():
             await send_socket_catch_exception(self.sockets[sid].send_json, message)
 
     def send_sync(self, event, data, sid=None):
+        if hasattr(self, "last_prompt_id") is not True:
+            logging.warning("server has not attr last_prompt_id")
+            return
+        prompt_id = self.last_prompt_id
+        key = "comfy_response_" + prompt_id
+        message = {
+            "type": event,
+            "data": data,
+        }
+        res = self.redis_op.zadd_with_expire(key, json.dumps(message), int(time.time()), 120)
+        if not res:
+            logging.warning(f"Failed to send {event}")
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
 
