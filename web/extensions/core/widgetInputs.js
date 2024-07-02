@@ -4,6 +4,7 @@ import { applyTextReplacements } from "../../scripts/utils.js";
 
 const CONVERTED_TYPE = "converted-widget";
 const VALID_TYPES = ["STRING", "combo", "number", "BOOLEAN"];
+const UNVALID_NAMES = ["control_after_generate"];
 const CONFIG = Symbol();
 const GET_CONFIG = Symbol();
 const TARGET = Symbol(); // Used for reroutes to specify the real target widget
@@ -18,7 +19,7 @@ function getConfig(widgetName) {
 }
 
 function isConvertableWidget(widget, config) {
-	return (VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0])) && !widget.options?.forceInput;
+	return (VALID_TYPES.includes(widget.type) || VALID_TYPES.includes(config[0])) && !UNVALID_NAMES.includes(widget.name) && !widget.options?.forceInput;
 }
 
 function hideWidget(node, widget, suffix = "") {
@@ -75,6 +76,7 @@ function convertToInput(node, widget, config) {
 	const sz = node.size;
 	node.addInput(widget.name, type, {
 		widget: { name: widget.name, [GET_CONFIG]: () => config },
+		label: widget.element?.placeholder || widget?.label || widget.name
 	});
 
 	for (const widget of node.widgets) {
@@ -289,14 +291,14 @@ app.registerExtension({
 					}
 					if (w.type === CONVERTED_TYPE) {
 						toWidget.push({
-							content: `Convert ${w.name} to widget`,
+							content: `Convert '${w?.label || w.name}' to widget`,
 							callback: () => convertToWidget(this, w),
 						});
 					} else {
 						const config = getConfig.call(this, w.name) ?? [w.type, w.options || {}];
 						if (isConvertableWidget(w, config)) {
 							toInput.push({
-								content: `Convert ${w.name} to input`,
+								content: `Convert '${w?.label || w.name}' to input`,
 								callback: () => convertToInput(this, w, config),
 							});
 						}

@@ -47,8 +47,10 @@ MAX_RESOLUTION=16384
 class CLIPTextEncode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"text": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", )}}
+        return {"required": {"text": ("STRING", {"multiline": True, "dynamicPrompts": True, "label": "text"}), "clip": ("CLIP", {"label": "text"})}}
     RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("CONDITIONING",)
+    RETURN_LABELS = ("conditioning",)
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
@@ -258,8 +260,10 @@ class ConditioningSetTimestepRange:
 class VAEDecode:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "samples": ("LATENT", ), "vae": ("VAE", )}}
+        return {"required": { "samples": ("LATENT", { "label": "latent"}), "vae": ("VAE", {"label": "vae"})}}
     RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("IMAGE",)
+    RETURN_LABELS = ("image",)
     FUNCTION = "decode"
 
     CATEGORY = "latent"
@@ -492,6 +496,8 @@ class CheckpointLoader:
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
                               "ckpt_name": (folder_paths.get_filename_list("checkpoints"), )}}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    RETURN_NAMES = ("MODEL", "CLIP", "VAE")
+    RETURN_LABELS = ("model", "clip", "vae")
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "advanced/loaders"
@@ -504,9 +510,11 @@ class CheckpointLoader:
 class CheckpointLoaderSimple:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
+        return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), { "label": "model name"}),
                              }}
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
+    RETURN_NAMES = ("MODEL", "CLIP", "VAE")
+    RETURN_LABELS = ("model", "clip", "vae")
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "loaders"
@@ -1024,8 +1032,10 @@ class EmptyLatentImage:
     def INPUT_TYPES(s):
         return {"required": { "width": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
                               "height": ("INT", {"default": 512, "min": 16, "max": MAX_RESOLUTION, "step": 8}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "label": "batch size"})}}
     RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("LATENT",)
+    RETURN_LABELS = ("latent",)
     FUNCTION = "generate"
 
     CATEGORY = "latent"
@@ -1349,20 +1359,22 @@ class KSampler:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
-                    "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
-                    "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS, ),
-                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS, ),
-                    "positive": ("CONDITIONING", ),
-                    "negative": ("CONDITIONING", ),
-                    "latent_image": ("LATENT", ),
-                    "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                    {"model": ("MODEL", { "label": "model" }),
+                    "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "label": "seed"}),
+                    "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "label": "steps"}),
+                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "label": "cfg"}),
+                    "sampler_name": (comfy.samplers.KSampler.SAMPLERS, { "label": "sampler name" } ),
+                    "scheduler": (comfy.samplers.KSampler.SCHEDULERS, { "label": "scheduler" } ),
+                    "positive": ("CONDITIONING", { "label": "positive" }),
+                    "negative": ("CONDITIONING", { "label": "negative" }),
+                    "latent_image": ("LATENT", {"label": "latent"}),
+                    "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "label": "denoise"}),
                      }
                 }
 
     RETURN_TYPES = ("LATENT",)
+    RETURN_NAMES = ("LATENT",)
+    RETURN_LABELS = ("latent",)
     FUNCTION = "sample"
 
     CATEGORY = "sampling"
@@ -1464,7 +1476,7 @@ class PreviewImage(SaveImage):
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"images": ("IMAGE", ), },
+                    {"images": ("IMAGE", {"label": "image"}), },
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
