@@ -12,6 +12,7 @@ import json
 import glob
 import struct
 import ssl
+import hashlib
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
@@ -153,10 +154,24 @@ class PromptServer():
                 type_dir = folder_paths.get_output_directory()
 
             return type_dir, dir_type
-
+            
+        def compare_image_hash(filepath, image):
+            # function to compare hashes of two images to see if it already exists, fix to #3465
+            if os.path.exists(filepath):
+                a = hashlib.sha256()
+                b = hashlib.sha256()
+                with open(filepath, "rb") as f:
+                    a.update(f.read())
+                    b.update(image.file.read())
+                    image.file.seek(0)
+                    f.close()
+                return a.hexdigest() == b.hexdigest()
+            return False
+                    
         def image_upload(post, image_save_function=None):
             image = post.get("image")
             overwrite = post.get("overwrite")
+            image_is_duplicate = False
 
             image_upload_type = post.get("type")
             upload_dir, image_upload_type = get_dir_by_type(image_upload_type)
@@ -183,15 +198,19 @@ class PromptServer():
                 else:
                     i = 1
                     while os.path.exists(filepath):
+                        if compare_image_hash(filepath, image): #compare hash to prevent saving of duplicates with same name, fix for #3465
+                            image_is_duplicate = True
+                            break
                         filename = f"{split[0]} ({i}){split[1]}"
                         filepath = os.path.join(full_output_folder, filename)
                         i += 1
 
-                if image_save_function is not None:
-                    image_save_function(image, post, filepath)
-                else:
-                    with open(filepath, "wb") as f:
-                        f.write(image.file.read())
+                if not image_is_duplicate: 
+                    if image_save_function is not None:
+                        image_save_function(image, post, filepath)
+                    else:
+                        with open(filepath, "wb") as f:
+                            f.write(image.file.read())
 
                 return web.json_response({"name" : filename, "subfolder": subfolder, "type": image_upload_type})
             else:
