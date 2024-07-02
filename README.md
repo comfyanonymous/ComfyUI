@@ -98,6 +98,32 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
 Put your VAE in: models/vae
 
+### AMD GPUs (ZLUDA)
+Thanks to the efforts of @vosen and @lshqqytiger AMD users are now able to run basic cuda applications on their AMD gpu.
+
+Check out [ZLUDA](https://github.com/lshqqytiger/ZLUDA) for more information.
+
+First check if your gpu is compatible with the hip sdk at <https://rocm.docs.amd.com/projects/install-on-windows/en/develop/reference/system-requirements.html>
+
+Download and install the hip sdk from <https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html>.
+
+Download the latest release of zluda from <https://github.com/lshqqytiger/ZLUDA/releases> and extract all files.
+
+Add `%HIP_PATH%bin` and the zluda folder with the files you extracted into to your windows PATH enviroment variable
+
+Replace the installed torch and torchvision package with a zluda compatible one by running:
+```
+pip uninstall torch torchvision torch-directml -y
+pip install torch==2.2.0 torchvision --index-url https://download.pytorch.org/whl/cu118
+```
+
+Now in your zluda folder make a copy of and rename `cublas.dll` to `cublas64_11.dll` and `cusparse.dll` to `cusparse64_11.dll`.
+
+Lastly copy `cublas64_11.dll` and `cusparse64_11.dll` into your `site-packages\torch\lib` folder replacing the already existing ones.
+
+You should now be able to run comfy normally and enjoy stable diffusion with your AMD gpu.
+
+Keep in mind that zluda is still very experimental and some things may not work properly at the moment.
 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
