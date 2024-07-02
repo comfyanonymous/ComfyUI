@@ -60,7 +60,7 @@ from comfy.k_diffusion.sampling import to_d
 import comfy.model_patcher
 
 @torch.no_grad()
-def sample_euler_cfgpp(model, x, sigmas, extra_args=None, callback=None, disable=None):
+def sample_euler_pp(model, x, sigmas, extra_args=None, callback=None, disable=None):
     extra_args = {} if extra_args is None else extra_args
 
     temp = [0]
@@ -75,11 +75,11 @@ def sample_euler_cfgpp(model, x, sigmas, extra_args=None, callback=None, disable
     for i in trange(len(sigmas) - 1, disable=disable):
         sigma_hat = sigmas[i]
         denoised = model(x, sigma_hat * s_in, **extra_args)
-        d = to_d(x, sigma_hat, temp[0])
+        d = to_d(x - denoised + temp[0], sigmas[i], denoised)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigma_hat, 'denoised': denoised})
         dt = sigmas[i + 1] - sigma_hat
-        x = denoised + sigmas[i + 1] * d
+        x = x + d * dt
     return x
 
 
@@ -96,10 +96,10 @@ class SamplerEulerCFGpp:
     FUNCTION = "get_sampler"
 
     def get_sampler(self, version):
-        if version == "regular":
-            sampler = comfy.samplers.KSAMPLER(sample_euler_cfgpp)
+        if version == "alternative":
+            sampler = comfy.samplers.KSAMPLER(sample_euler_pp)
         else:
-            sampler = comfy.samplers.ksampler("euler_pp")
+            sampler = comfy.samplers.ksampler("euler_cfg_pp")
         return (sampler, )
 
 NODE_CLASS_MAPPINGS = {
