@@ -1,7 +1,7 @@
 import psutil
 import logging
 from enum import Enum
-from comfy.cli_args import args
+from comfy.cli_args import args, CpuIpexMode, IpexBf16Mode
 import torch
 import sys
 import platform
@@ -27,6 +27,7 @@ cpu_state = CPUState.GPU
 total_vram = 0
 
 lowvram_available = True
+ipex_available = False
 xpu_available = False
 
 if args.deterministic:
@@ -47,11 +48,15 @@ if args.directml is not None:
     lowvram_available = False #TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
 try:
-    import intel_extension_for_pytorch as ipex
-    if torch.xpu.is_available():
-        xpu_available = True
-except:
-    pass
+    if not args.cpu or (args.cpu and args.use_ipex != CpuIpexMode.No):
+        import intel_extension_for_pytorch as ipex
+        ipex_available = True
+
+        if torch.xpu.is_available():
+            xpu_available = True
+except Exception as e:
+    if args.cpu and args.use_ipex == CpuIpexMode.Yes:
+        logging.warning(f'Ignoring "--use-ipex=yes" option as intel_extension_for_pytorch import failed with error: {e}.')
 
 try:
     if torch.backends.mps.is_available():
@@ -63,13 +68,29 @@ except:
 if args.cpu:
     cpu_state = CPUState.CPU
 
+def is_cpu_with_ipex():
+    return cpu_state == CPUState.CPU and ipex_available
+
 def is_intel_xpu():
-    global cpu_state
-    global xpu_available
-    if cpu_state == CPUState.GPU:
-        if xpu_available:
-            return True
-    return False
+    return cpu_state == CPUState.GPU and xpu_available
+
+def use_cpu_ipex_bf16():
+    if args.use_ipex_bf16 == IpexBf16Mode.No or not is_cpu_with_ipex() or not ipex._C.onednn_has_bf16_support():
+        return False
+    if args.use_ipex_bf16 == IpexBf16Mode.Yes:
+        if not is_cpu_with_ipex() or not ipex._C.onednn_has_bf16_support():
+            logging.warning('Ignoring "--use-ipex-bf16=yes" option as current system does not support bf16 operations')
+            return False
+        return True
+
+    try:
+        from cpuinfo import get_cpu_info
+    except:
+        logging.warning('py-cpuinfo is not installed, rerun "pip install -r requirements.txt"')
+        return False
+
+    cpu_info = get_cpu_info()
+    return 'avx512_bf16' in cpu_info['flags']
 
 def get_torch_device():
     global directml_enabled
@@ -183,10 +204,10 @@ try:
 except:
     pass
 
-if is_intel_xpu():
+if is_intel_xpu() or use_cpu_ipex_bf16():
     VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
 
-if args.cpu_vae:
+if args.cpu_vae and not use_cpu_ipex_bf16():
     VAE_DTYPES = [torch.float32]
 
 
@@ -297,8 +318,9 @@ class LoadedModel:
             self.model_unload()
             raise e
 
-        if is_intel_xpu() and not args.disable_ipex_optimize:
+        if (is_cpu_with_ipex() or is_intel_xpu()) and not args.disable_ipex_optimize:
             self.real_model = ipex.optimize(self.real_model.eval(), graph_mode=True, concat_linear=True)
+            self.real_model = torch.compile(self.real_model, backend="ipex")
 
         self.weights_loaded = True
         return self.real_model
@@ -872,9 +894,11 @@ def should_use_fp16(device=None, model_params=0, prioritize_performance=True, ma
     return True
 
 def should_use_bf16(device=None, model_params=0, prioritize_performance=True, manual_cast=False):
-    if device is not None:
-        if is_device_cpu(device): #TODO ? bf16 works on CPU but is extremely slow
-            return False
+    if is_cpu_with_ipex():
+        return use_cpu_ipex_bf16()
+
+    if device is not None and is_device_cpu(device):
+        return use_cpu_ipex_bf16()
 
     if device is not None: #TODO not sure about mps bf16 support
         if is_device_mps(device):

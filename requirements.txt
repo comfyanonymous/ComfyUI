@@ -11,6 +11,7 @@ Pillow
 scipy
 tqdm
 psutil
+py-cpuinfo
 
 #non essential dependencies:
 kornia>=0.7.1

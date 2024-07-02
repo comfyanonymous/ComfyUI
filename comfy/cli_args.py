@@ -79,7 +79,7 @@ parser.add_argument("--force-channels-last", action="store_true", help="Force ch
 
 parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
 
-parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize when loading models with Intel GPUs.")
+parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize when loading models with Intel GPUs or CPUs.")
 
 class LatentPreviewMethod(enum.Enum):
     NoPreviews = "none"
@@ -109,6 +109,17 @@ vram_group.add_argument("--lowvram", action="store_true", help="Split the unet i
 vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
+class CpuIpexMode(enum.Enum):
+    Auto = "auto"
+    Yes = "yes"
+    No = "no"
+parser.add_argument("--use-ipex", type=CpuIpexMode, default=CpuIpexMode.Auto, help="Use IPEX for CPU.", action=EnumAction)
+
+class IpexBf16Mode(enum.Enum):
+    Auto = "auto"
+    Yes = "yes"
+    No = "no"
+parser.add_argument("--use-ipex-bf16", type=IpexBf16Mode, default=IpexBf16Mode.Auto, help="When CPU mode is enabled and IPEX is installed, use bf16 autocast to improve performance.", action=EnumAction)
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")

@@ -162,6 +162,21 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 
 ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
+#### CPUs with AVX-512 BFloat16 support
+
+If you use Linux or WSL2 and have a CPU with AVX-512 BFloat16 instruction set support, you can increase performance of KSampler node by approximately 50% by installing Intel's Extension for Pytorch (IPEX) for CPU. ComfyUI automatically detects and enables Intel's Extension for Pytorch for CPU unless it degrades performance. The steps are as follows:
+
+1. Install stable version of pytorch for CPU as described on [PyTorch website](https://pytorch.org/get-started/locally/). Note that IPEX only works with stable PyTorch releases.
+1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions.
+1. Install Intel's Extension for Pytorch for CPU according to [installation guide](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=cpu). Select version similar to PyTorch there.
+1. Launch ComfyUI by running `python main.py --cpu`
+
+IPEX can also slightly improve performance on older AVX2 CPUs. Note that [a well-known performance issue](https://documentation.sigma2.no/jobs/mkl.html#forcing-mkl-to-use-best-performing-routines) affects AMD CPUs (at this moment seemingly affects Zen 2/3, but not Zen 4), so additional setup is needed. Create a library that enables optimizations on AMD CPUs by running:
+
+```echo "int mkl_serv_intel_cpu_true(){return 1;}" | gcc -x c -shared -fPIC -o libcpudetect.so -```
+
+After that launch ComfyUI by running `LD_PRELOAD="$(pwd)/libcpudetect.so" python main.py --cpu`
+
 ### I already have another UI for Stable Diffusion installed do I really have to install all of these dependencies?
 
 You don't. If you have another UI installed and working with its own python venv you can use that venv to run ComfyUI. You can open up your favorite terminal and activate it:
