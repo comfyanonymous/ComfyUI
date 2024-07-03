@@ -1,12 +1,13 @@
 import os
 import time
 import logging
+from typing import Set, List, Dict, Tuple
 
-supported_pt_extensions: set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
+supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
-SupportedFileExtensionsType = set[str]
-ScanPathType = list[str]
-folder_names_and_paths: dict[str, tuple[ScanPathType, SupportedFileExtensionsType]] = {}
+SupportedFileExtensionsType = Set[str]
+ScanPathType = List[str]
+folder_names_and_paths: Dict[str, Tuple[ScanPathType, SupportedFileExtensionsType]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
