@@ -100,6 +100,11 @@ def test_init_frontend_provider_latest(mock_provider, mock_releases):
                 mock_releases[1], destination_path=frontend_path
             )
 
+def test_init_frontend_invalid_version():
+    version_string = "test@1.100.99"
+    with pytest.raises(ValueError):
+        FrontendManager.init_frontend(version_string)
+
 
 def test_init_frontend_invalid_provider():
     version_string = "invalid@latest"
