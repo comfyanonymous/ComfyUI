@@ -627,7 +627,10 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
     sd = model.model.state_dict_for_saving(clip_sd, vae.get_sd(), clip_vision_sd)
     for k in extra_keys:
         sd[k] = extra_keys[k]
+
     for k in sd:
-        sd[k] = sd[k].contiguous()
+        t = sd[k]
+        if not t.is_contiguous():
+            sd[k] = t.contiguous()
 
     comfy.utils.save_torch_file(sd, output_path, metadata=metadata)
