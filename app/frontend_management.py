@@ -147,6 +147,9 @@ class FrontendManager:
             type=str,
             default=cls.DEFAULT_VERSION_STRING,
             help=f"""
+            Specifies the version of the frontend to be used. This command needs internet connectivity to query and
+            download available frontend implementations from GitHub releases.
+
             The version string should be in the format of:
             [provider]@[version]
             where provider is one of: {", ".join([provider.name for provider in cls.PROVIDERS])}
@@ -164,10 +167,10 @@ class FrontendManager:
             return path
 
         parser.add_argument(
-            "--web-root",
+            "--front-end-root",
             type=is_valid_directory,
             default=None,
-            help="The path to the directory where the frontend is located. Overrides --front-end-version.",
+            help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
         )
 
     @classmethod

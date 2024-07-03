@@ -86,8 +86,8 @@ class PromptServer():
         self.sockets = dict()
         self.web_root = (
             FrontendManager.init_frontend(args.front_end_version)
-            if args.web_root is None
-            else args.web_root
+            if args.front_end_root is None
+            else args.front_end_root
         )
         logging.info(f"[Prompt Server] web root: {self.web_root}")
         routes = web.RouteTableDef()
