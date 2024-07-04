@@ -1889,9 +1889,9 @@ EXTENSION_WEB_DIRS = {}
 
 def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
+    # Drop '.py' file extension
     if os.path.isfile(module_path):
-        sp = os.path.splitext(module_path)
-        module_name = sp[0]
+        module_name = os.path.splitext(module_name)[0]
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
         if os.path.isfile(module_path):
