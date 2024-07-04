@@ -25,6 +25,7 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+import node_helpers
 
 from app.user_manager import UserManager
 
@@ -156,11 +157,7 @@ class PromptServer():
             return type_dir, dir_type
 
         def compare_image_hash(filepath, image):
-            # This eval operation is *safe* because we can only accept certain strings passed in via args.
-            # Because that can only be one of 'md5', 'sha1', 'sha256', or 'sha512' which we already define
-            # in comfy.cli_args as an argument passable to the args and only from a set of options, we can
-            # safely use an eval here, as the eval data is "safe" already.
-            hasher = eval(f"hashlib.{args.duplicate_check_hash_function}")
+            hasher = node_helpers.hasher()
             
             # function to compare hashes of two images to see if it already exists, fix to #3465
             if os.path.exists(filepath):
