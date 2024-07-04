@@ -872,3 +872,7 @@ docker run -it -v ./output:/workspace/output -v ./models:/workspace/models --gpu
 ## Community
 
 [Chat on Matrix: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org), an alternative to Discord.
+
+## Known Issues
+
+Please visit the Issues tab for documented known issues.
