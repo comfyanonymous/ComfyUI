@@ -643,7 +643,9 @@ class SaveImagesResponse(CustomNode):
 
             images_.append(img_item)
         if "ui" in ui_images_result and "images" in ui_images_result["ui"]:
-            ui_images_result["result"] = ui_images_result["ui"]["images"]
+            ui_images_result["result"] = (ui_images_result["ui"]["images"],)
+
+        print(ui_images_result)
 
         return ui_images_result
 
