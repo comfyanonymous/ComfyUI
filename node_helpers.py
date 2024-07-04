@@ -1,3 +1,5 @@
+from comfy.cli_args import args
+
 from PIL import ImageFile, UnidentifiedImageError
 
 def conditioning_set_values(conditioning, values={}):
@@ -24,6 +26,6 @@ def pillow(fn, arg):
         return x
 
 def hasher():
-    # This is a safe eval because args.duplicate_check_hash_function can ONLY 
+    # This is a safe eval because args.default_hashing_function can ONLY 
     # be one of four predefined strings, keeping it as a safe eval.
-   return eval(f"hashlib.{args.duplicate_check_hash_function}")
+   return eval(f"hashlib.{args.default_hashing_function}")
