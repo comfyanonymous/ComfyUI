@@ -243,7 +243,7 @@ class VAE:
                     self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
                                                                 encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
                                                                 decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
-            elif "decoder.layers.0.weight_v" in sd:
+            elif "decoder.layers.1.layers.0.beta" in sd:
                 self.first_stage_model = AudioOobleckVAE()
                 self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * 2048) * model_management.dtype_size(dtype)
@@ -305,6 +305,10 @@ class VAE:
             / 3.0)
         return output
 
+    def decode_tiled_1d(self, samples, tile_x=128, overlap=32):
+        decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
+        return utils.tiled_scale_multidim(samples, decode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=self.upscale_ratio, out_channels=self.output_channels, output_device=self.output_device)
+
     def encode_tiled_(self, pixel_samples, tile_x=512, tile_y=512, overlap=64):
         steps = pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x, tile_y, overlap)
         steps += pixel_samples.shape[0] * utils.get_tiled_scale_steps(pixel_samples.shape[3], pixel_samples.shape[2], tile_x // 2, tile_y * 2, overlap)
@@ -317,6 +321,10 @@ class VAE:
         samples += utils.tiled_scale(pixel_samples, encode_fn, tile_x // 2, tile_y * 2, overlap, upscale_amount=(1 / self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device, pbar=pbar)
         samples /= 3.0
         return samples
+
+    def encode_tiled_1d(self, samples, tile_x=128 * 2048, overlap=32 * 2048):
+        encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).float()
+        return utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device)
 
     def decode(self, samples_in):
         try:
@@ -332,7 +340,10 @@ class VAE:
                 pixel_samples[x:x + batch_number] = self.process_output(self.first_stage_model.decode(samples).to(self.output_device).float())
         except model_management.OOM_EXCEPTION as e:
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
-            pixel_samples = self.decode_tiled_(samples_in)
+            if len(samples_in.shape) == 3:
+                pixel_samples = self.decode_tiled_1d(samples_in)
+            else:
+                pixel_samples = self.decode_tiled_(samples_in)
 
         pixel_samples = pixel_samples.to(self.output_device).movedim(1, -1)
         return pixel_samples
@@ -358,7 +369,10 @@ class VAE:
 
         except model_management.OOM_EXCEPTION as e:
             logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
-            samples = self.encode_tiled_(pixel_samples)
+            if len(pixel_samples.shape) == 3:
+                samples = self.encode_tiled_1d(pixel_samples)
+            else:
+                samples = self.encode_tiled_(pixel_samples)
 
         return samples
 
@@ -569,17 +583,32 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     return (_model_patcher, clip, vae, clipvision)
 
 
-def load_unet_state_dict(sd):  # load unet in diffusers format
+def load_unet_state_dict(sd):  # load unet in diffusers or regular format
+
+    #Allow loading unets from checkpoint files
+    checkpoint = False
+    diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
+    temp_sd = utils.state_dict_prefix_replace(sd, {diffusion_model_prefix: ""}, filter_keys=True)
+    if len(temp_sd) > 0:
+        sd = temp_sd
+        checkpoint = True
+
     parameters = utils.calculate_parameters(sd)
     unet_dtype = model_management.unet_dtype(model_params=parameters)
     load_device = model_management.get_torch_device()
 
-    if "input_blocks.0.0.weight" in sd or 'clf.1.weight' in sd:  # ldm or stable cascade
+    if checkpoint or "input_blocks.0.0.weight" in sd or 'clf.1.weight' in sd:  # ldm or stable cascade
         model_config = model_detection.model_config_from_unet(sd, "")
         if model_config is None:
             return None
         new_sd = sd
-
+    elif 'transformer_blocks.0.attn.add_q_proj.weight' in sd: #MMDIT SD3
+        new_sd = model_detection.convert_diffusers_mmdit(sd, "")
+        if new_sd is None:
+            return None
+        model_config = model_detection.model_config_from_unet(new_sd, "")
+        if model_config is None:
+            return None
     else:  # diffusers
         model_config = model_detection.model_config_from_diffusers_unet(sd)
         if model_config is None:
@@ -628,5 +657,10 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
     sd = model.model.state_dict_for_saving(clip_sd, vae.get_sd(), clip_vision_sd)
     for k in extra_keys:
         sd[k] = extra_keys[k]
+
+    for k in sd:
+        t = sd[k]
+        if not t.is_contiguous():
+            sd[k] = t.contiguous()
 
     utils.save_torch_file(sd, output_path, metadata=metadata)

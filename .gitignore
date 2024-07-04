@@ -12,6 +12,7 @@
 **/put*here
 /extra_model_paths.yaml
 /.vs
+.vscode/
 .idea/
 venv/
 /web/extensions/*
@@ -174,3 +175,4 @@ cython_debug/
 
 /tests-ui/data/object_info.json
 /user/
+*.log

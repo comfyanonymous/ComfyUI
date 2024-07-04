@@ -103,6 +103,7 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
 def import_all_nodes_in_workspace(vanilla_custom_nodes=True, raise_on_failure=False) -> ExportedNodes:
     # now actually import the nodes, to improve control of node loading order
     from comfy_extras import nodes as comfy_extras_nodes
+    from ..cli_args import args
     from . import base_nodes
     from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
     # only load these nodes once
@@ -115,6 +116,11 @@ def import_all_nodes_in_workspace(vanilla_custom_nodes=True, raise_on_failure=Fa
                                 ]),
                                 ExportedNodes())
         custom_nodes_mappings = ExportedNodes()
+
+        if args.disable_all_custom_nodes:
+            logging.info("Loading custom nodes was disabled, only base and extra nodes were loaded")
+            _comfy_nodes.update(base_and_extra)
+            return _comfy_nodes
 
         # load from entrypoints
         for entry_point in entry_points().select(group='comfyui.custom_nodes'):

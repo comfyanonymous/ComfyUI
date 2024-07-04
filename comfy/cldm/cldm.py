@@ -289,7 +289,8 @@ class ControlNet(nn.Module):
 
         guided_hint = self.input_hint_block(hint, emb, context)
 
-        outs = []
+        out_output = []
+        out_middle = []
 
         hs = []
         if self.num_classes is not None:
@@ -304,10 +305,10 @@ class ControlNet(nn.Module):
                 guided_hint = None
             else:
                 h = module(h, emb, context)
-            outs.append(zero_conv(h, emb, context))
+            out_output.append(zero_conv(h, emb, context))
 
         h = self.middle_block(h, emb, context)
-        outs.append(self.middle_block_out(h, emb, context))
+        out_middle.append(self.middle_block_out(h, emb, context))
 
-        return outs
+        return {"middle": out_middle, "output": out_output}
 

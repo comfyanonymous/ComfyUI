@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import numbers
 import os
 import traceback
 import zipfile
@@ -97,10 +98,10 @@ class SDClipModel(torch.nn.Module):
         for x in tokens:
             tokens_temp = []
             for y in x:
-                if isinstance(y, int):
+                if isinstance(y, numbers.Integral):
                     if y == token_dict_size:  # EOS token
                         y = -1
-                    tokens_temp += [y]
+                    tokens_temp += [int(y)]
                 else:
                     if y.shape[0] == current_embeds.weight.shape[1]:
                         embedding_weights += [y]

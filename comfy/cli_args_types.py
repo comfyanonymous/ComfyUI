@@ -72,6 +72,7 @@ class Configuration(dict):
         quick_test_for_ci (bool): Enable quick testing mode for CI.
         windows_standalone_build (bool): Enable features for standalone Windows build.
         disable_metadata (bool): Disable saving metadata with outputs.
+        disable_all_custom_nodes (bool): Disable loading all custom nodes.
         multi_user (bool): Enable multi-user mode.
         plausible_analytics_base_url (Optional[str]): Base URL for server-side analytics.
         plausible_analytics_domain (Optional[str]): Domain for analytics events.
@@ -144,6 +145,7 @@ class Configuration(dict):
         self.quick_test_for_ci: bool = False
         self.windows_standalone_build: bool = False
         self.disable_metadata: bool = False
+        self.disable_all_custom_nodes: bool = False
         self.multi_user: bool = False
         self.plausible_analytics_base_url: Optional[str] = None
         self.plausible_analytics_domain: Optional[str] = None
