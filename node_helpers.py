@@ -22,3 +22,8 @@ def pillow(fn, arg):
         if prev_value is not None:
             ImageFile.LOAD_TRUNCATED_IMAGES = prev_value
         return x
+
+def hasher():
+    # This is a safe eval because args.duplicate_check_hash_function can ONLY 
+    # be one of four predefined strings, keeping it as a safe eval.
+   return eval(f"hashlib.{args.duplicate_check_hash_function}")
