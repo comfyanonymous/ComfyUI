@@ -7,7 +7,7 @@ from typing import Optional, List, Sequence
 from typing_extensions import TypedDict, NotRequired
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class CivitFile:
     """
     A file on CivitAI
@@ -35,7 +35,7 @@ class CivitFile:
         return []
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class HuggingFile:
     """
     A file on Huggingface Hub
@@ -48,7 +48,7 @@ class HuggingFile:
     repo_id: str
     filename: str
     save_with_filename: Optional[str] = None
-    alternate_filenames: List[str] = dataclasses.field(default_factory=list)
+    alternate_filenames: Sequence[str] = dataclasses.field(default_factory=tuple)
     show_in_ui: Optional[bool] = True
     convert_to_16_bit: Optional[bool] = False
     size: Optional[int] = None

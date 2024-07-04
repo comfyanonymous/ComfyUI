@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 from aio_pika.patterns import RPC
 
 from ..component_model.executor_types import SendSyncEvent, SendSyncData, ExecutorToClientProgress, \
-    UnencodedPreviewImageMessage
+    UnencodedPreviewImageMessage, StatusMessage, QueueInfo, ExecInfo
 from ..component_model.queue_types import BinaryEventTypes
 
 
@@ -67,9 +67,8 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
                   sid: Optional[str] = None):
         asyncio.run_coroutine_threadsafe(self.send(event, data, sid), self._loop)
 
-    def queue_updated(self):
-        # todo: this should gather the global queue data
-        pass
+    def queue_updated(self, queue_remaining: Optional[int] = None):
+        self.send_sync("status", StatusMessage(status=QueueInfo(exec_info=ExecInfo(queue_remaining=queue_remaining))))
 
 
 class ProgressHandlers:

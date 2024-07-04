@@ -1,17 +1,9 @@
 import asyncio
-import logging
-import os
-import socket
-import subprocess
-import sys
-import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
 
 import jwt
 import pytest
-import requests
 from testcontainers.rabbitmq import RabbitMqContainer
 
 from comfy.client.aio_client import AsyncRemoteComfyClient
@@ -21,9 +13,6 @@ from comfy.component_model.make_mutable import make_mutable
 from comfy.component_model.queue_types import QueueItem, QueueTuple, TaskInvocation, NamedQueueTuple, ExecutionStatus
 from comfy.distributed.distributed_prompt_worker import DistributedPromptWorker
 from comfy.distributed.server_stub import ServerStub
-
-# fixes issues with running the testcontainers rabbitmqcontainer on Windows
-os.environ["TC_HOST"] = "localhost"
 
 
 def create_test_prompt() -> QueueItem:
@@ -103,68 +92,19 @@ async def test_distributed_prompt_queues_same_process():
 
 
 @pytest.mark.asyncio
-async def test_frontend_backend_workers():
-    processes_to_close: List[subprocess.Popen] = []
-    with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
-        try:
-            params = rabbitmq.get_connection_params()
-            connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
-
-            frontend_command = [
-                "comfyui",
-                "--listen=0.0.0.0",
-                "--port=9001",
-                "--cpu",
-                "--distributed-queue-frontend",
-                f"--distributed-queue-connection-uri={connection_uri}",
-            ]
-
-            processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr))
-            backend_command = [
-                "comfyui-worker",
-                "--port=9002",
-                f"--distributed-queue-connection-uri={connection_uri}",
-            ]
-
-            processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
-            server_address = f"http://{get_lan_ip()}:9001"
-            start_time = time.time()
-            while time.time() - start_time < 60:
-                try:
-                    response = requests.get(server_address)
-                    if response.status_code == 200:
-                        break
-                except ConnectionRefusedError:
-                    pass
-                except Exception as exc:
-                    logging.warning("", exc_info=exc)
-                time.sleep(1)
-
-            client = AsyncRemoteComfyClient(server_address=server_address)
-            prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
-            png_image_bytes = await client.queue_prompt(prompt)
-            assert len(png_image_bytes) > 1000, "expected an image, but got nothing"
-        finally:
-            for process in processes_to_close:
-                process.terminate()
+async def test_frontend_backend_workers(frontend_backend_worker_with_rabbitmq):
+    client = AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq)
+    prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+    png_image_bytes = await client.queue_prompt(prompt)
+    len_queue_after = await client.len_queue()
+    assert len_queue_after == 0
+    assert len(png_image_bytes) > 1000, "expected an image, but got nothing"
 
 
-def get_lan_ip():
-    """
-    Finds the host's IP address on the LAN it's connected to.
+@pytest.mark.asyncio
+async def test_frontend_backend_workers_validation_error_raises(frontend_backend_worker_with_rabbitmq):
+    client = AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq)
 
-    Returns:
-        str: The IP address of the host on the LAN.
-    """
-    # Create a dummy socket
-    s = None
-    try:
-        # Connect to a dummy address (Here, Google's public DNS server)
-        # The actual connection is not made, but this allows finding out the LAN IP
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-    finally:
-        if s is not None:
-            s.close()
-    return ip
+    prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1, sdxl_refiner_checkpoint_name="unknown.safetensors")
+    with pytest.raises(Exception):
+        await client.queue_prompt(prompt)

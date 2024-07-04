@@ -50,7 +50,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
             return None
         self._caller_local_in_progress[queue_item.prompt_id] = queue_item
         if self._caller_server is not None:
-            self._caller_server.queue_updated()
+            self._caller_server.queue_updated(self.get_tasks_remaining())
         try:
             if "token" in queue_item.extra_data:
                 user_token = queue_item.extra_data["token"]
@@ -75,7 +75,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
             reply = RpcReply(**(await self._rpc.call(self._queue_name, {"request": asdict(request)}))).as_task_invocation()
             self._caller_history.put(queue_item, reply.outputs, reply.status)
             if self._caller_server is not None:
-                self._caller_server.queue_updated()
+                self._caller_server.queue_updated(self.get_tasks_remaining())
 
             # if this has a completion future, complete it
             if queue_item.completed is not None:
@@ -86,7 +86,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
             as_exec_exc = ExecutionError(queue_item.prompt_id, exceptions=[exc])
             self._caller_history.put(queue_item, outputs={}, status=as_exec_exc.status)
 
-            # if we have a completer, propoagate the exception to it
+            # if we have a completer, propagate the exception to it
             if queue_item.completed is not None:
                 queue_item.completed.set_exception(as_exec_exc)
             raise as_exec_exc
@@ -95,7 +95,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
             if self._caller_server is not None:
                 # todo: this ensures that the web ui is notified about the completed task, but it should really be done by worker
                 self._caller_server.send_sync("executing", {"node": None, "prompt_id": queue_item.prompt_id}, self._caller_server.client_id)
-                self._caller_server.queue_updated()
+                self._caller_server.queue_updated(self.get_tasks_remaining())
         return reply
 
     def put(self, item: QueueItem):

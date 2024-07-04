@@ -1,8 +1,9 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
+from typing import Optional, Literal, Protocol, TypeAlias, Union, NamedTuple
+
 import PIL.Image
 from typing_extensions import NotRequired, TypedDict
-from typing import Optional, Literal, Protocol, TypeAlias, Union, NamedTuple
 
 from .queue_types import BinaryEventTypes
 
@@ -78,7 +79,7 @@ class ExecutorToClientProgress(Protocol):
         """
         pass
 
-    def queue_updated(self):
+    def queue_updated(self, queue_remaining: Optional[int] = None):
         """
         Indicates that the local client's queue has been updated
         :return:

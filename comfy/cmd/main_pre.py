@@ -61,8 +61,8 @@ def _create_tracer():
 
     if has_endpoint:
         otlp_exporter = OTLPSpanExporter()
-    elif is_debugging:
-        otlp_exporter = ConsoleSpanExporter()
+    # elif is_debugging:
+    #     otlp_exporter = ConsoleSpanExporter("comfyui")
     else:
         otlp_exporter = SpanExporter()
 

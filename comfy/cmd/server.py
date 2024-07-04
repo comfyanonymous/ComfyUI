@@ -7,7 +7,6 @@ import logging
 import mimetypes
 import os
 import struct
-import sys
 import traceback
 import uuid
 from asyncio import Future, AbstractEventLoop
@@ -19,14 +18,15 @@ from urllib.parse import quote, urlencode
 
 import aiofiles
 import aiohttp
+import sys
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
 from typing_extensions import NamedTuple
 
-from .. import interruption
 from .latent_preview_image_encoding import encode_preview_image
+from .. import interruption
 from .. import model_management
 from .. import utils
 from ..app.user_manager import UserManager
@@ -35,7 +35,7 @@ from ..client.client_types import FileOutput
 from ..cmd import execution
 from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
-from ..component_model.executor_types import ExecutorToClientProgress
+from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, QueueInfo, ExecInfo
 from ..component_model.file_output_path import file_output_path
 from ..component_model.files import get_package_as_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
@@ -778,8 +778,12 @@ class PromptServer(ExecutorToClientProgress):
         self.loop.call_soon_threadsafe(
             self.messages.put_nowait, (event, data, sid))
 
-    def queue_updated(self):
-        self.send_sync("status", {"status": self.get_queue_info()})
+    def queue_updated(self, queue_remaining: Optional[int] = None):
+        if queue_remaining is None:
+            status = {"status": self.get_queue_info()}
+        else:
+            status = StatusMessage(status=QueueInfo(exec_info=ExecInfo(queue_remaining=queue_remaining)))
+        self.send_sync("status", status)
 
     async def publish_loop(self):
         while True:

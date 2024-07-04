@@ -69,8 +69,7 @@ class DistributedPromptWorker:
         self._rpc = await JsonRPC.create(channel=self._channel, auto_delete=True, durable=False)
 
         if self._embedded_comfy_client is None:
-            self._embedded_comfy_client = EmbeddedComfyClient(
-                progress_handler=DistributedExecutorToClientProgress(self._rpc, self._queue_name, self._loop))
+            self._embedded_comfy_client = EmbeddedComfyClient(progress_handler=DistributedExecutorToClientProgress(self._rpc, self._queue_name, self._loop))
         if not self._embedded_comfy_client.is_running:
             await self._exit_stack.enter_async_context(self._embedded_comfy_client)
 

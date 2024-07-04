@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import uuid
-from asyncio import AbstractEventLoop
+from asyncio import get_event_loop
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
@@ -57,13 +57,9 @@ class EmbeddedComfyClient:
     In order to use this in blocking methods, learn more about asyncio online.
     """
 
-    def __init__(self, configuration: Optional[Configuration] = None,
-                 progress_handler: Optional[ExecutorToClientProgress] = None,
-                 loop: Optional[AbstractEventLoop] = None,
-                 max_workers: int = 1):
+    def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1):
         self._progress_handler = progress_handler or ServerStub()
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
-        self._loop = loop or asyncio.get_event_loop()
         self._configuration = configuration
         # we don't want to import the executor yet
         self._prompt_executor: Optional["comfy.cmd.execution.PromptExecutor"] = None
@@ -93,7 +89,7 @@ class EmbeddedComfyClient:
         while self._executor._work_queue.qsize() > 0:
             await asyncio.sleep(0.1)
 
-        await self._loop.run_in_executor(self._executor, cleanup)
+        await get_event_loop().run_in_executor(self._executor, cleanup)
 
         self._executor.shutdown(wait=True)
         self._is_running = False
@@ -112,8 +108,9 @@ class EmbeddedComfyClient:
             from ..cmd.execution import PromptExecutor
 
             self._prompt_executor = PromptExecutor(self._progress_handler)
+            self._prompt_executor.raise_exceptions = True
 
-        await self._loop.run_in_executor(self._executor, create_executor_in_thread)
+        await get_event_loop().run_in_executor(self._executor, create_executor_in_thread)
 
     @tracer.start_as_current_span("Queue Prompt")
     async def queue_prompt(self,
@@ -128,29 +125,26 @@ class EmbeddedComfyClient:
             spam: Span
             with tracer.start_as_current_span("Execute Prompt", context=span_context) as span:
                 from ..cmd.execution import PromptExecutor, validate_prompt
-                prompt_mut = make_mutable(prompt)
-                validation_tuple = validate_prompt(prompt_mut)
-                if not validation_tuple[0]:
-                    span.set_status(Status(StatusCode.ERROR))
-                    validation_error_dict = validation_tuple[1] or {"message": "Unknown", "details": ""}
-                    error = ValueError("\n".join([validation_error_dict["message"], validation_error_dict["details"]]))
-                    span.record_exception(error)
-                    return {}
+                try:
+                    prompt_mut = make_mutable(prompt)
+                    validation_tuple = validate_prompt(prompt_mut)
+                    if not validation_tuple[0]:
+                        validation_error_dict = validation_tuple[1] or {"message": "Unknown", "details": ""}
+                        raise ValueError("\n".join([validation_error_dict["message"], validation_error_dict["details"]]))
 
-                prompt_executor: PromptExecutor = self._prompt_executor
+                    prompt_executor: PromptExecutor = self._prompt_executor
 
-                if client_id is None:
-                    prompt_executor.server = _server_stub_instance
-                else:
-                    prompt_executor.server = self._progress_handler
+                    if client_id is None:
+                        prompt_executor.server = _server_stub_instance
+                    else:
+                        prompt_executor.server = self._progress_handler
 
-                prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
-                                        execute_outputs=validation_tuple[2])
-                if prompt_executor.success:
+                    prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
+                                            execute_outputs=validation_tuple[2])
                     return prompt_executor.outputs_ui
-                else:
+                except Exception as exc_info:
                     span.set_status(Status(StatusCode.ERROR))
-                    error = RuntimeError("\n".join(event for (event, data) in self._prompt_executor.status_messages))
-                    span.record_exception(error)
+                    span.record_exception(exc_info)
+                    raise exc_info
 
-        return await self._loop.run_in_executor(self._executor, execute_prompt)
+        return await get_event_loop().run_in_executor(self._executor, execute_prompt)

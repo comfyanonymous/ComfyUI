@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Literal
+from typing import Literal, Optional
 
 from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, ExecutingMessage
 from ..component_model.queue_types import BinaryEventTypes
@@ -23,5 +23,5 @@ class ServerStub(ExecutorToClientProgress):
                   data: StatusMessage | ExecutingMessage | bytes | bytearray | None, sid: str | None = None):
         pass
 
-    def queue_updated(self):
+    def queue_updated(self, queue_remaining: Optional[int] = None):
         pass

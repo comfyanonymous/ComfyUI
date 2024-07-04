@@ -344,6 +344,7 @@ class PromptExecutor:
     def __init__(self, server: ExecutorToClientProgress):
         self.success = None
         self.server = server
+        self.raise_exceptions = False
         self.reset()
 
     def reset(self):
@@ -403,6 +404,9 @@ class PromptExecutor:
         for o in to_delete:
             d = self.outputs.pop(o)
             del d
+
+        if ex is not None and self.raise_exceptions:
+            raise ex
 
     def execute(self, prompt, prompt_id, extra_data=None, execute_outputs: List[str] = None):
         with new_execution_context(ExecutionContext(self.server)):

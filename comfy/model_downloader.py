@@ -120,6 +120,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                         logging.warning(f"Could not retrieve file {str(known_file)}")
                     else:
                         destination_with_filename = join(this_model_directory, save_filename)
+                        os.makedirs(os.path.dirname(destination_with_filename), exist_ok=True)
                         try:
 
                             with _session.get(url, stream=True, allow_redirects=True) as response:
@@ -300,6 +301,12 @@ KNOWN_CONTROLNETS = [
     HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/hed/controlnet/diffusion_pytorch_model.bin", save_with_filename="ControlNet-Plus-Plus_sd15_hed.bin", repo_type="space"),
     HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/lineart/controlnet/diffusion_pytorch_model.bin", save_with_filename="ControlNet-Plus-Plus_sd15_lineart.bin", repo_type="space"),
     HuggingFile("limingcv/ControlNet-Plus-Plus", "checkpoints/seg/controlnet/diffusion_pytorch_model.safetensors", save_with_filename="ControlNet-Plus-Plus_sd15_ade20k_seg.safetensors", repo_type="space"),
+    HuggingFile("xinsir/controlnet-scribble-sdxl-1.0", "diffusion_pytorch_model.safetensors", save_with_filename="xinsir-controlnet-scribble-sdxl-1.0.safetensors"),
+    HuggingFile("xinsir/controlnet-canny-sdxl-1.0", "diffusion_pytorch_model.safetensors", save_with_filename="xinsir-controlnet-canny-sdxl-1.0.safetensors"),
+    HuggingFile("xinsir/controlnet-canny-sdxl-1.0", "diffusion_pytorch_model_V2.safetensors", save_with_filename="xinsir-controlnet-canny-sdxl-1.0_V2.safetensors"),
+    HuggingFile("xinsir/controlnet-openpose-sdxl-1.0", "diffusion_pytorch_model.safetensors", save_with_filename="xinsir-controlnet-openpose-sdxl-1.0.safetensors"),
+    HuggingFile("xinsir/anime-painter", "diffusion_pytorch_model.safetensors", save_with_filename="xinsir-anime-painter-scribble-sdxl-1.0.safetensors"),
+    HuggingFile("TheMistoAI/MistoLine", "mistoLine_rank256.safetensors"),
 ]
 
 KNOWN_DIFF_CONTROLNETS = [
@@ -343,12 +350,17 @@ KNOWN_CLIP_MODELS: List[Union[CivitFile | HuggingFile]] = [
 ]
 
 
-def add_known_models(folder_name: str, symbol: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:
+def add_known_models(folder_name: str, known_models: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:
+    if len(models) < 1:
+        return known_models
+
     if args.disable_known_models:
         logging.warning(f"Known models have been disabled in the options (while adding {folder_name}/{','.join(map(str, models))})")
-    symbol += models
+
+    pre_existing = frozenset(known_models)
+    known_models += [model for model in models if model not in pre_existing]
     folder_paths.invalidate_cache(folder_name)
-    return symbol
+    return known_models
 
 
 def huggingface_repos() -> List[str]:

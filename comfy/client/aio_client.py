@@ -11,11 +11,11 @@ from aiohttp import WSMessage, ClientResponse
 from typing_extensions import Dict
 
 from .client_types import V1QueuePromptResponse
-from ..api.schemas import immutabledict
-from ..api.components.schema.prompt import PromptDict
 from ..api.api_client import JSONEncoder
+from ..api.components.schema.prompt import PromptDict
 from ..api.components.schema.prompt_request import PromptRequest
 from ..api.paths.history.get.responses.response_200.content.application_json.schema import Schema as GetHistoryDict
+from ..api.schemas import immutabledict
 from ..component_model.file_output_path import file_output_path
 
 
@@ -33,6 +33,15 @@ class AsyncRemoteComfyClient:
         self.websocket_address = websocket_address if websocket_address is not None else urljoin(
             f"ws://{server_address_url.hostname}:{server_address_url.port}", f"/ws?clientId={client_id}")
         self.loop = loop or asyncio.get_event_loop()
+
+    async def len_queue(self) -> int:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(urljoin(self.server_address, "/prompt"), headers={'Accept': 'application.json'}) as response:
+                if response.status == 200:
+                    exec_info_dict = await response.json()
+                    return exec_info_dict["exec_info"]["queue_remaining"]
+                else:
+                    raise RuntimeError(f"unexpected response: {response.status}: {await response.text()}")
 
     async def queue_prompt_api(self, prompt: PromptDict) -> V1QueuePromptResponse:
         """
@@ -71,7 +80,7 @@ class AsyncRemoteComfyClient:
             async with session.post(urljoin(self.server_address, "/api/v1/prompts"), data=prompt_json,
                                     headers={'Content-Type': 'application/json', 'Accept': 'image/png'}) as response:
 
-                if response.status == 200:
+                if 200 <= response.status < 400:
                     return await response.read()
                 else:
                     raise RuntimeError(f"could not prompt: {response.status}: {await response.text()}")

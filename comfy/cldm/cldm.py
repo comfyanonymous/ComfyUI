@@ -293,7 +293,7 @@ class ControlNet(nn.Module):
 
         hs = []
         if self.num_classes is not None:
-            assert y.shape[0] == x.shape[0]
+            assert y.shape[0] == x.shape[0], "There may be a mismatch between the ControlNet and Diffusion models being used"
             emb = emb + self.label_emb(y)
 
         h = x

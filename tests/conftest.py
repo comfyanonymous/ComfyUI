@@ -1,13 +1,42 @@
-import json
+import logging
 import multiprocessing
+import os
 import pathlib
+import socket
+import subprocess
+import sys
 import time
 import urllib
-from typing import Tuple
+from typing import Tuple, List
 
 import pytest
+import requests
 
 from comfy.cli_args_types import Configuration
+
+# fixes issues with running the testcontainers rabbitmqcontainer on Windows
+os.environ["TC_HOST"] = "localhost"
+
+
+def get_lan_ip():
+    """
+    Finds the host's IP address on the LAN it's connected to.
+
+    Returns:
+        str: The IP address of the host on the LAN.
+    """
+    # Create a dummy socket
+    s = None
+    try:
+        # Connect to a dummy address (Here, Google's public DNS server)
+        # The actual connection is not made, but this allows finding out the LAN IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    finally:
+        if s is not None:
+            s.close()
+    return ip
 
 
 def run_server(server_arguments: Configuration):
@@ -20,7 +49,83 @@ def run_server(server_arguments: Configuration):
 
 
 @pytest.fixture(scope="function", autouse=False)
-def comfy_background_server(tmp_path) -> Tuple[Configuration, multiprocessing.Process]:
+def has_gpu() -> bool:
+    # ipex
+    try:
+        import intel_extension_for_pytorch as ipex
+        has_gpu = ipex.xpu.device_count() > 0
+    except ImportError:
+        try:
+            import torch
+            has_gpu = torch.device(torch.cuda.current_device()) is not None
+        except:
+            has_gpu = False
+
+    if has_gpu:
+        from comfy import model_management
+        from comfy.model_management import CPUState
+        model_management.cpu_state = CPUState.GPU if has_gpu else CPUState.CPU
+    yield has_gpu
+
+
+@pytest.fixture(scope="module", autouse=False)
+def frontend_backend_worker_with_rabbitmq(tmp_path_factory) -> str:
+    """
+    starts a frontend and backend worker against a started rabbitmq, and yields the address of the frontend
+    :return:
+    """
+    tmp_path = tmp_path_factory.mktemp("comfy_background_server")
+    processes_to_close: List[subprocess.Popen] = []
+    from testcontainers.rabbitmq import RabbitMqContainer
+    with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
+        params = rabbitmq.get_connection_params()
+        connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
+
+        frontend_command = [
+            "comfyui",
+            "--listen=0.0.0.0",
+            "--port=9001",
+            "--cpu",
+            "--distributed-queue-frontend",
+            f"-w={str(tmp_path)}",
+            f"--distributed-queue-connection-uri={connection_uri}",
+        ]
+
+        processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr))
+        backend_command = [
+            "comfyui-worker",
+            "--port=9002",
+            f"-w={str(tmp_path)}",
+            f"--distributed-queue-connection-uri={connection_uri}",
+        ]
+
+        processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
+        try:
+            server_address = f"http://{get_lan_ip()}:9001"
+            start_time = time.time()
+            connected = False
+            while time.time() - start_time < 60:
+                try:
+                    response = requests.get(server_address)
+                    if response.status_code == 200:
+                        connected = True
+                        break
+                except ConnectionRefusedError:
+                    pass
+                except Exception as exc:
+                    logging.warning("", exc_info=exc)
+                time.sleep(1)
+            if not connected:
+                raise RuntimeError("could not connect to frontend")
+            yield server_address
+        finally:
+            for process in processes_to_close:
+                process.terminate()
+
+
+@pytest.fixture(scope="module", autouse=False)
+def comfy_background_server(tmp_path_factory) -> Tuple[Configuration, multiprocessing.Process]:
+    tmp_path = tmp_path_factory.mktemp("comfy_background_server")
     import torch
     # Start server
 
@@ -99,7 +204,7 @@ def model(clip):
         pytest.skip(f"{checkpoint} not present on machine")
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function", autouse=False)
 def use_temporary_output_directory(tmp_path: pathlib.Path):
     from comfy.cmd import folder_paths
 
@@ -109,7 +214,7 @@ def use_temporary_output_directory(tmp_path: pathlib.Path):
     folder_paths.set_output_directory(orig_dir)
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function", autouse=False)
 def use_temporary_input_directory(tmp_path: pathlib.Path):
     from comfy.cmd import folder_paths
 

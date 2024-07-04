@@ -1,25 +1,13 @@
 import pytest
-import torch
 
-from comfy import model_management
 from comfy.api.components.schema.prompt import Prompt
+from comfy.cli_args_types import Configuration
+from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile
-from comfy.model_management import CPUState
 
-try:
-    has_gpu = torch.device(torch.cuda.current_device()) is not None
-except:
-    has_gpu = False
-
-model_management.cpu_state = CPUState.GPU if has_gpu else CPUState.CPU
-from comfy.client.embedded_comfy_client import EmbeddedComfyClient
-
-
-@pytest.mark.skipif(not has_gpu, reason="Expects GPU device")
-@pytest.mark.asyncio
-async def test_lora_workflow():
-    prompt = Prompt.validate({
+_workflows = {
+    "lora_1": {
         "3": {
             "inputs": {
                 "seed": 851616030078638,
@@ -144,11 +132,30 @@ async def test_lora_workflow():
                 "title": "Load LoRA"
             }
         }
-    })
+    }
+}
 
+
+@pytest.fixture(scope="module", autouse=False)
+@pytest.mark.asyncio
+async def client(tmp_path_factory) -> EmbeddedComfyClient:
+    config = Configuration()
+    config.cwd = str(tmp_path_factory.mktemp("comfy_test_cwd"))
+    async with EmbeddedComfyClient(config) as client:
+        yield client
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("workflow_name, workflow", _workflows.items())
+async def test_workflow(workflow_name: str, workflow: dict, has_gpu: bool, client: EmbeddedComfyClient):
+    if not has_gpu:
+        pytest.skip("requires gpu")
+
+
+    prompt = Prompt.validate(workflow)
     add_known_models("loras", KNOWN_LORAS, CivitFile(13941, 16576, "epi_noiseoffset2.safetensors"))
-    async with EmbeddedComfyClient() as client:
-        outputs = await client.queue_prompt(prompt)
+    # todo: add all the models we want to test a bit more elegantly
+    outputs = await client.queue_prompt(prompt)
 
-        save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
-        assert outputs[save_image_node_id]["images"][0]["abs_path"] is not None
+    save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
+    assert outputs[save_image_node_id]["images"][0]["abs_path"] is not None
