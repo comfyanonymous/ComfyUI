@@ -19,7 +19,6 @@ jobs:
     - name: Checkout ComfyUI
       uses: actions/checkout@v4
       with:
-        repository: "comfyanonymous/ComfyUI"
         path: "ComfyUI"
     - name: Checkout ComfyUI_frontend
       uses: actions/checkout@v4

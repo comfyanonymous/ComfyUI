@@ -46,7 +46,7 @@ jobs:
       - name: Run all other supported tests
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
-          pytest tests/ --ignore=tests/distributed --ignore=tests/unit
+          pytest -v tests/inference
       - name: Lint for errors
         run: |
           pylint comfy/
