@@ -9,7 +9,7 @@ on: [ push ]
 
 jobs:
   build:
-    name: Build Test
+    name: Installation, Unit and Workflow Tests for Linux
     runs-on: ${{ matrix.runner.labels }}
     container: ${{ matrix.runner.container }}
     strategy:
