@@ -1890,6 +1890,9 @@ EXTENSION_WEB_DIRS = {}
 
 def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
+    if os.path.isfile(module_path):
+        sp = os.path.splitext(module_path)
+        module_name = sp[0]
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
         if os.path.isfile(module_path):
@@ -2019,7 +2022,7 @@ def init_builtin_extra_nodes():
 
 
 def init_extra_nodes(init_custom_nodes=True):
-    import_failed = init_external_custom_nodes()
+    import_failed = init_builtin_extra_nodes()
 
     if init_custom_nodes:
         init_external_custom_nodes()
