@@ -181,6 +181,8 @@ class Quantize:
             elif dither.startswith("bayer"):
                 order = int(dither.split('-')[-1])
                 quantized_image = Quantize.bayer(im, pal_im, order)
+            else:
+                raise ValueError(f"dither was unexpected value {dither}")
 
             quantized_array = torch.tensor(np.array(quantized_image.convert("RGB"))).float() / 255
             result[b] = quantized_array

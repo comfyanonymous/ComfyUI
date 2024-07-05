@@ -1,3 +1,5 @@
+import hashlib
+
 import torch
 import comfy.model_management
 from comfy.cmd import folder_paths
@@ -38,6 +40,7 @@ class VAEEncodeAudio:
     def encode(self, vae, audio):
         sample_rate = audio["sample_rate"]
         if 44100 != sample_rate:
+            import torchaudio
             waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, 44100)
         else:
             waveform = audio["waveform"]

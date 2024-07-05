@@ -4,6 +4,9 @@ import comfy.latent_formats
 import torch
 
 class LCM(comfy.model_sampling.EPS):
+    def timestep(self, *args, **kwargs) -> torch.Tensor:
+        pass
+
     def calculate_denoised(self, sigma, model_output, model_input):
         timestep = self.timestep(sigma).view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
         sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
@@ -84,6 +87,7 @@ class ModelSamplingDiscrete:
     def patch(self, model, sampling, zsnr):
         m = model.clone()
 
+        sampling_type = "eps"
         sampling_base = comfy.model_sampling.ModelSamplingDiscrete
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
@@ -176,6 +180,7 @@ class ModelSamplingContinuousEDM:
 
         latent_format = None
         sigma_data = 1.0
+        sampling_type = comfy.model_sampling.EPS
         if sampling == "eps":
             sampling_type = comfy.model_sampling.EPS
         elif sampling == "v_prediction":
@@ -214,6 +219,7 @@ class ModelSamplingContinuousV:
 
         latent_format = None
         sigma_data = 1.0
+        sampling_type = comfy.model_sampling.EPS
         if sampling == "v_prediction":
             sampling_type = comfy.model_sampling.V_PREDICTION
 

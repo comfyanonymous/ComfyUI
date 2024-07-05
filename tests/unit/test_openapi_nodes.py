@@ -21,40 +21,43 @@ _image_1x1 = torch.zeros((1, 1, 3), dtype=torch.float32, device="cpu")
 def test_save_image_response():
     assert SaveImagesResponse.INPUT_TYPES() is not None
     n = SaveImagesResponse()
-    result = n.execute(images=[_image_1x1], uris=["with_prefix/1.png"], name="test")
+    ui_node_ret_dict = n.execute(images=[_image_1x1], uris=["with_prefix/1.png"], name="test")
     assert os.path.isfile(os.path.join(folder_paths.get_output_directory(), "with_prefix/1.png"))
-    assert len(result["result"]) == 1
-    assert len(result["ui"]["images"]) == 1
-    assert result["result"][0]["filename"] == "1.png"
-    assert result["result"][0]["subfolder"] == "with_prefix"
-    assert result["result"][0]["name"] == "test"
+    assert len(ui_node_ret_dict["result"]) == 1
+    assert len(ui_node_ret_dict["ui"]["images"]) == 1
+    image_result, = ui_node_ret_dict["result"]
+    assert image_result[0]["filename"] == "1.png"
+    assert image_result[0]["subfolder"] == "with_prefix"
+    assert image_result[0]["name"] == "test"
 
 
 def test_save_image_response_abs_local_uris():
     assert SaveImagesResponse.INPUT_TYPES() is not None
     n = SaveImagesResponse()
-    result = n.execute(images=[_image_1x1], uris=[os.path.join(folder_paths.get_output_directory(), "with_prefix/1.png")], name="test")
+    ui_node_ret_dict = n.execute(images=[_image_1x1], uris=[os.path.join(folder_paths.get_output_directory(), "with_prefix/1.png")], name="test")
     assert os.path.isfile(os.path.join(folder_paths.get_output_directory(), "with_prefix/1.png"))
-    assert len(result["result"]) == 1
-    assert len(result["ui"]["images"]) == 1
-    assert result["result"][0]["filename"] == "1.png"
-    assert result["result"][0]["subfolder"] == "with_prefix"
-    assert result["result"][0]["name"] == "test"
+    assert len(ui_node_ret_dict["result"]) == 1
+    assert len(ui_node_ret_dict["ui"]["images"]) == 1
+    image_result, = ui_node_ret_dict["result"]
+    assert image_result[0]["filename"] == "1.png"
+    assert image_result[0]["subfolder"] == "with_prefix"
+    assert image_result[0]["name"] == "test"
 
 
 def test_save_image_response_remote_uris():
     n = SaveImagesResponse()
     uri = "memory://some_folder/1.png"
-    result = n.execute(images=[_image_1x1], uris=[uri])
-    assert len(result["result"]) == 1
-    assert len(result["ui"]["images"]) == 1
-    filename_ = result["result"][0]["filename"]
+    ui_node_ret_dict = n.execute(images=[_image_1x1], uris=[uri])
+    assert len(ui_node_ret_dict["result"]) == 1
+    assert len(ui_node_ret_dict["ui"]["images"]) == 1
+    image_result, = ui_node_ret_dict["result"]
+    filename_ = image_result[0]["filename"]
     assert filename_ != "1.png"
     assert filename_ != ""
     assert uuid.UUID(filename_.replace(".png", "")) is not None
     assert os.path.isfile(os.path.join(folder_paths.get_output_directory(), filename_))
-    assert result["result"][0]["abs_path"] == uri
-    assert result["result"][0]["subfolder"] == ""
+    assert image_result[0]["abs_path"] == uri
+    assert image_result[0]["subfolder"] == ""
 
 
 def test_save_exif():
@@ -72,13 +75,14 @@ def test_save_exif():
 def test_no_local_file():
     n = SaveImagesResponse()
     uri = "memory://some_folder/2.png"
-    result = n.execute(images=[_image_1x1], uris=[uri], local_uris=["/dev/null"])
-    assert len(result["result"]) == 1
-    assert len(result["ui"]["images"]) == 1
-    assert result["result"][0]["filename"] == ""
-    assert not os.path.isfile(os.path.join(folder_paths.get_output_directory(), result["result"][0]["filename"]))
-    assert result["result"][0]["abs_path"] == uri
-    assert result["result"][0]["subfolder"] == ""
+    ui_node_ret_dict = n.execute(images=[_image_1x1], uris=[uri], local_uris=["/dev/null"])
+    assert len(ui_node_ret_dict["result"]) == 1
+    assert len(ui_node_ret_dict["ui"]["images"]) == 1
+    image_result, = ui_node_ret_dict["result"]
+    assert image_result[0]["filename"] == ""
+    assert not os.path.isfile(os.path.join(folder_paths.get_output_directory(), image_result[0]["filename"]))
+    assert image_result[0]["abs_path"] == uri
+    assert image_result[0]["subfolder"] == ""
 
 
 def test_int_request_parameter():

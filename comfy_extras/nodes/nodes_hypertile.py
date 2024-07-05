@@ -3,7 +3,7 @@
 import math
 from einops import rearrange
 # Use torch rng for consistency across generations
-from torch import randint
+from torch import randint  # pylint: disable=no-name-in-module
 
 def random_divisor(value: int, min_value: int, /, max_options: int = 1) -> int:
     min_value = min(min_value, value)

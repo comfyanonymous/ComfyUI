@@ -2,16 +2,6 @@ import numpy as np
 import pytest
 import torch
 
-from comfy import model_management
-from comfy.model_management import CPUState
-
-try:
-    has_gpu = torch.device(torch.cuda.current_device()) is not None
-except:
-    has_gpu = False
-
-model_management.cpu_state = CPUState.GPU if has_gpu else CPUState.CPU
-
 from comfy.nodes.base_nodes import ImagePadForOutpaint, ImageBatch, ImageInvert, ImageScaleBy, ImageScale, LatentCrop, \
     LatentComposite, LatentFlip, LatentRotate, LatentUpscaleBy, LatentUpscale, InpaintModelConditioning, CLIPTextEncode, \
     VAEEncodeForInpaint, VAEEncode, VAEDecode, ConditioningSetMask, ConditioningSetArea, ConditioningCombine, \
@@ -60,20 +50,24 @@ def test_conditioning_set_mask(clip):
     assert cond[0][1]["mask_strength"] == 1.0
 
 
-def test_vae_decode(vae):
+def test_vae_decode(vae, has_gpu):
+    if not has_gpu:
+        pytest.skip("requires gpu for performant testing")
     decoded, = VAEDecode().decode(vae, _latent)
     assert decoded.shape == (1, 512, 512, 3)
 
 
-@pytest.mark.skipif(not has_gpu, reason="requires gpu for performant testing")
-def test_vae_encode(vae):
+def test_vae_encode(has_gpu, vae):
+    if not has_gpu:
+        pytest.skip("requires gpu for performant testing")
     latent, = VAEEncode().encode(vae, _image_512x512)
     assert "samples" in latent
     assert latent["samples"].shape == (1, 4, 64, 64)
 
 
-@pytest.mark.skipif(not has_gpu, reason="requires gpu for performant testing")
-def test_vae_encode_for_inpaint(vae):
+def test_vae_encode_for_inpaint(has_gpu, vae):
+    if not has_gpu:
+        pytest.skip("requires gpu for performant testing")
     mask = torch.ones((1, 512, 512))
     latent, = VAEEncodeForInpaint().encode(vae, _image_512x512, mask)
     assert "samples" in latent
@@ -82,8 +76,9 @@ def test_vae_encode_for_inpaint(vae):
     assert torch.allclose(latent["noise_mask"], mask)
 
 
-@pytest.mark.skipif(not has_gpu, reason="requires gpu for performant testing")
-def test_inpaint_model_conditioning(model, vae, clip):
+def test_inpaint_model_conditioning(model, vae, clip, has_gpu):
+    if not has_gpu:
+        pytest.skip("requires gpu for performant testing")
     cond_pos, = CLIPTextEncode().encode(clip, "test prompt")
     cond_neg, = CLIPTextEncode().encode(clip, "test negative prompt")
     pos, neg, latent = InpaintModelConditioning().encode(cond_pos, cond_neg, _image_512x512, vae, torch.ones((1, 512, 512)))

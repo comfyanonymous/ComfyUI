@@ -63,6 +63,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
                         hf_destination_dir = this_model_directory
 
                     # converted 16 bit files should be skipped
+                    # todo: the file size should be replaced with a file hash
                     path = os.path.join(hf_destination_dir, known_file.filename)
                     try:
                         file_size = os.stat(path, follow_symlinks=True).st_size if os.path.isfile(path) else None
@@ -73,6 +74,7 @@ def get_or_download(folder_name: str, filename: str, known_files: List[HuggingFi
 
                     path = hf_hub_download(repo_id=known_file.repo_id,
                                            filename=known_file.filename,
+                                           # todo: in the latest huggingface implementation, this causes files to be downloaded as though the destination is the cache dir, rather than a local directory linking to a cache dir
                                            local_dir=hf_destination_dir,
                                            repo_type=known_file.repo_type,
                                            revision=known_file.revision,

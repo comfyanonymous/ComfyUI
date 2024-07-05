@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from comfy.cmd import folder_paths
-from comfy import clip_model
+from comfy import clip_model, model_management, utils
 from comfy import clip_vision
 from comfy import ops
 
@@ -90,9 +90,9 @@ class FuseModule(nn.Module):
 
 class PhotoMakerIDEncoder(clip_model.CLIPVisionModelProjection):
     def __init__(self):
-        self.load_device = comfy.model_management.text_encoder_device()
-        offload_device = comfy.model_management.text_encoder_offload_device()
-        dtype = comfy.model_management.text_encoder_dtype(self.load_device)
+        self.load_device = model_management.text_encoder_device()
+        offload_device = model_management.text_encoder_offload_device()
+        dtype = model_management.text_encoder_dtype(self.load_device)
 
         super().__init__(VISION_CONFIG_DICT, dtype, offload_device, ops.manual_cast)
         self.visual_projection_2 = ops.manual_cast.Linear(1024, 1280, bias=False)
@@ -128,7 +128,7 @@ class PhotoMakerLoader:
     def load_photomaker_model(self, photomaker_model_name):
         photomaker_model_path = folder_paths.get_full_path("photomaker", photomaker_model_name)
         photomaker_model = PhotoMakerIDEncoder()
-        data = comfy.utils.load_torch_file(photomaker_model_path, safe_load=True)
+        data = utils.load_torch_file(photomaker_model_path, safe_load=True)
         if "id_encoder" in data:
             data = data["id_encoder"]
         photomaker_model.load_state_dict(data)
