@@ -1913,7 +1913,7 @@ def get_module_name(module_path: str) -> str:
 
 
 def load_custom_node(module_path, ignore=set()):
-    module_name = get_module_name(module_path)
+    module_name = os.path.basename(module_path)
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
         if os.path.isfile(module_path):
