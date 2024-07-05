@@ -1888,30 +1888,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 EXTENSION_WEB_DIRS = {}
 
 
-def get_module_name(module_path: str) -> str:
-    """
-    Returns the module name based on the given module path.
-    Examples:
-        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node.py") -> "custom_nodes.my_custom_node"
-        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node") -> "custom_nodes.my_custom_node"
-        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/") -> "custom_nodes.my_custom_node"
-        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/__init__.py") -> "custom_nodes.my_custom_node"
-        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/__init__") -> "custom_nodes.my_custom_node"
-        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/__init__/") -> "custom_nodes.my_custom_node"
-        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node.disabled") -> "custom_nodes.my
-
-    Args:
-        module_path (str): The path of the module.
-
-    Returns:
-        str: The module name.
-    """
-    relative_path = os.path.relpath(module_path, folder_paths.base_path)
-    if os.path.isfile(module_path):
-        relative_path = os.path.splitext(relative_path)[0]
-    return relative_path.replace(os.sep, '.')
-
-
 def load_custom_node(module_path, ignore=set()):
     module_name = os.path.basename(module_path)
     try:
@@ -2038,6 +2014,17 @@ def init_builtin_extra_nodes():
     for node_file in extras_files:
         if not load_custom_node(os.path.join(extras_dir, node_file)):
             import_failed.append(node_file)
+
+    return import_failed
+
+
+def init_extra_nodes(init_custom_nodes=True):
+    import_failed = init_external_custom_nodes()
+
+    if init_custom_nodes:
+        init_external_custom_nodes()
+    else:
+        logging.info("Skipping loading of custom nodes")
 
     if len(import_failed) > 0:
         logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
