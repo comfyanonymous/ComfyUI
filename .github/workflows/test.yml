@@ -19,7 +19,7 @@ jobs:
           - labels: [self-hosted, Linux, X64, cpu]
             container: "ubuntu"
           - labels: [self-hosted, Linux, X64, ipex-a380-6gb]
-            container: "intel/intel-optimized-pytorch:2.3.0-pip-base"
+            container: "intel/intel-optimized-pytorch:2.1.20-xpu-pip-base"
           - labels: [self-hosted, Linux, X64, rocm-7600-8gb]
             container: "rocm/pytorch:rocm6.0.2_ubuntu22.04_py3.10_pytorch_2.1.2"
           - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
