@@ -58,7 +58,6 @@ import shutil
 import threading
 import gc
 
-from comfy.cli_args import args
 import logging
 
 if os.name == "nt":
