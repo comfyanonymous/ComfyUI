@@ -40,7 +40,7 @@ class VAEEncodeAudio:
     def encode(self, vae, audio):
         sample_rate = audio["sample_rate"]
         if 44100 != sample_rate:
-            import torchaudio
+            import torchaudio  # pylint: disable=import-error
             waveform = torchaudio.functional.resample(audio["waveform"], sample_rate, 44100)
         else:
             waveform = audio["waveform"]
@@ -137,7 +137,7 @@ class SaveAudio:
     CATEGORY = "_for_testing/audio"
 
     def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-        import torchaudio
+        import torchaudio  # pylint: disable=import-error
 
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
@@ -205,7 +205,7 @@ class LoadAudio:
     FUNCTION = "load"
 
     def load(self, audio):
-        import torchaudio
+        import torchaudio  # pylint: disable=import-error
 
         audio_path = folder_paths.get_annotated_filepath(audio)
         waveform, sample_rate = torchaudio.load(audio_path)
