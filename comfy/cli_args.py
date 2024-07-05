@@ -118,6 +118,7 @@ parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test
 parser.add_argument("--windows-standalone-build", action="store_true", help="Windows standalone build: Enable convenient things that most people using the standalone windows build will probably enjoy (like auto opening the page on startup).")
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
+parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
