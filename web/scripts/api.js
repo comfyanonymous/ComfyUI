@@ -1,3 +1,5 @@
+import {serverNodeDefs} from "../../serverNodeDefs.js";
+
 class ComfyApi extends EventTarget {
 	#registered = new Set();
 
@@ -168,8 +170,33 @@ class ComfyApi extends EventTarget {
 	 * @returns An array of script urls to import
 	 */
 	async getExtensions() {
-		const resp = await this.fetchApi("/extensions", { cache: "no-store" });
-		return await resp.json();
+    const COMFYUI_CORE_EXTENSIONS = [
+      // "/extensions/core/clipspace.js",
+      "/extensions/core/colorPalette.js",
+      // "/extensions/core/contextMenuFilter.js",
+      // "/extensions/core/dynamicPrompts.js",
+      // "/extensions/core/editAttention.js",
+      "/extensions/core/groupNode.js",
+      "/extensions/core/groupNodeManage.js",
+      "/extensions/core/groupOptions.js",
+      // "/extensions/core/invertMenuScrolling.js",
+      // "/extensions/core/keybinds.js",
+      // "/extensions/core/linkRenderMode.js",
+      "/extensions/core/maskeditor.js",
+      // "/extensions/core/nodeTemplates.js",
+      "/extensions/core/noteNode.js",
+      "/extensions/core/rerouteNode.js",
+      "/extensions/core/saveImageExtraOutput.js",
+      "/extensions/core/slotDefaults.js",
+      "/extensions/core/snapToGrid.js",
+      // "/extensions/core/undoRedo.js",
+      "/extensions/core/uploadImage.js",
+      "/extensions/core/widgetInputs.js",
+      "/extensions/dp.js",
+    ]
+		// const resp = await this.fetchApi("/extensions", { cache: "no-store" });
+		// return await resp.json();
+    return COMFYUI_CORE_EXTENSIONS
 	}
 
 	/**
@@ -186,8 +213,9 @@ class ComfyApi extends EventTarget {
 	 * @returns The node definitions
 	 */
 	async getNodeDefs() {
-		const resp = await this.fetchApi("/object_info", { cache: "no-store" });
-		return await resp.json();
+		// const resp = await this.fetchApi("/object_info", { cache: "no-store" });
+    return serverNodeDefs;
+		// return await resp.json();
 	}
 
 	/**
@@ -330,6 +358,7 @@ class ComfyApi extends EventTarget {
 	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> }
 	 */
 	async getUserConfig() {
+    return { storage: "browser", users: Promise.resolve({}), migrated: false };
 		return (await this.fetchApi("/users")).json();
 	}
 
@@ -339,6 +368,7 @@ class ComfyApi extends EventTarget {
 	 * @returns The fetch response
 	 */
 	createUser(username) {
+    return { status: 200, json: async () => ({}) };
 		return this.fetchApi("/users", {
 			method: "POST",
 			headers: {
@@ -353,6 +383,7 @@ class ComfyApi extends EventTarget {
 	 * @returns { Promise<string, unknown> } A dictionary of id -> value
 	 */
 	async getSettings() {
+    return {};
 		return (await this.fetchApi("/settings")).json();
 	}
 
@@ -362,6 +393,7 @@ class ComfyApi extends EventTarget {
 	 * @returns { Promise<unknown> } The setting value
 	 */
 	async getSetting(id) {
+    return null;
 		return (await this.fetchApi(`/settings/${encodeURIComponent(id)}`)).json();
 	}
 
