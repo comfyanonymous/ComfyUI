@@ -190,11 +190,11 @@ class T5Block(torch.nn.Module):
         return x, past_bias
 
 class T5Stack(torch.nn.Module):
-    def __init__(self, num_layers, model_dim, inner_dim, ff_dim, ff_activation, gated_act, num_heads, dtype, device, operations):
+    def __init__(self, num_layers, model_dim, inner_dim, ff_dim, ff_activation, gated_act, num_heads, relative_attention, dtype, device, operations):
         super().__init__()
 
         self.block = torch.nn.ModuleList(
-            [T5Block(model_dim, inner_dim, ff_dim, ff_activation, gated_act, num_heads, relative_attention_bias=(i == 0), dtype=dtype, device=device, operations=operations) for i in range(num_layers)]
+            [T5Block(model_dim, inner_dim, ff_dim, ff_activation, gated_act, num_heads, relative_attention_bias=((not relative_attention) or (i == 0)), dtype=dtype, device=device, operations=operations) for i in range(num_layers)]
         )
         self.final_layer_norm = T5LayerNorm(model_dim, dtype=dtype, device=device, operations=operations)
         # self.dropout = nn.Dropout(config.dropout_rate)
@@ -223,7 +223,7 @@ class T5(torch.nn.Module):
         self.num_layers = config_dict["num_layers"]
         model_dim = config_dict["d_model"]
 
-        self.encoder = T5Stack(self.num_layers, model_dim, model_dim, config_dict["d_ff"], config_dict["dense_act_fn"], config_dict["is_gated_act"], config_dict["num_heads"], dtype, device, operations)
+        self.encoder = T5Stack(self.num_layers, model_dim, model_dim, config_dict["d_ff"], config_dict["dense_act_fn"], config_dict["is_gated_act"], config_dict["num_heads"], config_dict["model_type"] == "t5", dtype, device, operations)
         self.dtype = dtype
         self.shared = torch.nn.Embedding(config_dict["vocab_size"], model_dim, device=device)
 
