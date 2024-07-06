@@ -432,9 +432,11 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
             clip_target.clip = sd2_clip.SD2ClipModel
             clip_target.tokenizer = sd2_clip.SD2Tokenizer
         elif "encoder.block.23.layer.1.DenseReluDense.wi_1.weight" in clip_data[0]:
-            dtype_t5 = clip_data[0]["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"].dtype
-            clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
-            clip_target.tokenizer = sd3_clip.SD3Tokenizer
+            weight = clip_data[0]["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"]
+            dtype_t5 = weight.dtype
+            if weight.shape[-1] == 4096:
+                clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
+                clip_target.tokenizer = sd3_clip.SD3Tokenizer
         elif "encoder.block.0.layer.0.SelfAttention.k.weight" in clip_data[0]:
             clip_target.clip = sa_t5.SAT5Model
             clip_target.tokenizer = sa_t5.SAT5Tokenizer
