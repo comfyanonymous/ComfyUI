@@ -8,7 +8,13 @@ class ComfyApi extends EventTarget {
 		this.api_host = location.host;
 		this.api_base = location.pathname.split('/').slice(0, -1).join('/');
 		this.initialClientId = sessionStorage.getItem("clientId");
+    this.clientId = this.initialClientId ?? this.generateSimpleUID();
+    sessionStorage.setItem("clientId", this.clientId);
 	}
+
+  generateSimpleUID() {
+    return  Math.random().toString(36).slice(2,10);
+  }
 
 	apiURL(route) {
 		return this.api_base + route;
@@ -50,6 +56,7 @@ class ComfyApi extends EventTarget {
 	 * @param {boolean} isReconnect If the socket is connection is a reconnect attempt
 	 */
 	#createSocket(isReconnect) {
+    return;
 		if (this.socket) {
 			return;
 		}
@@ -171,25 +178,25 @@ class ComfyApi extends EventTarget {
 	 */
 	async getExtensions() {
     const COMFYUI_CORE_EXTENSIONS = [
-      // "/extensions/core/clipspace.js",
+      "/extensions/core/clipspace.js",
       "/extensions/core/colorPalette.js",
-      // "/extensions/core/contextMenuFilter.js",
-      // "/extensions/core/dynamicPrompts.js",
-      // "/extensions/core/editAttention.js",
+      "/extensions/core/contextMenuFilter.js",
+      "/extensions/core/dynamicPrompts.js",
+      "/extensions/core/editAttention.js",
       "/extensions/core/groupNode.js",
       "/extensions/core/groupNodeManage.js",
       "/extensions/core/groupOptions.js",
-      // "/extensions/core/invertMenuScrolling.js",
-      // "/extensions/core/keybinds.js",
-      // "/extensions/core/linkRenderMode.js",
+      "/extensions/core/invertMenuScrolling.js",
+      "/extensions/core/keybinds.js",
+      "/extensions/core/linkRenderMode.js",
       "/extensions/core/maskeditor.js",
-      // "/extensions/core/nodeTemplates.js",
+      "/extensions/core/nodeTemplates.js",
       "/extensions/core/noteNode.js",
       "/extensions/core/rerouteNode.js",
       "/extensions/core/saveImageExtraOutput.js",
       "/extensions/core/slotDefaults.js",
       "/extensions/core/snapToGrid.js",
-      // "/extensions/core/undoRedo.js",
+      "/extensions/core/undoRedo.js",
       "/extensions/core/uploadImage.js",
       "/extensions/core/widgetInputs.js",
       "/extensions/dp.js",
@@ -358,7 +365,9 @@ class ComfyApi extends EventTarget {
 	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> }
 	 */
 	async getUserConfig() {
-    return { storage: "browser", users: Promise.resolve({}), migrated: false };
+    localStorage.setItem("Comfy.userId", "default");
+    return { storage: "server", users: {'default':{}} };
+    // return { storage: "browser", users: Promise.resolve({}), migrated: false };
 		return (await this.fetchApi("/users")).json();
 	}
 
