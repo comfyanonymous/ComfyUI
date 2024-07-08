@@ -1,0 +1,15 @@
+--extra-index-url https://pypi.ngc.nvidia.com
+--extra-index-url https://download.pytorch.org/whl/cu117
+timm==1.0.3
+diffusers==0.21.2
+peft==0.10.0
+protobuf==5.27.0
+accelerate==0.30.1
+loguru==0.7.2
+sentencepiece==0.2.0
+cuda-python==12.5.0
+polygraphy==0.49.9
+pandas==2.2.2
+omegaconf==2.3.0
+xformers==0.0.20
+pytorch-lightning==2.2.5
