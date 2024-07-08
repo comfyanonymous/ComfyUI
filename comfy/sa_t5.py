@@ -19,4 +19,4 @@ class SAT5Tokenizer(sd1_clip.SD1Tokenizer):
 
 class SAT5Model(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, **kwargs):
-        super().__init__(device=device, dtype=dtype, clip_name="t5base", clip_model=T5BaseModel, **kwargs)
+        super().__init__(device=device, dtype=dtype, name="t5base", clip_model=T5BaseModel, **kwargs)
