@@ -4,7 +4,7 @@ name: "Release Stable Version"
 on:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 jobs:
   package_comfy_windows:
@@ -15,8 +15,8 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        python_version: [3.11.8, 3.12.2]
-        cuda_version: [118, 121]
+        python_version: [3.11.8]
+        cuda_version: [121]
     steps:
       - name: Calculate Minor Version
         shell: bash
