@@ -25,11 +25,11 @@ jobs:
           MINOR_VERSION=$(echo "${{ matrix.python_version }}" | cut -d'.' -f2)
           echo "MINOR_VERSION=$MINOR_VERSION" >> $GITHUB_ENV
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python_version }}
         
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
