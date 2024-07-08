@@ -1,4 +1,4 @@
-name: Build package
+name: Backend Tests
 
 #
 # This workflow is a test of the python package build.
@@ -8,7 +8,35 @@ name: Build package
 on: [ push ]
 
 jobs:
-  build:
+  build_and_execute_macos:
+    name: Installation, Unit and Workflow Tests for macOS
+    runs-on: ${{ matrix.runner.labels }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - labels: [ self-hosted, m1-8gb ]
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        python3 -m venv
+        source venv/bin/activate
+        python -m pip install setuptools pip --upgrade
+        pip install --no-build-isolation .[dev]
+    - name: Run unit tests
+      run: |
+        source venv/bin/activate
+        pytest -v tests/unit
+    - name: Run all other supported tests
+      run: |
+        source venv/bin/activate
+        pytest -v tests/inference
+    - name: Lint for errors
+      run: |
+        source venv/bin/activate
+        pylint comfy/
+        pylint comfy_extras/
+  build_and_execute_linux:
     name: Installation, Unit and Workflow Tests for Linux
     runs-on: ${{ matrix.runner.labels }}
     container: ${{ matrix.runner.container }}
