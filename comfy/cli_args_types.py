@@ -1,10 +1,13 @@
 # Define a class for your command-line arguments
+from __future__ import annotations
+
+import copy
 import enum
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Any, Union, Mapping, NamedTuple
 
+import configargparse
 import configargparse as argparse
-
-from . import __version__
+from watchdog.events import FileSystemEventHandler
 
 ConfigurationExtender = Callable[[argparse.ArgParser], Optional[argparse.ArgParser]]
 
@@ -16,12 +19,25 @@ class LatentPreviewMethod(enum.Enum):
     TAESD = "taesd"
 
 
+class ConfigChangeHandler(FileSystemEventHandler):
+    def __init__(self, config_file_paths: List[str], update_callback: Callable[[], None]):
+        self.config_file_paths = config_file_paths
+        self.update_callback = update_callback
+
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path in self.config_file_paths:
+            self.update_callback()
+
+
+ConfigObserver = Callable[[str, Any], None]
+
+
 class Configuration(dict):
     """
     Configuration options parsed from command-line arguments or config files.
 
     Attributes:
-        config (Optional[str]): Path to the configuration file.
+        config_files (Optional[List[str]]): Path to the configuration file(s) that were set in the arguments.
         cwd (Optional[str]): Working directory. Defaults to the current directory.
         listen (str): IP address to listen on. Defaults to "127.0.0.1".
         port (int): Port number for the server to listen on. Defaults to 8188.
@@ -95,6 +111,8 @@ class Configuration(dict):
 
     def __init__(self, **kwargs):
         super().__init__()
+        self._observers: List[ConfigObserver] = []
+        self.config_files = []
         self.cwd: Optional[str] = None
         self.listen: str = "127.0.0.1"
         self.port: int = 8188
@@ -174,4 +192,94 @@ class Configuration(dict):
         return self[item]
 
     def __setattr__(self, key, value):
-        self[key] = value
+        if key != "_observers":
+            old_value = self.get(key)
+            self[key] = value
+            if old_value != value:
+                self._notify_observers(key, value)
+        else:
+            super().__setattr__(key, value)
+
+    def update(self, __m: Union[Mapping[str, Any], None] = None, **kwargs):
+        if __m is None:
+            __m = {}
+        changes = {}
+        for k, v in dict(__m, **kwargs).items():
+            if k not in self or self[k] != v:
+                changes[k] = v
+        super().update(__m, **kwargs)
+        for k, v in changes.items():
+            self._notify_observers(k, v)
+
+    def register_observer(self, observer: ConfigObserver):
+        self._observers.append(observer)
+
+    def unregister_observer(self, observer: ConfigObserver):
+        self._observers.remove(observer)
+
+    def _notify_observers(self, key, value):
+        for observer in self._observers:
+            observer(key, value)
+
+    def __getstate__(self):
+        state = self.copy()
+        if "_observers" in state:
+            state.pop("_observers")
+        return state
+
+    def __setstate__(self, state):
+        self.update(state)
+        self._observers = []
+
+
+class EnumAction(argparse.Action):
+    """
+    Argparse action for handling Enums
+    """
+
+    def __init__(self, **kwargs):
+        # Pop off the type value
+        enum_type = kwargs.pop("type", None)
+
+        # Ensure an Enum subclass is provided
+        if enum_type is None:
+            raise ValueError("type must be assigned an Enum when using EnumAction")
+        enum_type: Any
+        if not issubclass(enum_type, enum.Enum):
+            raise TypeError("type must be an Enum when using EnumAction")
+
+        # Generate choices from the Enum
+        choices = tuple(e.value for e in enum_type)
+        kwargs.setdefault("choices", choices)
+        kwargs.setdefault("metavar", f"[{','.join(list(choices))}]")
+
+        super(EnumAction, self).__init__(**kwargs)
+
+        self._enum = enum_type
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Convert value back into an Enum
+        value = self._enum(values)
+        setattr(namespace, self.dest, value)
+
+
+class ParsedArgs(NamedTuple):
+    namespace: configargparse.Namespace
+    unknown_args: list[str]
+    config_file_paths: list[str]
+
+
+class EnhancedConfigArgParser(configargparse.ArgParser):
+    def parse_known_args_with_config_files(self, args=None, namespace=None, **kwargs) -> ParsedArgs:
+        # usually the single method open
+        prev_open_func = self._config_file_open_func
+        config_files: List[str] = []
+
+        try:
+            self._config_file_open_func = lambda path: config_files.append(path)
+            self._open_config_files(args)
+        finally:
+            self._config_file_open_func = prev_open_func
+
+        namespace, unknown_args = super().parse_known_args(args, namespace, **kwargs)
+        return ParsedArgs(namespace, unknown_args, config_files)

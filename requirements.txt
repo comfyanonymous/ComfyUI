@@ -54,3 +54,4 @@ certifi
 spandrel
 numpy>=1.26.3,<2.0.0
 soundfile
+watchdog

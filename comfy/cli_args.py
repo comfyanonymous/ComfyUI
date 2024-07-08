@@ -1,52 +1,23 @@
 from __future__ import annotations
 
-import enum
 import logging
+import os
 import sys
 from importlib.metadata import entry_points
 from types import ModuleType
-from typing import Optional, Any
+from typing import Optional, List
 
 import configargparse as argparse
+from watchdog.observers import Observer
 
 from . import __version__
 from . import options
-from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender
+from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, ConfigChangeHandler, EnumAction, \
+    EnhancedConfigArgParser
 
 
-class EnumAction(argparse.Action):
-    """
-    Argparse action for handling Enums
-    """
-
-    def __init__(self, **kwargs):
-        # Pop off the type value
-        enum_type = kwargs.pop("type", None)
-
-        # Ensure an Enum subclass is provided
-        if enum_type is None:
-            raise ValueError("type must be assigned an Enum when using EnumAction")
-        enum_type: Any
-        if not issubclass(enum_type, enum.Enum):
-            raise TypeError("type must be an Enum when using EnumAction")
-
-        # Generate choices from the Enum
-        choices = tuple(e.value for e in enum_type)
-        kwargs.setdefault("choices", choices)
-        kwargs.setdefault("metavar", f"[{','.join(list(choices))}]")
-
-        super(EnumAction, self).__init__(**kwargs)
-
-        self._enum = enum_type
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        # Convert value back into an Enum
-        value = self._enum(values)
-        setattr(namespace, self.dest, value)
-
-
-def create_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(default_config_files=['config.yaml', 'config.json'],
+def _create_parser() -> EnhancedConfigArgParser:
+    parser = EnhancedConfigArgParser(default_config_files=['config.yaml', 'config.json'],
                                      auto_env_var_prefix='COMFYUI_',
                                      args_for_setting_config_path=["-c", "--config"],
                                      add_env_var_help=True, add_config_file_help=True, add_help=True,
@@ -205,14 +176,14 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(parser: Optional[argparse.ArgumentParser] = None) -> Configuration:
+def _parse_args(parser: Optional[argparse.ArgumentParser] = None) -> Configuration:
     if parser is None:
-        parser = create_parser()
+        parser = _create_parser()
 
     if options.args_parsing:
-        args, _ = parser.parse_known_args()
+        args, _, config_files = parser.parse_known_args_with_config_files()
     else:
-        args, _ = parser.parse_known_args([])
+        args, _, config_files = parser.parse_known_args_with_config_files([])
 
     if args.windows_standalone_build:
         args.auto_launch = True
@@ -225,8 +196,34 @@ def parse_args(parser: Optional[argparse.ArgumentParser] = None) -> Configuratio
         logging_level = logging.DEBUG
 
     logging.basicConfig(format="%(message)s", level=logging_level)
+    configuration_obj = Configuration(**vars(args))
+    configuration_obj.config_files = config_files
+    assert all(isinstance(config_file, str) for config_file in config_files)
+    # we always have to set up a watcher, even when there are no existing files
+    if len(config_files) > 0:
+        _setup_config_file_watcher(configuration_obj, parser, config_files)
+    return configuration_obj
 
-    return Configuration(**vars(args))
+
+def _setup_config_file_watcher(config: Configuration, parser: EnhancedConfigArgParser, config_files: List[str]):
+    def update_config():
+        new_args, _, _ = parser.parse_known_args()
+        new_config = vars(new_args)
+        config.update(new_config)
+
+    handler = ConfigChangeHandler(config_files, update_config)
+    observer = Observer()
+
+    for config_file in config_files:
+        config_dir = os.path.dirname(config_file) or '.'
+        observer.schedule(handler, path=config_dir, recursive=False)
+
+    observer.start()
+
+    # Ensure the observer is stopped when the program exits
+    import atexit
+    atexit.register(observer.stop)
+    atexit.register(observer.join)
 
 
-args = parse_args()
+args = _parse_args()
