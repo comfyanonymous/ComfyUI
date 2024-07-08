@@ -662,7 +662,7 @@ class PromptServer(ExecutorToClientProgress):
                     output_images.append(image_tuple)
 
             if len(output_images) > 0:
-                main_image = output_images[-1]
+                main_image = output_images[0]
                 filename = main_image["filename"]
                 digest_headers_ = {
                     "Digest": f"SHA-256={content_digest}",
