@@ -1,10 +1,13 @@
 import os
 import time
 import logging
+from typing import Set, List, Dict, Tuple
 
-supported_pt_extensions = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors'])
+supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
-folder_names_and_paths = {}
+SupportedFileExtensionsType = Set[str]
+ScanPathType = List[str]
+folder_names_and_paths: Dict[str, Tuple[ScanPathType, SupportedFileExtensionsType]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
 models_dir = os.path.join(base_path, "models")
@@ -26,7 +29,7 @@ folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], suppor
 
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
-folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], [])
+folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
 
@@ -181,6 +184,8 @@ def get_full_path(folder_name, filename):
         full_path = os.path.join(x, filename)
         if os.path.isfile(full_path):
             return full_path
+        elif os.path.islink(full_path):
+            logging.warning("WARNING path {} exists but doesn't link anywhere, skipping.".format(full_path))
 
     return None
 
@@ -256,7 +261,7 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
         raise Exception(err)
 
     try:
-        counter = max(filter(lambda a: a[1][:-1] == filename and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
+        counter = max(filter(lambda a: os.path.normcase(a[1][:-1]) == os.path.normcase(filename) and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
     except ValueError:
         counter = 1
     except FileNotFoundError:

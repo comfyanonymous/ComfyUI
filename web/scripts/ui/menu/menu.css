@@ -1,0 +1,705 @@
+.relative {
+	position: relative;
+}
+.hidden {
+	display: none !important;
+}
+.mdi.rotate270::before {
+	transform: rotate(270deg);
+}
+
+/* Generic */
+.comfyui-button {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	cursor: pointer;
+	border: none;
+	border-radius: 4px;
+	padding: 4px 8px;
+	box-sizing: border-box;
+	margin: 0;
+	transition: box-shadow 0.1s;
+}
+
+.comfyui-button:active {
+	box-shadow: inset 1px 1px 10px rgba(0, 0, 0, 0.5);
+}
+.comfyui-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+.primary .comfyui-button,
+.primary.comfyui-button {
+	background-color: var(--primary-bg) !important;
+	color: var(--primary-fg) !important;
+}
+
+.primary .comfyui-button:not(:disabled):hover,
+.primary.comfyui-button:not(:disabled):hover {
+	background-color: var(--primary-hover-bg) !important;
+	color: var(--primary-hover-fg) !important;
+}
+
+/* Popup */
+.comfyui-popup {
+	position: absolute;
+	left: var(--left);
+	right: var(--right);
+	top: var(--top);
+	bottom: var(--bottom);
+	z-index: 2000;
+	max-height: calc(100vh - var(--limit) - 10px);
+	box-shadow: 3px 3px 5px 0px rgba(0, 0, 0, 0.3);
+}
+
+.comfyui-popup:not(.open) {
+	display: none;
+}
+
+.comfyui-popup.right.open {
+	border-top-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	border-bottom-left-radius: 4px;
+	overflow: hidden;
+}
+/* Split button */
+.comfyui-split-button {
+	position: relative;
+	display: flex;
+}
+
+.comfyui-split-primary {
+	flex: auto;
+}
+
+.comfyui-split-primary .comfyui-button {
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	border-right: 1px solid var(--comfy-menu-bg);
+	width: 100%;
+}
+
+.comfyui-split-arrow .comfyui-button {
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+	padding-left: 2px;
+	padding-right: 2px;
+}
+
+.comfyui-split-button-popup {
+	white-space: nowrap;
+	background-color: var(--content-bg);
+	color: var(--content-fg);
+	display: flex;
+	flex-direction: column;
+	overflow: auto;
+}
+
+.comfyui-split-button-popup.hover {
+	z-index: 2001;
+}
+.comfyui-split-button-popup > .comfyui-button {
+	border: none;
+	background-color: transparent;
+	color: var(--fg-color);
+	padding: 8px 12px 8px 8px;
+}
+
+.comfyui-split-button-popup > .comfyui-button:not(:disabled):hover {
+	background-color: var(--comfy-input-bg);
+}
+
+/* Button group */
+.comfyui-button-group {
+	display: flex;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.comfyui-button-group > .comfyui-button,
+.comfyui-button-group > .comfyui-button-wrapper > .comfyui-button {
+	padding: 4px 10px;
+	border-radius: 0;
+}
+
+/* Menu */
+.comfyui-menu {
+	width: 100vw;
+	background: var(--comfy-menu-bg);
+	color: var(--fg-color);
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 0.8em;
+	display: flex;
+	padding: 4px 8px;
+	align-items: center;
+	gap: 8px;
+	box-sizing: border-box;
+	z-index: 1000;
+	order: 0;
+	grid-column: 1/-1;
+	overflow: auto;
+	max-height: 90vh;
+}
+
+.comfyui-menu>* {
+	flex-shrink: 0;
+}
+.comfyui-menu .mdi::before {
+	font-size: 18px;
+}
+
+.comfyui-menu .comfyui-button {
+	background: var(--comfy-input-bg);
+	color: var(--fg-color);
+	white-space: nowrap;
+}
+
+.comfyui-menu .comfyui-button:not(:disabled):hover {
+	background: var(--border-color);
+	color: var(--content-fg);
+}
+
+.comfyui-menu .comfyui-split-button-popup > .comfyui-button {
+	border-radius: 0;
+	background-color: transparent;
+}
+
+.comfyui-menu .comfyui-split-button-popup > .comfyui-button:not(:disabled):hover {
+	background-color: var(--comfy-input-bg);
+}
+
+.comfyui-menu .comfyui-split-button-popup.left {
+	border-top-right-radius: 4px;
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+}
+
+.comfyui-menu .comfyui-button.popup-open {
+	background-color: var(--content-bg);
+	color: var(--content-fg);
+}
+
+.comfyui-menu-push {
+	margin-left: -0.8em;
+	flex: auto;
+}
+
+.comfyui-logo {
+	font-size: 1.2em;
+	margin: 0;
+	user-select: none;
+	cursor: default;
+}
+
+/* Workflows */
+.comfyui-workflows-button {
+	flex-direction: row-reverse;
+	max-width: 200px;
+	position: relative;
+	z-index: 0;
+}
+
+.comfyui-workflows-button.popup-open {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+.comfyui-workflows-button.unsaved {
+	font-style: italic;
+}
+.comfyui-workflows-button-progress {
+	position: absolute;
+	top: 0;
+	left: 0;
+	background-color: green;
+	height: 100%;
+	border-radius: 4px;
+	z-index: -1;
+}
+
+.comfyui-workflows-button > span {
+	flex: auto;
+	text-align: left;
+	overflow: hidden;
+}
+.comfyui-workflows-button-inner {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	width: 150px;
+}
+.comfyui-workflows-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	direction: rtl;
+	flex: auto;
+	position: relative;
+}
+
+.comfyui-workflows-button.unsaved .comfyui-workflows-label {
+	padding-left: 8px;
+}
+
+.comfyui-workflows-button.unsaved .comfyui-workflows-label:after {
+	content: "*";
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+.comfyui-workflows-button-inner .mdi-graph::before {
+	transform: rotate(-90deg);
+}
+
+.comfyui-workflows-popup {
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 0.8em;
+	padding: 10px;
+	overflow: auto;
+	background-color: var(--content-bg);
+	color: var(--content-fg);
+	border-top-right-radius: 4px;
+	border-bottom-right-radius: 4px;
+	border-bottom-left-radius: 4px;
+	z-index: 400;
+}
+
+.comfyui-workflows-panel {
+	min-height: 150px;
+}
+
+.comfyui-workflows-panel .lds-ring {
+	transform: translate(-50%);
+	position: absolute;
+	left: 50%;
+	top: 75px;
+}
+
+.comfyui-workflows-panel h3 {
+	margin: 10px 0 10px 0;
+	font-size: 11px;
+	opacity: 0.8;
+}
+
+.comfyui-workflows-panel section header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.comfy-ui-workflows-search .mdi {
+	position: relative;
+	top: 2px;
+	pointer-events: none;
+}
+.comfy-ui-workflows-search input {
+	background-color: var(--comfy-input-bg);
+	color: var(--input-text);
+	border: none;
+	border-radius: 4px;
+	padding: 4px 10px;
+	margin-left: -24px;
+	text-indent: 18px;
+}
+.comfy-ui-workflows-search input:placeholder-shown {
+	width: 10px;
+}
+.comfy-ui-workflows-search input:placeholder-shown:focus {
+	width: auto;
+}
+.comfyui-workflows-actions {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+.comfyui-workflows-actions .comfyui-button {
+	background: var(--comfy-input-bg);
+	color: var(--input-text);
+}
+
+.comfyui-workflows-actions .comfyui-button:not(:disabled):hover {
+	background: var(--primary-bg);
+	color: var(--primary-fg);
+}
+
+.comfyui-workflows-favorites,
+.comfyui-workflows-open {
+	border-bottom: 1px solid var(--comfy-input-bg);
+	padding-bottom: 5px;
+	margin-bottom: 5px;
+}
+
+.comfyui-workflows-open .active {
+	font-weight: bold;
+}
+
+.comfyui-workflows-favorites:empty {
+	display: none;
+}
+
+.comfyui-workflows-tree {
+	padding: 0;
+	margin: 0;
+}
+
+.comfyui-workflows-tree:empty::after {
+	content: "No saved workflows";
+	display: block;
+	text-align: center;
+}
+.comfyui-workflows-tree > ul {
+	padding: 0;
+}
+
+.comfyui-workflows-tree > ul ul {
+	margin: 0;
+	padding: 0 0 0 25px;
+}
+
+.comfyui-workflows-tree:not(.filtered) .closed > ul {
+	display: none;
+}
+
+.comfyui-workflows-tree li,
+.comfyui-workflows-tree-file {
+	--item-height: 32px;
+	list-style-type: none;
+	height: var(--item-height);
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.comfyui-workflows-tree-file.active::before,
+.comfyui-workflows-tree li:hover::before,
+.comfyui-workflows-tree-file:hover::before {
+	content: "";
+	position: absolute;
+	width: 100%;
+	left: 0;
+	height: var(--item-height);
+	background-color: var(--content-hover-bg);
+	color: var(--content-hover-fg);
+	z-index: -1;
+}
+
+.comfyui-workflows-tree-file.active::before {
+	background-color: var(--primary-bg);
+	color: var(--primary-fg);
+}
+
+.comfyui-workflows-tree-file.running:not(:hover)::before {
+	content: "";
+	position: absolute;
+	width: var(--progress, 0);
+	left: 0;
+	height: var(--item-height);
+	background-color: green;
+	z-index: -1;
+}
+
+.comfyui-workflows-tree-file.unsaved span {
+	font-style: italic;
+}
+
+.comfyui-workflows-tree-file span {
+	flex: auto;
+}
+
+.comfyui-workflows-tree-file span + .comfyui-workflows-file-action {
+	margin-left: 10px;
+}
+
+.comfyui-workflows-tree-file .comfyui-workflows-file-action {
+	background-color: transparent;
+	color: var(--fg-color);
+	padding: 2px 4px;
+}
+
+.lg ~ .comfyui-workflows-popup .comfyui-workflows-tree-file:not(:hover) .comfyui-workflows-file-action {
+	opacity: 0;
+}
+
+.comfyui-workflows-tree-file .comfyui-workflows-file-action:hover {
+	background-color: var(--primary-bg);
+	color: var(--primary-fg);
+}
+
+.comfyui-workflows-tree-file .comfyui-workflows-file-action-primary {
+	background-color: transparent;
+	color: var(--fg-color);
+	padding: 2px 4px;
+	margin: 0 -4px;
+}
+
+.comfyui-workflows-file-action-favorite .mdi-star {
+	color: orange;
+}
+
+/* View List */
+.comfyui-view-list-popup {
+	padding: 10px;
+	background-color: var(--content-bg);
+	color: var(--content-fg);
+	min-width: 170px;
+	min-height: 435px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	box-sizing: border-box;
+}
+.comfyui-view-list-popup h3 {
+	margin: 0 0 5px 0;
+}
+.comfyui-view-list-items {
+	width: 100%;
+	background: var(--comfy-menu-bg);
+	border-radius: 5px;
+	display: flex;
+	justify-content: center;
+	flex: auto;
+	align-items: center;
+	flex-direction: column;
+}
+.comfyui-view-list-items section {
+	max-height: 400px;
+	overflow: auto;
+	width: 100%;
+	display: grid;
+	grid-template-columns: auto auto auto;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	padding: 5px 0;
+}
+.comfyui-view-list-items section + section {
+	border-top: 1px solid var(--border-color);
+	margin-top: 10px;
+	padding-top: 5px;
+}
+.comfyui-view-list-items section h5 {
+	grid-column: 1 / 4;
+	text-align: center;
+	margin: 5px;
+}
+.comfyui-view-list-items span {
+	text-align: center;
+	padding: 0 2px;
+}
+.comfyui-view-list-popup header {
+	margin-bottom: 10px;
+	display: flex;
+	gap: 5px;
+}
+.comfyui-view-list-popup header .comfyui-button {
+	border: 1px solid transparent;
+}
+.comfyui-view-list-popup header .comfyui-button:not(:disabled):hover {
+	border: 1px solid var(--comfy-menu-bg);
+}
+/* Queue button */
+.comfyui-queue-button .comfyui-split-primary .comfyui-button {
+	padding-right: 12px;
+}
+.comfyui-queue-count {
+	margin-left: 5px;
+	border-radius: 10px;
+	background-color: rgb(8, 80, 153);
+	padding: 2px 4px;
+	font-size: 10px;
+	min-width: 1em;
+	display: inline-block;
+}
+/* Queue options*/
+.comfyui-queue-options {
+	padding: 10px;
+	font-family: Arial, Helvetica, sans-serif;
+	font-size: 12px;
+	display: flex;
+	gap: 10px;
+}
+
+.comfyui-queue-batch {
+	display: flex;
+	flex-direction: column;
+	border-right: 1px solid var(--comfy-menu-bg);
+	padding-right: 10px;
+	gap: 5px;
+}
+
+.comfyui-queue-batch input {
+	width: 145px;
+}
+
+.comfyui-queue-batch .comfyui-queue-batch-value {
+	width: 70px;
+}
+
+.comfyui-queue-mode {
+	display: flex;
+	flex-direction: column;
+}
+
+.comfyui-queue-mode span {
+	font-weight: bold;
+	margin-bottom: 2px;
+}
+
+.comfyui-queue-mode label {
+	display: flex;
+	flex-direction: row-reverse;
+	justify-content: start;
+	gap: 5px;
+	padding: 2px 0;
+}
+
+.comfyui-queue-mode label input {
+	padding: 0;
+	margin: 0;
+}
+
+/** Send to workflow widget selection dialog */
+.comfy-widget-selection-dialog {
+	border: none;
+}
+
+.comfy-widget-selection-dialog div {
+	color: var(--fg-color);
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+.comfy-widget-selection-dialog h2 {
+	margin-top: 0;
+}
+
+.comfy-widget-selection-dialog section {
+	width: fit-content;
+	display: flex;
+	flex-direction: column;
+}
+
+.comfy-widget-selection-item {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+}
+
+.comfy-widget-selection-item span {
+	margin-right: auto;
+}
+
+.comfy-widget-selection-item span::before {
+	content: '#' attr(data-id);
+	opacity: 0.5;
+	margin-right: 5px;
+}
+
+.comfy-modal .comfy-widget-selection-item button {
+	font-size: 1em;
+}
+
+/***** Responsive *****/
+.lg.comfyui-menu .lt-lg-show {
+	display: none !important;
+}
+.comfyui-menu:not(.lg) .nlg-hide {
+	display: none !important;
+}
+/** Large screen */
+.lg.comfyui-menu>.comfyui-menu-mobile-collapse .comfyui-button span,
+.lg.comfyui-menu>.comfyui-menu-mobile-collapse.comfyui-button span {
+	display: none;
+}
+.lg.comfyui-menu>.comfyui-menu-mobile-collapse .comfyui-popup .comfyui-button span {
+	display: unset;
+}
+
+/** Non large screen */
+.lt-lg.comfyui-menu {
+	flex-wrap: wrap;
+}
+
+.lt-lg.comfyui-menu > *:not(.comfyui-menu-mobile-collapse) {
+	order: 1;
+}
+
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse {
+	order: 9999;
+	width: 100%;
+}
+
+.comfyui-body-bottom .lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse {
+	order: -1;
+}
+
+.comfyui-body-bottom .lt-lg.comfyui-menu > .comfyui-menu-button {
+	top: unset;
+	bottom: 4px;
+}
+
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse.comfyui-button-group {
+	flex-wrap: wrap;
+}
+
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse .comfyui-button,
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse.comfyui-button {
+	padding: 10px;
+}
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse .comfyui-button,
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse .comfyui-button-wrapper {
+	width: 100%;
+}
+
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse .comfyui-popup {
+	position: static;
+	background-color: var(--comfy-input-bg);
+	max-width: unset;
+	max-height: 50vh;
+	overflow: auto;
+}
+
+.lt-lg.comfyui-menu:not(.expanded) > .comfyui-menu-mobile-collapse {
+	display: none;
+}
+
+.lt-lg .comfyui-queue-button {
+	margin-right: 44px;
+}
+
+.lt-lg .comfyui-menu-button {
+	position: absolute;
+	top: 4px;
+	right: 8px;
+}
+
+.lt-lg.comfyui-menu > .comfyui-menu-mobile-collapse .comfyui-view-list-popup {
+	border-radius: 0;
+}
+
+.lt-lg.comfyui-menu .comfyui-workflows-popup {
+	width: 100vw;
+}
+
+/** Small */
+.lt-md .comfyui-workflows-button-inner {
+	width: unset !important;
+}
+.lt-md  .comfyui-workflows-label {
+	display: none;
+}
+
+/** Extra small */
+.lt-sm .comfyui-queue-button {
+	margin-right: 0;
+	width: 100%;
+}
+.lt-sm .comfyui-queue-button .comfyui-button {
+	justify-content: center;
+}
+.lt-sm .comfyui-interrupt-button {
+	margin-right: 45px;
+}
+.comfyui-body-bottom .lt-sm.comfyui-menu > .comfyui-menu-button{
+	bottom: 41px;
+}

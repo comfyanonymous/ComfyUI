@@ -9,6 +9,7 @@ from . import model_management
 import comfy.clip_model
 import json
 import logging
+import numbers
 
 def gen_empty_tokens(special_tokens, length):
     start_token = special_tokens.get("start", None)
@@ -68,7 +69,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     ]
     def __init__(self, version="openai/clip-vit-large-patch14", device="cpu", max_length=77,
                  freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=comfy.clip_model.CLIPTextModel,
-                 special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False, return_projected_pooled=True):  # clip-vit-base-patch32
+                 special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False,
+                 return_projected_pooled=True):  # clip-vit-base-patch32
         super().__init__()
         assert layer in self.LAYERS
 
@@ -90,6 +92,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
         self.logit_scale = torch.nn.Parameter(torch.tensor(4.6055))
         self.enable_attention_masks = enable_attention_masks
+        self.zero_out_masked = zero_out_masked
 
         self.layer_norm_hidden_state = layer_norm_hidden_state
         self.return_projected_pooled = return_projected_pooled
@@ -128,10 +131,10 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         for x in tokens:
             tokens_temp = []
             for y in x:
-                if isinstance(y, int):
+                if isinstance(y, numbers.Integral):
                     if y == token_dict_size: #EOS token
                         y = -1
-                    tokens_temp += [y]
+                    tokens_temp += [int(y)]
                 else:
                     if y.shape[0] == current_embeds.weight.shape[1]:
                         embedding_weights += [y]
@@ -166,22 +169,29 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         tokens = torch.LongTensor(tokens).to(device)
 
         attention_mask = None
-        if self.enable_attention_masks:
+        if self.enable_attention_masks or self.zero_out_masked:
             attention_mask = torch.zeros_like(tokens)
-            max_token = self.transformer.get_input_embeddings().weight.shape[0] - 1
+            end_token = self.special_tokens.get("end", -1)
             for x in range(attention_mask.shape[0]):
                 for y in range(attention_mask.shape[1]):
                     attention_mask[x, y] = 1
-                    if tokens[x, y] == max_token:
+                    if tokens[x, y] == end_token:
                         break
 
-        outputs = self.transformer(tokens, attention_mask, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state)
+        attention_mask_model = None
+        if self.enable_attention_masks:
+            attention_mask_model = attention_mask
+
+        outputs = self.transformer(tokens, attention_mask_model, intermediate_output=self.layer_idx, final_layer_norm_intermediate=self.layer_norm_hidden_state)
         self.transformer.set_input_embeddings(backup_embeds)
 
         if self.layer == "last":
-            z = outputs[0]
+            z = outputs[0].float()
         else:
-            z = outputs[1]
+            z = outputs[1].float()
+
+        if self.zero_out_masked:
+            z *= attention_mask.unsqueeze(-1).float()
 
         pooled_output = None
         if len(outputs) >= 3:
@@ -190,7 +200,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             elif outputs[2] is not None:
                 pooled_output = outputs[2].float()
 
-        return z.float(), pooled_output
+        return z, pooled_output
 
     def encode(self, tokens):
         return self(tokens)
@@ -354,7 +364,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None, pad_token=None):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
@@ -370,6 +380,14 @@ class SDTokenizer:
             self.tokens_start = 0
             self.start_token = None
             self.end_token = empty[0]
+
+        if pad_token is not None:
+            self.pad_token = pad_token
+        elif pad_with_end:
+            self.pad_token = self.end_token
+        else:
+            self.pad_token = 0
+
         self.pad_with_end = pad_with_end
         self.pad_to_max_length = pad_to_max_length
 
@@ -402,10 +420,6 @@ class SDTokenizer:
         Word id values are unique per word and embedding, where the id 0 is reserved for non word tokens.
         Returned list has the dimensions NxM where M is the input size of CLIP
         '''
-        if self.pad_with_end:
-            pad_token = self.end_token
-        else:
-            pad_token = 0
 
         text = escape_important(text)
         parsed_weights = token_weights(text, 1.0)
@@ -457,7 +471,7 @@ class SDTokenizer:
                     else:
                         batch.append((self.end_token, 1.0, 0))
                         if self.pad_to_max_length:
-                            batch.extend([(pad_token, 1.0, 0)] * (remaining_length))
+                            batch.extend([(self.pad_token, 1.0, 0)] * (remaining_length))
                     #start new batch
                     batch = []
                     if self.start_token is not None:
@@ -470,9 +484,9 @@ class SDTokenizer:
         #fill last batch
         batch.append((self.end_token, 1.0, 0))
         if self.pad_to_max_length:
-            batch.extend([(pad_token, 1.0, 0)] * (self.max_length - len(batch)))
+            batch.extend([(self.pad_token, 1.0, 0)] * (self.max_length - len(batch)))
         if self.min_length is not None and len(batch) < self.min_length:
-            batch.extend([(pad_token, 1.0, 0)] * (self.min_length - len(batch)))
+            batch.extend([(self.pad_token, 1.0, 0)] * (self.min_length - len(batch)))
 
         if not return_word_ids:
             batched_tokens = [[(t, w) for t, w,_ in x] for x in batched_tokens]
@@ -500,11 +514,21 @@ class SD1Tokenizer:
 
 
 class SD1ClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, **kwargs):
+    def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, name=None, **kwargs):
         super().__init__()
-        self.clip_name = clip_name
-        self.clip = "clip_{}".format(self.clip_name)
+
+        if name is not None:
+            self.clip_name = name
+            self.clip = "{}".format(self.clip_name)
+        else:
+            self.clip_name = clip_name
+            self.clip = "clip_{}".format(self.clip_name)
+
         setattr(self, self.clip, clip_model(device=device, dtype=dtype, **kwargs))
+
+        self.dtypes = set()
+        if dtype is not None:
+            self.dtypes.add(dtype)
 
     def set_clip_options(self, options):
         getattr(self, self.clip).set_clip_options(options)

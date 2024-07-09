@@ -49,7 +49,6 @@ parser.add_argument("--enable-cors-header", type=str, default=None, metavar="ORI
                     help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
 parser.add_argument("--max-upload-size", type=float,
                     default=100, help="Set the maximum upload size in MB.")
-
 parser.add_argument("--extra-model-paths-config", type=str, default=None, metavar="PATH",
                     nargs='+', action='append', help="Load one or more extra_model_paths.yaml files.")
 parser.add_argument("--output-directory", type=str,
@@ -107,6 +106,7 @@ fpte_group.add_argument("--fp16-text-enc", action="store_true",
 fpte_group.add_argument("--fp32-text-enc", action="store_true",
                         help="Store text encoder weights in fp32.")
 
+parser.add_argument("--force-channels-last", action="store_true", help="Force channels last format when inferencing the models.")
 
 parser.add_argument("--directml", type=int, nargs="?",
                     metavar="DIRECTML_DEVICE", const=-1, help="Use torch-directml.")
@@ -141,6 +141,11 @@ upcast.add_argument("--force-upcast-attention", action="store_true",
                     help="Force enable attention upcasting, please report if it fixes black images.")
 upcast.add_argument("--dont-upcast-attention", action="store_true",
                     help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
+
+
+upcast = parser.add_mutually_exclusive_group()
+upcast.add_argument("--force-upcast-attention", action="store_true", help="Force enable attention upcasting, please report if it fixes black images.")
+upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
 
 
 vram_group = parser.add_mutually_exclusive_group()

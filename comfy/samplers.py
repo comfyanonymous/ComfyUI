@@ -5,9 +5,11 @@ import collections
 from comfy import model_management
 import math
 import logging
+import comfy.sampler_helpers
 
 def get_area_and_mult(conds, x_in, timestep_in):
-    area = (x_in.shape[2], x_in.shape[3], 0, 0)
+    dims = tuple(x_in.shape[2:])
+    area = None
     strength = 1.0
 
     if 'timestep_start' in conds:
@@ -19,11 +21,16 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if timestep_in[0] < timestep_end:
             return None
     if 'area' in conds:
-        area = conds['area']
+        area = list(conds['area'])
     if 'strength' in conds:
         strength = conds['strength']
 
-    input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
+    input_x = x_in
+    if area is not None:
+        for i in range(len(dims)):
+            area[i] = min(input_x.shape[i + 2] - area[len(dims) + i], area[i])
+            input_x = input_x.narrow(i + 2, area[len(dims) + i], area[i])
+
     if 'mask' in conds:
         # Scale the mask to the size of the input
         # The mask should have been resized as we began the sampling process
@@ -31,28 +38,30 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if "mask_strength" in conds:
             mask_strength = conds["mask_strength"]
         mask = conds['mask']
-        assert(mask.shape[1] == x_in.shape[2])
-        assert(mask.shape[2] == x_in.shape[3])
-        mask = mask[:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]] * mask_strength
+        assert(mask.shape[1:] == x_in.shape[2:])
+
+        mask = mask[:input_x.shape[0]]
+        if area is not None:
+            for i in range(len(dims)):
+                mask = mask.narrow(i + 1, area[len(dims) + i], area[i])
+
+        mask = mask * mask_strength
         mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
     else:
         mask = torch.ones_like(input_x)
     mult = mask * strength
 
-    if 'mask' not in conds:
+    if 'mask' not in conds and area is not None:
         rr = 8
-        if area[2] != 0:
-            for t in range(rr):
-                mult[:,:,t:1+t,:] *= ((1.0/rr) * (t + 1))
-        if (area[0] + area[2]) < x_in.shape[2]:
-            for t in range(rr):
-                mult[:,:,area[0] - 1 - t:area[0] - t,:] *= ((1.0/rr) * (t + 1))
-        if area[3] != 0:
-            for t in range(rr):
-                mult[:,:,:,t:1+t] *= ((1.0/rr) * (t + 1))
-        if (area[1] + area[3]) < x_in.shape[3]:
-            for t in range(rr):
-                mult[:,:,:,area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
+        for i in range(len(dims)):
+            if area[len(dims) + i] != 0:
+                for t in range(rr):
+                    m = mult.narrow(i + 2, t, 1)
+                    m *= ((1.0/rr) * (t + 1))
+            if (area[i] + area[len(dims) + i]) < x_in.shape[i + 2]:
+                for t in range(rr):
+                    m = mult.narrow(i + 2, area[i] - 1 - t, 1)
+                    m *= ((1.0/rr) * (t + 1))
 
     conditioning = {}
     model_conds = conds["model_conds"]
@@ -218,8 +227,19 @@ def calc_cond_batch(model, conds, x_in, timestep, model_options):
 
         for o in range(batch_chunks):
             cond_index = cond_or_uncond[o]
-            out_conds[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-            out_counts[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
+            a = area[o]
+            if a is None:
+                out_conds[cond_index] += output[o] * mult[o]
+                out_counts[cond_index] += mult[o]
+            else:
+                out_c = out_conds[cond_index]
+                out_cts = out_counts[cond_index]
+                dims = len(a) // 2
+                for i in range(dims):
+                    out_c = out_c.narrow(i + 2, a[i + dims], a[i])
+                    out_cts = out_cts.narrow(i + 2, a[i + dims], a[i])
+                out_c += output[o] * mult[o]
+                out_cts += mult[o]
 
     for i in range(len(out_conds)):
         out_conds[i] /= out_counts[i]
@@ -230,63 +250,51 @@ def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options): 
     logging.warning("WARNING: The comfy.samplers.calc_cond_uncond_batch function is deprecated please use the calc_cond_batch one instead.")
     return tuple(calc_cond_batch(model, [cond, uncond], x_in, timestep, model_options))
 
+def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_options={}, cond=None, uncond=None):
+    if "sampler_cfg_function" in model_options:
+        args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
+                "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
+        cfg_result = x - model_options["sampler_cfg_function"](args)
+    else:
+        cfg_result = uncond_pred + (cond_pred - uncond_pred) * cond_scale
+
+    for fn in model_options.get("sampler_post_cfg_function", []):
+        args = {"denoised": cfg_result, "cond": cond, "uncond": uncond, "model": model, "uncond_denoised": uncond_pred, "cond_denoised": cond_pred,
+                "sigma": timestep, "model_options": model_options, "input": x}
+        cfg_result = fn(args)
+
+    return cfg_result
+
 #The main sampling function shared by all the samplers
 #Returns denoised
 def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_options={}, seed=None):
-        if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
-            uncond_ = None
-        else:
-            uncond_ = uncond
+    if math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False:
+        uncond_ = None
+    else:
+        uncond_ = uncond
+
+    conds = [cond, uncond_]
+    out = calc_cond_batch(model, conds, x, timestep, model_options)
+    return cfg_function(model, out[0], out[1], cond_scale, x, timestep, model_options=model_options, cond=cond, uncond=uncond_)
 
 
-        conds = [cond, uncond_]
-
-        out = calc_cond_batch(model, conds, x, timestep, model_options)
-        cond_pred = out[0]
-        uncond_pred = out[1]
-
-        if "sampler_cfg_function" in model_options:
-            args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
-                    "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
-            cfg_result = x - model_options["sampler_cfg_function"](args)
-        else:
-            cfg_result = uncond_pred + (cond_pred - uncond_pred) * cond_scale
-
-        for fn in model_options.get("sampler_post_cfg_function", []):
-            args = {"denoised": cfg_result, "cond": cond, "uncond": uncond, "model": model, "uncond_denoised": uncond_pred, "cond_denoised": cond_pred,
-                    "sigma": timestep, "model_options": model_options, "input": x}
-            cfg_result = fn(args)
-
-        return cfg_result
-
-class CFGNoisePredictor(torch.nn.Module):
-    def __init__(self, model):
-        super().__init__()
-        self.inner_model = model
-    def apply_model(self, x, timestep, cond, uncond, cond_scale, model_options={}, seed=None):
-        out = sampling_function(self.inner_model, x, timestep, uncond, cond, cond_scale, model_options=model_options, seed=seed)
-        return out
-    def forward(self, *args, **kwargs):
-        return self.apply_model(*args, **kwargs)
-
-class KSamplerX0Inpaint(torch.nn.Module):
+class KSamplerX0Inpaint:
     def __init__(self, model, sigmas):
-        super().__init__()
         self.inner_model = model
         self.sigmas = sigmas
-    def forward(self, x, sigma, uncond, cond, cond_scale, denoise_mask, model_options={}, seed=None):
+    def __call__(self, x, sigma, denoise_mask, model_options={}, seed=None):
         if denoise_mask is not None:
             if "denoise_mask_function" in model_options:
                 denoise_mask = model_options["denoise_mask_function"](sigma, denoise_mask, extra_options={"model": self.inner_model, "sigmas": self.sigmas})
             latent_mask = 1. - denoise_mask
             x = x * denoise_mask + self.inner_model.inner_model.model_sampling.noise_scaling(sigma.reshape([sigma.shape[0]] + [1] * (len(self.noise.shape) - 1)), self.noise, self.latent_image) * latent_mask
-        out = self.inner_model(x, sigma, cond=cond, uncond=uncond, cond_scale=cond_scale, model_options=model_options, seed=seed)
+        out = self.inner_model(x, sigma, model_options=model_options, seed=seed)
         if denoise_mask is not None:
             out = out * denoise_mask + self.latent_image * latent_mask
         return out
 
-def simple_scheduler(model, steps):
-    s = model.model_sampling
+def simple_scheduler(model_sampling, steps):
+    s = model_sampling
     sigs = []
     ss = len(s.sigmas) / steps
     for x in range(steps):
@@ -294,8 +302,8 @@ def simple_scheduler(model, steps):
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
-def ddim_scheduler(model, steps):
-    s = model.model_sampling
+def ddim_scheduler(model_sampling, steps):
+    s = model_sampling
     sigs = []
     ss = max(len(s.sigmas) // steps, 1)
     x = 1
@@ -306,8 +314,8 @@ def ddim_scheduler(model, steps):
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
-def normal_scheduler(model, steps, sgm=False, floor=False):
-    s = model.model_sampling
+def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
+    s = model_sampling
     start = s.timestep(s.sigma_max)
     end = s.timestep(s.sigma_min)
 
@@ -346,7 +354,7 @@ def get_mask_aabb(masks):
 
     return bounding_boxes, is_empty
 
-def resolve_areas_and_cond_masks(conditions, h, w, device):
+def resolve_areas_and_cond_masks_multidim(conditions, dims, device):
     # We need to decide on an area outside the sampling loop in order to properly generate opposite areas of equal sizes.
     # While we're doing this, we can also resolve the mask device and scaling for performance reasons
     for i in range(len(conditions)):
@@ -355,7 +363,14 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
             area = c['area']
             if area[0] == "percentage":
                 modified = c.copy()
-                area = (max(1, round(area[1] * h)), max(1, round(area[2] * w)), round(area[3] * h), round(area[4] * w))
+                a = area[1:]
+                a_len = len(a) // 2
+                area = ()
+                for d in range(len(dims)):
+                    area += (max(1, round(a[d] * dims[d])),)
+                for d in range(len(dims)):
+                    area += (round(a[d + a_len] * dims[d]),)
+
                 modified['area'] = area
                 c = modified
                 conditions[i] = c
@@ -364,12 +379,12 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
             mask = c['mask']
             mask = mask.to(device=device)
             modified = c.copy()
-            if len(mask.shape) == 2:
+            if len(mask.shape) == len(dims):
                 mask = mask.unsqueeze(0)
-            if mask.shape[1] != h or mask.shape[2] != w:
-                mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=(h, w), mode='bilinear', align_corners=False).squeeze(1)
+            if mask.shape[1:] != dims:
+                mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=dims, mode='bilinear', align_corners=False).squeeze(1)
 
-            if modified.get("set_area_to_bounds", False):
+            if modified.get("set_area_to_bounds", False): #TODO: handle dim != 2
                 bounds = torch.max(torch.abs(mask),dim=0).values.unsqueeze(0)
                 boxes, is_empty = get_mask_aabb(bounds)
                 if is_empty[0]:
@@ -386,7 +401,11 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
             modified['mask'] = mask
             conditions[i] = modified
 
-def create_cond_with_same_area_if_none(conds, c):
+def resolve_areas_and_cond_masks(conditions, h, w, device):
+    logging.warning("WARNING: The comfy.samplers.resolve_areas_and_cond_masks function is deprecated please use the resolve_areas_and_cond_masks_multidim one instead.")
+    return resolve_areas_and_cond_masks_multidim(conditions, [h, w], device)
+
+def create_cond_with_same_area_if_none(conds, c): #TODO: handle dim != 2
     if 'area' not in c:
         return
 
@@ -490,7 +509,10 @@ def encode_model_conds(model_function, conds, noise, device, prompt_type, **kwar
         params = x.copy()
         params["device"] = device
         params["noise"] = noise
-        params["width"] = params.get("width", noise.shape[3] * 8)
+        default_width = None
+        if len(noise.shape) >= 4: #TODO: 8 multiple should be set by the model
+            default_width = noise.shape[3] * 8
+        params["width"] = params.get("width", default_width)
         params["height"] = params.get("height", noise.shape[2] * 8)
         params["prompt_type"] = params.get("prompt_type", prompt_type)
         for k in kwargs:
@@ -515,9 +537,10 @@ class Sampler:
         sigma = float(sigmas[0])
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
 
-KSAMPLER_NAMES = ["euler", "euler_ancestral", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
+KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
-                  "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm"]
+                  "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
+                  "ipndm", "ipndm_v", "deis"]
 
 class KSAMPLER(Sampler):
     def __init__(self, sampler_function, extra_options={}, inpaint_options={}):
@@ -550,6 +573,9 @@ class KSAMPLER(Sampler):
 def ksampler(sampler_name, extra_options={}, inpaint_options={}):
     if sampler_name == "dpm_fast":
         def dpm_fast_function(model, noise, sigmas, extra_args, callback, disable):
+            if len(sigmas) <= 1:
+                return noise
+
             sigma_min = sigmas[-1]
             if sigma_min == 0:
                 sigma_min = sigmas[-2]
@@ -558,6 +584,9 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
         sampler_function = dpm_fast_function
     elif sampler_name == "dpm_adaptive":
         def dpm_adaptive_function(model, noise, sigmas, extra_args, callback, disable, **extra_options):
+            if len(sigmas) <= 1:
+                return noise
+
             sigma_min = sigmas[-1]
             if sigma_min == 0:
                 sigma_min = sigmas[-2]
@@ -568,61 +597,122 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
 
     return KSAMPLER(sampler_function, extra_options, inpaint_options)
 
-def wrap_model(model):
-    model_denoise = CFGNoisePredictor(model)
-    return model_denoise
 
-def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model_options={}, latent_image=None, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
-    positive = positive[:]
-    negative = negative[:]
+def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=None, seed=None):
+    for k in conds:
+        conds[k] = conds[k][:]
+        resolve_areas_and_cond_masks_multidim(conds[k], noise.shape[2:], device)
 
-    resolve_areas_and_cond_masks(positive, noise.shape[2], noise.shape[3], device)
-    resolve_areas_and_cond_masks(negative, noise.shape[2], noise.shape[3], device)
-
-    model_wrap = wrap_model(model)
-
-    calculate_start_end_timesteps(model, negative)
-    calculate_start_end_timesteps(model, positive)
-
-    if latent_image is not None and torch.count_nonzero(latent_image) > 0: #Don't shift the empty latent image.
-        latent_image = model.process_latent_in(latent_image)
+    for k in conds:
+        calculate_start_end_timesteps(model, conds[k])
 
     if hasattr(model, 'extra_conds'):
-        positive = encode_model_conds(model.extra_conds, positive, noise, device, "positive", latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
-        negative = encode_model_conds(model.extra_conds, negative, noise, device, "negative", latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
+        for k in conds:
+            conds[k] = encode_model_conds(model.extra_conds, conds[k], noise, device, k, latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
 
     #make sure each cond area has an opposite one with the same area
-    for c in positive:
-        create_cond_with_same_area_if_none(negative, c)
-    for c in negative:
-        create_cond_with_same_area_if_none(positive, c)
+    for k in conds:
+        for c in conds[k]:
+            for kk in conds:
+                if k != kk:
+                    create_cond_with_same_area_if_none(conds[kk], c)
 
-    pre_run_control(model, negative + positive)
+    for k in conds:
+        pre_run_control(model, conds[k])
 
-    apply_empty_x_to_equal_area(list(filter(lambda c: c.get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
-    apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
+    if "positive" in conds:
+        positive = conds["positive"]
+        for k in conds:
+            if k != "positive":
+                apply_empty_x_to_equal_area(list(filter(lambda c: c.get('control_apply_to_uncond', False) == True, positive)), conds[k], 'control', lambda cond_cnets, x: cond_cnets[x])
+                apply_empty_x_to_equal_area(positive, conds[k], 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
-    extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": model_options, "seed":seed}
+    return conds
 
-    samples = sampler.sample(model_wrap, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
-    return model.process_latent_out(samples.to(torch.float32))
+class CFGGuider:
+    def __init__(self, model_patcher):
+        self.model_patcher = model_patcher
+        self.model_options = model_patcher.model_options
+        self.original_conds = {}
+        self.cfg = 1.0
+
+    def set_conds(self, positive, negative):
+        self.inner_set_conds({"positive": positive, "negative": negative})
+
+    def set_cfg(self, cfg):
+        self.cfg = cfg
+
+    def inner_set_conds(self, conds):
+        for k in conds:
+            self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
+
+    def __call__(self, *args, **kwargs):
+        return self.predict_noise(*args, **kwargs)
+
+    def predict_noise(self, x, timestep, model_options={}, seed=None):
+        return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)
+
+    def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed):
+        if latent_image is not None and torch.count_nonzero(latent_image) > 0: #Don't shift the empty latent image.
+            latent_image = self.inner_model.process_latent_in(latent_image)
+
+        self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
+
+        extra_args = {"model_options": self.model_options, "seed":seed}
+
+        samples = sampler.sample(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
+        return self.inner_model.process_latent_out(samples.to(torch.float32))
+
+    def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+        if sigmas.shape[-1] == 0:
+            return latent_image
+
+        self.conds = {}
+        for k in self.original_conds:
+            self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
+
+        self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds)
+        device = self.model_patcher.load_device
+
+        if denoise_mask is not None:
+            denoise_mask = comfy.sampler_helpers.prepare_mask(denoise_mask, noise.shape, device)
+
+        noise = noise.to(device)
+        latent_image = latent_image.to(device)
+        sigmas = sigmas.to(device)
+
+        output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+
+        comfy.sampler_helpers.cleanup_models(self.conds, self.loaded_models)
+        del self.inner_model
+        del self.conds
+        del self.loaded_models
+        return output
+
+
+def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model_options={}, latent_image=None, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+    cfg_guider = CFGGuider(model)
+    cfg_guider.set_conds(positive, negative)
+    cfg_guider.set_cfg(cfg)
+    return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+
 
 SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
 
-def calculate_sigmas_scheduler(model, scheduler_name, steps):
+def calculate_sigmas(model_sampling, scheduler_name, steps):
     if scheduler_name == "karras":
-        sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model.model_sampling.sigma_min), sigma_max=float(model.model_sampling.sigma_max))
+        sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     elif scheduler_name == "exponential":
-        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=float(model.model_sampling.sigma_min), sigma_max=float(model.model_sampling.sigma_max))
+        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     elif scheduler_name == "normal":
-        sigmas = normal_scheduler(model, steps)
+        sigmas = normal_scheduler(model_sampling, steps)
     elif scheduler_name == "simple":
-        sigmas = simple_scheduler(model, steps)
+        sigmas = simple_scheduler(model_sampling, steps)
     elif scheduler_name == "ddim_uniform":
-        sigmas = ddim_scheduler(model, steps)
+        sigmas = ddim_scheduler(model_sampling, steps)
     elif scheduler_name == "sgm_uniform":
-        sigmas = normal_scheduler(model, steps, sgm=True)
+        sigmas = normal_scheduler(model_sampling, steps, sgm=True)
     else:
         logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas
@@ -664,7 +754,7 @@ class KSampler:
             steps += 1
             discard_penultimate_sigma = True
 
-        sigmas = calculate_sigmas_scheduler(self.model, self.scheduler, steps)
+        sigmas = calculate_sigmas(self.model.get_model_object("model_sampling"), self.scheduler, steps)
 
         if discard_penultimate_sigma:
             sigmas = torch.cat([sigmas[:-2], sigmas[-1:]])
@@ -675,9 +765,12 @@ class KSampler:
         if denoise is None or denoise > 0.9999:
             self.sigmas = self.calculate_sigmas(steps).to(self.device)
         else:
-            new_steps = int(steps/denoise)
-            sigmas = self.calculate_sigmas(new_steps).to(self.device)
-            self.sigmas = sigmas[-(steps + 1):]
+            if denoise <= 0.0:
+                self.sigmas = torch.FloatTensor([])
+            else:
+                new_steps = int(steps/denoise)
+                sigmas = self.calculate_sigmas(new_steps).to(self.device)
+                self.sigmas = sigmas[-(steps + 1):]
 
     def sample(self, noise, positive, negative, cfg, latent_image=None, start_step=None, last_step=None, force_full_denoise=False, denoise_mask=None, sigmas=None, callback=None, disable_pbar=False, seed=None):
         if sigmas is None:
