@@ -413,6 +413,12 @@ def load_controlnet(ckpt_path, model=None):
             if k in controlnet_data:
                 new_sd[diffusers_keys[k]] = controlnet_data.pop(k)
 
+        if "control_add_embedding.linear_1.bias" in controlnet_data: #Union Controlnet
+            controlnet_config["union_controlnet"] = True
+            for k in list(controlnet_data.keys()):
+                new_k = k.replace('.attn.in_proj_', '.attn.in_proj.')
+                new_sd[new_k] = controlnet_data.pop(k)
+
         leftover_keys = controlnet_data.keys()
         if len(leftover_keys) > 0:
             logging.warning("leftover keys: {}".format(leftover_keys))
