@@ -5,6 +5,8 @@ import os
 import importlib.util
 import folder_paths
 import time
+from comfy.cli_args import args
+
 
 def execute_prestartup_script():
     def execute_script(script_path):
@@ -17,6 +19,9 @@ def execute_prestartup_script():
         except Exception as e:
             print(f"Failed to execute startup-script: {script_path} / {e}")
         return False
+
+    if args.disable_all_custom_nodes:
+        return
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
@@ -53,16 +58,15 @@ import shutil
 import threading
 import gc
 
-from comfy.cli_args import args
+import logging
 
 if os.name == "nt":
-    import logging
     logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        print("Set cuda device to:", args.cuda_device)
+        logging.info("Set cuda device to: {}".format(args.cuda_device))
 
     if args.deterministic:
         if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
@@ -76,7 +80,7 @@ import yaml
 import execution
 import server
 from server import BinaryEventTypes
-from nodes import init_custom_nodes
+import nodes
 import comfy.model_management
 
 def cuda_malloc_warning():
@@ -88,7 +92,7 @@ def cuda_malloc_warning():
             if b in device_name:
                 cuda_malloc_warning = True
         if cuda_malloc_warning:
-            print("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+            logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
@@ -121,7 +125,7 @@ def prompt_worker(q, server):
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
-            print("Prompt executed in {:.2f} seconds".format(execution_time))
+            logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
@@ -139,6 +143,7 @@ def prompt_worker(q, server):
         if need_gc:
             current_time = time.perf_counter()
             if (current_time - last_gc_collect) > gc_collect_interval:
+                comfy.model_management.cleanup_models()
                 gc.collect()
                 comfy.model_management.soft_empty_cache()
                 last_gc_collect = current_time
@@ -182,16 +187,23 @@ def load_extra_path_config(yaml_path):
                 full_path = y
                 if base_path is not None:
                     full_path = os.path.join(base_path, full_path)
-                print("Adding extra search path", x, full_path)
+                logging.info("Adding extra search path {} {}".format(x, full_path))
                 folder_paths.add_model_folder_path(x, full_path)
 
 
 if __name__ == "__main__":
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
-        print(f"Setting temp directory to: {temp_dir}")
+        logging.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
+
+    if args.windows_standalone_build:
+        try:
+            import new_updater
+            new_updater.update_windows_updater()
+        except:
+            pass
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -206,7 +218,7 @@ if __name__ == "__main__":
         for config_path in itertools.chain(*args.extra_model_paths_config):
             load_extra_path_config(config_path)
 
-    init_custom_nodes()
+    nodes.init_extra_nodes(init_custom_nodes=not args.disable_all_custom_nodes)
 
     cuda_malloc_warning()
 
@@ -217,7 +229,7 @@ if __name__ == "__main__":
 
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
-        print(f"Setting output directory to: {output_dir}")
+        logging.info(f"Setting output directory to: {output_dir}")
         folder_paths.set_output_directory(output_dir)
 
     #These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
@@ -227,7 +239,7 @@ if __name__ == "__main__":
 
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
-        print(f"Setting input directory to: {input_dir}")
+        logging.info(f"Setting input directory to: {input_dir}")
         folder_paths.set_input_directory(input_dir)
 
     if args.quick_test_for_ci:
@@ -235,16 +247,16 @@ if __name__ == "__main__":
 
     call_on_start = None
     if args.auto_launch:
-        def startup_server(address, port):
+        def startup_server(scheme, address, port):
             import webbrowser
             if os.name == 'nt' and address == '0.0.0.0':
                 address = '127.0.0.1'
-            webbrowser.open(f"http://{address}:{port}")
+            webbrowser.open(f"{scheme}://{address}:{port}")
         call_on_start = startup_server
 
     try:
         loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server, call_on_start=call_on_start))
     except KeyboardInterrupt:
-        print("\nStopped server")
+        logging.info("\nStopped server")
 
     cleanup_temp()

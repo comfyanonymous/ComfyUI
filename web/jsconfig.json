@@ -4,7 +4,9 @@
 		"paths": {
 			"/*": ["./*"]
 		},
-		"lib": ["DOM", "ES2022"]
+		"lib": ["DOM", "ES2022", "DOM.Iterable"],
+		"target": "ES2015",
+		"module": "es2020"
 	},
 	"include": ["."]
 }

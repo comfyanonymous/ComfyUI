@@ -24,7 +24,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "6"
+        default: "8"
 #  push:
 #    branches:
 #      - master
@@ -33,18 +33,17 @@ jobs:
   build_dependencies:
     runs-on: windows-latest
     steps:
-        - uses: actions/checkout@v3
-        - uses: actions/setup-python@v4
+        - uses: actions/checkout@v4
+        - uses: actions/setup-python@v5
           with:
             python-version: 3.${{ inputs.python_minor }}.${{ inputs.python_patch }}
 
         - shell: bash
           run: |
             echo "@echo off
-            ..\python_embeded\python.exe .\update.py ..\ComfyUI\\
+            call update_comfyui.bat nopause
             echo -
-            echo This will try to update pytorch and all python dependencies, if you get an error wait for pytorch/xformers to fix their stuff
-            echo You should not be running this anyways unless you really have to
+            echo This will try to update pytorch and all python dependencies.
             echo -
             echo If you just want to update normally, close this and run update_comfyui.bat instead.
             echo -
@@ -59,7 +58,7 @@ jobs:
             mv temp_wheel_dir cu${{ inputs.cu }}_python_deps
             tar cf cu${{ inputs.cu }}_python_deps.tar cu${{ inputs.cu }}_python_deps
 
-        - uses: actions/cache/save@v3
+        - uses: actions/cache/save@v4
           with:
             path: |
               cu${{ inputs.cu }}_python_deps.tar

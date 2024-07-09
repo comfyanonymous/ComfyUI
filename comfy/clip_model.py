@@ -97,7 +97,7 @@ class CLIPTextModel_(torch.nn.Module):
         x = self.embeddings(input_tokens)
         mask = None
         if attention_mask is not None:
-            mask = 1.0 - attention_mask.to(x.dtype).unsqueeze(1).unsqueeze(1).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
+            mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
             mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
 
         causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
@@ -119,6 +119,9 @@ class CLIPTextModel(torch.nn.Module):
         super().__init__()
         self.num_layers = config_dict["num_hidden_layers"]
         self.text_model = CLIPTextModel_(config_dict, dtype, device, operations)
+        embed_dim = config_dict["hidden_size"]
+        self.text_projection = operations.Linear(embed_dim, embed_dim, bias=False, dtype=dtype, device=device)
+        self.text_projection.weight.copy_(torch.eye(embed_dim))
         self.dtype = dtype
 
     def get_input_embeddings(self):
@@ -128,7 +131,10 @@ class CLIPTextModel(torch.nn.Module):
         self.text_model.embeddings.token_embedding = embeddings
 
     def forward(self, *args, **kwargs):
-        return self.text_model(*args, **kwargs)
+        x = self.text_model(*args, **kwargs)
+        out = self.text_projection(x[2])
+        return (x[0], x[1], out, x[2])
+
 
 class CLIPVisionEmbeddings(torch.nn.Module):
     def __init__(self, embed_dim, num_channels=3, patch_size=14, image_size=224, dtype=None, device=None, operations=None):
