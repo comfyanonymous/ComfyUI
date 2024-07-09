@@ -94,6 +94,13 @@ def get_containerd_memory_limit():
             return int(f.read())
     return 0
 
+def get_containerd_memory_used():
+    cgroup_memory_used = '/sys/fs/cgroup/memory/memory.usage_in_bytes'
+    if os.path.isfile(cgroup_memory_used):
+        with open(cgroup_memory_used, 'r') as f:
+            return int(f.read())
+    return 0
+
 def get_total_memory(dev=None, torch_total_too=False):
     global directml_enabled
     if dev is None:
@@ -664,7 +671,7 @@ def get_free_memory(dev=None, torch_free_too=False):
     if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
         mem_total = get_containerd_memory_limit()
         if mem_total > 0:
-            mem_used_total = psutil.virtual_memory().used
+            mem_used_total = get_containerd_memory_used()
             mem_free_total = mem_total - mem_used_total
             mem_free_torch = mem_free_total
         else:
