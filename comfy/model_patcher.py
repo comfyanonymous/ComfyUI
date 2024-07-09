@@ -57,6 +57,12 @@ def set_model_options_post_cfg_function(model_options, post_cfg_function, disabl
         model_options["disable_cfg1_optimization"] = True
     return model_options
 
+def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_cfg1_optimization=False):
+    model_options["sampler_pre_cfg_function"] = model_options.get("sampler_pre_cfg_function", []) + [pre_cfg_function]
+    if disable_cfg1_optimization:
+        model_options["disable_cfg1_optimization"] = True
+    return model_options
+
 class ModelPatcher:
     def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
         self.size = size
@@ -129,6 +135,9 @@ class ModelPatcher:
 
     def set_model_sampler_post_cfg_function(self, post_cfg_function, disable_cfg1_optimization=False):
         self.model_options = set_model_options_post_cfg_function(self.model_options, post_cfg_function, disable_cfg1_optimization)
+
+    def set_model_sampler_pre_cfg_function(self, pre_cfg_function, disable_cfg1_optimization=False):
+        self.model_options = set_model_options_pre_cfg_function(self.model_options, pre_cfg_function, disable_cfg1_optimization)
 
     def set_model_unet_function_wrapper(self, unet_wrapper_function: UnetWrapperFunction):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
