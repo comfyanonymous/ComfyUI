@@ -275,6 +275,12 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
     conds = [cond, uncond_]
     out = calc_cond_batch(model, conds, x, timestep, model_options)
+
+    for fn in model_options.get("sampler_pre_cfg_function", []):
+        args = {"conds":conds, "conds_out": out, "cond_scale": cond_scale, "timestep": timestep,
+                "input": x, "sigma": timestep, "model": model, "model_options": model_options}
+        out  = fn(args)
+
     return cfg_function(model, out[0], out[1], cond_scale, x, timestep, model_options=model_options, cond=cond, uncond=uncond_)
 
 
