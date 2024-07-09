@@ -1,0 +1,249 @@
+** ComfyUI startup time: 2024-07-04 23:16:15.674671
+[2024-07-04 23:16] ** Platform: Linux
+[2024-07-04 23:16] ** Python version: 3.10.8 (main, Nov 24 2022, 14:13:03) [GCC 11.2.0]
+[2024-07-04 23:16] ** Python executable: /root/miniconda3/bin/python
+[2024-07-04 23:16] ** Log path: /root/ComfyUI/comfyui.log
+[2024-07-04 23:16] 
+#######################################################################
+[2024-07-04 23:16] [ComfyUI-Manager] Starting dependency installation/(de)activation for the extension
+[2024-07-04 23:16] 
+[2024-07-04 23:16] Install: pip packages for '/root/ComfyUI/custom_nodes/ComfyUI_essentials'
+[2024-07-04 23:16] 
+[ComfyUI-Manager] Startup script completed.
+[2024-07-04 23:16] #######################################################################
+[2024-07-04 23:16] 
+[2024-07-04 23:16] 
+Prestartup times for custom nodes:
+[2024-07-04 23:16]    1.1 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Manager
+[2024-07-04 23:16] 
+Total VRAM 24217 MB, total RAM 515689 MB
+[2024-07-04 23:16] xformers version: 0.0.22.post4
+[2024-07-04 23:16] Set vram state to: NORMAL_VRAM
+[2024-07-04 23:16] Device: cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+[2024-07-04 23:16] VAE dtype: torch.bfloat16
+[2024-07-04 23:16] Using xformers cross attention
+[2024-07-04 23:16] Adding extra search path checkpoints /root/autodl-tmp/models/checkpoint
+[2024-07-04 23:16] Adding extra search path configs /root/autodl-tmp/models/checkpoint
+[2024-07-04 23:16] Adding extra search path vae /root/autodl-tmp/models/vae
+[2024-07-04 23:16] Adding extra search path loras /root/autodl-tmp/models/lora
+[2024-07-04 23:16] Adding extra search path loras /root/autodl-tmp/models/ip_adapter_faceid/lora
+[2024-07-04 23:16] Adding extra search path upscale_models /root/autodl-tmp/models/upscaler
+[2024-07-04 23:16] Adding extra search path embeddings /root/autodl-tmp/models/embeddings
+[2024-07-04 23:16] Adding extra search path hypernetworks /root/autodl-tmp/models/embeddings
+[2024-07-04 23:16] Adding extra search path controlnet /root/autodl-tmp/models/controlnet
+[2024-07-04 23:16] Adding extra search path ipadapter /root/autodl-tmp/models/ip_adapter_faceid/models
+[2024-07-04 23:16] Adding extra search path ipadapter /root/autodl-tmp/models/ip_adapter
+[2024-07-04 23:16] Adding extra search path clip_vision /root/autodl-tmp/models/clip_vision
+[2024-07-04 23:16] Adding extra search path checkpoints /root/autodl-fs/models/checkpoint
+[2024-07-04 23:16] Adding extra search path configs /root/autodl-fs/models/checkpoint
+[2024-07-04 23:16] Adding extra search path vae /root/autodl-fs/models/vae
+[2024-07-04 23:16] Adding extra search path loras /root/autodl-fs/models/lora
+[2024-07-04 23:16] Adding extra search path loras /root/autodl-fs/models/ip_adapter_faceid/lora
+[2024-07-04 23:16] Adding extra search path upscale_models /root/autodl-fs/models/upscaler
+[2024-07-04 23:16] Adding extra search path embeddings /root/autodl-fs/models/embeddings
+[2024-07-04 23:16] Adding extra search path hypernetworks /root/autodl-fs/models/embeddings
+[2024-07-04 23:16] Adding extra search path controlnet /root/autodl-fs/models/controlnet
+[2024-07-04 23:16] Adding extra search path ipadapter /root/autodl-fs/models/ip_adapter_faceid/models
+[2024-07-04 23:16] Adding extra search path ipadapter /root/autodl-fs/models/ip_adapter
+[2024-07-04 23:16] Adding extra search path clip_vision /root/autodl-fs/models/clip_vision
+[2024-07-04 23:16] ### Loading: ComfyUI-Impact-Pack (V4.85.2)
+[2024-07-04 23:16] ### Loading: ComfyUI-Impact-Pack (Subpack: V0.4)
+[2024-07-04 23:16] [Impact Pack] Wildcards loading done.
+[2024-07-04 23:16] [34mWAS Node Suite: [0mBlenderNeko's Advanced CLIP Text Encode found, attempting to enable `CLIPTextEncode` support.[0m
+[2024-07-04 23:16] [34mWAS Node Suite: [0m`CLIPTextEncode (BlenderNeko Advanced + NSP)` node enabled under `WAS Suite/Conditioning` menu.[0m
+[2024-07-04 23:16] [34mWAS Node Suite: [0mOpenCV Python FFMPEG support is enabled[0m
+[2024-07-04 23:16] [34mWAS Node Suite [93mWarning: [0m`ffmpeg_bin_path` is not set in `/root/ComfyUI/custom_nodes/was-node-suite-comfyui/was_suite_config.json` config file. Will attempt to use system ffmpeg binaries if available.[0m
+[2024-07-04 23:16] [34mWAS Node Suite: [0mFinished.[0m [32mLoaded[0m [0m212[0m [32mnodes successfully.[0m
+[2024-07-04 23:16] 
+	[3m[93m"The biggest risk is not taking any risk. In a world that is changing quickly, the only strategy that is guaranteed to fail is not taking risks."[0m[3m - Mark Zuckerberg[0m
+[2024-07-04 23:16] 
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/numba/np/ufunc/parallel.py:371: NumbaWarning: The TBB threading layer requires TBB version 2021 update 6 or later i.e., TBB_INTERFACE_VERSION >= 12060. Found TBB_INTERFACE_VERSION = 12050. The TBB threading layer is disabled.
+  warnings.warn(problem)
+[2024-07-04 23:16] [92m[tinyterraNodes] [32mLoaded[0m
+[2024-07-04 23:16] [36;20m[comfyui_controlnet_aux] | INFO -> Using ckpts path: /root/ComfyUI/custom_nodes/comfyui_controlnet_aux/ckpts[0m
+[2024-07-04 23:16] [36;20m[comfyui_controlnet_aux] | INFO -> Using symlinks: False[0m
+[2024-07-04 23:16] [36;20m[comfyui_controlnet_aux] | INFO -> Using ort providers: ['CUDAExecutionProvider', 'DirectMLExecutionProvider', 'OpenVINOExecutionProvider', 'ROCMExecutionProvider', 'CPUExecutionProvider', 'CoreMLExecutionProvider'][0m
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:249: FutureWarning: `AutoencoderTinyBlock` is deprecated and will be removed in version 0.29. Importing `AutoencoderTinyBlock` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import AutoencoderTinyBlock`, instead.
+  deprecate("AutoencoderTinyBlock", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:254: FutureWarning: `UNetMidBlock2D` is deprecated and will be removed in version 0.29. Importing `UNetMidBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import UNetMidBlock2D`, instead.
+  deprecate("UNetMidBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:259: FutureWarning: `UNetMidBlock2DCrossAttn` is deprecated and will be removed in version 0.29. Importing `UNetMidBlock2DCrossAttn` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import UNetMidBlock2DCrossAttn`, instead.
+  deprecate("UNetMidBlock2DCrossAttn", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:264: FutureWarning: `UNetMidBlock2DSimpleCrossAttn` is deprecated and will be removed in version 0.29. Importing `UNetMidBlock2DSimpleCrossAttn` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import UNetMidBlock2DSimpleCrossAttn`, instead.
+  deprecate("UNetMidBlock2DSimpleCrossAttn", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:269: FutureWarning: `AttnDownBlock2D` is deprecated and will be removed in version 0.29. Importing `AttnDownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import AttnDownBlock2D`, instead.
+  deprecate("AttnDownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:274: FutureWarning: `CrossAttnDownBlock2D` is deprecated and will be removed in version 0.29. Importing `AttnDownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import CrossAttnDownBlock2D`, instead.
+  deprecate("CrossAttnDownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:279: FutureWarning: `DownBlock2D` is deprecated and will be removed in version 0.29. Importing `DownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import DownBlock2D`, instead.
+  deprecate("DownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:284: FutureWarning: `AttnDownEncoderBlock2D` is deprecated and will be removed in version 0.29. Importing `AttnDownEncoderBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import AttnDownEncoderBlock2D`, instead.
+  deprecate("AttnDownEncoderBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:289: FutureWarning: `AttnSkipDownBlock2D` is deprecated and will be removed in version 0.29. Importing `AttnSkipDownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import AttnSkipDownBlock2D`, instead.
+  deprecate("AttnSkipDownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:294: FutureWarning: `SkipDownBlock2D` is deprecated and will be removed in version 0.29. Importing `SkipDownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import SkipDownBlock2D`, instead.
+  deprecate("SkipDownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:299: FutureWarning: `ResnetDownsampleBlock2D` is deprecated and will be removed in version 0.29. Importing `ResnetDownsampleBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import ResnetDownsampleBlock2D`, instead.
+  deprecate("ResnetDownsampleBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:304: FutureWarning: `SimpleCrossAttnDownBlock2D` is deprecated and will be removed in version 0.29. Importing `SimpleCrossAttnDownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import SimpleCrossAttnDownBlock2D`, instead.
+  deprecate("SimpleCrossAttnDownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:309: FutureWarning: `KDownBlock2D` is deprecated and will be removed in version 0.29. Importing `KDownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import KDownBlock2D`, instead.
+  deprecate("KDownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:314: FutureWarning: `KCrossAttnDownBlock2D` is deprecated and will be removed in version 0.29. Importing `KCrossAttnDownBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import KCrossAttnDownBlock2D`, instead.
+  deprecate("KCrossAttnDownBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:319: FutureWarning: `AttnUpBlock2D` is deprecated and will be removed in version 0.29. Importing `AttnUpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import AttnUpBlock2D`, instead.
+  deprecate("AttnUpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:324: FutureWarning: `CrossAttnUpBlock2D` is deprecated and will be removed in version 0.29. Importing `CrossAttnUpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import CrossAttnUpBlock2D`, instead.
+  deprecate("CrossAttnUpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:329: FutureWarning: `UpBlock2D` is deprecated and will be removed in version 0.29. Importing `UpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import UpBlock2D`, instead.
+  deprecate("UpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:334: FutureWarning: `UpDecoderBlock2D` is deprecated and will be removed in version 0.29. Importing `UpDecoderBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import UpDecoderBlock2D`, instead.
+  deprecate("UpDecoderBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:339: FutureWarning: `AttnUpDecoderBlock2D` is deprecated and will be removed in version 0.29. Importing `AttnUpDecoderBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import AttnUpDecoderBlock2D`, instead.
+  deprecate("AttnUpDecoderBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:344: FutureWarning: `AttnSkipUpBlock2D` is deprecated and will be removed in version 0.29. Importing `AttnSkipUpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import AttnSkipUpBlock2D`, instead.
+  deprecate("AttnSkipUpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:349: FutureWarning: `SkipUpBlock2D` is deprecated and will be removed in version 0.29. Importing `SkipUpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import SkipUpBlock2D`, instead.
+  deprecate("SkipUpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:354: FutureWarning: `ResnetUpsampleBlock2D` is deprecated and will be removed in version 0.29. Importing `ResnetUpsampleBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import ResnetUpsampleBlock2D`, instead.
+  deprecate("ResnetUpsampleBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:359: FutureWarning: `SimpleCrossAttnUpBlock2D` is deprecated and will be removed in version 0.29. Importing `SimpleCrossAttnUpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import SimpleCrossAttnUpBlock2D`, instead.
+  deprecate("SimpleCrossAttnUpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:364: FutureWarning: `KUpBlock2D` is deprecated and will be removed in version 0.29. Importing `KUpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import KUpBlock2D`, instead.
+  deprecate("KUpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:369: FutureWarning: `KCrossAttnUpBlock2D` is deprecated and will be removed in version 0.29. Importing `KCrossAttnUpBlock2D` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import KCrossAttnUpBlock2D`, instead.
+  deprecate("KCrossAttnUpBlock2D", "0.29", deprecation_message)
+[2024-07-04 23:16] /root/miniconda3/lib/python3.10/site-packages/diffusers/models/unet_2d_blocks.py:375: FutureWarning: `KAttentionBlock` is deprecated and will be removed in version 0.29. Importing `KAttentionBlock` from `diffusers.models.unet_2d_blocks` is deprecated and this will be removed in a future version. Please use `from diffusers.models.unets.unet_2d_blocks import KAttentionBlock`, instead.
+  deprecate("KAttentionBlock", "0.29", deprecation_message)
+[2024-07-04 23:16] [34mFizzleDorf Custom Nodes: [92mLoaded[0m
+[2024-07-04 23:16] ### Loading: ComfyUI-Inspire-Pack (V0.69.2)
+[2024-07-04 23:16] [1;32m[Power Noise Suite]: 🦚🦚🦚 [93m[3mCock-a-doodle-dooo![0m 🦚🦚🦚
+[2024-07-04 23:16] [1;32m[Power Noise Suite]:[0m Tamed [93m11[0m wild nodes.
+[2024-07-04 23:16] (pysssss:WD14Tagger) [DEBUG] Available ORT providers: TensorrtExecutionProvider, CUDAExecutionProvider, AzureExecutionProvider, CPUExecutionProvider
+[2024-07-04 23:16] (pysssss:WD14Tagger) [DEBUG] Using ORT providers: CUDAExecutionProvider, CPUExecutionProvider
+[2024-07-04 23:16] Use STYLE:weight_interpretation:normalization at the start of a prompt to use advanced encodings
+[2024-07-04 23:16] Weight interpretations available: comfy,A1111,compel,comfy++,down_weight,perp
+[2024-07-04 23:16] Normalization types available: none,mean,length,length+mean
+[2024-07-04 23:16] Total VRAM 24217 MB, total RAM 515689 MB
+[2024-07-04 23:16] xformers version: 0.0.22.post4
+[2024-07-04 23:16] Set vram state to: NORMAL_VRAM
+[2024-07-04 23:16] Device: cuda:0 NVIDIA GeForce RTX 4090 : cudaMallocAsync
+[2024-07-04 23:16] VAE dtype: torch.bfloat16
+[2024-07-04 23:16] ### Loading: ComfyUI-Manager (V2.13.1)
+[2024-07-04 23:16] ### ComfyUI Revision: 2096 [6c6a3925] | Released on '2024-04-02'
+[2024-07-04 23:16] [36mEfficiency Nodes:[0m Attempting to add Control Net options to the 'HiRes-Fix Script' Node (comfyui_controlnet_aux add-on)...[92mSuccess![0m
+[2024-07-04 23:16] [Crystools [0;32mINFO[0m] Crystools version: 1.12.0
+[2024-07-04 23:16] [Crystools [0;32mINFO[0m] CPU: AMD EPYC 7T83 64-Core Processor - Arch: x86_64 - OS: Linux 5.4.0-153-generic
+[2024-07-04 23:16] [Crystools [0;32mINFO[0m] GPU/s:
+[2024-07-04 23:16] [Crystools [0;32mINFO[0m] 0) NVIDIA GeForce RTX 4090
+[2024-07-04 23:16] [Crystools [0;32mINFO[0m] NVIDIA Driver: 535.54.03
+[2024-07-04 23:16] ------------------------------------------
+[2024-07-04 23:16] [34mComfyroll Studio v1.76 : [92m 175 Nodes Loaded[0m
+[2024-07-04 23:16] ------------------------------------------
+[2024-07-04 23:16] ** For changes, please see patch notes at https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes/blob/main/Patch_Notes.md
+[2024-07-04 23:16] ** For help, please see the wiki at https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes/wiki
+[2024-07-04 23:16] ------------------------------------------
+[2024-07-04 23:16] #fix sys.stdout.isatty
+[2024-07-04 23:16] --------------
+[2024-07-04 23:16] [91m ### Mixlab Nodes: [93mLoaded
+[2024-07-04 23:16] ChatGPT.available True
+[2024-07-04 23:16] edit_mask.available False
+[2024-07-04 23:16] ## lama torchscript model not found: /root/ComfyUI/models/lama/big-lama.pt,pls download from https://github.com/enesmsahin/simple-lama-inpainting/releases/download/v0.1.0/big-lama.pt
+[2024-07-04 23:16] LaMaInpainting.available True
+[2024-07-04 23:16] ## clip_interrogator_model not found: /root/ComfyUI/models/clip_interrogator/Salesforce/blip-image-captioning-base, pls download from https://huggingface.co/Salesforce/blip-image-captioning-base
+[2024-07-04 23:16] ClipInterrogator.available True
+[2024-07-04 23:16] ## text_generator_model not found: /root/ComfyUI/models/prompt_generator/text2image-prompt-generator, pls download from https://huggingface.co/succinctly/text2image-prompt-generator/tree/main
+[2024-07-04 23:16] ## zh_en_model not found: /root/ComfyUI/models/prompt_generator/opus-mt-zh-en, pls download from https://huggingface.co/Helsinki-NLP/opus-mt-zh-en/tree/main
+[2024-07-04 23:16] PromptGenerate.available True
+[2024-07-04 23:16] ChinesePrompt.available True
+[2024-07-04 23:16] RembgNode_.available True
+[2024-07-04 23:16] TripoSR.available
+[2024-07-04 23:16] [93m -------------- [0m
+[2024-07-04 23:16] Looking in indexes: http://mirrors.aliyun.com/pypi/simple
+[2024-07-04 23:16] [2024-07-04 23:16] WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+[2024-07-04 23:16] Looking in indexes: http://mirrors.aliyun.com/pypi/simple
+[2024-07-04 23:16] WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+[2024-07-04 23:16] Traceback (most recent call last):
+  File "/root/ComfyUI/nodes.py", line 1889, in load_custom_node
+    module_spec.loader.exec_module(module)
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/root/ComfyUI/custom_nodes/ComfyUI_essentials/__init__.py", line 2, in <module>
+    from .image import IMAGE_CLASS_MAPPINGS, IMAGE_NAME_MAPPINGS
+  File "/root/ComfyUI/custom_nodes/ComfyUI_essentials/image.py", line 5, in <module>
+    from node_helpers import pillow
+ModuleNotFoundError: No module named 'node_helpers'
+
+[2024-07-04 23:16] Cannot import /root/ComfyUI/custom_nodes/ComfyUI_essentials module for custom nodes: No module named 'node_helpers'
+[2024-07-04 23:16] 
+Import times for custom nodes:
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/websocket_image_save.py
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-AutomaticCFG
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/AIGODLIKE-COMFYUI-TRANSLATION
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUi_NNLatentUpscale
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUi_PromptStylers
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/masquerade-nodes-comfyui
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-WD14-Tagger
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/comfyui-portrait-master
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI_ADV_CLIP_emb
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/PowerNoiseSuite
+[2024-07-04 23:16]    0.0 seconds (IMPORT FAILED): /root/ComfyUI/custom_nodes/ComfyUI_essentials
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Custom-Scripts
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/Derfuu_ComfyUI_ModdedNodes
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Frame-Interpolation
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/comfyui-browser
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI_UltimateSDUpscale
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Advanced-ControlNet
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Coziness
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-AnimateDiff-Evolved
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-KJNodes
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/efficiency-nodes-comfyui
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI_IPAdapter_plus
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI_Comfyroll_CustomNodes
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/comfyui_controlnet_aux
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI_smZNodes
+[2024-07-04 23:16]    0.0 seconds: /root/ComfyUI/custom_nodes/ComfyUI-VideoHelperSuite
+[2024-07-04 23:16]    0.1 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Manager
+[2024-07-04 23:16]    0.1 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Inspire-Pack
+[2024-07-04 23:16]    0.1 seconds: /root/ComfyUI/custom_nodes/comfyui-prompt-control
+[2024-07-04 23:16]    0.1 seconds: /root/ComfyUI/custom_nodes/ComfyUI-layerdiffuse
+[2024-07-04 23:16]    0.1 seconds: /root/ComfyUI/custom_nodes/comfyui_segment_anything
+[2024-07-04 23:16]    0.1 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Gemini
+[2024-07-04 23:16]    0.3 seconds: /root/ComfyUI/custom_nodes/ComfyUI_FizzNodes
+[2024-07-04 23:16]    0.4 seconds: /root/ComfyUI/custom_nodes/ComfyUI_tinyterraNodes
+[2024-07-04 23:16]    1.1 seconds: /root/ComfyUI/custom_nodes/comfyui-mixlab-nodes
+[2024-07-04 23:16]    1.3 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Impact-Pack
+[2024-07-04 23:16]    1.4 seconds: /root/ComfyUI/custom_nodes/was-node-suite-comfyui
+[2024-07-04 23:16]    2.4 seconds: /root/ComfyUI/custom_nodes/ComfyUI-Crystools
+[2024-07-04 23:16]    3.2 seconds: /root/ComfyUI/custom_nodes/comfyui-ollama
+[2024-07-04 23:16]    3.2 seconds: /root/ComfyUI/custom_nodes/ComfyUi-Ollama-YN
+[2024-07-04 23:16] 
+https_key OK:  /root/ComfyUI/custom_nodes/comfyui-mixlab-nodes/https/certificate.crt /root/ComfyUI/custom_nodes/comfyui-mixlab-nodes/https/private.key
+[2024-07-04 23:16] 
+
+[2024-07-04 23:16] 
+
+Starting server
+[2024-07-04 23:16] [93mTo see the GUI go to: http://127.0.0.1:6006
+[2024-07-04 23:16] [93mTo see the GUI go to: https://127.0.0.1:6008[0m
+[2024-07-04 23:16] [ComfyUI-Manager] default cache updated: https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/model-list.json
+[2024-07-04 23:16] [ComfyUI-Manager] default cache updated: https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/custom-node-list.json
+[2024-07-04 23:16] [ComfyUI-Manager] default cache updated: https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/extension-node-map.json
+[2024-07-04 23:16] [ComfyUI-Manager] default cache updated: https://raw.githubusercontent.com/ltdrdata/ComfyUI-Manager/main/alter-list.json
+[2024-07-04 23:17] FETCH DATA from: /root/ComfyUI/custom_nodes/ComfyUI-Manager/extension-node-map.json
+[2024-07-04 23:17] #clip_model_path chatml None
+[2024-07-04 23:17] #model 
+[2024-07-04 23:17] start_local_llm error
+[2024-07-04 23:17] data_path:  /root/ComfyUI/custom_nodes/comfyui-mixlab-nodes/data
+[2024-07-04 23:17] #read_workflow_json_files_all /root/ComfyUI/custom_nodes/comfyui-mixlab-nodes/app/
+[2024-07-04 23:21] Use Proxy: http://172.20.0.113:12798
+[2024-07-04 23:21] FETCH DATA from: /root/ComfyUI/custom_nodes/ComfyUI-Manager/.cache/1514988643_custom-node-list.json
+[2024-07-04 23:21] FETCH DATA from: /root/ComfyUI/custom_nodes/ComfyUI-Manager/.cache/1742899825_extension-node-map.json
+[2024-07-04 23:21] FETCH DATA from: /root/ComfyUI/custom_nodes/ComfyUI-Manager/.cache/1742899825_extension-node-map.json
+[2024-07-04 23:21] Uninstall custom node 'ComfyUI Essentials'
+[2024-07-04 23:21] uninstall: ['https://github.com/cubiq/ComfyUI_essentials']
+[2024-07-04 23:21] Uninstallation was successful.
+[2024-07-04 23:21] After restarting ComfyUI, please refresh the browser.
+[2024-07-04 23:21] FETCH DATA from: /root/ComfyUI/custom_nodes/ComfyUI-Manager/.cache/1514988643_custom-node-list.json
+[2024-07-04 23:21] FETCH DATA from: /root/ComfyUI/custom_nodes/ComfyUI-Manager/.cache/1742899825_extension-node-map.json
+[2024-07-04 23:21] FETCH DATA from: /root/ComfyUI/custom_nodes/ComfyUI-Manager/.cache/1742899825_extension-node-map.json
