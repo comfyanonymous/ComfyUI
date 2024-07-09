@@ -55,6 +55,13 @@ jobs:
     - name: Run Playwright tests
       run: npx playwright test
       working-directory: ComfyUI_frontend
+    - name: Check for unhandled exceptions in server log
+      run: |
+        if grep -qE "Exception|Error" console_output.log; then
+          echo "Unhandled exception/error found in server log."
+          exit 1
+        fi
+      working-directory: ComfyUI
     - uses: actions/upload-artifact@v4
       if: always()
       with:
