@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import logging
+import operator
 import os
+from functools import reduce
 from itertools import chain
 from os.path import join
-from typing import List, Any, Optional, Union
+from pathlib import Path
+from typing import List, Any, Optional, Union, Sequence
 
 import tqdm
-from huggingface_hub import hf_hub_download, scan_cache_dir
+from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem
 from huggingface_hub.utils import GatedRepoError
 from requests import Session
 from safetensors import safe_open
@@ -15,11 +18,13 @@ from safetensors.torch import save_file
 
 from .cli_args import args
 from .cmd import folder_paths
+from .component_model.deprecation import _deprecate_method
 from .interruption import InterruptProcessingException
 from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_
 from .utils import ProgressBar, comfy_tqdm
 
 _session = Session()
+_hf_fs = HfFileSystem()
 
 
 def get_filename_list_with_downloadable(folder_name: str, known_files: List[Any]) -> List[str]:
@@ -365,8 +370,121 @@ def add_known_models(folder_name: str, known_models: List[Union[CivitFile, Huggi
     return known_models
 
 
+@_deprecate_method(version="1.0.0", message="use get_huggingface_repo_list instead")
 def huggingface_repos() -> List[str]:
-    cache_info = scan_cache_dir()
-    existing_repo_ids = frozenset(cache_item.repo_id for cache_item in cache_info.repos if cache_item.repo_type == "model")
+    return get_huggingface_repo_list()
+
+
+def get_huggingface_repo_list(*extra_cache_dirs: str) -> List[str]:
+    if len(extra_cache_dirs) == 0:
+        extra_cache_dirs = folder_paths.get_folder_paths("huggingface_cache")
+
+    # all in cache directories
+    existing_repo_ids = frozenset(
+        cache_item.repo_id for cache_item in \
+        reduce(operator.or_,
+               map(lambda cache_info: cache_info.repos, [scan_cache_dir()] + [scan_cache_dir(cache_dir=cache_dir) for cache_dir in extra_cache_dirs if os.path.isdir(cache_dir)]))
+        if cache_item.repo_type == "model"
+    )
+
+    # also check local-dir style directories
+    existing_local_dir_repos = set()
+    local_dirs = folder_paths.get_folder_paths("huggingface")
+    for local_dir_root in local_dirs:
+        # enumerate all the two-directory paths
+        if not os.path.isdir(local_dir_root):
+            continue
+
+        for user_dir in Path(local_dir_root).iterdir():
+            for model_dir in user_dir.iterdir():
+                try:
+                    _hf_fs.resolve_path(str(user_dir / model_dir))
+                except Exception as exc_info:
+                    logging.debug(f"HuggingFaceFS did not think this was a valid repo: {user_dir.name}/{model_dir.name} with error {exc_info}", exc_info)
+                existing_local_dir_repos.add(f"{user_dir.name}/{model_dir.name}")
+
     known_repo_ids = frozenset(KNOWN_HUGGINGFACE_MODEL_REPOS)
-    return list(existing_repo_ids | known_repo_ids)
+    if args.disable_known_models:
+        return list(existing_repo_ids | existing_local_dir_repos)
+    else:
+        return list(existing_repo_ids | existing_local_dir_repos | known_repo_ids)
+
+
+def get_or_download_huggingface_repo(repo_id: str) -> Optional[str]:
+    cache_dirs = folder_paths.get_folder_paths("huggingface_cache")
+    local_dirs = folder_paths.get_folder_paths("huggingface")
+    cache_dirs_snapshots, local_dirs_snapshots = _get_cache_hits(cache_dirs, local_dirs, repo_id)
+
+    local_dirs_cache_hit = len(local_dirs_snapshots) > 0
+    cache_dirs_cache_hit = len(cache_dirs_snapshots) > 0
+    logging.debug(f"cache {'hit' if local_dirs_cache_hit or cache_dirs_cache_hit else 'miss'} for repo_id={repo_id} because local_dirs={local_dirs_cache_hit}, cache_dirs={cache_dirs_cache_hit}")
+
+    # if we're in forced local directory mode, only use the local dir snapshots, and otherwise, download
+    if args.force_hf_local_dir_mode:
+        # todo: we still have to figure out a way to download things to the right places by default
+        if len(local_dirs_snapshots) > 0:
+            return local_dirs_snapshots[0]
+        elif not args.disable_known_models:
+            destination = os.path.join(local_dirs[0], repo_id)
+            logging.debug(f"downloading repo_id={repo_id}, local_dir={destination}")
+            return snapshot_download(repo_id, local_dir=destination)
+
+    snapshots = local_dirs_snapshots + cache_dirs_snapshots
+    if len(snapshots) > 0:
+        return snapshots[0]
+    elif not args.disable_known_models:
+        logging.debug(f"downloading repo_id={repo_id}")
+        return snapshot_download(repo_id)
+
+    # this repo was not found
+    return None
+
+
+def _get_cache_hits(cache_dirs: Sequence[str], local_dirs: Sequence[str], repo_id):
+    local_dirs_snapshots = []
+    cache_dirs_snapshots = []
+    # find all the pre-existing downloads for this repo_id
+    try:
+        repo_files = set(_hf_fs.ls(repo_id, detail=False))
+    except:
+        repo_files = []
+
+    if len(repo_files) > 0:
+        for local_dir in local_dirs:
+            local_path = Path(local_dir) / repo_id
+            local_files = set(f"{repo_id}/{f.relative_to(local_path)}" for f in local_path.rglob("*") if f.is_file())
+            # fix path representation
+            local_files = set(f.replace("\\", "/") for f in local_files)
+            # remove .huggingface
+            local_files = set(f for f in local_files if not f.startswith(f"{repo_id}/.huggingface"))
+            # local_files.issubsetof(repo_files)
+            if local_files.issubset(repo_files):
+                local_dirs_snapshots.append(str(local_path))
+    else:
+        # an empty repository or unknown repository info, trust that if the directory exists, it matches
+        for local_dir in local_dirs:
+            local_path = Path(local_dir) / repo_id
+            if local_path.is_dir():
+                local_dirs_snapshots.append(str(local_path))
+
+    for cache_dir in (None, *cache_dirs):
+        try:
+            cache_dirs_snapshots.append(snapshot_download(repo_id, local_files_only=True, cache_dir=cache_dir))
+        except FileNotFoundError:
+            continue
+        except:
+            continue
+    return cache_dirs_snapshots, local_dirs_snapshots
+
+
+def _delete_repo_from_huggingface_cache(repo_id: str, cache_dir: Optional[str] = None) -> List[str]:
+    results = scan_cache_dir(cache_dir)
+    matching = [repo for repo in results.repos if repo.repo_id == repo_id]
+    if len(matching) == 0:
+        return []
+    revisions: List[str] = []
+    for repo in matching:
+        for revision_info in repo.revisions:
+            revisions.append(revision_info.commit_hash)
+    results.delete_revisions(*revisions).execute()
+    return revisions

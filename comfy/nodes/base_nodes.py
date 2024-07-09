@@ -26,7 +26,7 @@ from ..cli_args import args
 from ..cmd import folder_paths, latent_preview
 from ..execution_context import current_execution_context
 from ..images import open_image
-from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, huggingface_repos, KNOWN_CLIP_MODELS, KNOWN_UNET_MODELS
+from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, get_huggingface_repo_list, KNOWN_CLIP_MODELS, KNOWN_UNET_MODELS
 from ..nodes.common import MAX_RESOLUTION
 from .. import controlnet
 from ..open_exr import load_exr
@@ -517,7 +517,7 @@ class DiffusersLoader:
                     if "model_index.json" in files:
                         paths.append(os.path.relpath(root, start=search_path))
 
-        paths += huggingface_repos()
+        paths += get_huggingface_repo_list()
         paths = list(frozenset(paths))
         return {"required": {"model_path": (paths,), }}
 

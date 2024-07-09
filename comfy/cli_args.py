@@ -158,6 +158,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--otel-service-version", type=str, default=__version__, env_var="OTEL_SERVICE_VERSION", help="The version of the service or application that is generating telemetry data.")
     parser.add_argument("--otel-exporter-otlp-endpoint", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_ENDPOINT", help="A base endpoint URL for any signal type, with an optionally-specified port number. Helpful for when you're sending more than one signal to the same endpoint and want one environment variable to control the endpoint.")
     parser.add_argument("--force-channels-last", action="store_true", help="Force channels last format when inferencing the models.")
+    parser.add_argument("--force-hf-local-dir-mode", action="store_true", help="Download repos from huggingface.co to the models/huggingface directory with the \"local_dir\" argument instead of models/huggingface_cache with the \"cache_dir\" argument, recreating the traditional file structure.")
 
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):

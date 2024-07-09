@@ -112,7 +112,7 @@ class FloatRequestParameter(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return {
             "required": {
-                "value": ("FLOAT", {"default": 0})
+                "value": ("FLOAT", {"default": 0, "step": 0.00001, "round": 0.00001})
             },
             "optional": {
                 **_open_api_common_schema,

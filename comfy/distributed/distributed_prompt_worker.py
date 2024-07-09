@@ -7,6 +7,7 @@ from typing import Optional
 
 from aio_pika import connect_robust
 from aio_pika.patterns import JsonRPC
+from aiohttp import web
 from aiormq import AMQPConnectionError
 
 from .distributed_progress import DistributedExecutorToClientProgress
@@ -24,6 +25,7 @@ class DistributedPromptWorker:
     def __init__(self, embedded_comfy_client: Optional[EmbeddedComfyClient] = None,
                  connection_uri: str = "amqp://localhost:5672/",
                  queue_name: str = "comfyui",
+                 health_check_port: int = 9090,
                  loop: Optional[AbstractEventLoop] = None):
         self._rpc = None
         self._channel = None
@@ -32,6 +34,29 @@ class DistributedPromptWorker:
         self._connection_uri = connection_uri
         self._loop = loop or asyncio.get_event_loop()
         self._embedded_comfy_client = embedded_comfy_client
+        self._health_check_port = health_check_port
+        self._health_check_site = None
+
+    async def _health_check(self, request):
+        return web.Response(text="OK", content_type="text/plain")
+
+    async def _start_health_check_server(self):
+        app = web.Application()
+        app.router.add_get('/health', self._health_check)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+
+        try:
+            site = web.TCPSite(runner, port=self._health_check_port)
+            await site.start()
+            self._health_check_site = site
+            logging.info(f"health check server started on port {self._health_check_port}")
+        except OSError as e:
+            if e.errno == 98:
+                logging.warning(f"port {self._health_check_port} is already in use, health check disabled but starting anyway")
+            else:
+                logging.error(f"failed to start health check server with error {str(e)}, starting anyway")
 
     @tracer.start_as_current_span("Do Work Item")
     async def _do_work_item(self, request: dict) -> dict:
@@ -74,6 +99,7 @@ class DistributedPromptWorker:
             await self._exit_stack.enter_async_context(self._embedded_comfy_client)
 
         await self._rpc.register(self._queue_name, self._do_work_item)
+        await self._start_health_check_server()
 
     async def __aenter__(self) -> "DistributedPromptWorker":
         await self.init()
@@ -83,6 +109,8 @@ class DistributedPromptWorker:
         await self._rpc.close()
         await self._channel.close()
         await self._connection.close()
+        if self._health_check_site:
+            await self._health_check_site.stop()
 
     async def close(self):
         await self._close()

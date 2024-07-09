@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import jwt
 import pytest
+from aiohttp import ClientSession, ClientConnectorError
 from testcontainers.rabbitmq import RabbitMqContainer
 
 from comfy.client.aio_client import AsyncRemoteComfyClient
@@ -108,3 +109,97 @@ async def test_frontend_backend_workers_validation_error_raises(frontend_backend
     prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1, sdxl_refiner_checkpoint_name="unknown.safetensors")
     with pytest.raises(Exception):
         await client.queue_prompt(prompt)
+
+
+async def check_health(url: str, max_retries: int = 5, retry_delay: float = 1.0):
+    async with ClientSession() as session:
+        for _ in range(max_retries):
+            try:
+                async with session.get(url, timeout=1) as response:
+                    if response.status == 200 and await response.text() == "OK":
+                        return True
+            except Exception as exc_info:
+                pass
+            await asyncio.sleep(retry_delay)
+    return False
+
+
+@pytest.mark.asyncio
+async def test_basic_queue_worker_with_health_check():
+    with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
+        params = rabbitmq.get_connection_params()
+        connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
+        health_check_port = 9090
+
+        async with DistributedPromptWorker(connection_uri=connection_uri, health_check_port=health_check_port) as worker:
+            # Test health check
+            health_check_url = f"http://localhost:{health_check_port}/health"
+
+            health_check_ok = await check_health(health_check_url)
+            assert health_check_ok, "Health check server did not start properly"
+
+            # Test the actual worker functionality
+            from comfy.distributed.distributed_prompt_queue import DistributedPromptQueue
+            distributed_queue = DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True, connection_uri=connection_uri)
+            await distributed_queue.init()
+
+            queue_item = create_test_prompt()
+            res = await distributed_queue.put_async(queue_item)
+
+            assert res.item_id == queue_item.prompt_id
+            assert len(res.outputs) == 1
+            assert res.status is not None
+            assert res.status.status_str == "success"
+
+            await distributed_queue.close()
+
+        # Test that the health check server is stopped after the worker is closed
+        health_check_stopped = not await check_health(health_check_url, max_retries=1)
+        assert health_check_stopped, "Health check server did not stop properly"
+
+
+@pytest.mark.asyncio
+async def test_health_check_port_conflict():
+    with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
+        params = rabbitmq.get_connection_params()
+        connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
+        health_check_port = 9090
+
+        # Start a simple server to occupy the health check port
+        from aiohttp import web
+        async def dummy_handler(request):
+            return web.Response(text="Dummy")
+
+        app = web.Application()
+        app.router.add_get('/', dummy_handler)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', health_check_port)
+        await site.start()
+
+        try:
+            # Now try to start the DistributedPromptWorker
+            async with DistributedPromptWorker(connection_uri=connection_uri, health_check_port=health_check_port) as worker:
+                # The health check should be disabled, but the worker should still function
+                from comfy.distributed.distributed_prompt_queue import DistributedPromptQueue
+                distributed_queue = DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True, connection_uri=connection_uri)
+                await distributed_queue.init()
+
+                queue_item = create_test_prompt()
+                res = await distributed_queue.put_async(queue_item)
+
+                assert res.item_id == queue_item.prompt_id
+                assert len(res.outputs) == 1
+                assert res.status is not None
+                assert res.status.status_str == "success"
+
+                await distributed_queue.close()
+
+            # The original server should still be running
+            async with ClientSession() as session:
+                async with session.get(f"http://localhost:{health_check_port}") as response:
+                    assert response.status == 200
+                    assert await response.text() == "Dummy"
+
+        finally:
+            await runner.cleanup()

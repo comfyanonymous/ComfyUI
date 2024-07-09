@@ -57,8 +57,6 @@ class FolderNames:
         if isinstance(value, tuple):
             paths, supported_extensions = value
             value = FolderPathsTuple(key, paths, supported_extensions)
-        if key in self.contents:
-            value = self.contents[key] + value
         self.contents[key] = value
 
     def __len__(self):
@@ -66,6 +64,9 @@ class FolderNames:
 
     def __iter__(self):
         return iter(self.contents)
+
+    def __delitem__(self, key):
+        del self.contents[key]
 
     def items(self):
         return self.contents.items()
@@ -110,6 +111,8 @@ folder_names_and_paths["custom_nodes"] = FolderPathsTuple("custom_nodes", [os.pa
 folder_names_and_paths["hypernetworks"] = FolderPathsTuple("hypernetworks", [os.path.join(models_dir, "hypernetworks")], set(supported_pt_extensions))
 folder_names_and_paths["photomaker"] = FolderPathsTuple("photomaker", [os.path.join(models_dir, "photomaker")], set(supported_pt_extensions))
 folder_names_and_paths["classifiers"] = FolderPathsTuple("classifiers", [os.path.join(models_dir, "classifiers")], {""})
+folder_names_and_paths["huggingface"] = FolderPathsTuple("huggingface", [os.path.join(models_dir, "huggingface")], {""})
+folder_names_and_paths["huggingface_cache"] = FolderPathsTuple("huggingface_cache", [os.path.join(models_dir, "huggingface_cache")], {""})
 
 output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")

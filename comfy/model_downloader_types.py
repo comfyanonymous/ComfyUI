@@ -43,7 +43,6 @@ class HuggingFile:
     Attributes:
         repo_id (str): The Huggingface repository of a known file
         filename (str): The path to the known file in the repository
-        show_in_ui (bool): Not used. Will indicate whether or not the file should be shown in the UI to reduce clutter
     """
     repo_id: str
     filename: str
