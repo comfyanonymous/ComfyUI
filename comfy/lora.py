@@ -12,15 +12,24 @@ LORA_CLIP_MAP = {
 
 
 def load_lora(lora, to_load):
+
     patch_dict = {}
     loaded_keys = set()
     for x in to_load:
+        #import json
+        #with open('/apdcephfs_cq8/share_1367250/xuhuaren/kaiyuan/fork/ComfyUI/result_lora.json', 'w') as fp:
+        #    dict_keys_list = list(lora.keys())
+        #    json.dump(dict_keys_list, fp)
+        #import pdb
+        # dpdb.set_trace() 
+          
+       
+
         alpha_name = "{}.alpha".format(x)
         alpha = None
         if alpha_name in lora.keys():
             alpha = lora[alpha_name].item()
             loaded_keys.add(alpha_name)
-
         dora_scale_name = "{}.dora_scale".format(x)
         dora_scale = None
         if dora_scale_name in lora.keys():
@@ -31,6 +40,7 @@ def load_lora(lora, to_load):
         diffusers_lora = "{}_lora.up.weight".format(x)
         diffusers2_lora = "{}.lora_B.weight".format(x)
         diffusers3_lora = "{}.lora.up.weight".format(x)
+        diffusers4_lora = "{}_lora_B_weight".format(x)
         transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
         A_name = None
 
@@ -50,6 +60,10 @@ def load_lora(lora, to_load):
             A_name = diffusers3_lora
             B_name = "{}.lora.down.weight".format(x)
             mid_name = None
+        elif diffusers4_lora in lora.keys():
+            A_name = diffusers4_lora
+            B_name = "{}_lora_A_weight".format(x)
+            mid_name = None
         elif transformers_lora in lora.keys():
             A_name = transformers_lora
             B_name ="{}.lora_linear_layer.down.weight".format(x)
@@ -63,6 +77,8 @@ def load_lora(lora, to_load):
             patch_dict[to_load[x]] = ("lora", (lora[A_name], lora[B_name], alpha, mid, dora_scale))
             loaded_keys.add(A_name)
             loaded_keys.add(B_name)
+            #import pdb
+            #pdb.set_trace()
 
 
         ######## loha

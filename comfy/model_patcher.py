@@ -349,6 +349,7 @@ class ModelPatcher:
         return self.model
 
     def calculate_weight(self, patches, weight, key):
+
         for p in patches:
             strength = p[0]
             v = p[1]
@@ -383,6 +384,7 @@ class ModelPatcher:
                     else:
                         weight += function(strength * comfy.model_management.cast_to_device(w1, weight.device, weight.dtype))
             elif patch_type == "lora": #lora/locon
+
                 mat1 = comfy.model_management.cast_to_device(v[0], weight.device, torch.float32)
                 mat2 = comfy.model_management.cast_to_device(v[1], weight.device, torch.float32)
                 dora_scale = v[4]
@@ -404,6 +406,8 @@ class ModelPatcher:
                         weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
+
+           
             elif patch_type == "lokr":
                 w1 = v[0]
                 w2 = v[1]
@@ -450,6 +454,7 @@ class ModelPatcher:
                         weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
                 except Exception as e:
                     logging.error("ERROR {} {} {}".format(patch_type, key, e))
+
             elif patch_type == "loha":
                 w1a = v[0]
                 w1b = v[1]
