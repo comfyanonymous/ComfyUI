@@ -13,7 +13,6 @@ from ..ldm.modules.diffusionmodules.util import (
 from ..ldm.modules.attention import SpatialTransformer
 from ..ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample
 from ..ldm.util import exists
-from ..ldm.cascade.common import OptimizedAttention
 from collections import OrderedDict
 import comfy.ops
 from comfy.ldm.modules.attention import optimized_attention
@@ -388,7 +387,7 @@ class ControlNet(nn.Module):
         emb = self.time_embed(t_emb)
 
         guided_hint = None
-        if self.control_add_embedding is not None:
+        if self.control_add_embedding is not None: #Union Controlnet
             control_type = kwargs.get("control_type", [])
 
             emb += self.control_add_embedding(control_type, emb.dtype, emb.device)
