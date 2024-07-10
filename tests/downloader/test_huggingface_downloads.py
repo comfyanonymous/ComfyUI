@@ -141,7 +141,8 @@ def test_known_repos(tmp_path_factory):
     finally:
         _delete_repo_from_huggingface_cache(test_repo_id)
         _delete_repo_from_huggingface_cache(test_repo_id, test_cache_dir)
-        KNOWN_HUGGINGFACE_MODEL_REPOS.remove(test_repo_id)
+        if test_repo_id in KNOWN_HUGGINGFACE_MODEL_REPOS:
+            KNOWN_HUGGINGFACE_MODEL_REPOS.remove(test_repo_id)
         folder_paths.folder_names_and_paths["huggingface"] = prev_huggingface
         folder_paths.folder_names_and_paths["huggingface_cache"] = prev_huggingface_cache
         if prev_hub_cache is None and "HF_HUB_CACHE" in os.environ:
