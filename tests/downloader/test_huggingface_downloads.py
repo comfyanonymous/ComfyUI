@@ -58,11 +58,12 @@ def test_known_repos(tmp_path_factory):
     _delete_repo_from_huggingface_cache(test_repo_id)
     _delete_repo_from_huggingface_cache(test_repo_id, test_cache_dir)
     try:
-        folder_paths.folder_names_and_paths["huggingface"] = FolderPathsTuple("huggingface", [test_local_dir], {""})
-        folder_paths.folder_names_and_paths["huggingface_cache"] = FolderPathsTuple("huggingface_cache", [test_cache_dir], {""})
+        folder_paths.folder_names_and_paths["huggingface"] += FolderPathsTuple("huggingface", [test_local_dir], {""})
+        folder_paths.folder_names_and_paths["huggingface_cache"] += FolderPathsTuple("huggingface_cache", [test_cache_dir], {""})
 
         cache_hits, locals_hits = _get_cache_hits([test_cache_dir], [test_local_dir], test_repo_id)
-        assert len(cache_hits) == len(locals_hits) == 0, "not downloaded yet"
+        assert len(cache_hits) == 0, "not downloaded yet"
+        assert len(locals_hits) == 0, "not downloaded yet"
 
         # test downloading the repo and observing a cache hit on second access
         existing_repos = get_huggingface_repo_list()
