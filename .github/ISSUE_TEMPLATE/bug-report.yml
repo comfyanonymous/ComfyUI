@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before submitting a **Bug Report**, please make sure you have done the following:
+        Before submitting a **Bug Report**, please ensure the following:
 
         - **1:** You are running the latest version of ComfyUI.
         - **2:** You have looked at the existing bug reports and made sure this isn't already reported.
