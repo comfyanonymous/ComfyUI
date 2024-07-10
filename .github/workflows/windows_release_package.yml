@@ -52,6 +52,11 @@ jobs:
           with:
             fetch-depth: 0
             persist-credentials: false
+        - uses: actions/checkout@v4
+          name: Checkout BizyAir
+          with:
+            repository: siliconflow/BizyAir
+            path: custom_nodes/BizyAir
         - shell: bash
           run: |
             cd ..
@@ -98,3 +103,11 @@ jobs:
                 tag: "latest"
                 overwrite: true
 
+        - uses: yizhoumo/setup-ossutil@v2
+          with:
+            ossutil-version: '1.7.18'
+            endpoint: oss-cn-beijing.aliyuncs.com
+            access-key-id: ${{ secrets.OSS_ACCESS_KEY_ID }}
+            access-key-secret: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+
+        - run: ossutil cp -f new_ComfyUI_windows_portable_nvidia_cu${{ inputs.cu }}_or_cpu.7z oss://bizy-air/
