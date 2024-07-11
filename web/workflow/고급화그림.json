@@ -1,0 +1,1177 @@
+{
+  "last_node_id": 121,
+  "last_link_id": 244,
+  "nodes": [
+    {
+      "id": 97,
+      "type": "PreviewImage",
+      "pos": [
+        1168.6416941868035,
+        1795.683373951745
+      ],
+      "size": {
+        "0": 280,
+        "1": 250
+      },
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 215
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 100,
+      "type": "PreviewImage",
+      "pos": [
+        1528.6416941868035,
+        1795.683373951745
+      ],
+      "size": {
+        "0": 280,
+        "1": 250
+      },
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 218
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 99,
+      "type": "MaskToImage",
+      "pos": [
+        1568.6416941868035,
+        1695.683373951745
+      ],
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 217
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            218
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskToImage"
+      }
+    },
+    {
+      "id": 98,
+      "type": "RemBGSession+",
+      "pos": [
+        788.6416941868048,
+        1685.683373951745
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "REMBG_SESSION",
+          "type": "REMBG_SESSION",
+          "links": [
+            216
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "RemBGSession+"
+      },
+      "widgets_values": [
+        "u2net: general purpose",
+        "CUDA"
+      ]
+    },
+    {
+      "id": 96,
+      "type": "ImageRemoveBackground+",
+      "pos": [
+        1188.6416941868035,
+        1685.683373951745
+      ],
+      "size": {
+        "0": 241.79998779296875,
+        "1": 46
+      },
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "rembg_session",
+          "type": "REMBG_SESSION",
+          "link": 216,
+          "slot_index": 0
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 214
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            215
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            217,
+            219
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageRemoveBackground+"
+      }
+    },
+    {
+      "id": 95,
+      "type": "TripoSRViewer",
+      "pos": [
+        2152.2483828194227,
+        925.4558558520874
+      ],
+      "size": [
+        600,
+        500
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mesh",
+          "type": "MESH",
+          "link": 212
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TripoSRViewer"
+      },
+      "widgets_values": [
+        null
+      ]
+    },
+    {
+      "id": 115,
+      "type": "PreviewPopup",
+      "pos": [
+        257.40790280944793,
+        2016.9782139373835
+      ],
+      "size": {
+        "0": 210,
+        "1": 26
+      },
+      "flags": {},
+      "order": 18,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 241
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewPopup"
+      }
+    },
+    {
+      "id": 37,
+      "type": "KSampler",
+      "pos": [
+        1140,
+        830
+      ],
+      "size": {
+        "0": 315,
+        "1": 262
+      },
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 200
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 188
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 70,
+          "slot_index": 2
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 206,
+          "slot_index": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            73
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        708271151329109,
+        "fixed",
+        4,
+        1,
+        "dpmpp_2m_sde",
+        "sgm_uniform",
+        0.78
+      ]
+    },
+    {
+      "id": 90,
+      "type": "VAEEncode",
+      "pos": [
+        750,
+        1520
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 208,
+          "slot_index": 0
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 207
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            206
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEEncode"
+      }
+    },
+    {
+      "id": 91,
+      "type": "ImageScale",
+      "pos": [
+        700,
+        1310
+      ],
+      "size": {
+        "0": 315,
+        "1": 130
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 244
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            208
+          ],
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScale"
+      },
+      "widgets_values": [
+        "nearest-exact",
+        1024,
+        1024,
+        "disabled"
+      ]
+    },
+    {
+      "id": 114,
+      "type": "PhotoshopToComfyUI",
+      "pos": [
+        207.40790280944813,
+        1836.9782139373804
+      ],
+      "size": {
+        "0": 315,
+        "1": 122
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 4,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            242
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "width",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PhotoshopToComfyUI"
+      },
+      "widgets_values": [
+        "12341234",
+        false
+      ]
+    },
+    {
+      "id": 118,
+      "type": "CR Image Input Switch",
+      "pos": [
+        201.06833360107422,
+        2098.7400382781993
+      ],
+      "size": {
+        "0": 315,
+        "1": 78
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 4,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 243
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 242
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            244
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CR Image Input Switch"
+      },
+      "widgets_values": [
+        2
+      ]
+    },
+    {
+      "id": 93,
+      "type": "TripoSRModelLoader",
+      "pos": [
+        1793.7130576468137,
+        982.4000828010929
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "TRIPOSR_MODEL",
+          "type": "TRIPOSR_MODEL",
+          "links": [
+            210
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TripoSRModelLoader"
+      },
+      "widgets_values": [
+        "model.ckpt",
+        8192
+      ]
+    },
+    {
+      "id": 119,
+      "type": "Note",
+      "pos": [
+        1803.7130576468137,
+        1312.4000828010921
+      ],
+      "size": {
+        "0": 310,
+        "1": 140
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Set\n\nGeometry_resolution = 128\nfor fast generation times\n\nGeometry_resolution = 256 / 512\nfor better quality textures and meshes"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 120,
+      "type": "Note",
+      "pos": [
+        -250,
+        1790
+      ],
+      "size": {
+        "0": 310,
+        "1": 140
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "If you want to work with Photoshop instead of inside of comfyUI, activate the Photoshop to ComfyUI group.\n\nThere's a switch in there that automatically switches to the active Photoshop image."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 121,
+      "type": "Note",
+      "pos": [
+        804.0341769187378,
+        1887.0174210226687
+      ],
+      "size": {
+        "0": 310,
+        "1": 140
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "\"game ready\" (lots of quotes unquotes) RGBA segmented image with corresponding mask.\n\nCan either be used as a stand alone asset or to feed it into TripoSR to generate a 3D asset mesh."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 94,
+      "type": "TripoSRSampler",
+      "pos": [
+        1793.7130576468137,
+        1132.4000828010917
+      ],
+      "size": {
+        "0": 315,
+        "1": 122
+      },
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "TRIPOSR_MODEL",
+          "link": 210
+        },
+        {
+          "name": "reference_image",
+          "type": "IMAGE",
+          "link": 211
+        },
+        {
+          "name": "reference_mask",
+          "type": "MASK",
+          "link": 219
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MESH",
+          "type": "MESH",
+          "links": [
+            212
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TripoSRSampler"
+      },
+      "widgets_values": [
+        512,
+        25
+      ]
+    },
+    {
+      "id": 38,
+      "type": "VAEDecode",
+      "pos": [
+        1500,
+        840
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 73
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 148,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            94,
+            211,
+            214,
+            241
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 68,
+      "type": "LoraLoader",
+      "pos": [
+        690,
+        640
+      ],
+      "size": {
+        "0": 315,
+        "1": 126
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 183
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 162
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            200
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            161,
+            163
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoraLoader"
+      },
+      "widgets_values": [
+        "sdxl_lightning_8step_lora.safetensors",
+        1,
+        1
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        260,
+        850
+      ],
+      "size": {
+        "0": 315,
+        "1": 98
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            183
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            162
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            148,
+            207
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "realcartoonXL_v6.safetensors"
+      ]
+    },
+    {
+      "id": 42,
+      "type": "PreviewImage",
+      "pos": [
+        1089,
+        1148
+      ],
+      "size": {
+        "0": 442.6614990234375,
+        "1": 377.5334777832031
+      },
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 94
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        640,
+        1060
+      ],
+      "size": {
+        "0": 425.27801513671875,
+        "1": 180.6060791015625
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 163
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            70
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "blurry, noisy, messy, lowres, jpeg, artifacts, ill, distorted, malformed, nsfw, nude"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        637,
+        825
+      ],
+      "size": {
+        "0": 422.84503173828125,
+        "1": 164.31304931640625
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 161
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            188
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "game illustration of a can coke"
+      ]
+    },
+    {
+      "id": 92,
+      "type": "PainterNode",
+      "pos": [
+        0,
+        1020
+      ],
+      "size": {
+        "0": 600,
+        "1": 690
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            243
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "title": "PainterNode - 512x512",
+      "properties": {
+        "Node name for S&R": "PainterNode"
+      },
+      "widgets_values": [
+        "Paint_0.png",
+        "clear_painer",
+        null
+      ]
+    }
+  ],
+  "links": [
+    [
+      70,
+      7,
+      0,
+      37,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      73,
+      37,
+      0,
+      38,
+      0,
+      "LATENT"
+    ],
+    [
+      94,
+      38,
+      0,
+      42,
+      0,
+      "IMAGE"
+    ],
+    [
+      148,
+      4,
+      2,
+      38,
+      1,
+      "VAE"
+    ],
+    [
+      161,
+      68,
+      1,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      162,
+      4,
+      1,
+      68,
+      1,
+      "CLIP"
+    ],
+    [
+      163,
+      68,
+      1,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      183,
+      4,
+      0,
+      68,
+      0,
+      "MODEL"
+    ],
+    [
+      188,
+      6,
+      0,
+      37,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      200,
+      68,
+      0,
+      37,
+      0,
+      "MODEL"
+    ],
+    [
+      206,
+      90,
+      0,
+      37,
+      3,
+      "LATENT"
+    ],
+    [
+      207,
+      4,
+      2,
+      90,
+      1,
+      "VAE"
+    ],
+    [
+      208,
+      91,
+      0,
+      90,
+      0,
+      "IMAGE"
+    ],
+    [
+      210,
+      93,
+      0,
+      94,
+      0,
+      "TRIPOSR_MODEL"
+    ],
+    [
+      211,
+      38,
+      0,
+      94,
+      1,
+      "IMAGE"
+    ],
+    [
+      212,
+      94,
+      0,
+      95,
+      0,
+      "MESH"
+    ],
+    [
+      214,
+      38,
+      0,
+      96,
+      1,
+      "IMAGE"
+    ],
+    [
+      215,
+      96,
+      0,
+      97,
+      0,
+      "IMAGE"
+    ],
+    [
+      216,
+      98,
+      0,
+      96,
+      0,
+      "REMBG_SESSION"
+    ],
+    [
+      217,
+      96,
+      1,
+      99,
+      0,
+      "MASK"
+    ],
+    [
+      218,
+      99,
+      0,
+      100,
+      0,
+      "IMAGE"
+    ],
+    [
+      219,
+      96,
+      1,
+      94,
+      2,
+      "MASK"
+    ],
+    [
+      241,
+      38,
+      0,
+      115,
+      0,
+      "IMAGE"
+    ],
+    [
+      242,
+      114,
+      0,
+      118,
+      1,
+      "IMAGE"
+    ],
+    [
+      243,
+      92,
+      0,
+      118,
+      0,
+      "IMAGE"
+    ],
+    [
+      244,
+      118,
+      0,
+      91,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "TripoSR",
+      "bounding": [
+        1753,
+        806,
+        1050,
+        748
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "locked": false
+    },
+    {
+      "title": "Remove Background for TripoSR",
+      "bounding": [
+        759,
+        1606,
+        1121,
+        508
+      ],
+      "color": "#a1309b",
+      "font_size": 24,
+      "locked": false
+    },
+    {
+      "title": "Photoshop to ComfyUI (optional)",
+      "bounding": [
+        95,
+        1749,
+        502,
+        473
+      ],
+      "color": "#8A8",
+      "font_size": 24,
+      "locked": false
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 1,
+      "offset": [
+        -1303.0935106300276,
+        -869.8169915528601
+      ]
+    }
+  },
+  "version": 0.4
+}

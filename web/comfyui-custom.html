@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ComfyUI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" type="text/css" href="./lib/litegraph.css" />
+    <link rel="stylesheet" type="text/css" href="./style.css" />
+    <link rel="stylesheet" type="text/css" href="./user.css" />
+    <script type="text/javascript" src="./lib/litegraph.core.js"></script>
+    <script type="text/javascript" src="./lib/litegraph.extensions.js" defer></script>
+    <script type="module">
+        import { app } from "./scripts/app.js";
+        await app.setup();
+        window.app = app;
+        window.graph = app.graph;
+
+        let workflowJson = "";
+
+        async function loadWorkflow() {
+            const selectElement = document.getElementById('workflow-select');
+            const fileName = selectElement.value;
+
+            const response = await fetch(`../workflow/${fileName}.json`);
+            if (!response.ok) {
+                throw new Error('Network response was not ok' + response.statusText);
+            }
+            workflowJson = await response.json();
+
+            await app.loadGraphData(workflowJson);
+        }
+
+        async function uploadFileAndDisplay(input) {
+            const fileInput = input.files[0];
+            if (!fileInput) {
+                alert('No file selected.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', fileInput);
+
+            const response = await fetch('/upload/image', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const fileName = result.name;
+                const viewResponse = await fetch(`/view?filename=${fileName}&subfolder=&type=input&rand=${Math.random()}`);
+                if (viewResponse.ok) {
+                    const img = document.getElementById('input-image');
+                    img.src = `/view?filename=${fileName}&subfolder=&type=input&rand=${Math.random()}`;
+                    img.style.display = 'block';
+
+                    for (let node of workflowJson.nodes) {
+                        if (node.type === "LoadImage" && node.widgets_values) {
+                            node.widgets_values[0] = fileName;
+                        }
+                    }
+                    await app.loadGraphData(workflowJson);
+
+                } else {
+                    alert('Failed to load the image.');
+                }
+            } else {
+                alert('File upload failed.');
+            }
+        }
+
+        async function executeWorkflow() {
+            const progressText = document.getElementById('progress-text');
+            progressText.textContent = "executing";
+
+            await app.queuePrompt(0, app.batchCount);
+        }
+
+        window.loadWorkflow = loadWorkflow;
+        window.executeWorkflow = executeWorkflow;
+        window.uploadFileAndDisplay = uploadFileAndDisplay;
+    </script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .top-section {
+            height: 50vh;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .litegraph {
+            height: 0;
+            width: 0;
+            overflow: hidden;
+            position: absolute;
+            z-index: -1;
+        }
+        .input-group, .output-group {
+            display: flex;
+            align-items: center;
+        }
+        .input-group select, .input-group input, .input-group button, .output-group a {
+            margin: 0 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        .input-group button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .input-group button:hover {
+            background-color: #0056b3;
+        }
+        #image-link {
+            color: white;
+            background-color: black;
+            text-decoration: none;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #image-link:hover {
+            background-color: #333;
+        }
+        /* Hide the canvas element */
+        #graph-canvas {
+            display: none;
+        }
+        .comfy-menu {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="top-section" id="top-section">
+        <div class="input-group">
+            workflow:
+            <select id="workflow-select" onchange="loadWorkflow()">
+                <option value="" selected>선택</option>
+                <option value="고급화그림">고급화그림</option>
+                <option value="누끼제거">누끼제거</option>
+                <option value="이미지To3D">이미지To3D</option>
+                <option value="포즈기반이미지To영상">포즈기반이미지To영상</option>
+            </select>
+            Input:
+            <input type="file" id="input-image-file" accept="image/*" onchange="uploadFileAndDisplay(this)" />
+            <img id="input-image" src="" alt="Input Image" style="display: none; max-height: 100px;" />
+            <button id="execute-button" onclick="executeWorkflow()">Execute</button>
+        </div>
+        <div class="output-group">
+            Output:
+            <div id="progress-text">Ready</div>
+            <a id="image-link" href="" download>Download</a>
+        </div>
+    </div>
+    <div class="litegraph">
+        <div id="comfy-user-selection" class="comfy-user-selection">
+            <main class="comfy-user-selection-inner">
+                <h1>ComfyUI</h1>
+                <form>
+                    <section>
+                        <label>New user:
+                            <input placeholder="Enter a username" />
+                        </label>
+                    </section>
+                    <div class="comfy-user-existing">
+                        <span class="or-separator">OR</span>
+                        <section>
+                            <label>
+                                Existing user:
+                                <select>
+                                    <option hidden disabled selected value> Select a user </option>
+                                </select>
+                            </label>
+                        </section>
+                    </div>
+                    <footer>
+                        <span class="comfy-user-error">&nbsp;</span>
+                        <button class="comfy-btn comfy-user-button-next">Next</button>
+                    </footer>
+                </form>
+            </main>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1361,11 +1361,31 @@ export class ComfyApp {
 			} else {
 				this.nodeOutputs[detail.node] = detail.output;
 			}
+
+			let filename = "";
+			if (detail.output.images && detail.output.images.length > 0 && detail.output.images[0].type !== "temp") {
+				filename = detail.output.images[0].filename;
+			}
+			if (detail.output.mesh && detail.output.mesh.length > 0 && detail.output.mesh[0].type !== "temp") {
+				filename = detail.output.mesh[0].filename;
+			}
+
+			if(filename) {
+				const imageDisplay = document.getElementById('image-link');
+				imageDisplay.href = `/output/${filename}`;
+				imageDisplay.download = `${filename}`;
+
+				const progressText = document.getElementById('progress-text');
+				progressText.textContent = "executed";
+			}
+
 			const node = this.graph.getNodeById(detail.node);
 			if (node) {
 				if (node.onExecuted)
 					node.onExecuted(detail.output);
 			}
+
+
 		});
 
 		api.addEventListener("execution_start", ({ detail }) => {
