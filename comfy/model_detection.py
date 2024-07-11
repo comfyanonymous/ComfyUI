@@ -105,6 +105,9 @@ def detect_unet_config(state_dict, key_prefix):
         unet_config["audio_model"] = "dit1.0"
         return unet_config
 
+    if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
+        return None
+
     unet_config = {
         "use_checkpoint": False,
         "image_size": 32,
@@ -239,6 +242,8 @@ def model_config_from_unet_config(unet_config, state_dict=None):
 
 def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False):
     unet_config = detect_unet_config(state_dict, unet_key_prefix)
+    if unet_config is None:
+        return None
     model_config = model_config_from_unet_config(unet_config, state_dict)
     if model_config is None and use_base_if_no_match:
         return comfy.supported_models_base.BASE(unet_config)
