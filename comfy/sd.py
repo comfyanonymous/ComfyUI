@@ -21,6 +21,7 @@ from . import sd2_clip
 from . import sdxl_clip
 from . import sd3_clip
 from . import sa_t5
+import comfy.text_encoders.aura_t5
 
 import comfy.model_patcher
 import comfy.lora
@@ -415,6 +416,9 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
             if weight.shape[-1] == 4096:
                 clip_target.clip = sd3_clip.sd3_clip(clip_l=False, clip_g=False, t5=True, dtype_t5=dtype_t5)
                 clip_target.tokenizer = sd3_clip.SD3Tokenizer
+            elif weight.shape[-1] == 2048:
+                clip_target.clip = comfy.text_encoders.aura_t5.AuraT5Model
+                clip_target.tokenizer = comfy.text_encoders.aura_t5.AuraT5Tokenizer
         elif "encoder.block.0.layer.0.SelfAttention.k.weight" in clip_data[0]:
             clip_target.clip = sa_t5.SAT5Model
             clip_target.tokenizer = sa_t5.SAT5Tokenizer
