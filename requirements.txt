@@ -3,7 +3,8 @@ torchsde
 torchvision
 torchaudio
 einops
-transformers>=4.25.1
+transformers>=4.28.1
+tokenizers>=0.13.3
 safetensors>=0.4.2
 aiohttp
 pyyaml
