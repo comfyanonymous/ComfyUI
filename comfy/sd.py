@@ -130,7 +130,7 @@ class CLIP:
     def tokenize(self, text, return_word_ids=False):
         return self.tokenizer.tokenize_with_weights(text, return_word_ids)
 
-    def encode_from_tokens(self, tokens, return_pooled=False):
+    def encode_from_tokens(self, tokens, return_pooled=False, return_dict=False):
         self.cond_stage_model.reset_clip_options()
 
         if self.layer_idx is not None:
@@ -140,7 +140,15 @@ class CLIP:
             self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
         self.load_model()
-        cond, pooled = self.cond_stage_model.encode_token_weights(tokens)
+        o = self.cond_stage_model.encode_token_weights(tokens)
+        cond, pooled = o[:2]
+        if return_dict:
+            out = {"cond": cond, "pooled_output": pooled}
+            if len(o) > 2:
+                for k in o[2]:
+                    out[k] = o[2][k]
+            return out
+
         if return_pooled:
             return cond, pooled
         return cond
