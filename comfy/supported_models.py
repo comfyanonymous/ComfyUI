@@ -564,6 +564,7 @@ class AuraFlow(supported_models_base.BASE):
 
     sampling_settings = {
         "multiplier": 1.0,
+        "shift": 1.73,
     }
 
     unet_extra_config = {}
