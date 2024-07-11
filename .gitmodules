@@ -25,3 +25,15 @@
 [submodule "custom_nodes/comfyui_segment_anything"]
 	path = custom_nodes/comfyui_segment_anything
 	url = https://github.com/storyicon/comfyui_segment_anything.git
+[submodule "custom_nodes/ComfyUI_Custom_Nodes_AlekPet"]
+	path = custom_nodes/ComfyUI_Custom_Nodes_AlekPet
+	url = https://github.com/AlekPet/ComfyUI_Custom_Nodes_AlekPet
+[submodule "custom_nodes/ComfyUI_essentials"]
+	path = custom_nodes/ComfyUI_essentials
+	url = https://github.com/cubiq/ComfyUI_essentials.git
+[submodule "custom_nodes/comfyui-popup_preview"]
+	path = custom_nodes/comfyui-popup_preview
+	url = https://github.com/NimaNzrii/comfyui-popup_preview.git
+[submodule "custom_nodes/ComfyUI-Flowty-TripoSR"]
+	path = custom_nodes/ComfyUI-Flowty-TripoSR
+	url = https://github.com/flowtyone/ComfyUI-Flowty-TripoSR.git
