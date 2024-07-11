@@ -22,3 +22,6 @@
 [submodule "custom_nodes/ComfyUI-VideoHelperSuite"]
 	path = custom_nodes/ComfyUI-VideoHelperSuite
 	url = https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
+[submodule "custom_nodes/comfyui_segment_anything"]
+	path = custom_nodes/comfyui_segment_anything
+	url = https://github.com/storyicon/comfyui_segment_anything.git
