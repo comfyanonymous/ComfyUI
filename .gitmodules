@@ -1,3 +1,24 @@
 [submodule "custom_nodes/ComfyUI-Manager"]
 	path = custom_nodes/ComfyUI-Manager
 	url = https://github.com/ltdrdata/ComfyUI-Manager.git
+[submodule "custom_nodes/ComfyUI_Comfyroll_CustomNodes"]
+	path = custom_nodes/ComfyUI_Comfyroll_CustomNodes
+	url = https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git
+[submodule "custom_nodes/comfyui_controlnet_aux"]
+	path = custom_nodes/comfyui_controlnet_aux
+	url = https://github.com/Fannovel16/comfyui_controlnet_aux/
+[submodule "custom_nodes/sd-webui-segment-anything"]
+	path = custom_nodes/sd-webui-segment-anything
+	url = https://github.com/continue-revolution/sd-webui-segment-anything
+[submodule "custom_nodes/ComfyUI-AnimateDiff-Evolved"]
+	path = custom_nodes/ComfyUI-AnimateDiff-Evolved
+	url = https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
+[submodule "custom_nodes/ComfyUI-Custom-Scripts"]
+	path = custom_nodes/ComfyUI-Custom-Scripts
+	url = https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git
+[submodule "custom_nodes/ComfyUI-Impact-Pack"]
+	path = custom_nodes/ComfyUI-Impact-Pack
+	url = https://github.com/ltdrdata/ComfyUI-Impact-Pack.git
+[submodule "custom_nodes/ComfyUI-VideoHelperSuite"]
+	path = custom_nodes/ComfyUI-VideoHelperSuite
+	url = https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
