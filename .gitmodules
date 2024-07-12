@@ -10,9 +10,6 @@
 [submodule "custom_nodes/sd-webui-segment-anything"]
 	path = custom_nodes/sd-webui-segment-anything
 	url = https://github.com/continue-revolution/sd-webui-segment-anything
-[submodule "custom_nodes/ComfyUI-AnimateDiff-Evolved"]
-	path = custom_nodes/ComfyUI-AnimateDiff-Evolved
-	url = https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git
 [submodule "custom_nodes/ComfyUI-Custom-Scripts"]
 	path = custom_nodes/ComfyUI-Custom-Scripts
 	url = https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git
