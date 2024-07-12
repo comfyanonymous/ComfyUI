@@ -1,0 +1,109 @@
+
+name: "Release Stable Version"
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  package_comfy_windows:
+    permissions:
+      contents: "write"
+      packages: "write"
+      pull-requests: "read"
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python_version: [3.11.8]
+        cuda_version: [121]
+    steps:
+      - name: Calculate Minor Version
+        shell: bash
+        run: |
+          # Extract the minor version from the Python version
+          MINOR_VERSION=$(echo "${{ matrix.python_version }}" | cut -d'.' -f2)
+          echo "MINOR_VERSION=$MINOR_VERSION" >> $GITHUB_ENV
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python_version }}
+        
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - shell: bash
+        run: |
+          echo "@echo off
+          call update_comfyui.bat nopause
+          echo -
+          echo This will try to update pytorch and all python dependencies.
+          echo -
+          echo If you just want to update normally, close this and run update_comfyui.bat instead.
+          echo -
+          pause
+          ..\python_embeded\python.exe -s -m pip install --upgrade torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu${{ matrix.cuda_version }} -r ../ComfyUI/requirements.txt pygit2
+          pause" > update_comfyui_and_python_dependencies.bat
+
+          python -m pip wheel --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu${{ matrix.cuda_version }} -r requirements.txt pygit2 -w ./temp_wheel_dir
+          python -m pip install --no-cache-dir ./temp_wheel_dir/*
+          echo installed basic
+          ls -lah temp_wheel_dir
+          mv temp_wheel_dir cu${{ matrix.cuda_version }}_python_deps
+          mv cu${{ matrix.cuda_version }}_python_deps ../
+          mv update_comfyui_and_python_dependencies.bat ../
+          cd ..
+          pwd
+          ls
+          
+          cp -r ComfyUI ComfyUI_copy
+          curl https://www.python.org/ftp/python/${{ matrix.python_version }}/python-${{ matrix.python_version }}-embed-amd64.zip -o python_embeded.zip
+          unzip python_embeded.zip -d python_embeded
+          cd python_embeded
+          echo ${{ env.MINOR_VERSION }}
+          echo 'import site' >> ./python3${{ env.MINOR_VERSION }}._pth
+          curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+          ./python.exe get-pip.py
+          ./python.exe --version
+          echo "Pip version:"
+          ./python.exe -m pip --version
+
+          set PATH=$PWD/Scripts:$PATH
+          echo $PATH
+          ./python.exe -s -m pip install ../cu${{ matrix.cuda_version }}_python_deps/*
+          sed -i '1i../ComfyUI' ./python3${{ env.MINOR_VERSION }}._pth
+          cd ..
+
+          git clone https://github.com/comfyanonymous/taesd
+          cp taesd/*.pth ./ComfyUI_copy/models/vae_approx/
+
+          mkdir ComfyUI_windows_portable
+          mv python_embeded ComfyUI_windows_portable
+          mv ComfyUI_copy ComfyUI_windows_portable/ComfyUI
+
+          cd ComfyUI_windows_portable
+
+          mkdir update
+          cp -r ComfyUI/.ci/update_windows/* ./update/
+          cp -r ComfyUI/.ci/windows_base_files/* ./
+          cp ../update_comfyui_and_python_dependencies.bat ./update/
+
+          cd ..
+
+          "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=8 -mfb=64 -md=32m -ms=on -mf=BCJ2 ComfyUI_windows_portable.7z ComfyUI_windows_portable
+          mv ComfyUI_windows_portable.7z ComfyUI/ComfyUI_windows_portable_nvidia.7z
+
+          cd ComfyUI_windows_portable
+          python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
+
+          ls
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ComfyUI_windows_portable_nvidia.7z
+          tag: ${{ github.ref }}
+          overwrite: true
+        
