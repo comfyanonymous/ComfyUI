@@ -17,15 +17,13 @@ import {
 } from '@mui/material';
 import { Subscribe, UnSubscribe, WS_MESSAGE_TYPE_EXECUTED, WS_MESSAGE_TYPE_PROGRESS } from '../comfy/api';
 import { base } from './image';
-import ToggleColorMode from './ToggleColorMode';
 import { Image } from '@mui/icons-material';
 
 interface DashboardProps {
-  colorMode: 'light' | 'dark';
-  setColorMode: React.Dispatch<React.SetStateAction<'light' | 'dark'>>;
+
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ colorMode, setColorMode }) => {
+const Dashboard: React.FC<DashboardProps> = () => {
   const theme = useTheme();
   const { queuePrompt, fetchCheckpoints } = useComfy();
 
@@ -102,7 +100,7 @@ const Dashboard: React.FC<DashboardProps> = ({ colorMode, setColorMode }) => {
 
         <Box flex="1" style={{ padding: '20px' }}>
           <Stack direction="column" spacing={6} style={{ marginTop: '5vh' }}>
-            <ToggleColorMode colorMode={colorMode} setColorMode={setColorMode} />
+
             <img src='./SoulxLogo.png'/>
             <FormControl fullWidth>
               <Select value={selectedCheckpoint} onChange={(e) => setSelectedCheckpoint(e.target.value)} displayEmpty>
