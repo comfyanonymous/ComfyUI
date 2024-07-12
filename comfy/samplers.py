@@ -305,7 +305,8 @@ def simple_scheduler(model_sampling, steps):
     ss = len(s.sigmas) / steps
     for x in range(steps):
         sigs += [float(s.sigmas[-(1 + int(x * ss))])]
-    sigs += [0.0]
+    if sigs[-1] != 0.0:
+        sigs += [0.0]
     return torch.FloatTensor(sigs)
 
 def ddim_scheduler(model_sampling, steps):
@@ -317,7 +318,8 @@ def ddim_scheduler(model_sampling, steps):
         sigs += [float(s.sigmas[x])]
         x += ss
     sigs = sigs[::-1]
-    sigs += [0.0]
+    if sigs[-1] != 0.0:
+        sigs += [0.0]
     return torch.FloatTensor(sigs)
 
 def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
@@ -334,7 +336,8 @@ def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
     for x in range(len(timesteps)):
         ts = timesteps[x]
         sigs.append(s.sigma(ts))
-    sigs += [0.0]
+    if sigs[-1] != 0.0:
+        sigs += [0.0]
     return torch.FloatTensor(sigs)
 
 def get_mask_aabb(masks):
