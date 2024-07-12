@@ -1371,9 +1371,13 @@ export class ComfyApp {
 			}
 
 			if(filename) {
-				const imageDisplay = document.getElementById('image-link');
-				imageDisplay.href = `/output/${filename}`;
-				imageDisplay.download = `${filename}`;
+				const imageDisplay = document.getElementById('output-image');
+				imageDisplay.src = `/view?filename=${filename}&subfolder=&type=output&rand=${Math.random()}`;
+				imageDisplay.style.display = 'block';
+
+				const imageLink = document.getElementById('image-link');
+				imageLink.href = `/view?filename=${filename}&subfolder=&type=output&rand=${Math.random()}`;
+				imageLink.download = `${filename}`;
 
 				const progressText = document.getElementById('progress-text');
 				progressText.textContent = "executed";
