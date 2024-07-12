@@ -5,6 +5,7 @@ torchaudio
 einops
 transformers>=4.28.1
 tokenizers>=0.13.3
+sentencepiece
 safetensors>=0.4.2
 aiohttp
 pyyaml
