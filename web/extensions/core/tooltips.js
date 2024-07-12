@@ -4,6 +4,10 @@ import { $el } from "../../scripts/ui.js";
 // Adds support for tooltips
 
 function getHoveredWidget() {
+	if (!app) {
+        return;
+    }
+
 	const node = app.canvas.node_over;
 	if (!node.widgets) return;
 
