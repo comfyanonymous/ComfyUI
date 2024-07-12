@@ -7,13 +7,13 @@ const lightThemeOptions: ThemeOptions = {
     mode: 'light',
     background: {
       default: '#ffffff',
-      paper: '#f5f5f5',
+      paper: '#ffffff',
     },
     primary: {
-      main: '#1976d2',
+      main: '#9453FF',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#9453FF',
     },
     text: {
       primary: '#000000',
@@ -78,10 +78,10 @@ const darkThemeOptions: ThemeOptions = {
       paper: '#1e1e1e',
     },
     primary: {
-      main: '#BB86FC',
+      main: '#007FE4',
     },
     secondary: {
-      main: '#03DAC6',
+      main: '#007FE4',
     },
     text: {
       primary: '#ffffff',
