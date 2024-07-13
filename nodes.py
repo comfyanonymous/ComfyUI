@@ -1413,7 +1413,7 @@ class KSampler:
             "sampler_name": "The algorithm used when sampling, this can affect the quality, speed, and style of the generated output.",
             "scheduler": "The scheduler controls how noise is gradually removed to form the image.",
             "positive": "The conditioning describing the attributes you want to include in the image.",
-            "negative": "The conditioning describing the attributes you do not want to include in the image.",
+            "negative": "The conditioning describing the attributes you want to exclude from the image.",
             "latent_image": "The latent image to denoise.",
             "denoise": "The amount of denoising applied, lower values will maintain the structure of the initial image allowing for image to image sampling.",
         },

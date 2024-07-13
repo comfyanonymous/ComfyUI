@@ -638,18 +638,18 @@ audio.comfy-audio.empty-audio-widget {
 }
 
 .comfy-graph-tooltip {
-	z-index: 99999;
-	padding: 4px 8px;
 	background: var(--comfy-input-bg);
-	color: var(--input-text);
-	position: absolute;
-	left: 0;
-	top: 0;
-	display: none;
-	transform: translate(5px, calc(-100% - 5px));
-	max-width: 30vw;
 	border-radius: 5px;
 	box-shadow: 0 0 5px rgba(0, 0, 0, 0.4);
+	color: var(--input-text);
+	display: none;
 	font-family: sans-serif;
+	left: 0;
+	max-width: 30vw;
+	padding: 4px 8px;
+	position: absolute;
+	top: 0;
+	transform: translate(5px, calc(-100% - 5px));
 	white-space: pre-wrap;
+	z-index: 99999;
 }
