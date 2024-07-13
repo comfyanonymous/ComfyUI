@@ -332,6 +332,76 @@ def mmdit_to_diffusers(mmdit_config, output_prefix=""):
 
     return key_map
 
+
+def auraflow_to_diffusers(mmdit_config, output_prefix=""):
+    n_double_layers = mmdit_config.get("n_double_layers", 0)
+    n_layers = mmdit_config.get("n_layers", 0)
+
+    key_map = {}
+    for i in range(n_layers):
+        if i < n_double_layers:
+            index = i
+            prefix_from = "joint_transformer_blocks"
+            prefix_to = "{}double_layers".format(output_prefix)
+            block_map = {
+                            "attn.to_q.weight": "attn.w2q.weight",
+                            "attn.to_k.weight": "attn.w2k.weight",
+                            "attn.to_v.weight": "attn.w2v.weight",
+                            "attn.to_out.0.weight": "attn.w2o.weight",
+                            "attn.add_q_proj.weight": "attn.w1q.weight",
+                            "attn.add_k_proj.weight": "attn.w1k.weight",
+                            "attn.add_v_proj.weight": "attn.w1v.weight",
+                            "attn.to_add_out.weight": "attn.w1o.weight",
+                            "ff.linear_1.weight": "mlpX.c_fc1.weight",
+                            "ff.linear_2.weight": "mlpX.c_fc2.weight",
+                            "ff.out_projection.weight": "mlpX.c_proj.weight",
+                            "ff_context.linear_1.weight": "mlpC.c_fc1.weight",
+                            "ff_context.linear_2.weight": "mlpC.c_fc2.weight",
+                            "ff_context.out_projection.weight": "mlpC.c_proj.weight",
+                            "norm1.linear.weight": "modX.1.weight",
+                            "norm1_context.linear.weight": "modC.1.weight",
+                        }
+        else:
+            index = i - n_double_layers
+            prefix_from = "single_transformer_blocks"
+            prefix_to = "{}single_layers".format(output_prefix)
+
+            block_map = {
+                            "attn.to_q.weight": "attn.w1q.weight",
+                            "attn.to_k.weight": "attn.w1k.weight",
+                            "attn.to_v.weight": "attn.w1v.weight",
+                            "attn.to_out.0.weight": "attn.w1o.weight",
+                            "norm1.linear.weight": "modCX.1.weight",
+                            "ff.linear_1.weight": "mlp.c_fc1.weight",
+                            "ff.linear_2.weight": "mlp.c_fc2.weight",
+                            "ff.out_projection.weight": "mlp.c_proj.weight"
+                        }
+
+        for k in block_map:
+            key_map["{}.{}.{}".format(prefix_from, index, k)] = "{}.{}.{}".format(prefix_to, index, block_map[k])
+
+    MAP_BASIC = {
+        ("positional_encoding", "pos_embed.pos_embed"),
+        ("register_tokens", "register_tokens"),
+        ("t_embedder.mlp.0.weight", "time_step_proj.linear_1.weight"),
+        ("t_embedder.mlp.0.bias", "time_step_proj.linear_1.bias"),
+        ("t_embedder.mlp.2.weight", "time_step_proj.linear_2.weight"),
+        ("t_embedder.mlp.2.bias", "time_step_proj.linear_2.bias"),
+        ("cond_seq_linear.weight", "context_embedder.weight"),
+        ("init_x_linear.weight", "pos_embed.proj.weight"),
+        ("init_x_linear.bias", "pos_embed.proj.bias"),
+        ("final_linear.weight", "proj_out.weight"),
+        ("modF.1.weight", "norm_out.linear.weight", swap_scale_shift),
+    }
+
+    for k in MAP_BASIC:
+        if len(k) > 2:
+            key_map[k[1]] = ("{}{}".format(output_prefix, k[0]), None, k[2])
+        else:
+            key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+
+    return key_map
+
 def repeat_to_batch_size(tensor, batch_size, dim=0):
     if tensor.shape[dim] > batch_size:
         return tensor.narrow(dim, 0, batch_size)
