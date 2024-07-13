@@ -276,6 +276,22 @@ export class ComfySettingsDialog extends ComfyDialog {
 								]),
 							]);
 							break;
+						case "password":
+							element = $el("tr", [
+								labelCell,
+								$el("td", [
+									$el("input", {
+										value,
+										id: htmlID,
+										type: "password",
+										oninput: (e) => {
+											setter(e.target.value);
+										},
+										...attrs,
+									}),
+								]),
+							]);
+							break;
 						case "text":
 						default:
 							if (type !== "text") {
