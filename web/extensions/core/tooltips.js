@@ -102,8 +102,10 @@ app.registerExtension({
 			onChange(value) {
 				if (value) {
 					LiteGraph.pointerListenerAdd(app.canvasEl, "move", onCanvasPointerMove);
+					window.addEventListener("click", hideTooltip);
 				} else {
 					LiteGraph.pointerListenerRemove(app.canvasEl, "move", onCanvasPointerMove);
+					window.removeEventListener("click", hideTooltip);
 				}
 			},
 		});
