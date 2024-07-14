@@ -41,7 +41,7 @@ body {
 	background-color: var(--bg-color);
 	color: var(--fg-color);
 	grid-template-columns: auto 1fr auto;
-	grid-template-rows: auto auto 1fr auto;
+	grid-template-rows: auto 1fr auto;
 	min-height: -webkit-fill-available;
 	max-height: -webkit-fill-available;
 	min-width: -webkit-fill-available;
@@ -49,32 +49,37 @@ body {
 }
 
 .comfyui-body-top {
-	order: 0;
+	order: -5;
 	grid-column: 1/-1;
 	z-index: 10;
+	display: flex;
+	flex-direction: column;
 }
 
 .comfyui-body-left {
-	order: 1;
+	order: -4;
 	z-index: 10;
+	display: flex;
 }
 
 #graph-canvas {
 	width: 100%;
 	height: 100%;
-	order: 2;
-	grid-column: 1/-1;
+	order: -3;
 }
 
 .comfyui-body-right {
-	order: 3;
+	order: -2;
 	z-index: 10;
+	display: flex;
 }
 
 .comfyui-body-bottom {
-	order: 4;
+	order: -1;
 	grid-column: 1/-1;
 	z-index: 10;
+	display: flex;
+	flex-direction: column;
 }
 
 .comfy-multiline-input {
@@ -408,8 +413,12 @@ dialog::backdrop {
 	background: rgba(0, 0, 0, 0.5);
 }
 
-.comfy-dialog.comfyui-dialog {
+.comfy-dialog.comfyui-dialog.comfy-modal {
 	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	transform: none;
 }
 
 .comfy-dialog.comfy-modal {
