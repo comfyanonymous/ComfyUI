@@ -92,7 +92,7 @@ class ControlNet(nn.Module):
         transformer_depth_middle=None,
         transformer_depth_output=None,
         attn_precision=None,
-        union_controlnet=False,
+        union_controlnet_num_control_type=None,
         device=None,
         operations=comfy.ops.disable_weight_init,
         **kwargs,
@@ -320,8 +320,8 @@ class ControlNet(nn.Module):
         self.middle_block_out = self.make_zero_conv(ch, operations=operations, dtype=self.dtype, device=device)
         self._feature_size += ch
 
-        if union_controlnet:
-            self.num_control_type = 6
+        if union_controlnet_num_control_type is not None:
+            self.num_control_type = union_controlnet_num_control_type
             num_trans_channel = 320
             num_trans_head = 8
             num_trans_layer = 1

@@ -414,7 +414,7 @@ def load_controlnet(ckpt_path, model=None):
                 new_sd[diffusers_keys[k]] = controlnet_data.pop(k)
 
         if "control_add_embedding.linear_1.bias" in controlnet_data: #Union Controlnet
-            controlnet_config["union_controlnet"] = True
+            controlnet_config["union_controlnet_num_control_type"] = controlnet_data["task_embedding"].shape[0]
             for k in list(controlnet_data.keys()):
                 new_k = k.replace('.attn.in_proj_', '.attn.in_proj.')
                 new_sd[new_k] = controlnet_data.pop(k)
