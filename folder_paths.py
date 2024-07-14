@@ -10,7 +10,8 @@ ScanPathType = List[str]
 folder_names_and_paths: Dict[str, Tuple[ScanPathType, SupportedFileExtensionsType]] = {}
 
 base_path = os.path.dirname(os.path.realpath(__file__))
-models_dir = os.path.join(base_path, "models")
+volume_dir = "./models" #put volume name here
+models_dir = os.path.join(volume_dir, "put model path here")
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
@@ -37,10 +38,10 @@ folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")]
 
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
 
-output_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "output")
-temp_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
-input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "input")
-user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
+output_directory = os.path.join("/tmp", "output") #you may change this to a volume but this was my preference 
+temp_directory = os.path.join("/tmp", "temp")
+input_directory = os.path.join("/tmp", "input")
+user_directory = os.path.join("/tmp", "user")
 
 filename_list_cache = {}
 
