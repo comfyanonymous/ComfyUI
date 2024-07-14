@@ -1,0 +1,244 @@
+{
+    "custom_nodes": [
+        {
+            "author": "Suzie1",
+            "title": "Guide To Making Custom Nodes in ComfyUI",
+            "reference": "https://github.com/Suzie1/ComfyUI_Guide_To_Making_Custom_Nodes",
+            "files": [
+                "https://github.com/Suzie1/ComfyUI_Guide_To_Making_Custom_Nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "There is a small node pack attached to this guide. This includes the init file and 3 nodes associated with the tutorials."
+        },
+        {
+            "author": "bamboodia",
+            "title": "BAM Nodes",
+            "reference": "https://github.com/bamboodia/BAM_Nodes",
+            "files": [
+                "https://github.com/bamboodia/BAM_Nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "A collection of comfyui nodes that I have made for nothing more than educational purposes."
+        },
+        {
+            "author": "BadCafeCode",
+            "title": "execution-inversion-demo-comfyui",
+            "reference": "https://github.com/BadCafeCode/execution-inversion-demo-comfyui",
+            "files": [
+                "https://github.com/BadCafeCode/execution-inversion-demo-comfyui"
+            ],
+            "install_type": "git-clone",
+            "description": "These are demo nodes for [a/PR2666](https://github.com/comfyanonymous/ComfyUI/pull/2666)"
+        },
+        {
+            "author": "ecjojo",
+            "title": "ecjojo_example_nodes",
+            "reference": "https://github.com/ecjojo/ecjojo-example-nodes",
+            "files": [
+                "https://github.com/ecjojo/ecjojo-example-nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "Welcome to ecjojo_example_nodes! This example is specifically designed for beginners who want to learn how to write a simple custom node.\nFeel free to modify this example and make it your own. Experiment with different features and functionalities to enhance your understanding of ComfyUI custom nodes. Don't be afraid to explore and customize the code to suit your needs.\nBy diving into this example and making it your own, you'll gain valuable hands-on experience in creating custom nodes in ComfyUI. Enjoy the process of learning and have fun with your custom node development journey!"
+        },
+        {
+            "author": "dynamixar",
+            "title": "Atluris",
+            "reference": "https://github.com/dynamixar/Atluris",
+            "files": [
+                "https://github.com/dynamixar/Atluris"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Random Line"
+        },
+        {
+            "author": "et118",
+            "title": "ComfyUI-ElGogh-Nodes",
+            "reference": "https://github.com/et118/ComfyUI-ElGogh-Nodes",
+            "files": [
+                "https://github.com/et118/ComfyUI-ElGogh-Nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:ElGogh Positive Prompt, ElGogh NEGATIVE Prompt, ElGogh Empty Latent Image, ElGogh Checkpoint Loader Simple"
+        },
+        {
+            "author": "LarryJane491",
+            "title": "Custom-Node-Base",
+            "reference": "https://github.com/LarryJane491/Custom-Node-Base",
+            "files": [
+                "https://github.com/LarryJane491/Custom-Node-Base"
+            ],
+            "install_type": "git-clone",
+            "description": "This project is an `empty` custom node that is already in its own folder. It serves as a base to build any custom node. Whenever you want to create a custom node, you can download that, put it in custom_nodes, then you just have to change the names and fill it with code!"
+        },
+        {
+            "author": "foxtrot-roger",
+            "title": "comfyui-custom-nodes",
+            "reference": "https://github.com/foxtrot-roger/comfyui-custom-nodes",
+            "files": [
+                "https://github.com/foxtrot-roger/comfyui-custom-nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "Tutorial nodes"
+        },
+        {
+            "author": "wailovet",
+            "title": "ComfyUI-WW",
+            "reference": "https://github.com/wailovet/ComfyUI-WW",
+            "files": [
+                "https://github.com/wailovet/ComfyUI-WW"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:WW_ImageResize"
+        },
+        {
+            "author": "bmz55",
+            "title": "bmz nodes",
+            "reference": "https://github.com/bmz55/comfyui-bmz-nodes",
+            "files": [
+                "https://github.com/bmz55/comfyui-bmz-nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Load Images From Dir With Name (Inspire - BMZ), Count Images In Dir (BMZ), Get Level Text (BMZ), Get Level Float (BMZ)"
+        },
+        {
+            "author": "azure-dragon-ai",
+            "title": "ComfyUI-HPSv2-Nodes",
+            "reference": "https://github.com/azure-dragon-ai/ComfyUI-HPSv2-Nodes",
+            "files": [
+                "https://github.com/azure-dragon-ai/ComfyUI-HPSv2-Nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Loader, Image Processor, Text Processor, ImageScore"
+        },
+        {
+            "author": "kappa54m",
+            "title": "ComfyUI-HPSv2-Nodes",
+            "reference": "https://github.com/kappa54m/ComfyUI_Usability",
+            "files": [
+                "https://github.com/kappa54m/ComfyUI_Usability"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Load Image Dedup"
+        },
+        {
+            "author": "IvanRybakov",
+            "title": "comfyui-node-int-to-string-convertor",
+            "reference": "https://github.com/IvanRybakov/comfyui-node-int-to-string-convertor",
+            "files": [
+                "https://github.com/IvanRybakov/comfyui-node-int-to-string-convertor"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Int To String Convertor"
+        },
+        {
+            "author": "yowipr",
+            "title": "ComfyUI-Manual",
+            "reference": "https://github.com/yowipr/ComfyUI-Manual",
+            "files": [
+                "https://github.com/yowipr/ComfyUI-Manual"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:M_Layer, M_Output"
+        },
+        {
+            "author": "andrewharp",
+            "title": "ComfyUI Function Annotator",
+            "reference": "https://github.com/andrewharp/ComfyUI-Annotations",
+            "files": [
+                "https://github.com/andrewharp/ComfyUI-Annotations"
+            ],
+            "install_type": "git-clone",
+            "description": "This module provides an annotation @ComfyFunc to streamline adding custom node types in ComfyUI. It processes your function's signature to create a wrapped function and custom node definition required for ComfyUI, eliminating all the boilerplate code. In most cases you can just add a @ComfyFunc(\"category\") annotation to your existing function."
+        },
+        {
+            "author": "MokkaBoss1",
+            "title": "Woman_in_a_dress",
+            "reference": "https://github.com/MokkaBoss1/Woman_in_a_dress",
+            "files": [
+                "https://github.com/MokkaBoss1/Woman_in_a_dress/raw/main/Woman_In_A_Dress.py"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Woman_in_a_dress"
+        },
+        {
+            "author": "shinich39",
+            "title": "comfyui-concat-text-39",
+            "reference": "https://github.com/shinich39/comfyui-concat-text-39",
+            "files": [
+                "https://github.com/shinich39/comfyui-concat-text-39"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Concatenate multiple text nodes."
+        },
+        {
+            "author": "nilor-corp",
+            "title": "nilor-nodes",
+            "reference": "https://github.com/nilor-corp/nilor-nodes",
+            "files": [
+                "https://github.com/nilor-corp/nilor-nodes"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Nilor Floats, Nilor Int To List Of Bools, Nilor Bool From List Of Bools, Nilor Int From List Of Ints, Nilor List of Ints, Nilor Count Images In Directory"
+        },
+        {
+            "author": "OuticNZ",
+            "title": "ComfyUI-Simple-Of-Complex",
+            "reference": "https://github.com/OuticNZ/ComfyUI-Simple-Of-Complex",
+            "files": [
+                "https://github.com/OuticNZ/ComfyUI-Simple-Of-Complex"
+            ],
+            "install_type": "git-clone",
+            "description": "Keeping it simple for starting. Single branch for now and will add development branch later."
+        },
+        {
+            "author": "jtong",
+            "title": "comfyui-jtong-workflow",
+            "reference": "https://github.com/jtong/comfyui-jtong-workflow",
+            "files": [
+                "https://github.com/jtong/comfyui-jtong-workflow"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:jtong.Highway, Example"
+        },
+        {
+            "author": "thinkthinking",
+            "title": "ComfyUI-Ye",
+            "reference": "https://github.com/thinkthinking/ComfyUI-Ye",
+            "files": [
+                "https://github.com/thinkthinking/ComfyUI-Ye"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Signature|Ye, CheckpointLoader|Ye, PrintHelloWorld|Ye."
+        },
+        {
+            "author": "BoosterCore",
+            "title": "ComfyUI-BC-Experimental",
+            "reference": "https://github.com/BoosterCore/ComfyUI-BC-Experimental",
+            "files": [
+                "https://github.com/BoosterCore/ComfyUI-BC-Experimental"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:ClipTextEncodeBC, SaveAnyText, SimpleText"
+        },
+        {
+            "author": "sonyeon-sj",
+            "title": "ComfyUI-easy_ImageSize_Selecter",
+            "reference": "https://github.com/sonyeon-sj/ComfyUI-easy_ImageSize_Selecter",
+            "files": [
+                "https://github.com/sonyeon-sj/ComfyUI-easy_ImageSize_Selecter"
+            ],
+            "install_type": "git-clone",
+            "description": "Custom node for ComfyUI Select the image size from the preset and select Vertical and Horizontal to output Width and Height."
+        },
+        {
+            "author": "boricuapab",
+            "title": "ComfyUI_BoricuapabWFNodePack",
+            "reference": "https://github.com/boricuapab/ComfyUI_BoricuapabWFNodePack",
+            "files": [
+                "https://github.com/boricuapab/ComfyUI_BoricuapabWFNodePack"
+            ],
+            "install_type": "git-clone",
+            "description": "Learning how to make my own comfy ui custom nodes"
+        }
+    ]
+}

@@ -1,0 +1,710 @@
+{
+  "models": [
+    {
+      "name": "xinsir/ControlNet++: All-in-one ControlNet",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-union-sdxl-1.0",
+      "description": "All-in-one ControlNet for image generations and editing!",
+      "reference": "https://huggingface.co/xinsir/controlnet-union-sdxl-1.0",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/xinsir/controlnet-union-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "2.50GB"
+    },
+
+    {
+      "name": "InstantX/SD3-Controlnet-Canny",
+      "type": "controlnet",
+      "base": "SD3",
+      "save_path": "controlnet/SD3/InstantX-Controlnet-Canny",
+      "description": "Controlnet SD3 Canny model.",
+      "reference": "https://huggingface.co/InstantX/SD3-Controlnet-Canny",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/InstantX/SD3-Controlnet-Canny/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "1.19GB"
+    },
+    {
+      "name": "InstantX/SD3-Controlnet-Pose",
+      "type": "controlnet",
+      "base": "SD3",
+      "save_path": "controlnet/SD3/InstantX-Controlnet-Pose",
+      "description": "Controlnet SD3 Pose model.",
+      "reference": "https://huggingface.co/InstantX/SD3-Controlnet-Pose",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/InstantX/SD3-Controlnet-Pose/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "1.19GB"
+    },
+    {
+      "name": "InstantX/SD3-Controlnet-Tile",
+      "type": "controlnet",
+      "base": "SD3",
+      "save_path": "controlnet/SD3/InstantX-Controlnet-Tile",
+      "description": "Controlnet SD3 Tile model.",
+      "reference": "https://huggingface.co/InstantX/SD3-Controlnet-Tile",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/InstantX/SD3-Controlnet-Tile/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "1.19GB"
+    },
+
+    {
+      "name": "xinsir/ControlNet Depth SDXL, support zoe, midias",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-depth-sdxl-1.0",
+      "description": "Controlnet SDXL Depth model.",
+      "reference": "https://huggingface.co/xinsir/controlnet-depth-sdxl-1.0",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/xinsir/controlnet-depth-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "2.50GB"
+    },
+    {
+      "name": "xinsir/ControlNet Tile SDXL",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-tile-sdxl-1.0",
+      "description": "Controlnet SDXL Tile model.",
+      "reference": "https://huggingface.co/xinsir/controlnet-tile-sdxl-1.0",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/xinsir/controlnet-tile-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "2.50GB"
+    },
+
+    {
+      "name": "google-t5/t5-base",
+      "type": "clip",
+      "base": "t5-base",
+      "save_path": "clip/t5-base",
+      "description": "T5 Base: Text-To-Text Transfer Transformer. This model can be loaded via CLIPLoader for Stable Audio workflow.",
+      "reference": "https://huggingface.co/google-t5/t5-base",
+      "filename": "model.safetensors",
+      "url": "https://huggingface.co/google-t5/t5-base/resolve/main/model.safetensors",
+      "size": "892MB"
+    },
+
+    {
+      "name": "PixArt-Sigma-XL-2-1024-MS.pth",
+      "type": "checkpoint",
+      "base": "pixart-sigma",
+      "save_path": "checkpoints/PixArt-Sigma",
+      "description": "PixArt-Sigma Checkpoint model",
+      "reference": "https://huggingface.co/PixArt-alpha/PixArt-Sigma/tree/main",
+      "filename": "PixArt-Sigma-XL-2-1024-MS.pth",
+      "url": "https://huggingface.co/PixArt-alpha/PixArt-Sigma/resolve/main/PixArt-Sigma-XL-2-1024-MS.pth",
+      "size": "2.47GB"
+    },
+    {
+      "name": "TAESD3 Decoder",
+      "type": "TAESD",
+      "base": "SDXL",
+      "save_path": "vae_approx",
+      "description": "(SD3 Verison) To view the preview in high quality while running samples in ComfyUI, you will need this model.",
+      "reference": "https://github.com/madebyollin/taesd",
+      "filename": "taesd3_decoder.pth",
+      "url": "https://github.com/madebyollin/taesd/raw/main/taesd3_decoder.pth",
+      "size": "4.94MB"
+    },
+    {
+      "name": "TAESD3 Encoder",
+      "type": "TAESD",
+      "base": "SDXL",
+      "save_path": "vae_approx",
+      "description": "(SD3 Verison) To view the preview in high quality while running samples in ComfyUI, you will need this model.",
+      "reference": "https://github.com/madebyollin/taesd",
+      "filename": "taesd3_encoder.pth",
+      "url": "https://github.com/madebyollin/taesd/raw/main/taesd3_encoder.pth",
+      "size": "4.94MB"
+    },
+
+    {
+      "name": "TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic v2 (rank256)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "Controlnet SDXL Tile model realistic version.",
+      "reference": "https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic",
+      "filename": "TTPLANET_Controlnet_Tile_realistic_v2_rank256.safetensors",
+      "url": "https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic/resolve/main/TTPLANET_Controlnet_Tile_realistic_v2_rank256.safetensors",
+      "size": "774.4MB"
+    },
+
+    {
+      "name": "kijai/DepthAnythingV2 (vitb/fp16)",
+      "type": "depthanything",
+      "base": "depthanything",
+      "save_path": "depthanything",
+      "description": "DepthAnythingV2 model",
+      "reference": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/tree/main",
+      "filename": "depth_anything_v2_vitb_fp16.safetensors",
+      "url": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/resolve/main/depth_anything_v2_vitb_fp16.safetensors",
+      "size": "195.0MB"
+    },
+    {
+      "name": "kijai/DepthAnythingV2 (vitb/fp32)",
+      "type": "depthanything",
+      "base": "depthanything",
+      "save_path": "depthanything",
+      "description": "DepthAnythingV2 model",
+      "reference": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/tree/main",
+      "filename": "depth_anything_v2_vitb_fp32.safetensors",
+      "url": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/resolve/main/depth_anything_v2_vitb_fp32.safetensors",
+      "size": "389.9MB"
+    },
+    {
+      "name": "kijai/DepthAnythingV2 (vitl/fp16)",
+      "type": "depthanything",
+      "base": "depthanything",
+      "save_path": "depthanything",
+      "description": "[671MB] DepthAnythingV2 model",
+      "reference": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/tree/main",
+      "filename": "depth_anything_v2_vitl_fp16.safetensors",
+      "url": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/resolve/main/depth_anything_v2_vitl_fp16.safetensors",
+      "size": "670.7MB"
+    },
+    {
+      "name": "kijai/DepthAnythingV2 (vitl/fp32)",
+      "type": "depthanything",
+      "base": "depthanything",
+      "save_path": "depthanything",
+      "description": "[195MB] DepthAnythingV2 model",
+      "reference": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/tree/main",
+      "filename": "depth_anything_v2_vitl_fp32.safetensors",
+      "url": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/resolve/main/depth_anything_v2_vitl_fp32.safetensors",
+      "size": "1.34GB"
+    },
+    {
+      "name": "kijai/DepthAnythingV2 (vits/fp16)",
+      "type": "depthanything",
+      "base": "depthanything",
+      "save_path": "depthanything",
+      "description": "[49.6MB] DepthAnythingV2 model",
+      "reference": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/tree/main",
+      "filename": "depth_anything_v2_vits_fp16.safetensors",
+      "url": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/resolve/main/depth_anything_v2_vits_fp16.safetensors",
+      "size": "49.6MB"
+    },
+    {
+      "name": "kijai/DepthAnythingV2 (vitb/fp32)",
+      "type": "depthanything",
+      "base": "depthanything",
+      "save_path": "depthanything",
+      "description": "[99.2MB] DepthAnythingV2 model",
+      "reference": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/tree/main",
+      "filename": "depth_anything_v2_vits_fp32.safetensors",
+      "url": "https://huggingface.co/Kijai/DepthAnythingV2-safetensors/resolve/main/depth_anything_v2_vits_fp32.safetensors",
+      "size": "99.2MB"
+    },
+
+    {
+      "name": "CN-anytest_v4-marged.safetensors",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[2.5GB] AnyTest Controlnet. A model for style transfer.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v4-marged.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v4-marged.safetensors",
+      "size": "2.50GB"
+    },
+    {
+      "name": "CN-anytest_v4-marged_am_dim256.safetensors (dim256/Animagine)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[774MB] AnyTest Controlnet Lora (dim256) for Animagine. A model for style transfer.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v4-marged_am_dim256.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v4-marged_am_dim256.safetensors",
+      "size": "774.4MB"
+    },
+    {
+      "name": "CN-anytest_v4-marged_am_dim128.safetensors (dim128/Animagine)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[396MB] AnyTest Controlnet Lora (dim128) for Animagine. A model for style transfer.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v4-marged_am_dim128.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v4-marged_am_dim128.safetensors",
+      "size": "395.7MB"
+    },
+    {
+      "name": "CN-anytest_v4-marged_pn_dim256.safetensors (dim256/Pony)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[774MB] AnyTest Controlnet Lora (dim256) for Pony. A model for style transfer.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v4-marged_pn_dim256.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v4-marged_pn_dim256.safetensors",
+      "size": "774.4MB"
+    },
+    {
+      "name": "CN-anytest_v4-marged_pn_dim128.safetensors (dim128/Pony)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[396MB] AnyTest Controlnet Lora (dim128) for Pony. A model for style transfer.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v4-marged_pn_dim128.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v4-marged_pn_dim128.safetensors",
+      "size": "395.7MB"
+    },
+    {
+      "name": "CN-anytest_v3-50000_fp16.safetensors (fp16)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[2.5GB] AnyTest Controlnet. A strict control model.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v3-50000_fp16.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v3-50000_fp16.safetensors",
+      "size": "2.50GB"
+    },
+    {
+      "name": "CN-anytest_v3-50000_am_dim256.safetensors (dim256/Animagine)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[774MB] AnyTest Controlnet Lora (dim256) for Animagine. A strict control model.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v3-50000_am_dim256.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v3-50000_am_dim256.safetensors",
+      "size": "774.4MB"
+    },
+    {
+      "name": "CN-anytest_v3-50000_am_dim128.safetensors (dim128/Animagine)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[396MB] AnyTest Controlnet Lora (dim128) for Animagine. A strict control model.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v3-50000_am_dim128.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v3-50000_am_dim128.safetensors",
+      "size": "395.7MB"
+    },
+    {
+      "name": "CN-anytest_v3-50000_pn_dim256.safetensors (dim256/Pony)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[774MB] AnyTest Controlnet Lora (dim256) for Pony. A strict control model.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v3-50000_pn_dim256.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v3-50000_pn_dim256.safetensors",
+      "size": "774.4MB"
+    },
+    {
+      "name": "CN-anytest_v3-50000_pn_dim128.safetensors (dim128/Pony)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[396MB] AnyTest Controlnet Lora (dim128) for Pony. A strict control model.",
+      "reference": "https://huggingface.co/2vXpSwA7/iroiro-lora/tree/main",
+      "filename": "CN-anytest_v3-50000_pn_dim128.safetensors",
+      "url": "https://huggingface.co/2vXpSwA7/iroiro-lora/resolve/main/test_controlnet2/CN-anytest_v3-50000_pn_dim128.safetensors",
+      "size": "395.7MB"
+    },
+
+    {
+      "name": "Kijai/ToonCrafter model checkpoint (interpolation fp16)",
+      "type": "checkpoint",
+      "base": "ToonCrafter",
+      "save_path": "checkpoints/ToonCrafter",
+      "description": "[5.25GB] ToonCrafter checkpoint model for ComfyUI-DynamiCrafterWrapper",
+      "reference": "https://huggingface.co/Kijai/DynamiCrafter_pruned",
+      "filename": "tooncrafter_512_interp-fp16.safetensors",
+      "url": "https://huggingface.co/Kijai/DynamiCrafter_pruned/resolve/main/tooncrafter_512_interp-fp16.safetensors",
+      "size": "5.25GB"
+    },
+
+    {
+      "name": "xinsir/Controlnet-Scribble-Sdxl-1.0",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-scribble-sdxl-1.0",
+      "description": "[2.5GB] Controlnet SDXL Scribble model.",
+      "reference": "https://huggingface.co/xinsir/controlnet-scribble-sdxl-1.0",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/xinsir/controlnet-scribble-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "2.50GB"
+    },
+    {
+      "name": "xinsir/Controlnet-Canny-Sdxl-1.0 (V2)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-canny-sdxl-1.0",
+      "description": "[2.5GB] Controlnet SDXL Canny model.",
+      "reference": "https://huggingface.co/xinsir/controlnet-canny-sdxl-1.0",
+      "filename": "diffusion_pytorch_model_V2.safetensors",
+      "url": "https://huggingface.co/xinsir/controlnet-canny-sdxl-1.0/resolve/main/diffusion_pytorch_model_V2.safetensors",
+      "size": "2.50GB"
+    },
+    {
+      "name": "xinsir/Controlnet-Openpose-Sdxl-1.0",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-openpose-sdxl-1.0",
+      "description": "[2.5GB] Controlnet SDXL Openpose model.",
+      "reference": "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "2.50GB"
+    },
+    {
+      "name": "xinsir/Controlnet-Openpose-Sdxl-1.0 (Ver. twins)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-openpose-sdxl-1.0",
+      "description": "[2.5GB] Controlnet SDXL Openpose model. (Ver. twins)",
+      "reference": "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0",
+      "filename": "diffusion_pytorch_model_twins.safetensors",
+      "url": "https://huggingface.co/xinsir/controlnet-openpose-sdxl-1.0/resolve/main/diffusion_pytorch_model_twins.safetensors",
+      "size": "2.50GB"
+    },
+    {
+      "name": "xinsir/Controlnet-Scribble-Sdxl-1.0-Anime",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/controlnet-scribble-sdxl-1.0-anime",
+      "description": "[2.5GB] Controlnet SDXL Scribble model. (Ver. anime)",
+      "reference": "https://huggingface.co/xinsir/anime-painter",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/xinsir/anime-painter/resolve/main/diffusion_pytorch_model.safetensors",
+      "size": "2.50GB"
+    },
+
+    {
+      "name": "Doubiiu/ToonCrafter model checkpoint",
+      "type": "checkpoint",
+      "base": "ToonCrafter",
+      "save_path": "custom_nodes/ComfyUI-ToonCrafter/ToonCrafter/checkpoints/tooncrafter_512_interp_v1",
+      "description": "[10.5GB] ToonCrafter checkpoint model for ComfyUI-ToonCrafter",
+      "reference": "https://huggingface.co/Doubiiu/ToonCrafter/tree/main",
+      "filename": "model.ckpt",
+      "url": "https://huggingface.co/Doubiiu/ToonCrafter/resolve/main/model.ckpt",
+      "size": "10.5GB"
+    },
+
+    {
+      "name": "ViperYX/RGT_x2.pth",
+      "type": "RGT",
+      "base": "RGT",
+      "save_path": "RGT/RGT",
+      "description": "[180MB] RGT x2 upscale model for ComfyUI-RGT",
+      "reference": "https://huggingface.co/ViperYX/RGT/tree/main",
+      "filename": "RGT_x2.pth",
+      "url": "https://huggingface.co/ViperYX/RGT/resolve/main/RGT/RGT_x2.pth",
+      "size": "179.8MB"
+    },
+    {
+      "name": "ViperYX/RGT_x3.pth",
+      "type": "RGT",
+      "base": "RGT",
+      "save_path": "RGT/RGT",
+      "description": "[180MB] RGT x3 upscale model for ComfyUI-RGT",
+      "reference": "https://huggingface.co/ViperYX/RGT/tree/main",
+      "filename": "RGT_x3.pth",
+      "url": "https://huggingface.co/ViperYX/RGT/resolve/main/RGT/RGT_x3.pth",
+      "size": "180.5MB"
+    },
+    {
+      "name": "ViperYX/RGT_x4.pth",
+      "type": "RGT",
+      "base": "RGT",
+      "save_path": "RGT/RGT",
+      "description": "[180MB] RGT_S x4 upscale model for ComfyUI-RGT",
+      "reference": "https://huggingface.co/ViperYX/RGT/tree/main",
+      "filename": "RGT_x4.pth",
+      "url": "https://huggingface.co/ViperYX/RGT/resolve/main/RGT/RGT_x4.pth",
+      "size": "180.4MB"
+    },
+    {
+      "name": "ViperYX/RGT_S_x2.pth",
+      "type": "RGT",
+      "base": "RGT",
+      "save_path": "RGT/RGT_S",
+      "description": "[135MB] RGT_S x2 upscale model for ComfyUI-RGT",
+      "reference": "https://huggingface.co/ViperYX/RGT/tree/main",
+      "filename": "RGT_S_x2.pth",
+      "url": "https://huggingface.co/ViperYX/RGT/resolve/main/RGT_S/RGT_S_x2.pth",
+      "size": "135.4MB"
+    },
+    {
+      "name": "ViperYX/RGT_S_x3.pth",
+      "type": "RGT",
+      "base": "RGT",
+      "save_path": "RGT/RGT_S",
+      "description": "[136MB] RGT_S x3 upscale model for ComfyUI-RGT",
+      "reference": "https://huggingface.co/ViperYX/RGT/tree/main",
+      "filename": "RGT_S_x3.pth",
+      "url": "https://huggingface.co/ViperYX/RGT/resolve/main/RGT_S/RGT_S_x3.pth",
+      "size": "136.1MB"
+    },
+    {
+      "name": "ViperYX/RGT_S_x4.pth",
+      "type": "RGT",
+      "base": "RGT",
+      "save_path": "RGT/RGT_S",
+      "description": "[136MB] RGT_S x4 upscale model for ComfyUI-RGT",
+      "reference": "https://huggingface.co/ViperYX/RGT/tree/main",
+      "filename": "RGT_S_x4.pth",
+      "url": "https://huggingface.co/ViperYX/RGT/resolve/main/RGT_S/RGT_S_x4.pth",
+      "size": "136.0MB"
+    },
+
+    {
+      "name": "TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic v2 (fp16)",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL",
+      "description": "[2.5GB] Controlnet SDXL Tile model realistic version.",
+      "reference": "https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic",
+      "filename": "TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors",
+      "url": "https://huggingface.co/TTPlanet/TTPLanet_SDXL_Controlnet_Tile_Realistic/resolve/main/TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors",
+      "size": "2.50GB"
+    },
+
+    {
+      "name": "TencentARC/CustomNet",
+      "type": "CustomNet",
+      "base": "CustomNet",
+      "save_path": "custom_nodes/ComfyUI_CustomNet/pretrain",
+      "description": "CustomNet pretrained model for ComfyUI_CustomNet",
+      "reference": "https://huggingface.co/TencentARC/CustomNet/tree/main",
+      "filename": "customnet_v1.pt",
+      "url": "https://huggingface.co/TencentARC/CustomNet/resolve/main/customnet_v1.pt",
+      "size": "5.71GB"
+    },
+
+    {
+      "name": "ID-Animator/animator.ckpt",
+      "type": "ID-Animator",
+      "base": "SD1.5",
+      "save_path": "custom_nodes/ComfyUI_ID_Animator/models",
+      "description": "ID-Animator checkpoint",
+      "reference": "https://huggingface.co/spaces/ID-Animator/ID-Animator",
+      "filename": "animator.ckpt",
+      "url": "https://huggingface.co/spaces/ID-Animator/ID-Animator/resolve/main/animator.ckpt",
+      "size": "247.3MB"
+    },
+    {
+      "name": "ID-Animator/mm_sd_v15_v2.ckpt",
+      "type": "ID-Animator",
+      "base": "SD1.5",
+      "save_path": "custom_nodes/ComfyUI_ID_Animator/models/animatediff_models",
+      "description": "AnimateDiff checkpoint for ID-Animator",
+      "reference": "https://huggingface.co/spaces/ID-Animator/ID-Animator",
+      "filename": "mm_sd_v15_v2.ckpt",
+      "url": "https://huggingface.co/spaces/ID-Animator/ID-Animator/resolve/main/mm_sd_v15_v2.ckpt",
+      "size": "1.82GB"
+    },
+    {
+      "name": "ID-Animator/image_encoder",
+      "type": "ID-Animator",
+      "base": "SD1.5",
+      "save_path": "custom_nodes/ComfyUI_ID_Animator/models/image_encoder",
+      "description": "CLIP Image encoder for ID-Animator",
+      "reference": "https://huggingface.co/spaces/ID-Animator/ID-Animator",
+      "filename": "model.safetensors",
+      "url": "https://huggingface.co/spaces/ID-Animator/ID-Animator/resolve/main/image_encoder/model.safetensors",
+      "size": "2.53GB"
+    },
+
+    {
+      "name": "IC-Light/fc",
+      "type": "IC-Light",
+      "base": "SD1.5",
+      "save_path": "unet/IC-Light",
+      "description": "The default relighting model, conditioned on text and foreground",
+      "reference": "https://huggingface.co/lllyasviel/ic-light",
+      "filename": "iclight_sd15_fc.safetensors",
+      "url": "https://huggingface.co/lllyasviel/ic-light/resolve/main/iclight_sd15_fc.safetensors",
+      "size": "1.72GB"
+    },
+    {
+      "name": "IC-Light/fbc",
+      "type": "IC-Light",
+      "base": "SD1.5",
+      "save_path": "unet/IC-Light",
+      "description": "Relighting model conditioned with text, foreground, and background",
+      "reference": "https://huggingface.co/lllyasviel/ic-light",
+      "filename": "iclight_sd15_fbc.safetensors",
+      "url": "https://huggingface.co/lllyasviel/ic-light/resolve/main/iclight_sd15_fbc.safetensors",
+      "size": "1.72GB"
+    },
+    {
+      "name": "IC-Light/fcon",
+      "type": "IC-Light",
+      "base": "SD1.5",
+      "save_path": "unet/IC-Light",
+      "description": "Same as iclight_sd15_fc.safetensors, but trained with offset noise",
+      "reference": "https://huggingface.co/lllyasviel/ic-light",
+      "filename": "iclight_sd15_fcon.safetensors",
+      "url": "https://huggingface.co/lllyasviel/ic-light/resolve/main/iclight_sd15_fcon.safetensors",
+      "size": "1.72GB"
+    },
+
+    {
+      "name": "MonsterMMORPG/insightface (for InstantID)",
+      "type": "insightface",
+      "base": "SDXL",
+      "save_path": "insightface/models",
+      "description": "MonsterMMORPG insightface model for cubiq/InstantID",
+      "reference": "https://huggingface.co/MonsterMMORPG/tools/tree/main",
+      "filename": "antelopev2.zip",
+      "url": "https://huggingface.co/MonsterMMORPG/tools/resolve/main/antelopev2.zip",
+      "size": "360.7MB"
+    },
+    {
+      "name": "InstantID/ip-adapter",
+      "type": "instantid",
+      "base": "SDXL",
+      "save_path": "instantid/SDXL",
+      "description": "ip-adapter model for cubiq/InstantID",
+      "reference": "https://huggingface.co/InstantX/InstantID",
+      "filename": "ip-adapter.bin",
+      "url": "https://huggingface.co/InstantX/InstantID/resolve/main/ip-adapter.bin"
+    },
+    {
+      "name": "InstantID/ControlNet",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "controlnet/SDXL/instantid",
+      "description": "instantid controlnet model for cubiq/InstantID",
+      "reference": "https://huggingface.co/InstantX/InstantID",
+      "filename": "diffusion_pytorch_model.safetensors",
+      "url": "https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/diffusion_pytorch_model.safetensors"
+    },
+    {
+      "name": "ip_plus_composition_sd15.safetensors",
+      "type": "IP-Adapter",
+      "base": "SD1.5",
+      "save_path": "ipadapter",
+      "description": "You can use this model in the [a/ComfyUI IPAdapter plus](https://github.com/cubiq/ComfyUI_IPAdapter_plus) extension.",
+      "reference": "https://huggingface.co/ostris/ip-composition-adapter",
+      "filename": "ip_plus_composition_sd15.safetensors",
+      "url": "https://huggingface.co/ostris/ip-composition-adapter/resolve/main/ip_plus_composition_sd15.safetensors"
+    },
+    {
+      "name": "ip_plus_composition_sdxl.safetensors",
+      "type": "IP-Adapter",
+      "base": "SDXL",
+      "save_path": "ipadapter",
+      "description": "You can use this model in the [a/ComfyUI IPAdapter plus](https://github.com/cubiq/ComfyUI_IPAdapter_plus) extension.",
+      "reference": "https://huggingface.co/ostris/ip-composition-adapter",
+      "filename": "ip_plus_composition_sdxl.safetensors",
+      "url": "https://huggingface.co/ostris/ip-composition-adapter/resolve/main/ip_plus_composition_sdxl.safetensors"
+    },
+    {
+      "name": "ip-adapter-faceid-portrait-v11_sd15.bin",
+      "type": "IP-Adapter",
+      "base": "SD1.5",
+      "save_path": "ipadapter",
+      "description": "IP-Adapter-FaceID Portrait V11 Model (SD1.5) [ipadapter]",
+      "reference": "https://huggingface.co/h94/IP-Adapter-FaceID",
+      "filename": "ip-adapter-faceid-portrait-v11_sd15.bin",
+      "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-portrait-v11_sd15.bin"
+    },
+    {
+      "name": "ip-adapter-faceid-portrait_sdxl.bin",
+      "type": "IP-Adapter",
+      "base": "SDXL",
+      "save_path": "ipadapter",
+      "description": "IP-Adapter-FaceID Portrait Model (SDXL) [ipadapter]",
+      "reference": "https://huggingface.co/h94/IP-Adapter-FaceID",
+      "filename": "ip-adapter-faceid-portrait_sdxl.bin",
+      "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-portrait_sdxl.bin"
+    },
+    {
+      "name": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+      "type": "IP-Adapter",
+      "base": "SDXL",
+      "save_path": "ipadapter",
+      "description": "IP-Adapter-FaceID Portrait Model (SDXL/unnorm) [ipadapter]",
+      "reference": "https://huggingface.co/h94/IP-Adapter-FaceID",
+      "filename": "ip-adapter-faceid-portrait_sdxl_unnorm.bin",
+      "url": "https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-portrait_sdxl_unnorm.bin"
+    },
+    {
+      "name": "ip-adapter_sd15_light_v11.bin",
+      "type": "IP-Adapter",
+      "base": "SD1.5",
+      "save_path": "ipadapter",
+      "description": "You can use this model in the [a/ComfyUI IPAdapter plus](https://github.com/cubiq/ComfyUI_IPAdapter_plus) extension.",
+      "reference": "https://huggingface.co/h94/IP-Adapter",
+      "filename": "ip-adapter_sd15_light_v11.bin",
+      "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/ip-adapter_sd15_light_v11.bin"
+    },
+
+
+    {
+      "name": "Kijai/SUPIR-v0F_fp16.safetensors (pruned)",
+      "type": "checkpoints",
+      "base": "SUPIR",
+      "save_path": "checkpoints/SUPIR",
+      "description": "SUPIR checkpoint model",
+      "reference": "https://huggingface.co/Kijai/SUPIR_pruned/tree/main",
+      "filename": "SUPIR-v0F_fp16.safetensors",
+      "url": "https://huggingface.co/Kijai/SUPIR_pruned/resolve/main/SUPIR-v0F_fp16.safetensors"
+    },
+    {
+      "name": "Kijai/SUPIR-v0Q_fp16.safetensors (pruned)",
+      "type": "checkpoints",
+      "base": "SUPIR",
+      "save_path": "checkpoints/SUPIR",
+      "description": "SUPIR checkpoint model",
+      "reference": "https://huggingface.co/Kijai/SUPIR_pruned/tree/main",
+      "filename": "SUPIR-v0Q_fp16.safetensors",
+      "url": "https://huggingface.co/Kijai/SUPIR_pruned/resolve/main/SUPIR-v0Q_fp16.safetensors"
+    },
+    {
+      "name": "SUPIR-v0F.ckpt",
+      "type": "checkpoints",
+      "base": "SUPIR",
+      "save_path": "checkpoints/SUPIR",
+      "description": "SUPIR checkpoint model",
+      "reference": "https://huggingface.co/camenduru/SUPIR/tree/main",
+      "filename": "SUPIR-v0F.ckpt",
+      "url": "https://huggingface.co/camenduru/SUPIR/resolve/main/SUPIR-v0F.ckpt"
+    },
+    {
+      "name": "SUPIR-v0Q.ckpt",
+      "type": "checkpoints",
+      "base": "SUPIR",
+      "save_path": "checkpoints/SUPIR",
+      "description": "SUPIR checkpoint model",
+      "reference": "https://huggingface.co/camenduru/SUPIR/tree/main",
+      "filename": "SUPIR-v0Q.ckpt",
+      "url": "https://huggingface.co/camenduru/SUPIR/resolve/main/SUPIR-v0Q.ckpt"
+    },{
+      "name": "Depth-FM-v1 fp16 safetensors",
+      "type": "checkpoints",
+      "base": "Depth-FM",
+      "save_path": "checkpoints/depthfm",
+      "description": "Depth-FM monocular depth estimation model", 
+      "reference": "https://huggingface.co/Kijai/depth-fm-pruned",
+      "filename": "depthfm-v1_fp16.safetensors",
+      "url": "https://huggingface.co/Kijai/depth-fm-pruned/resolve/main/depthfm-v1_fp16.safetensors"
+    },
+    {
+      "name": "Depth-FM-v1 fp32 safetensors",
+      "type": "checkpoints",
+      "base": "Depth-FM",
+      "save_path": "checkpoints/depthfm",
+      "description": "Depth-FM monocular depth estimation model", 
+      "reference": "https://huggingface.co/Kijai/depth-fm-pruned",
+      "filename": "depthfm-v1_fp32.safetensors",
+      "url": "https://huggingface.co/Kijai/depth-fm-pruned/resolve/main/depthfm-v1_fp32.safetensors"
+    },
+    {
+      "name": "monster-labs - Controlnet QR Code Monster v1 For SDXL",
+      "type": "controlnet",
+      "base": "SDXL",
+      "save_path": "default",
+      "description": "monster-labs - Controlnet QR Code Monster v1 For SDXL", 
+      "reference": "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster",
+      "filename": "control_v1p_sdxl_qrcode_monster.safetensors",
+      "url": "https://huggingface.co/monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors"
+    }
+  ]
+}

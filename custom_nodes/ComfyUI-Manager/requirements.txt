@@ -1,0 +1,8 @@
+GitPython
+PyGithub
+matrix-client==0.4.0
+transformers
+huggingface-hub>0.20
+typer
+rich
+typing-extensions

@@ -1,0 +1,21 @@
+{
+    "imageio-ffmpeg": "imageio",
+    "imageio[ffmpeg]": "imageio",
+    "imageio_ffmpeg": "imageio",
+    "diffusers~=0.21.4": "diffusers",
+    "huggingface_hub": "huggingface-hub",
+    "numpy<1.24>=1.18": "numpy",
+    "numpy>=1.18.5, <1.25.0": "numpy",
+    "opencv-contrib-python": "opencv-contrib-python-headless",
+    "opencv-python": "opencv-contrib-python-headless",
+    "opencv-python-headless": "opencv-contrib-python-headless",
+    "opencv-python-headless[ffmpeg]<=4.7.0.72": "opencv-contrib-python-headless",
+    "opencv-python>=4.7.0.72": "opencv-contrib-python-headless",
+    "pandas<=1.5.1": "pandas",
+    "scikit-image==0.20.0": "scikit-image",
+    "scipy>=1.11.4": "scipy",
+    "segment_anything": "segment-anything",
+    "timm==0.6.5": "timm",
+    "timm>=0.4.12": "timm",
+    "transformers==4.26.1": "transformers"
+}

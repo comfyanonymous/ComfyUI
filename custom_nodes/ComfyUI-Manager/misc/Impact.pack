@@ -1,0 +1,444 @@
+{
+    "Impact::MAKE_BASIC_PIPE": {
+        "category": "",
+        "config": {
+            "1": {
+                "input": {
+                    "text": {
+                        "name": "Positive prompt"
+                    }
+                }
+            },
+            "2": {
+                "input": {
+                    "text": {
+                        "name": "Negative prompt"
+                    }
+                }
+            }
+        },
+        "datetime": 1705418802481,
+        "external": [],
+        "links": [
+            [
+                0,
+                1,
+                1,
+                0,
+                1,
+                "CLIP"
+            ],
+            [
+                0,
+                1,
+                2,
+                0,
+                1,
+                "CLIP"
+            ],
+            [
+                0,
+                0,
+                3,
+                0,
+                1,
+                "MODEL"
+            ],
+            [
+                0,
+                1,
+                3,
+                1,
+                1,
+                "CLIP"
+            ],
+            [
+                0,
+                2,
+                3,
+                2,
+                1,
+                "VAE"
+            ],
+            [
+                1,
+                0,
+                3,
+                3,
+                3,
+                "CONDITIONING"
+            ],
+            [
+                2,
+                0,
+                3,
+                4,
+                4,
+                "CONDITIONING"
+            ]
+        ],
+        "nodes": [
+            {
+                "flags": {},
+                "index": 0,
+                "mode": 0,
+                "order": 0,
+                "outputs": [
+                    {
+                        "links": [],
+                        "name": "MODEL",
+                        "shape": 3,
+                        "slot_index": 0,
+                        "type": "MODEL"
+                    },
+                    {
+                        "links": [],
+                        "name": "CLIP",
+                        "shape": 3,
+                        "slot_index": 1,
+                        "type": "CLIP"
+                    },
+                    {
+                        "links": [],
+                        "name": "VAE",
+                        "shape": 3,
+                        "slot_index": 2,
+                        "type": "VAE"
+                    }
+                ],
+                "pos": [
+                    550,
+                    360
+                ],
+                "properties": {
+                    "Node name for S&R": "CheckpointLoaderSimple"
+                },
+                "size": {
+                    "0": 315,
+                    "1": 98
+                },
+                "type": "CheckpointLoaderSimple",
+                "widgets_values": [
+                    "SDXL/sd_xl_base_1.0_0.9vae.safetensors"
+                ]
+            },
+            {
+                "flags": {},
+                "index": 1,
+                "inputs": [
+                    {
+                        "link": null,
+                        "name": "clip",
+                        "type": "CLIP"
+                    }
+                ],
+                "mode": 0,
+                "order": 1,
+                "outputs": [
+                    {
+                        "links": [],
+                        "name": "CONDITIONING",
+                        "shape": 3,
+                        "slot_index": 0,
+                        "type": "CONDITIONING"
+                    }
+                ],
+                "pos": [
+                    940,
+                    480
+                ],
+                "properties": {
+                    "Node name for S&R": "CLIPTextEncode"
+                },
+                "size": {
+                    "0": 263,
+                    "1": 99
+                },
+                "title": "Positive",
+                "type": "CLIPTextEncode",
+                "widgets_values": [
+                    ""
+                ]
+            },
+            {
+                "flags": {},
+                "index": 2,
+                "inputs": [
+                    {
+                        "link": null,
+                        "name": "clip",
+                        "type": "CLIP"
+                    }
+                ],
+                "mode": 0,
+                "order": 2,
+                "outputs": [
+                    {
+                        "links": [],
+                        "name": "CONDITIONING",
+                        "shape": 3,
+                        "slot_index": 0,
+                        "type": "CONDITIONING"
+                    }
+                ],
+                "pos": [
+                    940,
+                    640
+                ],
+                "properties": {
+                    "Node name for S&R": "CLIPTextEncode"
+                },
+                "size": {
+                    "0": 263,
+                    "1": 99
+                },
+                "title": "Negative",
+                "type": "CLIPTextEncode",
+                "widgets_values": [
+                    ""
+                ]
+            },
+            {
+                "flags": {},
+                "index": 3,
+                "inputs": [
+                    {
+                        "link": null,
+                        "name": "model",
+                        "type": "MODEL"
+                    },
+                    {
+                        "link": null,
+                        "name": "clip",
+                        "type": "CLIP"
+                    },
+                    {
+                        "link": null,
+                        "name": "vae",
+                        "type": "VAE"
+                    },
+                    {
+                        "link": null,
+                        "name": "positive",
+                        "type": "CONDITIONING"
+                    },
+                    {
+                        "link": null,
+                        "name": "negative",
+                        "type": "CONDITIONING"
+                    }
+                ],
+                "mode": 0,
+                "order": 3,
+                "outputs": [
+                    {
+                        "links": null,
+                        "name": "basic_pipe",
+                        "shape": 3,
+                        "slot_index": 0,
+                        "type": "BASIC_PIPE"
+                    }
+                ],
+                "pos": [
+                    1320,
+                    360
+                ],
+                "properties": {
+                    "Node name for S&R": "ToBasicPipe"
+                },
+                "size": {
+                    "0": 241.79998779296875,
+                    "1": 106
+                },
+                "type": "ToBasicPipe"
+            }
+        ],
+        "packname": "Impact",
+        "version": "1.0"
+    },
+    "Impact::SIMPLE_DETAILER_PIPE": {
+        "category": "",
+        "config": {
+            "0": {
+                "output": {
+                    "0": {
+                        "visible": false
+                    },
+                    "1": {
+                        "visible": false
+                    }
+                }
+            },
+            "2": {
+                "input": {
+                    "Select to add LoRA": {
+                        "visible": false
+                    },
+                    "Select to add Wildcard": {
+                        "visible": false
+                    },
+                    "wildcard": {
+                        "visible": false
+                    }
+                }
+            }
+        },
+        "datetime": 1705419147116,
+        "external": [],
+        "links": [
+            [
+                null,
+                0,
+                2,
+                0,
+                6,
+                "BASIC_PIPE"
+            ],
+            [
+                0,
+                0,
+                2,
+                1,
+                13,
+                "BBOX_DETECTOR"
+            ],
+            [
+                1,
+                0,
+                2,
+                2,
+                15,
+                "SAM_MODEL"
+            ]
+        ],
+        "nodes": [
+            {
+                "flags": {},
+                "index": 0,
+                "mode": 0,
+                "order": 2,
+                "outputs": [
+                    {
+                        "links": [],
+                        "name": "BBOX_DETECTOR",
+                        "shape": 3,
+                        "type": "BBOX_DETECTOR"
+                    },
+                    {
+                        "links": null,
+                        "name": "SEGM_DETECTOR",
+                        "shape": 3,
+                        "type": "SEGM_DETECTOR"
+                    }
+                ],
+                "pos": [
+                    590,
+                    830
+                ],
+                "properties": {
+                    "Node name for S&R": "UltralyticsDetectorProvider"
+                },
+                "size": {
+                    "0": 315,
+                    "1": 78
+                },
+                "type": "UltralyticsDetectorProvider",
+                "widgets_values": [
+                    "bbox/Eyeful_v1.pt"
+                ]
+            },
+            {
+                "flags": {},
+                "index": 1,
+                "mode": 0,
+                "order": 3,
+                "outputs": [
+                    {
+                        "links": [],
+                        "name": "SAM_MODEL",
+                        "shape": 3,
+                        "type": "SAM_MODEL"
+                    }
+                ],
+                "pos": [
+                    590,
+                    960
+                ],
+                "properties": {
+                    "Node name for S&R": "SAMLoader"
+                },
+                "size": {
+                    "0": 315,
+                    "1": 82
+                },
+                "type": "SAMLoader",
+                "widgets_values": [
+                    "sam_vit_b_01ec64.pth",
+                    "AUTO"
+                ]
+            },
+            {
+                "flags": {},
+                "index": 2,
+                "inputs": [
+                    {
+                        "link": null,
+                        "name": "basic_pipe",
+                        "type": "BASIC_PIPE"
+                    },
+                    {
+                        "link": null,
+                        "name": "bbox_detector",
+                        "slot_index": 1,
+                        "type": "BBOX_DETECTOR"
+                    },
+                    {
+                        "link": null,
+                        "name": "sam_model_opt",
+                        "slot_index": 2,
+                        "type": "SAM_MODEL"
+                    },
+                    {
+                        "link": null,
+                        "name": "segm_detector_opt",
+                        "type": "SEGM_DETECTOR"
+                    },
+                    {
+                        "link": null,
+                        "name": "detailer_hook",
+                        "type": "DETAILER_HOOK"
+                    }
+                ],
+                "mode": 0,
+                "order": 5,
+                "outputs": [
+                    {
+                        "links": null,
+                        "name": "detailer_pipe",
+                        "shape": 3,
+                        "type": "DETAILER_PIPE"
+                    }
+                ],
+                "pos": [
+                    1044,
+                    812
+                ],
+                "properties": {
+                    "Node name for S&R": "BasicPipeToDetailerPipe"
+                },
+                "size": {
+                    "0": 400,
+                    "1": 204
+                },
+                "type": "BasicPipeToDetailerPipe",
+                "widgets_values": [
+                    "",
+                    "Select the LoRA to add to the text",
+                    "Select the Wildcard to add to the text"
+                ]
+            }
+        ],
+        "packname": "Impact",
+        "version": "1.0"
+    }
+}

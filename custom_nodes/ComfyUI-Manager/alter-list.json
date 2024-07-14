@@ -1,0 +1,224 @@
+{
+   "items": [
+     {
+       "id":"https://github.com/Fannovel16/comfyui_controlnet_aux",
+       "tags":"controlnet",
+       "description": "This extension provides preprocessor nodes for using controlnet."
+     },
+     {
+       "id":"https://github.com/comfyanonymous/ComfyUI_experiments",
+       "tags":"Dynamic Thresholding, DT, CFG, controlnet, reference only",
+       "description": "This experimental nodes contains a 'Reference Only' node and a 'ModelSamplerTonemapNoiseTest' node corresponding to the 'Dynamic Threshold'."
+     },
+     {
+       "id":"https://github.com/ltdrdata/ComfyUI-Impact-Pack",
+       "tags":"ddetailer, adetailer, ddsd, DD, loopback scaler, prompt, wildcard, dynamic prompt",
+       "description": "To implement the feature of automatically detecting faces and enhancing details, various detection nodes and detailers provided by the Impact Pack can be applied. Similarly to Loopback Scaler, it also provides various custom workflows that can apply Ksampler while gradually scaling up."
+     },
+     {
+       "id":"https://github.com/ltdrdata/ComfyUI-Inspire-Pack",
+       "tags":"lora block weight, effective block analyzer, lbw, variation seed",
+       "description": "The Inspire Pack provides the functionality of Lora Block Weight, Variation Seed."
+     },
+     {
+       "id":"https://github.com/biegert/ComfyUI-CLIPSeg/raw/main/custom_nodes/clipseg.py",
+       "tags":"ddsd",
+       "description": "This extension provides a feature that generates segment masks on an image using a text prompt. When used in conjunction with Impact Pack, it enables applications such as DDSD."
+     },
+     {
+       "id":"https://github.com/BadCafeCode/masquerade-nodes-comfyui",
+       "tags":"ddetailer",
+       "description": "This extension is a less feature-rich and well-maintained alternative to Impact Pack, but it has fewer dependencies and may be easier to install on abnormal configurations. The author recommends trying Impact Pack first."
+     },
+     {
+       "id":"https://github.com/BlenderNeko/ComfyUI_Cutoff",
+       "tags":"cutoff",
+       "description": "By using this extension, prompts like 'blue hair' can be prevented from interfering with other prompts by blocking the attribute 'blue' from being used in prompts other than 'hair'."
+     },
+     {
+       "id":"https://github.com/BlenderNeko/ComfyUI_ADV_CLIP_emb",
+       "tags":"prompt, weight",
+       "description": "There are differences in the processing methods of prompts, such as weighting and scheduling, between A1111 and ComfyUI. With this extension, various settings can be used to implement prompt processing methods similar to A1111. As this feature is also integrated into ComfyUI Cutoff, please download the Cutoff extension if you plan to use it in conjunction with Cutoff."
+     },
+     {
+       "id":"https://github.com/shiimizu/ComfyUI_smZNodes",
+       "tags":"prompt, weight",
+       "description": "There are differences in the processing methods of prompts, such as weighting and scheduling, between A1111 and ComfyUI. This extension helps to reproduce the same embedding as A1111."
+     },
+     {
+       "id":"https://github.com/BlenderNeko/ComfyUI_Noise",
+       "tags":"img2img alt, random",
+       "description": "The extension provides an unsampler that reverses the sampling process, allowing for a function similar to img2img alt to be implemented. Furthermore, ComfyUI uses CPU's Random instead of GPU's Random for better reproducibility compared to A1111. This extension provides the ability to use GPU's Random for Latent Noise. However, since GPU's Random may vary depending on the GPU model, reproducibility on different devices cannot be guaranteed."
+     },
+     {
+       "id":"https://github.com/BlenderNeko/ComfyUI_SeeCoder",
+       "tags":"seecoder, prompt-free-diffusion",
+       "description": "The extension provides seecoder feature."
+     },
+     {
+       "id":"https://github.com/lilly1987/ComfyUI_node_Lilly",
+       "tags":"prompt, wildcard",
+       "description": "This extension provides features such as a wildcard function that randomly selects prompts belonging to a category and the ability to directly load lora from prompts."
+     },
+     {
+       "id":"https://github.com/Davemane42/ComfyUI_Dave_CustomNode",
+       "tags":"latent couple",
+       "description": "ComfyUI already provides the ability to composite latents by default. However, this extension makes it more convenient to use by visualizing the composite area."
+     },
+     {
+       "id":"https://github.com/LEv145/images-grid-comfy-plugin",
+       "tags":"X/Y Plot",
+       "description": "This tool provides a viewer node that allows for checking multiple outputs in a grid, similar to the X/Y Plot extension."
+     },
+     {
+       "id":"https://github.com/pythongosssss/ComfyUI-WD14-Tagger",
+       "tags":"deepbooru, clip interrogation",
+       "description": "This extension generates clip text by taking an image as input and using the Deepbooru model."
+     },
+     {
+       "id":"https://github.com/szhublox/ambw_comfyui",
+       "tags":"supermerger",
+       "description": "This node takes two models, merges individual blocks together at various ratios, and automatically rates each merge, keeping the ratio with the highest score. "
+     },
+     {
+       "id":"https://github.com/ssitu/ComfyUI_UltimateSDUpscale",
+       "tags":"upscaler, Ultimate SD Upscale",
+       "description": "ComfyUI nodes for the Ultimate Stable Diffusion Upscale script by Coyote-A. Uses the same script used in the A1111 extension to hopefully replicate images generated using the A1111 webui."
+     },
+     {
+       "id":"https://github.com/dawangraoming/ComfyUI_ksampler_gpu/raw/main/ksampler_gpu.py",
+       "tags":"random, noise",
+       "description": "A1111 provides KSampler that uses GPU-based random noise. This extension offers KSampler utilizing GPU-based random noise."
+     },
+     {
+       "id":"https://github.com/space-nuko/nui-suite",
+       "tags":"prompt, dynamic prompt",
+       "description": "This extension provides nodes with the functionality of dynamic prompts."
+     },
+     {
+       "id":"https://github.com/melMass/comfy_mtb",
+       "tags":"roop",
+       "description": "This extension provides bunch of nodes including roop"
+     },
+     {
+       "id":"https://github.com/ssitu/ComfyUI_roop",
+       "tags":"roop",
+       "description": "This extension provides nodes for the roop A1111 webui script."
+     },
+     {
+       "id":"https://github.com/asagi4/comfyui-prompt-control",
+       "tags":"prompt, prompt editing",
+       "description": "This extension provides the ability to use prompts like \n\n**a [large::0.1] [cat|dog:0.05] [<lora:somelora:0.5:0.6>::0.5] [in a park:in space:0.4]**\n\n"
+     },
+     {
+       "id":"https://github.com/adieyal/comfyui-dynamicprompts",
+       "tags":"prompt, dynamic prompt",
+       "description": "This extension is a port of sd-dynamic-prompt to ComfyUI."
+     },
+     {
+       "id":"https://github.com/kwaroran/abg-comfyui",
+       "tags":"abg, background remover",
+       "description": "A Anime Background Remover node for comfyui, based on this hf space, works same as AGB extention in automatic1111."
+     },
+     {
+       "id":"https://github.com/Gourieff/comfyui-reactor-node",
+       "tags":"reactor, sd-webui-roop-nsfw",
+       "description": "This is a ported version of ComfyUI for the sd-webui-roop-nsfw extension."
+     },
+     {
+       "id":"https://github.com/laksjdjf/cgem156-ComfyUI",
+       "tags":"regional prompt, latent couple, prompt",
+       "description": "This custom nodes provide a functionality similar to regional prompts, offering couple features at the attention level."
+     },
+     {
+       "id":"https://github.com/FizzleDorf/ComfyUI_FizzNodes",
+       "tags":"deforum",
+       "description": "This custom nodes provide functionality that assists in animation creation, similar to deforum."
+     },
+     {
+       "id":"https://github.com/seanlynch/comfyui-optical-flow",
+       "tags":"deforum, vid2vid",
+       "description": "This custom nodes provide functionality that assists in animation creation, similar to deforum."
+     },
+     {
+       "id":"https://github.com/ssitu/ComfyUI_fabric",
+       "tags":"fabric",
+       "description": "Similar to sd-webui-fabric, this custom nodes provide the functionality of [a/FABRIC](https://github.com/sd-fabric/fabric)."
+     },
+     {
+       "id":"https://github.com/Zuellni/ComfyUI-ExLlama",
+       "tags":"ExLlama, prompt, language model",
+       "description": "Similar to text-generation-webui, this custom nodes provide the functionality of [a/exllama](https://github.com/turboderp/exllama)."
+     },
+     {
+       "id":"https://github.com/spinagon/ComfyUI-seamless-tiling",
+       "tags":"tiling",
+       "description": "ComfyUI node for generating seamless textures Replicates 'Tiling' option from A1111"
+     },
+     {
+       "id":"https://github.com/laksjdjf/cd-tuner_negpip-ComfyUI",
+       "tags":"cd-tuner, negpip",
+       "description": "This extension is a port of the [a/sd-webui-cd-tuner](https://github.com/hako-mikan/sd-webui-cd-tuner)(a.k.a. CD(color/Detail) Tuner )and  [a/sd-webui-negpip](https://github.com/hako-mikan/sd-webui-negpip)(a.k.a. NegPiP) extensions of A1111 to ComfyUI."
+     },
+     {
+       "id":"https://github.com/mcmonkeyprojects/sd-dynamic-thresholding",
+       "tags":"DT, dynamic thresholding",
+       "description": "This custom node is a port of the Dynamic Thresholding extension from A1111 to make it available for use in ComfyUI."
+     },
+     {
+       "id":"https://github.com/hhhzzyang/Comfyui_Lama",
+       "tags":"lama, inpainting anything",
+       "description": "This extension provides custom nodes developed based on [a/LaMa](https://github.com/advimman/lama) and [a/Inpainting anything](https://github.com/geekyutao/Inpaint-Anything)."
+     },
+     {
+       "id":"https://github.com/mlinmg/ComfyUI-LaMA-Preprocessor",
+       "tags":"lama",
+       "description": "This extension provides custom nodes for [a/LaMa](https://github.com/advimman/lama) functionality."
+     },
+     {
+       "id":"https://github.com/Haoming02/comfyui-diffusion-cg",
+       "tags":"diffusion-cg",
+       "description": "This extension provides custom nodes for [a/SD Webui Diffusion Color Grading](https://github.com/Haoming02/sd-webui-diffusion-cg) functionality."
+     },
+     {
+       "id":"https://github.com/asagi4/ComfyUI-CADS",
+       "tags":"diffusion-cg",
+       "description": "This extension provides custom nodes for [a/sd-webui-cads](https://github.com/v0xie/sd-webui-cads) functionality."
+     },
+     {
+       "id":"https://git.mmaker.moe/mmaker/sd-webui-color-enhance",
+       "tags":"color-enhance",
+       "description": "This extension supports both A1111 and ComfyUI simultaneously."
+     },
+     {
+       "id":"https://github.com/shiimizu/ComfyUI-TiledDiffusion",
+       "tags":"multidiffusion",
+       "description": "This extension provides custom nodes for [a/Mixture of Diffusers](https://github.com/albarji/mixture-of-diffusers) and [a/MultiDiffusion](https://github.com/omerbt/MultiDiffusion)"
+     },
+     {
+       "id":"https://github.com/abyz22/image_control",
+       "tags":"BMAB",
+       "description": "This extension provides some alternative functionalities of the [a/sd-webui-bmab](https://github.com/portu-sim/sd-webui-bmab) extension."
+     },
+     {
+       "id":"https://github.com/blepping/ComfyUI-sonar",
+       "tags":"sonar",
+       "description": "This extension provides some alternative functionalities of the [a/stable-diffusion-webui-sonar](https://github.com/Kahsolt/stable-diffusion-webui-sonar) extension."
+     },
+     {
+       "id":"https://github.com/AIFSH/ComfyUI-RVC",
+       "tags":"sonar",
+       "description": "a comfyui custom node for [a/Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI.git), you can Voice-Conversion in comfyui now!"
+     },
+     {
+       "id":"https://github.com/portu-sim/comfyui-bmab",
+       "tags":"bmab",
+       "description": "a comfyui custom node for [a/sd-webui-bmab](https://github.com/portu-sim/sd-webui-bmab)"
+     },
+     {
+       "id":"https://github.com/ThereforeGames/ComfyUI-Unprompted",
+       "tags":"unprompted",
+       "description": "This extension is a port of [a/unprompted](https://github.com/ThereforeGames/unprompted)"
+     }
+   ]
+}
