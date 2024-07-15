@@ -12,6 +12,8 @@ jobs:
   commentIfWebChanges:
     runs-on: ubuntu-latest
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'Direct FrontEnd Change') }}
+    permissions:
+      pull-requests: "write"
     steps:
       - name: Post comment on PR and apply label
         uses: actions/github-script@v6
