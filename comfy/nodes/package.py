@@ -46,12 +46,13 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
     exceptions = []
     with tracer.start_as_current_span("Load Node") as span:
         time_before = time.perf_counter()
+        full_name = module.__name__
         try:
             module_decl = _import_nodes_in_module(exported_nodes, module)
-            full_name = module.__name__
             span.set_attribute("full_name", full_name)
             timings.append((time.perf_counter() - time_before, full_name, True, exported_nodes))
         except Exception as exc:
+            module_decl = None
             logging.error(f"{full_name} import failed", exc_info=exc)
             span.set_status(Status(StatusCode.ERROR))
             span.record_exception(exc)

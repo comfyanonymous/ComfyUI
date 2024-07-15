@@ -29,6 +29,7 @@ class FolderPathsTuple:
 
     def __add__(self, other: "FolderPathsTuple"):
         assert self.folder_name == other.folder_name
+        # todo: make sure the paths are actually unique, as this method intends
         new_paths = list(frozenset(self.paths + other.paths))
         new_supported_extensions = self.supported_extensions | other.supported_extensions
         return FolderPathsTuple(self.folder_name, new_paths, new_supported_extensions)

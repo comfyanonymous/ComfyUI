@@ -1,7 +1,5 @@
-# Define a class for your command-line arguments
 from __future__ import annotations
 
-import copy
 import enum
 from typing import Optional, List, Callable, Any, Union, Mapping, NamedTuple
 
