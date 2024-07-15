@@ -127,10 +127,13 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
+# The default built-in provider hosted under web/
+DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
+
 parser.add_argument(
     "--front-end-version",
     type=str,
-    default="comfyanonymous/ComfyUI@latest",
+    default=DEFAULT_VERSION_STRING,
     help="""
     Specifies the version of the frontend to be used. This command needs internet connectivity to query and
     download available frontend implementations from GitHub releases.

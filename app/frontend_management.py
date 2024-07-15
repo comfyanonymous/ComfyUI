@@ -11,6 +11,7 @@ from typing import TypedDict
 
 import requests
 from typing_extensions import NotRequired
+from comfy.cli_args import DEFAULT_VERSION_STRING
 
 
 REQUEST_TIMEOUT = 10  # seconds
@@ -107,8 +108,6 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 
 class FrontendManager:
-    # The default built-in provider hosted under web/
-    DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
     DEFAULT_FRONTEND_PATH = str(Path(__file__).parents[1] / "web")
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
@@ -146,7 +145,7 @@ class FrontendManager:
             Exception: If there is an error during the initialization process.
             main error source might be request timeout or invalid URL.
         """
-        if version_string == cls.DEFAULT_VERSION_STRING:
+        if version_string == DEFAULT_VERSION_STRING:
             return cls.DEFAULT_FRONTEND_PATH
 
         repo_owner, repo_name, version = cls.parse_version_string(version_string)
