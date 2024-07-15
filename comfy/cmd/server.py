@@ -85,9 +85,10 @@ def create_cors_middleware(allowed_origin: str):
 
 
 class PromptServer(ExecutorToClientProgress):
-    instance: 'PromptServer'
+    instance: Optional['PromptServer'] = None
 
     def __init__(self, loop):
+        # todo: this really needs to be set up differently, because sometimes the prompt server will not be initialized
         PromptServer.instance = self
 
         mimetypes.init()

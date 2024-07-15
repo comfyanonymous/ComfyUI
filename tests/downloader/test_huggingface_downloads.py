@@ -4,10 +4,7 @@ import shutil
 import pytest
 
 from comfy.cli_args import args
-from comfy.cmd import folder_paths
-from comfy.cmd.folder_paths import FolderPathsTuple
-from comfy.model_downloader import KNOWN_HUGGINGFACE_MODEL_REPOS, get_huggingface_repo_list, \
-    get_or_download_huggingface_repo, _get_cache_hits, _delete_repo_from_huggingface_cache
+
 
 _gitattributes = """*.7z filter=lfs diff=lfs merge=lfs -text
 *.arrow filter=lfs diff=lfs merge=lfs -text
@@ -49,6 +46,12 @@ saved_model/**/* filter=lfs diff=lfs merge=lfs -text
 
 @pytest.mark.asyncio
 def test_known_repos(tmp_path_factory):
+    from comfy.cmd import folder_paths
+    from comfy.cmd.folder_paths import FolderPathsTuple
+    from comfy.model_downloader import get_huggingface_repo_list, \
+        get_or_download_huggingface_repo, _get_cache_hits, _delete_repo_from_huggingface_cache
+    from comfy.model_downloader import KNOWN_HUGGINGFACE_MODEL_REPOS
+
     test_cache_dir = tmp_path_factory.mktemp("huggingface_cache")
     test_local_dir = tmp_path_factory.mktemp("huggingface_locals")
     test_repo_id = "doctorpangloss/comfyui_downloader_test"
@@ -69,6 +72,7 @@ def test_known_repos(tmp_path_factory):
         existing_repos = get_huggingface_repo_list()
         assert test_repo_id not in existing_repos
 
+        # best to import this at the time that it is run, not when the test is initialized
         KNOWN_HUGGINGFACE_MODEL_REPOS.add(test_repo_id)
         existing_repos = get_huggingface_repo_list()
         assert test_repo_id in existing_repos

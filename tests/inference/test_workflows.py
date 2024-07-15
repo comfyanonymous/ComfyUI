@@ -6,6 +6,126 @@ from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile
 
 _workflows = {
+    "auraflow_1": {
+        "1": {
+            "inputs": {
+                "ckpt_name": "aura_flow_0.1.safetensors"
+            },
+            "class_type": "CheckpointLoaderSimple",
+            "_meta": {
+                "title": "Load Checkpoint"
+            }
+        },
+        "2": {
+            "inputs": {
+                "shift": 1.73,
+                "model": [
+                    "1",
+                    0
+                ]
+            },
+            "class_type": "ModelSamplingAuraFlow",
+            "_meta": {
+                "title": "ModelSamplingAuraFlow"
+            }
+        },
+        "3": {
+            "inputs": {
+                "seed": 232240565010917,
+                "steps": 25,
+                "cfg": 3.5,
+                "sampler_name": "uni_pc",
+                "scheduler": "normal",
+                "denoise": 1,
+                "model": [
+                    "2",
+                    0
+                ],
+                "positive": [
+                    "4",
+                    0
+                ],
+                "negative": [
+                    "5",
+                    0
+                ],
+                "latent_image": [
+                    "6",
+                    0
+                ]
+            },
+            "class_type": "KSampler",
+            "_meta": {
+                "title": "KSampler"
+            }
+        },
+        "4": {
+            "inputs": {
+                "text": "close-up portrait of cat",
+                "clip": [
+                    "1",
+                    1
+                ]
+            },
+            "class_type": "CLIPTextEncode",
+            "_meta": {
+                "title": "CLIP Text Encode (Prompt)"
+            }
+        },
+        "5": {
+            "inputs": {
+                "text": "",
+                "clip": [
+                    "1",
+                    1
+                ]
+            },
+            "class_type": "CLIPTextEncode",
+            "_meta": {
+                "title": "CLIP Text Encode (Prompt)"
+            }
+        },
+        "6": {
+            "inputs": {
+                "width": 1024,
+                "height": 1024,
+                "batch_size": 1
+            },
+            "class_type": "EmptyLatentImage",
+            "_meta": {
+                "title": "Empty Latent Image"
+            }
+        },
+        "7": {
+            "inputs": {
+                "samples": [
+                    "3",
+                    0
+                ],
+                "vae": [
+                    "1",
+                    2
+                ]
+            },
+            "class_type": "VAEDecode",
+            "_meta": {
+                "title": "VAE Decode"
+            }
+        },
+        "8": {
+            "inputs": {
+                "filename_prefix": "ComfyUI",
+                "images": [
+                    "7",
+                    0
+                ]
+            },
+            "class_type": "SaveImage",
+            "_meta": {
+                "title": "Save Image"
+            }
+        }
+    },
     "lora_1": {
         "3": {
             "inputs": {
@@ -147,7 +267,6 @@ async def client(tmp_path_factory) -> EmbeddedComfyClient:
 async def test_workflow(workflow_name: str, workflow: dict, has_gpu: bool, client: EmbeddedComfyClient):
     if not has_gpu:
         pytest.skip("requires gpu")
-
 
     prompt = Prompt.validate(workflow)
     add_known_models("loras", KNOWN_LORAS, CivitFile(13941, 16576, "epi_noiseoffset2.safetensors"))

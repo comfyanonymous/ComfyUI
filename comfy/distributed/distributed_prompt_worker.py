@@ -35,7 +35,7 @@ class DistributedPromptWorker:
         self._loop = loop or asyncio.get_event_loop()
         self._embedded_comfy_client = embedded_comfy_client
         self._health_check_port = health_check_port
-        self._health_check_site = None
+        self._health_check_site: Optional[web.TCPSite] = None
 
     async def _health_check(self, request):
         return web.Response(text="OK", content_type="text/plain")

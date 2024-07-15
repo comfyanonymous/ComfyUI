@@ -8,7 +8,7 @@ import os
 import traceback
 import zipfile
 from importlib.abc import Traversable
-from typing import Tuple, Sequence, TypeVar
+from typing import Tuple, Sequence, TypeVar, Callable
 
 import torch
 from transformers import CLIPTokenizer, PreTrainedTokenizerBase, SpecialTokensMixin
@@ -18,6 +18,7 @@ from . import model_management
 from . import ops
 from .component_model import files
 from .component_model.files import get_path_as_dict, get_package_as_path
+from .text_encoders.llama_tokenizer import LLAMATokenizer
 
 
 def gen_empty_tokens(special_tokens, length):
@@ -32,6 +33,7 @@ def gen_empty_tokens(special_tokens, length):
     output += [pad_token] * (length - len(output))
     return output
 
+
 class ClipTokenWeightEncoder:
     def encode_token_weights(self, token_weight_pairs):
         to_encode = list()
@@ -44,10 +46,12 @@ class ClipTokenWeightEncoder:
             to_encode.append(tokens)
 
         sections = len(to_encode)
-        if has_weights or sections == 0:
-            to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))
+        if has_weights or sections == 0 and hasattr(self, "special_tokens"):
+            to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))  # pylint: disable=no-member
 
-        o = self.encode(to_encode)
+        assert hasattr(self, "encode")
+        assert isinstance(self.encode, Callable)  # pylint: disable=no-member
+        o = self.encode(to_encode)  # pylint: disable=no-member
         out, pooled = o[:2]
 
         if pooled is not None:
@@ -82,6 +86,7 @@ class ClipTokenWeightEncoder:
 
             r = r + (extra,)
         return r
+
 
 class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     """Uses the CLIP transformer encoder for text (from huggingface)"""
@@ -446,12 +451,13 @@ class SDTokenizer:
         if isinstance(tokenizer_path, Traversable):
             contextlib_path = importlib.resources.as_file(tokenizer_path)
             tokenizer_path = contextlib_path.__enter__()
-        if not tokenizer_path.endswith(".model") and not os.path.exists(os.path.join(tokenizer_path, "tokenizer_config.json")):
-            # package based
+        tokenizer_path = str(tokenizer_path)
+        if issubclass(tokenizer_class, CLIPTokenizer) and not os.path.exists(os.path.join(tokenizer_path, "tokenizer_config.json")):
+            # assumes sd1_tokenizer
             tokenizer_path = get_package_as_path('comfy.sd1_tokenizer')
         self.tokenizer_class = tokenizer_class
         self.tokenizer_path = tokenizer_path
-        self.tokenizer: PreTrainedTokenizerBase = tokenizer_class.from_pretrained(tokenizer_path)
+        self.tokenizer: PreTrainedTokenizerBase | LLAMATokenizer = tokenizer_class.from_pretrained(tokenizer_path)
         self.max_length = max_length
         self.min_length = min_length
 
@@ -545,7 +551,7 @@ class SDTokenizer:
                         continue
                 # parse word
                 exact_word = f"{word}</w>"
-                if word == self.tokenizer.eos_token:
+                if hasattr(self.tokenizer, "eos_token") and word == self.tokenizer.eos_token:
                     tokenizer_result = [self.tokenizer.eos_token_id]
                 elif exact_word in vocab:
                     tokenizer_result = [vocab[exact_word]]

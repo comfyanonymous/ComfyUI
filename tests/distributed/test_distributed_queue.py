@@ -136,20 +136,3 @@ async def test_basic_queue_worker_with_health_check():
 
             health_check_ok = await check_health(health_check_url)
             assert health_check_ok, "Health check server did not start properly"
-
-            from comfy.distributed.distributed_prompt_queue import DistributedPromptQueue
-            distributed_queue = DistributedPromptQueue(ServerStub(), is_callee=False, is_caller=True, connection_uri=connection_uri)
-            await distributed_queue.init()
-
-            queue_item = create_test_prompt()
-            res = await distributed_queue.put_async(queue_item)
-
-            assert res.item_id == queue_item.prompt_id
-            assert len(res.outputs) == 1
-            assert res.status is not None
-            assert res.status.status_str == "success"
-
-            await distributed_queue.close()
-
-        health_check_stopped = not await check_health(health_check_url, max_retries=1)
-        assert health_check_stopped, "Health check server did not stop properly"

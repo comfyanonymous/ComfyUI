@@ -7,7 +7,7 @@ from functools import reduce
 from itertools import chain
 from os.path import join
 from pathlib import Path
-from typing import List, Any, Optional, Union, Sequence
+from typing import List, Any, Optional, Sequence, Final, Set
 
 import tqdm
 from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem
@@ -20,7 +20,7 @@ from .cli_args import args
 from .cmd import folder_paths
 from .component_model.deprecation import _deprecate_method
 from .interruption import InterruptProcessingException
-from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_
+from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_, Downloadable
 from .utils import ProgressBar, comfy_tqdm
 
 _session = Session()
@@ -159,7 +159,7 @@ Visit the repository, accept the terms, and then do one of the following:
     return path
 
 
-KNOWN_CHECKPOINTS = [
+KNOWN_CHECKPOINTS: Final[List[Downloadable]] = [
     HuggingFile("stabilityai/stable-diffusion-xl-base-1.0", "sd_xl_base_1.0.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-xl-refiner-1.0", "sd_xl_refiner_1.0.safetensors"),
     HuggingFile("stabilityai/sdxl-turbo", "sd_xl_turbo_1.0_fp16.safetensors"),
@@ -193,32 +193,33 @@ KNOWN_CHECKPOINTS = [
     HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium_incl_clips.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium_incl_clips_t5xxlfp8.safetensors"),
+    HuggingFile("fal/AuraFlow", filename="aura_flow_0.1.safetensors"),
 ]
 
-KNOWN_UNCLIP_CHECKPOINTS = [
+KNOWN_UNCLIP_CHECKPOINTS: Final[List[Downloadable]] = [
     HuggingFile("stabilityai/stable-cascade", "comfyui_checkpoints/stable_cascade_stage_c.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-2-1-unclip", "sd21-unclip-h.ckpt"),
     HuggingFile("stabilityai/stable-diffusion-2-1-unclip", "sd21-unclip-l.ckpt"),
 ]
 
-KNOWN_IMAGE_ONLY_CHECKPOINTS = [
+KNOWN_IMAGE_ONLY_CHECKPOINTS: Final[List[Downloadable]] = [
     HuggingFile("stabilityai/stable-zero123", "stable_zero123.ckpt")
 ]
 
-KNOWN_UPSCALERS = [
+KNOWN_UPSCALERS: Final[List[Downloadable]] = [
     HuggingFile("lllyasviel/Annotators", "RealESRGAN_x4plus.pth")
 ]
 
-KNOWN_GLIGEN_MODELS = [
+KNOWN_GLIGEN_MODELS: Final[List[Downloadable]] = [
     HuggingFile("comfyanonymous/GLIGEN_pruned_safetensors", "gligen_sd14_textbox_pruned.safetensors", show_in_ui=False),
     HuggingFile("comfyanonymous/GLIGEN_pruned_safetensors", "gligen_sd14_textbox_pruned_fp16.safetensors"),
 ]
 
-KNOWN_CLIP_VISION_MODELS = [
+KNOWN_CLIP_VISION_MODELS: Final[List[Downloadable]] = [
     HuggingFile("comfyanonymous/clip_vision_g", "clip_vision_g.safetensors")
 ]
 
-KNOWN_LORAS = [
+KNOWN_LORAS: Final[List[Downloadable]] = [
     CivitFile(model_id=211577, model_version_id=238349, filename="openxl_handsfix.safetensors"),
     CivitFile(model_id=324815, model_version_id=364137, filename="blur_control_xl_v1.safetensors"),
     CivitFile(model_id=47085, model_version_id=55199, filename="GoodHands-beta2.safetensors"),
@@ -226,7 +227,7 @@ KNOWN_LORAS = [
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SD15-12steps-CFG-lora.safetensors"),
 ]
 
-KNOWN_CONTROLNETS = [
+KNOWN_CONTROLNETS: Final[List[Downloadable]] = [
     HuggingFile("thibaud/controlnet-openpose-sdxl-1.0", "OpenPoseXL2.safetensors", convert_to_16_bit=True, size=2502139104),
     HuggingFile("thibaud/controlnet-openpose-sdxl-1.0", "control-lora-openposeXL2-rank256.safetensors"),
     HuggingFile("comfyanonymous/ControlNet-v1-1_fp16_safetensors", "control_lora_rank128_v11e_sd15_ip2p_fp16.safetensors"),
@@ -316,7 +317,7 @@ KNOWN_CONTROLNETS = [
     HuggingFile("TheMistoAI/MistoLine", "mistoLine_rank256.safetensors"),
 ]
 
-KNOWN_DIFF_CONTROLNETS = [
+KNOWN_DIFF_CONTROLNETS: Final[List[Downloadable]] = [
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_canny_fp16.safetensors"),
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_depth_fp16.safetensors"),
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_hed_fp16.safetensors"),
@@ -327,28 +328,28 @@ KNOWN_DIFF_CONTROLNETS = [
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_seg_fp16.safetensors"),
 ]
 
-KNOWN_APPROX_VAES = [
+KNOWN_APPROX_VAES: Final[List[Downloadable]] = [
     HuggingFile("madebyollin/taesd", "taesd_decoder.safetensors"),
     HuggingFile("madebyollin/taesdxl", "taesdxl_decoder.safetensors"),
 ]
 
-KNOWN_VAES = [
+KNOWN_VAES: Final[List[Downloadable]] = [
     HuggingFile("stabilityai/sdxl-vae", "sdxl_vae.safetensors"),
     HuggingFile("stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.safetensors"),
 ]
 
-KNOWN_HUGGINGFACE_MODEL_REPOS = {
+KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
     "JingyeChen22/textdiffuser2_layout_planner",
     'JingyeChen22/textdiffuser2-full-ft',
     "microsoft/Phi-3-mini-4k-instruct",
     "llava-hf/llava-v1.6-mistral-7b-hf"
 }
 
-KNOWN_UNET_MODELS: List[Union[CivitFile | HuggingFile]] = [
+KNOWN_UNET_MODELS: Final[List[Downloadable]] = [
     HuggingFile("ByteDance/Hyper-SD", "Hyper-SDXL-1step-Unet-Comfyui.fp16.safetensors")
 ]
 
-KNOWN_CLIP_MODELS: List[Union[CivitFile | HuggingFile]] = [
+KNOWN_CLIP_MODELS: Final[List[Downloadable]] = [
     # todo: is this correct?
     HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/t5xxl_fp16.safetensors", save_with_filename="t5xxl_fp16.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/t5xxl_fp8_e4m3fn.safetensors", save_with_filename="t5xxl_fp8_e4m3fn.safetensors"),
@@ -357,7 +358,7 @@ KNOWN_CLIP_MODELS: List[Union[CivitFile | HuggingFile]] = [
 ]
 
 
-def add_known_models(folder_name: str, known_models: List[Union[CivitFile, HuggingFile]], *models: Union[CivitFile, HuggingFile]) -> List[Union[CivitFile, HuggingFile]]:
+def add_known_models(folder_name: str, known_models: List[Downloadable], *models: Downloadable) -> List[Downloadable]:
     if len(models) < 1:
         return known_models
 

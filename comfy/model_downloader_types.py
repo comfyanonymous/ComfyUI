@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from os.path import split
-from typing import Optional, List, Sequence
+from typing import Optional, List, Sequence, Union
 
 from typing_extensions import TypedDict, NotRequired
 
@@ -152,3 +152,6 @@ class CivitModelsGetResponse(TypedDict):
     creator: CivitCreator
     tags: List[str]
     modelVersions: List[CivitModelVersion]
+
+
+Downloadable = Union[CivitFile | HuggingFile]
