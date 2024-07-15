@@ -1906,10 +1906,13 @@ def get_relative_module_name(module_path: str) -> str:
     Returns:
         str: The module name.
     """
-    relative_path = os.path.relpath(module_path, folder_paths.base_path)
-    if os.path.isfile(module_path):
-        relative_path = os.path.splitext(relative_path)[0]
-    return relative_path.replace(os.sep, '.')
+    try:
+        relative_path = os.path.relpath(module_path, folder_paths.base_path)
+        if os.path.isfile(module_path):
+            relative_path = os.path.splitext(relative_path)[0]
+        return relative_path.replace(os.sep, '.')
+    except Exception:
+        return "unknown"
 
 
 def load_custom_node(module_path: str, ignore=set()) -> bool:
