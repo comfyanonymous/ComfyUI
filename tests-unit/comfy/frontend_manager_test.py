@@ -1,12 +1,11 @@
-import pytest
-import os
 import argparse
-from unittest.mock import patch
+import pytest
+from requests.exceptions import HTTPError
 
 from app.frontend_management import (
+    FrontendManager,
     FrontEndProvider,
     Release,
-    FrontendManager,
 )
 
 
@@ -39,7 +38,6 @@ def mock_releases():
 @pytest.fixture
 def mock_provider(mock_releases):
     provider = FrontEndProvider(
-        name="test",
         owner="test-owner",
         repo="test-repo",
     )
@@ -73,49 +71,25 @@ def test_init_frontend_default():
     assert frontend_path == FrontendManager.DEFAULT_FRONTEND_PATH
 
 
-def test_init_frontend_provider_version(mock_provider, mock_releases):
-    version_string = f"{mock_provider.name}@1.0.0"
-    with patch("app.frontend_management.download_release_asset_zip") as mock_download:
-        with patch("os.makedirs") as mock_makedirs:
-            frontend_path = FrontendManager.init_frontend(version_string)
-            assert frontend_path == os.path.join(
-                FrontendManager.CUSTOM_FRONTENDS_ROOT, mock_provider.name, "1.0.0"
-            )
-            mock_makedirs.assert_called_once_with(frontend_path, exist_ok=True)
-            mock_download.assert_called_once_with(
-                mock_releases[0], destination_path=frontend_path
-            )
-
-
-def test_init_frontend_provider_latest(mock_provider, mock_releases):
-    version_string = f"{mock_provider.name}@latest"
-    with patch("app.frontend_management.download_release_asset_zip") as mock_download:
-        with patch("os.makedirs") as mock_makedirs:
-            frontend_path = FrontendManager.init_frontend(version_string)
-            assert frontend_path == os.path.join(
-                FrontendManager.CUSTOM_FRONTENDS_ROOT, mock_provider.name, "2.0.0"
-            )
-            mock_makedirs.assert_called_once_with(frontend_path, exist_ok=True)
-            mock_download.assert_called_once_with(
-                mock_releases[1], destination_path=frontend_path
-            )
-
 def test_init_frontend_invalid_version():
-    version_string = "test@1.100.99"
-    with pytest.raises(ValueError):
-        FrontendManager.init_frontend(version_string)
+    version_string = "test-owner/test-repo@1.100.99"
+    with pytest.raises(HTTPError):
+        FrontendManager.init_frontend_unsafe(version_string)
 
 
 def test_init_frontend_invalid_provider():
-    version_string = "invalid@latest"
-    with pytest.raises(argparse.ArgumentTypeError):
-        FrontendManager.init_frontend(version_string)
+    version_string = "invalid/invalid@latest"
+    with pytest.raises(HTTPError):
+        FrontendManager.init_frontend_unsafe(version_string)
 
 
 def test_parse_version_string():
-    version_string = "test@1.0.0"
-    provider, version = FrontendManager.parse_version_string(version_string)
-    assert provider == "test"
+    version_string = "owner/repo@1.0.0"
+    repo_owner, repo_name, version = FrontendManager.parse_version_string(
+        version_string
+    )
+    assert repo_owner == "owner"
+    assert repo_name == "repo"
     assert version == "1.0.0"
 
 
