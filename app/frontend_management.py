@@ -132,38 +132,6 @@ class FrontendManager:
         return match_result.group(1), match_result.group(2), match_result.group(3)
 
     @classmethod
-    def add_argument(cls, parser: argparse.ArgumentParser):
-        parser.add_argument(
-            "--front-end-version",
-            type=str,
-            default=cls.DEFAULT_VERSION_STRING,
-            help="""
-            Specifies the version of the frontend to be used. This command needs internet connectivity to query and
-            download available frontend implementations from GitHub releases.
-
-            The version string should be in the format of:
-            [repoOwner]/[repoName]@[version]
-            where version is one of: "latest" or a valid version number (e.g. "1.0.0")
-            """,
-        )
-
-        def is_valid_directory(path: str | None) -> str | None:
-            """Validate if the given path is a directory."""
-            if path is None:
-                return None
-
-            if not os.path.isdir(path):
-                raise argparse.ArgumentTypeError(f"{path} is not a valid directory.")
-            return path
-
-        parser.add_argument(
-            "--front-end-root",
-            type=is_valid_directory,
-            default=None,
-            help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
-        )
-
-    @classmethod
     def init_frontend_unsafe(cls, version_string: str) -> str:
         """
         Initializes the frontend for the specified version.

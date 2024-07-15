@@ -1,7 +1,8 @@
 import argparse
 import enum
+import os
+from typing import Optional
 import comfy.options
-from app.frontend_management import FrontendManager
 
 
 class EnumAction(argparse.Action):
@@ -126,7 +127,35 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", action="store_true", help="Enables more debug prints.")
 
-FrontendManager.add_argument(parser)
+parser.add_argument(
+    "--front-end-version",
+    type=str,
+    default="comfyanonymous/ComfyUI@latest",
+    help="""
+    Specifies the version of the frontend to be used. This command needs internet connectivity to query and
+    download available frontend implementations from GitHub releases.
+
+    The version string should be in the format of:
+    [repoOwner]/[repoName]@[version]
+    where version is one of: "latest" or a valid version number (e.g. "1.0.0")
+    """,
+)
+
+def is_valid_directory(path: Optional[str]) -> Optional[str]:
+    """Validate if the given path is a directory."""
+    if path is None:
+        return None
+
+    if not os.path.isdir(path):
+        raise argparse.ArgumentTypeError(f"{path} is not a valid directory.")
+    return path
+
+parser.add_argument(
+    "--front-end-root",
+    type=is_valid_directory,
+    default=None,
+    help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
+)
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
