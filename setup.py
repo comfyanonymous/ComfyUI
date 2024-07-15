@@ -192,6 +192,7 @@ package_data = [
     't5_tokenizer/*',
     '**/*.json',
     '**/*.yaml',
+    '**/*.model'
 ]
 if not is_editable:
     package_data.append('comfy/web/**/*')

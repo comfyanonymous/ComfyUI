@@ -1,3 +1,4 @@
+from .component_model import files
 from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
 import os
 import torch
@@ -30,9 +31,17 @@ def clip_preprocess(image, size=224):
     return (image - mean.view([3,1,1])) / std.view([3,1,1])
 
 class ClipVisionModel():
-    def __init__(self, json_config):
-        with open(json_config) as f:
-            config = json.load(f)
+    def __init__(self, json_config: dict | str):
+        if isinstance(json_config, dict):
+            config = json_config
+        elif json_config is not None and isinstance(json_config, str):
+            if json_config.startswith("{"):
+                config = json.loads(json_config)
+            else:
+                with open(json_config) as f:
+                    config = json.load(f)
+        else:
+            raise ValueError(f"json_config had invalid value={json_config}")
 
         self.load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
@@ -88,12 +97,11 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     if convert_keys:
         sd = convert_to_transformers(sd, prefix)
     if "vision_model.encoder.layers.47.layer_norm1.weight" in sd:
-        # todo: fix the importlib issue here
-        json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_g.json")
+        json_config = files.get_path_as_dict(None, "clip_vision_config_g.json")
     elif "vision_model.encoder.layers.30.layer_norm1.weight" in sd:
-        json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_h.json")
+        json_config = files.get_path_as_dict(None, "clip_vision_config_h.json")
     elif "vision_model.encoder.layers.22.layer_norm1.weight" in sd:
-        json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl.json")
+        json_config = files.get_path_as_dict(None, "clip_vision_config_vitl.json")
     else:
         return None
 

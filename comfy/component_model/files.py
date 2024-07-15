@@ -19,7 +19,7 @@ def get_path_as_dict(config_dict_or_path: str | dict | None, config_path_inside_
     config: dict | None = None
 
     if config_dict_or_path is None:
-        config_dict_or_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), config_path_inside_package)
+        config_dict_or_path = config_path_inside_package
 
     if isinstance(config_dict_or_path, str):
         if config_dict_or_path.startswith("{"):

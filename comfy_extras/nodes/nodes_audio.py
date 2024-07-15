@@ -20,7 +20,7 @@ class EmptyLatentAudio:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "latent/audio"
 
     def generate(self, seconds):
         batch_size = 1
@@ -35,7 +35,7 @@ class VAEEncodeAudio:
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "encode"
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "latent/audio"
 
     def encode(self, vae, audio):
         sample_rate = audio["sample_rate"]
@@ -55,7 +55,7 @@ class VAEDecodeAudio:
     RETURN_TYPES = ("AUDIO",)
     FUNCTION = "decode"
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "latent/audio"
 
     def decode(self, vae, samples):
         audio = vae.decode(samples["samples"]).movedim(-1, 1)
@@ -134,7 +134,7 @@ class SaveAudio:
 
     OUTPUT_NODE = True
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "audio"
 
     def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         import torchaudio  # pylint: disable=import-error
@@ -199,7 +199,7 @@ class LoadAudio:
         ]
         return {"required": {"audio": (sorted(files), {"audio_upload": True})}}
 
-    CATEGORY = "_for_testing/audio"
+    CATEGORY = "audio"
 
     RETURN_TYPES = ("AUDIO", )
     FUNCTION = "load"
@@ -209,7 +209,6 @@ class LoadAudio:
 
         audio_path = folder_paths.get_annotated_filepath(audio)
         waveform, sample_rate = torchaudio.load(audio_path)
-        multiplier = 1.0
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
         return (audio, )
 

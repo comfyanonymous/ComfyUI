@@ -1,22 +1,27 @@
-from comfy import sd1_clip
 from transformers import T5TokenizerFast
+
 import comfy.t5
-import os
+from comfy import sd1_clip
+from comfy.component_model import files
+
 
 class T5BaseModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None):
-        textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_config_base.json")
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
+        textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "t5_config_base.json")
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.t5.T5, enable_attention_masks=True, zero_out_masked=True)
+
 
 class T5BaseTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None):
-        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_tokenizer")
+        tokenizer_path = files.get_package_as_path("comfy.t5_tokenizer")
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=768, embedding_key='t5base', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=128)
+
 
 class SAT5Tokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None):
         super().__init__(embedding_directory=embedding_directory, clip_name="t5base", tokenizer=T5BaseTokenizer)
 
+
 class SAT5Model(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, **kwargs):
-        super().__init__(device=device, dtype=dtype, clip_name="t5base", clip_model=T5BaseModel, **kwargs)
+        super().__init__(device=device, dtype=dtype, name="t5base", clip_model=T5BaseModel, **kwargs)

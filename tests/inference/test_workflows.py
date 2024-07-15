@@ -1,7 +1,6 @@
 import pytest
 
 from comfy.api.components.schema.prompt import Prompt
-from comfy.cli_args_types import Configuration
 from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile
@@ -139,9 +138,7 @@ _workflows = {
 @pytest.fixture(scope="module", autouse=False)
 @pytest.mark.asyncio
 async def client(tmp_path_factory) -> EmbeddedComfyClient:
-    config = Configuration()
-    config.cwd = str(tmp_path_factory.mktemp("comfy_test_cwd"))
-    async with EmbeddedComfyClient(config) as client:
+    async with EmbeddedComfyClient() as client:
         yield client
 
 

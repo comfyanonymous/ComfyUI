@@ -85,7 +85,8 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
 
 def cleanup_temp():
     try:
-        temp_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "temp")
+        folder_paths.get_temp_directory()
+        temp_dir = folder_paths.get_temp_directory()
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
     except NameError:
@@ -115,7 +116,7 @@ async def main():
 
     # configure extra model paths earlier
     try:
-        extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+        extra_model_paths_config_path = os.path.join(os.getcwd(), "extra_model_paths.yaml")
         if os.path.isfile(extra_model_paths_config_path):
             load_extra_path_config(extra_model_paths_config_path)
     except NameError:

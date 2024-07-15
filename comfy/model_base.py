@@ -17,7 +17,7 @@ from .ldm.modules.diffusionmodules.mmdit import OpenAISignatureMMDITWrapper
 from .ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from .ldm.modules.diffusionmodules.upscaling import ImageConcatWithNoiseAugmentation
 from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentation
-
+from .ldm.aura.mmdit import MMDiT as AuraMMDiT
 
 class ModelType(Enum):
     EPS = 1
@@ -621,6 +621,17 @@ class SD3(BaseModel):
         else:
             area = input_shape[0] * input_shape[2] * input_shape[3]
             return (area * 0.3) * (1024 * 1024)
+
+class AuraFlow(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=AuraMMDiT)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = conds.CONDRegular(cross_attn)
+        return out
 
 
 class StableAudio1(BaseModel):

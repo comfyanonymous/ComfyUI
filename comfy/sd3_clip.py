@@ -1,30 +1,36 @@
+import logging
+import os
+
+import torch
+from transformers import T5TokenizerFast
+
+import comfy.model_management
+import comfy.t5
 from comfy import sd1_clip
 from comfy import sdxl_clip
-from transformers import T5TokenizerFast
-import comfy.t5
-import torch
-import os
-import comfy.model_management
-import logging
+from comfy.component_model import files
+
 
 class T5XXLModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None):
-        textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_config_xxl.json")
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
+        textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "t5_config_xxl.json")
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.t5.T5)
+
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None):
-        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_tokenizer")
+        tokenizer_path = files.get_package_as_path("comfy.t5_tokenizer")
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=77)
+
 
 class SDT5XXLTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None):
         super().__init__(embedding_directory=embedding_directory, clip_name="t5xxl", tokenizer=T5XXLTokenizer)
 
+
 class SDT5XXLModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, **kwargs):
         super().__init__(device=device, dtype=dtype, clip_name="t5xxl", clip_model=T5XXLModel, **kwargs)
-
 
 
 class SD3Tokenizer:
@@ -33,7 +39,7 @@ class SD3Tokenizer:
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory)
         self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False):
+    def tokenize_with_weights(self, text: str, return_word_ids=False):
         out = {}
         out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids)
         out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
@@ -42,6 +48,7 @@ class SD3Tokenizer:
 
     def untokenize(self, token_weight_pair):
         return self.clip_g.untokenize(token_weight_pair)
+
 
 class SD3ClipModel(torch.nn.Module):
     def __init__(self, clip_l=True, clip_g=True, t5=True, dtype_t5=None, device="cpu", dtype=None):
@@ -143,8 +150,10 @@ class SD3ClipModel(torch.nn.Module):
         else:
             return self.t5xxl.load_sd(sd)
 
+
 def sd3_clip(clip_l=True, clip_g=True, t5=True, dtype_t5=None):
     class SD3ClipModel_(SD3ClipModel):
         def __init__(self, device="cpu", dtype=None):
             super().__init__(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5, device=device, dtype=dtype)
+
     return SD3ClipModel_

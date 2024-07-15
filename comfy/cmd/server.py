@@ -439,6 +439,7 @@ class PromptServer(ExecutorToClientProgress):
             info['name'] = node_class
             info['display_name'] = self.nodes.NODE_DISPLAY_NAME_MAPPINGS[node_class] if node_class in self.nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
             info['description'] = obj_class.DESCRIPTION if hasattr(obj_class, 'DESCRIPTION') else ''
+            info['python_module'] = getattr(obj_class, "RELATIVE_PYTHON_MODULE", "nodes")
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
                 info['output_node'] = True
@@ -846,17 +847,8 @@ class PromptServer(ExecutorToClientProgress):
         return json_data
 
     @classmethod
-    def get_output_path(cls, subfolder: str | None = None, filename: str | None = None):
-        paths = [path for path in ["output", subfolder, filename] if path is not None and path != ""]
-        return os.path.join(os.path.dirname(os.path.realpath(__file__)), *paths)
-
-    @classmethod
     def get_upload_dir(cls) -> str:
-        upload_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../input")
-
-        if not os.path.exists(upload_dir):
-            os.makedirs(upload_dir)
-        return upload_dir
+        return folder_paths.get_input_directory()
 
     @classmethod
     def get_too_busy_queue_size(cls):
