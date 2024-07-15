@@ -7,6 +7,7 @@ from app.frontend_management import (
     FrontEndProvider,
     Release,
 )
+from comfy.cli_args import DEFAULT_VERSION_STRING
 
 
 @pytest.fixture
@@ -66,7 +67,7 @@ def test_get_release_invalid_version(mock_provider):
 
 
 def test_init_frontend_default():
-    version_string = FrontendManager.DEFAULT_VERSION_STRING
+    version_string = DEFAULT_VERSION_STRING
     frontend_path = FrontendManager.init_frontend(version_string)
     assert frontend_path == FrontendManager.DEFAULT_FRONTEND_PATH
 
