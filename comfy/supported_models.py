@@ -5,8 +5,8 @@ from . import utils
 from . import sd1_clip
 from . import sd2_clip
 from . import sdxl_clip
-from . import sd3_clip
-from . import sa_t5
+import comfy.text_encoders.sd3_clip
+import comfy.text_encoders.sa_t5
 import comfy.text_encoders.aura_t5
 
 from . import supported_models_base
@@ -524,7 +524,7 @@ class SD3(supported_models_base.BASE):
             t5 = True
             dtype_t5 = state_dict[t5_key].dtype
 
-        return supported_models_base.ClipTarget(sd3_clip.SD3Tokenizer, sd3_clip.sd3_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5))
+        return supported_models_base.ClipTarget(comfy.text_encoders.sd3_clip.SD3Tokenizer, comfy.text_encoders.sd3_clip.sd3_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, dtype_t5=dtype_t5))
 
 class StableAudio(supported_models_base.BASE):
     unet_config = {
@@ -555,7 +555,7 @@ class StableAudio(supported_models_base.BASE):
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(sa_t5.SAT5Tokenizer, sa_t5.SAT5Model)
+        return supported_models_base.ClipTarget(comfy.text_encoders.sa_t5.SAT5Tokenizer, comfy.text_encoders.sa_t5.SAT5Model)
 
 class AuraFlow(supported_models_base.BASE):
     unet_config = {

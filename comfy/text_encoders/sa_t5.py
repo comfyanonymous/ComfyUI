@@ -1,12 +1,12 @@
 from comfy import sd1_clip
 from transformers import T5TokenizerFast
-import comfy.t5
+import comfy.text_encoders.t5
 import os
 
 class T5BaseModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None):
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_config_base.json")
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.t5.T5, enable_attention_masks=True, zero_out_masked=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, zero_out_masked=True)
 
 class T5BaseTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None):
