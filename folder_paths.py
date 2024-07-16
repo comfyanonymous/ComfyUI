@@ -245,14 +245,9 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
 
+        input = input.replace("%dt%", time.strftime("%Y-%m-%d_%H:%M:%S", now))  # Emulate ISO 8601 format
         now = time.localtime()
-
-        regex_dt = re.compile("%dt%")
         regex_dt_fmt = re.compile("%dt:.*%")
-
-        if regex_dt.search(input):
-            input = input.replace("%dt%", time.strftime("%Y-%m-%d_%H:%M:%S", now))  # Emulate ISO 8601 format
-        
         if regex_dt_fmt.search(input):
             for match in regex_dt_fmt.findall(input):
                 fmt = match.split(':', '1')[1].rstrip('%')
