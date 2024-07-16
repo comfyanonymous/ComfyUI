@@ -112,6 +112,7 @@ vram_group.add_argument("--lowvram", action="store_true", help="Split the unet i
 vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
 vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
+parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
 
 parser.add_argument("--disable-smart-memory", action="store_true", help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
 parser.add_argument("--deterministic", action="store_true", help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
