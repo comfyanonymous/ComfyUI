@@ -243,6 +243,9 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
     def compute_vars(input, image_width, image_height):
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
+        input = input.replace("%year%", time.strftime("%Y"))
+        input = input.replace("%month%", time.strftime("%m"))
+        input = input.replace("%day%", time.strftime("%d"))
         return input
 
     filename_prefix = compute_vars(filename_prefix, image_width, image_height)
