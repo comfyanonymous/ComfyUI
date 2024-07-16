@@ -247,6 +247,8 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
             to_delete = True
         elif unique_id not in old_prompt:
             to_delete = True
+        elif class_type != old_prompt[unique_id]['class_type']:
+            to_delete = True
         elif inputs == old_prompt[unique_id]['inputs']:
             for x in inputs:
                 input_data = inputs[x]
