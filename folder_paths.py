@@ -1,3 +1,4 @@
+import re
 import os
 import time
 import logging
@@ -243,6 +244,20 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
     def compute_vars(input, image_width, image_height):
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
+
+        now = time.localtime()
+
+        regex_dt = re.compile("%dt%")
+        regex_dt_fmt = re.compile("%dt:.*%")
+
+        if regex_dt.search(input):
+            input = input.replace("%dt%", time.strftime("%Y-%m-%d_%H:%M:%S", now))  # Emulate ISO 8601 format
+        
+        if regex_dt_fmt.search(input):
+            for match in regex_dt_fmt.findall(input):
+                fmt = match.split(':', '1')[1].rstrip('%')
+                input = input.replace(match, time.strftime(fmt, now))
+        
         return input
 
     filename_prefix = compute_vars(filename_prefix, image_width, image_height)
