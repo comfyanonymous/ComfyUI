@@ -139,6 +139,7 @@ class SplitSigmas:
                      }
                 }
     RETURN_TYPES = ("SIGMAS","SIGMAS")
+    RETURN_NAMES = ("high_sigmas", "low_sigmas")
     CATEGORY = "sampling/custom_sampling/sigmas"
 
     FUNCTION = "get_sigmas"
@@ -146,6 +147,27 @@ class SplitSigmas:
     def get_sigmas(self, sigmas, step):
         sigmas1 = sigmas[:step + 1]
         sigmas2 = sigmas[step:]
+        return (sigmas1, sigmas2)
+
+class SplitSigmasDenoise:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {"sigmas": ("SIGMAS", ),
+                    "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                     }
+                }
+    RETURN_TYPES = ("SIGMAS","SIGMAS")
+    RETURN_NAMES = ("high_sigmas", "low_sigmas")
+    CATEGORY = "sampling/custom_sampling/sigmas"
+
+    FUNCTION = "get_sigmas"
+
+    def get_sigmas(self, sigmas, denoise):
+        steps = max(sigmas.shape[-1] - 1, 0)
+        total_steps = round(steps * denoise)
+        sigmas1 = sigmas[:-(total_steps)]
+        sigmas2 = sigmas[-(total_steps + 1):]
         return (sigmas1, sigmas2)
 
 class FlipSigmas:
@@ -271,6 +293,25 @@ class SamplerEulerAncestral:
         sampler = comfy.samplers.ksampler("euler_ancestral", {"eta": eta, "s_noise": s_noise})
         return (sampler, )
 
+class SamplerEulerAncestralCFGPP:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step":0.01, "round": False}),
+                "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step":0.01, "round": False}),
+            }}
+    RETURN_TYPES = ("SAMPLER",)
+    CATEGORY = "sampling/custom_sampling/samplers"
+
+    FUNCTION = "get_sampler"
+
+    def get_sampler(self, eta, s_noise):
+        sampler = comfy.samplers.ksampler(
+            "euler_ancestral_cfg_pp",
+            {"eta": eta, "s_noise": s_noise})
+        return (sampler, )
+
 class SamplerLMS:
     @classmethod
     def INPUT_TYPES(s):
@@ -358,6 +399,10 @@ class SamplerCustom:
     def sample(self, model, add_noise, noise_seed, cfg, positive, negative, sampler, sigmas, latent_image):
         latent = latent_image
         latent_image = latent["samples"]
+        latent = latent.copy()
+        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+        latent["samples"] = latent_image
+
         if not add_noise:
             noise = Noise_EmptyNoise().generate_noise(latent)
         else:
@@ -516,6 +561,9 @@ class SamplerCustomAdvanced:
     def sample(self, noise, guider, sampler, sigmas, latent_image):
         latent = latent_image
         latent_image = latent["samples"]
+        latent = latent.copy()
+        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image)
+        latent["samples"] = latent_image
 
         noise_mask = None
         if "noise_mask" in latent:
@@ -593,12 +641,14 @@ NODE_CLASS_MAPPINGS = {
     "SDTurboScheduler": SDTurboScheduler,
     "KSamplerSelect": KSamplerSelect,
     "SamplerEulerAncestral": SamplerEulerAncestral,
+    "SamplerEulerAncestralCFGPP": SamplerEulerAncestralCFGPP,
     "SamplerLMS": SamplerLMS,
     "SamplerDPMPP_3M_SDE": SamplerDPMPP_3M_SDE,
     "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
     "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
     "SamplerDPMAdaptative": SamplerDPMAdaptative,
     "SplitSigmas": SplitSigmas,
+    "SplitSigmasDenoise": SplitSigmasDenoise,
     "FlipSigmas": FlipSigmas,
 
     "CFGGuider": CFGGuider,
@@ -608,4 +658,8 @@ NODE_CLASS_MAPPINGS = {
     "DisableNoise": DisableNoise,
     "AddNoise": AddNoise,
     "SamplerCustomAdvanced": SamplerCustomAdvanced,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "SamplerEulerAncestralCFGPP": "SamplerEulerAncestralCFG++",
 }
