@@ -34,4 +34,4 @@ def hasher():
         "sha256": hashlib.sha256,
         "sha512": hashlib.sha512
     }
-   return hashfuncs[args.default_hashing_function])
+   return hashfuncs[args.default_hashing_function]
