@@ -32,6 +32,7 @@ This ui will let you design and execute advanced stable diffusion pipelines usin
 - [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
 - [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
 - [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
+- [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Starts up very fast.
 - Works fully offline: will never download anything.
@@ -225,12 +226,11 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 [Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
 
+See also: [https://www.comfy.org/](https://www.comfy.org/)
+
 # QA
 
-### Why did you make this?
+### Which GPU should I buy for this?
 
-I wanted to learn how Stable Diffusion worked in detail. I also wanted something clean and powerful that would let me experiment with SD without restrictions.
+[See this page for some recommendations](https://github.com/comfyanonymous/ComfyUI/wiki/Which-GPU-should-I-buy-for-ComfyUI)
 
-### Who is this for?
-
-This is for anyone that wants to make complex workflows with SD or that wants to learn more how SD works. The interface follows closely how SD works and the code should be much more simple to understand than other SD UIs.

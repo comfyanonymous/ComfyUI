@@ -8,6 +8,7 @@
   "dense_act_fn": "gelu_pytorch_tanh",
   "initializer_factor": 1.0,
   "is_encoder_decoder": true,
+  "is_gated_act": true,
   "layer_norm_epsilon": 1e-06,
   "model_type": "t5",
   "num_decoder_layers": 24,
