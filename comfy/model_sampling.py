@@ -59,8 +59,9 @@ class ModelSamplingDiscrete(torch.nn.Module):
         beta_schedule = sampling_settings.get("beta_schedule", "linear")
         linear_start = sampling_settings.get("linear_start", 0.00085)
         linear_end = sampling_settings.get("linear_end", 0.012)
+        timesteps = sampling_settings.get("timesteps", 1000)
 
-        self._register_schedule(given_betas=None, beta_schedule=beta_schedule, timesteps=1000, linear_start=linear_start, linear_end=linear_end, cosine_s=8e-3)
+        self._register_schedule(given_betas=None, beta_schedule=beta_schedule, timesteps=timesteps, linear_start=linear_start, linear_end=linear_end, cosine_s=8e-3)
         self.sigma_data = 1.0
 
     def _register_schedule(self, given_betas=None, beta_schedule="linear", timesteps=1000,
