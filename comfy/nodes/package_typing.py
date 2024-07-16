@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing_extensions import TypedDict, NotRequired, Generic
 from typing import Union, Optional, Sequence, Dict, ClassVar, Protocol, Tuple, TypeVar, Any, Literal, \
     Callable, List, Type
+
+from typing_extensions import TypedDict, NotRequired
 
 T = TypeVar('T')
 
@@ -51,7 +52,7 @@ StringSpec = Tuple[Literal["STRING"], StringSpecOptions]
 
 BooleanSpec = Tuple[Literal["BOOLEAN"], BoolSpecOptions]
 
-ChoiceSpec = Tuple[Union[Sequence[str], Sequence[float], Sequence[int]]]
+ChoiceSpec = Tuple[Union[List[str], List[float], List[int], Tuple[str, ...], Tuple[float, ...], Tuple[int, ...]]]
 
 NonPrimitiveTypeSpec = Tuple[CommonReturnTypes, Any]
 
@@ -72,6 +73,7 @@ class InputTypes(TypedDict, total=True):
 ValidateInputsMethod = Optional[Callable[..., Union[bool, str]]]
 
 IsChangedMethod = Callable[[Type[Any], ...], str]
+
 
 class FunctionReturnsUIVariables(TypedDict):
     ui: dict
@@ -122,6 +124,10 @@ class CustomNode(Protocol):
     OUTPUT_NODE: Optional[ClassVar[bool]]
 
     IS_CHANGED: Optional[ClassVar[IsChangedMethod]]
+
+    @classmethod
+    def __call__(cls, *args, **kwargs) -> 'CustomNode':
+        ...
 
 
 @dataclass

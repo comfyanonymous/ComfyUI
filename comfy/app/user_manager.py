@@ -1,13 +1,15 @@
+import glob
 import json
 import os
 import re
-import uuid
-import glob
 import shutil
+import uuid
+
 from aiohttp import web
+
+from .app_settings import AppSettings
 from ..cli_args import args
 from ..cmd.folder_paths import user_directory
-from .app_settings import AppSettings
 
 
 class UserManager():
@@ -17,9 +19,6 @@ class UserManager():
         self.settings = AppSettings(self)
         if not os.path.exists(user_directory):
             os.mkdir(user_directory)
-            if not args.multi_user:
-                print("****** User settings have been changed to be stored on the server instead of browser storage. ******")
-                print("****** For multi-user setups add the --multi-user CLI argument to enable multiple user profiles. ******")
 
         if args.multi_user:
             if os.path.isfile(self.users_file):
@@ -129,7 +128,7 @@ class UserManager():
 
             return web.json_response(results)
 
-        def get_user_data_path(request, check_exists = False, param = "file"):
+        def get_user_data_path(request, check_exists=False, param="file"):
             file = request.match_info.get(param, None)
             if not file:
                 return web.Response(status=400)

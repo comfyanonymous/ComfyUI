@@ -10,9 +10,11 @@ from typing import Literal, List
 
 import psutil
 import torch
+from opentelemetry.trace import get_current_span
 
 from . import interruption
 from .cli_args import args
+from .cmd.main_pre import tracer
 from .model_management_types import ModelManageable
 
 model_management_lock = RLock()
@@ -356,6 +358,12 @@ class LoadedModel:
     def __eq__(self, other):
         return self.model is other.model
 
+    def __str__(self):
+        if self.model is not None:
+            return f"<LoadedModel {str(self.model)}>"
+        else:
+            return f"<LoadedModel>"
+
 
 def minimum_inference_memory():
     return (1024 * 1024 * 1024)
@@ -392,9 +400,12 @@ def unload_model_clones(model, unload_weights_only=True, force_unload=True) -> b
         return unload_weight
 
 
-def free_memory(memory_required, device, keep_loaded=[]):
+@tracer.start_as_current_span("Free Memory")
+def free_memory(memory_required, device, keep_loaded=[]) -> List[LoadedModel]:
+    span = get_current_span()
+    span.set_attribute("memory_required", memory_required)
     with model_management_lock:
-        unloaded_model = []
+        unloaded_models: List[LoadedModel] = []
         can_unload = []
 
         for i in range(len(current_loaded_models) - 1, -1, -1):
@@ -410,12 +421,12 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 if get_free_memory(device) > memory_required:
                     break
             current_loaded_models[i].model_unload()
-            unloaded_model.append(i)
+            unloaded_models.append(i)
 
-        for i in sorted(unloaded_model, reverse=True):
+        for i in sorted(unloaded_models, reverse=True):
             current_loaded_models.pop(i)
 
-        if len(unloaded_model) > 0:
+        if len(unloaded_models) > 0:
             soft_empty_cache()
         else:
             if vram_state != VRAMState.HIGH_VRAM:
@@ -423,10 +434,16 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 if mem_free_torch > mem_free_total * 0.25:
                     soft_empty_cache()
 
+        span.set_attribute("unloaded_models", list(map(str, unloaded_models)))
+        return unloaded_models
 
+
+@tracer.start_as_current_span("Load Models GPU")
 def load_models_gpu(models, memory_required=0, force_patch_weights=False):
     global vram_state
-
+    span = get_current_span()
+    if memory_required != 0:
+        span.set_attribute("memory_required", memory_required)
     with model_management_lock:
         inference_memory = minimum_inference_memory()
         extra_mem = max(inference_memory, memory_required)
@@ -452,18 +469,15 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
                     loaded.currently_used = True
                     models_already_loaded.append(loaded)
             if loaded is None:
-                if hasattr(x, "model"):
-                    logging.info(f"Requested to load {x.model.__class__.__name__}")
                 models_to_load.append(loaded_model)
 
+        models_freed: List[LoadedModel] = []
         if len(models_to_load) == 0:
             devs = set(map(lambda a: a.device, models_already_loaded))
             for d in devs:
                 if d != torch.device("cpu"):
-                    free_memory(extra_mem, d, models_already_loaded)
+                    models_freed += free_memory(extra_mem, d, models_already_loaded)
             return
-
-        logging.info(f"Loading {len(models_to_load)} new model{'s' if len(models_to_load) > 1 else ''}")
 
         total_memory_required = {}
         for loaded_model in models_to_load:
@@ -472,7 +486,12 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
 
         for device in total_memory_required:
             if device != torch.device("cpu"):
-                free_memory(total_memory_required[device] * 1.3 + extra_mem, device, models_already_loaded)
+                models_freed += free_memory(total_memory_required[device] * 1.3 + extra_mem, device, models_already_loaded)
+
+        span.set_attribute("models_to_load", list(map(str, models_to_load)))
+        span.set_attribute("models_freed", list(map(str, models_freed)))
+
+        logging.info(f"Models loaded: {','.join(map(str, models_to_load))}, models freed: {','.join(map(str, models_freed))}")
 
         for loaded_model in models_to_load:
             weights_unloaded = unload_model_clones(loaded_model.model, unload_weights_only=False, force_unload=False)  # unload the rest of the clones where the weights can stay loaded

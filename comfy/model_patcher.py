@@ -2,13 +2,14 @@ import copy
 import inspect
 import logging
 import uuid
+from typing import Optional
 
 import torch
 
 from . import model_management
 from . import utils
-from .types import UnetWrapperFunction
 from .model_management_types import ModelManageable
+from .types import UnetWrapperFunction
 
 
 def weight_decompose(dora_scale, weight, lora_diff, alpha, strength):
@@ -60,14 +61,16 @@ def set_model_options_post_cfg_function(model_options, post_cfg_function, disabl
         model_options["disable_cfg1_optimization"] = True
     return model_options
 
+
 def set_model_options_pre_cfg_function(model_options, pre_cfg_function, disable_cfg1_optimization=False):
     model_options["sampler_pre_cfg_function"] = model_options.get("sampler_pre_cfg_function", []) + [pre_cfg_function]
     if disable_cfg1_optimization:
         model_options["disable_cfg1_optimization"] = True
     return model_options
 
+
 class ModelPatcher(ModelManageable):
-    def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False):
+    def __init__(self, model, load_device, offload_device, size=0, current_device=None, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
         self.model = model
         self.patches = {}
@@ -87,6 +90,7 @@ class ModelPatcher(ModelManageable):
         self.weight_inplace_update = weight_inplace_update
         self.model_lowvram = False
         self.patches_uuid = uuid.uuid4()
+        self.ckpt_name = ckpt_name
         self._lowvram_patch_counter = 0
 
     @property
@@ -105,6 +109,7 @@ class ModelPatcher(ModelManageable):
 
     def clone(self):
         n = ModelPatcher(self.model, self.load_device, self.offload_device, self.size, self._current_device, weight_inplace_update=self.weight_inplace_update)
+        n.ckpt_name = self.ckpt_name
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
@@ -578,3 +583,9 @@ class ModelPatcher(ModelManageable):
     @property
     def current_device(self) -> torch.device:
         return self._current_device
+
+    def __str__(self):
+        if self.ckpt_name is not None:
+            return f"<ModelPatcher for {self.ckpt_name} ({self.model.__class__.__name__})>"
+        else:
+            return f"<ModelPatcher for {self.model.__class__.__name__}>"

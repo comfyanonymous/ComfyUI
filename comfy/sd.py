@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os.path
 from enum import Enum
 from typing import Any, Optional
 
@@ -16,18 +17,18 @@ from . import model_detection
 from . import model_management
 from . import model_patcher
 from . import model_sampling
+from . import sa_t5
 from . import sd1_clip
 from . import sd2_clip
+from . import sd3_clip
 from . import sdxl_clip
 from . import utils
+from .ldm.audio.autoencoder import AudioOobleckVAE
 from .ldm.cascade.stage_a import StageA
 from .ldm.cascade.stage_c_coder import StageC_coder
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
-from .ldm.audio.autoencoder import AudioOobleckVAE
 from .t2i_adapter import adapter
 from .taesd import taesd
-from . import sd3_clip
-from . import sa_t5
 from .text_encoders import aura_t5
 
 
@@ -228,7 +229,7 @@ class VAE:
                 self.latent_channels = 64
                 self.output_channels = 2
                 self.upscale_ratio = 2048
-                self.downscale_ratio =  2048
+                self.downscale_ratio = 2048
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
@@ -302,7 +303,7 @@ class VAE:
 
     def encode_tiled_1d(self, samples, tile_x=128 * 2048, overlap=32 * 2048):
         encode_fn = lambda a: self.first_stage_model.encode((self.process_input(a)).to(self.vae_dtype).to(self.device)).float()
-        return utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=(1/self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device)
+        return utils.tiled_scale_multidim(samples, encode_fn, tile=(tile_x,), overlap=overlap, upscale_amount=(1 / self.downscale_ratio), out_channels=self.latent_channels, output_device=self.output_device)
 
     def decode(self, samples_in):
         try:
@@ -558,9 +559,8 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
-        _model_patcher = model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device)
+        _model_patcher = model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device(), current_device=inital_load_device, ckpt_name=os.path.basename(ckpt_path))
         if inital_load_device != torch.device("cpu"):
-            logging.info("loaded straight to GPU")
             model_management.load_model_gpu(_model_patcher)
 
     return (_model_patcher, clip, vae, clipvision)
@@ -568,7 +568,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
 
 def load_unet_state_dict(sd):  # load unet in diffusers or regular format
 
-    #Allow loading unets from checkpoint files
+    # Allow loading unets from checkpoint files
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
     temp_sd = utils.state_dict_prefix_replace(sd, {diffusion_model_prefix: ""}, filter_keys=True)
     if len(temp_sd) > 0:
@@ -583,7 +583,7 @@ def load_unet_state_dict(sd):  # load unet in diffusers or regular format
         new_sd = sd
     else:
         new_sd = model_detection.convert_diffusers_mmdit(sd, "")
-        if new_sd is not None: #diffusers mmdit
+        if new_sd is not None:  # diffusers mmdit
             model_config = model_detection.model_config_from_unet(new_sd, "")
             if model_config is None:
                 return None

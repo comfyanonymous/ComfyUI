@@ -7,9 +7,9 @@ import shutil
 import threading
 import time
 
+from .extra_model_paths import load_extra_path_config
 # main_pre must be the earliest import since it suppresses some spurious warnings
 from .main_pre import args
-from .extra_model_paths import load_extra_path_config
 from .. import model_management
 from ..analytics.analytics import initialize_event_tracking
 from ..cmd import cuda_malloc
@@ -223,7 +223,10 @@ async def main():
 
 
 def entrypoint():
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt as keyboard_interrupt:
+        logging.info(f"Gracefully shutting down due to {keyboard_interrupt}")
 
 
 if __name__ == "__main__":

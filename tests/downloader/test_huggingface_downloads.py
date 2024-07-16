@@ -46,6 +46,9 @@ saved_model/**/* filter=lfs diff=lfs merge=lfs -text
 
 @pytest.mark.asyncio
 def test_known_repos(tmp_path_factory):
+    prev_hub_cache = os.getenv("HF_HUB_CACHE")
+    os.environ["HF_HUB_CACHE"] = str(tmp_path_factory.mktemp("huggingface_root_cache"))
+
     from comfy.cmd import folder_paths
     from comfy.cmd.folder_paths import FolderPathsTuple
     from comfy.model_downloader import get_huggingface_repo_list, \
@@ -57,9 +60,10 @@ def test_known_repos(tmp_path_factory):
     test_repo_id = "doctorpangloss/comfyui_downloader_test"
     prev_huggingface = folder_paths.folder_names_and_paths["huggingface"]
     prev_huggingface_cache = folder_paths.folder_names_and_paths["huggingface_cache"]
-    prev_hub_cache = os.getenv("HF_HUB_CACHE")
+
     _delete_repo_from_huggingface_cache(test_repo_id)
     _delete_repo_from_huggingface_cache(test_repo_id, test_cache_dir)
+    args.disable_known_models = False
     try:
         folder_paths.folder_names_and_paths["huggingface"] += FolderPathsTuple("huggingface", [test_local_dir], {""})
         folder_paths.folder_names_and_paths["huggingface_cache"] += FolderPathsTuple("huggingface_cache", [test_cache_dir], {""})

@@ -8,22 +8,22 @@ import sys
 import threading
 import traceback
 import typing
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import lazy_object_proxy
 import torch
 from opentelemetry.trace import get_current_span, StatusCode, Status
-from typing_extensions import TypedDict
 
 from .main_pre import tracer
 from .. import interruption
 from .. import model_management
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
-from ..component_model.executor_types import ExecutorToClientProgress
+from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
+    ValidationErrorDict, NodeErrorsDictValue
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..execution_context import new_execution_context, ExecutionContext
 from ..nodes.package import import_all_nodes_in_workspace
-from ..nodes.package_typing import ExportedNodes
+from ..nodes.package_typing import ExportedNodes, InputTypeSpec, FloatSpecOptions, IntSpecOptions
 
 # ideally this would be passed in from main, but the way this is authored, we can't easily pass nodes down to the
 # various functions that are declared here. It should have been a context in the first place.
@@ -492,7 +492,7 @@ class PromptExecutor:
                 model_management.unload_all_models()
 
 
-def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], typing.Any]:
+def validate_inputs(prompt, item, validated: typing.Dict[str, ValidateInputsTuple]) -> ValidateInputsTuple:
     # todo: this should check if LoadImage / LoadImageMask paths exist
     # todo: or, nodes should provide a way to validate their values
     unique_id = item
@@ -506,11 +506,12 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
     class_inputs = obj_class.INPUT_TYPES()
     required_inputs = class_inputs['required']
 
+    error: ValidationErrorDict
     errors = []
     valid = True
 
     # todo: investigate if these are at the right indent level
-    info = None
+    info: Optional[InputTypeSpec] = None
     val = None
 
     validate_function_inputs = []
@@ -531,7 +532,7 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
             continue
 
         val = inputs[x]
-        info = required_inputs[x]
+        info: InputTypeSpec = required_inputs[x]
         type_input = info[0]
         if isinstance(val, list):
             if len(val) != 2:
@@ -593,7 +594,7 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
                         "linked_node": val
                     }
                 }]
-                validated[o_id] = (False, reasons, o_id)
+                validated[o_id] = ValidateInputsTuple(False, reasons, o_id)
                 continue
         else:
             try:
@@ -622,10 +623,11 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
                 continue
 
             if len(info) > 1:
-                if "min" in info[1] and val < info[1]["min"]:
+                has_min_max: IntSpecOptions | FloatSpecOptions = info[1]
+                if "min" in has_min_max and val < has_min_max["min"]:
                     error = {
                         "type": "value_smaller_than_min",
-                        "message": "Value {} smaller than min of {}".format(val, info[1]["min"]),
+                        "message": "Value {} smaller than min of {}".format(val, has_min_max["min"]),
                         "details": f"{x}",
                         "extra_info": {
                             "input_name": x,
@@ -635,10 +637,10 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
                     }
                     errors.append(error)
                     continue
-                if "max" in info[1] and val > info[1]["max"]:
+                if "max" in has_min_max and val > has_min_max["max"]:
                     error = {
                         "type": "value_bigger_than_max",
-                        "message": "Value {} bigger than max of {}".format(val, info[1]["max"]),
+                        "message": "Value {} bigger than max of {}".format(val, has_min_max["max"]),
                         "details": f"{x}",
                         "extra_info": {
                             "input_name": x,
@@ -706,9 +708,9 @@ def validate_inputs(prompt, item, validated) -> Tuple[bool, typing.List[dict], t
                     continue
 
     if len(errors) > 0 or valid is not True:
-        ret = (False, errors, unique_id)
+        ret = ValidateInputsTuple(False, errors, unique_id)
     else:
-        ret = (True, [], unique_id)
+        ret = ValidateInputsTuple(True, [], unique_id)
 
     validated[unique_id] = ret
     return ret
@@ -721,23 +723,25 @@ def full_type_name(klass):
     return module + '.' + klass.__qualname__
 
 
-class ValidationErrorExtraInfoDict(TypedDict):
-    exception_type: str
-    traceback: List[str]
-
-
-class ValidationErrorDict(TypedDict):
-    type: str
-    message: str
-    details: str
-    extra_info: ValidationErrorExtraInfoDict | dict
-
-
-ValidationTuple = typing.Tuple[bool, Optional[ValidationErrorDict], typing.List[str], Union[dict, list]]
-
-
 @tracer.start_as_current_span("Validate Prompt")
 def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
+    res = _validate_prompt(prompt)
+    if not res.valid:
+        span = get_current_span()
+        span.set_status(Status(StatusCode.ERROR))
+        if res.error is not None and len(res.error) > 0:
+            span.set_attributes({
+                f"error.{k}": v for k, v in res.error.items()
+            })
+        if len(res.node_errors) > 0:
+            for node_id, node_error in res.node_errors.items():
+                for node_error_field, node_error_value in node_error.items():
+                    if isinstance(node_error_value, (str, bool, int, float)):
+                        span.set_attribute("node_errors.{node_id}.{node_error_field}", node_error_value)
+    return res
+
+
+def _validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
     outputs = set()
     for x in prompt:
         if 'class_type' not in prompt[x]:
@@ -747,7 +751,7 @@ def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
                 "details": f"Node ID '#{x}'",
                 "extra_info": {}
             }
-            return (False, error, [], [])
+            return ValidationTuple(False, error, [], [])
 
         class_type = prompt[x]['class_type']
         class_ = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
@@ -758,7 +762,7 @@ def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
                 "details": f"Node ID '#{x}'",
                 "extra_info": {}
             }
-            return (False, error, [], [])
+            return ValidationTuple(False, error, [], [])
 
         if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
             outputs.add(x)
@@ -770,15 +774,15 @@ def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
             "details": "",
             "extra_info": {}
         }
-        return False, error, [], []
+        return ValidationTuple(False, error, [], [])
 
     good_outputs = set()
     errors = []
-    node_errors = {}
-    validated = {}
+    node_errors: typing.Dict[str, NodeErrorsDictValue] = {}
+    validated: typing.Dict[str, ValidateInputsTuple] = {}
     for o in outputs:
         valid = False
-        reasons = []
+        reasons: List[ValidationErrorDict] = []
         try:
             m = validate_inputs(prompt, o, validated)
             valid = m[0]
@@ -796,7 +800,7 @@ def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
                     "traceback": traceback.format_tb(tb)
                 }
             }]
-            validated[o] = (False, reasons, o)
+            validated[o] = ValidateInputsTuple(False, reasons, o)
 
         if valid is True:
             good_outputs.add(o)
@@ -841,9 +845,9 @@ def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
             "extra_info": {}
         }
 
-        return False, error, list(good_outputs), node_errors
+        return ValidationTuple(False, error, list(good_outputs), node_errors)
 
-    return True, None, list(good_outputs), node_errors
+    return ValidationTuple(True, None, list(good_outputs), node_errors)
 
 
 class PromptQueue(AbstractPromptQueue):
