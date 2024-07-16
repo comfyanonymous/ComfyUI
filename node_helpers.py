@@ -1,3 +1,5 @@
+import hashlib
+
 from comfy.cli_args import args
 
 from PIL import ImageFile, UnidentifiedImageError
@@ -26,6 +28,10 @@ def pillow(fn, arg):
         return x
 
 def hasher():
-    # This is a safe eval because args.default_hashing_function can ONLY 
-    # be one of four predefined strings, keeping it as a safe eval.
-   return eval(f"hashlib.{args.default_hashing_function}")
+    hashfuncs = {
+        "md5": hashlib.md5,
+        "sha1": hashlib.sha1,
+        "sha256": hashlib.sha256,
+        "sha512": hashlib.sha512
+    }
+   return hashfuncs[args.default_hashing_function])
