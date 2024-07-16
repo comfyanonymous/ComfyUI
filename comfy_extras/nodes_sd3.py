@@ -92,7 +92,7 @@ class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
                              "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                              "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
                              }}
-    CATEGORY = "_for_testing/sd3"
+    CATEGORY = "conditioning/controlnet"
 
 NODE_CLASS_MAPPINGS = {
     "TripleCLIPLoader": TripleCLIPLoader,

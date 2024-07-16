@@ -17,7 +17,7 @@ class SetUnionControlNetType:
                              "type": (list(UNION_CONTROLNET_TYPES.keys()),)
                              }}
 
-    CATEGORY = "conditioning"
+    CATEGORY = "conditioning/controlnet"
     RETURN_TYPES = ("CONTROL_NET",)
 
     FUNCTION = "set_controlnet_type"
