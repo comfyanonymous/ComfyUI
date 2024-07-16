@@ -230,7 +230,7 @@ def get_filename_list(folder_name):
         filename_list_cache[folder_name] = out
     return list(out[0])
 
-def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height=0):
+def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height=0, organize_by_date=True):
     def map_filename(filename):
         prefix_len = len(os.path.basename(filename_prefix))
         prefix = filename[:prefix_len + 1]
@@ -240,12 +240,20 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
             digits = 0
         return (digits, prefix)
 
-    def compute_vars(input, image_width, image_height):
+    def compute_vars(input, image_width, image_height, organize_by_date):
         input = input.replace("%width%", str(image_width))
         input = input.replace("%height%", str(image_height))
+        if organize_by_date:
+            current_time = time.localtime()
+            year = time.strftime("%Y", current_time)
+            month = time.strftime("%m", current_time)
+            day = time.strftime("%d", current_time)
+            input = input.replace("%year%", year)
+            input = input.replace("%month%", month)
+            input = input.replace("%day%", day)
         return input
 
-    filename_prefix = compute_vars(filename_prefix, image_width, image_height)
+    filename_prefix = compute_vars(filename_prefix, image_width, image_height, organize_by_date)
 
     subfolder = os.path.dirname(os.path.normpath(filename_prefix))
     filename = os.path.basename(os.path.normpath(filename_prefix))

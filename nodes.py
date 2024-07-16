@@ -1418,9 +1418,8 @@ class SaveImage:
         return {"required": 
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
-                "optional":
-                    {"organize_by_date": ("BOOLEAN", {"default": True, "label_on": "enable", "label_off": "disable"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                "optional":{"organize_by_date": ("BOOLEAN", {"default": True, "label_on": "enable", "label_off": "disable"})},
+                "hidden":{"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
     RETURN_TYPES = ()
@@ -1433,10 +1432,9 @@ class SaveImage:
     def save_images(self, images, filename_prefix="ComfyUI", organize_by_date=True, prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         if organize_by_date:
-            current_time = time.localtime()
-            date_prefix = time.strftime("%Y-%m-%d", current_time)
-            filename_prefix = f"{date_prefix}/{filename_prefix}"
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+            filename_prefix = "%year%-%month%-%day%/" + filename_prefix
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+            filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0], organize_by_date)
         results = list()
         for (batch_number, image) in enumerate(images):
             i = 255. * image.cpu().numpy()
