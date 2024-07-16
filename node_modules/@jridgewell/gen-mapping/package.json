@@ -1,0 +1,76 @@
+{
+  "name": "@jridgewell/gen-mapping",
+  "version": "0.3.5",
+  "description": "Generate source maps",
+  "keywords": [
+    "source",
+    "map"
+  ],
+  "author": "Justin Ridgewell <justin@ridgewell.name>",
+  "license": "MIT",
+  "repository": "https://github.com/jridgewell/gen-mapping",
+  "main": "dist/gen-mapping.umd.js",
+  "module": "dist/gen-mapping.mjs",
+  "types": "dist/types/gen-mapping.d.ts",
+  "exports": {
+    ".": [
+      {
+        "types": "./dist/types/gen-mapping.d.ts",
+        "browser": "./dist/gen-mapping.umd.js",
+        "require": "./dist/gen-mapping.umd.js",
+        "import": "./dist/gen-mapping.mjs"
+      },
+      "./dist/gen-mapping.umd.js"
+    ],
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "scripts": {
+    "benchmark": "run-s build:rollup benchmark:*",
+    "benchmark:install": "cd benchmark && npm install",
+    "benchmark:only": "node benchmark/index.mjs",
+    "prebuild": "rm -rf dist",
+    "build": "run-s -n build:*",
+    "build:rollup": "rollup -c rollup.config.js",
+    "build:ts": "tsc --project tsconfig.build.json",
+    "lint": "run-s -n lint:*",
+    "lint:prettier": "npm run test:lint:prettier -- --write",
+    "lint:ts": "npm run test:lint:ts -- --fix",
+    "test": "run-s -n test:lint test:only",
+    "test:debug": "mocha --inspect-brk",
+    "test:lint": "run-s -n test:lint:*",
+    "test:lint:prettier": "prettier --check '{src,test}/**/*.ts'",
+    "test:lint:ts": "eslint '{src,test}/**/*.ts'",
+    "test:only": "c8 mocha",
+    "test:watch": "mocha --watch",
+    "prepublishOnly": "npm run preversion",
+    "preversion": "run-s test build"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "8.3.2",
+    "@types/mocha": "9.1.1",
+    "@types/node": "17.0.29",
+    "@typescript-eslint/eslint-plugin": "5.21.0",
+    "@typescript-eslint/parser": "5.21.0",
+    "benchmark": "2.1.4",
+    "c8": "7.11.2",
+    "eslint": "8.14.0",
+    "eslint-config-prettier": "8.5.0",
+    "mocha": "9.2.2",
+    "npm-run-all": "4.1.5",
+    "prettier": "2.6.2",
+    "rollup": "2.70.2",
+    "tsx": "4.7.1",
+    "typescript": "4.6.3"
+  },
+  "dependencies": {
+    "@jridgewell/set-array": "^1.2.1",
+    "@jridgewell/sourcemap-codec": "^1.4.10",
+    "@jridgewell/trace-mapping": "^0.3.24"
+  }
+}

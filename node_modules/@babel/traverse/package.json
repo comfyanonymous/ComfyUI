@@ -1,0 +1,38 @@
+{
+  "name": "@babel/traverse",
+  "version": "7.24.5",
+  "description": "The Babel Traverse module maintains the overall tree state, and is responsible for replacing, removing, and adding nodes",
+  "author": "The Babel Team (https://babel.dev/team)",
+  "homepage": "https://babel.dev/docs/en/next/babel-traverse",
+  "bugs": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20traverse%22+is%3Aopen",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babel/babel.git",
+    "directory": "packages/babel-traverse"
+  },
+  "main": "./lib/index.js",
+  "dependencies": {
+    "@babel/code-frame": "^7.24.2",
+    "@babel/generator": "^7.24.5",
+    "@babel/helper-environment-visitor": "^7.22.20",
+    "@babel/helper-function-name": "^7.23.0",
+    "@babel/helper-hoist-variables": "^7.22.5",
+    "@babel/helper-split-export-declaration": "^7.24.5",
+    "@babel/parser": "^7.24.5",
+    "@babel/types": "^7.24.5",
+    "debug": "^4.3.1",
+    "globals": "^11.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.5",
+    "@babel/helper-plugin-test-runner": "^7.24.1"
+  },
+  "engines": {
+    "node": ">=6.9.0"
+  },
+  "type": "commonjs"
+}
