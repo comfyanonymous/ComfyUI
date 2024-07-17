@@ -24,13 +24,12 @@ class Blend:
                     "max": 1.0,
                     "step": 0.01
                 }),
-                "blend_mode": (["normal", "multiply", "screen", "overlay", "soft_light", "difference"],),
+                "blend_mode": (["normal", "multiply", "screen", "overlay", "soft_light", "difference", "luminance"],),
             },
         }
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "blend_images"
-
     CATEGORY = "image/postprocessing"
 
     def blend_images(self, image1: torch.Tensor, image2: torch.Tensor, blend_factor: float, blend_mode: str):
@@ -39,7 +38,6 @@ class Blend:
             image2 = image2.permute(0, 3, 1, 2)
             image2 = comfy.utils.common_upscale(image2, image1.shape[2], image1.shape[1], upscale_method='bicubic', crop='center')
             image2 = image2.permute(0, 2, 3, 1)
-
         blended_image = self.blend_mode(image1, image2, blend_mode)
         blended_image = image1 * (1 - blend_factor) + blended_image * blend_factor
         blended_image = torch.clamp(blended_image, 0, 1)
@@ -58,12 +56,35 @@ class Blend:
             return torch.where(img2 <= 0.5, img1 - (1 - 2 * img2) * img1 * (1 - img1), img1 + (2 * img2 - 1) * (self.g(img1) - img1))
         elif mode == "difference":
             return img1 - img2
+        elif mode == "luminance":
+            return self.luminance_blend(img1, img2)
         else:
             raise ValueError(f"Unsupported blend mode: {mode}")
 
     def g(self, x):
         return torch.where(x <= 0.25, ((16 * x - 12) * x + 4) * x, torch.sqrt(x))
 
+    def luminance_blend(self, img1, img2):
+        img1_ycbcr = self.rgb_to_ycbcr(img1)
+        img2_ycbcr = self.rgb_to_ycbcr(img2)
+
+        blended_ycbcr = torch.stack([img1_ycbcr[..., 0], img2_ycbcr[..., 1], img2_ycbcr[..., 2]], dim=-1)
+
+        return self.ycbcr_to_rgb(blended_ycbcr)
+
+    def rgb_to_ycbcr(self, image):
+        r, g, b = image[..., 0], image[..., 1], image[..., 2]
+        y = 0.299 * r + 0.587 * g + 0.114 * b
+        cb = -0.1687 * r - 0.3313 * g + 0.5 * b + 0.5
+        cr = 0.5 * r - 0.4187 * g - 0.0813 * b + 0.5
+        return torch.stack([y, cb, cr], dim=-1)
+
+    def ycbcr_to_rgb(self, image):
+        y, cb, cr = image[..., 0], image[..., 1], image[..., 2]
+        r = y + 1.402 * (cr - 0.5)
+        g = y - 0.34414 * (cb - 0.5) - 0.71414 * (cr - 0.5)
+        b = y + 1.772 * (cb - 0.5)
+        return torch.stack([r, g, b], dim=-1).clamp(0, 1)
 def gaussian_kernel(kernel_size: int, sigma: float, device=None):
     x, y = torch.meshgrid(torch.linspace(-1, 1, kernel_size, device=device), torch.linspace(-1, 1, kernel_size, device=device), indexing="ij")
     d = torch.sqrt(x * x + y * y)
