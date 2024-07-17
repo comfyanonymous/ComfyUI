@@ -137,7 +137,7 @@ class SaveAudio:
     def save_audio(self, audio, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        results = list()
+        results = []
 
         metadata = {}
         if not args.disable_metadata:
@@ -151,7 +151,14 @@ class SaveAudio:
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
             file = f"{filename_with_batch_num}_{counter:05}_.flac"
 
+            # Ensure waveform is a 2D tensor
+            waveform = waveform.squeeze()  # Remove single-dimensional entries
+
+            if waveform.ndim == 1:
+                waveform = waveform.unsqueeze(0)  # Convert 1D tensor to 2D if needed
+
             buff = io.BytesIO()
+            waveform = waveform.cpu()
             torchaudio.save(buff, waveform, audio["sample_rate"], format="FLAC")
 
             buff = insert_or_replace_vorbis_comment(buff, metadata)
