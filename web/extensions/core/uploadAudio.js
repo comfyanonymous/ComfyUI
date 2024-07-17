@@ -150,6 +150,15 @@ app.registerExtension({
         }
         audioWidget.callback = onAudioWidgetUpdate
 
+        // Load saved audio file widget values if restoring from workflow
+        const onGraphConfigured = node.onGraphConfigured;
+        node.onGraphConfigured = () => {
+          onGraphConfigured?.apply(this, arguments)
+          if (audioWidget.value) {
+            onAudioWidgetUpdate()
+          }
+        }
+
         const fileInput = document.createElement("input")
         fileInput.type = "file"
         fileInput.accept = "audio/*"
