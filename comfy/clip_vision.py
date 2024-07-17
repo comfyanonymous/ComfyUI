@@ -94,7 +94,10 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     elif "vision_model.encoder.layers.30.layer_norm1.weight" in sd:
         json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_h.json")
     elif "vision_model.encoder.layers.22.layer_norm1.weight" in sd:
-        json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl.json")
+        if sd["vision_model.embeddings.position_embedding.weight"].shape[0] == 577:
+            json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336.json")
+        else:
+            json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl.json")
     else:
         return None
 
