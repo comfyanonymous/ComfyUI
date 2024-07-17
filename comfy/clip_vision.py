@@ -34,6 +34,7 @@ class ClipVisionModel():
         with open(json_config) as f:
             config = json.load(f)
 
+        self.image_size = config.get("image_size", 224)
         self.load_device = comfy.model_management.text_encoder_device()
         offload_device = comfy.model_management.text_encoder_offload_device()
         self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
@@ -50,7 +51,7 @@ class ClipVisionModel():
 
     def encode_image(self, image):
         comfy.model_management.load_model_gpu(self.patcher)
-        pixel_values = clip_preprocess(image.to(self.load_device)).float()
+        pixel_values = clip_preprocess(image.to(self.load_device), size=self.image_size).float()
         out = self.model(pixel_values=pixel_values, intermediate_output=-2)
 
         outputs = Output()
