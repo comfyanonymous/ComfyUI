@@ -247,7 +247,7 @@ def get_save_image_path(filename_prefix, output_dir, image_width=0, image_height
 
         # Notes: %x is date format based on Locale, %X is time format based on Locale.
         input = input.replace("%dt%", time.strftime("%x_%X", now))
-        input = input.replace("%dt:iso%", time.strftime("%Y-%m-%dT%H:%M:%S%z", now)
+        input = input.replace("%dt:iso%", time.strftime("%Y-%m-%dT%H:%M:%S%z", now))
         now = time.localtime()
         regex_dt_fmt = re.compile("%dt:.*%")
         if regex_dt_fmt.search(input):
