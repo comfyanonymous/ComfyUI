@@ -28,6 +28,7 @@ import comfy.model_management
 import node_helpers
 from app.frontend_management import FrontendManager
 from app.user_manager import UserManager
+from model_mng.model_hash import ModelHash
 
 
 class BinaryEventTypes:
@@ -77,6 +78,7 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
+        self.model_hash = ModelHash()
 
         middlewares = [cache_control]
         if args.enable_cors_header:
@@ -571,6 +573,8 @@ class PromptServer():
             if isinstance(route, web.RouteDef):
                 api_routes.route(route.method, "/api" + route.path)(route.handler, **route.kwargs)
         self.app.add_routes(api_routes)
+        self.model_hash.add_routes(self.routes)
+
         self.app.add_routes(self.routes)
 
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
