@@ -10,6 +10,7 @@ Pillow
 scipy
 tqdm
 psutil
+huggingface_hub
 
 #non essential dependencies:
 kornia>=0.7.1
