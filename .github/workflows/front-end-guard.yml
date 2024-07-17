@@ -12,6 +12,8 @@ jobs:
   commentIfWebChanges:
     runs-on: ubuntu-latest
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'Direct FrontEnd Change') }}
+    permissions:
+      pull-requests: "write"
     steps:
       - name: Post comment on PR and apply label
         uses: actions/github-script@v6
@@ -22,7 +24,7 @@ jobs:
 
             // Add comment
             const message = "No direct changes are allowed in the web/ directory."
-              "Please submit the change to https://github.com/Comfy-Org/ComfyUI_frontend";
+              "Please submit changes to https://github.com/Comfy-Org/ComfyUI_frontend instead";
             github.rest.issues.createComment({
               issue_number: issue_number,
               owner: context.repo.owner,
