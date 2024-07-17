@@ -151,9 +151,9 @@ app.registerExtension({
         audioWidget.callback = onAudioWidgetUpdate
 
         // Load saved audio file widget values if restoring from workflow
-        const onAfterGraphConfigured = node.onAfterGraphConfigured;
-        node.onAfterGraphConfigured = () => {
-          onAfterGraphConfigured?.apply(this, arguments)
+        const onGraphConfigured = node.onGraphConfigured;
+        node.onGraphConfigured = function() {
+          onGraphConfigured?.apply(this, arguments)
           if (audioWidget.value) {
             onAudioWidgetUpdate()
           }
