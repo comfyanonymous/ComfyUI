@@ -210,12 +210,13 @@ def exists_annotated_filepath(name):
     return os.path.exists(filepath)
 
 
-def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None) -> str:
+def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None, extensions: Optional[set[str]] = None) -> str:
     """
     Registers a model path for the given canonical name.
     :param folder_name: the folder name
     :param full_folder_path: When none, defaults to os.path.join(models_dir, folder_name) aka the folder as
     a subpath to the default models directory
+    :param extensions: supported file extensions
     :return: the folder path
     """
     global folder_names_and_paths
@@ -225,6 +226,9 @@ def add_model_folder_path(folder_name, full_folder_path: Optional[str] = None) -
     folder_path = folder_names_and_paths[folder_name]
     if full_folder_path not in folder_path.paths:
         folder_path.paths.append(full_folder_path)
+
+    if extensions is not None:
+        folder_path.supported_extensions |= extensions
 
     invalidate_cache(folder_name)
     return full_folder_path
@@ -270,7 +274,7 @@ def filter_files_extensions(files, extensions):
     return sorted(list(filter(lambda a: os.path.splitext(a)[-1].lower() in extensions or len(extensions) == 0, files)))
 
 
-def get_full_path(folder_name, filename):
+def get_full_path(folder_name, filename) -> Optional[str | bytes | os.PathLike]:
     """
     Gets the path to a filename inside a folder.
 

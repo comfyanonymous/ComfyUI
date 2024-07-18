@@ -1,10 +1,38 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 from os.path import split
+from pathlib import PurePosixPath
 from typing import Optional, List, Sequence, Union
 
+from can_ada import parse, URL
 from typing_extensions import TypedDict, NotRequired
+
+
+@dataclasses.dataclass(frozen=True)
+class UrlFile:
+    _url: str
+    _save_with_filename: Optional[str] = None
+
+    def __str__(self):
+        return self.save_with_filename
+
+    @functools.cached_property
+    def url(self) -> str:
+        return self._url
+
+    @functools.cached_property
+    def parsed_url(self) -> URL:
+        return parse(self._url)
+
+    @property
+    def save_with_filename(self) -> str:
+        return self._save_with_filename or self.filename
+
+    @property
+    def filename(self) -> str:
+        return PurePosixPath(self.parsed_url.pathname).name
 
 
 @dataclasses.dataclass(frozen=True)
@@ -154,4 +182,4 @@ class CivitModelsGetResponse(TypedDict):
     modelVersions: List[CivitModelVersion]
 
 
-Downloadable = Union[CivitFile | HuggingFile]
+Downloadable = Union[CivitFile | HuggingFile | UrlFile]
