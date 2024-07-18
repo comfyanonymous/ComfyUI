@@ -2,7 +2,7 @@ from importlib import resources
 
 from comfy import sd1_clip
 from .llama_tokenizer import LLAMATokenizer
-from .. import t5
+from ..text_encoders import t5
 from ..component_model.files import get_path_as_dict
 
 

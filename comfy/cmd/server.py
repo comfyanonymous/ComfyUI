@@ -7,9 +7,9 @@ import logging
 import mimetypes
 import os
 import struct
+import sys
 import traceback
 import uuid
-import hashlib
 from asyncio import Future, AbstractEventLoop
 from enum import Enum
 from io import BytesIO
@@ -19,7 +19,6 @@ from urllib.parse import quote, urlencode
 
 import aiofiles
 import aiohttp
-import sys
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
@@ -30,6 +29,7 @@ from .latent_preview_image_encoding import encode_preview_image
 from .. import interruption
 from .. import model_management
 from .. import utils
+from ..app.frontend_management import FrontendManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
 from ..client.client_types import FileOutput
@@ -115,10 +115,11 @@ class PromptServer(ExecutorToClientProgress):
                                                     handler_args={'max_field_size': 16380},
                                                     middlewares=middlewares)
         self.sockets = dict()
-        web_root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../web")
-        if not os.path.exists(web_root_path):
-            web_root_path = get_package_as_path('comfy', 'web/')
-        self.web_root = web_root_path
+        self.web_root = (
+            FrontendManager.init_frontend(args.front_end_version)
+            if args.front_end_root is None
+            else args.front_end_root
+        )
         routes = web.RouteTableDef()
         self.routes: web.RouteTableDef = routes
         self.last_node_id = None
@@ -191,10 +192,12 @@ class PromptServer(ExecutorToClientProgress):
             return type_dir, dir_type
 
         def compare_image_hash(filepath, image):
+            hasher = node_helpers.hasher()
+
             # function to compare hashes of two images to see if it already exists, fix to #3465
             if os.path.exists(filepath):
-                a = hashlib.sha256()
-                b = hashlib.sha256()
+                a = hasher()
+                b = hasher()
                 with open(filepath, "rb") as f:
                     a.update(f.read())
                     b.update(image.file.read())
@@ -233,7 +236,7 @@ class PromptServer(ExecutorToClientProgress):
                 else:
                     i = 1
                     while os.path.exists(filepath):
-                        if compare_image_hash(filepath, image): #compare hash to prevent saving of duplicates with same name, fix for #3465
+                        if compare_image_hash(filepath, image):  # compare hash to prevent saving of duplicates with same name, fix for #3465
                             image_is_duplicate = True
                             break
                         filename = f"{split[0]} ({i}){split[1]}"
@@ -719,6 +722,7 @@ class PromptServer(ExecutorToClientProgress):
     @external_address.setter
     def external_address(self, value):
         self._external_address = value
+
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
 

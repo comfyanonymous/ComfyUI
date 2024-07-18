@@ -5,8 +5,8 @@ from . import utils
 from . import sd1_clip
 from . import sd2_clip
 from . import sdxl_clip
-from . import sd3_clip
-from . import sa_t5
+from .text_encoders import sd3_clip
+from .text_encoders import sa_t5
 from .text_encoders import aura_t5
 
 from . import supported_models_base

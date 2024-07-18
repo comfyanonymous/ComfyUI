@@ -1,6 +1,5 @@
 from .component_model import files
 from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
-import os
 import torch
 import json
 import logging
@@ -43,6 +42,7 @@ class ClipVisionModel():
         else:
             raise ValueError(f"json_config had invalid value={json_config}")
 
+        self.image_size = config.get("image_size", 224)
         self.load_device = model_management.text_encoder_device()
         offload_device = model_management.text_encoder_offload_device()
         self.dtype = model_management.text_encoder_dtype(self.load_device)
@@ -58,7 +58,7 @@ class ClipVisionModel():
 
     def encode_image(self, image):
         model_management.load_model_gpu(self.patcher)
-        pixel_values = clip_preprocess(image.to(self.load_device)).float()
+        pixel_values = clip_preprocess(image.to(self.load_device), size=self.image_size).float()
         out = self.model(pixel_values=pixel_values, intermediate_output=-2)
 
         outputs = Output()
@@ -101,7 +101,10 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     elif "vision_model.encoder.layers.30.layer_norm1.weight" in sd:
         json_config = files.get_path_as_dict(None, "clip_vision_config_h.json")
     elif "vision_model.encoder.layers.22.layer_norm1.weight" in sd:
-        json_config = files.get_path_as_dict(None, "clip_vision_config_vitl.json")
+        if sd["vision_model.embeddings.position_embedding.weight"].shape[0] == 577:
+            json_config = files.get_path_as_dict(None, "clip_vision_config_vitl_336.json")
+        else:
+            json_config = files.get_path_as_dict(None, "clip_vision_config_vitl.json")
     else:
         return None
 

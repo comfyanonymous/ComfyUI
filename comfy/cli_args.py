@@ -15,6 +15,9 @@ from . import options
 from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, ConfigChangeHandler, EnumAction, \
     EnhancedConfigArgParser
 
+# todo: move this
+DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
+
 
 def _create_parser() -> EnhancedConfigArgParser:
     parser = EnhancedConfigArgParser(default_config_files=['config.yaml', 'config.json'],
@@ -108,6 +111,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
     vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
+    parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
     parser.add_argument("--disable-smart-memory", action="store_true",
                         help="Force ComfyUI to agressively offload to regular ram instead of keeping models in vram when it can.")
     parser.add_argument("--deterministic", action="store_true",
@@ -160,13 +164,43 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--force-channels-last", action="store_true", help="Force channels last format when inferencing the models.")
     parser.add_argument("--force-hf-local-dir-mode", action="store_true", help="Download repos from huggingface.co to the models/huggingface directory with the \"local_dir\" argument instead of models/huggingface_cache with the \"cache_dir\" argument, recreating the traditional file structure.")
 
+    parser.add_argument(
+        "--front-end-version",
+        type=str,
+        default=DEFAULT_VERSION_STRING,
+        help="""
+        Specifies the version of the frontend to be used. This command needs internet connectivity to query and
+        download available frontend implementations from GitHub releases.
+    
+        The version string should be in the format of:
+        [repoOwner]/[repoName]@[version]
+        where version is one of: "latest" or a valid version number (e.g. "1.0.0")
+        """,
+    )
+
+    def is_valid_directory(path: Optional[str]) -> Optional[str]:
+        """Validate if the given path is a directory."""
+        if path is None:
+            return None
+
+        if not os.path.isdir(path):
+            raise argparse.ArgumentTypeError(f"{path} is not a valid directory.")
+        return path
+
+    parser.add_argument(
+        "--front-end-root",
+        type=is_valid_directory,
+        default=None,
+        help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
+    )
+
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
         try:
             plugin_callable: ConfigurationExtender | ModuleType = entry_point.load()
             if isinstance(plugin_callable, ModuleType):
                 # todo: find the configuration extender in the module
-                plugin_callable = ...
+                raise ValueError("unexpected or unsupported plugin configuration type")
             else:
                 parser_result = plugin_callable(parser)
                 if parser_result is not None:

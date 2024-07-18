@@ -17,10 +17,10 @@ from . import model_detection
 from . import model_management
 from . import model_patcher
 from . import model_sampling
-from . import sa_t5
+from .text_encoders import sa_t5
 from . import sd1_clip
 from . import sd2_clip
-from . import sd3_clip
+from .text_encoders import sd3_clip
 from . import sdxl_clip
 from . import utils
 from .ldm.audio.autoencoder import AudioOobleckVAE

@@ -19,7 +19,7 @@ from .. import interruption
 from .. import model_management
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
-    ValidationErrorDict, NodeErrorsDictValue
+    ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus
 from ..execution_context import new_execution_context, ExecutionContext
 from ..nodes.package import import_all_nodes_in_workspace
@@ -317,6 +317,8 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
         if is_changed != is_changed_old:
             to_delete = True
         elif unique_id not in old_prompt:
+            to_delete = True
+        elif class_type != old_prompt[unique_id]['class_type']:
             to_delete = True
         elif inputs == old_prompt[unique_id]['inputs']:
             for x in inputs:
@@ -731,13 +733,18 @@ def validate_prompt(prompt: typing.Mapping[str, typing.Any]) -> ValidationTuple:
         span.set_status(Status(StatusCode.ERROR))
         if res.error is not None and len(res.error) > 0:
             span.set_attributes({
-                f"error.{k}": v for k, v in res.error.items()
+                f"error.{k}": v for k, v in res.error.items() if isinstance(v, (bool, str, bytes, int, float, list[str], list[int], list[float]))
             })
+            if "extra_info" in res.error and isinstance(res.error["extra_info"], dict):
+                extra_info: ValidationErrorExtraInfoDict = res.error["extra_info"]
+                span.set_attributes({
+                    f"error.extra_info.{k}": v for k, v in extra_info.items() if isinstance(v, (str, list[str]))
+                })
         if len(res.node_errors) > 0:
             for node_id, node_error in res.node_errors.items():
                 for node_error_field, node_error_value in node_error.items():
                     if isinstance(node_error_value, (str, bool, int, float)):
-                        span.set_attribute("node_errors.{node_id}.{node_error_field}", node_error_value)
+                        span.set_attribute(f"node_errors.{node_id}.{node_error_field}", node_error_value)
     return res
 
 
