@@ -44,7 +44,9 @@ input_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "inp
 user_directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), "user")
 
 filename_list_cache = {}
-extension_mimetypes_cache = {}
+extension_mimetypes_cache = {
+    "webp" : "image",
+}
 
 if not os.path.exists(input_directory):
     try:
