@@ -182,17 +182,10 @@ class PreviewAudio(SaveAudio):
                 }
 
 class LoadAudio:
-    SUPPORTED_FORMATS = ('.wav', '.mp3', '.ogg', '.flac', '.aiff', '.aif')
-
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
-        files = [
-            f for f in os.listdir(input_dir)
-            if (os.path.isfile(os.path.join(input_dir, f))
-                and f.endswith(LoadAudio.SUPPORTED_FORMATS)
-            )
-        ]
+        files = folder_paths.filter_files_content_types(os.listdir(input_dir), ["audio", "video"])
         return {"required": {"audio": (sorted(files), {"audio_upload": True})}}
 
     CATEGORY = "audio"
