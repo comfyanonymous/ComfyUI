@@ -2033,6 +2033,9 @@ export class ComfyApp {
 		}
 
 		const workflow = graph.serialize();
+		// links are already sorted, but nodes are not
+		workflow["nodes"] = Object.values(workflow["nodes"]).sort((a, b) => a.id - b.id);
+
 		const output = {};
 		// Process nodes in order of execution
 		for (const outerNode of graph.computeExecutionOrder(false)) {
