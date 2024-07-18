@@ -34,6 +34,10 @@ class UrlFile:
     def filename(self) -> str:
         return PurePosixPath(self.parsed_url.pathname).name
 
+    @property
+    def alternate_filenames(self):
+        return ()
+
 
 @dataclasses.dataclass(frozen=True)
 class CivitFile:
@@ -60,7 +64,7 @@ class CivitFile:
 
     @property
     def alternate_filenames(self):
-        return []
+        return ()
 
 
 @dataclasses.dataclass(frozen=True)
