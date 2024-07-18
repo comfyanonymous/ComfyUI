@@ -34,7 +34,7 @@ class FreeU:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "model_patches"
+    CATEGORY = "model_patches/unet"
 
     def patch(self, model, b1, b2, s1, s2):
         model_channels = model.model.model_config.unet_config["model_channels"]
@@ -73,7 +73,7 @@ class FreeU_V2:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "model_patches"
+    CATEGORY = "model_patches/unet"
 
     def patch(self, model, b1, b2, s1, s2):
         model_channels = model.model.model_config.unet_config["model_channels"]
