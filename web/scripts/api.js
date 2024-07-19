@@ -6,13 +6,7 @@ export class ComfyApi extends EventTarget {
 		this.api_host = location.host;
 		this.api_base = location.pathname.split('/').slice(0, -1).join('/');
 		this.initialClientId = sessionStorage.getItem("clientId");
-    this.clientId = this.initialClientId ?? this.generateSimpleUID();
-    sessionStorage.setItem("clientId", this.clientId);
 	}
-
-  generateSimpleUID() {
-    return  Math.random().toString(36).slice(2,10);
-  }
 
 	apiURL(route) {
 		return this.api_base + route;
@@ -579,6 +573,14 @@ export class ServerlessComfyApi extends ComfyApi {
 		}
 
 		return await res.json();
+	}
+	generateSimpleUID() {
+		return  Math.random().toString(36).slice(2,10);
+	}
+
+	async init() {
+		this.clientId = this.initialClientId ?? this.generateSimpleUID();
+		sessionStorage.setItem("clientId", this.clientId);
 	}
 	async getExtensions() {
 		const COMFYUI_CORE_EXTENSIONS = [
