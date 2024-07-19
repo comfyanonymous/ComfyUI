@@ -49,7 +49,7 @@ export function getPngMetadata(file) {
 
 function parseExifData(exifData) {
 	// Check for the correct TIFF header (0x4949 for little-endian or 0x4D4D for big-endian)
-	const isLittleEndian = new Uint16Array(exifData.slice(0, 2))[0] === 0x4949;
+	const isLittleEndian = String.fromCharCode(...exifData.slice(0, 2)) === "II";
 
 	// Function to read 16-bit and 32-bit integers from binary data
 	function readInt(offset, isLittleEndian, length) {
@@ -134,6 +134,7 @@ export function getWebpMetadata(file) {
 						let index = value.indexOf(':');
 						txt_chunks[value.slice(0, index)] = value.slice(index + 1);
 					}
+					break;
 				}
 
 				offset += 8 + chunk_length;
