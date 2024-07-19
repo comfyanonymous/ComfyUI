@@ -90,6 +90,7 @@ class ExecutorToClientProgress(Protocol):
 
 
 ExceptionTypes = Literal["custom_validation_failed", "value_not_in_list", "value_bigger_than_max", "value_smaller_than_min", "invalid_input_type", "exception_during_inner_validation", "return_type_mismatch", "bad_linked_input", "required_input_missing", "invalid_prompt", "prompt_no_outputs", "exception_during_validation", "prompt_outputs_failed_validation"]
+FormattedValue = str | int | bool | float | None
 
 
 class ValidationErrorExtraInfoDict(TypedDict, total=False):
@@ -101,7 +102,7 @@ class ValidationErrorExtraInfoDict(TypedDict, total=False):
     input_config: NotRequired[typing.Dict[str, InputTypeSpec]]
     received_value: NotRequired[typing.Any]
     linked_node: NotRequired[str]
-    traceback: NotRequired[str]
+    traceback: NotRequired[list[str]]
     exception_message: NotRequired[str]
     exception_type: NotRequired[str]
 
@@ -130,3 +131,22 @@ class ValidateInputsTuple(typing.NamedTuple):
     valid: bool
     errors: List[ValidationErrorDict]
     unique_id: str
+
+
+class RecursiveExecutionErrorDetailsInterrupted(TypedDict, total=True):
+    node_id: str
+
+
+class RecursiveExecutionErrorDetails(TypedDict, total=True):
+    node_id: str
+    exception_message: str
+    exception_type: str
+    traceback: list[str]
+    current_inputs: NotRequired[dict[str, FormattedValue]]
+    current_outputs: NotRequired[dict[str, list[list[FormattedValue]]]]
+
+
+class RecursiveExecutionTuple(typing.NamedTuple):
+    valid: bool
+    error_details: Optional[RecursiveExecutionErrorDetails | RecursiveExecutionErrorDetailsInterrupted]
+    exc_info: Optional[Exception]
