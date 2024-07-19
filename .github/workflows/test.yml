@@ -10,6 +10,7 @@ on: [ push ]
 
 jobs:
   build_and_execute_macos:
+    environment: "Testing"
     if: false
     name: Installation, Unit and Workflow Tests for macOS
     runs-on: ${{ matrix.runner.labels }}
@@ -41,6 +42,7 @@ jobs:
         pylint --rcfile=.pylintrc comfy/
         pylint --rcfile=.pylintrc comfy_extras/
   build_and_execute_linux:
+    environment: "Testing"
     name: Installation, Unit and Workflow Tests for Linux
     runs-on: ${{ matrix.runner.labels }}
     container: ${{ matrix.runner.container }}
