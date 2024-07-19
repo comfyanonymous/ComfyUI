@@ -2,7 +2,7 @@ import os
 import time
 import mimetypes
 import logging
-from typing import Set, List, Dict, Tuple
+from typing import Set, List, Dict, Tuple, Literal
 
 supported_pt_extensions: Set[str] = set(['.ckpt', '.pt', '.bin', '.pth', '.safetensors', '.pkl'])
 
@@ -89,7 +89,7 @@ def get_directory_by_type(type_name):
         return get_input_directory()
     return None
 
-def filter_files_content_types(files: List[str], content_types: List[str]) -> List[str]:
+def filter_files_content_types(files: List[str], content_types: Literal["image", "video", "audio"]) -> List[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())
