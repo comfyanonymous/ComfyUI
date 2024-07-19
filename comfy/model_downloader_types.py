@@ -6,7 +6,7 @@ from os.path import split
 from pathlib import PurePosixPath
 from typing import Optional, List, Sequence, Union
 
-from can_ada import parse, URL
+from can_ada import parse, URL  # pylint: disable=no-name-in-module
 from typing_extensions import TypedDict, NotRequired
 
 

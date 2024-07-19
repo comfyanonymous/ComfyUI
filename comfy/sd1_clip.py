@@ -105,7 +105,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             special_tokens = {"start": 49406, "end": 49407, "pad": 49407}
         assert layer in self.LAYERS
 
-        config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json")
+        config = get_path_as_dict(textmodel_json_config, "sd1_clip_config.json", package=__package__)
         self.transformer = model_class(config, dtype, device, ops.manual_cast)
         self.num_layers = self.transformer.num_layers
 

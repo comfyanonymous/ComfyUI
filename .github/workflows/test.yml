@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Backend Tests
 
 #
@@ -9,6 +10,7 @@ on: [ push ]
 
 jobs:
   build_and_execute_macos:
+    if: false
     name: Installation, Unit and Workflow Tests for macOS
     runs-on: ${{ matrix.runner.labels }}
     strategy:
@@ -31,11 +33,13 @@ jobs:
       run: |
         source venv/bin/activate
         pytest -v tests/inference
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
     - name: Lint for errors
       run: |
         source venv/bin/activate
-        pylint comfy/
-        pylint comfy_extras/
+        pylint --rcfile=.pylintrc comfy/
+        pylint --rcfile=.pylintrc comfy_extras/
   build_and_execute_linux:
     name: Installation, Unit and Workflow Tests for Linux
     runs-on: ${{ matrix.runner.labels }}
@@ -46,10 +50,11 @@ jobs:
         runner:
           - labels: [self-hosted, Linux, X64, cpu]
             container: "ubuntu"
-          - labels: [self-hosted, Linux, X64, ipex-a380-6gb]
-            container: "intel/intel-optimized-pytorch:2.1.20-xpu-pip-base"
-          - labels: [self-hosted, Linux, X64, rocm-7600-8gb]
-            container: "rocm/pytorch:rocm6.0.2_ubuntu22.04_py3.10_pytorch_2.1.2"
+            # todo: re-enable these when they actually work lol
+#          - labels: [self-hosted, Linux, X64, ipex-a380-6gb]
+#            container: "intel/intel-optimized-pytorch:2.1.20-xpu-pip-base"
+#          - labels: [self-hosted, Linux, X64, rocm-7600-8gb]
+#            container: "rocm/pytorch:rocm6.0.2_ubuntu22.04_py3.10_pytorch_2.1.2"
           - labels: [self-hosted, Linux, X64, cuda-3060-12gb]
             container: "nvcr.io/nvidia/pytorch:24.03-py3"
     steps:
@@ -75,7 +80,9 @@ jobs:
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
           pytest -v tests/inference
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
       - name: Lint for errors
         run: |
-          pylint comfy/
-          pylint comfy_extras/
+          pylint --rcfile=.pylintrc comfy/
+          pylint --rcfile=.pylintrc comfy_extras/

@@ -172,6 +172,10 @@ These packages have been adapted to be installable with `pip` and download model
 - **LayerDiffuse**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-layerdiffuse.git`.
 - **BRIA Background Removal**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-bria-bg-removal.git`
 - **IP Adapter**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ipadapter-plus`
+- **Video Frame Interpolation**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-frame-interpolation`
+- **Video Helper Suite**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-helper-suite`
+- **AnimateDiff Evolved**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-animatediff-evolved`
+- **Impact Pack**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-impact-pack`
 
 Custom nodes are generally supported by this fork. Use these for a bug-free experience.
 

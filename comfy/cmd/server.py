@@ -28,6 +28,7 @@ from typing_extensions import NamedTuple
 from .latent_preview_image_encoding import encode_preview_image
 from .. import interruption
 from .. import model_management
+from .. import node_helpers
 from .. import utils
 from ..app.frontend_management import FrontendManager
 from ..app.user_manager import UserManager
@@ -38,7 +39,6 @@ from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, QueueInfo, ExecInfo
 from ..component_model.file_output_path import file_output_path
-from ..component_model.files import get_package_as_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
     ExecutionStatus
 from ..digest import digest

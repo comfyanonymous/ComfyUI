@@ -38,7 +38,7 @@ def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[
     return sorted(list(existing | downloadable))
 
 
-def get_or_download(folder_name: str, filename: str, known_files: Optional[List[Downloadable]] = None) -> Optional[str]:
+def get_or_download(folder_name: str, filename: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> Optional[str]:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)
 
@@ -219,6 +219,8 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium_incl_clips.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-3-medium", filename="sd3_medium_incl_clips_t5xxlfp8.safetensors"),
     HuggingFile("fal/AuraFlow", filename="aura_flow_0.1.safetensors"),
+    # stable audio, # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/
+    HuggingFile("stabilityai/stable-audio-open-1.0", "model.safetensors", save_with_filename="stable_audio_open_1.0.safetensors")
 ], folder_name="checkpoints")
 
 KNOWN_UNCLIP_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
@@ -382,6 +384,8 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/t5xxl_fp8_e4m3fn.safetensors", save_with_filename="t5xxl_fp8_e4m3fn.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_g.safetensors", save_with_filename="clip_g.safetensors"),
     HuggingFile("stabilityai/stable-diffusion-3-medium", "text_encoders/clip_l.safetensors", save_with_filename="clip_l.safetensors"),
+    # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/
+    HuggingFile("google-t5/t5-base", "model.safetensors", save_with_filename="t5_base.safetensors"),
 ], folder_name="clip")
 
 _known_models_db: list[KnownDownloadables] = [

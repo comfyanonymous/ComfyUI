@@ -6,6 +6,186 @@ from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile
 
 _workflows = {
+    "audio_1": {
+        "14": {
+            "inputs": {
+                "ckpt_name": "stable_audio_open_1.0.safetensors"
+            },
+            "class_type": "CheckpointLoaderSimple",
+            "_meta": {
+                "title": "Load Checkpoint"
+            }
+        },
+        "15": {
+            "inputs": {
+                "clip_name": "t5_base.safetensors",
+                "type": "stable_audio"
+            },
+            "class_type": "CLIPLoader",
+            "_meta": {
+                "title": "Load CLIP"
+            }
+        },
+        "16": {
+            "inputs": {
+                "text": "hard bop, upright bass, slappy bass, low frequencies, drum kit brushed hi-hat, snare with ghost notes, syncopated, groove",
+                "clip": [
+                    "15",
+                    0
+                ]
+            },
+            "class_type": "CLIPTextEncode",
+            "_meta": {
+                "title": "CLIP Text Encode (Prompt)"
+            }
+        },
+        "17": {
+            "inputs": {
+                "text": "",
+                "clip": [
+                    "15",
+                    0
+                ]
+            },
+            "class_type": "CLIPTextEncode",
+            "_meta": {
+                "title": "CLIP Text Encode (Prompt)"
+            }
+        },
+        "19": {
+            "inputs": {
+                "cfg": 7,
+                "model": [
+                    "14",
+                    0
+                ],
+                "positive": [
+                    "16",
+                    0
+                ],
+                "negative": [
+                    "17",
+                    0
+                ]
+            },
+            "class_type": "CFGGuider",
+            "_meta": {
+                "title": "CFGGuider"
+            }
+        },
+        "21": {
+            "inputs": {
+                "noise_seed": 600769511872395
+            },
+            "class_type": "RandomNoise",
+            "_meta": {
+                "title": "RandomNoise"
+            }
+        },
+        "22": {
+            "inputs": {
+                "noise": [
+                    "21",
+                    0
+                ],
+                "guider": [
+                    "19",
+                    0
+                ],
+                "sampler": [
+                    "29",
+                    0
+                ],
+                "sigmas": [
+                    "24",
+                    0
+                ],
+                "latent_image": [
+                    "30",
+                    0
+                ]
+            },
+            "class_type": "SamplerCustomAdvanced",
+            "_meta": {
+                "title": "SamplerCustomAdvanced"
+            }
+        },
+        "24": {
+            "inputs": {
+                "scheduler": "exponential",
+                "steps": 20,
+                "denoise": 1,
+                "model": [
+                    "14",
+                    0
+                ]
+            },
+            "class_type": "BasicScheduler",
+            "_meta": {
+                "title": "BasicScheduler"
+            }
+        },
+        "26": {
+            "inputs": {
+                "samples": [
+                    "22",
+                    1
+                ],
+                "vae": [
+                    "14",
+                    2
+                ]
+            },
+            "class_type": "VAEDecodeAudio",
+            "_meta": {
+                "title": "VAEDecodeAudio"
+            }
+        },
+        "27": {
+            "inputs": {
+                "filename_prefix": "audio/objectobject",
+                "audio": [
+                    "26",
+                    0
+                ]
+            },
+            "class_type": "SaveAudio",
+            "_meta": {
+                "title": "SaveAudio"
+            }
+        },
+        "29": {
+            "inputs": {
+                "version": "regular"
+            },
+            "class_type": "SamplerEulerCFGpp",
+            "_meta": {
+                "title": "SamplerEulerCFG++"
+            }
+        },
+        "30": {
+            "inputs": {
+                "seconds": 47.6
+            },
+            "class_type": "EmptyLatentAudio",
+            "_meta": {
+                "title": "EmptyLatentAudio"
+            }
+        },
+        "31": {
+            "inputs": {
+                "filename_prefix": "latents/ComfyUI",
+                "samples": [
+                    "22",
+                    1
+                ]
+            },
+            "class_type": "SaveLatent",
+            "_meta": {
+                "title": "SaveLatent"
+            }
+        }
+    },
     "auraflow_1": {
         "1": {
             "inputs": {
@@ -273,5 +453,9 @@ async def test_workflow(workflow_name: str, workflow: dict, has_gpu: bool, clien
     # todo: add all the models we want to test a bit more elegantly
     outputs = await client.queue_prompt(prompt)
 
-    save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
-    assert outputs[save_image_node_id]["images"][0]["abs_path"] is not None
+    if any(v.class_type == "SaveImage" for v in prompt.values()):
+        save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")
+        assert outputs[save_image_node_id]["images"][0]["abs_path"] is not None
+    elif any(v.class_type == "SaveAudio" for v in prompt.values()):
+        save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveAudio")
+        assert outputs[save_image_node_id]["audio"][0]["filename"] is not None

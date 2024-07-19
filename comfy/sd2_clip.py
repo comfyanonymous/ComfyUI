@@ -9,7 +9,7 @@ class SD2ClipHModel(sd1_clip.SDClipModel):
             layer = "hidden"
             layer_idx = -2
 
-        textmodel_json_config = get_path_as_dict(textmodel_json_config, "sd2_clip_config.json")
+        textmodel_json_config = get_path_as_dict(textmodel_json_config, "sd2_clip_config.json", package=__package__)
         super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 49406, "end": 49407, "pad": 0})
 
 

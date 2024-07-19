@@ -1,5 +1,6 @@
 torch
 torchvision
+torchaudio
 torchdiffeq>=0.2.3
 torchsde>=0.2.6
 einops>=0.6.0
@@ -57,3 +58,4 @@ spandrel
 numpy>=1.26.3,<2.0.0
 soundfile
 watchdog
+PySoundFile

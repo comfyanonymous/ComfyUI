@@ -10,9 +10,9 @@ class LLAMATokenizer:
         self.tokenizer = sentencepiece.SentencePieceProcessor(model_file=tokenizer_path)  # pylint: disable=unexpected-keyword-arg
         self.end = self.tokenizer.eos_id()
         self.eos_token_id = self.end
-        self.eos_token = self.tokenizer.id_to_piece(self.eos_token_id)
+        self.eos_token = self.tokenizer.id_to_piece(self.eos_token_id)  # pylint: disable=no-member
         self._vocab = {
-            self.tokenizer.id_to_piece(i): i for i in range(self.tokenizer.get_piece_size())
+            self.tokenizer.id_to_piece(i): i for i in range(self.tokenizer.get_piece_size())  # pylint: disable=no-member
         }
 
     def get_vocab(self):
