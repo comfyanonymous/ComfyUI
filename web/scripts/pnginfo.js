@@ -134,6 +134,7 @@ export function getWebpMetadata(file) {
 						let index = value.indexOf(':');
 						txt_chunks[value.slice(0, index)] = value.slice(index + 1);
 					}
+					break;
 				}
 
 				offset += 8 + chunk_length;
