@@ -2,6 +2,7 @@ import { ComfyLogging } from "./logging.js";
 import { ComfyWidgets, initWidgets } from "./widgets.js";
 import { ComfyUI, $el } from "./ui.js";
 import { api } from "./api.js";
+import {app} from "./app.js";
 import { defaultGraph } from "./defaultGraph.js";
 import { getPngMetadata, getWebpMetadata, importA1111, getLatentMetadata } from "./pnginfo.js";
 import { addDomClippingSetting } from "./domWidget.js";
@@ -29,6 +30,13 @@ function sanitizeNodeName(string) {
 /**
  * @typedef {import("types/comfy").ComfyExtension} ComfyExtension
  */
+import { ComfySettingsDialog } from "./ui/settings.js";
+export class CustomComfyUI {
+	constructor(app) {
+		this.app = app;
+		this.settings = new ComfySettingsDialog(app);
+	}
+}
 
 export class ComfyViewWorkflowApp {
 	/**
@@ -52,13 +60,13 @@ export class ComfyViewWorkflowApp {
 	static clipspace_return_node = null;
 
 	constructor() {
-		// this.ui = new ComfyUI(this);
+		this.ui = new CustomComfyUI(this);
 		// this.logging = new ComfyLogging(this);
 		// this.workflowManager = new ComfyWorkflowManager(this);
-		// this.bodyTop = $el("div.comfyui-body-top", { parent: document.body });
-		// this.bodyLeft = $el("div.comfyui-body-left", { parent: document.body });
-		// this.bodyRight = $el("div.comfyui-body-right", { parent: document.body });
-		// this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });		  
+		this.bodyTop = $el("div.comfyui-body-top", { parent: document.body });
+		this.bodyLeft = $el("div.comfyui-body-left", { parent: document.body });
+		this.bodyRight = $el("div.comfyui-body-right", { parent: document.body });
+		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });		  
 		// this.menu = new ComfyAppMenu(this);
 
 		/**
@@ -1551,11 +1559,11 @@ export class ComfyViewWorkflowApp {
 		// await Promise.all([this.workflowManager.loadWorkflows(), this.ui.settings.load()]);
 		await this.#loadExtensions();
 
-		addDomClippingSetting();
+		// addDomClippingSetting();
 		this.#addProcessMouseHandler();
 		this.#addProcessKeyHandler();
 		this.#addConfigureHandler();
-		this.#addApiUpdateHandlers();
+		// this.#addApiUpdateHandlers();
 		this.#addRestoreWorkflowView();
 
 		this.graph = new LGraph();
@@ -1579,33 +1587,56 @@ export class ComfyViewWorkflowApp {
 		ro.observe(this.bodyRight);
 		ro.observe(this.bodyBottom);
 
+		// fetch and load workflow by ID
+		const queryParams = new URLSearchParams(window.location.search);
+		const workflowVersionID = queryParams.get('workflowVersionID');
+		const workflowVer = await fetch("/api/getCloudflowVersion/?id=" + workflowVersionID, {
+			headers: {
+				"Content-Type": "application/json",
+			},
+		})
+		.then((response) => {
+			return response.json();
+		})
+		.then(async (data) => {
+			const workflowVer = data.data;
+			return workflowVer;
+		})
+		.catch((error) => {
+			console.error(error);
+		});
+		if(!workflowVer) {
+			throw new Error("No workflow version found");
+		}
+		this.nodeDefs = JSON.parse(workflowVer.nodeDefs);
+		//// end of fetching workflow version //////
+
 		await this.#invokeExtensionsAsync("init");
 		await this.registerNodes();
 		initWidgets(this);
 
 		// Load previous workflow
 
-    // fetch and load workflow by ID
-    const queryParams = new URLSearchParams(window.location.search);
-    const workflowVersionID = queryParams.get('workflowVersionID');
-    const jsonStr = await fetch("/api/getCloudflowVersion/?id=" + workflowVersionID, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => {
-        return response.json();
-      })
-      .then((data) => {
-        console.log("getCloudflowVersion data", data);
-        const workflowVer = data.data;
-        this.nodeDefs = JSON.parse(workflowVer.nodeDefs);
-        return JSON.parse(workflowVer.json)
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-    await this.loadGraphData(workflow, true);
+		const jsonObj = JSON.parse(workflowVer.json);
+		await this.loadGraphData(jsonObj, true);
+		setTimeout(async () => {
+			if(!jsonObj.extra?.apiPrompt && !workflowVer.api_prompt && !jsonObj.extra?.workspace_info?.apiPrompt) {
+				const p = await this.graphToPrompt();
+				if(p.output) {
+					jsonObj.apiPrompt = p.output
+					await fetch("/api/workflow/updateWorkflowVersion", {
+						method: "POST",
+						headers: {
+						"Content-Type": "application/json",
+						},
+						body: JSON.stringify({
+						id: workflowVersionID,
+						api_prompt:JSON.stringify(p.output),
+						}),
+					});
+				}
+
+		}}, 1);
 
 		this.#addDrawNodeHandler();
 		this.#addDrawGroupsHandler();
@@ -1636,7 +1667,8 @@ export class ComfyViewWorkflowApp {
 	async registerNodes() {
 		const app = this;
 		// Load node definitions from the backend
-		const defs = await api.getNodeDefs();
+		const serverDefs = await api.getNodeDefs();
+		const defs = Object.assign({}, this.nodeDefs, serverDefs);
 		await this.registerNodesFromDefs(defs);
 		await this.#invokeExtensionsAsync("registerCustomNodes");
 	}
@@ -1779,6 +1811,7 @@ export class ComfyViewWorkflowApp {
 	}
 
 	showMissingNodesError(missingNodeTypes, hasAddedNodes = true) {
+		return;
 		let seenTypes = new Set();
 
 		this.ui.dialog.show(

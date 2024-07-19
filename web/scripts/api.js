@@ -1,6 +1,4 @@
-import {serverNodeDefs} from "../../serverNodeDefs.js";
-
-class ComfyApi extends EventTarget {
+export class ComfyApi extends EventTarget {
 	#registered = new Set();
 
 	constructor() {
@@ -194,12 +192,11 @@ class ComfyApi extends EventTarget {
       "/extensions/core/noteNode.js",
       "/extensions/core/rerouteNode.js",
       "/extensions/core/saveImageExtraOutput.js",
+      '/extensions/core/simpleTouchSupport.js',
       "/extensions/core/slotDefaults.js",
       "/extensions/core/snapToGrid.js",
-      "/extensions/core/undoRedo.js",
       "/extensions/core/uploadImage.js",
       "/extensions/core/widgetInputs.js",
-      "/extensions/dp.js",
     ]
 		// const resp = await this.fetchApi("/extensions", { cache: "no-store" });
 		// return await resp.json();
@@ -220,9 +217,8 @@ class ComfyApi extends EventTarget {
 	 * @returns The node definitions
 	 */
 	async getNodeDefs() {
-		// const resp = await this.fetchApi("/object_info", { cache: "no-store" });
-    return serverNodeDefs;
-		// return await resp.json();
+		const resp = await this.fetchApi("/object_info", { cache: "no-store" });
+		return await resp.json();
 	}
 
 	/**
@@ -366,9 +362,7 @@ class ComfyApi extends EventTarget {
 	 */
 	async getUserConfig() {
     localStorage.setItem("Comfy.userId", "default");
-    return { storage: "server", users: {'default':{}} };
-    // return { storage: "browser", users: Promise.resolve({}), migrated: false };
-		return (await this.fetchApi("/users")).json();
+    return { storage: "browser", users: {'default':{}} };
 	}
 
 	/**
@@ -517,4 +511,104 @@ class ComfyApi extends EventTarget {
 	}
 }
 
-export const api = new ComfyApi();
+import { serverNodeDefs } from "/serverNodeDefs.js";
+export class ServerlessComfyApi extends ComfyApi {
+	DEFAULT_MACHINE = "XzJ8p9wqc9vnp3kwt991P";
+	machine = null;
+	workflow = null
+
+	async getNodeDefs() {
+		const machineID = new URLSearchParams(location.search).get("machine") ?? this.DEFAULT_MACHINE;
+		const workfloID = new URLSearchParams(location.search).get("workflowID");
+
+		console.log("💖Machine ID:", machineID);
+
+		return serverNodeDefs;
+		this.machine = await fetch("/api/machine/getMachine?id="+ machineID)
+			.then((res) => res.json())
+			.then((data) => {
+				console.log("machine Data:", data);
+				return data.data
+			});
+			if(workfloID) {
+				this.workflow = await fetch("/api/workflow/getWorkflow?id="+ workfloID)
+				.then((res) => res.json())
+				.then((data) => {
+				
+				});
+			}
+		
+	}
+	async getUserConfig() {
+		localStorage.setItem("Comfy.userId", "default");
+		return { storage: "browser", users: {'default':{}} };
+		// return { storage: "browser", users: Promise.resolve({}), migrated: false };
+		return (await this.fetchApi("/users")).json();
+	}
+	async queuePrompt(number, { output, workflow }) {
+		console.log('output',output,'workflow',workflow);
+		const body = {
+			client_id: this.clientId,
+			prompt: output,
+			extra_data: { extra_pnginfo: { workflow } },
+		};
+
+		if (number === -1) {
+			body.front = true;
+		} else if (number != 0) {
+			body.number = number;
+		}
+		// validate workflow prompt deps first
+		const res = await fetch("/runWorkflow", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				input: {
+					prompt: output,
+					deps: workflow.extra.deps,
+				}
+			}),
+		});
+
+		if (res.status !== 200) {
+			throw {
+				response: await res.json(),
+			};
+		}
+
+		return await res.json();
+	}
+	async getExtensions() {
+		const COMFYUI_CORE_EXTENSIONS = [
+		  "/extensions/core/clipspace.js",
+		  "/extensions/core/colorPalette.js",
+		  "/extensions/core/contextMenuFilter.js",
+		  "/extensions/core/dynamicPrompts.js",
+		  "/extensions/core/editAttention.js",
+		  "/extensions/core/groupNode.js",
+		  "/extensions/core/groupNodeManage.js",
+		  "/extensions/core/groupOptions.js",
+		  "/extensions/core/invertMenuScrolling.js",
+		  "/extensions/core/keybinds.js",
+		  "/extensions/core/linkRenderMode.js",
+		  "/extensions/core/maskeditor.js",
+		  "/extensions/core/nodeTemplates.js",
+		  "/extensions/core/noteNode.js",
+		  "/extensions/core/rerouteNode.js",
+		  "/extensions/core/saveImageExtraOutput.js",
+		  '/extensions/core/simpleTouchSupport.js',
+		  "/extensions/core/slotDefaults.js",
+		  "/extensions/core/snapToGrid.js",
+		  "/extensions/core/uploadImage.js",
+		  "/extensions/core/widgetInputs.js",
+		]
+			// const resp = await this.fetchApi("/extensions", { cache: "no-store" });
+			// return await resp.json();
+		return COMFYUI_CORE_EXTENSIONS
+	}
+}
+
+
+export let api = new ServerlessComfyApi();
