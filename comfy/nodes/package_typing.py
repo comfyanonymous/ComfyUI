@@ -15,6 +15,7 @@ class IntSpecOptions(TypedDict, total=True):
     max: int
     step: NotRequired[int]
     display: NotRequired[Literal["number", "slider"]]
+    lazy: NotRequired[bool]
 
 
 class FloatSpecOptions(TypedDict, total=True):
@@ -24,20 +25,24 @@ class FloatSpecOptions(TypedDict, total=True):
     step: NotRequired[float]
     round: NotRequired[float]
     display: NotRequired[Literal["number", "slider"]]
+    lazy: NotRequired[bool]
 
 
 class StringSpecOptions(TypedDict, total=True):
     multiline: NotRequired[bool]
     default: NotRequired[str]
     dynamicPrompts: NotRequired[bool]
+    lazy: NotRequired[bool]
 
 
 class BoolSpecOptions(TypedDict):
     default: NotRequired[bool]
+    lazy: NotRequired[bool]
 
 
 class DefaultSpecOptions(TypedDict):
     default: NotRequired[Any]
+    lazy: NotRequired[bool]
 
 
 # todo: analyze the base_nodes for these types
@@ -127,6 +132,20 @@ class CustomNode(Protocol):
 
     @classmethod
     def __call__(cls, *args, **kwargs) -> 'CustomNode':
+        ...
+
+    def check_lazy_status(self, *args, **kwargs) -> list[str]:
+        """
+            Return a list of input names that need to be evaluated.
+
+            This function will be called if there are any lazy inputs which have not yet been
+            evaluated. As long as you return at least one field which has not yet been evaluated
+            (and more exist), this function will be called again once the value of the requested
+            field is available.
+
+            Any evaluated inputs will be passed as arguments to this function. Any unevaluated
+            inputs will have the value None.
+        """
         ...
 
 

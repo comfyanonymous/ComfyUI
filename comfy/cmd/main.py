@@ -45,7 +45,7 @@ def prompt_worker(q: AbstractPromptQueue, _server: server_module.PromptServer):
             e.execute(item[2], prompt_id, item[3], item[4])
             need_gc = True
             q.task_done(item_id,
-                        e.outputs_ui,
+                        e.history_result,
                         status=ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,

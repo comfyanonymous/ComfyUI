@@ -21,7 +21,7 @@ from ..auth.permissions import jwt_decode
 from ..cmd.main_pre import tracer
 from ..cmd.server import PromptServer
 from ..component_model.abstract_prompt_queue import AsyncAbstractPromptQueue, AbstractPromptQueue
-from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData
+from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData, HistoryResultDict
 from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation, \
     ExecutionError
 
@@ -164,6 +164,9 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
 
     def task_done(self, item_id: int, outputs: dict, status: Optional[ExecutionStatus]):
         # callee: executed on the worker thread
+        if "outputs" in outputs:
+            outputs: HistoryResultDict
+            outputs = outputs["outputs"]
         assert self._is_callee
         pending = self._callee_local_in_progress.pop(item_id)
         assert pending is not None

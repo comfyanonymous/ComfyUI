@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import json
 import uuid
 from asyncio import get_event_loop
 from concurrent.futures import ThreadPoolExecutor
@@ -107,7 +108,7 @@ class EmbeddedComfyClient:
 
             from ..cmd.execution import PromptExecutor
 
-            self._prompt_executor = PromptExecutor(self._progress_handler)
+            self._prompt_executor = PromptExecutor(self._progress_handler, lru_size=self._configuration.cache_lru if self._configuration is not None else 0)
             self._prompt_executor.raise_exceptions = True
 
         await get_event_loop().run_in_executor(self._executor, create_executor_in_thread)
@@ -128,9 +129,9 @@ class EmbeddedComfyClient:
                 try:
                     prompt_mut = make_mutable(prompt)
                     validation_tuple = validate_prompt(prompt_mut)
-                    if not validation_tuple[0]:
-                        validation_error_dict = validation_tuple[1] or {"message": "Unknown", "details": ""}
-                        raise ValueError("\n".join([validation_error_dict["message"], validation_error_dict["details"]]))
+                    if not validation_tuple.valid:
+                        validation_error_dict = {"message": "Unknown", "details": ""} if not validation_tuple.node_errors or len(validation_tuple.node_errors) == 0 else validation_tuple.node_errors
+                        raise ValueError(json.dumps(validation_error_dict))
 
                     prompt_executor: PromptExecutor = self._prompt_executor
 
@@ -140,7 +141,7 @@ class EmbeddedComfyClient:
                         prompt_executor.server = self._progress_handler
 
                     prompt_executor.execute(prompt_mut, prompt_id, {"client_id": client_id},
-                                            execute_outputs=validation_tuple[2])
+                                            execute_outputs=validation_tuple.good_output_node_ids)
                     return prompt_executor.outputs_ui
                 except Exception as exc_info:
                     span.set_status(Status(StatusCode.ERROR))

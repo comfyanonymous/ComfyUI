@@ -1,7 +1,8 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
 import typing
-from typing import Optional, Literal, Protocol, TypeAlias, Union, NamedTuple, List
+from enum import Enum
+from typing import Optional, Literal, Protocol, Union, NamedTuple, List
 
 import PIL.Image
 from typing_extensions import NotRequired, TypedDict
@@ -45,11 +46,23 @@ class UnencodedPreviewImageMessage(NamedTuple):
     max_size: int = 512
 
 
-ExecutedMessage: TypeAlias = ExecutingMessage
+class ExecutionErrorMessage(TypedDict):
+    prompt_id: str
+    node_id: str
+    node_type: str
+    executed: list[str]
+    exception_message: str
+    exception_type: str
+    traceback: list[str]
+    current_inputs: list[typing.Never] | dict[str, FormattedValue]
+    current_outputs: list[str]
 
-SendSyncEvent: TypeAlias = Union[Literal["status", "executing", "progress", "executed"], BinaryEventTypes, None]
 
-SendSyncData: TypeAlias = Union[StatusMessage, ExecutingMessage, ProgressMessage, UnencodedPreviewImageMessage, bytes, bytearray, str, None]
+ExecutedMessage = ExecutingMessage
+
+SendSyncEvent = Union[Literal["status", "execution_error", "executing", "progress", "executed"], BinaryEventTypes, None]
+
+SendSyncData = Union[StatusMessage, ExecutingMessage, ExecutionErrorMessage, ProgressMessage, UnencodedPreviewImageMessage, bytes, bytearray, str, None]
 
 
 class ExecutorToClientProgress(Protocol):
@@ -150,3 +163,33 @@ class RecursiveExecutionTuple(typing.NamedTuple):
     valid: bool
     error_details: Optional[RecursiveExecutionErrorDetails | RecursiveExecutionErrorDetailsInterrupted]
     exc_info: Optional[Exception]
+
+
+class ExecutionResult(Enum):
+    SUCCESS = 0
+    FAILURE = 1
+    PENDING = 2
+
+    def __bool__(self):
+        return self == 0
+
+
+class DuplicateNodeError(Exception):
+    pass
+
+
+class HistoryResultDict(TypedDict, total=True):
+    outputs: dict
+    meta: dict
+
+
+class DependencyCycleError(Exception):
+    pass
+
+
+class NodeInputError(Exception):
+    pass
+
+
+class NodeNotFoundError(Exception):
+    pass

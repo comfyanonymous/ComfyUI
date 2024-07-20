@@ -443,6 +443,7 @@ describe("group node", () => {
 			new CustomEvent("executed", {
 				detail: {
 					node: `${nodes.save.id}`,
+					display_node: `${nodes.save.id}`,
 					output: {
 						images: [
 							{
@@ -483,6 +484,7 @@ describe("group node", () => {
 			new CustomEvent("executed", {
 				detail: {
 					node: `${group.id}:5`,
+					display_node: `${group.id}:5`,
 					output: {
 						images: [
 							{
