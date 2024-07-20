@@ -1,6 +1,5 @@
 torch
 torchvision
-torchaudio>=2.1.2
 torchdiffeq>=0.2.3
 torchsde>=0.2.6
 einops>=0.6.0
@@ -8,7 +7,7 @@ open-clip-torch>=2.24.0
 transformers>=4.29.1
 tokenizers>=0.13.3
 sentencepiece
-peft>=0.11.1
+peft>=0.10.0
 torchinfo
 safetensors>=0.4.2
 bitsandbytes
@@ -34,7 +33,7 @@ psutil
 ConfigArgParse
 aio-pika
 pyjwt[crypto]
-kornia>=0.7.3
+kornia>=0.7.0
 mpmath>=1.0,!=1.4.0a0
 huggingface_hub
 lazy-object-proxy
