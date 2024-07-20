@@ -7,7 +7,10 @@ import numbers
 import os
 import traceback
 import zipfile
-from importlib.abc import Traversable
+try:
+    from importlib.resources.abc import Traversable  # pylint: disable=no-name-in-module
+except ImportError:
+    from importlib.abc import Traversable  # pylint: disable=no-name-in-module
 from typing import Tuple, Sequence, TypeVar, Callable
 
 import torch
