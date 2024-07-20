@@ -74,7 +74,6 @@ jobs:
         run: |
           python -m pip install setuptools pip --upgrade --break-system-packages || python -m pip install pip --upgrade || true
           pip install --break-system-packages --no-build-isolation .[dev] || pip install --no-build-isolation .[dev]
-          pip install --break-system-packages --no-build-isolation torchaudio==2.3.0
       - name: Run unit tests
         run: |
           export HSA_OVERRIDE_GFX_VERSION=11.0.0
