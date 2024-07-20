@@ -448,6 +448,12 @@ async def test_workflow(workflow_name: str, workflow: dict, has_gpu: bool, clien
     if not has_gpu:
         pytest.skip("requires gpu")
 
+    if "audio" in workflow_name:
+        try:
+            import torchaudio
+        except (ImportError, ModuleNotFoundError):
+            pytest.skip("requires torchaudio")
+
     prompt = Prompt.validate(workflow)
     add_known_models("loras", KNOWN_LORAS, CivitFile(13941, 16576, "epi_noiseoffset2.safetensors"))
     # todo: add all the models we want to test a bit more elegantly
