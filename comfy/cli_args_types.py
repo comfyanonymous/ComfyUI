@@ -70,6 +70,7 @@ class Configuration(dict):
         directml (Optional[int]): Use DirectML. -1 for auto-selection.
         disable_ipex_optimize (bool): Disable IPEX optimization for Intel GPUs.
         preview_method (LatentPreviewMethod): Method for generating previews. Defaults to "auto".
+        cache_lru (int): Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.
         use_split_cross_attention (bool): Use split cross-attention optimization.
         use_quad_cross_attention (bool): Use sub-quadratic cross-attention optimization.
         use_pytorch_cross_attention (bool): Use PyTorch's cross-attention function.
@@ -178,6 +179,9 @@ class Configuration(dict):
         self.max_queue_size: int = 65536
         self.force_channels_last: bool = False
         self.force_hf_local_dir_mode = False
+
+        # from guill
+        self.cache_lru: int = 0
 
         # from opentracing docs
         self.otel_service_name: str = "comfyui"

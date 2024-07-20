@@ -58,7 +58,7 @@ export class ComfyApp {
 		this.bodyTop = $el("div.comfyui-body-top", { parent: document.body });
 		this.bodyLeft = $el("div.comfyui-body-left", { parent: document.body });
 		this.bodyRight = $el("div.comfyui-body-right", { parent: document.body });
-		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });		  
+		this.bodyBottom = $el("div.comfyui-body-bottom", { parent: document.body });
 		this.menu = new ComfyAppMenu(this);
 
 		/**
@@ -1330,7 +1330,7 @@ export class ComfyApp {
 		});
 
 		api.addEventListener("progress", ({ detail }) => {
-			if (this.workflowManager.activePrompt?.workflow 
+			if (this.workflowManager.activePrompt?.workflow
 				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return;
 			this.progress = detail;
 			this.graph.setDirtyCanvas(true, false);
@@ -1348,7 +1348,7 @@ export class ComfyApp {
 		api.addEventListener("executed", ({ detail }) => {
 			if (this.workflowManager.activePrompt ?.workflow
 				&& this.workflowManager.activePrompt.workflow !== this.workflowManager.activeWorkflow) return;
-			const output = this.nodeOutputs[detail.node];
+			const output = this.nodeOutputs[detail.display_node];
 			if (detail.merge && output) {
 				for (const k in detail.output ?? {}) {
 					const v = output[k];
@@ -1359,9 +1359,9 @@ export class ComfyApp {
 					}
 				}
 			} else {
-				this.nodeOutputs[detail.node] = detail.output;
+				this.nodeOutputs[detail.display_node] = detail.output;
 			}
-			const node = this.graph.getNodeById(detail.node);
+			const node = this.graph.getNodeById(detail.display_node);
 			if (node) {
 				if (node.onExecuted)
 					node.onExecuted(detail.output);
@@ -1638,7 +1638,7 @@ export class ComfyApp {
 	resizeCanvas() {
 		// Limit minimal scale to 1, see https://github.com/comfyanonymous/ComfyUI/pull/845
 		const scale = Math.max(window.devicePixelRatio, 1);
-		
+
 		// Clear fixed width and height while calculating rect so it uses 100% instead
 		this.canvasEl.height = this.canvasEl.width = "";
 		const { width, height } = this.canvasEl.getBoundingClientRect();
@@ -1874,7 +1874,7 @@ export class ComfyApp {
 		{
 			graphData = structuredClone(graphData);
 		}
-	
+
 		try {
 			this.workflowManager.setWorkflow(workflow);
 		} catch (error) {
@@ -1902,7 +1902,7 @@ export class ComfyApp {
 				this.canvas.ds.offset = graphData.extra.ds.offset;
 				this.canvas.ds.scale = graphData.extra.ds.scale;
 			}
-			
+
 			try {
 				this.workflowManager.activeWorkflow?.track()
 			} catch (error) {

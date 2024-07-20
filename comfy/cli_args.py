@@ -87,6 +87,8 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.Auto,
                         help="Default preview method for sampler nodes.", action=EnumAction)
 
+    cache_group = parser.add_mutually_exclusive_group()
+    cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
     attn_group = parser.add_mutually_exclusive_group()
     attn_group.add_argument("--use-split-cross-attention", action="store_true",
                             help="Use the split cross attention optimization. Ignored when xformers is used.")
@@ -211,11 +213,11 @@ def _create_parser() -> EnhancedConfigArgParser:
     return parser
 
 
-def _parse_args(parser: Optional[argparse.ArgumentParser] = None) -> Configuration:
+def _parse_args(parser: Optional[argparse.ArgumentParser] = None, args_parsing: bool = False) -> Configuration:
     if parser is None:
         parser = _create_parser()
 
-    if options.args_parsing:
+    if args_parsing:
         args, _, config_files = parser.parse_known_args_with_config_files()
     else:
         args, _, config_files = parser.parse_known_args_with_config_files([])
@@ -261,4 +263,8 @@ def _setup_config_file_watcher(config: Configuration, parser: EnhancedConfigArgP
     atexit.register(observer.join)
 
 
-args = _parse_args()
+def default_configuration() -> Configuration:
+    return _parse_args(_create_parser())
+
+
+args = _parse_args(args_parsing=options.args_parsing)
