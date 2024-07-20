@@ -8,7 +8,7 @@ open-clip-torch>=2.24.0
 transformers>=4.29.1
 tokenizers>=0.13.3
 sentencepiece
-peft==*
+peft>=0.11.1
 torchinfo
 safetensors>=0.4.2
 bitsandbytes
@@ -34,7 +34,7 @@ psutil
 ConfigArgParse
 aio-pika
 pyjwt[crypto]
-kornia==*
+kornia>=0.7.3
 mpmath>=1.0,!=1.4.0a0
 huggingface_hub
 lazy-object-proxy
@@ -53,7 +53,7 @@ opentelemetry-semantic-conventions
 huggingface_extra_chat_templates @ git+https://github.com/AppMana/appmana-comfyui-chat-templates.git
 wrapt>=1.16.0
 certifi
-spandrel==*
+spandrel>=0.3.4
 numpy>=1.26.3,<2.0.0
 soundfile
 watchdog
