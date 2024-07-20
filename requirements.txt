@@ -37,6 +37,7 @@ kornia>=0.7.0
 mpmath>=1.0,!=1.4.0a0
 huggingface_hub
 lazy-object-proxy
+lazy_loader>=0.3
 can_ada
 fsspec
 natsort
@@ -53,7 +54,8 @@ huggingface_extra_chat_templates @ git+https://github.com/AppMana/appmana-comfyu
 wrapt>=1.16.0
 certifi
 spandrel>=0.3.4
-numpy>=1.26.3,<2.0.0
+numpy>=1.24.4,<2.0.0
 soundfile
 watchdog
 PySoundFile
+networkx>=2.6.3
