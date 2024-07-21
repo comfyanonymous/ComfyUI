@@ -80,8 +80,23 @@ class CLIPTextEncodeSD3:
         return ([[cond, {"pooled_output": pooled}]], )
 
 
+class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "control_net": ("CONTROL_NET", ),
+                             "vae": ("VAE", ),
+                             "image": ("IMAGE", ),
+                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
+                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
+                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
+                             }}
+    CATEGORY = "conditioning/controlnet"
+
 NODE_CLASS_MAPPINGS = {
     "TripleCLIPLoader": TripleCLIPLoader,
     "EmptySD3LatentImage": EmptySD3LatentImage,
     "CLIPTextEncodeSD3": CLIPTextEncodeSD3,
+    "ControlNetApplySD3": ControlNetApplySD3,
 }

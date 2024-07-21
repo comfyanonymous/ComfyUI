@@ -55,8 +55,9 @@ class CLIPTextEncode:
 
     def encode(self, clip, text):
         tokens = clip.tokenize(text)
-        cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
-        return ([[cond, {"pooled_output": pooled}]], )
+        output = clip.encode_from_tokens(tokens, return_pooled=True, return_dict=True)
+        cond = output.pop("cond")
+        return ([[cond, output]], )
 
 class ConditioningCombine:
     @classmethod
@@ -232,8 +233,9 @@ class ConditioningZeroOut:
         c = []
         for t in conditioning:
             d = t[1].copy()
-            if "pooled_output" in d:
-                d["pooled_output"] = torch.zeros_like(d["pooled_output"])
+            pooled_output = d.get("pooled_output", None)
+            if pooled_output is not None:
+                d["pooled_output"] = torch.zeros_like(pooled_output)
             n = [torch.zeros_like(t[0]), d]
             c.append(n)
         return (c, )
@@ -746,7 +748,7 @@ class ControlNetApply:
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "apply_controlnet"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "conditioning/controlnet"
 
     def apply_controlnet(self, conditioning, control_net, image, strength):
         if strength == 0:
@@ -781,9 +783,9 @@ class ControlNetApplyAdvanced:
     RETURN_NAMES = ("positive", "negative")
     FUNCTION = "apply_controlnet"
 
-    CATEGORY = "conditioning"
+    CATEGORY = "conditioning/controlnet"
 
-    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent):
+    def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None):
         if strength == 0:
             return (positive, negative)
 
@@ -800,7 +802,7 @@ class ControlNetApplyAdvanced:
                 if prev_cnet in cnets:
                     c_net = cnets[prev_cnet]
                 else:
-                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent))
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent), vae)
                     c_net.set_previous_controlnet(prev_cnet)
                     cnets[prev_cnet] = c_net
 
@@ -1887,7 +1889,30 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 
 EXTENSION_WEB_DIRS = {}
 
-def load_custom_node(module_path, ignore=set()):
+
+def get_module_name(module_path: str) -> str:
+    """
+    Returns the module name based on the given module path.
+    Examples:
+        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node.py") -> "my_custom_node"
+        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node") -> "my_custom_node"
+        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/") -> "my_custom_node"
+        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/__init__.py") -> "my_custom_node"
+        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/__init__") -> "my_custom_node"
+        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node/__init__/") -> "my_custom_node"
+        get_module_name("C:/Users/username/ComfyUI/custom_nodes/my_custom_node.disabled") -> "custom_nodes
+    Args:
+        module_path (str): The path of the module.
+    Returns:
+        str: The module name.
+    """
+    base_path = os.path.basename(module_path)
+    if os.path.isfile(module_path):
+        base_path = os.path.splitext(base_path)[0]
+    return base_path
+
+
+def load_custom_node(module_path: str, ignore=set(), module_parent="custom_nodes") -> bool:
     module_name = os.path.basename(module_path)
     if os.path.isfile(module_path):
         sp = os.path.splitext(module_path)
@@ -1911,9 +1936,10 @@ def load_custom_node(module_path, ignore=set()):
                 EXTENSION_WEB_DIRS[module_name] = web_dir
 
         if hasattr(module, "NODE_CLASS_MAPPINGS") and getattr(module, "NODE_CLASS_MAPPINGS") is not None:
-            for name in module.NODE_CLASS_MAPPINGS:
+            for name, node_cls in module.NODE_CLASS_MAPPINGS.items():
                 if name not in ignore:
-                    NODE_CLASS_MAPPINGS[name] = module.NODE_CLASS_MAPPINGS[name]
+                    NODE_CLASS_MAPPINGS[name] = node_cls
+                    node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
             if hasattr(module, "NODE_DISPLAY_NAME_MAPPINGS") and getattr(module, "NODE_DISPLAY_NAME_MAPPINGS") is not None:
                 NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
             return True
@@ -1925,7 +1951,16 @@ def load_custom_node(module_path, ignore=set()):
         logging.warning(f"Cannot import {module_path} module for custom nodes: {e}")
         return False
 
-def load_custom_nodes():
+def init_external_custom_nodes():
+    """
+    Initializes the external custom nodes.
+
+    This function loads custom nodes from the specified folder paths and imports them into the application.
+    It measures the import times for each custom node and logs the results.
+
+    Returns:
+        None
+    """
     base_node_names = set(NODE_CLASS_MAPPINGS.keys())
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     node_import_times = []
@@ -1939,7 +1974,7 @@ def load_custom_nodes():
             if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
             if module_path.endswith(".disabled"): continue
             time_before = time.perf_counter()
-            success = load_custom_node(module_path, base_node_names)
+            success = load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
 
     if len(node_import_times) > 0:
@@ -1952,7 +1987,16 @@ def load_custom_nodes():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
-def init_custom_nodes():
+def init_builtin_extra_nodes():
+    """
+    Initializes the built-in extra nodes in ComfyUI.
+
+    This function loads the extra node files located in the "comfy_extras" directory and imports them into ComfyUI.
+    If any of the extra node files fail to import, a warning message is logged.
+
+    Returns:
+        None
+    """
     extras_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_extras")
     extras_files = [
         "nodes_latent.py",
@@ -1991,14 +2035,25 @@ def init_custom_nodes():
         "nodes_webcam.py",
         "nodes_audio.py",
         "nodes_sd3.py",
+        "nodes_gits.py",
+        "nodes_controlnet.py",
     ]
 
     import_failed = []
     for node_file in extras_files:
-        if not load_custom_node(os.path.join(extras_dir, node_file)):
+        if not load_custom_node(os.path.join(extras_dir, node_file), module_parent="comfy_extras"):
             import_failed.append(node_file)
 
-    load_custom_nodes()
+    return import_failed
+
+
+def init_extra_nodes(init_custom_nodes=True):
+    import_failed = init_builtin_extra_nodes()
+
+    if init_custom_nodes:
+        init_external_custom_nodes()
+    else:
+        logging.info("Skipping loading of custom nodes")
 
     if len(import_failed) > 0:
         logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")

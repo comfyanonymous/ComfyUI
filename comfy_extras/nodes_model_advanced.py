@@ -144,7 +144,7 @@ class ModelSamplingSD3:
 
     CATEGORY = "advanced/model"
 
-    def patch(self, model, shift):
+    def patch(self, model, shift, multiplier=1000):
         m = model.clone()
 
         sampling_base = comfy.model_sampling.ModelSamplingDiscreteFlow
@@ -154,9 +154,21 @@ class ModelSamplingSD3:
             pass
 
         model_sampling = ModelSamplingAdvanced(model.model.model_config)
-        model_sampling.set_parameters(shift=shift)
+        model_sampling.set_parameters(shift=shift, multiplier=multiplier)
         m.add_object_patch("model_sampling", model_sampling)
         return (m, )
+
+class ModelSamplingAuraFlow(ModelSamplingSD3):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "shift": ("FLOAT", {"default": 1.73, "min": 0.0, "max": 100.0, "step":0.01}),
+                              }}
+
+    FUNCTION = "patch_aura"
+
+    def patch_aura(self, model, shift):
+        return self.patch(model, shift, multiplier=1.0)
 
 class ModelSamplingContinuousEDM:
     @classmethod
@@ -271,5 +283,6 @@ NODE_CLASS_MAPPINGS = {
     "ModelSamplingContinuousV": ModelSamplingContinuousV,
     "ModelSamplingStableCascade": ModelSamplingStableCascade,
     "ModelSamplingSD3": ModelSamplingSD3,
+    "ModelSamplingAuraFlow": ModelSamplingAuraFlow,
     "RescaleCFG": RescaleCFG,
 }

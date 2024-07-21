@@ -59,8 +59,9 @@ class ModelSamplingDiscrete(torch.nn.Module):
         beta_schedule = sampling_settings.get("beta_schedule", "linear")
         linear_start = sampling_settings.get("linear_start", 0.00085)
         linear_end = sampling_settings.get("linear_end", 0.012)
+        timesteps = sampling_settings.get("timesteps", 1000)
 
-        self._register_schedule(given_betas=None, beta_schedule=beta_schedule, timesteps=1000, linear_start=linear_start, linear_end=linear_end, cosine_s=8e-3)
+        self._register_schedule(given_betas=None, beta_schedule=beta_schedule, timesteps=timesteps, linear_start=linear_start, linear_end=linear_end, cosine_s=8e-3)
         self.sigma_data = 1.0
 
     def _register_schedule(self, given_betas=None, beta_schedule="linear", timesteps=1000,
@@ -190,11 +191,12 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
         else:
             sampling_settings = {}
 
-        self.set_parameters(shift=sampling_settings.get("shift", 1.0))
+        self.set_parameters(shift=sampling_settings.get("shift", 1.0), multiplier=sampling_settings.get("multiplier", 1000))
 
-    def set_parameters(self, shift=1.0, timesteps=1000):
+    def set_parameters(self, shift=1.0, timesteps=1000, multiplier=1000):
         self.shift = shift
-        ts = self.sigma(torch.arange(1, timesteps + 1, 1))
+        self.multiplier = multiplier
+        ts = self.sigma((torch.arange(1, timesteps + 1, 1) / timesteps) * multiplier)
         self.register_buffer('sigmas', ts)
 
     @property
@@ -206,10 +208,10 @@ class ModelSamplingDiscreteFlow(torch.nn.Module):
         return self.sigmas[-1]
 
     def timestep(self, sigma):
-        return sigma * 1000
+        return sigma * self.multiplier
 
     def sigma(self, timestep):
-        return time_snr_shift(self.shift, timestep / 1000)
+        return time_snr_shift(self.shift, timestep / self.multiplier)
 
     def percent_to_sigma(self, percent):
         if percent <= 0.0:

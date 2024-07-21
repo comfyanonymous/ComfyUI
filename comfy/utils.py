@@ -6,6 +6,7 @@ import safetensors.torch
 import numpy as np
 from PIL import Image
 import logging
+import itertools
 
 def load_torch_file(ckpt, safe_load=False, device=None):
     if device is None:
@@ -249,6 +250,158 @@ def unet_to_diffusers(unet_config):
 
     return diffusers_unet_map
 
+def swap_scale_shift(weight):
+    shift, scale = weight.chunk(2, dim=0)
+    new_weight = torch.cat([scale, shift], dim=0)
+    return new_weight
+
+MMDIT_MAP_BASIC = {
+    ("context_embedder.bias", "context_embedder.bias"),
+    ("context_embedder.weight", "context_embedder.weight"),
+    ("t_embedder.mlp.0.bias", "time_text_embed.timestep_embedder.linear_1.bias"),
+    ("t_embedder.mlp.0.weight", "time_text_embed.timestep_embedder.linear_1.weight"),
+    ("t_embedder.mlp.2.bias", "time_text_embed.timestep_embedder.linear_2.bias"),
+    ("t_embedder.mlp.2.weight", "time_text_embed.timestep_embedder.linear_2.weight"),
+    ("x_embedder.proj.bias", "pos_embed.proj.bias"),
+    ("x_embedder.proj.weight", "pos_embed.proj.weight"),
+    ("y_embedder.mlp.0.bias", "time_text_embed.text_embedder.linear_1.bias"),
+    ("y_embedder.mlp.0.weight", "time_text_embed.text_embedder.linear_1.weight"),
+    ("y_embedder.mlp.2.bias", "time_text_embed.text_embedder.linear_2.bias"),
+    ("y_embedder.mlp.2.weight", "time_text_embed.text_embedder.linear_2.weight"),
+    ("pos_embed", "pos_embed.pos_embed"),
+    ("final_layer.adaLN_modulation.1.bias", "norm_out.linear.bias", swap_scale_shift),
+    ("final_layer.adaLN_modulation.1.weight", "norm_out.linear.weight", swap_scale_shift),
+    ("final_layer.linear.bias", "proj_out.bias"),
+    ("final_layer.linear.weight", "proj_out.weight"),
+}
+
+MMDIT_MAP_BLOCK = {
+    ("context_block.adaLN_modulation.1.bias", "norm1_context.linear.bias"),
+    ("context_block.adaLN_modulation.1.weight", "norm1_context.linear.weight"),
+    ("context_block.attn.proj.bias", "attn.to_add_out.bias"),
+    ("context_block.attn.proj.weight", "attn.to_add_out.weight"),
+    ("context_block.mlp.fc1.bias", "ff_context.net.0.proj.bias"),
+    ("context_block.mlp.fc1.weight", "ff_context.net.0.proj.weight"),
+    ("context_block.mlp.fc2.bias", "ff_context.net.2.bias"),
+    ("context_block.mlp.fc2.weight", "ff_context.net.2.weight"),
+    ("x_block.adaLN_modulation.1.bias", "norm1.linear.bias"),
+    ("x_block.adaLN_modulation.1.weight", "norm1.linear.weight"),
+    ("x_block.attn.proj.bias", "attn.to_out.0.bias"),
+    ("x_block.attn.proj.weight", "attn.to_out.0.weight"),
+    ("x_block.mlp.fc1.bias", "ff.net.0.proj.bias"),
+    ("x_block.mlp.fc1.weight", "ff.net.0.proj.weight"),
+    ("x_block.mlp.fc2.bias", "ff.net.2.bias"),
+    ("x_block.mlp.fc2.weight", "ff.net.2.weight"),
+}
+
+def mmdit_to_diffusers(mmdit_config, output_prefix=""):
+    key_map = {}
+
+    depth = mmdit_config.get("depth", 0)
+    num_blocks = mmdit_config.get("num_blocks", depth)
+    for i in range(num_blocks):
+        block_from = "transformer_blocks.{}".format(i)
+        block_to = "{}joint_blocks.{}".format(output_prefix, i)
+
+        offset = depth * 64
+
+        for end in ("weight", "bias"):
+            k = "{}.attn.".format(block_from)
+            qkv = "{}.x_block.attn.qkv.{}".format(block_to, end)
+            key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, offset))
+            key_map["{}to_k.{}".format(k, end)] = (qkv, (0, offset, offset))
+            key_map["{}to_v.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
+
+            qkv = "{}.context_block.attn.qkv.{}".format(block_to, end)
+            key_map["{}add_q_proj.{}".format(k, end)] = (qkv, (0, 0, offset))
+            key_map["{}add_k_proj.{}".format(k, end)] = (qkv, (0, offset, offset))
+            key_map["{}add_v_proj.{}".format(k, end)] = (qkv, (0, offset * 2, offset))
+
+        for k in MMDIT_MAP_BLOCK:
+            key_map["{}.{}".format(block_from, k[1])] = "{}.{}".format(block_to, k[0])
+
+    map_basic = MMDIT_MAP_BASIC.copy()
+    map_basic.add(("joint_blocks.{}.context_block.adaLN_modulation.1.bias".format(depth - 1), "transformer_blocks.{}.norm1_context.linear.bias".format(depth - 1), swap_scale_shift))
+    map_basic.add(("joint_blocks.{}.context_block.adaLN_modulation.1.weight".format(depth - 1), "transformer_blocks.{}.norm1_context.linear.weight".format(depth - 1), swap_scale_shift))
+
+    for k in map_basic:
+        if len(k) > 2:
+            key_map[k[1]] = ("{}{}".format(output_prefix, k[0]), None, k[2])
+        else:
+            key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+
+    return key_map
+
+
+def auraflow_to_diffusers(mmdit_config, output_prefix=""):
+    n_double_layers = mmdit_config.get("n_double_layers", 0)
+    n_layers = mmdit_config.get("n_layers", 0)
+
+    key_map = {}
+    for i in range(n_layers):
+        if i < n_double_layers:
+            index = i
+            prefix_from = "joint_transformer_blocks"
+            prefix_to = "{}double_layers".format(output_prefix)
+            block_map = {
+                            "attn.to_q.weight": "attn.w2q.weight",
+                            "attn.to_k.weight": "attn.w2k.weight",
+                            "attn.to_v.weight": "attn.w2v.weight",
+                            "attn.to_out.0.weight": "attn.w2o.weight",
+                            "attn.add_q_proj.weight": "attn.w1q.weight",
+                            "attn.add_k_proj.weight": "attn.w1k.weight",
+                            "attn.add_v_proj.weight": "attn.w1v.weight",
+                            "attn.to_add_out.weight": "attn.w1o.weight",
+                            "ff.linear_1.weight": "mlpX.c_fc1.weight",
+                            "ff.linear_2.weight": "mlpX.c_fc2.weight",
+                            "ff.out_projection.weight": "mlpX.c_proj.weight",
+                            "ff_context.linear_1.weight": "mlpC.c_fc1.weight",
+                            "ff_context.linear_2.weight": "mlpC.c_fc2.weight",
+                            "ff_context.out_projection.weight": "mlpC.c_proj.weight",
+                            "norm1.linear.weight": "modX.1.weight",
+                            "norm1_context.linear.weight": "modC.1.weight",
+                        }
+        else:
+            index = i - n_double_layers
+            prefix_from = "single_transformer_blocks"
+            prefix_to = "{}single_layers".format(output_prefix)
+
+            block_map = {
+                            "attn.to_q.weight": "attn.w1q.weight",
+                            "attn.to_k.weight": "attn.w1k.weight",
+                            "attn.to_v.weight": "attn.w1v.weight",
+                            "attn.to_out.0.weight": "attn.w1o.weight",
+                            "norm1.linear.weight": "modCX.1.weight",
+                            "ff.linear_1.weight": "mlp.c_fc1.weight",
+                            "ff.linear_2.weight": "mlp.c_fc2.weight",
+                            "ff.out_projection.weight": "mlp.c_proj.weight"
+                        }
+
+        for k in block_map:
+            key_map["{}.{}.{}".format(prefix_from, index, k)] = "{}.{}.{}".format(prefix_to, index, block_map[k])
+
+    MAP_BASIC = {
+        ("positional_encoding", "pos_embed.pos_embed"),
+        ("register_tokens", "register_tokens"),
+        ("t_embedder.mlp.0.weight", "time_step_proj.linear_1.weight"),
+        ("t_embedder.mlp.0.bias", "time_step_proj.linear_1.bias"),
+        ("t_embedder.mlp.2.weight", "time_step_proj.linear_2.weight"),
+        ("t_embedder.mlp.2.bias", "time_step_proj.linear_2.bias"),
+        ("cond_seq_linear.weight", "context_embedder.weight"),
+        ("init_x_linear.weight", "pos_embed.proj.weight"),
+        ("init_x_linear.bias", "pos_embed.proj.bias"),
+        ("final_linear.weight", "proj_out.weight"),
+        ("modF.1.weight", "norm_out.linear.weight", swap_scale_shift),
+    }
+
+    for k in MAP_BASIC:
+        if len(k) > 2:
+            key_map[k[1]] = ("{}{}".format(output_prefix, k[0]), None, k[2])
+        else:
+            key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+
+    return key_map
+
 def repeat_to_batch_size(tensor, batch_size, dim=0):
     if tensor.shape[dim] > batch_size:
         return tensor.narrow(dim, 0, batch_size)
@@ -425,33 +578,51 @@ def get_tiled_scale_steps(width, height, tile_x, tile_y, overlap):
     return math.ceil((height / (tile_y - overlap))) * math.ceil((width / (tile_x - overlap)))
 
 @torch.inference_mode()
-def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
-    output = torch.empty((samples.shape[0], out_channels, round(samples.shape[2] * upscale_amount), round(samples.shape[3] * upscale_amount)), device=output_device)
+def tiled_scale_multidim(samples, function, tile=(64, 64), overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+    dims = len(tile)
+    output = torch.empty([samples.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), samples.shape[2:])), device=output_device)
+
     for b in range(samples.shape[0]):
         s = samples[b:b+1]
-        out = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
-        out_div = torch.zeros((s.shape[0], out_channels, round(s.shape[2] * upscale_amount), round(s.shape[3] * upscale_amount)), device=output_device)
-        for y in range(0, s.shape[2], tile_y - overlap):
-            for x in range(0, s.shape[3], tile_x - overlap):
-                x = max(0, min(s.shape[-1] - overlap, x))
-                y = max(0, min(s.shape[-2] - overlap, y))
-                s_in = s[:,:,y:y+tile_y,x:x+tile_x]
+        out = torch.zeros([s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])), device=output_device)
+        out_div = torch.zeros([s.shape[0], out_channels] + list(map(lambda a: round(a * upscale_amount), s.shape[2:])), device=output_device)
 
-                ps = function(s_in).to(output_device)
-                mask = torch.ones_like(ps)
-                feather = round(overlap * upscale_amount)
-                for t in range(feather):
-                        mask[:,:,t:1+t,:] *= ((1.0/feather) * (t + 1))
-                        mask[:,:,mask.shape[2] -1 -t: mask.shape[2]-t,:] *= ((1.0/feather) * (t + 1))
-                        mask[:,:,:,t:1+t] *= ((1.0/feather) * (t + 1))
-                        mask[:,:,:,mask.shape[3]- 1 - t: mask.shape[3]- t] *= ((1.0/feather) * (t + 1))
-                out[:,:,round(y*upscale_amount):round((y+tile_y)*upscale_amount),round(x*upscale_amount):round((x+tile_x)*upscale_amount)] += ps * mask
-                out_div[:,:,round(y*upscale_amount):round((y+tile_y)*upscale_amount),round(x*upscale_amount):round((x+tile_x)*upscale_amount)] += mask
-                if pbar is not None:
-                    pbar.update(1)
+        for it in itertools.product(*map(lambda a: range(0, a[0], a[1] - overlap), zip(s.shape[2:], tile))):
+            s_in = s
+            upscaled = []
+
+            for d in range(dims):
+                pos = max(0, min(s.shape[d + 2] - overlap, it[d]))
+                l = min(tile[d], s.shape[d + 2] - pos)
+                s_in = s_in.narrow(d + 2, pos, l)
+                upscaled.append(round(pos * upscale_amount))
+            ps = function(s_in).to(output_device)
+            mask = torch.ones_like(ps)
+            feather = round(overlap * upscale_amount)
+            for t in range(feather):
+                for d in range(2, dims + 2):
+                    m = mask.narrow(d, t, 1)
+                    m *= ((1.0/feather) * (t + 1))
+                    m = mask.narrow(d, mask.shape[d] -1 -t, 1)
+                    m *= ((1.0/feather) * (t + 1))
+
+            o = out
+            o_d = out_div
+            for d in range(dims):
+                o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+                o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+
+            o += ps * mask
+            o_d += mask
+
+            if pbar is not None:
+                pbar.update(1)
 
         output[b:b+1] = out/out_div
     return output
+
+def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_amount = 4, out_channels = 3, output_device="cpu", pbar = None):
+    return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap, upscale_amount, out_channels, output_device, pbar)
 
 PROGRESS_BAR_ENABLED = True
 def set_progress_bar_enabled(enabled):
