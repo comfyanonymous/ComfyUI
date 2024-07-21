@@ -4063,7 +4063,7 @@
 					if (aSource[sI]=="*") aSource[sI] = 0;
 					if (aDest[sI]=="*") aDest[sI] = 0;
 					if (aSource[sI] == aDest[dI]) {
-                        if (preferFreeSlot && aSlots[i].links && aSlots[i].links !== null) continue;
+                        if (preferFreeSlot && (aSlots[i].links && aSlots[i].links !== null) || (aSlots[i].link && aSlots[i].link !== null)) continue;
                         return !returnObj ? i : aSlots[i];
                     }
                 }
