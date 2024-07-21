@@ -400,8 +400,8 @@ class PromptExecutor:
                     self.handle_execution_error(prompt_id, prompt, current_outputs, executed, error, ex)
                     break
             else:
-                # Only execute when while ends without break
-                self.add_message("execution_end", { "prompt_id": prompt_id }, broadcast=False)
+                # Only execute when the while-loop ends without break
+                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
