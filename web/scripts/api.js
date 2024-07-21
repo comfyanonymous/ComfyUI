@@ -136,7 +136,7 @@ class ComfyApi extends EventTarget {
 					    case "execution_start":
 						    this.dispatchEvent(new CustomEvent("execution_start", { detail: msg.data }));
 						    break;
-							case "execution_success":
+					    case "execution_success":
 						    this.dispatchEvent(new CustomEvent("execution_success", { detail: msg.data }));
 						    break;
 					    case "execution_error":
