@@ -20,7 +20,7 @@ function getClipPath(node, element, canvasRect) {
 
 		const bounding = selectedNode.getBounding();
 		const intersection = intersect(
-			{ x: (elRect.x - canvasRect.left) / scale, y: (elRect.y - canvasRect.top) / scale, width: elRect.width / scale, height: elRect.height / scale },
+			{ x: (elRect.x / scale) - canvasRect.left, y: (elRect.y / scale) - canvasRect.top, width: elRect.width / scale, height: elRect.height / scale },
 			{
 				x: selectedNode.pos[0] + app.canvas.ds.offset[0] - MARGIN,
 				y: selectedNode.pos[1] + app.canvas.ds.offset[1] - LiteGraph.NODE_TITLE_HEIGHT - MARGIN,
