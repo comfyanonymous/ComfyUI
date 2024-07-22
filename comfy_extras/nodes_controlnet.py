@@ -4,7 +4,7 @@ class SetUnionControlNetType:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"control_net": ("CONTROL_NET", ),
-                             "type": (list(UNION_CONTROLNET_TYPES.keys()),)
+                             "type": (["auto"] + list(UNION_CONTROLNET_TYPES.keys()),)
                              }}
 
     CATEGORY = "conditioning/controlnet"
@@ -14,7 +14,7 @@ class SetUnionControlNetType:
 
     def set_controlnet_type(self, control_net, type):
         control_net = control_net.copy()
-        type_number = UNION_CONTROLNET_TYPES[type]
+        type_number = UNION_CONTROLNET_TYPES.get(type, -1)
         if type_number >= 0:
             control_net.set_extra_arg("control_type", [type_number])
         else:

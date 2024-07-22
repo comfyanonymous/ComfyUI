@@ -1,5 +1,4 @@
 UNION_CONTROLNET_TYPES = {
-    "auto": -1,
     "openpose": 0,
     "depth": 1,
     "hed/pidi/scribble/ted": 2,
