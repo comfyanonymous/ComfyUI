@@ -106,7 +106,7 @@ class TestExecution:
     ])
     async def client(self, request) -> Client:
         from comfy.cmd.execution import nodes
-        from .testing_nodes.testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+        from .testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
         nodes.update(ExportedNodes(NODE_CLASS_MAPPINGS=NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=NODE_DISPLAY_NAME_MAPPINGS))
         lru_size, = request.param
