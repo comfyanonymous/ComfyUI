@@ -183,6 +183,8 @@ def save_checkpoint(model, clip=None, vae=None, clip_vision=None, filename_prefi
         metadata["modelspec.architecture"] = "stable-diffusion-xl-v1-refiner"
     elif isinstance(model.model, comfy.model_base.SVD_img2vid):
         metadata["modelspec.architecture"] = "stable-video-diffusion-img2vid-v1"
+    elif isinstance(model.model, comfy.model_base.SD3):
+        metadata["modelspec.architecture"] = "stable-diffusion-v3-medium" #TODO: other SD3 variants
     else:
         enable_modelspec = False
 

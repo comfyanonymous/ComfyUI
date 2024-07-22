@@ -19,7 +19,7 @@ class PerturbedAttentionGuidance:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "model_patches/unet"
 
     def patch(self, model, scale):
         unet_block = "middle"
