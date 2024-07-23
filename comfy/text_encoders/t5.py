@@ -223,7 +223,7 @@ class T5(torch.nn.Module):
         self.num_layers = config_dict["num_layers"]
         model_dim = config_dict["d_model"]
 
-        self.encoder = T5Stack(self.num_layers, model_dim, model_dim, config_dict["d_ff"], config_dict["dense_act_fn"], config_dict["is_gated_act"], config_dict["num_heads"], config_dict["model_type"] == "t5", dtype, device, operations)
+        self.encoder = T5Stack(self.num_layers, model_dim, model_dim, config_dict["d_ff"], config_dict["dense_act_fn"], config_dict["is_gated_act"], config_dict["num_heads"], config_dict["model_type"] != "umt5", dtype, device, operations)
         self.dtype = dtype
         self.shared = torch.nn.Embedding(config_dict["vocab_size"], model_dim, device=device)
 
