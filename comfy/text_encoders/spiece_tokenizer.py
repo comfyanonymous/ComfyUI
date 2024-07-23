@@ -1,9 +1,9 @@
 import os
 
-class LLAMATokenizer:
+class SPieceTokenizer:
     @staticmethod
     def from_pretrained(path):
-        return LLAMATokenizer(path)
+        return SPieceTokenizer(path)
 
     def __init__(self, tokenizer_path):
         import sentencepiece
