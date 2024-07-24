@@ -8,6 +8,7 @@ from . import sdxl_clip
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
 import comfy.text_encoders.aura_t5
+import comfy.text_encoders.hydit
 
 from . import supported_models_base
 from . import latent_formats
@@ -580,6 +581,40 @@ class AuraFlow(supported_models_base.BASE):
     def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(comfy.text_encoders.aura_t5.AuraT5Tokenizer, comfy.text_encoders.aura_t5.AuraT5Model)
 
-models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow]
+class HunyuanDiT(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "hydit",
+    }
+
+    sampling_settings = {
+        "linear_start": 0.00085,
+        "linear_end": 0.018,
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.SDXL
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.HunyuanDiT(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.text_encoders.hydit.HyditTokenizer, comfy.text_encoders.hydit.HyditModel)
+
+class HunyuanDiT1(HunyuanDiT):
+    unet_config = {
+        "image_model": "hydit1",
+    }
+
+    sampling_settings = {
+        "linear_start" : 0.00085,
+        "linear_end" : 0.03,
+    }
+
+
+models = [Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, HunyuanDiT, HunyuanDiT1]
 
 models += [SVD_img2vid]
