@@ -13,22 +13,13 @@ class T5XXLModel(sd1_clip.SDClipModel):
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5)
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_tokenizer")
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=77)
 
-class SDT5XXLTokenizer(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None):
-        super().__init__(embedding_directory=embedding_directory, clip_name="t5xxl", tokenizer=T5XXLTokenizer)
-
-class SDT5XXLModel(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, **kwargs):
-        super().__init__(device=device, dtype=dtype, clip_name="t5xxl", clip_model=T5XXLModel, **kwargs)
-
-
 
 class SD3Tokenizer:
-    def __init__(self, embedding_directory=None):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
         self.clip_g = sdxl_clip.SDXLClipGTokenizer(embedding_directory=embedding_directory)
         self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory)
