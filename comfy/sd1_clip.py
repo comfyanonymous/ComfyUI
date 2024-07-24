@@ -386,7 +386,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None, pad_token=None):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None, pad_token=None, tokenizer_data={}):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path)
@@ -521,10 +521,10 @@ class SDTokenizer:
 
 
 class SD1Tokenizer:
-    def __init__(self, embedding_directory=None, clip_name="l", tokenizer=SDTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer):
         self.clip_name = clip_name
         self.clip = "clip_{}".format(self.clip_name)
-        setattr(self, self.clip, tokenizer(embedding_directory=embedding_directory))
+        setattr(self, self.clip, tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data))
 
     def tokenize_with_weights(self, text:str, return_word_ids=False):
         out = {}

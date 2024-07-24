@@ -60,7 +60,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
 
 
 class CLIP:
-    def __init__(self, target=None, embedding_directory=None, no_init=False):
+    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}):
         if no_init:
             return
         params = target.params.copy()
@@ -79,7 +79,7 @@ class CLIP:
             if not model_management.supports_cast(load_device, dt):
                 load_device = offload_device
 
-        self.tokenizer = tokenizer(embedding_directory=embedding_directory)
+        self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         self.layer_idx = None
         logging.debug("CLIP model load device: {}, offload device: {}".format(load_device, offload_device))
@@ -520,7 +520,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         if clip_target is not None:
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:
-                clip = CLIP(clip_target, embedding_directory=embedding_directory)
+                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd)
                 m, u = clip.load_sd(clip_sd, full_model=True)
                 if len(m) > 0:
                     m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
