@@ -49,4 +49,6 @@ def get_package_as_path(package: str, subdir: Optional[str] = None) -> str:
     traversable = resources.files(package)
     if subdir is not None:
         traversable = traversable / subdir
-    return os.path.commonpath(list(map(str, traversable.iterdir())))
+    if traversable.is_dir():
+        return str(traversable)
+    raise ValueError(f"Could not find path for package={package}, subdir={subdir}, traversable={str(traversable)}")

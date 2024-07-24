@@ -163,6 +163,17 @@ On Windows, you will need to open PowerShell and activate your virtual environme
 comfyui
 ```
 
+**Advanced: Using `uv`**:
+
+`uv` is a significantly faster and improved Python package manager. On Windows, use the following commands to install the package from scratch about 6x faster than vanilla `pip`:
+
+```powershell
+uv venv --seed
+& .\venv\Scripts\activate.ps1
+uv pip install git+https://github.com/hiddenswitch/ComfyUI.git
+python -m comfy.cmd.main
+```
+
 ### LTS Custom Nodes
 
 These packages have been adapted to be installable with `pip` and download models to the correct places:

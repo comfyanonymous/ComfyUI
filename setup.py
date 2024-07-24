@@ -188,14 +188,8 @@ def dependencies(for_pypi=False, force_nightly: bool = False) -> List[str]:
 
 
 package_data = [
-    'sd1_tokenizer/*',
-    't5_tokenizer/*',
-    '**/*.json',
-    '**/*.yaml',
-    '**/*.model'
+    '**/*'
 ]
-if not is_editable:
-    package_data.append('comfy/web/**/*')
 dev_dependencies = open(os.path.join(os.path.dirname(__file__), "requirements-dev.txt")).readlines()
 setup(
     name=package_name,
