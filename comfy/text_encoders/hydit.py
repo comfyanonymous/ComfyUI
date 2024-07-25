@@ -32,7 +32,7 @@ class RobertaWrapper(torch.nn.Module):
         config = BertConfig(**config_dict)
         with use_comfy_ops(operations, device, dtype):
             with modeling_utils.no_init_weights():
-                self.bert = BertModel(config)
+                self.bert = BertModel(config, add_pooling_layer=False)
 
         self.num_layers = config.num_hidden_layers
 
@@ -69,6 +69,8 @@ class MT5XLTokenizer(sd1_clip.SDTokenizer):
         tokenizer = tokenizer_data.get("spiece_model", None)
         super().__init__(tokenizer, pad_with_end=False, embedding_size=2048, embedding_key='mt5xl', tokenizer_class=SPieceTokenizer, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=256)
 
+    def state_dict(self):
+        return {"spiece_model": self.tokenizer.serialize_model()}
 
 class HyditTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -84,6 +86,9 @@ class HyditTokenizer:
 
     def untokenize(self, token_weight_pair):
         return self.hydit_clip.untokenize(token_weight_pair)
+
+    def state_dict(self):
+        return {"mt5xl.spiece_model": self.mt5xl.state_dict()["spiece_model"]}
 
 class HyditModel(torch.nn.Module):
     def __init__(self, device="cpu", dtype=None):

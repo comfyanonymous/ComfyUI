@@ -27,3 +27,6 @@ class SPieceTokenizer:
     def __call__(self, string):
         out = self.tokenizer.encode(string)
         return {"input_ids": out}
+
+    def serialize_model(self):
+        return torch.ByteTensor(list(self.tokenizer.serialized_model_proto()))
