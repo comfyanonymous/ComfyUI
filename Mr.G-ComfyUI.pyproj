@@ -10356,14 +10356,19 @@
     <Compile Include="comfy_extras\nodes_video_model.py" />
     <Compile Include="comfy_extras\nodes_webcam.py" />
     <Compile Include="cuda_malloc.py" />
-    <Compile Include="custom_nodes\MrG\api.py" />
-    <Compile Include="custom_nodes\MrG\bundle.py" />
-    <Compile Include="custom_nodes\MrG\database.py" />
-    <Compile Include="custom_nodes\MrG\helpers.py" />
     <Compile Include="custom_nodes\MrG\mrg.py" />
-    <Compile Include="custom_nodes\MrG\mrgserver.py" />
-    <Compile Include="custom_nodes\MrG\prompt_api.py" />
-    <Compile Include="custom_nodes\MrG\queue_processing.py" />
+    <Compile Include="custom_nodes\MrG\mrg_api.py" />
+    <Compile Include="custom_nodes\MrG\mrg_bundle.py" />
+    <Compile Include="custom_nodes\MrG\mrg_database.py" />
+    <Compile Include="custom_nodes\MrG\mrg_db.py" />
+    <Compile Include="custom_nodes\MrG\mrg_helpers.py" />
+    <Compile Include="custom_nodes\MrG\mrg_huggingface.py" />
+    <Compile Include="custom_nodes\MrG\mrg_model_downloader.py" />
+    <Compile Include="custom_nodes\MrG\mrg_odata.py" />
+    <Compile Include="custom_nodes\MrG\mrg_packages.py" />
+    <Compile Include="custom_nodes\MrG\mrg_prompt_api.py" />
+    <Compile Include="custom_nodes\MrG\mrg_queue_processing.py" />
+    <Compile Include="custom_nodes\MrG\mrg_server.py" />
     <Compile Include="custom_nodes\MrG\__init__.py" />
     <Compile Include="custom_nodes\websocket_image_save.py" />
     <Compile Include="execution.py" />
@@ -11314,6 +11319,7 @@
     <Folder Include="web\scripts\ui" />
   </ItemGroup>
   <ItemGroup>
+    <InterpreterReference Include="Global|VisualStudio|Mr.G-Python-Embedded-Mr.G-AI" />
     <InterpreterReference Include="Global|VisualStudio|python_embedded" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
