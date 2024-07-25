@@ -519,6 +519,8 @@ class SDTokenizer:
     def untokenize(self, token_weight_pair):
         return list(map(lambda a: (a, self.inv_vocab[a[0]]), token_weight_pair))
 
+    def state_dict(self):
+        return {}
 
 class SD1Tokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer):
@@ -534,6 +536,8 @@ class SD1Tokenizer:
     def untokenize(self, token_weight_pair):
         return getattr(self, self.clip).untokenize(token_weight_pair)
 
+    def state_dict(self):
+        return {}
 
 class SD1ClipModel(torch.nn.Module):
     def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, name=None, **kwargs):

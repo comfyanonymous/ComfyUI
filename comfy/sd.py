@@ -135,7 +135,11 @@ class CLIP:
             return self.cond_stage_model.load_sd(sd)
 
     def get_sd(self):
-        return self.cond_stage_model.state_dict()
+        sd_clip = self.cond_stage_model.state_dict()
+        sd_tokenizer = self.tokenizer.state_dict()
+        for k in sd_tokenizer:
+            sd_clip[k] = sd_tokenizer[k]
+        return sd_clip
 
     def load_model(self):
         model_management.load_model_gpu(self.patcher)
