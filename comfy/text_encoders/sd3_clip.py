@@ -34,6 +34,9 @@ class SD3Tokenizer:
     def untokenize(self, token_weight_pair):
         return self.clip_g.untokenize(token_weight_pair)
 
+    def state_dict(self):
+        return {}
+
 class SD3ClipModel(torch.nn.Module):
     def __init__(self, clip_l=True, clip_g=True, t5=True, dtype_t5=None, device="cpu", dtype=None):
         super().__init__()

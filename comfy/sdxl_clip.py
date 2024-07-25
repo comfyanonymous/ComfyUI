@@ -34,6 +34,9 @@ class SDXLTokenizer:
     def untokenize(self, token_weight_pair):
         return self.clip_g.untokenize(token_weight_pair)
 
+    def state_dict(self):
+        return {}
+
 class SDXLClipModel(torch.nn.Module):
     def __init__(self, device="cpu", dtype=None):
         super().__init__()
