@@ -586,12 +586,15 @@ class HunyuanDiT(supported_models_base.BASE):
         "image_model": "hydit",
     }
 
+    unet_extra_config = {
+        "attn_precision": torch.float32,
+    }
+
     sampling_settings = {
         "linear_start": 0.00085,
         "linear_end": 0.018,
     }
 
-    unet_extra_config = {}
     latent_format = latent_formats.SDXL
 
     vae_key_prefix = ["vae."]
@@ -608,6 +611,8 @@ class HunyuanDiT1(HunyuanDiT):
     unet_config = {
         "image_model": "hydit1",
     }
+
+    unet_extra_config = {}
 
     sampling_settings = {
         "linear_start" : 0.00085,

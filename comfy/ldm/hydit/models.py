@@ -40,6 +40,7 @@ class HunYuanDiTBlock(nn.Module):
                  qk_norm=False,
                  norm_type="layer",
                  skip=False,
+                 attn_precision=None,
                  dtype=None,
                  device=None,
                  operations=None,
@@ -56,7 +57,7 @@ class HunYuanDiTBlock(nn.Module):
 
         # ========================= Self-Attention =========================
         self.norm1 = norm_layer(hidden_size, elementwise_affine=use_ele_affine, eps=1e-6, dtype=dtype, device=device)
-        self.attn1 = Attention(hidden_size, num_heads=num_heads, qkv_bias=True, qk_norm=qk_norm, dtype=dtype, device=device, operations=operations)
+        self.attn1 = Attention(hidden_size, num_heads=num_heads, qkv_bias=True, qk_norm=qk_norm, attn_precision=attn_precision, dtype=dtype, device=device, operations=operations)
 
         # ========================= FFN =========================
         self.norm2 = norm_layer(hidden_size, elementwise_affine=use_ele_affine, eps=1e-6, dtype=dtype, device=device)
@@ -73,7 +74,7 @@ class HunYuanDiTBlock(nn.Module):
 
         # ========================= Cross-Attention =========================
         self.attn2 = CrossAttention(hidden_size, text_states_dim, num_heads=num_heads, qkv_bias=True,
-                                        qk_norm=qk_norm, dtype=dtype, device=device, operations=operations)
+                                        qk_norm=qk_norm, attn_precision=attn_precision, dtype=dtype, device=device, operations=operations)
         self.norm3 = norm_layer(hidden_size, elementwise_affine=True, eps=1e-6, dtype=dtype, device=device)
 
         # ========================= Skip Connection =========================
@@ -185,6 +186,7 @@ class HunYuanDiT(nn.Module):
                  learn_sigma = True,
                  norm = "layer",
                  log_fn: callable = print,
+                 attn_precision=None,
                  dtype=None,
                  device=None,
                  operations=None,
@@ -246,7 +248,6 @@ class HunYuanDiT(nn.Module):
 
         # Image embedding
         num_patches = self.x_embedder.num_patches
-        log_fn(f"    Number of tokens: {num_patches}")
 
         # HUnYuanDiT Blocks
         self.blocks = nn.ModuleList([
@@ -258,6 +259,7 @@ class HunYuanDiT(nn.Module):
                             qk_norm=qk_norm,
                             norm_type=self.norm,
                             skip=layer > depth // 2,
+                            attn_precision=attn_precision,
                             dtype=dtype,
                             device=device,
                             operations=operations,

@@ -106,12 +106,14 @@ class CrossAttention(nn.Module):
                  qk_norm=False,
                  attn_drop=0.0,
                  proj_drop=0.0,
+                 attn_precision=None,
                  device=None,
                  dtype=None,
                  operations=None,
                  ):
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
+        self.attn_precision = attn_precision
         self.qdim = qdim
         self.kdim = kdim
         self.num_heads = num_heads
@@ -160,7 +162,7 @@ class CrossAttention(nn.Module):
         k = k.transpose(-2, -3).contiguous()      # k ->  B, L2, H, C - B, H, C, L2
         v = v.transpose(-2, -3).contiguous() 
 
-        context = optimized_attention(q, k, v, self.num_heads, skip_reshape=True)
+        context = optimized_attention(q, k, v, self.num_heads, skip_reshape=True, attn_precision=self.attn_precision)
 
         out = self.out_proj(context)  # context.reshape - B, L1, -1
         out = self.proj_drop(out)
@@ -174,8 +176,9 @@ class Attention(nn.Module):
     """
     We rename some layer names to align with flash attention
     """
-    def __init__(self, dim, num_heads, qkv_bias=True, qk_norm=False, attn_drop=0., proj_drop=0., dtype=None, device=None, operations=None):
+    def __init__(self, dim, num_heads, qkv_bias=True, qk_norm=False, attn_drop=0., proj_drop=0., attn_precision=None, dtype=None, device=None, operations=None):
         super().__init__()
+        self.attn_precision = attn_precision
         self.dim = dim
         self.num_heads = num_heads
         assert self.dim % num_heads == 0, 'dim should be divisible by num_heads'
@@ -207,7 +210,7 @@ class Attention(nn.Module):
                 f'qq: {qq.shape}, q: {q.shape}, kk: {kk.shape}, k: {k.shape}'
             q, k = qq, kk
 
-        x = optimized_attention(q, k, v, self.num_heads, skip_reshape=True)
+        x = optimized_attention(q, k, v, self.num_heads, skip_reshape=True, attn_precision=self.attn_precision)
         x = self.out_proj(x)
         x = self.proj_drop(x)
 
