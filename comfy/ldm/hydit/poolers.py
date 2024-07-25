@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# from comfy.ldm.modules.attention import optimized_attention #TODO
+from comfy.ldm.modules.attention import optimized_attention #TODO
 
 
 class AttentionPool(nn.Module):
@@ -25,13 +25,12 @@ class AttentionPool(nn.Module):
         v = self.v_proj(x)
 
         batch_size = q.shape[1]
-        q = q.view(1, batch_size * self.num_heads, self.embed_dim // self.num_heads).transpose(0, 1)
-        k = k.view(k.shape[0], batch_size * self.num_heads, self.embed_dim // self.num_heads).transpose(0, 1)
-        v = v.view(v.shape[0], batch_size * self.num_heads, self.embed_dim // self.num_heads).transpose(0, 1)
+        head_dim = self.embed_dim // self.num_heads
+        q = q.view(1, batch_size * self.num_heads, head_dim).transpose(0, 1).view(batch_size, self.num_heads, -1, head_dim)
+        k = k.view(k.shape[0], batch_size * self.num_heads, head_dim).transpose(0, 1).view(batch_size, self.num_heads, -1, head_dim)
+        v = v.view(v.shape[0], batch_size * self.num_heads, head_dim).transpose(0, 1).view(batch_size, self.num_heads, -1, head_dim)
 
-        attn_output = F.scaled_dot_product_attention(q, k, v)
-
-        attn_output = attn_output.transpose(0, 1).contiguous().view(1, batch_size, self.embed_dim)
+        attn_output = optimized_attention(q, k, v, self.num_heads, skip_reshape=True).transpose(0, 1)
 
         attn_output = self.c_proj(attn_output)
         return attn_output.squeeze(0)
