@@ -7,15 +7,14 @@ import torch.nn.functional as F
 from comfy.ldm.modules.diffusionmodules.mmdit import Mlp, TimestepEmbedder, PatchEmbed, RMSNorm
 from comfy.ldm.modules.diffusionmodules.util import timestep_embedding
 from torch.utils import checkpoint
-from tqdm import tqdm
 
 from .attn_layers import Attention, CrossAttention
 from .poolers import AttentionPool
 from .posemb_layers import get_2d_rotary_pos_embed, get_fill_resize_and_crop
 
 def calc_rope(x, patch_size, head_size):
-    th = x.shape[2] // patch_size
-    tw = x.shape[3] // patch_size
+    th = (x.shape[2] + (patch_size // 2)) // patch_size
+    tw = (x.shape[3] + (patch_size // 2)) // patch_size
     base_size = 512 // 8 // patch_size
     start, stop = get_fill_resize_and_crop((th, tw), base_size)
     sub_args = [start, stop, (th, tw)]
@@ -327,7 +326,7 @@ class HunYuanDiT(nn.Module):
         text_states = torch.where(clip_t5_mask.unsqueeze(2), text_states, self.text_embedding_padding.to(text_states))
 
         _, _, oh, ow = x.shape
-        th, tw = oh // self.patch_size, ow // self.patch_size
+        th, tw = (oh + (self.patch_size // 2)) // self.patch_size, (ow + (self.patch_size // 2)) // self.patch_size
 
 
         # Get image RoPE embedding according to `reso`lution.
@@ -382,8 +381,8 @@ class HunYuanDiT(nn.Module):
         if return_dict:
             return {'x': x}
         if self.learn_sigma:
-            return x[:,:self.out_channels // 2]
-        return x
+            return x[:,:self.out_channels // 2,:oh,:ow]
+        return x[:,:,:oh,:ow]
 
     def unpatchify(self, x, h, w):
         """
