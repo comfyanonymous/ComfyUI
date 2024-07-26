@@ -106,4 +106,5 @@ jobs:
           file: ComfyUI_windows_portable_nvidia.7z
           tag: ${{ github.ref }}
           overwrite: true
-        
+          prerelease: true
+          make_latest: false
