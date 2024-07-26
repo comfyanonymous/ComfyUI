@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <InterpreterId>Global|VisualStudio|python_embedded</InterpreterId>
+    <InterpreterId>Global|VisualStudio|Mr.G-Python-Embedded-Mr.G-AI</InterpreterId>
     <IsWindowsApplication>False</IsWindowsApplication>
     <CommandLineArguments> --cpu</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
@@ -10358,9 +10358,11 @@
     <Compile Include="cuda_malloc.py" />
     <Compile Include="custom_nodes\MrG\mrg.py" />
     <Compile Include="custom_nodes\MrG\mrg_api.py" />
+    <Compile Include="custom_nodes\MrG\mrg_api_crud.py" />
     <Compile Include="custom_nodes\MrG\mrg_bundle.py" />
     <Compile Include="custom_nodes\MrG\mrg_database.py" />
     <Compile Include="custom_nodes\MrG\mrg_db.py" />
+    <Compile Include="custom_nodes\MrG\mrg_db_op.py" />
     <Compile Include="custom_nodes\MrG\mrg_helpers.py" />
     <Compile Include="custom_nodes\MrG\mrg_huggingface.py" />
     <Compile Include="custom_nodes\MrG\mrg_model_downloader.py" />

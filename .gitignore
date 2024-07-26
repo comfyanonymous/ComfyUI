@@ -18,3 +18,5 @@ venv/
 /tests-ui/data/object_info.json
 /user/
 /db/mrg.*
+db/mrg2.db
+web/MrG.zip
