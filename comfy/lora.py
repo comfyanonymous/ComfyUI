@@ -282,4 +282,10 @@ def model_lora_keys_unet(model, key_map={}):
                 key_lora = "transformer.{}".format(k[:-len(".weight")]) #simpletrainer and probably regular diffusers lora format
                 key_map[key_lora] = to
 
+    if isinstance(model, comfy.model_base.HunyuanDiT):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["base_model.model.{}".format(key_lora)] = k #official hunyuan lora format
+
     return key_map
