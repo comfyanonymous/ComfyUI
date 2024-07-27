@@ -2,7 +2,6 @@ import psutil
 import logging
 from enum import Enum
 from comfy.cli_args import args
-import comfy.utils
 import torch
 import sys
 import platform
@@ -168,7 +167,7 @@ if args.use_pytorch_cross_attention:
     ENABLE_PYTORCH_ATTENTION = True
     XFORMERS_IS_AVAILABLE = False
 
-VAE_DTYPE = torch.float32
+VAE_DTYPES = [torch.float32]
 
 try:
     if is_nvidia():
@@ -177,7 +176,7 @@ try:
             if ENABLE_PYTORCH_ATTENTION == False and args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
                 ENABLE_PYTORCH_ATTENTION = True
             if torch.cuda.is_bf16_supported() and torch.cuda.get_device_properties(torch.cuda.current_device()).major >= 8:
-                VAE_DTYPE = torch.bfloat16
+                VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
     if is_intel_xpu():
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             ENABLE_PYTORCH_ATTENTION = True
@@ -185,17 +184,10 @@ except:
     pass
 
 if is_intel_xpu():
-    VAE_DTYPE = torch.bfloat16
+    VAE_DTYPES = [torch.bfloat16] + VAE_DTYPES
 
 if args.cpu_vae:
-    VAE_DTYPE = torch.float32
-
-if args.fp16_vae:
-    VAE_DTYPE = torch.float16
-elif args.bf16_vae:
-    VAE_DTYPE = torch.bfloat16
-elif args.fp32_vae:
-    VAE_DTYPE = torch.float32
+    VAE_DTYPES = [torch.float32]
 
 
 if ENABLE_PYTORCH_ATTENTION:
@@ -259,7 +251,6 @@ try:
 except:
     logging.warning("Could not pick default device.")
 
-logging.info("VAE dtype: {}".format(VAE_DTYPE))
 
 current_loaded_models = []
 
@@ -277,6 +268,7 @@ class LoadedModel:
         self.device = model.load_device
         self.weights_loaded = False
         self.real_model = None
+        self.currently_used = True
 
     def model_memory(self):
         return self.model.model_size()
@@ -366,6 +358,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
         if shift_model.device == device:
             if shift_model not in keep_loaded:
                 can_unload.append((sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
+                shift_model.currently_used = False
 
     for x in sorted(can_unload):
         i = x[-1]
@@ -411,6 +404,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
                 current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
                 loaded = None
             else:
+                loaded.currently_used = True
                 models_already_loaded.append(loaded)
 
         if loaded is None:
@@ -466,6 +460,16 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False):
 
 def load_model_gpu(model):
     return load_models_gpu([model])
+
+def loaded_models(only_currently_used=False):
+    output = []
+    for m in current_loaded_models:
+        if only_currently_used:
+            if not m.currently_used:
+                continue
+
+        output.append(m.model)
+    return output
 
 def cleanup_models(keep_clone_weights_loaded=False):
     to_delete = []
@@ -607,9 +611,22 @@ def vae_offload_device():
     else:
         return torch.device("cpu")
 
-def vae_dtype():
-    global VAE_DTYPE
-    return VAE_DTYPE
+def vae_dtype(device=None, allowed_dtypes=[]):
+    global VAE_DTYPES
+    if args.fp16_vae:
+        return torch.float16
+    elif args.bf16_vae:
+        return torch.bfloat16
+    elif args.fp32_vae:
+        return torch.float32
+
+    for d in allowed_dtypes:
+        if d == torch.float16 and should_use_fp16(device, prioritize_performance=False):
+            return d
+        if d in VAE_DTYPES:
+            return d
+
+    return VAE_DTYPES[0]
 
 def get_autocast_device(dev):
     if hasattr(dev, 'type'):
@@ -627,9 +644,32 @@ def supports_dtype(device, dtype): #TODO
         return True
     return False
 
+def supports_cast(device, dtype): #TODO
+    if dtype == torch.float32:
+        return True
+    if dtype == torch.float16:
+        return True
+    if is_device_mps(device):
+        return False
+    if directml_enabled: #TODO: test this
+        return False
+    if dtype == torch.bfloat16:
+        return True
+    if dtype == torch.float8_e4m3fn:
+        return True
+    if dtype == torch.float8_e5m2:
+        return True
+    return False
+
 def device_supports_non_blocking(device):
     if is_device_mps(device):
         return False #pytorch bug? mps doesn't support non blocking
+    if is_intel_xpu():
+        return False
+    if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
+        return False
+    if directml_enabled:
+        return False
     return True
 
 def device_should_use_non_blocking(device):
@@ -638,6 +678,12 @@ def device_should_use_non_blocking(device):
     return False
     # return True #TODO: figure out why this causes memory issues on Nvidia and possibly others
 
+def force_channels_last():
+    if args.force_channels_last:
+        return True
+
+    #TODO
+    return False
 
 def cast_to_device(tensor, device, dtype, copy=False):
     device_supports_cast = False
@@ -689,6 +735,8 @@ def pytorch_attention_flash_attention():
     if ENABLE_PYTORCH_ATTENTION:
         #TODO: more reliable way of checking for flash attention?
         if is_nvidia(): #pytorch flash attention only works on Nvidia
+            return True
+        if is_intel_xpu():
             return True
     return False
 
@@ -876,6 +924,7 @@ def unload_all_models():
 
 
 def resolve_lowvram_weight(weight, model, key): #TODO: remove
+    print("WARNING: The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
     return weight
 
 #TODO: might be cleaner to put this somewhere else

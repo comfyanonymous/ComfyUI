@@ -63,6 +63,10 @@ const colorPalettes = {
 				"border-color": "#4e4e4e",
 				"tr-even-bg-color": "#222",
 				"tr-odd-bg-color": "#353535",
+				"content-bg": "#4e4e4e",
+				"content-fg": "#fff",
+				"content-hover-bg": "#222",
+				"content-hover-fg": "#fff"
 			}
 		},
 	},
@@ -120,6 +124,10 @@ const colorPalettes = {
 				"border-color": "#888",
 				"tr-even-bg-color": "#f9f9f9",
 				"tr-odd-bg-color": "#fff",
+				"content-bg": "#e0e0e0",
+				"content-fg": "#222",
+				"content-hover-bg": "#adadad",
+				"content-hover-fg": "#222"
 			}
 		},
 	},
@@ -176,6 +184,10 @@ const colorPalettes = {
 				"border-color": "#657b83", // Base00
 				"tr-even-bg-color": "#002b36",
 				"tr-odd-bg-color": "#073642",
+				"content-bg": "#657b83",
+				"content-fg": "#fdf6e3",
+				"content-hover-bg": "#002b36",
+				"content-hover-fg": "#fdf6e3"
 			}
 		},
 	},
@@ -244,7 +256,11 @@ const colorPalettes = {
 			  "error-text": "#ff4444",
 			  "border-color": "#6e7581",
 			  "tr-even-bg-color": "#2b2f38",
-			  "tr-odd-bg-color": "#242730"
+			  "tr-odd-bg-color": "#242730",
+			  "content-bg": "#6e7581",
+			  "content-fg": "#fff",
+			  "content-hover-bg": "#2b2f38",
+			  "content-hover-fg": "#fff"
 			}
 		},
 	},
@@ -313,7 +329,11 @@ const colorPalettes = {
 			  "error-text": "#ff4444",
 			  "border-color": "#545d70",
 			  "tr-even-bg-color": "#2e3440",
-			  "tr-odd-bg-color": "#161b22"
+			  "tr-odd-bg-color": "#161b22",
+			  "content-bg": "#545d70",
+			  "content-fg": "#e5eaf0",
+			  "content-hover-bg": "#2e3440",
+			  "content-hover-fg": "#e5eaf0"
 			}
 		},
 	},
@@ -382,7 +402,11 @@ const colorPalettes = {
 			  "error-text": "#ff4444",
 			  "border-color": "#30363d",
 			  "tr-even-bg-color": "#161b22",
-			  "tr-odd-bg-color": "#13171d"
+			  "tr-odd-bg-color": "#13171d",
+			  "content-bg": "#30363d",
+			  "content-fg": "#e5eaf0",
+			  "content-hover-bg": "#161b22",
+			  "content-hover-fg": "#e5eaf0"
 			}
 		},
 	}

@@ -25,7 +25,7 @@ class UnetParams(TypedDict):
     timestep: torch.Tensor
     c: UnetApplyConds
     # List of [0, 1], [0], [1], ...
-    # 0 means unconditional, 1 means conditional
+    # 0 means conditional, 1 means conditional unconditional
     cond_or_uncond: List[int]
 
 
