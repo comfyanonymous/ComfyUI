@@ -136,6 +136,9 @@ class ComfyApi extends EventTarget {
 					    case "execution_start":
 						    this.dispatchEvent(new CustomEvent("execution_start", { detail: msg.data }));
 						    break;
+					    case "execution_success":
+						    this.dispatchEvent(new CustomEvent("execution_success", { detail: msg.data }));
+						    break;
 					    case "execution_error":
 						    this.dispatchEvent(new CustomEvent("execution_error", { detail: msg.data }));
 						    break;
@@ -327,7 +330,7 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Gets user configuration data and where data should be stored
-	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> } 
+	 * @returns { Promise<{ storage: "server" | "browser", users?: Promise<string, unknown>, migrated?: boolean }> }
 	 */
 	async getUserConfig() {
 		return (await this.fetchApi("/users")).json();
@@ -335,7 +338,7 @@ class ComfyApi extends EventTarget {
 
 	/**
 	 * Creates a new user
-	 * @param { string } username 
+	 * @param { string } username
 	 * @returns The fetch response
 	 */
 	createUser(username) {
@@ -394,7 +397,7 @@ class ComfyApi extends EventTarget {
 	 * Gets a user data file for the current user
 	 * @param { string } file The name of the userdata file to load
 	 * @param { RequestInit } [options]
-	 * @returns { Promise<unknown> } The fetch response object
+	 * @returns { Promise<Response> } The fetch response object
 	 */
 	async getUserData(file, options) {
 		return this.fetchApi(`/userdata/${encodeURIComponent(file)}`, options);
@@ -404,18 +407,75 @@ class ComfyApi extends EventTarget {
 	 * Stores a user data file for the current user
 	 * @param { string } file The name of the userdata file to save
 	 * @param { unknown } data The data to save to the file
-	 * @param { RequestInit & { stringify?: boolean, throwOnError?: boolean } } [options]
-	 * @returns { Promise<void> }
+	 * @param { RequestInit & { overwrite?: boolean, stringify?: boolean, throwOnError?: boolean } } [options]
+	 * @returns { Promise<Response> }
 	 */
-	async storeUserData(file, data, options = { stringify: true, throwOnError: true }) {
-		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}`, {
+	async storeUserData(file, data, options = { overwrite: true, stringify: true, throwOnError: true }) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}?overwrite=${options?.overwrite}`, {
 			method: "POST",
 			body: options?.stringify ? JSON.stringify(data) : data,
 			...options,
-		});	
-		if (resp.status !== 200) {
+		});
+		if (resp.status !== 200 && options?.throwOnError !== false) {
 			throw new Error(`Error storing user data file '${file}': ${resp.status} ${(await resp).statusText}`);
 		}
+		return resp;
+	}
+
+	/**
+	 * Deletes a user data file for the current user
+	 * @param { string } file The name of the userdata file to delete
+	 */
+	async deleteUserData(file) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(file)}`, {
+			method: "DELETE",
+		});
+		if (resp.status !== 204) {
+			throw new Error(`Error removing user data file '${file}': ${resp.status} ${(resp).statusText}`);
+		}
+	}
+
+	/**
+	 * Move a user data file for the current user
+	 * @param { string } source The userdata file to move
+	 * @param { string } dest The destination for the file
+	 */
+	async moveUserData(source, dest, options = { overwrite: false }) {
+		const resp = await this.fetchApi(`/userdata/${encodeURIComponent(source)}/move/${encodeURIComponent(dest)}?overwrite=${options?.overwrite}`, {
+			method: "POST",
+		});
+		return resp;
+	}
+
+	/**
+	 * @overload
+	 * Lists user data files for the current user
+	 * @param { string } dir The directory in which to list files
+	 * @param { boolean } [recurse] If the listing should be recursive
+	 * @param { true } [split] If the paths should be split based on the os path separator
+	 * @returns { Promise<string[][]>> } The list of split file paths in the format [fullPath, ...splitPath]
+	 */
+	/**
+	 * @overload
+	 * Lists user data files for the current user
+	 * @param { string } dir The directory in which to list files
+	 * @param { boolean } [recurse] If the listing should be recursive
+	 * @param { false | undefined } [split] If the paths should be split based on the os path separator
+	 * @returns { Promise<string[]>> } The list of files
+	 */
+	async listUserData(dir, recurse, split) {
+		const resp = await this.fetchApi(
+			`/userdata?${new URLSearchParams({
+				recurse,
+				dir,
+				split,
+			})}`
+		);
+		if (resp.status === 404) return [];
+		if (resp.status !== 200) {
+			throw new Error(`Error getting user data list '${dir}': ${resp.status} ${resp.statusText}`);
+		}
+		return resp.json();
 	}
 }
 
