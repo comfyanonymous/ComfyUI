@@ -12,9 +12,9 @@ class Example:
     Attributes
     ----------
     RETURN_TYPES (`tuple`): 
-        The type of each element in the output tulple.
+        The type of each element in the output tuple.
     RETURN_NAMES (`tuple`):
-        Optional: The name of each output in the output tulple.
+        Optional: The name of each output in the output tuple.
     FUNCTION (`str`):
         The name of the entry-point method. For example, if `FUNCTION = "execute"` then it will run Example().execute()
     OUTPUT_NODE ([`bool`]):
@@ -44,7 +44,7 @@ class Example:
                     * Key field_name (`string`): Name of a entry-point method's argument
                     * Value field_config (`tuple`):
                         + First value is a string indicate the type of field or a list for selection.
-                        + Secound value is a config for type "INT", "STRING" or "FLOAT".
+                        + Second value is a config for type "INT", "STRING" or "FLOAT".
         """
         return {
             "required": {
@@ -61,7 +61,7 @@ class Example:
                     "min": 0.0,
                     "max": 10.0,
                     "step": 0.01,
-                    "round": 0.001, #The value represeting the precision to round to, will be set to the step value by default. Can be set to False to disable rounding.
+                    "round": 0.001, #The value representing the precision to round to, will be set to the step value by default. Can be set to False to disable rounding.
                     "display": "number"}),
                 "print_to_screen": (["enable", "disable"],),
                 "string_field": ("STRING", {
@@ -105,6 +105,16 @@ class Example:
 
 # Set the web directory, any .js file in that directory will be loaded by the frontend as a frontend extension
 # WEB_DIRECTORY = "./somejs"
+
+
+# Add custom API routes, using router
+from aiohttp import web
+from server import PromptServer
+
+@PromptServer.instance.routes.get("/hello")
+async def get_hello(request):
+    return web.json_response("hello")
+
 
 # A dictionary that contains all nodes you want to export with their names
 # NOTE: names should be globally unique

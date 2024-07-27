@@ -6,9 +6,12 @@ from comfy import model_management
 import math
 import logging
 import comfy.sampler_helpers
+import scipy
+import numpy
 
 def get_area_and_mult(conds, x_in, timestep_in):
-    area = (x_in.shape[2], x_in.shape[3], 0, 0)
+    dims = tuple(x_in.shape[2:])
+    area = None
     strength = 1.0
 
     if 'timestep_start' in conds:
@@ -20,11 +23,16 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if timestep_in[0] < timestep_end:
             return None
     if 'area' in conds:
-        area = conds['area']
+        area = list(conds['area'])
     if 'strength' in conds:
         strength = conds['strength']
 
-    input_x = x_in[:,:,area[2]:area[0] + area[2],area[3]:area[1] + area[3]]
+    input_x = x_in
+    if area is not None:
+        for i in range(len(dims)):
+            area[i] = min(input_x.shape[i + 2] - area[len(dims) + i], area[i])
+            input_x = input_x.narrow(i + 2, area[len(dims) + i], area[i])
+
     if 'mask' in conds:
         # Scale the mask to the size of the input
         # The mask should have been resized as we began the sampling process
@@ -32,28 +40,30 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if "mask_strength" in conds:
             mask_strength = conds["mask_strength"]
         mask = conds['mask']
-        assert(mask.shape[1] == x_in.shape[2])
-        assert(mask.shape[2] == x_in.shape[3])
-        mask = mask[:input_x.shape[0],area[2]:area[0] + area[2],area[3]:area[1] + area[3]] * mask_strength
+        assert(mask.shape[1:] == x_in.shape[2:])
+
+        mask = mask[:input_x.shape[0]]
+        if area is not None:
+            for i in range(len(dims)):
+                mask = mask.narrow(i + 1, area[len(dims) + i], area[i])
+
+        mask = mask * mask_strength
         mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
     else:
         mask = torch.ones_like(input_x)
     mult = mask * strength
 
-    if 'mask' not in conds:
+    if 'mask' not in conds and area is not None:
         rr = 8
-        if area[2] != 0:
-            for t in range(rr):
-                mult[:,:,t:1+t,:] *= ((1.0/rr) * (t + 1))
-        if (area[0] + area[2]) < x_in.shape[2]:
-            for t in range(rr):
-                mult[:,:,area[0] - 1 - t:area[0] - t,:] *= ((1.0/rr) * (t + 1))
-        if area[3] != 0:
-            for t in range(rr):
-                mult[:,:,:,t:1+t] *= ((1.0/rr) * (t + 1))
-        if (area[1] + area[3]) < x_in.shape[3]:
-            for t in range(rr):
-                mult[:,:,:,area[1] - 1 - t:area[1] - t] *= ((1.0/rr) * (t + 1))
+        for i in range(len(dims)):
+            if area[len(dims) + i] != 0:
+                for t in range(rr):
+                    m = mult.narrow(i + 2, t, 1)
+                    m *= ((1.0/rr) * (t + 1))
+            if (area[i] + area[len(dims) + i]) < x_in.shape[i + 2]:
+                for t in range(rr):
+                    m = mult.narrow(i + 2, area[i] - 1 - t, 1)
+                    m *= ((1.0/rr) * (t + 1))
 
     conditioning = {}
     model_conds = conds["model_conds"]
@@ -219,8 +229,19 @@ def calc_cond_batch(model, conds, x_in, timestep, model_options):
 
         for o in range(batch_chunks):
             cond_index = cond_or_uncond[o]
-            out_conds[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-            out_counts[cond_index][:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
+            a = area[o]
+            if a is None:
+                out_conds[cond_index] += output[o] * mult[o]
+                out_counts[cond_index] += mult[o]
+            else:
+                out_c = out_conds[cond_index]
+                out_cts = out_counts[cond_index]
+                dims = len(a) // 2
+                for i in range(dims):
+                    out_c = out_c.narrow(i + 2, a[i + dims], a[i])
+                    out_cts = out_cts.narrow(i + 2, a[i + dims], a[i])
+                out_c += output[o] * mult[o]
+                out_cts += mult[o]
 
     for i in range(len(out_conds)):
         out_conds[i] /= out_counts[i]
@@ -256,6 +277,12 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
 
     conds = [cond, uncond_]
     out = calc_cond_batch(model, conds, x, timestep, model_options)
+
+    for fn in model_options.get("sampler_pre_cfg_function", []):
+        args = {"conds":conds, "conds_out": out, "cond_scale": cond_scale, "timestep": timestep,
+                "input": x, "sigma": timestep, "model": model, "model_options": model_options}
+        out  = fn(args)
+
     return cfg_function(model, out[0], out[1], cond_scale, x, timestep, model_options=model_options, cond=cond, uncond=uncond_)
 
 
@@ -286,13 +313,18 @@ def simple_scheduler(model_sampling, steps):
 def ddim_scheduler(model_sampling, steps):
     s = model_sampling
     sigs = []
-    ss = max(len(s.sigmas) // steps, 1)
     x = 1
+    if math.isclose(float(s.sigmas[x]), 0, abs_tol=0.00001):
+        steps += 1
+        sigs = []
+    else:
+        sigs = [0.0]
+
+    ss = max(len(s.sigmas) // steps, 1)
     while x < len(s.sigmas):
         sigs += [float(s.sigmas[x])]
         x += ss
     sigs = sigs[::-1]
-    sigs += [0.0]
     return torch.FloatTensor(sigs)
 
 def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
@@ -300,15 +332,34 @@ def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
     start = s.timestep(s.sigma_max)
     end = s.timestep(s.sigma_min)
 
+    append_zero = True
     if sgm:
         timesteps = torch.linspace(start, end, steps + 1)[:-1]
     else:
+        if math.isclose(float(s.sigma(end)), 0, abs_tol=0.00001):
+            steps += 1
+            append_zero = False
         timesteps = torch.linspace(start, end, steps)
 
     sigs = []
     for x in range(len(timesteps)):
         ts = timesteps[x]
-        sigs.append(s.sigma(ts))
+        sigs.append(float(s.sigma(ts)))
+
+    if append_zero:
+        sigs += [0.0]
+
+    return torch.FloatTensor(sigs)
+
+# Implemented based on: https://arxiv.org/abs/2407.12173
+def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
+    total_timesteps = (len(model_sampling.sigmas) - 1)
+    ts = 1 - numpy.linspace(0, 1, steps, endpoint=False)
+    ts = numpy.rint(scipy.stats.beta.ppf(ts, alpha, beta) * total_timesteps)
+
+    sigs = []
+    for t in ts:
+        sigs += [float(model_sampling.sigmas[int(t)])]
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
@@ -335,7 +386,7 @@ def get_mask_aabb(masks):
 
     return bounding_boxes, is_empty
 
-def resolve_areas_and_cond_masks(conditions, h, w, device):
+def resolve_areas_and_cond_masks_multidim(conditions, dims, device):
     # We need to decide on an area outside the sampling loop in order to properly generate opposite areas of equal sizes.
     # While we're doing this, we can also resolve the mask device and scaling for performance reasons
     for i in range(len(conditions)):
@@ -344,7 +395,14 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
             area = c['area']
             if area[0] == "percentage":
                 modified = c.copy()
-                area = (max(1, round(area[1] * h)), max(1, round(area[2] * w)), round(area[3] * h), round(area[4] * w))
+                a = area[1:]
+                a_len = len(a) // 2
+                area = ()
+                for d in range(len(dims)):
+                    area += (max(1, round(a[d] * dims[d])),)
+                for d in range(len(dims)):
+                    area += (round(a[d + a_len] * dims[d]),)
+
                 modified['area'] = area
                 c = modified
                 conditions[i] = c
@@ -353,12 +411,12 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
             mask = c['mask']
             mask = mask.to(device=device)
             modified = c.copy()
-            if len(mask.shape) == 2:
+            if len(mask.shape) == len(dims):
                 mask = mask.unsqueeze(0)
-            if mask.shape[1] != h or mask.shape[2] != w:
-                mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=(h, w), mode='bilinear', align_corners=False).squeeze(1)
+            if mask.shape[1:] != dims:
+                mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=dims, mode='bilinear', align_corners=False).squeeze(1)
 
-            if modified.get("set_area_to_bounds", False):
+            if modified.get("set_area_to_bounds", False): #TODO: handle dim != 2
                 bounds = torch.max(torch.abs(mask),dim=0).values.unsqueeze(0)
                 boxes, is_empty = get_mask_aabb(bounds)
                 if is_empty[0]:
@@ -375,7 +433,11 @@ def resolve_areas_and_cond_masks(conditions, h, w, device):
             modified['mask'] = mask
             conditions[i] = modified
 
-def create_cond_with_same_area_if_none(conds, c):
+def resolve_areas_and_cond_masks(conditions, h, w, device):
+    logging.warning("WARNING: The comfy.samplers.resolve_areas_and_cond_masks function is deprecated please use the resolve_areas_and_cond_masks_multidim one instead.")
+    return resolve_areas_and_cond_masks_multidim(conditions, [h, w], device)
+
+def create_cond_with_same_area_if_none(conds, c): #TODO: handle dim != 2
     if 'area' not in c:
         return
 
@@ -479,7 +541,10 @@ def encode_model_conds(model_function, conds, noise, device, prompt_type, **kwar
         params = x.copy()
         params["device"] = device
         params["noise"] = noise
-        params["width"] = params.get("width", noise.shape[3] * 8)
+        default_width = None
+        if len(noise.shape) >= 4: #TODO: 8 multiple should be set by the model
+            default_width = noise.shape[3] * 8
+        params["width"] = params.get("width", default_width)
         params["height"] = params.get("height", noise.shape[2] * 8)
         params["prompt_type"] = params.get("prompt_type", prompt_type)
         for k in kwargs:
@@ -504,9 +569,10 @@ class Sampler:
         sigma = float(sigmas[0])
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
 
-KSAMPLER_NAMES = ["euler", "euler_ancestral", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
+KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
-                  "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm"]
+                  "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
+                  "ipndm", "ipndm_v", "deis"]
 
 class KSAMPLER(Sampler):
     def __init__(self, sampler_function, extra_options={}, inpaint_options={}):
@@ -567,7 +633,7 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
 def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=None, seed=None):
     for k in conds:
         conds[k] = conds[k][:]
-        resolve_areas_and_cond_masks(conds[k], noise.shape[2], noise.shape[3], device)
+        resolve_areas_and_cond_masks_multidim(conds[k], noise.shape[2:], device)
 
     for k in conds:
         calculate_start_end_timesteps(model, conds[k])
@@ -663,7 +729,7 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     return cfg_guider.sample(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
 
 
-SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
+SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform", "beta"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
 
 def calculate_sigmas(model_sampling, scheduler_name, steps):
@@ -679,6 +745,8 @@ def calculate_sigmas(model_sampling, scheduler_name, steps):
         sigmas = ddim_scheduler(model_sampling, steps)
     elif scheduler_name == "sgm_uniform":
         sigmas = normal_scheduler(model_sampling, steps, sgm=True)
+    elif scheduler_name == "beta":
+        sigmas = beta_scheduler(model_sampling, steps)
     else:
         logging.error("error invalid scheduler {}".format(scheduler_name))
     return sigmas

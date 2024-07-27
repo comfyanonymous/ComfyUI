@@ -1,3 +1,5 @@
+@import url("scripts/ui/menu/menu.css");
+
 :root {
 	--fg-color: #000;
 	--bg-color: #fff;
@@ -10,12 +12,24 @@
 	--border-color: #4e4e4e;
 	--tr-even-bg-color: #222;
 	--tr-odd-bg-color: #353535;
+	--primary-bg: #236692;
+	--primary-fg: #ffffff;
+	--primary-hover-bg: #3485bb;
+	--primary-hover-fg: #ffffff;
+	--content-bg: #e0e0e0;
+	--content-fg: #000;
+	--content-hover-bg: #adadad;
+	--content-hover-fg: #000;
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
 		--fg-color: #fff;
 		--bg-color: #202020;
+		--content-bg: #4e4e4e;
+		--content-fg: #fff;
+		--content-hover-bg: #222;
+		--content-hover-fg: #fff;
 	}
 }
 
@@ -26,11 +40,46 @@ body {
 	overflow: hidden;
 	background-color: var(--bg-color);
 	color: var(--fg-color);
+	grid-template-columns: auto 1fr auto;
+	grid-template-rows: auto 1fr auto;
+	min-height: -webkit-fill-available;
+	max-height: -webkit-fill-available;
+	min-width: -webkit-fill-available;
+	max-width: -webkit-fill-available;
+}
+
+.comfyui-body-top {
+	order: -5;
+	grid-column: 1/-1;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
+}
+
+.comfyui-body-left {
+	order: -4;
+	z-index: 10;
+	display: flex;
 }
 
 #graph-canvas {
 	width: 100%;
 	height: 100%;
+	order: -3;
+}
+
+.comfyui-body-right {
+	order: -2;
+	z-index: 10;
+	display: flex;
+}
+
+.comfyui-body-bottom {
+	order: -1;
+	grid-column: 1/-1;
+	z-index: 10;
+	display: flex;
+	flex-direction: column;
 }
 
 .comfy-multiline-input {
@@ -364,6 +413,41 @@ dialog::backdrop {
 	background: rgba(0, 0, 0, 0.5);
 }
 
+.comfy-dialog.comfyui-dialog.comfy-modal {
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	transform: none;
+}
+
+.comfy-dialog.comfy-modal {
+	font-family: Arial, sans-serif;
+	border-color: var(--bg-color);
+	box-shadow: none;
+  	border: 2px solid var(--border-color);
+}
+
+.comfy-dialog .comfy-modal-content {
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 10px;
+	color: var(--fg-color);
+}
+
+.comfy-dialog .comfy-modal-content h3 {
+	margin-top: 0;
+}
+
+.comfy-dialog .comfy-modal-content > p {
+	width: 100%;
+}
+
+.comfy-dialog .comfy-modal-content > .comfyui-button {
+	flex: 1;
+	justify-content: center;
+}
+
 #comfy-settings-dialog {
 	padding: 0;
 	width: 41rem;
@@ -556,4 +640,8 @@ dialog::backdrop {
 		text-align: center;
 		border-top: none;
 	}
+}
+
+audio.comfy-audio.empty-audio-widget {
+	display: none;
 }
