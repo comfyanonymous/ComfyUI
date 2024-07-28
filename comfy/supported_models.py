@@ -3,8 +3,8 @@ from . import model_base
 from . import utils
 
 from . import sd1_clip
-from . import sd2_clip
 from . import sdxl_clip
+import comfy.text_encoders.sd2_clip
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
 import comfy.text_encoders.aura_t5
@@ -101,7 +101,7 @@ class SD20(supported_models_base.BASE):
         return state_dict
 
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(sd2_clip.SD2Tokenizer, sd2_clip.SD2ClipModel)
+        return supported_models_base.ClipTarget(comfy.text_encoders.sd2_clip.SD2Tokenizer, comfy.text_encoders.sd2_clip.SD2ClipModel)
 
 class SD21UnclipL(SD20):
     unet_config = {
