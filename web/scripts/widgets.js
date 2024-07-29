@@ -245,6 +245,7 @@ function addMultilineWidget(node, name, opts, app) {
 	inputEl.className = "comfy-multiline-input";
 	inputEl.value = opts.defaultVal;
 	inputEl.placeholder = opts.placeholder || name;
+	inputEl.spellcheck = opts.spellcheck || false;
 
 	const widget = node.addDOMWidget(name, "customtext", inputEl, {
 		getValue() {
