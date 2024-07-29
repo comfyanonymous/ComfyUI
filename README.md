@@ -178,11 +178,12 @@ python -m comfy.cmd.main
 
 These packages have been adapted to be installable with `pip` and download models to the correct places:
 
+- **ELLA T5 Text Conditioning for SD1.5**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ella.git`
+- **IP Adapter**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ipadapter-plus`
 - **Extra Models like PixART E and HunYuanDiT**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-extramodels.git`.
 - **ControlNet Auxiliary Preprocessors**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git`.
-- **LayerDiffuse**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-layerdiffuse.git`.
+- **LayerDiffuse Alpha Channel Diffusion**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-layerdiffuse.git`.
 - **BRIA Background Removal**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-bria-bg-removal.git`
-- **IP Adapter**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-ipadapter-plus`
 - **Video Frame Interpolation**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-frame-interpolation`
 - **Video Helper Suite**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-helper-suite`
 - **AnimateDiff Evolved**: `pip install git+https://github.com/AppMana/appmana-comfyui-nodes-animatediff-evolved`
