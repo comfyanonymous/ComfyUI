@@ -289,6 +289,23 @@ ComfyUI LTS supports text and multi-modal LLM models from the `transformers` eco
 
 In this example, LLAVA-NEXT (LLAVA 1.6) is prompted to describe an image.
 
+# Video Workflows
+
+ComfyUI LTS supports video workflows with AnimateDiff Evolved.
+
+First, install this package using the [Installation Instructions](#installing).
+
+Then, install the custom nodes packages that support video creation workflows:
+
+```shell
+pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-frame-interpolation
+pip install git+https://github.com/AppMana/appmana-comfyui-nodes-video-helper-suite
+pip install git+https://github.com/AppMana/appmana-comfyui-nodes-animatediff-evolved
+pip install git+https://github.com/AppMana/appmana-comfyui-nodes-controlnet-aux.git
+```
+
+Start creating an AnimateDiff workflow. When using these packages, the appropriate models will download automatically.
+
 # Custom Nodes
 
 Custom Nodes can be added to ComfyUI by copying and pasting Python files into your `./custom_nodes` directory.
