@@ -752,6 +752,7 @@ from comfy.client.embedded_comfy_client import EmbeddedComfyClient
 
 async with EmbeddedComfyClient() as client:
     # This will run your prompt
+    # To get the prompt JSON, visit the ComfyUI interface, design your workflow and click **Save (API Format)**. This JSON is what you will use as your workflow.
     outputs = await client.queue_prompt(prompt)
     # At this point, your prompt is finished and all the outputs, like saving images, have been completed.
     # Now the outputs will contain the same thing that the Web UI expresses: a file path for each output.
@@ -767,7 +768,16 @@ See [script_examples/basic_api_example.py](docs/examples/script_examples/basic_a
 
 ### Remote
 
-Start ComfyUI as a remote server, then access it via an API. This requires you to start ComfyUI somewhere. Then access it via a standardized API.
+Visit the ComfyUI interface, design your workflow and click **Save (API Format)**. This JSON is what you will use as your workflow.
+
+You can use the built-in Python client library by installing this package without its dependencies.
+
+```shell
+pip install aiohttp
+pip install --no-deps git+https://github.com/hiddenswitch/ComfyUI.git
+```
+
+Then the following idiomatic pattern is available:
 
 ```python
 from comfy.client.aio_client import AsyncRemoteComfyClient
@@ -782,9 +792,94 @@ with open("image.png", "rb") as f:
 
 See [script_examples/remote_api_example.py](docs/examples/script_examples/remote_api_example.py) for a complete example.
 
+##### REST API
+
+First, install this package using the [Installation Instructions](#installing). Then, run `comfyui`.
+
+Visit the ComfyUI interface, design your workflow and click **Save (API Format)**. This JSON is what you will use as your workflow.
+
+Then, send a request to `api/v1/prompts`. Here are some examples:
+
+**`curl`**:
+
+```shell
+curl -X POST "http://localhost:8188/api/v1/prompts" \
+     -H "Content-Type: application/json" \
+     -H "Accept: image/png" \
+     -o output.png \
+     -d '{
+       "prompt": {
+         # ... (include the rest of the workflow)
+       }
+     }'
+```
+
+**Python**:
+```python
+import requests
+
+url = "http://localhost:8188/api/v1/prompts"
+headers = {
+    "Content-Type": "application/json",
+    "Accept": "image/png"
+}
+workflow = {
+    "4": {
+        "inputs": {
+            "ckpt_name": "sd_xl_base_1.0.safetensors"
+        },
+        "class_type": "CheckpointLoaderSimple"
+    },
+    # ... (include the rest of the workflow)
+}
+
+payload = {"prompt": workflow}
+
+response = requests.post(url, json=payload, headers=headers)
+```
+
+**Javascript (Browser)**:
+
+```javascript
+async function generateImage() {
+  const prompt = "a man walking on the beach";
+  const workflow = {
+    "4": {
+      "inputs": {
+        "ckpt_name": "sd_xl_base_1.0.safetensors"
+      },
+      "class_type": "CheckpointLoaderSimple"
+    },
+    // ... (include the rest of the workflow)
+  };
+
+  const response = await fetch('http://localhost:8188/api/v1/prompts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'image/png'
+    },
+    body: JSON.stringify({ prompt: workflow })
+  });
+  
+  const blob = await response.blob();
+  const imageUrl = URL.createObjectURL(blob);
+  const img = document.createElement('img');
+  // load image into the DOM
+  img.src = imageUrl;
+  document.body.appendChild(img);
+}
+
+generateImage().catch(console.error);
+```
+
+You can use the OpenAPI specification file to learn more about all the supported API methods.
+
 ### OpenAPI Spec for Vanilla API, Typed Clients
 
-Use a typed, generated API client for your programming language and access ComfyUI server remotely as an API. You can generate the client from [comfy/api/openapi.yaml](comfy/api/openapi.yaml).
+Use a typed, generated API client for your programming language and access ComfyUI server remotely as an API.
+
+You can generate the client from [comfy/api/openapi.yaml](comfy/api/openapi.yaml).
 
 ### RabbitMQ / AMQP Support
 

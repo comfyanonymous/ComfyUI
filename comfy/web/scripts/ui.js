@@ -575,7 +575,7 @@ export class ComfyUI {
 			$el("button", {
 				id: "comfy-dev-save-api-button",
 				textContent: "Save (API Format)",
-				style: {width: "100%", display: "none"},
+				style: {width: "100%", display: "flex"},
 				onclick: () => {
 					let filename = "workflow_api.json";
 					if (promptFilename.value) {
@@ -639,7 +639,7 @@ export class ComfyUI {
 			name: "Enable Dev mode Options",
 			type: "boolean",
 			defaultValue: false,
-			onChange: function(value) { document.getElementById("comfy-dev-save-api-button").style.display = value ? "flex" : "none"},
+			onChange: function(value) {},
 		});
 
 		this.restoreMenuPosition = dragElement(this.menuContainer, this.settings);
