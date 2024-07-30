@@ -105,15 +105,16 @@ export class ChangeTracker {
 		window.addEventListener(
 			"keydown",
 			(e) => {
+				const activeEl = document.activeElement;
 				requestAnimationFrame(async () => {
-					let activeEl;
+					let bindInputEl;
 					// If we are auto queue in change mode then we do want to trigger on inputs
 					if (!app.ui.autoQueueEnabled || app.ui.autoQueueMode === "instant") {
-						activeEl = document.activeElement;
 						if (activeEl?.tagName === "INPUT" || activeEl?.["type"] === "textarea") {
 							// Ignore events on inputs, they have their native history
 							return;
 						}
+						bindInputEl = activeEl;
 					}
 
 					keyIgnored = e.key === "Control" || e.key === "Shift" || e.key === "Alt" || e.key === "Meta";
@@ -123,7 +124,7 @@ export class ChangeTracker {
 					if (await changeTracker().undoRedo(e)) return;
 
 					// If our active element is some type of input then handle changes after they're done
-					if (ChangeTracker.bindInput(activeEl)) return;
+					if (ChangeTracker.bindInput(bindInputEl)) return;
 					changeTracker().checkState();
 				});
 			},

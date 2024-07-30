@@ -225,8 +225,8 @@ async def main():
 def entrypoint():
     try:
         asyncio.run(main())
-    except KeyboardInterrupt as keyboard_interrupt:
-        logging.info(f"Gracefully shutting down due to {keyboard_interrupt}")
+    except KeyboardInterrupt:
+        logging.info(f"Gracefully shutting down due to KeyboardInterrupt")
 
 
 if __name__ == "__main__":

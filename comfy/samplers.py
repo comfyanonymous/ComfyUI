@@ -5,6 +5,8 @@ import collections
 from . import model_management
 import math
 import logging
+import scipy
+import numpy
 from . import sampler_helpers
 
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
@@ -314,13 +316,18 @@ def simple_scheduler(model_sampling, steps):
 def ddim_scheduler(model_sampling, steps):
     s = model_sampling
     sigs = []
-    ss = max(len(s.sigmas) // steps, 1)
     x = 1
+    if math.isclose(float(s.sigmas[x]), 0, abs_tol=0.00001):
+        steps += 1
+        sigs = []
+    else:
+        sigs = [0.0]
+
+    ss = max(len(s.sigmas) // steps, 1)
     while x < len(s.sigmas):
         sigs += [float(s.sigmas[x])]
         x += ss
     sigs = sigs[::-1]
-    sigs += [0.0]
     return torch.FloatTensor(sigs)
 
 def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
@@ -328,15 +335,34 @@ def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
     start = s.timestep(s.sigma_max)
     end = s.timestep(s.sigma_min)
 
+    append_zero = True
     if sgm:
         timesteps = torch.linspace(start, end, steps + 1)[:-1]
     else:
+        if math.isclose(float(s.sigma(end)), 0, abs_tol=0.00001):
+            steps += 1
+            append_zero = False
         timesteps = torch.linspace(start, end, steps)
 
     sigs = []
     for x in range(len(timesteps)):
         ts = timesteps[x]
-        sigs.append(s.sigma(ts))
+        sigs.append(float(s.sigma(ts)))
+
+    if append_zero:
+        sigs += [0.0]
+
+    return torch.FloatTensor(sigs)
+
+# Implemented based on: https://arxiv.org/abs/2407.12173
+def beta_scheduler(model_sampling, steps, alpha=0.6, beta=0.6):
+    total_timesteps = (len(model_sampling.sigmas) - 1)
+    ts = 1 - numpy.linspace(0, 1, steps, endpoint=False)
+    ts = numpy.rint(scipy.stats.beta.ppf(ts, alpha, beta) * total_timesteps)
+
+    sigs = []
+    for t in ts:
+        sigs += [float(model_sampling.sigmas[int(t)])]
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
@@ -709,7 +735,7 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
 
 def calculate_sigmas(model_sampling, scheduler_name, steps):
     sigmas = None
-    
+
     if scheduler_name == "karras":
         sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     elif scheduler_name == "exponential":
@@ -722,7 +748,9 @@ def calculate_sigmas(model_sampling, scheduler_name, steps):
         sigmas = ddim_scheduler(model_sampling, steps)
     elif scheduler_name == "sgm_uniform":
         sigmas = normal_scheduler(model_sampling, steps, sgm=True)
-    
+    elif scheduler_name == "beta":
+        sigmas = beta_scheduler(model_sampling, steps)
+
     if sigmas is None:
         logging.error("error invalid scheduler {}".format(scheduler_name))
 

@@ -12,14 +12,16 @@ class T5BaseModel(sd1_clip.SDClipModel):
 
 
 class T5BaseTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None):
+    def __init__(self, *args, **kwargs):
         tokenizer_path = files.get_package_as_path("comfy.text_encoders.t5_tokenizer")
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=768, embedding_key='t5base', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=128)
 
 
 class SAT5Tokenizer(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None):
-        super().__init__(embedding_directory=embedding_directory, clip_name="t5base", tokenizer=T5BaseTokenizer)
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = dict()
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="t5base", tokenizer=T5BaseTokenizer)
 
 
 class SAT5Model(sd1_clip.SD1ClipModel):

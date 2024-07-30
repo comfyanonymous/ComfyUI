@@ -7,10 +7,13 @@ Use this instead of cli_args to import the args:
 
 It will enable command line argument parsing. If this isn't desired, you must author your own implementation of these fixes.
 """
+import importlib.util
 import logging
 import os
+import shutil
 import sys
 import warnings
+import ctypes
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -18,7 +21,7 @@ from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.semconv.resource import ResourceAttributes as ResAttrs
 
 from .. import options
@@ -44,6 +47,31 @@ if args.deterministic:
         os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+
+
+def _fix_pytorch_240():
+    """Fixes pytorch 2.4.0"""
+    torch_spec = importlib.util.find_spec("torch")
+    for folder in torch_spec.submodule_search_locations:
+        lib_folder = os.path.join(folder, "lib")
+        test_file = os.path.join(lib_folder, "fbgemm.dll")
+        dest = os.path.join(lib_folder, "libomp140.x86_64.dll")
+        if os.path.exists(dest):
+            break
+
+        with open(test_file, 'rb') as f:
+            contents = f.read()
+            # todo: dubious
+            if b"libomp140.x86_64.dll" not in contents:
+                break
+        try:
+            _ = ctypes.cdll.LoadLibrary(test_file)
+        except FileNotFoundError:
+            logging.warning("Detected pytorch version with libomp issue, trying to patch")
+            try:
+                shutil.copyfile(os.path.join(lib_folder, "libiomp5md.dll"), dest)
+            except Exception as exc_info:
+                logging.error("While trying to patch a fix for torch 2.4.0, an error occurred, which means this is unlikely to work", exc_info=exc_info)
 
 
 def _create_tracer():
@@ -79,5 +107,6 @@ def _create_tracer():
     return trace.get_tracer(args.otel_service_name)
 
 
+_fix_pytorch_240()
 tracer = _create_tracer()
 __all__ = ["args", "tracer"]

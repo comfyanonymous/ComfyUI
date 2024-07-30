@@ -6,6 +6,7 @@ import inspect
 import logging
 import sys
 import threading
+import time
 import traceback
 import typing
 from typing import List, Optional, Tuple
@@ -463,6 +464,11 @@ class PromptExecutor:
         self.status_messages = []
 
     def add_message(self, event, data, broadcast: bool):
+        data = {
+            **data,
+            # todo: use a real time library
+            "timestamp": int(time.time() * 1000),
+        }
         self.status_messages.append((event, data))
         if self.server.client_id is not None or broadcast:
             self.server.send_sync(event, data, self.server.client_id)

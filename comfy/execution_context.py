@@ -4,8 +4,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import NamedTuple
 
-from comfy.component_model.executor_types import ExecutorToClientProgress
-from comfy.distributed.server_stub import ServerStub
+from .component_model.executor_types import ExecutorToClientProgress
+from .distributed.server_stub import ServerStub
 
 _current_context = ContextVar("comfyui_execution_context")
 

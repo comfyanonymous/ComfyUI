@@ -21,12 +21,12 @@ class SDXLClipG(sd1_clip.SDClipModel):
 
 
 class SDXLClipGTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, tokenizer_path=None, embedding_directory=None):
+    def __init__(self, tokenizer_path=None, embedding_directory=None, **kwargs):
         super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g')
 
 
 class SDXLTokenizer:
-    def __init__(self, embedding_directory=None):
+    def __init__(self, embedding_directory=None, **kwargs):
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
         self.clip_g = SDXLClipGTokenizer(embedding_directory=embedding_directory)
 
@@ -38,6 +38,9 @@ class SDXLTokenizer:
 
     def untokenize(self, token_weight_pair):
         return self.clip_g.untokenize(token_weight_pair)
+
+    def state_dict(self):
+        return {}
 
     def clone(self):
         sdxl_tokenizer = copy.copy(self)
@@ -81,13 +84,13 @@ class SDXLRefinerClipModel(sd1_clip.SD1ClipModel):
 
 
 class StableCascadeClipGTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, tokenizer_path=None, embedding_directory=None):
+    def __init__(self, tokenizer_path=None, embedding_directory=None, tokenizer_data={}):
         super().__init__(tokenizer_path, pad_with_end=True, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g')
 
 
 class StableCascadeTokenizer(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None):
-        super().__init__(embedding_directory=embedding_directory, clip_name="g", tokenizer=StableCascadeClipGTokenizer)
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="g", tokenizer=StableCascadeClipGTokenizer)
 
 
 class StableCascadeClipG(sd1_clip.SDClipModel):

@@ -1,10 +1,9 @@
 from importlib import resources
 
 from comfy import sd1_clip
-from .llama_tokenizer import LLAMATokenizer
+from .spiece_tokenizer import SPieceTokenizer
 from ..text_encoders import t5
 from ..component_model.files import get_path_as_dict
-
 
 class PT5XlModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, textmodel_json_config=None):
@@ -13,14 +12,16 @@ class PT5XlModel(sd1_clip.SDClipModel):
 
 
 class PT5XlTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None):
+    def __init__(self, embedding_directory=None, **kwargs):
         tokenizer_path = resources.files("comfy.text_encoders.t5_pile_tokenizer") / "tokenizer.model"
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=2048, embedding_key='pile_t5xl', tokenizer_class=LLAMATokenizer, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=256, pad_token=1)
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=2048, embedding_key='pile_t5xl', tokenizer_class=SPieceTokenizer, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=256, pad_token=1)
 
 
 class AuraT5Tokenizer(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None):
-        super().__init__(embedding_directory=embedding_directory, clip_name="pile_t5xl", tokenizer=PT5XlTokenizer)
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = dict()
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="pile_t5xl", tokenizer=PT5XlTokenizer)
 
 
 class AuraT5Model(sd1_clip.SD1ClipModel):

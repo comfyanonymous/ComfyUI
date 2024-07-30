@@ -7,6 +7,8 @@ import numbers
 import os
 import traceback
 import zipfile
+from pathlib import Path
+
 try:
     from importlib.resources.abc import Traversable  # pylint: disable=no-name-in-module
 except ImportError:
@@ -21,7 +23,7 @@ from . import model_management
 from . import ops
 from .component_model import files
 from .component_model.files import get_path_as_dict, get_package_as_path
-from .text_encoders.llama_tokenizer import LLAMATokenizer
+from .text_encoders.spiece_tokenizer import SPieceTokenizer
 
 
 def gen_empty_tokens(special_tokens, length):
@@ -256,7 +258,9 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         if has_weights or sections == 0:
             to_encode.append(gen_empty_tokens(self.special_tokens, max_token_len))
 
-        out, pooled = self.encode(to_encode)
+        o = self.encode(to_encode)
+        out, pooled = o[:2]
+
         if pooled is not None:
             first_pooled = pooled[0:1].to(model_management.intermediate_device())
         else:
@@ -275,8 +279,20 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             output.append(z)
 
         if (len(output) == 0):
-            return out[-1:].to(model_management.intermediate_device()), first_pooled
-        return torch.cat(output, dim=-2).to(model_management.intermediate_device()), first_pooled
+            r = (out[-1:].to(model_management.intermediate_device()), first_pooled)
+        else:
+            r = (torch.cat(output, dim=-2).to(model_management.intermediate_device()), first_pooled)
+
+        if len(o) > 2:
+            extra = {}
+            for k in o[2]:
+                v = o[2][k]
+                if k == "attention_mask":
+                    v = v[:sections].flatten().unsqueeze(dim=0).to(model_management.intermediate_device())
+                extra[k] = v
+
+            r = r + (extra,)
+        return r
 
     def load_sd(self, sd):
         return self.transformer.load_state_dict(sd, strict=False)
@@ -448,19 +464,22 @@ SDTokenizerT = TypeVar('SDTokenizerT', bound='SDTokenizer')
 
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None, pad_token=None):
+    def __init__(self, tokenizer_path: torch.Tensor | bytes | bytearray | memoryview | str | Path | Traversable = None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, pad_to_max_length=True, min_length=None, pad_token=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = dict()
         if tokenizer_path is None:
             tokenizer_path = files.get_package_as_path("comfy.sd1_tokenizer")
+        if isinstance(tokenizer_path, Path):
+            tokenizer_path = str(tokenizer_path)
         if isinstance(tokenizer_path, Traversable):
             contextlib_path = importlib.resources.as_file(tokenizer_path)
             tokenizer_path = contextlib_path.__enter__()
-        tokenizer_path = str(tokenizer_path)
         if issubclass(tokenizer_class, CLIPTokenizer) and not os.path.exists(os.path.join(tokenizer_path, "tokenizer_config.json")):
             # assumes sd1_tokenizer
             tokenizer_path = get_package_as_path('comfy.sd1_tokenizer')
         self.tokenizer_class = tokenizer_class
         self.tokenizer_path = tokenizer_path
-        self.tokenizer: PreTrainedTokenizerBase | LLAMATokenizer = tokenizer_class.from_pretrained(tokenizer_path)
+        self.tokenizer: PreTrainedTokenizerBase | SPieceTokenizer = tokenizer_class.from_pretrained(tokenizer_path)
         self.max_length = max_length
         self.min_length = min_length
 
@@ -609,15 +628,17 @@ class SDTokenizer:
     def untokenize(self, token_weight_pair):
         return list(map(lambda a: (a, self.inv_vocab[a[0]]), token_weight_pair))
 
+    def state_dict(self):
+        return {}
 
 SD1TokenizerT = TypeVar("SD1TokenizerT", bound="SD1Tokenizer")
 
 
 class SD1Tokenizer:
-    def __init__(self, embedding_directory=None, clip_name="l", tokenizer=SDTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer):
         self.clip_name = clip_name
         self.clip = "clip_{}".format(self.clip_name)
-        self.sd_tokenizer = tokenizer(embedding_directory=embedding_directory)
+        self.sd_tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
 
     def tokenize_with_weights(self, text: str, return_word_ids=False):
         out = {}
@@ -640,6 +661,8 @@ class SD1Tokenizer:
         sd1_tokenizer.sd_tokenizer = self.sd_tokenizer.clone()
         return sd1_tokenizer
 
+    def state_dict(self):
+        return {}
 
 class SD1ClipModel(torch.nn.Module):
     def __init__(self, device="cpu", dtype=None, clip_name="l", clip_model=SDClipModel, textmodel_json_config=None, name=None, **kwargs):
