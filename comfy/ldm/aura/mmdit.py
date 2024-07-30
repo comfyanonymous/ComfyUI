@@ -409,7 +409,7 @@ class MMDiT(nn.Module):
         pad_h = (self.patch_size - H % self.patch_size) % self.patch_size
         pad_w = (self.patch_size - W % self.patch_size) % self.patch_size
 
-        x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode='reflect')
+        x = torch.nn.functional.pad(x, (0, pad_w, 0, pad_h), mode='circular')
         x = x.view(
             B,
             C,
