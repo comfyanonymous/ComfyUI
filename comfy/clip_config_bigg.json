@@ -5,7 +5,7 @@
   "attention_dropout": 0.0,
   "bos_token_id": 0,
   "dropout": 0.0,
-  "eos_token_id": 2,
+  "eos_token_id": 49407,
   "hidden_act": "gelu",
   "hidden_size": 1280,
   "initializer_factor": 1.0,

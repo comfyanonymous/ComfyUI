@@ -87,6 +87,7 @@ class CLIPTextModel_(torch.nn.Module):
         heads = config_dict["num_attention_heads"]
         intermediate_size = config_dict["intermediate_size"]
         intermediate_activation = config_dict["hidden_act"]
+        self.eos_token_id = config_dict["eos_token_id"]
 
         super().__init__()
         self.embeddings = CLIPEmbeddings(embed_dim, dtype=torch.float32, device=device)
@@ -111,7 +112,7 @@ class CLIPTextModel_(torch.nn.Module):
         if i is not None and final_layer_norm_intermediate:
             i = self.final_layer_norm(i)
 
-        pooled_output = x[torch.arange(x.shape[0], device=x.device), input_tokens.to(dtype=torch.int, device=x.device).argmax(dim=-1),]
+        pooled_output = x[torch.arange(x.shape[0], device=x.device), (torch.round(input_tokens).to(dtype=torch.int, device=x.device) == self.eos_token_id).int().argmax(dim=-1),]
         return x, i, pooled_output
 
 class CLIPTextModel(torch.nn.Module):
