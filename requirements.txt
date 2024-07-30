@@ -59,3 +59,4 @@ soundfile
 watchdog
 PySoundFile
 networkx>=2.6.3
+joblib
