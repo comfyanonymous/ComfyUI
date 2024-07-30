@@ -59,19 +59,22 @@ def _fix_pytorch_240():
         if os.path.exists(dest):
             break
 
-        with open(test_file, 'rb') as f:
-            contents = f.read()
-            # todo: dubious
-            if b"libomp140.x86_64.dll" not in contents:
-                break
         try:
-            _ = ctypes.cdll.LoadLibrary(test_file)
-        except FileNotFoundError:
-            logging.warning("Detected pytorch version with libomp issue, trying to patch")
+            with open(test_file, 'rb') as f:
+                contents = f.read()
+                # todo: dubious
+                if b"libomp140.x86_64.dll" not in contents:
+                    break
             try:
-                shutil.copyfile(os.path.join(lib_folder, "libiomp5md.dll"), dest)
-            except Exception as exc_info:
-                logging.error("While trying to patch a fix for torch 2.4.0, an error occurred, which means this is unlikely to work", exc_info=exc_info)
+                _ = ctypes.cdll.LoadLibrary(test_file)
+            except FileNotFoundError:
+                logging.warning("Detected pytorch version with libomp issue, trying to patch")
+                try:
+                    shutil.copyfile(os.path.join(lib_folder, "libiomp5md.dll"), dest)
+                except Exception as exc_info:
+                    logging.error("While trying to patch a fix for torch 2.4.0, an error occurred, which means this is unlikely to work", exc_info=exc_info)
+        except:
+            pass
 
 
 def _create_tracer():
