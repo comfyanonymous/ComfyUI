@@ -31,7 +31,7 @@ class SPieceTokenizer:
         return self._vocab
 
     def __call__(self, string):
-        out = self.tokenizer.encode(string)
+        out = self.tokenizer.encode(string)  # pylint: disable=no-member
         return {"input_ids": out}
 
     def serialize_model(self):
