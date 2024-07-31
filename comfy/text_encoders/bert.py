@@ -1,5 +1,6 @@
 import torch
 from comfy.ldm.modules.attention import optimized_attention_for_device
+import comfy.ops
 
 class BertAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):
@@ -86,19 +87,19 @@ class BertEncoder(torch.nn.Module):
 class BertEmbeddings(torch.nn.Module):
     def __init__(self, vocab_size, max_position_embeddings, type_vocab_size, pad_token_id, embed_dim, layer_norm_eps, dtype, device, operations):
         super().__init__()
-        self.word_embeddings = torch.nn.Embedding(vocab_size, embed_dim, padding_idx=pad_token_id, dtype=dtype, device=device)
-        self.position_embeddings = torch.nn.Embedding(max_position_embeddings, embed_dim, dtype=dtype, device=device)
-        self.token_type_embeddings = torch.nn.Embedding(type_vocab_size, embed_dim, dtype=dtype, device=device)
+        self.word_embeddings = operations.Embedding(vocab_size, embed_dim, padding_idx=pad_token_id, dtype=dtype, device=device)
+        self.position_embeddings = operations.Embedding(max_position_embeddings, embed_dim, dtype=dtype, device=device)
+        self.token_type_embeddings = operations.Embedding(type_vocab_size, embed_dim, dtype=dtype, device=device)
 
         self.LayerNorm = operations.LayerNorm(embed_dim, eps=layer_norm_eps, dtype=dtype, device=device)
 
-    def forward(self, input_tokens, token_type_ids=None):
-        x = self.word_embeddings(input_tokens)
-        x += self.position_embeddings.weight[:x.shape[1]]
+    def forward(self, input_tokens, token_type_ids=None, dtype=None):
+        x = self.word_embeddings(input_tokens, out_dtype=dtype)
+        x += comfy.ops.cast_to_input(self.position_embeddings.weight[:x.shape[1]], x)
         if token_type_ids is not None:
-            x += self.token_type_embeddings(token_type_ids)
+            x += self.token_type_embeddings(token_type_ids, out_dtype=x.dtype)
         else:
-            x += self.token_type_embeddings.weight[0]
+            x += comfy.ops.cast_to_input(self.token_type_embeddings.weight[0], x)
         x = self.LayerNorm(x)
         return x
 
@@ -112,8 +113,8 @@ class BertModel_(torch.nn.Module):
         self.embeddings = BertEmbeddings(config_dict["vocab_size"], config_dict["max_position_embeddings"], config_dict["type_vocab_size"], config_dict["pad_token_id"], embed_dim, layer_norm_eps, dtype, device, operations)
         self.encoder = BertEncoder(config_dict["num_hidden_layers"], embed_dim, config_dict["intermediate_size"], config_dict["num_attention_heads"], layer_norm_eps, dtype, device, operations)
 
-    def forward(self, input_tokens, attention_mask=None, intermediate_output=None, final_layer_norm_intermediate=True):
-        x = self.embeddings(input_tokens)
+    def forward(self, input_tokens, attention_mask=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None):
+        x = self.embeddings(input_tokens, dtype=dtype)
         mask = None
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
